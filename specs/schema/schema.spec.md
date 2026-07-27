@@ -1,6 +1,6 @@
 ---
 module: schema
-version: 3
+version: 4
 status: stable
 files:
   - src/schema.rs
@@ -13,7 +13,7 @@ depends_on: []
 
 ## Purpose
 
-Parses SQL schema files (migrations) and spec markdown to build table/column maps for bidirectional validation. Replays CREATE TABLE, ALTER TABLE, DROP TABLE, and RENAME statements in file-sorted order to produce the current schema state. Also extracts column definitions from spec `### Schema` sections for comparison.
+Parses SQL schema files (migrations) and spec markdown to build table/column maps for bidirectional validation. Builds one fallible schema snapshot by replaying CREATE TABLE, ALTER TABLE, DROP TABLE, and RENAME statements in exact file and statement order. Also extracts column definitions from spec `### Schema` sections for comparison.
 
 ## Public API
 
@@ -24,6 +24,9 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 | `SchemaColumn` | A column extracted from SQL schema files — name, col_type (uppercase), nullable, has_default, is_primary_key |
 | `SchemaTable` | All columns for a single table, built by replaying migrations in order |
 | `SpecColumn` | A column documented in a spec's `### Schema` section — name and raw col_type |
+| `SchemaErrorKind` | Stable category for schema directory, file, malformed-statement, missing-object, and collision failures |
+| `SchemaError` | Path- and source-position-aware schema failure with kind, path, line, column, and truthful message |
+| `SchemaSnapshot` | Canonical current table map plus table identities retired by DROP or RENAME |
 
 ### Exported SchemaTable Functions
 
@@ -35,36 +38,44 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `build_schema` | `schema_dir: &Path` | `HashMap<String, SchemaTable>` | Build a complete schema map from SQL/migration files in the given directory, sorted by filename |
-| `schema_read_errors` | `schema_dir: &Path` | `Vec<String>` | Error message for each schema/migration file that exists but cannot be read as UTF-8, plus one for a `schema_dir` that exists but cannot be enumerated (unreadable, or a file rather than a directory), so the validation gate can fail loud instead of silently under-validating (`build_schema` skips such files / returns empty) |
+| `canonicalize_table_name` | `raw: &str` | `Result<String, String>` | Parse qualified table-name segments, unescape ANSI/backtick/bracket quoting, and normalize case without conflating malformed input |
+| `canonical_table_leaf` | `raw: &str` | `Result<String, String>` | Return the canonical final segment for unqualified matching without splitting dots contained inside quoted identifiers |
+| `normalize_table_name` | `raw: &str` | `String` | Compatibility normalization for validator restacking; fallible replay uses `canonicalize_table_name` |
+| `build_schema_snapshot` | `schema_dir: &Path` | `Result<SchemaSnapshot, SchemaError>` | Build the authoritative snapshot by replaying supported DDL in filename and byte order; fail on directory, entry, UTF-8, malformed-DDL, missing-object, and collision errors |
+| `build_schema` | `schema_dir: &Path` | `HashMap<String, SchemaTable>` | Compatibility map wrapper; returns an empty map on snapshot failure and must not be used alone for validation |
+| `build_schema_with_retired` | `schema_dir: &Path` | `(HashMap<String, SchemaTable>, HashSet<String>)` | Compatibility wrapper exposing retired table identities; returns empty collections on snapshot failure |
+| `schema_read_errors` | `schema_dir: &Path` | `Vec<String>` | Compatibility diagnostics adapter that renders the authoritative snapshot failure, including missing/unreadable paths and malformed or inconsistent DDL |
 | `parse_spec_schema` | `body: &str` | `HashMap<String, Vec<SpecColumn>>` | Extract column definitions from a spec's `### Schema` section(s) |
 
 ## Invariants
 
-1. `build_schema` replays migrations in filename-sorted order for deterministic results
-2. `build_schema` returns an empty map if the directory does not exist
-2a. A schema/migration file that exists but cannot be read as UTF-8 is silently skipped by `build_schema` (its tables/columns vanish); `schema_read_errors` reports each such file so the validation gate surfaces it as a hard error rather than letting an all-unreadable schema silently disable `db_tables`/column checks
-2b. A `schema_dir` that exists but cannot be enumerated by `read_dir` — because it is unreadable or is a file rather than a directory — is itself a hard error from `schema_read_errors` (not a silent empty result): the same fail-open would otherwise leave schema discovery empty and skip `db_tables`/column checks with no signal
+1. `build_schema_snapshot` sorts migration files and replays supported DDL in byte order within each file
+2. A configured missing/unreadable schema directory, unreadable entry/file, malformed supported DDL, missing referenced object, or canonical identity collision returns `SchemaError`; it never produces a successful empty snapshot
+2a. `SchemaError` identifies the source path and, for SQL replay failures, the one-based line and column
+2b. `build_schema` and `build_schema_with_retired` are compatibility-only lossy wrappers; validation consumers use `build_schema_snapshot` or surface `schema_read_errors`
 3. Column types are normalized to uppercase (e.g. "integer" becomes "INTEGER")
 4. ALTER TABLE ADD COLUMN is idempotent — duplicate column names are skipped
 5. DROP TABLE removes the table and all its columns from the map
 6. ALTER TABLE RENAME TO moves all columns to the new table name
 7. ALTER TABLE RENAME COLUMN preserves all column attributes except the name
-8. CREATE TABLE replaces any prior definition of the same table (handles CREATE OR REPLACE semantics)
+8. Plain CREATE TABLE fails on a canonical duplicate, IF NOT EXISTS preserves the existing table, and OR REPLACE explicitly replaces it
+8a. RENAME fails without mutation when its source is missing or its canonical target already exists; DROP fails on a missing table unless IF EXISTS is present
+8b. Recreating a dropped or renamed-away table clears that identity from the retired set
 9. Table-level constraints (PRIMARY KEY, UNIQUE, CHECK, FOREIGN KEY, CONSTRAINT) are skipped during column parsing
-10. String literals with escaped quotes are handled correctly during parenthesis matching
-11. SQL line comments (`--`) are skipped during parenthesis matching
+10. String literals, quoted identifiers, and escaped quotes do not create false statement boundaries or DDL matches
+11. SQL line and block comments are excluded from DDL discovery and parenthesis matching
 12. `parse_spec_schema` supports two formats: inline (`### Schema: table_name`) and multi-table (`### Schema` with `#### table_name` sub-headers)
 13. `parse_spec_schema` skips markdown table header rows (column named "column")
 14. Only files with recognized SQL extensions are processed (sql, ts, js, mjs, cjs, swift, kt, kts, java, py, rb, go, rs, cs, dart, php)
+15. ANSI double-quoted, backtick-quoted, bracket-quoted, mixed-case, and qualified table references share one canonical identity parser; dots inside quoted segments remain distinct from qualification separators
 
 ## Behavioral Examples
 
 ### Scenario: Build schema from migrations
 
 - **Given** a directory with `001_create.sql` containing `CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL)` and `002_add_col.sql` containing `ALTER TABLE items ADD COLUMN price REAL DEFAULT 0`
-- **When** `build_schema(dir)` is called
-- **Then** returns a map with "items" having 3 columns: id (INTEGER, PK), name (TEXT, NOT NULL), price (REAL, DEFAULT)
+- **When** `build_schema_snapshot(dir)` is called
+- **Then** returns a snapshot whose "items" table has 3 columns: id (INTEGER, PK), name (TEXT, NOT NULL), price (REAL, DEFAULT)
 
 ### Scenario: DROP TABLE removes table
 
@@ -90,20 +101,23 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 - **When** `parse_spec_schema(body)` is called
 - **Then** returns a map with both "messages" and "users" entries
 
-### Scenario: Nonexistent directory
+### Scenario: Malformed migration fails loud
 
-- **Given** a path that does not exist
-- **When** `build_schema(path)` is called
-- **Then** returns an empty HashMap
+- **Given** `002_broken.sql` contains `CREATE TABLE broken (id INTEGER;`
+- **When** `build_schema_snapshot(path)` is called
+- **Then** it returns a `MalformedStatement` error naming the file and the CREATE statement's line and column
 
 ## Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
-| Schema directory does not exist | `build_schema` returns empty map; `schema_read_errors` returns no errors (schema simply not configured) |
-| Schema directory exists but cannot be enumerated (unreadable, or a file not a directory) | `schema_read_errors` returns a hard error naming the directory (fail-loud); `build_schema` returns an empty map |
-| File cannot be read | `build_schema` silently skips the file; `schema_read_errors` flags it as a hard error |
-| Unmatched parentheses in CREATE TABLE | `extract_paren_body` returns `None`, table is skipped |
+| Configured schema directory does not exist | `build_schema_snapshot` returns `MissingDirectory`; compatibility `build_schema` returns an empty map but `schema_read_errors` exposes the failure |
+| Schema directory cannot be enumerated | `build_schema_snapshot` returns `ReadDirectory` or `ReadEntry` naming the path |
+| File cannot be read as UTF-8 | `build_schema_snapshot` returns `ReadFile` naming the migration |
+| Unmatched parentheses or malformed supported DDL | Returns `MalformedStatement` with path, line, column, and statement preview |
+| Plain CREATE collides after canonicalization | Returns `DuplicateTable`; the existing table remains unchanged |
+| RENAME target collides after canonicalization | Returns `RenameCollision`; source and target remain unchanged |
+| DROP/RENAME source is missing | Returns `MissingTable`, except `DROP TABLE IF EXISTS` is a no-op |
 | No `### Schema` section in spec | `parse_spec_schema` returns empty map |
 | Column name looks like SQL keyword | Column is skipped by `is_sql_keyword` check |
 
@@ -119,14 +133,15 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 
 | Module | What is used |
 |--------|-------------|
-| validator | `build_schema`, `parse_spec_schema`, `SchemaTable` for column validation |
-| mcp | `build_schema` for schema-aware validation |
-| main | `build_schema`, `SchemaTable` for CLI schema loading |
+| validator | `build_schema_snapshot`, `canonicalize_table_name`, `canonical_table_leaf`, `parse_spec_schema`, `SchemaSnapshot`, and `SchemaTable` for existence and column validation |
+| mcp | `build_schema_snapshot` for schema-aware validation |
+| main | `build_schema_snapshot`, `SchemaError`, and `SchemaTable` for CLI schema loading |
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | Added one fallible ordered schema snapshot, exact within-file DDL replay, canonical quoted/qualified identities, collision-safe mutation, and path/line diagnostics for malformed or unreadable migrations |
 | 2026-07-06 | `schema_read_errors` now also fails loud when `schema_dir` exists but cannot be enumerated by `read_dir` (unreadable, or a file not a directory) — closing the same fail-open; added invariant 2b, updated the API row and Error Cases table |
 | 2026-03-29 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

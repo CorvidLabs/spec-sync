@@ -15,6 +15,10 @@ spec: validator.spec.md
 | `tests/integration.rs` | cargo test --test integration invalid_frontmatter_reports_error | End-to-end fixture: `invalid_frontmatter_reports_error` |
 | `tests/integration.rs` | cargo test --test integration missing_spec_dir_exits_cleanly | End-to-end fixture: `missing_spec_dir_exits_cleanly` |
 | `tests/integration.rs` | cargo test --test integration missing_required_sections_reports_error | End-to-end fixture: `missing_required_sections_reports_error` |
+| `src/validator.rs` | `fledge run test -- validator::tests::test_validate_local_dependency` | Absolute/traversal/missing/canonical bare-module verdicts |
+| `src/validator.rs` | `fledge run test -- validator::tests::test_load_schema_validation` | One fallible snapshot and positioned replay diagnostics |
+| `tests/integration.rs` | `fledge run test -- --test integration check::hostile_frontmatter_shapes_fail_loudly_in_json` | Duplicate/type/shape/garbage diagnostics remain machine-readable |
+| `tests/integration.rs` | `fledge run test -- --test integration commands::check_deps_and_resolve_share_confined_dependency_verdicts` | Three command surfaces report the same confined verdict |
 
 ## Behavioral Verification
 
@@ -38,6 +42,8 @@ spec: validator.spec.md
 | Static HTML mapped or unmapped | Coverage denominator remains one and a 100% gate distinguishes `1/1` from `0/1` | Keep CLI fixtures for both cases |
 | Generated companion marker | Warning includes artifact path and source line; strict mode fails | Cover every supported artifact plus fenced and similar-prose negatives |
 | Built-in design markers | Layout, Components, Tokens, and Assets placeholders each produce a distinct warning | Keep the generated template lines and validator marker table in parity |
+| Malformed remote lookalike | Treated as a local path and rejected by confinement | Keep unit and three-command integration assertions |
+| Schema replay failure | One project-level hard error, no empty-set success | Keep loader and CLI schema fixtures |
 
 ## Reviewer Checklist
 

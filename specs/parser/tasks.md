@@ -20,11 +20,15 @@ spec: parser.spec.md
 - [x] Sub-table skipping (Methods, Constructor, Properties)
 - [x] Required section presence checking
 - [x] Symbol deduplication with order preservation
+- [x] Reject duplicate frontmatter keys with offending-line diagnostics
+- [x] Parse flow-style string lists and reject malformed list shapes
+- [x] Warn on non-numeric versions, scalar list fields, and colon-less garbage
+- [x] Tolerate a leading UTF-8 BOM
 
 ## Gaps
 
 - YAML parsing only handles the subset used in specs — nested objects, anchors/aliases, and flow mappings are unsupported
-- No validation of frontmatter field types (e.g., `version` as a number vs string)
+- Full YAML typing remains out of scope; the supported flat subset has explicit shape diagnostics
 
 ## Review Status
 

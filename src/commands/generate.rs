@@ -7,11 +7,9 @@ use crate::generator::{
 };
 use crate::output::{print_coverage_line, print_coverage_report, print_summary};
 use crate::types;
-use crate::validator::{compute_coverage, get_schema_table_names};
+use crate::validator::{compute_coverage, load_schema_validation};
 
-use super::{
-    build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
-};
+use super::{compute_exit_code, exit_with_status, load_and_discover, run_validation};
 
 #[allow(clippy::too_many_arguments)]
 pub fn cmd_generate(
@@ -52,8 +50,7 @@ fn cmd_generate_all(
     } else {
         config.enforcement
     });
-    let schema_tables = get_schema_table_names(root, &config);
-    let schema_columns = build_schema_columns(root, &config);
+    let schema = load_schema_validation(root, &config);
     let ignore_rules = crate::ignore::IgnoreRules::default();
 
     let (mut total_errors, mut total_warnings, mut passed, mut total) = if spec_files.is_empty() {
@@ -68,8 +65,7 @@ fn cmd_generate_all(
             root,
             &spec_files,
             &spec_files,
-            &schema_tables,
-            &schema_columns,
+            &schema,
             &config,
             json,
             false,
@@ -93,14 +89,12 @@ fn cmd_generate_all(
         let (total_errors, total_warnings) = if spec_files.is_empty() {
             (0, 0)
         } else {
-            let schema_tables = get_schema_table_names(root, &config);
-            let schema_columns = build_schema_columns(root, &config);
+            let schema = load_schema_validation(root, &config);
             let (te, tw, _, _, _, _, _) = run_validation(
                 root,
                 &spec_files,
                 &spec_files,
-                &schema_tables,
-                &schema_columns,
+                &schema,
                 &config,
                 true,
                 false,
@@ -153,16 +147,14 @@ fn cmd_generate_all(
 
         // Recompute coverage and validation now that new specs exist
         let (config, spec_files) = load_and_discover(root, true);
-        let schema_tables = get_schema_table_names(root, &config);
-        let schema_columns = build_schema_columns(root, &config);
+        let schema = load_schema_validation(root, &config);
         coverage = compute_coverage(root, &spec_files, &config);
         if !spec_files.is_empty() {
             let (te, tw, p, t, _, _, _) = run_validation(
                 root,
                 &spec_files,
                 &spec_files,
-                &schema_tables,
-                &schema_columns,
+                &schema,
                 &config,
                 json,
                 false,
@@ -258,15 +250,13 @@ fn cmd_generate_batch(
         let (total_errors, total_warnings) = if spec_files.is_empty() {
             (0, 0)
         } else {
-            let schema_tables = get_schema_table_names(root, &config);
-            let schema_columns = build_schema_columns(root, &config);
+            let schema = load_schema_validation(root, &config);
             let ignore_rules = crate::ignore::IgnoreRules::default();
             let (te, tw, _, _, _, _, _) = run_validation(
                 root,
                 &spec_files,
                 &spec_files,
-                &schema_tables,
-                &schema_columns,
+                &schema,
                 &config,
                 true,
                 false,
@@ -345,15 +335,13 @@ fn cmd_generate_batch(
     let coverage = compute_coverage(root, &spec_files, &config);
     print_coverage_line(&coverage);
 
-    let schema_tables = get_schema_table_names(root, &config);
-    let schema_columns = build_schema_columns(root, &config);
+    let schema = load_schema_validation(root, &config);
     let ignore_rules = crate::ignore::IgnoreRules::default();
     let (total_errors, total_warnings, passed, total, _, _, _) = run_validation(
         root,
         &spec_files,
         &spec_files,
-        &schema_tables,
-        &schema_columns,
+        &schema,
         &config,
         true, // collect
         false,

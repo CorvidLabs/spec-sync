@@ -19,11 +19,13 @@ spec: deps.spec.md
 - `extract_imports` extracts imported module names for Rust (`use`/`mod`), TypeScript/JavaScript (`import ... from`/`require`), and Python (`import`/`from .`); unsupported languages return an empty set
 - `check_undeclared_imports` warns only when a source import matches a known spec module, is not already declared, and is not the module's own name (self-imports are never flagged)
 - `topological_sort` returns a deterministic order for a DAG and `None` when the graph contains a cycle
+- Flow-style `depends_on: [module]` declarations contribute real graph edges.
+- Every local declaration uses the validator's confined dependency verdict; malformed remote lookalikes, missing specs, traversal, absolute paths, and symlink escapes are errors rather than silently dropped edges.
 
 ## Constraints
 
 - Import extraction is regex-based (`LazyLock<Regex>`), best-effort, and does not run a real parser
-- Unreadable source files and unparseable spec frontmatter are skipped silently, not treated as errors
+- Unreadable source/spec files and checked-frontmatter errors are retained as hard graph-validation errors
 - Only Rust, TypeScript, and Python imports are analyzed; other languages contribute no import edges
 - Must not panic on malformed input — returns a populated `DepsReport` regardless
 
@@ -50,4 +52,5 @@ Acceptance Criteria
   `src/<module>/mod.rs` before undeclared-edge comparison.
 - `check_undeclared_imports` warns only when a source import matches a known spec module, is not already declared, and is not the module's own name (self-imports are never flagged)
 - `topological_sort` returns a deterministic order for a DAG and `None` when the graph contains a cycle
-
+- Flow-style `depends_on: [module]` declarations contribute real graph edges.
+- Every local declaration uses the validator's confined dependency verdict; malformed remote lookalikes, missing specs, traversal, absolute paths, and symlink escapes are errors rather than silently dropped edges.

@@ -9,6 +9,7 @@ spec: parser.spec.md
 - **Sub-table skipping**: `####` headings containing `Methods`, `Constructor`, or `Properties` inside the Public API section are skipped when extracting symbols to avoid double-counting members of a documented type. In addition, `###` subsections that are not export headers (e.g. `### API Endpoints`, `### Route Handlers`, `### Configuration`) are skipped via an `is_export_header` allowlist.
 - **Deduplication with order preservation**: Extracted symbols are deduplicated while maintaining their order of appearance in the spec.
 - **Case-sensitive section matching**: Required section names are matched exactly (e.g., `## Public API` won't match `## public api`), enforcing consistent spec formatting.
+- **Checked subset parsing**: The zero-dependency parser still accepts only the documented flat subset, but `ParsedSpec.errors`/`warnings` preserve duplicate keys, invalid list shapes, suspicious versions, and malformed lines instead of silently dropping them.
 
 ## Files to Read First
 
@@ -22,3 +23,4 @@ Fully implemented. The parser is the most heavily depended-on module after types
 
 - The `parse_frontmatter()` function returns both the parsed `Frontmatter` struct and the body text (everything after the closing `---`). This avoids re-reading the file for section analysis.
 - Frontmatter fields like `files`, `db_tables`, and `depends_on` support both inline array syntax (`[a, b]`) and multi-line YAML list syntax (`- a\n- b`).
+- Duplicate keys remain diagnosable even though parsing continues to accumulate other findings; validator failure is therefore independent of which duplicate value appeared last.

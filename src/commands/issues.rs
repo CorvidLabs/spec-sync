@@ -7,9 +7,9 @@ use crate::config::load_config;
 use crate::github;
 use crate::parser;
 use crate::types;
-use crate::validator::{find_spec_files, get_schema_table_names};
+use crate::validator::{find_spec_files, load_schema_validation};
 
-use super::{build_schema_columns, create_drift_issues, run_validation};
+use super::{create_drift_issues, run_validation};
 
 pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
     let config = load_config(root);
@@ -126,15 +126,13 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
 
     // If --create, also run validation and create issues for drift
     if create {
-        let schema_tables = get_schema_table_names(root, &config);
-        let schema_columns = build_schema_columns(root, &config);
+        let schema = load_schema_validation(root, &config);
         let ignore_rules = crate::ignore::IgnoreRules::default();
         let (_, _, _, _, all_errors, _, _) = run_validation(
             root,
             &spec_files,
             &spec_files,
-            &schema_tables,
-            &schema_columns,
+            &schema,
             &config,
             true,
             false,

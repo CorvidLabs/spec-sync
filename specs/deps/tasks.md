@@ -21,6 +21,9 @@ spec: deps.spec.md
 - [x] Skip cross-project refs during local validation
 - [x] Inline unit tests for graph build, validation, cycles, import extraction, and topo sort
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
+- [x] Count flow-style dependency declarations as graph edges
+- [x] Share confined missing/escape/symlink verdicts with check and resolve
+- [x] Fail loud on unreadable specs and declared source files
 
 ## Open
 

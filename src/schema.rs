@@ -1,11 +1,12 @@
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 /// A column extracted from SQL schema files.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaColumn {
     pub name: String,
     /// Normalised to uppercase (e.g. "INTEGER", "TEXT").
@@ -16,7 +17,7 @@ pub struct SchemaColumn {
 }
 
 /// All columns for a single table, built by replaying migrations in order.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SchemaTable {
     pub columns: Vec<SchemaColumn>,
 }
@@ -29,36 +30,307 @@ impl SchemaTable {
 }
 
 /// A column documented in a spec's ### Schema section.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpecColumn {
     pub name: String,
     /// Raw type string from the spec (e.g. "INTEGER", "TEXT").
     pub col_type: String,
 }
 
+/// Stable categories for schema-loading and replay failures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaErrorKind {
+    MissingDirectory,
+    ReadDirectory,
+    ReadEntry,
+    ReadFile,
+    MalformedStatement,
+    MissingTable,
+    DuplicateTable,
+    RenameCollision,
+    MissingColumn,
+    DuplicateColumn,
+}
+
+/// A path- and source-position-aware schema loading or replay failure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaError {
+    pub kind: SchemaErrorKind,
+    pub path: PathBuf,
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
+}
+
+impl fmt::Display for SchemaError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.line == 0 {
+            write!(formatter, "{}: {}", self.path.display(), self.message)
+        } else {
+            write!(
+                formatter,
+                "{}:{}:{}: {}",
+                self.path.display(),
+                self.line,
+                self.column,
+                self.message
+            )
+        }
+    }
+}
+
+impl std::error::Error for SchemaError {}
+
+impl SchemaError {
+    fn for_path(kind: SchemaErrorKind, path: &Path, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            path: path.to_path_buf(),
+            line: 0,
+            column: 0,
+            message: message.into(),
+        }
+    }
+
+    fn at(
+        kind: SchemaErrorKind,
+        path: &Path,
+        sql: &str,
+        offset: usize,
+        message: impl Into<String>,
+    ) -> Self {
+        let bounded_offset = offset.min(sql.len());
+        let before = &sql[..bounded_offset];
+        let line = before.bytes().filter(|byte| *byte == b'\n').count() + 1;
+        let column = before
+            .rsplit_once('\n')
+            .map(|(_, tail)| tail.chars().count() + 1)
+            .unwrap_or_else(|| before.chars().count() + 1);
+
+        Self {
+            kind,
+            path: path.to_path_buf(),
+            line,
+            column,
+            message: message.into(),
+        }
+    }
+}
+
+/// The current canonical schema state after deterministic migration replay.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SchemaSnapshot {
+    pub tables: HashMap<String, SchemaTable>,
+    pub retired_tables: HashSet<String>,
+}
+
 // ─── SQL Parsing ─────────────────────────────────────────────────────────
 
+/// One SQL identifier segment: ANSI double quotes, MySQL backticks, SQL Server
+/// brackets, or a conservative bare identifier.
+const IDENTIFIER_SEGMENT: &str =
+    r#"(?:"(?:[^"]|"")+"|`(?:[^`]|``)+`|\[(?:[^\]]|\]\])+\]|[A-Za-z_][A-Za-z0-9_$]*)"#;
+
+fn schema_regex(pattern: &str) -> Regex {
+    let qualified_name = format!("{IDENTIFIER_SEGMENT}(?:\\s*\\.\\s*{IDENTIFIER_SEGMENT})*");
+    let expanded = pattern
+        .replace("{NAME}", &qualified_name)
+        .replace("{IDENT}", IDENTIFIER_SEGMENT);
+    Regex::new(&expanded).expect("static schema regex must compile")
+}
+
+static DDL_START_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)\b(?:CREATE\s+(?:OR\s+REPLACE\s+)?(?:VIRTUAL\s+)?TABLE|ALTER\s+TABLE|DROP\s+TABLE)\b",
+    )
+    .expect("static DDL start regex must compile")
+});
+
 static CREATE_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(").unwrap()
+    schema_regex(
+        r"(?is)^CREATE\s+(?P<replace>OR\s+REPLACE\s+)?TABLE\s+(?P<if_not_exists>IF\s+NOT\s+EXISTS\s+)?(?P<table>{NAME})\s*\(",
+    )
+});
+
+static CREATE_VIRTUAL_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    schema_regex(
+        r"(?is)^CREATE\s+VIRTUAL\s+TABLE\s+(?P<if_not_exists>IF\s+NOT\s+EXISTS\s+)?(?P<table>{NAME})\s+USING\s+[A-Za-z_][A-Za-z0-9_]*",
+    )
 });
 
 static ALTER_ADD_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?(\w+)\s+(\w+)").unwrap()
+    schema_regex(
+        r"(?is)^ALTER\s+TABLE\s+(?P<table>{NAME})\s+ADD\s+(?:COLUMN\s+)?(?P<column>{IDENT})\s+(?P<type>[A-Za-z_][A-Za-z0-9_]*(?:\s*\([^)]*\))?)",
+    )
 });
 
-static DROP_TABLE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)").unwrap());
+static DROP_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    schema_regex(r"(?is)^DROP\s+TABLE\s+(?P<if_exists>IF\s+EXISTS\s+)?(?P<table>{NAME})(?:\s|$)")
+});
 
 static ALTER_DROP_COL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+DROP\s+(?:COLUMN\s+)?(\w+)").unwrap()
+    schema_regex(
+        r"(?is)^ALTER\s+TABLE\s+(?P<table>{NAME})\s+DROP\s+(?:COLUMN\s+)?(?P<column>{IDENT})(?:\s|$)",
+    )
 });
 
-static ALTER_RENAME_TABLE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+TO\s+(\w+)").unwrap());
+static ALTER_RENAME_TABLE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    schema_regex(
+        r"(?is)^ALTER\s+TABLE\s+(?P<table>{NAME})\s+RENAME\s+TO\s+(?P<new_table>{NAME})(?:\s|$)",
+    )
+});
 
 static ALTER_RENAME_COL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)ALTER\s+TABLE\s+(\w+)\s+RENAME\s+(?:COLUMN\s+)?(\w+)\s+TO\s+(\w+)").unwrap()
+    schema_regex(
+        r"(?is)^ALTER\s+TABLE\s+(?P<table>{NAME})\s+RENAME\s+(?:COLUMN\s+)?(?P<column>{IDENT})\s+TO\s+(?P<new_column>{IDENT})(?:\s|$)",
+    )
 });
+
+/// Return a canonical table identity by parsing qualified identifier segments,
+/// unescaping each supported quoting style, and applying Unicode lowercase.
+pub fn canonicalize_table_name(raw: &str) -> Result<String, String> {
+    let segments = split_table_identifier_segments(raw)?;
+    let canonical_segments = segments
+        .iter()
+        .map(|segment| normalize_identifier_segment(segment))
+        .map(|result| result.map(|segment| render_canonical_table_segment(&segment)))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(canonical_segments.join("."))
+}
+
+/// Return the canonical final identifier segment of a qualified table name.
+/// Validator code uses this for unqualified declarations instead of splitting
+/// on `.`, which would corrupt a quoted identifier that itself contains a dot.
+#[allow(dead_code)] // Consumed by the validator restack built on this schema slice.
+pub fn canonical_table_leaf(raw: &str) -> Result<String, String> {
+    let segments = split_table_identifier_segments(raw)?;
+    let last = segments
+        .last()
+        .ok_or_else(|| format!("table identifier `{raw}` has no segments"))?;
+    normalize_identifier_segment(last).map(|segment| render_canonical_table_segment(&segment))
+}
+
+fn split_table_identifier_segments(raw: &str) -> Result<Vec<String>, String> {
+    let mut segments = Vec::new();
+    let mut current = String::new();
+    let mut quote: Option<char> = None;
+    let mut characters = raw.chars().peekable();
+
+    while let Some(character) = characters.next() {
+        match quote {
+            Some('"') if character == '"' => {
+                current.push(character);
+                if characters.peek() == Some(&'"') {
+                    current.push(characters.next().unwrap_or('"'));
+                } else {
+                    quote = None;
+                }
+            }
+            Some('`') if character == '`' => {
+                current.push(character);
+                if characters.peek() == Some(&'`') {
+                    current.push(characters.next().unwrap_or('`'));
+                } else {
+                    quote = None;
+                }
+            }
+            Some(']') if character == ']' => {
+                current.push(character);
+                if characters.peek() == Some(&']') {
+                    current.push(characters.next().unwrap_or(']'));
+                } else {
+                    quote = None;
+                }
+            }
+            Some(_) => current.push(character),
+            None if character == '.' => {
+                if current.trim().is_empty() {
+                    return Err(format!("empty table identifier segment in `{raw}`"));
+                }
+                segments.push(std::mem::take(&mut current));
+            }
+            None if character == '"' || character == '`' => {
+                quote = Some(character);
+                current.push(character);
+            }
+            None if character == '[' => {
+                quote = Some(']');
+                current.push(character);
+            }
+            None => current.push(character),
+        }
+    }
+
+    if quote.is_some() {
+        return Err(format!("unterminated quoted table identifier `{raw}`"));
+    }
+    if current.trim().is_empty() {
+        return Err(format!("empty table identifier segment in `{raw}`"));
+    }
+    segments.push(current);
+    Ok(segments)
+}
+
+fn render_canonical_table_segment(segment: &str) -> String {
+    if is_bare_identifier(segment) {
+        segment.to_string()
+    } else {
+        format!("\"{}\"", segment.replace('"', "\"\""))
+    }
+}
+
+fn normalize_identifier_segment(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("identifier segment is empty".to_string());
+    }
+
+    let unquoted = if let Some(inner) = trimmed
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+    {
+        inner.replace("\"\"", "\"")
+    } else if let Some(inner) = trimmed
+        .strip_prefix('`')
+        .and_then(|value| value.strip_suffix('`'))
+    {
+        inner.replace("``", "`")
+    } else if let Some(inner) = trimmed
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+    {
+        inner.replace("]]", "]")
+    } else {
+        if !is_bare_identifier(trimmed) {
+            return Err(format!("malformed identifier segment `{raw}`"));
+        }
+        trimmed.to_string()
+    };
+
+    if unquoted.is_empty() {
+        return Err(format!("identifier segment `{raw}` is empty"));
+    }
+    Ok(unquoted.to_lowercase())
+}
+
+fn is_bare_identifier(identifier: &str) -> bool {
+    let mut characters = identifier.chars();
+    characters
+        .next()
+        .map(|first| first == '_' || first.is_ascii_alphabetic())
+        .unwrap_or(false)
+        && characters.all(|character| {
+            character == '_' || character == '$' || character.is_ascii_alphanumeric()
+        })
+}
+
+/// Normalize a valid table reference for comparison. Invalid input is lowered
+/// without structural rewriting; fallible replay uses `canonicalize_table_name`
+/// and reports the malformed identifier instead.
+#[allow(dead_code)] // Used by the validator restack that consumes this schema slice.
+pub fn normalize_table_name(raw: &str) -> String {
+    canonicalize_table_name(raw).unwrap_or_else(|_| raw.trim().to_lowercase())
+}
 
 /// File extensions that may contain embedded SQL statements.
 const SQL_EXTENSIONS: &[&str] = &[
@@ -67,181 +339,765 @@ const SQL_EXTENSIONS: &[&str] = &[
 ];
 
 /// Build a complete schema map from SQL/migration files in the given directory.
-/// Files are sorted by name so migrations replay in order.
+/// This compatibility wrapper returns an empty map on error. Validation code
+/// must call `build_schema_snapshot` so malformed or unreadable migrations
+/// cannot become a vacuous success.
+#[allow(dead_code)] // Retained for callers outside the validation pipeline and focused compatibility tests.
 pub fn build_schema(schema_dir: &Path) -> HashMap<String, SchemaTable> {
-    let mut tables: HashMap<String, SchemaTable> = HashMap::new();
-
-    if !schema_dir.exists() {
-        return tables;
-    }
-
-    // Collect and sort files for deterministic migration ordering.
-    let mut files: Vec<_> = fs::read_dir(schema_dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .filter(|e| {
-            let ext = e
-                .path()
-                .extension()
-                .and_then(|x| x.to_str())
-                .unwrap_or("")
-                .to_string();
-            SQL_EXTENSIONS.contains(&ext.as_str())
-        })
-        .collect();
-    files.sort_by_key(|e| e.file_name());
-
-    for entry in &files {
-        let content = match fs::read_to_string(entry.path()) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
-        parse_sql_into(&content, &mut tables);
-    }
-
-    tables
+    build_schema_snapshot(schema_dir)
+        .map(|snapshot| snapshot.tables)
+        .unwrap_or_default()
 }
 
-/// Return an error message for each schema/migration file that EXISTS in
-/// `schema_dir` but could not be read as UTF-8. `build_schema` silently skips such
-/// a file (`Err(_) => continue`), which makes its tables/columns vanish and can
-/// silently disable DB validation — if every schema file is unreadable, the
-/// discovered set is empty and the `db_tables`/column checks become a no-op with
-/// no signal. The validation gate surfaces these so an unreadable migration fails
-/// loud instead of quietly weakening the guarantee. Scans the same files
-/// `build_schema` would (matching `SQL_EXTENSIONS`); returns an empty vec when the
-/// directory is absent (schema is simply not configured for this project).
-pub fn schema_read_errors(schema_dir: &Path) -> Vec<String> {
-    let mut errors = Vec::new();
-    if !schema_dir.exists() {
-        return errors;
+/// Compatibility wrapper exposing retired names to older validator code.
+/// Validation code should migrate to `build_schema_snapshot`.
+#[allow(dead_code)] // Used by the validator restack until it adopts SchemaSnapshot.
+pub fn build_schema_with_retired(
+    schema_dir: &Path,
+) -> (HashMap<String, SchemaTable>, HashSet<String>) {
+    match build_schema_snapshot(schema_dir) {
+        Ok(snapshot) => (snapshot.tables, snapshot.retired_tables),
+        Err(_) => (HashMap::new(), HashSet::new()),
     }
+}
 
-    // A `schema_dir` that exists but cannot be enumerated (unreadable, or a file
-    // rather than a directory) makes `read_dir` return `Err`. Ignoring it would be
-    // the same fail-open this function exists to close: schema discovery would come
-    // back empty and the `db_tables`/column checks would be silently skipped. Surface
-    // it as a hard error instead.
-    let read_dir = match fs::read_dir(schema_dir) {
-        Ok(read_dir) => read_dir,
-        Err(err) => {
-            errors.push(format!(
-                "Schema directory `{}` could not be read ({err}); DB schema validation would be incomplete",
-                schema_dir.display()
-            ));
-            return errors;
-        }
-    };
+/// Build one deterministic, fallible schema snapshot.
+///
+/// Files are sorted by filename and every supported DDL statement is replayed
+/// in byte order within each file. Directory, entry, UTF-8, malformed-DDL,
+/// missing-object, and canonical-name collision failures are returned instead
+/// of being collapsed into an empty schema.
+pub fn build_schema_snapshot(schema_dir: &Path) -> Result<SchemaSnapshot, SchemaError> {
+    let read_dir = fs::read_dir(schema_dir).map_err(|error| {
+        let kind = if error.kind() == std::io::ErrorKind::NotFound {
+            SchemaErrorKind::MissingDirectory
+        } else {
+            SchemaErrorKind::ReadDirectory
+        };
+        SchemaError::for_path(
+            kind,
+            schema_dir,
+            format!("schema directory could not be read: {error}"),
+        )
+    })?;
 
-    let mut files: Vec<_> = read_dir
-        .flatten()
-        .filter(|e| {
-            e.path()
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| SQL_EXTENSIONS.contains(&ext))
-                .unwrap_or(false)
-        })
-        .collect();
-    files.sort_by_key(|e| e.file_name());
-
-    for entry in &files {
+    let mut files = Vec::new();
+    for entry in read_dir {
+        let entry = entry.map_err(|error| {
+            SchemaError::for_path(
+                SchemaErrorKind::ReadEntry,
+                schema_dir,
+                format!("schema directory entry could not be read: {error}"),
+            )
+        })?;
         let path = entry.path();
-        if path.is_file() && fs::read_to_string(&path).is_err() {
-            let name = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("<unknown>");
-            errors.push(format!(
-                "Schema/migration file `{name}` could not be read as UTF-8; DB schema validation would be incomplete"
-            ));
+        let supported = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| SQL_EXTENSIONS.contains(&extension))
+            .unwrap_or(false);
+        if supported && path.is_file() {
+            files.push(path);
         }
     }
+    files.sort();
 
-    errors
+    let mut snapshot = SchemaSnapshot::default();
+    for path in files {
+        let content = fs::read_to_string(&path).map_err(|error| {
+            SchemaError::for_path(
+                SchemaErrorKind::ReadFile,
+                &path,
+                format!("schema/migration file could not be read as UTF-8: {error}"),
+            )
+        })?;
+        replay_sql(&path, &content, &mut snapshot)?;
+    }
+
+    Ok(snapshot)
+}
+
+/// Compatibility diagnostics for command paths that have not yet adopted the
+/// fallible snapshot directly.
+#[allow(dead_code)] // Retained for callers outside the validation pipeline and focused compatibility tests.
+pub fn schema_read_errors(schema_dir: &Path) -> Vec<String> {
+    match build_schema_snapshot(schema_dir) {
+        Ok(_) => Vec::new(),
+        Err(error) => vec![error.to_string()],
+    }
 }
 
 /// Parse SQL content and merge discovered tables/columns into the map.
+#[cfg(test)]
 fn parse_sql_into(sql: &str, tables: &mut HashMap<String, SchemaTable>) {
-    // Handle CREATE TABLE statements
-    for cap in CREATE_TABLE_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
-        let start = cap.get(0).unwrap().end(); // position after opening paren
+    let mut snapshot = SchemaSnapshot {
+        tables: std::mem::take(tables),
+        retired_tables: HashSet::new(),
+    };
+    if let Err(error) = replay_sql(Path::new("<test>"), sql, &mut snapshot) {
+        panic!("test SQL must replay successfully: {error}");
+    }
+    *tables = snapshot.tables;
+}
 
-        // Find matching closing paren (handles nested parens for CHECK constraints etc.)
-        if let Some(body) = extract_paren_body(sql, start) {
-            let columns = parse_column_defs(&body);
-            let entry = tables.entry(table_name).or_default();
-            // CREATE TABLE replaces any prior definition (e.g. CREATE OR REPLACE)
-            entry.columns = columns;
+#[derive(Debug)]
+enum SchemaOperation {
+    CreateTable {
+        table: String,
+        columns: Vec<SchemaColumn>,
+        if_not_exists: bool,
+        replace: bool,
+    },
+    DropTable {
+        table: String,
+        if_exists: bool,
+    },
+    RenameTable {
+        table: String,
+        new_table: String,
+    },
+    AddColumn {
+        table: String,
+        column: SchemaColumn,
+    },
+    DropColumn {
+        table: String,
+        column: String,
+    },
+    RenameColumn {
+        table: String,
+        column: String,
+        new_column: String,
+    },
+}
+
+fn replay_sql(path: &Path, sql: &str, snapshot: &mut SchemaSnapshot) -> Result<(), SchemaError> {
+    let searchable = mask_sql_comments(sql);
+    let candidate_offsets: Vec<usize> = DDL_START_RE
+        .find_iter(&searchable)
+        .map(|candidate| candidate.start())
+        .collect();
+
+    let mut consumed_until = 0;
+    for (candidate_index, offset) in candidate_offsets.iter().copied().enumerate() {
+        if offset < consumed_until {
+            continue;
         }
-    }
-
-    // Handle ALTER TABLE ADD COLUMN
-    for cap in ALTER_ADD_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
-        let col_name = cap[2].to_string();
-        let col_type = cap[3].to_uppercase();
-
-        // Get the full ALTER statement for constraint analysis
-        let full_match_start = cap.get(0).unwrap().start();
-        let rest = &sql[full_match_start..];
-        let stmt_end = rest.find(';').unwrap_or(rest.len());
-        let full_stmt = &rest[..stmt_end].to_uppercase();
-
-        let nullable = !full_stmt.contains("NOT NULL");
-        let has_default = full_stmt.contains("DEFAULT");
-        let is_primary_key = full_stmt.contains("PRIMARY KEY");
-
-        let entry = tables.entry(table_name).or_default();
-        // Only add if column doesn't already exist (idempotent)
-        if !entry.columns.iter().any(|c| c.name == col_name) {
-            entry.columns.push(SchemaColumn {
-                name: col_name,
-                col_type,
-                nullable,
-                has_default,
-                is_primary_key,
-            });
-        }
-    }
-
-    // Handle DROP TABLE
-    for cap in DROP_TABLE_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
-        tables.remove(&table_name);
-    }
-
-    // Handle ALTER TABLE DROP COLUMN
-    for cap in ALTER_DROP_COL_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
-        let col_name = cap[2].to_string();
-        if let Some(table) = tables.get_mut(&table_name) {
-            table.columns.retain(|c| c.name != col_name);
-        }
-    }
-
-    // Handle ALTER TABLE RENAME TO
-    for cap in ALTER_RENAME_TABLE_RE.captures_iter(sql) {
-        let old_name = cap[1].to_string();
-        let new_name = cap[2].to_string();
-        if let Some(table) = tables.remove(&old_name) {
-            tables.insert(new_name, table);
-        }
-    }
-
-    // Handle ALTER TABLE RENAME COLUMN
-    for cap in ALTER_RENAME_COL_RE.captures_iter(sql) {
-        let table_name = cap[1].to_string();
-        let old_col = cap[2].to_string();
-        let new_col = cap[3].to_string();
-        if let Some(table) = tables.get_mut(&table_name)
-            && let Some(col) = table.columns.iter_mut().find(|c| c.name == old_col)
+        let end = find_statement_end(sql, offset, sql.len());
+        for nested_offset in candidate_offsets
+            .iter()
+            .copied()
+            .skip(candidate_index + 1)
+            .take_while(|nested_offset| *nested_offset < end)
         {
-            col.name = new_col;
+            if scan_state_at(sql, offset, nested_offset) == SqlScanState::Normal {
+                return Err(SchemaError::at(
+                    SchemaErrorKind::MalformedStatement,
+                    path,
+                    sql,
+                    nested_offset,
+                    "supported DDL statement starts before the previous statement terminates",
+                ));
+            }
+        }
+        let statement = &sql[offset..end];
+        let operation = parse_operation(path, sql, offset, statement)?;
+        apply_operation(path, sql, offset, snapshot, operation)?;
+        consumed_until = end.saturating_add(1);
+    }
+
+    Ok(())
+}
+
+fn parse_operation(
+    path: &Path,
+    sql: &str,
+    offset: usize,
+    statement: &str,
+) -> Result<SchemaOperation, SchemaError> {
+    let upper = statement.to_uppercase();
+
+    if upper.starts_with("CREATE VIRTUAL TABLE") {
+        let captures = CREATE_VIRTUAL_TABLE_RE.captures(statement).ok_or_else(|| {
+            malformed_statement(
+                path,
+                sql,
+                offset,
+                statement,
+                "malformed CREATE VIRTUAL TABLE",
+            )
+        })?;
+        let table = capture_table_name(path, sql, offset, statement, &captures, "table")?;
+        return Ok(SchemaOperation::CreateTable {
+            table,
+            columns: Vec::new(),
+            if_not_exists: captures.name("if_not_exists").is_some(),
+            replace: false,
+        });
+    }
+
+    if upper.starts_with("CREATE") {
+        let captures = CREATE_TABLE_RE.captures(statement).ok_or_else(|| {
+            malformed_statement(path, sql, offset, statement, "malformed CREATE TABLE")
+        })?;
+        if captures.name("replace").is_some() && captures.name("if_not_exists").is_some() {
+            return Err(malformed_statement(
+                path,
+                sql,
+                offset,
+                statement,
+                "CREATE TABLE cannot combine OR REPLACE with IF NOT EXISTS",
+            ));
+        }
+        let table = capture_table_name(path, sql, offset, statement, &captures, "table")?;
+        let opening_parenthesis = captures
+            .get(0)
+            .map(|matched| matched.end().saturating_sub(1))
+            .ok_or_else(|| {
+                malformed_statement(path, sql, offset, statement, "missing CREATE TABLE body")
+            })?;
+        let body = extract_paren_body(statement, opening_parenthesis + 1).ok_or_else(|| {
+            malformed_statement(
+                path,
+                sql,
+                offset,
+                statement,
+                "CREATE TABLE has unmatched parentheses",
+            )
+        })?;
+        return Ok(SchemaOperation::CreateTable {
+            table,
+            columns: parse_column_defs(&body),
+            if_not_exists: captures.name("if_not_exists").is_some(),
+            replace: captures.name("replace").is_some(),
+        });
+    }
+
+    if upper.starts_with("DROP TABLE") {
+        let captures = DROP_TABLE_RE.captures(statement).ok_or_else(|| {
+            malformed_statement(path, sql, offset, statement, "malformed DROP TABLE")
+        })?;
+        let table = capture_table_name(path, sql, offset, statement, &captures, "table")?;
+        return Ok(SchemaOperation::DropTable {
+            table,
+            if_exists: captures.name("if_exists").is_some(),
+        });
+    }
+
+    if let Some(captures) = ALTER_RENAME_COL_RE.captures(statement) {
+        let table = capture_table_name(path, sql, offset, statement, &captures, "table")?;
+        let column = capture_identifier(path, sql, offset, statement, &captures, "column")?;
+        let new_column = capture_identifier(path, sql, offset, statement, &captures, "new_column")?;
+        return Ok(SchemaOperation::RenameColumn {
+            table,
+            column,
+            new_column,
+        });
+    }
+
+    if let Some(captures) = ALTER_RENAME_TABLE_RE.captures(statement) {
+        let table = capture_table_name(path, sql, offset, statement, &captures, "table")?;
+        let new_table = capture_table_name(path, sql, offset, statement, &captures, "new_table")?;
+        return Ok(SchemaOperation::RenameTable { table, new_table });
+    }
+
+    if let Some(captures) = ALTER_ADD_RE.captures(statement) {
+        let table = capture_table_name(path, sql, offset, statement, &captures, "table")?;
+        let column_name = capture_identifier(path, sql, offset, statement, &captures, "column")?;
+        if is_sql_keyword(&column_name) {
+            return Err(malformed_statement(
+                path,
+                sql,
+                offset,
+                statement,
+                "ALTER TABLE ADD does not contain a valid column name",
+            ));
+        }
+        let column_type = captures
+            .name("type")
+            .map(|matched| matched.as_str().trim().to_uppercase())
+            .ok_or_else(|| {
+                malformed_statement(
+                    path,
+                    sql,
+                    offset,
+                    statement,
+                    "ALTER TABLE ADD is missing a column type",
+                )
+            })?;
+        return Ok(SchemaOperation::AddColumn {
+            table,
+            column: SchemaColumn {
+                name: column_name,
+                col_type: column_type,
+                nullable: !upper.contains("NOT NULL"),
+                has_default: upper.contains("DEFAULT"),
+                is_primary_key: upper.contains("PRIMARY KEY"),
+            },
+        });
+    }
+
+    if let Some(captures) = ALTER_DROP_COL_RE.captures(statement) {
+        let table = capture_table_name(path, sql, offset, statement, &captures, "table")?;
+        let column = capture_identifier(path, sql, offset, statement, &captures, "column")?;
+        return Ok(SchemaOperation::DropColumn { table, column });
+    }
+
+    Err(malformed_statement(
+        path,
+        sql,
+        offset,
+        statement,
+        "unsupported or malformed ALTER TABLE statement",
+    ))
+}
+
+fn capture_table_name(
+    path: &Path,
+    sql: &str,
+    offset: usize,
+    statement: &str,
+    captures: &regex::Captures<'_>,
+    name: &str,
+) -> Result<String, SchemaError> {
+    let raw = captures
+        .name(name)
+        .map(|matched| matched.as_str())
+        .ok_or_else(|| {
+            malformed_statement(path, sql, offset, statement, "table identifier is missing")
+        })?;
+    canonicalize_table_name(raw)
+        .map_err(|message| malformed_statement(path, sql, offset, statement, message))
+}
+
+fn capture_identifier(
+    path: &Path,
+    sql: &str,
+    offset: usize,
+    statement: &str,
+    captures: &regex::Captures<'_>,
+    name: &str,
+) -> Result<String, SchemaError> {
+    let raw = captures
+        .name(name)
+        .map(|matched| matched.as_str())
+        .ok_or_else(|| {
+            malformed_statement(path, sql, offset, statement, "column identifier is missing")
+        })?;
+    normalize_identifier_segment(raw)
+        .map_err(|message| malformed_statement(path, sql, offset, statement, message))
+}
+
+fn malformed_statement(
+    path: &Path,
+    sql: &str,
+    offset: usize,
+    statement: &str,
+    reason: impl AsRef<str>,
+) -> SchemaError {
+    let compact = statement.split_whitespace().collect::<Vec<_>>().join(" ");
+    let preview: String = compact.chars().take(120).collect();
+    SchemaError::at(
+        SchemaErrorKind::MalformedStatement,
+        path,
+        sql,
+        offset,
+        format!("{}: `{preview}`", reason.as_ref()),
+    )
+}
+
+fn apply_operation(
+    path: &Path,
+    sql: &str,
+    offset: usize,
+    snapshot: &mut SchemaSnapshot,
+    operation: SchemaOperation,
+) -> Result<(), SchemaError> {
+    match operation {
+        SchemaOperation::CreateTable {
+            table,
+            columns,
+            if_not_exists,
+            replace,
+        } => {
+            if snapshot.tables.contains_key(&table) && if_not_exists {
+                return Ok(());
+            }
+            if snapshot.tables.contains_key(&table) && !replace {
+                return Err(SchemaError::at(
+                    SchemaErrorKind::DuplicateTable,
+                    path,
+                    sql,
+                    offset,
+                    format!(
+                        "CREATE TABLE collides with existing canonical table `{table}`; use IF NOT EXISTS or OR REPLACE explicitly"
+                    ),
+                ));
+            }
+            snapshot.retired_tables.remove(&table);
+            snapshot.tables.insert(table, SchemaTable { columns });
+        }
+        SchemaOperation::DropTable { table, if_exists } => {
+            if snapshot.tables.remove(&table).is_none() {
+                if if_exists {
+                    return Ok(());
+                }
+                return Err(SchemaError::at(
+                    SchemaErrorKind::MissingTable,
+                    path,
+                    sql,
+                    offset,
+                    format!("DROP TABLE references missing canonical table `{table}`"),
+                ));
+            }
+            snapshot.retired_tables.insert(table);
+        }
+        SchemaOperation::RenameTable { table, new_table } => {
+            if !snapshot.tables.contains_key(&table) {
+                return Err(SchemaError::at(
+                    SchemaErrorKind::MissingTable,
+                    path,
+                    sql,
+                    offset,
+                    format!("ALTER TABLE RENAME references missing canonical table `{table}`"),
+                ));
+            }
+            if table == new_table || snapshot.tables.contains_key(&new_table) {
+                return Err(SchemaError::at(
+                    SchemaErrorKind::RenameCollision,
+                    path,
+                    sql,
+                    offset,
+                    format!(
+                        "ALTER TABLE RENAME target `{new_table}` collides with an existing canonical table"
+                    ),
+                ));
+            }
+            let Some(schema_table) = snapshot.tables.remove(&table) else {
+                return Err(SchemaError::at(
+                    SchemaErrorKind::MissingTable,
+                    path,
+                    sql,
+                    offset,
+                    format!("ALTER TABLE RENAME references missing canonical table `{table}`"),
+                ));
+            };
+            snapshot.retired_tables.insert(table);
+            snapshot.retired_tables.remove(&new_table);
+            snapshot.tables.insert(new_table, schema_table);
+        }
+        SchemaOperation::AddColumn { table, column } => {
+            let schema_table = snapshot.tables.get_mut(&table).ok_or_else(|| {
+                SchemaError::at(
+                    SchemaErrorKind::MissingTable,
+                    path,
+                    sql,
+                    offset,
+                    format!("ALTER TABLE ADD references missing canonical table `{table}`"),
+                )
+            })?;
+            if !schema_table
+                .columns
+                .iter()
+                .any(|existing| existing.name == column.name)
+            {
+                schema_table.columns.push(column);
+            }
+        }
+        SchemaOperation::DropColumn { table, column } => {
+            let schema_table = snapshot.tables.get_mut(&table).ok_or_else(|| {
+                SchemaError::at(
+                    SchemaErrorKind::MissingTable,
+                    path,
+                    sql,
+                    offset,
+                    format!("ALTER TABLE DROP references missing canonical table `{table}`"),
+                )
+            })?;
+            let original_len = schema_table.columns.len();
+            schema_table
+                .columns
+                .retain(|existing| existing.name != column);
+            if schema_table.columns.len() == original_len {
+                return Err(SchemaError::at(
+                    SchemaErrorKind::MissingColumn,
+                    path,
+                    sql,
+                    offset,
+                    format!("ALTER TABLE DROP references missing column `{table}.{column}`"),
+                ));
+            }
+        }
+        SchemaOperation::RenameColumn {
+            table,
+            column,
+            new_column,
+        } => {
+            let schema_table = snapshot.tables.get_mut(&table).ok_or_else(|| {
+                SchemaError::at(
+                    SchemaErrorKind::MissingTable,
+                    path,
+                    sql,
+                    offset,
+                    format!("ALTER TABLE RENAME references missing canonical table `{table}`"),
+                )
+            })?;
+            if schema_table
+                .columns
+                .iter()
+                .any(|existing| existing.name == new_column)
+            {
+                return Err(SchemaError::at(
+                    SchemaErrorKind::DuplicateColumn,
+                    path,
+                    sql,
+                    offset,
+                    format!(
+                        "ALTER TABLE RENAME target column `{table}.{new_column}` already exists"
+                    ),
+                ));
+            }
+            let column_to_rename = schema_table
+                .columns
+                .iter_mut()
+                .find(|existing| existing.name == column)
+                .ok_or_else(|| {
+                    SchemaError::at(
+                        SchemaErrorKind::MissingColumn,
+                        path,
+                        sql,
+                        offset,
+                        format!("ALTER TABLE RENAME references missing column `{table}.{column}`"),
+                    )
+                })?;
+            column_to_rename.name = new_column;
         }
     }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SqlScanState {
+    Normal,
+    SingleQuote,
+    DoubleQuote,
+    Backtick,
+    Bracket,
+    LineComment,
+    BlockComment,
+}
+
+fn mask_sql_comments(sql: &str) -> String {
+    let original = sql.as_bytes();
+    let mut masked = original.to_vec();
+    let mut state = SqlScanState::Normal;
+    let mut index = 0;
+
+    while index < original.len() {
+        let current = original[index];
+        let next = original.get(index + 1).copied();
+        match state {
+            SqlScanState::Normal if current == b'-' && next == Some(b'-') => {
+                masked[index] = b' ';
+                masked[index + 1] = b' ';
+                index += 2;
+                state = SqlScanState::LineComment;
+                continue;
+            }
+            SqlScanState::Normal if current == b'/' && next == Some(b'*') => {
+                masked[index] = b' ';
+                masked[index + 1] = b' ';
+                index += 2;
+                state = SqlScanState::BlockComment;
+                continue;
+            }
+            SqlScanState::Normal if current == b'\'' => state = SqlScanState::SingleQuote,
+            SqlScanState::Normal if current == b'"' => state = SqlScanState::DoubleQuote,
+            SqlScanState::Normal if current == b'`' => state = SqlScanState::Backtick,
+            SqlScanState::Normal if current == b'[' => state = SqlScanState::Bracket,
+            SqlScanState::SingleQuote if current == b'\'' => {
+                if next == Some(b'\'') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::DoubleQuote if current == b'"' => {
+                if next == Some(b'"') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::Backtick if current == b'`' => {
+                if next == Some(b'`') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::Bracket if current == b']' => {
+                if next == Some(b']') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::LineComment => {
+                if current == b'\n' {
+                    state = SqlScanState::Normal;
+                } else {
+                    masked[index] = b' ';
+                }
+            }
+            SqlScanState::BlockComment if current == b'*' && next == Some(b'/') => {
+                masked[index] = b' ';
+                masked[index + 1] = b' ';
+                index += 2;
+                state = SqlScanState::Normal;
+                continue;
+            }
+            SqlScanState::BlockComment => masked[index] = b' ',
+            _ => {}
+        }
+        index += 1;
+    }
+
+    String::from_utf8(masked).unwrap_or_else(|_| sql.to_string())
+}
+
+fn find_statement_end(sql: &str, start: usize, limit: usize) -> usize {
+    let bytes = sql.as_bytes();
+    let mut state = SqlScanState::Normal;
+    let mut index = start;
+    let bounded_limit = limit.min(bytes.len());
+
+    while index < bounded_limit {
+        let current = bytes[index];
+        let next = bytes.get(index + 1).copied();
+        match state {
+            SqlScanState::Normal if current == b';' => return index,
+            SqlScanState::Normal if current == b'-' && next == Some(b'-') => {
+                state = SqlScanState::LineComment;
+                index += 2;
+                continue;
+            }
+            SqlScanState::Normal if current == b'/' && next == Some(b'*') => {
+                state = SqlScanState::BlockComment;
+                index += 2;
+                continue;
+            }
+            SqlScanState::Normal if current == b'\'' => state = SqlScanState::SingleQuote,
+            SqlScanState::Normal if current == b'"' => state = SqlScanState::DoubleQuote,
+            SqlScanState::Normal if current == b'`' => state = SqlScanState::Backtick,
+            SqlScanState::Normal if current == b'[' => state = SqlScanState::Bracket,
+            SqlScanState::SingleQuote if current == b'\'' => {
+                if next == Some(b'\'') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::DoubleQuote if current == b'"' => {
+                if next == Some(b'"') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::Backtick if current == b'`' => {
+                if next == Some(b'`') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::Bracket if current == b']' => {
+                if next == Some(b']') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::LineComment if current == b'\n' => state = SqlScanState::Normal,
+            SqlScanState::BlockComment if current == b'*' && next == Some(b'/') => {
+                state = SqlScanState::Normal;
+                index += 2;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    bounded_limit
+}
+
+fn scan_state_at(sql: &str, start: usize, target: usize) -> SqlScanState {
+    let bytes = sql.as_bytes();
+    let mut state = SqlScanState::Normal;
+    let mut index = start;
+    let bounded_target = target.min(bytes.len());
+
+    while index < bounded_target {
+        let current = bytes[index];
+        let next = bytes.get(index + 1).copied();
+        match state {
+            SqlScanState::Normal if current == b'-' && next == Some(b'-') => {
+                state = SqlScanState::LineComment;
+                index += 2;
+                continue;
+            }
+            SqlScanState::Normal if current == b'/' && next == Some(b'*') => {
+                state = SqlScanState::BlockComment;
+                index += 2;
+                continue;
+            }
+            SqlScanState::Normal if current == b'\'' => state = SqlScanState::SingleQuote,
+            SqlScanState::Normal if current == b'"' => state = SqlScanState::DoubleQuote,
+            SqlScanState::Normal if current == b'`' => state = SqlScanState::Backtick,
+            SqlScanState::Normal if current == b'[' => state = SqlScanState::Bracket,
+            SqlScanState::SingleQuote if current == b'\'' => {
+                if next == Some(b'\'') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::DoubleQuote if current == b'"' => {
+                if next == Some(b'"') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::Backtick if current == b'`' => {
+                if next == Some(b'`') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::Bracket if current == b']' => {
+                if next == Some(b']') {
+                    index += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::LineComment if current == b'\n' => state = SqlScanState::Normal,
+            SqlScanState::BlockComment if current == b'*' && next == Some(b'/') => {
+                state = SqlScanState::Normal;
+                index += 2;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    state
 }
 
 /// Extract text between the opening paren (at `start`) and its matching close.
@@ -249,29 +1105,61 @@ fn extract_paren_body(sql: &str, start: usize) -> Option<String> {
     let bytes = sql.as_bytes();
     let mut depth = 1;
     let mut i = start;
+    let mut state = SqlScanState::Normal;
+
     while i < bytes.len() && depth > 0 {
-        match bytes[i] {
-            b'(' => depth += 1,
-            b')' => depth -= 1,
-            b'\'' => {
-                // Skip string literal
-                i += 1;
-                while i < bytes.len() {
-                    if bytes[i] == b'\'' {
-                        if i + 1 < bytes.len() && bytes[i + 1] == b'\'' {
-                            i += 2; // escaped quote
-                            continue;
-                        }
-                        break;
-                    }
-                    i += 1;
-                }
+        let current = bytes[i];
+        let next = bytes.get(i + 1).copied();
+        match state {
+            SqlScanState::Normal if current == b'(' => depth += 1,
+            SqlScanState::Normal if current == b')' => depth -= 1,
+            SqlScanState::Normal if current == b'-' && next == Some(b'-') => {
+                state = SqlScanState::LineComment;
+                i += 2;
+                continue;
             }
-            b'-' if i + 1 < bytes.len() && bytes[i + 1] == b'-' => {
-                // Skip line comment
-                while i < bytes.len() && bytes[i] != b'\n' {
-                    i += 1;
+            SqlScanState::Normal if current == b'/' && next == Some(b'*') => {
+                state = SqlScanState::BlockComment;
+                i += 2;
+                continue;
+            }
+            SqlScanState::Normal if current == b'\'' => state = SqlScanState::SingleQuote,
+            SqlScanState::Normal if current == b'"' => state = SqlScanState::DoubleQuote,
+            SqlScanState::Normal if current == b'`' => state = SqlScanState::Backtick,
+            SqlScanState::Normal if current == b'[' => state = SqlScanState::Bracket,
+            SqlScanState::SingleQuote if current == b'\'' => {
+                if next == Some(b'\'') {
+                    i += 2;
+                    continue;
                 }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::DoubleQuote if current == b'"' => {
+                if next == Some(b'"') {
+                    i += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::Backtick if current == b'`' => {
+                if next == Some(b'`') {
+                    i += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::Bracket if current == b']' => {
+                if next == Some(b']') {
+                    i += 2;
+                    continue;
+                }
+                state = SqlScanState::Normal;
+            }
+            SqlScanState::LineComment if current == b'\n' => state = SqlScanState::Normal,
+            SqlScanState::BlockComment if current == b'*' && next == Some(b'/') => {
+                state = SqlScanState::Normal;
+                i += 2;
+                continue;
             }
             _ => {}
         }
@@ -609,16 +1497,16 @@ CREATE TABLE messages (
 
     #[test]
     fn test_parse_create_virtual_table() {
-        // Virtual tables use USING syntax — the paren is after the module name,
-        // not directly after the table name. Our regex requires `table_name (`
-        // so virtual tables are intentionally skipped for column parsing.
-        // Table *existence* is still caught by get_schema_table_names() which
-        // has a separate regex that handles VIRTUAL TABLE.
+        // Virtual tables use USING syntax, so their columns are not parsed.
+        // The snapshot still records table existence instead of relying on a
+        // separate CREATE-pattern scan that could diverge from replay.
         let sql = "CREATE VIRTUAL TABLE search_idx USING fts5(content, sender);";
         let mut tables = HashMap::new();
         parse_sql_into(sql, &mut tables);
-        // Virtual tables won't be parsed for columns (different syntax)
-        assert!(!tables.contains_key("search_idx"));
+        let table = tables
+            .get("search_idx")
+            .expect("virtual table existence must be represented");
+        assert!(table.columns.is_empty());
     }
 
     #[test]
@@ -759,8 +1647,10 @@ Something
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path();
 
-        // Absent dir → no errors (schema simply not configured).
-        assert!(schema_read_errors(Path::new("/nonexistent/path")).is_empty());
+        // A configured but absent directory must fail loud.
+        let missing = schema_read_errors(Path::new("/nonexistent/path"));
+        assert_eq!(missing.len(), 1);
+        assert!(missing[0].contains("schema directory could not be read"));
 
         // A readable migration → no error.
         fs::write(dir.join("001_ok.sql"), "CREATE TABLE t (id INTEGER);").unwrap();
@@ -817,6 +1707,200 @@ Something
         assert_eq!(t.columns[1].name, "name");
         assert_eq!(t.columns[2].name, "price");
         assert_eq!(t.columns[2].col_type, "REAL");
+    }
+
+    #[test]
+    fn test_build_schema_snapshot_missing_directory_is_error() {
+        let error = build_schema_snapshot(Path::new("/nonexistent/path"))
+            .expect_err("a configured missing directory must not become an empty snapshot");
+        assert_eq!(error.kind, SchemaErrorKind::MissingDirectory);
+        assert_eq!(error.line, 0);
+        assert!(error.message.contains("schema directory could not be read"));
+    }
+
+    #[test]
+    fn test_build_schema_snapshot_reports_malformed_sql_with_path_and_position() {
+        let tmp = tempfile::tempdir().unwrap();
+        let migration = tmp.path().join("002_broken.sql");
+        fs::write(
+            &migration,
+            "\n-- a preceding line\nCREATE TABLE broken (id INTEGER;\n",
+        )
+        .unwrap();
+
+        let error = build_schema_snapshot(tmp.path())
+            .expect_err("malformed supported DDL must fail the snapshot");
+        assert_eq!(error.kind, SchemaErrorKind::MalformedStatement);
+        assert_eq!(error.path, migration);
+        assert_eq!(error.line, 3);
+        assert_eq!(error.column, 1);
+        assert!(error.message.contains("unmatched parentheses"));
+        assert!(error.message.contains("CREATE TABLE broken"));
+    }
+
+    #[test]
+    fn test_replay_rejects_unterminated_statement_before_later_ddl() {
+        let sql = r#"
+CREATE TABLE first_table (id INTEGER PRIMARY KEY)
+CREATE TABLE second_table (id INTEGER PRIMARY KEY);
+"#;
+        let mut snapshot = SchemaSnapshot::default();
+        let error = replay_sql(Path::new("001_broken.sql"), sql, &mut snapshot)
+            .expect_err("a missing statement terminator must not hide later DDL");
+
+        assert_eq!(error.kind, SchemaErrorKind::MalformedStatement);
+        assert_eq!(error.line, 3);
+        assert!(
+            error
+                .message
+                .contains("before the previous statement terminates")
+        );
+        assert!(snapshot.tables.is_empty());
+    }
+
+    #[test]
+    fn test_replay_ignores_commented_and_string_literal_ddl() {
+        let sql = r#"
+-- DROP TABLE notes;
+/* ALTER TABLE notes RENAME TO hidden_notes; */
+CREATE TABLE notes (
+    id INTEGER PRIMARY KEY,
+    message TEXT DEFAULT 'DROP TABLE notes;'
+);
+"#;
+        let mut snapshot = SchemaSnapshot::default();
+        replay_sql(Path::new("001_notes.sql"), sql, &mut snapshot).unwrap();
+
+        let notes = snapshot.tables.get("notes").expect("notes must remain");
+        assert_eq!(notes.column_names(), vec!["id", "message"]);
+        assert!(snapshot.retired_tables.is_empty());
+    }
+
+    #[test]
+    fn test_replay_respects_drop_then_recreate_within_one_file() {
+        let sql = r#"
+CREATE TABLE users (id INTEGER PRIMARY KEY);
+DROP TABLE users;
+CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT NOT NULL);
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+
+        let users = tables
+            .get("users")
+            .expect("the later CREATE must recreate the dropped table");
+        assert_eq!(users.column_names(), vec!["id", "email"]);
+    }
+
+    #[test]
+    fn test_replay_respects_recreate_after_rename_within_one_file() {
+        let sql = r#"
+CREATE TABLE users (id INTEGER PRIMARY KEY);
+ALTER TABLE users RENAME TO archived_users;
+CREATE TABLE users (id INTEGER PRIMARY KEY, replacement TEXT);
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+
+        assert!(
+            tables.contains_key("archived_users"),
+            "the renamed table must remain in the final snapshot"
+        );
+        let users = tables
+            .get("users")
+            .expect("the later CREATE must create a new users table");
+        assert_eq!(users.column_names(), vec!["id", "replacement"]);
+    }
+
+    #[test]
+    fn test_replay_recreate_clears_retired_identity() {
+        let sql = r#"
+CREATE TABLE users (id INTEGER PRIMARY KEY);
+DROP TABLE users;
+CREATE TABLE users (id INTEGER PRIMARY KEY, replacement TEXT);
+"#;
+        let mut snapshot = SchemaSnapshot::default();
+        replay_sql(Path::new("001_users.sql"), sql, &mut snapshot).unwrap();
+
+        assert!(snapshot.tables.contains_key("users"));
+        assert!(!snapshot.retired_tables.contains("users"));
+    }
+
+    #[test]
+    fn test_replay_duplicate_canonical_create_is_a_non_mutating_error() {
+        let sql = r#"
+CREATE TABLE "Users" (id INTEGER PRIMARY KEY);
+CREATE TABLE users (replacement TEXT);
+"#;
+        let mut snapshot = SchemaSnapshot::default();
+        let error = replay_sql(Path::new("001_users.sql"), sql, &mut snapshot)
+            .expect_err("canonical duplicate CREATE must not overwrite the first table");
+
+        assert_eq!(error.kind, SchemaErrorKind::DuplicateTable);
+        assert_eq!(error.line, 3);
+        assert!(error.message.contains("canonical table `users`"));
+        let users = snapshot.tables.get("users").unwrap();
+        assert_eq!(users.column_names(), vec!["id"]);
+    }
+
+    #[test]
+    fn test_replay_if_not_exists_preserves_the_existing_table() {
+        let sql = r#"
+CREATE TABLE users (id INTEGER PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS "Users" (replacement TEXT);
+"#;
+        let mut snapshot = SchemaSnapshot::default();
+        replay_sql(Path::new("001_users.sql"), sql, &mut snapshot).unwrap();
+
+        let users = snapshot.tables.get("users").unwrap();
+        assert_eq!(users.column_names(), vec!["id"]);
+    }
+
+    #[test]
+    fn test_replay_rename_collision_is_a_non_mutating_error() {
+        let sql = r#"
+CREATE TABLE source_table (id INTEGER PRIMARY KEY);
+CREATE TABLE target_table (id INTEGER PRIMARY KEY);
+ALTER TABLE source_table RENAME TO target_table;
+"#;
+        let mut snapshot = SchemaSnapshot::default();
+        let error = replay_sql(Path::new("001_tables.sql"), sql, &mut snapshot)
+            .expect_err("rename target collisions must not discard either table");
+
+        assert_eq!(error.kind, SchemaErrorKind::RenameCollision);
+        assert_eq!(error.line, 4);
+        assert!(snapshot.tables.contains_key("source_table"));
+        assert!(snapshot.tables.contains_key("target_table"));
+        assert!(snapshot.retired_tables.is_empty());
+    }
+
+    #[test]
+    fn test_replay_missing_drop_and_rename_sources_fail_truthfully() {
+        let mut snapshot = SchemaSnapshot::default();
+        let drop_error = replay_sql(
+            Path::new("001_drop.sql"),
+            "DROP TABLE missing;",
+            &mut snapshot,
+        )
+        .expect_err("plain DROP of a missing table must fail");
+        assert_eq!(drop_error.kind, SchemaErrorKind::MissingTable);
+        assert!(drop_error.message.contains("DROP TABLE"));
+
+        replay_sql(
+            Path::new("002_drop.sql"),
+            "DROP TABLE IF EXISTS missing;",
+            &mut snapshot,
+        )
+        .unwrap();
+
+        let rename_error = replay_sql(
+            Path::new("003_rename.sql"),
+            "ALTER TABLE missing RENAME TO replacement;",
+            &mut snapshot,
+        )
+        .expect_err("rename of a missing table must fail");
+        assert_eq!(rename_error.kind, SchemaErrorKind::MissingTable);
+        assert!(rename_error.message.contains("RENAME"));
     }
 
     #[test]
@@ -881,6 +1965,77 @@ ALTER TABLE items RENAME COLUMN old_col TO new_col;
         assert_eq!(t.columns.len(), 2);
         assert_eq!(t.columns[1].name, "new_col");
         assert_eq!(t.columns[1].col_type, "TEXT");
+    }
+
+    #[test]
+    fn test_quoted_and_schema_qualified_table_names() {
+        let sql = r#"
+CREATE TABLE "quoted" (id INTEGER PRIMARY KEY);
+CREATE TABLE `backtick` (id INTEGER PRIMARY KEY);
+CREATE TABLE public.schema_table (id INTEGER PRIMARY KEY);
+CREATE TABLE MixedCase (id INTEGER PRIMARY KEY);
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+        assert!(tables.contains_key("quoted"), "tables: {:?}", tables.keys());
+        assert!(tables.contains_key("backtick"));
+        assert!(tables.contains_key("public.schema_table"));
+        // Comparison is case-insensitive: stored normalized.
+        assert!(tables.contains_key("mixedcase"));
+        assert!(!tables.contains_key("MixedCase"));
+    }
+
+    #[test]
+    fn test_normalize_table_name() {
+        assert_eq!(normalize_table_name("users"), "users");
+        assert_eq!(normalize_table_name("\"Users\""), "users");
+        assert_eq!(normalize_table_name("`Users`"), "users");
+        assert_eq!(normalize_table_name("public.\"Users\""), "public.users");
+        assert_eq!(normalize_table_name("PUBLIC.USERS"), "public.users");
+        assert_eq!(
+            canonicalize_table_name(" public . \"User.Events\" ").unwrap(),
+            "public.\"user.events\""
+        );
+        assert_eq!(
+            canonicalize_table_name("[Sales].[Order]]History]").unwrap(),
+            "sales.\"order]history\""
+        );
+        assert_eq!(
+            canonical_table_leaf("public.\"User.Events\"").unwrap(),
+            "\"user.events\""
+        );
+        assert!(canonicalize_table_name("users\"").is_err());
+        assert!(canonicalize_table_name("public..users").is_err());
+    }
+
+    #[test]
+    fn test_quoted_qualified_names_replay_through_rename_and_drop() {
+        let sql = r#"
+CREATE TABLE public."Users" (id INTEGER PRIMARY KEY);
+ALTER TABLE public."Users" RENAME TO archive.`Users`;
+DROP TABLE archive.[Users];
+"#;
+        let mut snapshot = SchemaSnapshot::default();
+        replay_sql(Path::new("001_qualified.sql"), sql, &mut snapshot).unwrap();
+
+        assert!(snapshot.tables.is_empty());
+        assert!(snapshot.retired_tables.contains("public.users"));
+        assert!(snapshot.retired_tables.contains("archive.users"));
+    }
+
+    #[test]
+    fn test_rename_and_drop_apply_to_quoted_names() {
+        let sql = r#"
+CREATE TABLE "old_name" (id INTEGER PRIMARY KEY);
+ALTER TABLE "old_name" RENAME TO "new_name";
+CREATE TABLE `doomed` (id INTEGER PRIMARY KEY);
+DROP TABLE `doomed`;
+"#;
+        let mut tables = HashMap::new();
+        parse_sql_into(sql, &mut tables);
+        assert!(!tables.contains_key("old_name"));
+        assert!(tables.contains_key("new_name"));
+        assert!(!tables.contains_key("doomed"));
     }
 
     #[test]

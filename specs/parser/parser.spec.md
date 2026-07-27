@@ -1,6 +1,6 @@
 ---
 module: parser
-version: 5
+version: 6
 status: stable
 files:
   - src/parser.rs
@@ -23,7 +23,7 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 
 | Type | Description |
 |------|-------------|
-| `ParsedSpec` | Parsed spec file containing `frontmatter: Frontmatter` and `body: String` |
+| `ParsedSpec` | Parsed spec file containing frontmatter/body plus accumulated hard `errors` and soft `warnings` for duplicate, type, shape, and malformed-line diagnostics |
 
 **Exported Functions**
 
@@ -50,6 +50,10 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 8. `get_near_miss_sections` only reports sections that are already in `get_missing_sections` — it does not flag sections that are present but close to another required name
 6. Frontmatter parsing handles both scalar fields (module, version, status) and list fields (files, db_tables, depends_on)
 7. Empty list syntax `[]` is handled correctly, producing an empty Vec
+9. Duplicate keys and malformed list shapes are retained as hard diagnostics; they never disappear through last-value-wins parsing
+10. Flow-style string lists are parsed, including the `depends_on: [module]` form emitted by scaffolding
+11. Non-numeric versions, scalar list fields, and colon-less garbage lines are retained as warnings with offending input
+12. A leading UTF-8 BOM is tolerated without removing U+FEFF from the body
 
 ## Behavioral Examples
 
@@ -82,7 +86,10 @@ Parses spec markdown files — extracts YAML frontmatter into structured data, e
 | Condition | Behavior |
 |-----------|----------|
 | No frontmatter delimiters | `parse_frontmatter` returns `None` |
-| Malformed YAML in frontmatter | Unknown keys silently ignored, missing fields remain as `None` |
+| Duplicate known or extension key | Parsed result contains a hard duplicate-key diagnostic naming the offending line |
+| Mapping/unclosed/unterminated list shape | Parsed result contains a hard field-specific diagnostic |
+| Non-numeric version, scalar list, or colon-less line | Parsed result contains an actionable warning |
+| Missing closing frontmatter delimiter | `parse_frontmatter` returns `None`; validator reports malformed frontmatter |
 | No `## Public API` section | `get_spec_symbols` returns empty vector |
 | Empty, unterminated, later-column, or prose backtick span | No symbol is extracted |
 | Empty body | `get_missing_sections` reports all required sections as missing |
@@ -113,6 +120,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v6: accumulate duplicate/type/shape diagnostics, parse flow-style lists, tolerate a leading BOM, and expose errors/warnings to every consumer |
 | 2026-03-25 | Initial spec |
 | 2026-06-11 | Add `get_all_api_table_symbols` so `check --fix` treats symbols documented under any Public API table (e.g. a bare `### Functions` heading) as already documented |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

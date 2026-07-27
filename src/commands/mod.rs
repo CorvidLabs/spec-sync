@@ -36,11 +36,10 @@ use std::process;
 use crate::config::load_config;
 use crate::ignore::IgnoreRules;
 use crate::parser;
-use crate::schema;
 use crate::scoring;
 use crate::types;
 use crate::types::SpecStatus;
-use crate::validator::{find_spec_files, source_within_root, validate_spec};
+use crate::validator::{SchemaValidation, find_spec_files, source_within_root, validate_spec};
 
 pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConfig, Vec<PathBuf>) {
     let config = load_config(root);
@@ -240,17 +239,6 @@ pub fn filter_by_status(
         .collect()
 }
 
-/// Build column-level schema from migration files (if schema_dir is configured).
-pub fn build_schema_columns(
-    root: &Path,
-    config: &types::SpecSyncConfig,
-) -> std::collections::HashMap<String, schema::SchemaTable> {
-    match &config.schema_dir {
-        Some(dir) => schema::build_schema(&root.join(dir)),
-        None => std::collections::HashMap::new(),
-    }
-}
-
 /// Run validation, returning counts and collected error, warning, and notice strings.
 /// `ownership_spec_files` must contain the complete discovered inventory even
 /// when `spec_files` is an incremental subset.
@@ -261,8 +249,7 @@ pub fn run_validation(
     root: &Path,
     spec_files: &[PathBuf],
     ownership_spec_files: &[PathBuf],
-    schema_tables: &std::collections::HashSet<String>,
-    schema_columns: &std::collections::HashMap<String, schema::SchemaTable>,
+    schema: &SchemaValidation,
     config: &types::SpecSyncConfig,
     collect: bool,
     explain: bool,
@@ -323,7 +310,7 @@ pub fn run_validation(
     }
 
     for spec_file in spec_files {
-        let mut result = validate_spec(spec_file, root, schema_tables, schema_columns, config);
+        let mut result = validate_spec(spec_file, root, &schema.tables, &schema.columns, config);
         let owner = spec_file
             .strip_prefix(root)
             .unwrap_or(spec_file)
@@ -383,12 +370,19 @@ pub fn run_validation(
         println!("\n{}", result.spec_path.bold());
 
         // Frontmatter check
-        let has_fm_errors = result
+        let frontmatter_errors: Vec<&str> = result
             .errors
             .iter()
-            .any(|e| e.starts_with("Frontmatter") || e.starts_with("Missing or malformed"));
-        if has_fm_errors {
+            .filter(|error| {
+                error.starts_with("Frontmatter") || error.starts_with("Missing or malformed")
+            })
+            .map(String::as_str)
+            .collect();
+        if !frontmatter_errors.is_empty() {
             println!("  {} Frontmatter invalid", "✗".red());
+            for error in frontmatter_errors {
+                println!("    {} {error}", "✗".red());
+            }
         } else {
             println!("  {} Frontmatter valid", "✓".green());
         }
@@ -424,7 +418,7 @@ pub fn run_validation(
             for e in &table_errors {
                 println!("  {} {e}", "✗".red());
             }
-        } else if !schema_tables.is_empty() {
+        } else if !schema.tables.is_empty() {
             println!("  {} All DB tables exist in schema", "✓".green());
         }
 
@@ -625,19 +619,15 @@ pub fn run_validation(
         }
     }
 
-    // Schema/migration files that exist but can't be read as UTF-8 are silently
-    // skipped by build_schema — their tables/columns vanish, which can silently
-    // disable db_tables/column validation (an all-unreadable schema makes the
-    // checks a no-op). Surface them once, project-level (not per spec), as hard
-    // errors so the gate fails loud instead of under-validating.
-    if let Some(dir) = &config.schema_dir {
-        for err in schema::schema_read_errors(&root.join(dir)) {
-            total_errors += 1;
-            if collect {
-                all_errors.push(err);
-            } else {
-                println!("\n{} {err}", "✗".red());
-            }
+    // Schema loading is invocation-scoped and fallible. Surface every retained
+    // configuration/read/replay problem once, without rebuilding the schema or
+    // allowing an empty snapshot to pass as successful validation.
+    for error in &schema.errors {
+        total_errors += 1;
+        if collect {
+            all_errors.push(error.clone());
+        } else {
+            println!("\n{} {error}", "✗".red());
         }
     }
 

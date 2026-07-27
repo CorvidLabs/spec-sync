@@ -123,3 +123,19 @@ Acceptance Criteria
 - Redundant dot segments cannot create coverage mismatches.
 - Absolute, parent-segment, prefixed, and backslash mappings remain errors in every lifecycle status and never count toward ownership or coverage.
 - A missing planned leaf beneath an existing symlinked parent that resolves outside the project or cannot be resolved is rejected before notice emission.
+
+### REQ-validator-008
+
+Dependency and schema validation SHALL fail closed with one confined dependency verdict and one fallible canonical schema snapshot per validation invocation.
+
+Acceptance Criteria
+
+- Only exact `owner/repo@module` shapes are classified as cross-project references.
+- Absolute paths, parent traversal, backslashes, malformed remote lookalikes, and symlink escapes are rejected with the offending dependency entry.
+- Bare module names resolve to the canonical `specs/<module>/<module>.spec.md` file.
+- Check, deps, and resolve consume the same local dependency verdict.
+- Schema table and column checks derive from exactly one `build_schema_snapshot` call.
+- Missing/unreadable schema directories and files, malformed DDL, missing replay objects, and collisions surface as validation errors.
+- Additive `schema_pattern` matches cannot resurrect table identities retired by DROP or RENAME.
+- Qualified and unqualified table matching uses `canonical_table_leaf`, preserving dots inside quoted identifier segments.
+- A configured empty schema does not make a declared `db_tables` entry pass vacuously.

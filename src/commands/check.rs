@@ -11,13 +11,13 @@ use crate::ignore::IgnoreRules;
 use crate::output::{print_check_markdown, print_coverage_line, print_summary};
 use crate::parser;
 use crate::types;
-use crate::validator::{compute_coverage, get_schema_table_names};
+use crate::validator::{compute_coverage, load_schema_validation};
 
 use crate::config::is_legacy_layout;
 
 use super::{
-    build_schema_columns, compute_exit_code, create_drift_issues, exit_with_status,
-    filter_by_status, filter_specs, load_and_discover, run_validation,
+    compute_exit_code, create_drift_issues, exit_with_status, filter_by_status, filter_specs,
+    load_and_discover, run_validation,
 };
 
 /// Files whose contents affect validation globally rather than through a single
@@ -309,8 +309,7 @@ pub fn cmd_check(
         println!("  Review the affected specs directly or ask your coding agent to update them.\n");
     }
 
-    let schema_tables = get_schema_table_names(root, &config);
-    let schema_columns = build_schema_columns(root, &config);
+    let schema = load_schema_validation(root, &config);
     let ignore_rules = IgnoreRules::load(root);
 
     if dry_run && !fix {
@@ -395,8 +394,7 @@ pub fn cmd_check(
             root,
             &specs_to_validate,
             &all_spec_files,
-            &schema_tables,
-            &schema_columns,
+            &schema,
             &config,
             collect,
             explain,

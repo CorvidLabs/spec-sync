@@ -8,7 +8,6 @@ spec: schema.spec.md
 
 - [ ] Support CREATE INDEX tracking for schema completeness
 - [ ] Add VIRTUAL TABLE column extraction (FTS5 columns)
-- [ ] Support multi-statement migration files with transaction wrappers (BEGIN/COMMIT)
 
 ## Done
 
@@ -20,11 +19,17 @@ spec: schema.spec.md
 - [x] String literal and comment handling in paren matching
 - [x] Table-level constraint skipping (PRIMARY KEY, UNIQUE, CHECK, FOREIGN KEY, CONSTRAINT)
 - [x] SQL keyword filtering for column names
+- [x] Replay supported DDL in exact statement order within filename-sorted migrations
+- [x] Return path/line/column diagnostics for missing directories, unreadable files, malformed DDL, missing objects, and collisions
+- [x] Canonicalize ANSI/backtick/bracket quoted, mixed-case, and qualified table identities
+- [x] Preserve snapshot state on duplicate CREATE and RENAME-target collisions
+- [x] Support multi-statement migration files and ignore transaction-control/DML statements
+- [x] Integrate one fallible snapshot into CLI, MCP, generation, reporting, and effective-contract validation
+- [x] Prevent additive schema patterns from resurrecting renamed or dropped canonical identities
 
 ## Gaps
 
 - No support for VIRTUAL TABLE column extraction
-- No transaction wrapper handling (BEGIN/COMMIT blocks)
 - No CREATE INDEX tracking
 
 ## Review Status

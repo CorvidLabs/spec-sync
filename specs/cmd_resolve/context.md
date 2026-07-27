@@ -9,6 +9,7 @@ spec: cmd_resolve.spec.md
 - **Drift vs warning**: deprecated/removed/archived status and missing consumed exports are breaking `DRIFT` (exit 1); non-bidirectional deps, fetch failures, and parse failures are non-fatal `WARN`.
 - **Cache to avoid re-fetching**: remote spec bodies are cached on disk under `.specsync-cache/remote-specs/` with a TTL (default 3600s); repo/path slashes are sanitized into the cache filename. TTL 0 disables caching.
 - **Consumed-export discovery is table-driven**: `find_consumed_exports` scans the local spec's `### Consumes` table for rows whose module column matches the remote module, extracting backtick-wrapped identifiers.
+- **Shared local verdict**: local and malformed-remote-lookalike entries call `validate_local_dependency`; resolve never performs an unconstrained `root.join(dep).exists()` probe.
 
 ## Files to Read First
 

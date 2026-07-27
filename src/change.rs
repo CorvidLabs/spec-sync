@@ -4684,9 +4684,8 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
     }
     let temp = create_effective_contract_workspace().map_err(|error| vec![error])?;
     let config = crate::config::load_config(root);
-    let schema_tables = crate::validator::get_schema_table_names(root, &config);
-    let schema_columns = crate::commands::build_schema_columns(root, &config);
-    let mut errors = Vec::new();
+    let schema = crate::validator::load_schema_validation(root, &config);
+    let mut errors = schema.errors.clone();
     for module in modules {
         let canonical = match canonical_module_paths(root, &config.specs_dir, &module) {
             Ok((spec_path, _)) => spec_path,
@@ -4758,8 +4757,8 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
         let result = crate::validator::validate_spec(
             &effective,
             root,
-            &schema_tables,
-            &schema_columns,
+            &schema.tables,
+            &schema.columns,
             &config,
         );
         errors.extend(

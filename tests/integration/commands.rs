@@ -1949,6 +1949,56 @@ fn score_config_only_enforcement_gates_no_specs() {
 // ─── specsync deps: --strict gates on undeclared-import warnings ─────────
 
 #[test]
+fn check_deps_and_resolve_share_confined_dependency_verdicts() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("specs/app")).unwrap();
+    fs::write(
+        root.join("specs/app/app.spec.md"),
+        "---\nmodule: app\nversion: 1\nstatus: active\nfiles: []\n\
+         depends_on: [/etc/passwd@module, nosuchmod]\n---\n\n# App\n\n## Purpose\nFixture\n",
+    )
+    .unwrap();
+
+    let check = specsync()
+        .current_dir(root)
+        .args(["check", "--strict", "--force"])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let deps = specsync()
+        .current_dir(root)
+        .arg("deps")
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let resolve = specsync()
+        .current_dir(root)
+        .arg("resolve")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    for output in [check, deps, resolve] {
+        let output = String::from_utf8(output).unwrap();
+        assert!(
+            output.contains("escapes the project root") && output.contains("/etc/passwd@module"),
+            "{output}"
+        );
+        assert!(
+            output.contains("Dependency spec not found: nosuchmod"),
+            "{output}"
+        );
+    }
+}
+
+#[test]
 fn deps_strict_gates_on_undeclared_imports() {
     // Regression (H6): `deps --strict` was a silent no-op — undeclared imports
     // were reported as warnings but never failed the exit code.

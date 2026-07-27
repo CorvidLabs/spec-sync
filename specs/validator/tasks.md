@@ -27,6 +27,11 @@ spec: validator.spec.md
 - [x] Measure default HTML, HTM, and CSS sources in coverage
 - [x] Reject known unfilled companion scaffold markers in strict mode
 - [x] Reject every marker emitted by the built-in design companion template
+- [x] Share one confined dependency verdict across check, deps, and resolve
+- [x] Reject malformed remote lookalikes and bare-module symlink escapes
+- [x] Load one fallible schema snapshot for table and column validation
+- [x] Preserve quoted-dot table leaves and suppress pattern resurrection of retired tables
+- [x] Reject declared database tables against an empty configured schema
 
 ## Gaps
 

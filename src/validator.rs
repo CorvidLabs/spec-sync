@@ -26,22 +26,35 @@ const STATIC_COVERAGE_EXTENSIONS: &[&str] = &["html", "htm", "css"];
 /// Check if a dependency reference is a cross-project reference.
 /// Cross-project refs use the format `owner/repo@module` (e.g. `corvid-labs/algochat@auth`).
 pub fn is_cross_project_ref(dep: &str) -> bool {
-    dep.contains('/') && dep.contains('@')
+    parse_cross_project_ref(dep).is_some()
 }
 
 /// Parse a cross-project reference into (owner/repo, module).
 /// Returns None if not a valid cross-project ref.
 pub fn parse_cross_project_ref(dep: &str) -> Option<(&str, &str)> {
-    if !is_cross_project_ref(dep) {
+    let (repo, module) = dep.split_once('@')?;
+    if module.contains('@') || !valid_dependency_segment(module) {
         return None;
     }
-    let at_pos = dep.find('@')?;
-    let repo = &dep[..at_pos];
-    let module = &dep[at_pos + 1..];
-    if repo.is_empty() || module.is_empty() {
+    let mut repo_segments = repo.split('/');
+    let owner = repo_segments.next()?;
+    let name = repo_segments.next()?;
+    if repo_segments.next().is_some()
+        || !valid_dependency_segment(owner)
+        || !valid_dependency_segment(name)
+    {
         return None;
     }
     Some((repo, module))
+}
+
+fn valid_dependency_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment != "."
+        && segment != ".."
+        && segment.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+        })
 }
 
 /// Validate one local (non-cross-project) `depends_on` entry and resolve it
@@ -55,7 +68,11 @@ pub fn parse_cross_project_ref(dep: &str) -> Option<(&str, &str)> {
 /// - absolute paths and `..` traversal are rejected as escapes;
 /// - bare module names resolve against the specs directory;
 /// - anything else must exist as a path confined to the project root.
-pub fn validate_local_dependency(dep: &str, root: &Path, specs_dir: &str) -> Result<PathBuf, String> {
+pub fn validate_local_dependency(
+    dep: &str,
+    root: &Path,
+    specs_dir: &str,
+) -> Result<PathBuf, String> {
     if is_cross_project_ref(dep) {
         // Cross-project refs (e.g. "owner/repo@module") are validated
         // by `specsync resolve`, not during local checks.
@@ -67,28 +84,35 @@ pub fn validate_local_dependency(dep: &str, root: &Path, specs_dir: &str) -> Res
     }
     let as_path = Path::new(trimmed);
     if as_path.is_absolute()
-        || as_path
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir | std::path::Component::Prefix(_)))
+        || as_path.components().any(|c| {
+            matches!(
+                c,
+                std::path::Component::ParentDir | std::path::Component::Prefix(_)
+            )
+        })
         || trimmed.contains('\\')
     {
         return Err(format!(
             "Dependency spec path escapes the project root: {trimmed} (absolute paths and `..` traversal are not allowed)"
         ));
     }
-    // Bare module names (no path separators or extension) resolve
-    // against the specs directory, not the project root.
-    let full_path = if !trimmed.contains('/') && !trimmed.contains('.') {
-        root.join(specs_dir).join(trimmed)
+    // Bare module names (no path separators or extension) resolve to the
+    // canonical spec file, not merely a same-named directory.
+    let relative_path = if !trimmed.contains('/') && !trimmed.contains('.') {
+        Path::new(specs_dir)
+            .join(trimmed)
+            .join(format!("{trimmed}.spec.md"))
     } else {
-        root.join(trimmed)
+        PathBuf::from(trimmed)
     };
-    if !source_within_root(root, trimmed) {
+    let confined_mapping = relative_path.to_string_lossy().replace('\\', "/");
+    if !source_within_root(root, &confined_mapping) {
         return Err(format!(
             "Dependency spec path escapes the project root: {trimmed} (symlink resolution leaves the project)"
         ));
     }
-    if !full_path.exists() {
+    let full_path = root.join(&relative_path);
+    if !full_path.is_file() {
         return Err(format!("Dependency spec not found: {trimmed}"));
     }
     Ok(full_path)
@@ -96,100 +120,181 @@ pub fn validate_local_dependency(dep: &str, root: &Path, specs_dir: &str) -> Res
 
 // ─── Schema Table Discovery ──────────────────────────────────────────────
 
-/// Extract table names from SQL schema files.
+/// One invocation-scoped schema load shared by table and column validation.
 ///
-/// The base set comes from `schema::build_schema`, which replays migrations in
-/// order — so `ALTER TABLE ... RENAME TO` retires the old name and `DROP TABLE`
-/// retires the table (the naive CREATE-only scan this replaces had the rename
-/// semantics exactly inverted). A configured `schema_pattern` extracts
-/// ADDITIONAL names on top (for nonstandard DDL the replay doesn't understand);
-/// it can no longer vacuously replace the set — an uncompilable pattern is
-/// surfaced loudly by `schema_config_problems` instead of disabling validation.
-/// All names are normalized (`normalize_table_name`): quoting style and case
-/// do not change identity.
-pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<String> {
-    let mut tables = HashSet::new();
-    let schema_dir = match &config.schema_dir {
-        Some(d) => root.join(d),
-        None => return tables,
+/// `build_schema_snapshot` is called exactly once. Its fallible, ordered replay
+/// supplies both the canonical table set and column map, and any directory,
+/// UTF-8, parse, replay, or collision failure is retained as a validation error
+/// instead of being collapsed into an empty schema.
+#[derive(Debug, Default)]
+pub struct SchemaValidation {
+    pub tables: HashSet<String>,
+    pub columns: HashMap<String, SchemaTable>,
+    pub errors: Vec<String>,
+}
+
+pub fn load_schema_validation(root: &Path, config: &SpecSyncConfig) -> SchemaValidation {
+    let Some(configured_dir) = &config.schema_dir else {
+        return SchemaValidation::default();
     };
-
-    if !schema_dir.exists() {
-        return tables;
-    }
-
-    let (schema_map, retired) = schema::build_schema_with_retired(&schema_dir);
-    for name in schema_map.keys() {
-        tables.insert(name.clone());
-    }
-
-    // Pattern extraction adds names the replay can't see (e.g. VIRTUAL TABLE,
-    // whose column list uses `USING module(...)` syntax), but must never
-    // resurrect a table that a later migration dropped or renamed away.
+    let schema_dir = root.join(configured_dir);
     let pattern_str = config
         .schema_pattern
         .as_deref()
         .unwrap_or_else(|| default_schema_pattern());
 
-    if let Some(re) = safe_regex(pattern_str)
-        && let Ok(entries) = fs::read_dir(&schema_dir)
-    {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            if ext != "ts" && ext != "sql" {
-                continue;
-            }
-            if let Ok(content) = fs::read_to_string(&path) {
-                for caps in re.captures_iter(&content) {
-                    if let Some(name) = caps.get(1) {
-                        let normalized = schema::normalize_table_name(name.as_str());
-                        if !retired.contains(&normalized) {
-                            tables.insert(normalized);
+    let snapshot = match schema::build_schema_snapshot(&schema_dir) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            return SchemaValidation {
+                errors: vec![error.to_string()],
+                ..Default::default()
+            };
+        }
+    };
+
+    let schema::SchemaSnapshot {
+        tables: columns,
+        retired_tables,
+    } = snapshot;
+    let mut tables: HashSet<String> = columns.keys().cloned().collect();
+    let mut errors = Vec::new();
+    let Some(pattern) = safe_regex(pattern_str) else {
+        errors.push(format!(
+            "Configured schema_pattern `{pattern_str}` is not a valid regex — table-name extraction cannot run; fix or remove schema_pattern in the config"
+        ));
+        return SchemaValidation {
+            tables,
+            columns,
+            errors,
+        };
+    };
+
+    // A custom pattern may recognize nonstandard table declarations that the
+    // DDL replay intentionally ignores. Apply it additively, in deterministic
+    // path order, without reintroducing any canonical identity retired by a
+    // later DROP or RENAME.
+    let mut pattern_files = Vec::new();
+    match fs::read_dir(&schema_dir) {
+        Ok(entries) => {
+            for entry in entries {
+                match entry {
+                    Ok(entry) => {
+                        let path = entry.path();
+                        let extension = path.extension().and_then(|value| value.to_str());
+                        if path.is_file() && matches!(extension, Some("sql" | "ts")) {
+                            pattern_files.push(path);
                         }
                     }
+                    Err(error) => errors.push(format!(
+                        "{}: schema directory entry could not be read for schema_pattern matching: {error}",
+                        schema_dir.display()
+                    )),
                 }
             }
         }
+        Err(error) => errors.push(format!(
+            "{}: schema directory could not be re-read for schema_pattern matching: {error}",
+            schema_dir.display()
+        )),
     }
+    pattern_files.sort();
 
-    tables
-}
-
-/// Loud, project-level schema configuration problems: a configured
-/// `schema_dir` that does not exist, or a `schema_pattern` that does not
-/// compile as a regex. Both previously disabled table validation silently
-/// (empty table set ⇒ every db_tables entry vacuously passed).
-pub fn schema_config_problems(root: &Path, config: &SpecSyncConfig) -> Vec<String> {
-    let mut problems = Vec::new();
-    if let Some(dir) = &config.schema_dir {
-        if !root.join(dir).exists() {
-            problems.push(format!(
-                "Configured schema_dir `{dir}` does not exist — db_tables validation cannot run; create the directory or fix schema_dir in the config"
-            ));
-        } else if let Some(pattern) = &config.schema_pattern
-            && safe_regex(pattern).is_none()
-        {
-            problems.push(format!(
-                "Configured schema_pattern `{pattern}` is not a valid regex — table-name extraction cannot use it; fix or remove schema_pattern in the config"
-            ));
+    for path in pattern_files {
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(error) => {
+                errors.push(format!(
+                    "{}: schema file could not be read for schema_pattern matching: {error}",
+                    path.display()
+                ));
+                continue;
+            }
+        };
+        for captures in pattern.captures_iter(&content) {
+            let Some(name) = captures.get(1) else {
+                errors.push(format!(
+                    "Configured schema_pattern `{pattern_str}` matched {} without capture group 1 — wrap the table identifier in the first capture group",
+                    path.display()
+                ));
+                break;
+            };
+            let normalized = match schema::canonicalize_table_name(name.as_str()) {
+                Ok(normalized) => normalized,
+                Err(error) => {
+                    errors.push(format!(
+                        "{}: schema_pattern captured invalid table identifier `{}`: {error}",
+                        path.display(),
+                        name.as_str()
+                    ));
+                    continue;
+                }
+            };
+            if !schema_identity_is_retired(&normalized, &retired_tables) {
+                tables.insert(normalized);
+            }
         }
     }
-    problems
+
+    SchemaValidation {
+        tables,
+        columns,
+        errors,
+    }
+}
+
+fn schema_identity_is_retired(candidate: &str, retired_tables: &HashSet<String>) -> bool {
+    if retired_tables.contains(candidate) {
+        return true;
+    }
+    let Ok(candidate_leaf) = schema::canonical_table_leaf(candidate) else {
+        return false;
+    };
+    if candidate_leaf != candidate {
+        return false;
+    }
+    retired_tables.iter().any(|retired| {
+        schema::canonical_table_leaf(retired)
+            .is_ok_and(|retired_leaf| retired_leaf == candidate_leaf)
+    })
 }
 
 /// Whether a declared `db_tables` entry exists in the discovered schema set.
 /// Both sides are normalized; an unqualified declared name also matches a
 /// schema-qualified discovered name (`users` matches `public.users`).
 pub fn schema_table_exists(tables: &HashSet<String>, declared: &str) -> bool {
-    let norm = schema::normalize_table_name(declared);
+    let Ok(norm) = schema::canonicalize_table_name(declared) else {
+        return false;
+    };
     if tables.contains(&norm) {
         return true;
     }
-    !norm.contains('.')
-        && tables
-            .iter()
-            .any(|t| t.rsplit('.').next() == Some(norm.as_str()))
+    let Ok(declared_leaf) = schema::canonical_table_leaf(declared) else {
+        return false;
+    };
+    declared_leaf == norm
+        && tables.iter().any(|table| {
+            schema::canonical_table_leaf(table).is_ok_and(|table_leaf| table_leaf == declared_leaf)
+        })
+}
+
+fn schema_table_for_name<'a>(
+    tables: &'a HashMap<String, SchemaTable>,
+    declared: &str,
+) -> Option<&'a SchemaTable> {
+    let normalized = schema::canonicalize_table_name(declared).ok()?;
+    if let Some(table) = tables.get(&normalized) {
+        return Some(table);
+    }
+    let declared_leaf = schema::canonical_table_leaf(declared).ok()?;
+    if declared_leaf != normalized {
+        return None;
+    }
+    tables.iter().find_map(|(name, table)| {
+        schema::canonical_table_leaf(name)
+            .is_ok_and(|leaf| leaf == declared_leaf)
+            .then_some(table)
+    })
 }
 
 // ─── File Discovery ──────────────────────────────────────────────────────
@@ -575,7 +680,9 @@ pub fn validate_spec(
     // Check db_tables exist in schema
     for table in &fm.db_tables {
         if config.schema_dir.is_some()
-            && root.join(config.schema_dir.as_deref().unwrap_or_default()).exists()
+            && root
+                .join(config.schema_dir.as_deref().unwrap_or_default())
+                .exists()
             && !schema_table_exists(schema_tables, table)
         {
             result
@@ -591,18 +698,7 @@ pub fn validate_spec(
     if !schema_columns.is_empty() {
         let spec_schema = schema::parse_spec_schema(body);
         for table_name in &fm.db_tables {
-            let normalized = schema::normalize_table_name(table_name);
-            let actual_table = schema_columns.get(&normalized).or_else(|| {
-                // Unqualified declared names match a schema-qualified table.
-                if normalized.contains('.') {
-                    None
-                } else {
-                    schema_columns
-                        .iter()
-                        .find(|(k, _)| k.rsplit('.').next() == Some(normalized.as_str()))
-                        .map(|(_, v)| v)
-                }
-            });
+            let actual_table = schema_table_for_name(schema_columns, table_name);
             if let Some(actual_table) = actual_table
                 && let Some(spec_cols) = spec_schema.get(table_name)
             {
@@ -1404,6 +1500,10 @@ mod tests {
         assert!(!is_cross_project_ref("auth"));
         assert!(!is_cross_project_ref("owner/repo")); // no @
         assert!(!is_cross_project_ref("@module")); // no /
+        assert!(!is_cross_project_ref("/etc/passwd@module"));
+        assert!(!is_cross_project_ref("../owner/repo@module"));
+        assert!(!is_cross_project_ref("owner/repo/extra@module"));
+        assert!(!is_cross_project_ref("owner/repo@../module"));
     }
 
     #[test]
@@ -1414,6 +1514,8 @@ mod tests {
 
         assert!(parse_cross_project_ref("not-a-ref").is_none());
         assert!(parse_cross_project_ref("/@").is_none()); // empty parts
+        assert!(parse_cross_project_ref("/etc/passwd@module").is_none());
+        assert!(parse_cross_project_ref("../owner/repo@module").is_none());
     }
 
     #[test]
@@ -1848,9 +1950,31 @@ Test
         assert!(validate_local_dependency("specs/run/run.spec.md", tmp.path(), "specs").is_ok());
         // Missing targets fail loudly with the offending entry.
         let err = validate_local_dependency("nosuchmod", tmp.path(), "specs").unwrap_err();
-        assert!(err.contains("Dependency spec not found: nosuchmod"), "{err}");
+        assert!(
+            err.contains("Dependency spec not found: nosuchmod"),
+            "{err}"
+        );
         // Cross-project refs are out of scope for local validation.
         assert!(validate_local_dependency("owner/repo@auth", tmp.path(), "specs").is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_validate_local_dependency_rejects_bare_module_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("specs")).unwrap();
+        fs::write(outside.path().join("escaped.spec.md"), "# outside").unwrap();
+        symlink(outside.path(), tmp.path().join("specs").join("escaped")).unwrap();
+
+        let error = validate_local_dependency("escaped", tmp.path(), "specs")
+            .expect_err("a bare module symlink must not escape the project");
+        assert!(
+            error.contains("escapes the project root") && error.contains("escaped"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -1865,13 +1989,7 @@ Test
         .unwrap();
 
         let config = SpecSyncConfig::default();
-        let result = validate_spec(
-            &spec,
-            tmp.path(),
-            &HashSet::new(),
-            &HashMap::new(),
-            &config,
-        );
+        let result = validate_spec(&spec, tmp.path(), &HashSet::new(), &HashMap::new(), &config);
         // Flow-style entries must be parsed (not silently zero edges) and each
         // entry rejected with its own verdict.
         assert!(
@@ -1902,13 +2020,7 @@ Test
         )
         .unwrap();
         let config = SpecSyncConfig::default();
-        let result = validate_spec(
-            &spec,
-            tmp.path(),
-            &HashSet::new(),
-            &HashMap::new(),
-            &config,
-        );
+        let result = validate_spec(&spec, tmp.path(), &HashSet::new(), &HashMap::new(), &config);
         assert!(
             result
                 .errors
@@ -1920,7 +2032,7 @@ Test
     }
 
     #[test]
-    fn test_get_schema_table_names_rename_and_drop_applied() {
+    fn test_load_schema_validation_applies_rename_and_drop() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join("migrations");
         fs::create_dir_all(&dir).unwrap();
@@ -1939,19 +2051,37 @@ Test
             schema_dir: Some("migrations".to_string()),
             ..Default::default()
         };
-        let tables = get_schema_table_names(tmp.path(), &config);
+        let schema = load_schema_validation(tmp.path(), &config);
+        assert!(schema.errors.is_empty(), "errors: {:?}", schema.errors);
         // Rename must retire the old name, DROP must retire the table.
-        assert!(tables.contains("users"), "tables: {tables:?}");
-        assert!(!tables.contains("old_users"), "tables: {tables:?}");
-        assert!(!tables.contains("doomed"), "tables: {tables:?}");
+        assert!(
+            schema.tables.contains("users"),
+            "tables: {:?}",
+            schema.tables
+        );
+        assert!(
+            !schema.tables.contains("old_users"),
+            "tables: {:?}",
+            schema.tables
+        );
+        assert!(
+            !schema.tables.contains("doomed"),
+            "tables: {:?}",
+            schema.tables
+        );
     }
 
     #[test]
     fn test_schema_table_exists_quoting_case_and_schema_prefix() {
-        let tables: HashSet<String> = ["users", "public.orders", "mixedcase"]
-            .into_iter()
-            .map(String::from)
-            .collect();
+        let tables: HashSet<String> = [
+            "users",
+            "public.orders",
+            "mixedcase",
+            "public.\"user.events\"",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
         assert!(schema_table_exists(&tables, "users"));
         assert!(schema_table_exists(&tables, "\"users\""));
         assert!(schema_table_exists(&tables, "`users`"));
@@ -1960,31 +2090,94 @@ Test
         // Unqualified declared name matches schema-qualified discovered name.
         assert!(schema_table_exists(&tables, "orders"));
         assert!(schema_table_exists(&tables, "public.orders"));
+        assert!(schema_table_exists(&tables, "\"User.Events\""));
         assert!(!schema_table_exists(&tables, "zzz_definitely_missing"));
     }
 
     #[test]
-    fn test_schema_config_problems_loud() {
+    fn test_load_schema_validation_reports_config_problems() {
         let tmp = tempfile::tempdir().unwrap();
         let mut config = SpecSyncConfig {
             schema_dir: Some("no_such_dir".to_string()),
             ..Default::default()
         };
-        let problems = schema_config_problems(tmp.path(), &config);
-        assert_eq!(problems.len(), 1);
-        assert!(problems[0].contains("no_such_dir"), "{problems:?}");
+        let schema = load_schema_validation(tmp.path(), &config);
+        assert_eq!(schema.errors.len(), 1);
+        assert!(
+            schema.errors[0].contains("no_such_dir"),
+            "{:?}",
+            schema.errors
+        );
 
         // An uncompilable schema_pattern must be flagged, not silently vacuous.
         fs::create_dir_all(tmp.path().join("migrations")).unwrap();
         config.schema_dir = Some("migrations".to_string());
         config.schema_pattern = Some("*.sql".to_string());
-        let problems = schema_config_problems(tmp.path(), &config);
-        assert_eq!(problems.len(), 1);
-        assert!(problems[0].contains("*.sql"), "{problems:?}");
+        let schema = load_schema_validation(tmp.path(), &config);
+        assert_eq!(schema.errors.len(), 1);
+        assert!(schema.errors[0].contains("*.sql"), "{:?}", schema.errors);
 
         // A valid pattern is fine.
         config.schema_pattern = Some(r"CREATE TABLE (\w+)".to_string());
-        assert!(schema_config_problems(tmp.path(), &config).is_empty());
+        assert!(
+            load_schema_validation(tmp.path(), &config)
+                .errors
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_load_schema_validation_propagates_replay_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let migrations = tmp.path().join("migrations");
+        fs::create_dir_all(&migrations).unwrap();
+        let malformed = migrations.join("001_broken.sql");
+        fs::write(
+            &malformed,
+            "CREATE TABLE valid (id INTEGER);\n\nCREATE TABLE broken (id INTEGER;\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig {
+            schema_dir: Some("migrations".to_string()),
+            ..Default::default()
+        };
+
+        let schema = load_schema_validation(tmp.path(), &config);
+        assert!(schema.tables.is_empty());
+        assert!(schema.columns.is_empty());
+        assert_eq!(schema.errors.len(), 1, "errors: {:?}", schema.errors);
+        assert!(
+            schema.errors[0].contains("001_broken.sql:3:1")
+                && schema.errors[0].contains("unmatched parentheses"),
+            "errors: {:?}",
+            schema.errors
+        );
+    }
+
+    #[test]
+    fn test_schema_pattern_does_not_resurrect_qualified_renamed_leaf() {
+        let tmp = tempfile::tempdir().unwrap();
+        let migrations = tmp.path().join("migrations");
+        fs::create_dir_all(&migrations).unwrap();
+        fs::write(
+            migrations.join("001_users.sql"),
+            "CREATE TABLE public.users (id INTEGER);\n\
+             ALTER TABLE public.users RENAME TO archive.users;\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig {
+            schema_dir: Some("migrations".to_string()),
+            // Deliberately capture only the leaf. The additive pattern must not
+            // turn the retired public.users identity back into bare `users`.
+            schema_pattern: Some(r"CREATE TABLE (?:public\.)?([a-z]+)".to_string()),
+            ..Default::default()
+        };
+
+        let schema = load_schema_validation(tmp.path(), &config);
+        assert!(schema.errors.is_empty(), "errors: {:?}", schema.errors);
+        assert!(schema.tables.contains("archive.users"));
+        assert!(!schema.tables.contains("public.users"));
+        assert!(!schema.tables.contains("users"));
     }
 
     #[test]
@@ -1996,13 +2189,7 @@ Test
 
         // No schema_dir configured: warn (validation skipped visibly), no error.
         let config = SpecSyncConfig::default();
-        let result = validate_spec(
-            &spec,
-            tmp.path(),
-            &HashSet::new(),
-            &HashMap::new(),
-            &config,
-        );
+        let result = validate_spec(&spec, tmp.path(), &HashSet::new(), &HashMap::new(), &config);
         assert!(
             result
                 .warnings
@@ -2028,14 +2215,29 @@ Test
             schema_dir: Some("migrations".to_string()),
             ..Default::default()
         };
-        let tables = get_schema_table_names(tmp.path(), &config);
-        let result = validate_spec(&spec, tmp.path(), &tables, &HashMap::new(), &config);
+        let schema = load_schema_validation(tmp.path(), &config);
+        let result = validate_spec(&spec, tmp.path(), &schema.tables, &schema.columns, &config);
         assert!(
             result
                 .errors
                 .iter()
                 .any(|e| e.contains("DB table not found in schema: zzz_definitely_missing")),
             "errors: {:?}",
+            result.errors
+        );
+
+        // A configured, readable, but empty schema is not a successful match.
+        fs::remove_file(tmp.path().join("migrations/001.sql")).unwrap();
+        let schema = load_schema_validation(tmp.path(), &config);
+        assert!(schema.errors.is_empty(), "errors: {:?}", schema.errors);
+        assert!(schema.tables.is_empty());
+        let result = validate_spec(&spec, tmp.path(), &schema.tables, &schema.columns, &config);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|error| error.contains("DB table not found in schema")),
+            "an empty discovered set must not pass db_tables validation: {:?}",
             result.errors
         );
     }
@@ -2046,7 +2248,11 @@ Test
         // NFD source (i + combining diaeresis), NFC spec (precomposed ï):
         // glyph-identical names must match, not phantom/undocumented.
         fs::create_dir_all(tmp.path().join("src")).unwrap();
-        fs::write(tmp.path().join("src/lib.ts"), "export const nai\u{0308}ve = 1;\n").unwrap();
+        fs::write(
+            tmp.path().join("src/lib.ts"),
+            "export const nai\u{0308}ve = 1;\n",
+        )
+        .unwrap();
         let spec = tmp.path().join("u.spec.md");
         fs::write(
             &spec,
@@ -2054,20 +2260,20 @@ Test
         )
         .unwrap();
         let config = SpecSyncConfig::default();
-        let result = validate_spec(
-            &spec,
-            tmp.path(),
-            &HashSet::new(),
-            &HashMap::new(),
-            &config,
-        );
+        let result = validate_spec(&spec, tmp.path(), &HashSet::new(), &HashMap::new(), &config);
         assert!(
-            !result.errors.iter().any(|e| e.contains("no matching export")),
+            !result
+                .errors
+                .iter()
+                .any(|e| e.contains("no matching export")),
             "errors: {:?}",
             result.errors
         );
         assert!(
-            !result.warnings.iter().any(|w| w.contains("ndocumented export")),
+            !result
+                .warnings
+                .iter()
+                .any(|w| w.contains("ndocumented export")),
             "warnings: {:?}",
             result.warnings
         );
@@ -2077,7 +2283,11 @@ Test
     fn test_erlang_arity_export_matching() {
         let tmp = tempfile::tempdir().unwrap();
         fs::create_dir_all(tmp.path().join("src")).unwrap();
-        fs::write(tmp.path().join("src/geo.erl"), "-module(geo).\n-export([area/2]).\narea(A, B) -> A * B.\n").unwrap();
+        fs::write(
+            tmp.path().join("src/geo.erl"),
+            "-module(geo).\n-export([area/2]).\narea(A, B) -> A * B.\n",
+        )
+        .unwrap();
         let config = SpecSyncConfig::default();
 
         // Bare `area` still matches `area/2` (back-compat)...
@@ -2087,15 +2297,12 @@ Test
             "---\nmodule: geo\nversion: 1\nstatus: active\nfiles:\n  - src/geo.erl\n---\n\n## Purpose\nTest\n## Public API\n\n### Exported Functions\n\n| Name | Description |\n|------|-------------|\n| `area` | arity-2 export |\n",
         )
         .unwrap();
-        let result = validate_spec(
-            &spec,
-            tmp.path(),
-            &HashSet::new(),
-            &HashMap::new(),
-            &config,
-        );
+        let result = validate_spec(&spec, tmp.path(), &HashSet::new(), &HashMap::new(), &config);
         assert!(
-            !result.errors.iter().any(|e| e.contains("no matching export")),
+            !result
+                .errors
+                .iter()
+                .any(|e| e.contains("no matching export")),
             "errors: {:?}",
             result.errors
         );
@@ -2107,13 +2314,7 @@ Test
             "---\nmodule: geo\nversion: 1\nstatus: active\nfiles:\n  - src/geo.erl\n---\n\n## Purpose\nTest\n## Public API\n\n### Exported Functions\n\n| Name | Description |\n|------|-------------|\n| `area/1` | wrong arity |\n",
         )
         .unwrap();
-        let result = validate_spec(
-            &spec,
-            tmp.path(),
-            &HashSet::new(),
-            &HashMap::new(),
-            &config,
-        );
+        let result = validate_spec(&spec, tmp.path(), &HashSet::new(), &HashMap::new(), &config);
         assert!(
             result
                 .errors
@@ -2134,13 +2335,7 @@ Test
         )
         .unwrap();
         let config = SpecSyncConfig::default();
-        let result = validate_spec(
-            &spec,
-            tmp.path(),
-            &HashSet::new(),
-            &HashMap::new(),
-            &config,
-        );
+        let result = validate_spec(&spec, tmp.path(), &HashSet::new(), &HashMap::new(), &config);
         assert!(
             result
                 .warnings

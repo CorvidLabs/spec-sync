@@ -77,7 +77,14 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
                 current_key = Some(key.to_string());
                 current_list.clear();
             } else {
-                set_scalar(&mut fm, key, &value, line.trim(), &mut errors, &mut warnings);
+                set_scalar(
+                    &mut fm,
+                    key,
+                    &value,
+                    line.trim(),
+                    &mut errors,
+                    &mut warnings,
+                );
             }
             continue;
         }
@@ -193,11 +200,7 @@ fn is_version_shaped(value: &str) -> bool {
     let unquoted = value
         .strip_prefix('"')
         .and_then(|v| v.strip_suffix('"'))
-        .or_else(|| {
-            value
-                .strip_prefix('\'')
-                .and_then(|v| v.strip_suffix('\''))
-        })
+        .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
         .unwrap_or(value);
     !unquoted.is_empty()
         && unquoted

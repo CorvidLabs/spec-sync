@@ -1,6 +1,6 @@
 ---
 module: cmd_resolve
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/resolve.rs
@@ -30,7 +30,7 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 ## Invariants
 
 1. Classifies deps as local vs cross-project
-2. Local verified by file existence
+2. Local references use `validate_local_dependency`: bare modules resolve to canonical spec files and absolute/traversal/backslash/symlink escapes are rejected without host-filesystem probing
 3. No network calls without `--remote` or `--verify`
 4. `--verify` implies `--remote` — registry check always runs first
 5. Warnings for unresolvable refs (does not exit non-zero)
@@ -88,7 +88,7 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 
 | Condition | Behavior |
 |-----------|----------|
-| Local dep missing | Warning printed |
+| Local dep missing or unconfined | Shared dependency failure printed with the offending entry |
 | Remote registry fetch fails | Warning, continues |
 | Remote spec fetch fails | Warning, continues |
 | Remote spec unparseable | Warning, continues |
@@ -118,6 +118,7 @@ Implements the `specsync resolve` command. Resolves dependency references — lo
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v4: use the same confined local-dependency verdict as check and deps, including malformed remote lookalikes |
 | 2026-04-10 | v2: Added `--verify` for deep content verification, `--cache-ttl`, drift detection, exit codes |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

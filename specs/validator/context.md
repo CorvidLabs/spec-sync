@@ -12,6 +12,8 @@ spec: validator.spec.md
 - **Module detection cascade**: User-defined modules (config) → manifest-discovered modules → subdirectory scanning → flat file detection. Each level is a fallback.
 - **Static coverage is non-vacuous**: HTML, HTM, and CSS files participate in default source discovery even though they expose no API symbols.
 - **Generated companion markers fail strict**: Every known artifact-specific scaffold prompt emitted by the built-in templates, including all Layout, Components, Tokens, and Assets design bullets, emits a path-and-line warning outside fenced examples; strict mode promotes those warnings to errors.
+- **One dependency verdict**: Check, deps, and resolve call `validate_local_dependency`; malformed remote lookalikes remain local and cannot bypass absolute/traversal/symlink confinement.
+- **One schema snapshot**: `load_schema_validation` calls `build_schema_snapshot` once and shares its table, column, retired-name, and error state with CLI, MCP, reporting, generation, and effective-contract validation.
 
 ## Files to Read First
 
@@ -29,3 +31,4 @@ Fully implemented. The validator is the heart of spec-sync — it powers `specsy
 - Status gates validation depth: `archived` specs skip all checks; `draft` specs check structure only; `review` specs check sections but skip Public API and API-surface validation; `active`/`stable`/`deprecated` get the full pass.
 - Non-draft, non-review specs warn when inline `## Requirements`/`## Acceptance Criteria` appear in the technical spec. A companion `requirements.md` is validated when present but is no longer mandatory for every module.
 - Exclude patterns use a simplified glob syntax: `**/dir/**` for directory exclusion, `**/*.ext` for extension exclusion.
+- Schema pattern extraction is additive only. It uses canonical identities and rejects any exact or unqualified-leaf match retired by ordered DDL replay.

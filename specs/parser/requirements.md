@@ -51,3 +51,16 @@ Acceptance Criteria
 - Unrecognized YAML keys are silently skipped (no errors)
 - Zero external YAML parsing dependencies — custom line-by-line parser
 
+### REQ-parser-002
+
+Frontmatter parsing SHALL surface ambiguous or malformed supported shapes without allowing lossy parsing to bypass downstream validation.
+
+Acceptance Criteria
+
+- Duplicate keys produce a hard diagnostic naming the key and offending line.
+- `files`, `db_tables`, and `depends_on` accept block and flow-style string lists.
+- Mapping values, unclosed flow lists, and unterminated quoted list items produce hard diagnostics.
+- Scalar list values are retained as one item with a warning rather than silently discarded.
+- Non-numeric versions and colon-less non-comment lines produce warnings.
+- A leading UTF-8 BOM is tolerated, while body content is preserved.
+- Missing frontmatter delimiters remain distinguishable as `None` for the validator's malformed-frontmatter error.

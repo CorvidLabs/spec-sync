@@ -1308,6 +1308,88 @@ fn invalid_frontmatter_reports_error() {
 }
 
 #[test]
+fn hostile_frontmatter_shapes_fail_loudly_in_json() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/safe")).unwrap();
+    fs::write(
+        root.join("specs/safe/safe.spec.md"),
+        r#"---
+module: safe
+module: hidden
+version: "one"
+status: active
+status: draft
+files: []
+depends_on: {outside: true}
+colon-less garbage
+---
+
+# Safe
+
+## Purpose
+
+Fixture.
+"#,
+    )
+    .unwrap();
+
+    let output = specsync()
+        .args(["check", "--strict", "--force", "--format", "json"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value =
+        serde_json::from_slice(&output).expect("frontmatter failure must stay valid JSON");
+    let errors = value["errors"].to_string();
+    let warnings = value["warnings"].to_string();
+    assert!(errors.contains("duplicate key `module`"), "{errors}");
+    assert!(errors.contains("duplicate key `status`"), "{errors}");
+    assert!(
+        errors.contains("`depends_on` must be a YAML list"),
+        "{errors}"
+    );
+    assert!(
+        warnings.contains("version` should be a plain number"),
+        "{warnings}"
+    );
+    assert!(
+        warnings.contains("malformed frontmatter line") && warnings.contains("colon-less garbage"),
+        "{warnings}"
+    );
+}
+
+#[test]
+fn unterminated_frontmatter_delimiter_has_an_actionable_error() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/broken")).unwrap();
+    fs::write(
+        root.join("specs/broken/broken.spec.md"),
+        "---\nmodule: broken\nversion: 1\nstatus: active\nfiles: []\n# missing closing delimiter\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--strict", "--force"])
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "Missing or malformed YAML frontmatter",
+        ));
+}
+
+#[test]
 fn missing_spec_dir_exits_cleanly() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

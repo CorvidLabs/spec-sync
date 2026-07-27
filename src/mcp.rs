@@ -3,7 +3,7 @@ use crate::deps::build_dep_graph;
 use crate::generator::generate_specs_for_unspecced_modules_paths;
 use crate::scoring;
 use crate::types::SpecSyncConfig;
-use crate::validator::{compute_coverage, find_spec_files, get_schema_table_names, validate_spec};
+use crate::validator::{compute_coverage, find_spec_files, load_schema_validation, validate_spec};
 use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
@@ -546,9 +546,7 @@ fn load_and_discover(
 
 fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
     let (config, spec_files) = load_and_discover(root, false)?;
-    let schema_tables = get_schema_table_names(root, &config);
-    let schema_columns =
-        crate::schema::build_schema(&root.join(config.schema_dir.as_deref().unwrap_or("")));
+    let schema = load_schema_validation(root, &config);
     let strict = arguments
         .get("strict")
         .and_then(|s| s.as_bool())
@@ -582,7 +580,7 @@ fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
     let mut spec_results: Vec<Value> = Vec::new();
 
     for spec_file in &spec_files {
-        let result = validate_spec(spec_file, root, &schema_tables, &schema_columns, &config);
+        let result = validate_spec(spec_file, root, &schema.tables, &schema.columns, &config);
         let spec_passed = result.errors.is_empty();
 
         spec_results.push(json!({
@@ -605,6 +603,11 @@ fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
         if spec_passed {
             passed += 1;
         }
+    }
+
+    for error in &schema.errors {
+        total_errors += 1;
+        all_errors.push(json!(error));
     }
 
     // Add staleness warnings into the warnings array for consistency

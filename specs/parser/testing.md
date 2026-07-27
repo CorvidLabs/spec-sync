@@ -16,6 +16,8 @@ spec: parser.spec.md
 | `tests/integration.rs` | cargo test --test integration missing_required_sections_reports_error | End-to-end fixture: `missing_required_sections_reports_error` |
 | `tests/integration.rs` | cargo test --test integration missing_frontmatter_fields_reports_error | End-to-end fixture: `missing_frontmatter_fields_reports_error` |
 | `tests/integration.rs` | cargo test --test integration fix_adds_undocumented_exports_to_spec | End-to-end fixture: `fix_adds_undocumented_exports_to_spec` |
+| `src/parser.rs` | `fledge run test -- parser::tests::test_parse_frontmatter` | Duplicate keys, flow lists, malformed list shapes, suspicious versions, garbage lines, BOM, comments, tabs, and empty lists |
+| `tests/integration.rs` | `fledge run test -- --test integration check::hostile_frontmatter_shapes_fail_loudly_in_json` | Hard and soft parser findings survive the CLI JSON path |
 
 ## Behavioral Verification
 
@@ -31,7 +33,8 @@ spec: parser.spec.md
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
 | No frontmatter delimiters | `parse_frontmatter` returns `None` | Keep or add a focused assertion before changing this behavior |
-| Malformed YAML in frontmatter | Unknown keys silently ignored, missing fields remain as `None` | Keep or add a focused assertion before changing this behavior |
+| Duplicate or malformed supported shape | Hard diagnostic names the key/input | Keep the checked-frontmatter unit and CLI JSON regressions |
+| Suspicious scalar/version/garbage shape | Warning is retained for strict-mode gating | Keep the checked-frontmatter unit and CLI JSON regressions |
 | No `## Public API` section | `get_spec_symbols` returns empty vector | Keep or add a focused assertion before changing this behavior |
 | Malformed or misplaced code span | Empty, unterminated, later-column, and prose spans are ignored | Keep the focused malformed-row regression |
 | Empty body | `get_missing_sections` reports all required sections as missing | Keep or add a focused assertion before changing this behavior |

@@ -16,6 +16,8 @@ spec: cmd_resolve.spec.md
 - [x] Exit 1 on breaking drift; warnings exit 0
 - [x] File-based remote-spec cache with TTL (`SpecCache`) and slash sanitization
 - [x] Unit tests for cache roundtrip/miss/expired, path sanitization, `### Consumes` parsing, and deprecated-status detection
+- [x] Share confined local dependency resolution with check and deps
+- [x] Reject malformed remote lookalikes instead of skipping them as external
 
 ## Gaps
 

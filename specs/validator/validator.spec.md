@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 11
+version: 12
 status: stable
 files:
   - src/validator.rs
@@ -19,9 +19,15 @@ depends_on:
 
 ## Purpose
 
-Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics, and resolves cross-project dependency references.
+Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, applies one confined dependency-reference verdict across commands, consumes one fallible canonical schema snapshot, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, computes non-vacuous file and LOC coverage metrics, and resolves well-formed cross-project dependency references.
 
 ## Public API
+
+**Exported Structs**
+
+| Type | Description |
+|------|-------------|
+| `SchemaValidation` | Invocation-scoped canonical schema tables, columns, and propagated load/replay errors |
 
 **Exported Functions**
 
@@ -30,7 +36,9 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | `validate_spec` | `spec_path: &Path, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate a single spec file: frontmatter, files, sections, API surface, dependencies |
 | `find_spec_files` | `dir: &Path` | `Vec<PathBuf>` | Recursively find all `*.spec.md` files in a directory |
 | `compute_coverage` | `root, spec_files, config` | `CoverageReport` | Compute file and LOC coverage across all source directories |
-| `get_schema_table_names` | `root, config` | `HashSet<String>` | Extract table names from SQL schema files using configurable regex |
+| `load_schema_validation` | `root, config` | `SchemaValidation` | Call `build_schema_snapshot` once, apply additive pattern extraction without resurrecting retired identities, and retain every configuration/read/replay error |
+| `schema_table_exists` | `tables, declared` | `bool` | Compare canonical qualified or unqualified table identities using `canonical_table_leaf`, including quoted segments containing dots |
+| `validate_local_dependency` | `dep, root, specs_dir` | `Result<PathBuf, String>` | Resolve one local dependency to a confined canonical spec file; reject absolute, traversal, malformed-remote, missing, and symlink-escape inputs |
 | `is_cross_project_ref` | `dep: &str` | `bool` | Check if a dependency string is a cross-project ref (`owner/repo@module`) |
 | `parse_cross_project_ref` | `dep: &str` | `Option<(&str, &str)>` | Parse cross-project ref into (owner/repo, module) tuple |
 | `normalize_source_mapping` | `file: &str` | `Option<String>` | Normalize a safe project-relative mapping by removing redundant current-directory segments and rejecting absolute, parent, or prefixed paths; callers also reject backslashes so ownership, validation, and coverage share one portable mapping contract |
@@ -50,6 +58,10 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 10. Sections with no substantive content are reported as unfinished draft text rather than as template markers
 11. `validate_spec` records the spec's parsed lifecycle status on `ValidationResult.status` (None when frontmatter is unreadable) so reporters can surface status-based skips, e.g. drafts skipping section and export checks
 12. Requirements companions are validated when present but optional for technical/internal modules under the adaptive 5.0 artifact model
+13. Only syntactically valid `owner/repo@module` references are remote; malformed lookalikes are validated as confined local paths rather than bypassing path checks
+14. Bare module dependencies resolve to `specs/<module>/<module>.spec.md`, including symlink confinement of the resolved path
+15. Schema table and column validation share one `build_schema_snapshot` result; load/replay errors are project errors and an empty table set never disables declared `db_tables` checks
+16. Unqualified schema matching uses `canonical_table_leaf`, never string splitting that corrupts dots inside quoted identifiers
 
 ## Behavioral Examples
 
@@ -87,6 +99,8 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | DB table not in schema | Error: "DB table not found in schema" |
 | Missing required section | Error: "Missing required section: ## SectionName" |
 | Dependency spec not found | Error: "Dependency spec not found" |
+| Dependency is absolute, traverses, or resolves outside the project | Error naming the confined dependency entry |
+| Schema directory/pattern/migration/replay fails | Project validation error; no successful empty-schema fallback |
 
 ## Dependencies
 
@@ -117,6 +131,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v12: enforce one confined dependency verdict and one fallible schema snapshot across CLI/MCP validation, including quoted-dot leaf matching and retired-table pattern suppression |
 | 2026-07-10 | v5: keep coverage regression fixtures warning-free under current stable Clippy and document the intentionally in-file test-module layout |
 | 2026-07-10 | v5: make canonical requirements companions adaptive rather than empty mandatory ceremony |
 | 2026-07-02 | v4: add `source_within_root` — shared guard rejecting `files:` paths that escape the project root (absolute/`..`/symlink); applied in `validate_spec` and every export-extraction site (score, check --fix, diff, new) to close an out-of-root identifier-disclosure vector |

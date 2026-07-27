@@ -9,6 +9,7 @@ spec: cli.spec.md
 - **JSON mode**: `--json` is a global flag so all commands can produce machine-readable output for CI/scripting.
 - **Strict mode**: `--strict` converts warnings to errors, useful for CI pipelines that want zero-warning enforcement.
 - **Idempotent init**: Both `init` and `init-registry` check for existing files before writing, preventing accidental overwrites.
+- **Truthful initialization outcomes**: The dispatcher projects global output format into both initialization commands; `init --repair` is additive and structured failures retain non-zero exits.
 - **No network by default**: `resolve` only performs network calls with `--remote`, keeping default behavior offline and fast.
 - **Hook targets**: When no specific `--claude`/`--cursor`/etc. flags are given, an empty targets vec signals "all targets" to the hooks module.
 - **Panic guard**: `main()` wraps `run()` in `std::panic::catch_unwind` and prints a "please report it" message with the issue tracker URL instead of a raw backtrace.
@@ -22,7 +23,7 @@ spec: cli.spec.md
 
 ## Current Status
 
-Fully implemented. The CLI exposes deterministic validation/generation, complete lifecycle/change commands, and native Agents/MCP integration without embedded inference configuration.
+Fully implemented. The CLI exposes deterministic validation/generation, additive initialization repair, complete lifecycle/change commands, and native Agents/MCP integration without embedded inference configuration.
 
 ## Notes
 

@@ -1,10 +1,11 @@
 ---
 module: cli_args
-version: 12
+version: 13
 status: stable
 files:
   - src/cli.rs
 db_tables: []
+implements: [440]
 tracks: []
 depends_on:
   - specs/types/types.spec.md
@@ -48,6 +49,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 10. `ChangeAction::CorrectOwner` requires actor and reason, plus a non-empty batch selection from repeated `--path`/`--spec` pairs, `--manifest`, or `--all-missing` with one `--spec`
 11. Conflicting or empty `correct-owner` selection modes fail in Clap before domain mutation
 12. `Migrate` accepts an optional source-family positional; unknown families fail through deterministic validation before any mutation.
+13. `Init` carries an explicit `--repair` boolean; global `--json`/`--format` continue to apply to `init` and `init-registry`.
 
 ## Behavioral Examples
 
@@ -86,6 +88,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | `change reopen` without `--actor` or `--reason` | Clap names the missing required argument and exits non-zero |
 | `change correct-owner` without actor, reason, or any batch selection | Clap names the missing required argument and exits non-zero |
 | `change correct-owner` with conflicting `--all-missing`, `--manifest`, and `--path` modes | Clap rejects the conflicting selection before domain mutation |
+| Unknown init flag (including `--force`) | Clap rejects it and names `--repair` as the supported repair surface |
 
 ## Dependencies
 
@@ -122,3 +125,4 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |
 | 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |
 | 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
+| 2026-07-26 | v13: Add the explicit `init --repair` grammar and preserve global format projection (#440) |

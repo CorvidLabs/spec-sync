@@ -1,10 +1,11 @@
 ---
 module: config
-version: 8
+version: 9
 status: stable
 files:
   - src/config.rs
 db_tables: []
+implements: [440]
 tracks: [31]
 depends_on:
   - specs/types/types.spec.md
@@ -27,12 +28,14 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | `load_config` | `root: &Path` | `SpecSyncConfig` | Load configuration in canonical-to-legacy precedence order, falling back to defaults with auto-detected source directories |
 | `load_config_from_path` | `config_path: &Path, root: &Path` | `SpecSyncConfig` | Load config from a specific file path (JSON or TOML based on extension), used by migration |
 | `detect_source_dirs` | `root: &Path` | `Vec<String>` | Auto-detect source directories by scanning for supported language files up to 3 levels deep |
+| `detect_source_dirs_with_confidence` | `root: &Path` | `(Vec<String>, bool)` | Return detected source directories plus whether they were genuinely discovered rather than the `src` fallback |
 | `default_schema_pattern` | — | `&'static str` | Returns the default regex for SQL CREATE TABLE extraction |
 | `discover_manifest_modules` | `root: &Path` | `ManifestDiscovery` | Discover modules from manifest files (Package.swift, Cargo.toml, etc.) |
 | `is_legacy_layout` | `root: &Path` | `bool` | Detect whether a project uses a legacy 3.x layout (root-level config files without `.specsync/version` stamp) |
 | `config_to_toml` | `config: &SpecSyncConfig` | `String` | Serialize a `SpecSyncConfig` to the current canonical `.specsync/config.toml` format |
 | `config_to_toml_lossy_fields` | `config: &SpecSyncConfig` | `Vec<&'static str>` | List config fields `config_to_toml` cannot represent (e.g. `customRules`), so `migrate` can refuse rather than silently drop them |
 | `read_config_file` | `path: &Path` | `Option<String>` | Read a config file, dropping a leading UTF-8 BOM (lossless) so it does not attach to the first TOML key or break JSON parsing; shared by the loaders and `migrate` so config reads handle a BOM consistently. `None` if unreadable |
+| `validate_config_file` | `path: &Path` | `Result<(), String>` | Validate JSON/TOML syntax and documented path-field shapes before repair or registry initialization mutates support files |
 
 ## Invariants
 
@@ -42,10 +45,11 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 4. 46 common build/cache directories are always excluded from source detection (node_modules, target, .git, dist, etc.)
 5. `detect_source_dirs` falls back to `["src"]` if no source files are found
 6. Root-level source files (no subdirectories) produce `["."]` as source dirs
-7. TOML parsing is zero-dependency — uses line-by-line string parsing, not a TOML library
+7. Compatibility loading preserves the existing line-oriented reader, while mutation preflight validates complete TOML syntax with the `toml` parser.
 8. The reader accepts both TOML string kinds for scalar and array values: basic `"..."` strings (backslash escapes decoded) and literal `'...'` strings (taken verbatim, no escape processing); a `#`, `,`, `[`, or `]` appearing inside either kind is treated as content, not as a comment or array structure
 9. A config file that is absent is expected — defaults apply silently. But a config file that **exists yet cannot be read** (e.g. not valid UTF-8) fails loud: a warning naming the file is printed and built-in defaults are used, rather than silently reverting to defaults (which would downgrade enforcement — strict→warn, exit 1→0 — with no signal). The same applies to the optional local override file (`config.local.toml`)
 10. Retired AI key names are ignored with migration guidance; their values are never retained, serialized, printed, or executed
+11. Canonical TOML serialization escapes every control character and quoted table-key component so detected filesystem names cannot inject configuration syntax.
 
 ## Behavioral Examples
 
@@ -81,6 +85,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | Config file absent | Silently uses `SpecSyncConfig::default()` with auto-detected source dirs (expected) |
 | Malformed JSON config | Prints warning to stderr, falls back to defaults |
 | Empty project root | Returns `["src"]` as source dirs |
+| Existing malformed config selected for repair/init-registry | Validation returns an error before support files or registries are written |
 
 ## Dependencies
 
@@ -116,6 +121,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
 | 2026-07-14 | CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless: Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, LOC coverage, and wizard regressions for extensionless-only and mixed projects |
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
+| 2026-07-26 | v9: Expose truthful source-detection confidence, checked mutation preflight, and control-safe TOML serialization (#440) |
 
 ## Config File Structure
 

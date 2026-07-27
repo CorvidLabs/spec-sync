@@ -698,6 +698,165 @@ fn init_registry_is_idempotent_for_v4_registry() {
 }
 
 #[test]
+fn init_registry_json_reports_create_and_existing_noop_truthfully() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/version"), "5.0.0\n").unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+
+    let created = specsync()
+        .args([
+            "init-registry",
+            "--name",
+            "api",
+            "--format",
+            "json",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let created_json: serde_json::Value =
+        serde_json::from_slice(&created.get_output().stdout).expect("create output must be JSON");
+    assert_eq!(created_json["command"], "init-registry");
+    assert_eq!(created_json["success"], true);
+    assert_eq!(created_json["created"], true);
+    assert_eq!(created_json["unchanged"], false);
+    assert_eq!(created_json["name"], "api");
+
+    let before = fs::read(root.join(".specsync/registry.toml")).unwrap();
+    let existing = specsync()
+        .args(["init-registry", "--json", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let existing_json: serde_json::Value = serde_json::from_slice(&existing.get_output().stdout)
+        .expect("existing output must be JSON");
+    assert_eq!(existing_json["success"], true);
+    assert_eq!(existing_json["created"], false);
+    assert_eq!(existing_json["unchanged"], true);
+    assert_eq!(
+        fs::read(root.join(".specsync/registry.toml")).unwrap(),
+        before
+    );
+}
+
+#[test]
+fn init_registry_rejects_blank_name_as_structured_failure_without_output_file() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/version"), "5.0.0\n").unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+
+    let assert = specsync()
+        .args([
+            "init-registry",
+            "--name",
+            " \t ",
+            "--format",
+            "json",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .code(1);
+    let value: serde_json::Value =
+        serde_json::from_slice(&assert.get_output().stdout).expect("failure output must be JSON");
+    assert_eq!(value["command"], "init-registry");
+    assert_eq!(value["success"], false);
+    assert!(
+        value["error"]
+            .as_str()
+            .unwrap()
+            .contains("must not be empty")
+    );
+    assert!(!root.join(".specsync/registry.toml").exists());
+}
+
+#[test]
+fn init_registry_rejects_invalid_existing_registry_without_overwrite() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/version"), "5.0.0\n").unwrap();
+    fs::write(
+        root.join(".specsync/registry.toml"),
+        "[registry]\nname = \"unterminated\n",
+    )
+    .unwrap();
+    let before = fs::read(root.join(".specsync/registry.toml")).unwrap();
+
+    let assert = specsync()
+        .args(["init-registry", "--json", "--root", root.to_str().unwrap()])
+        .assert()
+        .failure()
+        .code(1);
+    let value: serde_json::Value =
+        serde_json::from_slice(&assert.get_output().stdout).expect("failure output must be JSON");
+    assert_eq!(value["success"], false);
+    assert!(
+        value["error"]
+            .as_str()
+            .unwrap()
+            .contains("failed to parse local registry")
+    );
+    assert_eq!(
+        fs::read(root.join(".specsync/registry.toml")).unwrap(),
+        before
+    );
+}
+
+#[test]
+fn init_registry_serializes_hostile_name_and_module_key_as_valid_toml() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/version"), "5.0.0\n").unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/hostile")).unwrap();
+    fs::write(
+        root.join("specs/hostile/hostile.spec.md"),
+        "---\nmodule: api.v2\nversion: 1\nstatus: stable\nfiles: []\n---\n",
+    )
+    .unwrap();
+    let hostile = "evil\"\n[specs]\npwned=\"x";
+
+    specsync()
+        .args([
+            "init-registry",
+            "--name",
+            hostile,
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let content = fs::read_to_string(root.join(".specsync/registry.toml")).unwrap();
+    let parsed: toml::Value = toml::from_str(&content).expect("generated registry must parse");
+    assert_eq!(parsed["registry"]["name"].as_str(), Some(hostile));
+    assert_eq!(
+        parsed["specs"]["api.v2"].as_str(),
+        Some("specs/hostile/hostile.spec.md")
+    );
+    assert!(parsed["specs"].get("pwned").is_none());
+}
+
+#[test]
 fn draft_spec_check_reports_skipped_validation() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

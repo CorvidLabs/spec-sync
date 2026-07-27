@@ -12,3 +12,6 @@ spec: config.spec.md
 - [x] Remove embedded inference fields
 - [x] Ignore legacy AI key names with value-safe migration guidance
 - [x] Auto-detect zero-config HTML, HTM, and CSS source directories
+- [x] Distinguish actual source discovery from the empty-project `src` fallback
+- [x] Validate selected config syntax/shapes before initialization repairs or registry writes
+- [x] Serialize control characters safely in canonical TOML

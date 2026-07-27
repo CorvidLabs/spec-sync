@@ -8,6 +8,10 @@ spec: cmd_init.spec.md
 - Fresh projects write deterministic `.specsync/config.toml`, `.specsync/version`, and `.specsync/sdd.json` files.
 - `ensure_hashes_gitignored` returns `Result<bool, String>` (not `io::Error`) so the caller can print a plain warning; the io error is mapped to a "Failed to update .gitignore" string. A `.gitignore` write failure is intentionally **non-fatal** — the config is already written and the cache being un-ignored is a minor issue.
 - The repository-root `.gitignore` receives the hash-cache entry, while `.specsync/.gitignore` owns local lifecycle lock and transaction-journal entries.
+- `init --repair` is additive: it validates the selected config first, then restores only missing support artifacts. Existing config, specs, policy, and ignore files are not regenerated.
+- Expected directory/file topology is preflighted before fresh creation so a blocking file or symlink cannot leave a partially initialized layout.
+- An initialized ancestor is reported as an error before a nested `.specsync` can be created.
+- Every output format is rendered from one outcome record; JSON is a single parseable value and non-text formats skip interactive prompts.
 
 ## Files to Read First
 
@@ -16,7 +20,7 @@ spec: cmd_init.spec.md
 
 ## Current Status
 
-Implemented for 5.0. Fresh projects enable SDD, detect configured verification commands, and receive a guided terminal bootstrap; non-interactive behavior remains deterministic and covered by integration tests.
+Implemented for 5.0. Fresh projects enable SDD, repairs are additive and config-checked, fallback detection is explicit, nested projects are rejected, and structured output remains deterministic.
 
 ## Notes
 

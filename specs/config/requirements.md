@@ -54,3 +54,15 @@ Acceptance Criteria
 - Canonical TOML reads and emits `require_draft_files = true` without losing the value during migration.
 - Legacy JSON reads `requireDraftFiles` and recognizes it as a supported key.
 - The canonical configuration structure table documents both serialized names and behavior.
+
+### REQ-config-005
+
+Configuration discovery and serialization SHALL provide truthful, safe evidence to initialization commands.
+
+Acceptance Criteria
+
+- Source-directory discovery distinguishes real manifest/scan results from the `["src"]` compatibility fallback.
+- Existing JSON/TOML selected by a mutating initialization command is syntax-checked before any write.
+- Present `specs_dir`/`specsDir` values are non-empty strings and present source-directory lists contain only strings.
+- Unknown syntactically valid extension fields remain allowed.
+- Canonical TOML string and quoted-key output escapes every control character needed to remain valid TOML.

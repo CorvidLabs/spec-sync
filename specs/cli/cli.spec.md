@@ -1,10 +1,11 @@
 ---
 module: cli
-version: 10
+version: 11
 status: stable
 files:
   - src/main.rs
 db_tables: []
+implements: [440]
 tracks: [120]
 depends_on:
   - specs/agents/agents.spec.md
@@ -62,14 +63,14 @@ Clap derive types define the root `Cli`, the `Command` namespace, and focused ac
 | check | Validate all specs against source code (default when no subcommand given) | --strict, --require-coverage N, --json, --fix, --force, --create-issues, --explain, [SPEC...] |
 | coverage | Show file and module coverage report | --strict, --require-coverage N, --json |
 | generate | Deterministically scaffold spec files for unspecced modules | --uncovered, --batch MODULE... |
-| init | Create the 5.0 `.specsync/` layout, TOML config, SDD policy, and version stamp | — |
+| init | Create or additively repair the 5.0 `.specsync/` layout | --repair |
 | change | Manage the verified SDD lifecycle, interviews, approvals, verification, acceptance, adoption, and archive | new, answer, approve, start, verify, accept, archive, adopt |
 | score | Score spec quality (0–100) with letter grades and suggestions | --json, --explain, [SPEC...] |
 | watch | Watch spec and source files, re-running check on changes | --strict, --require-coverage N |
 | mcp | Run as an MCP (Model Context Protocol) server over stdio | — |
 | add-spec | Scaffold a new spec with companion files (tasks.md, context.md) | name positional arg |
 | scaffold | Full scaffold: spec + companions + source detection + registry entry | name, --dir PATH, --template PATH |
-| init-registry | Generate a specsync-registry.toml for cross-project references | --name |
+| init-registry | Generate a safe registry once for cross-project references | --name |
 | resolve | Resolve cross-project spec references in depends_on | --remote (enables network fetches) |
 | diff | Show export changes since a git ref (useful for CI/PR comments) | --base REF (default: HEAD), --json |
 | hooks install | Install agent instructions and/or git hooks | --claude, --cursor, --copilot, --agents, --precommit, --claude-code-hook |
@@ -95,7 +96,7 @@ Clap derive types define the root `Cli`, the `Command` namespace, and focused ac
 | --strict | bool | false | Treat warnings as errors (exit 1) |
 | --require-coverage | Option usize | None | Fail if file coverage percent is below threshold |
 | --root | Option PathBuf | cwd | Project root directory |
-| --format | text\|json\|markdown | text | Output format: colored text, machine-readable JSON, or markdown |
+| --format | text\|json\|markdown\|github\|table\|csv | text | Output format |
 | --json | bool | false | Shorthand for `--format json` |
 | --enforcement | Option EnforcementMode | None | Override configured enforcement mode (warn, enforce-new, strict) |
 | --force | bool | false | Bypass hash cache and re-validate all specs |
@@ -144,8 +145,8 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 3. `--strict` causes warnings to produce a non-zero exit code
 4. `--require-coverage N` causes exit 1 if file coverage percent < N
 5. `--json` switches all output to machine-readable JSON (no ANSI colors)
-6. `cmd_init` is idempotent and never overwrites current or legacy project configuration
-7. `cmd_init_registry` is idempotent — does nothing if `specsync-registry.toml` already exists
+6. `cmd_init` is idempotent, supports additive `--repair`, and never overwrites current or legacy project configuration
+7. `cmd_init_registry` reports valid existing files as unchanged no-ops and fails visibly on invalid existing files without overwriting
 8. `cmd_add_spec` generates companion files even if the spec already exists
 9. `cmd_generate` re-runs validation after generating new specs to include them in the summary
 10. `cmd_resolve --remote` performs network calls; without the flag, cross-project refs are listed but not verified
@@ -189,6 +190,12 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 - **Given** a config (v4 `.specsync/config.toml` or legacy `specsync.json`) already exists
 - **When** `specsync init` is run
 - **Then** prints an "already exists" message and returns without modifying it
+
+### Scenario: Structured init repair
+
+- **Given** a valid project config with missing support files
+- **When** `specsync init --repair --format json` is run
+- **Then** one JSON value reports the restored paths and unchanged config state
 
 ### Scenario: Coverage threshold
 
@@ -260,6 +267,7 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 | Failed to create spec directory | Prints error to stderr and exits 1 |
 | Failed to write spec file | Prints error to stderr and exits 1 |
 | Failed to write `specsync-registry.toml` | Prints error to stderr and exits 1 |
+| Init or init-registry structured failure | Emits one format-aware failure outcome and exits 1 |
 | No spec files found (non-generate commands) | Prints guidance message and exits 0 |
 
 ## Performance Requirements
@@ -373,3 +381,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
 | 2026-07-14 | CHG-0029-address-all-remaining-review-feedback-from-pr-366: Address all remaining review feedback from PR 366 |
+| 2026-07-26 | v11: Dispatch additive init repair and format-aware init/registry outcomes (#440) |

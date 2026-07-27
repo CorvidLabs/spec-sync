@@ -82,3 +82,13 @@ Acceptance Criteria
 - The process emits one contextual diagnostic and exits non-zero.
 - Commands outside the lifecycle boundary preserve current dispatch behavior.
 
+### REQ-cli-005
+
+The root CLI SHALL dispatch initialization creation, repair, and registry generation with the selected global output format and truthful exit behavior.
+
+Acceptance Criteria
+
+- `Command::Init { repair }` forwards the flag and resolved global format.
+- `InitRegistry` forwards the resolved global format.
+- Structured success/no-op/failure output remains parseable and handler failures exit non-zero.
+- Interactive bootstrap is limited to text-mode fresh initialization.

@@ -16,6 +16,10 @@ spec: cmd_init.spec.md
 - On success, init prints the created v5 layout and detected source directories.
 - After writing the config, `ensure_hashes_gitignored` adds `.specsync/hashes.json` to the root `.gitignore` (with a comment header) unless it is already present; the result is reported as a success line, a no-op, or a warning.
 - `ensure_hashes_gitignored` is idempotent: re-running never duplicates the entry.
+- Empty projects report the `src` value as a fallback rather than a detected directory.
+- `init --repair` restores missing support artifacts without rewriting config, specs, or existing ignore content.
+- An initialized ancestor prevents nested metadata creation.
+- Structured output reports created/repaired/unchanged state and failures truthfully.
 
 ## Constraints
 
@@ -60,3 +64,17 @@ Initialization SHALL enable Git-dependent SDD coverage only when the project can
 Acceptance Criteria
 - Git repositories receive normal strict SDD defaults.
 - Non-Git directories initialize successfully without an immediately impossible changed-path gate.
+
+### REQ-cmd-init-005
+
+Initialization SHALL be truthful, additive, and non-destructive across creation, inspection, and repair.
+
+Acceptance Criteria
+
+- Empty or source-free directories use `source_dirs = ["src"]` while reporting `source_dirs_detected = false`.
+- Plain re-init is byte-identical and reports an unchanged outcome.
+- `--repair` validates the selected config before writes and restores only missing support files/directories.
+- Existing config, specs, and `.gitignore` content are never clobbered.
+- Running below an initialized ancestor fails without creating nested metadata.
+- Predictable blocking file/symlink topology fails before partial layout creation.
+- JSON/Markdown/GitHub/table/CSV outputs reflect success, creation, repair, unchanged state, and errors.

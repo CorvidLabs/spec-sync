@@ -16,6 +16,7 @@ spec: cli.spec.md
 | `tests/integration.rs` | cargo test --test integration require_coverage_on_coverage_subcommand | End-to-end fixture: `require_coverage_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration strict_on_coverage_subcommand | End-to-end fixture: `strict_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration toml_config_is_loaded | End-to-end fixture: `toml_config_is_loaded` |
+| Init dispatch/output | `cargo test --test integration init_` | Repair flag, JSON projection, no-op/failure exits, non-interactive structured output |
 
 ## Behavioral Verification
 
@@ -25,6 +26,7 @@ spec: cli.spec.md
 | Strict mode with warnings | specs have undocumented exports (warnings but no errors) | `specsync check --strict` is run | the process exits with code 1 |
 | JSON output | `--json` flag is passed | any command runs | output is valid JSON with no ANSI escape codes |
 | Init idempotency | `specsync.json` already exists in the project root | `specsync init` is run | prints "specsync.json already exists" and returns without modifying it |
+| Init repair JSON | valid config plus missing support files | `specsync init --repair --json` | one parseable outcome lists restored paths and exits 0 |
 | Coverage threshold | file coverage is 80% | `specsync check --require-coverage 90` is run | the process exits with code 1 and prints the unspecced files |
 | Deterministic generate | uncovered modules exist | `specsync generate` is run | local template specs and companions are created |
 | Retired provider/model flags | user supplies `--provider` or `--model` | Clap parses arguments | unknown arguments are rejected |

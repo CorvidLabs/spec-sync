@@ -1,10 +1,11 @@
 ---
 module: registry
-version: 5
+version: 6
 status: stable
 files:
   - src/registry.rs
 db_tables: []
+implements: [413, 440]
 tracks: [52]
 depends_on:
   - specs/types/types.spec.md
@@ -14,7 +15,7 @@ depends_on:
 
 ## Purpose
 
-Manages cross-project spec registries for dependency resolution. Generates `specsync-registry.toml` from local spec files, fetches remote registries from GitHub repos via HTTPS, and parses the TOML registry format using zero-dependency parsing.
+Manages cross-project spec registries for dependency resolution. Generates safe registry TOML from local spec files, fetches remote registries from GitHub repos via HTTPS, and parses supported registry shapes with checked TOML syntax and field validation.
 
 ## Public API
 
@@ -49,14 +50,15 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 ## Invariants
 
 1. Remote registry fetch uses a 10-second HTTP timeout
-2. Registry TOML format: `[registry]` section with `name`, `[specs]` section with `module = "path"` entries
+2. Registry TOML accepts both the emitted `[specs]` table (`module = "path"`) and the documented `[[modules]]` array-of-tables (`name` plus `spec`)
 3. `generate_registry` skips template files (names starting with `_`)
 4. Module names are extracted from spec frontmatter, not file paths
 5. Generated registry entries are sorted alphabetically by module name
 6. `RemoteRegistry::has_spec` performs exact module name matching
-7. TOML parsing is zero-dependency — uses line-by-line string parsing
+7. Registry parsing uses a real TOML parser and rejects malformed syntax, wrong known-field types or shapes, empty mapping identities or paths, and duplicate module mappings
 8. Local registry resolution prefers the v4 `.specsync/registry.toml` location; the legacy root-level `specsync-registry.toml` is only used for un-migrated 3.x layouts
-9. Inert 5.0.1-era stubs (no registry name and no `[specs]` mappings) are treated as absent; non-inert unparsable registries fail closed through `load_local_registry`
+9. Inert 5.0.1-era stubs (no registry name and no `[specs]` or `[[modules]]` mappings) are treated as absent; non-inert invalid registries fail closed through `load_local_registry`
+10. Generated project names, module keys, and spec paths are serialized as TOML strings/keys without permitting syntax injection or changing module identity.
 
 ## Behavioral Examples
 
@@ -78,6 +80,12 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 - **When** `has_spec("auth")` is called
 - **Then** returns `true`
 
+**Scenario: Generate hostile names safely**
+
+- **Given** a project name containing quotes/newlines and a module named `api.v2`
+- **When** `generate_registry` renders the registry
+- **Then** the TOML parses, the project name round-trips exactly, and `api.v2` remains one module key
+
 **Scenario: Tolerate inert 5.0.1 registry stub**
 
 - **Given** a local `.specsync/registry.toml` containing only `version = 1` and an empty `[modules]` table
@@ -90,9 +98,11 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 |-----------|----------|
 | HTTP request fails | Error: "HTTP request failed: {details}" |
 | Repo has no registry file | Error: "HTTP 404 — {repo} may not have a specsync-registry.toml" |
-| Malformed TOML (no name) | `parse_registry` returns `None` |
+| Malformed TOML | `load_local_registry` returns `Err` with the registry path and parser diagnostic |
+| Wrong known-field type or shape | `load_local_registry` returns `Err` identifying the invalid field |
+| Duplicate module mapping across supported shapes | Registry parsing fails with `duplicate module mapping` |
 | Local registry file unreadable | `load_registry` returns `None`; `load_local_registry` returns `Err` |
-| Inert legacy stub (no name, no `[specs]` mappings) | `load_local_registry` returns `Ok(None)`; `load_registry` returns `None` |
+| Inert legacy stub (no name, no `[specs]` or `[[modules]]` mappings) | `load_local_registry` returns `Ok(None)`; `load_registry` returns `None` |
 | Non-inert unparsable local registry | `load_local_registry` returns `Err`; `load_registry` returns `None` |
 
 ## Dependencies
@@ -103,6 +113,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 |--------|-------------|
 | types | `RegistryEntry` |
 | ureq | HTTP client for fetching remote registries |
+| toml | TOML syntax, value parsing, and safe string serialization |
 
 ### Consumed By
 
@@ -120,3 +131,4 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | 2026-06-11 | v3: Added `local_registry_path`; `load_registry`/`register_module` now resolve the v4 `.specsync/registry.toml` location with legacy fallback |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-19 | CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa: Tolerate inert 5.0.1 registry.toml stubs so module resolution falls back to default specs layout without failing closed on empty legacy stubs |
+| 2026-07-26 | v6: Parse both registry shapes as checked TOML and serialize hostile names, keys, and paths without injection (#413, #440) |

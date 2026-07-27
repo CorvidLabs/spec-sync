@@ -967,4 +967,23 @@ mod tests {
             .is_ok()
         );
     }
+
+    #[test]
+    fn init_repair_preserves_global_format_grammar_without_force_mode() {
+        let repaired = Cli::try_parse_from(["specsync", "init", "--repair", "--json"]).unwrap();
+        assert!(repaired.json);
+        assert!(matches!(
+            repaired.command,
+            Some(Command::Init { repair: true })
+        ));
+
+        let plain = Cli::try_parse_from(["specsync", "--format", "csv", "init"]).unwrap();
+        assert_eq!(plain.format, crate::types::OutputFormat::Csv);
+        assert!(matches!(
+            plain.command,
+            Some(Command::Init { repair: false })
+        ));
+
+        assert!(Cli::try_parse_from(["specsync", "init", "--force"]).is_err());
+    }
 }

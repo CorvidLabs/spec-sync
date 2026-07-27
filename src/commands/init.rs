@@ -1,12 +1,13 @@
 use colored::Colorize;
 use dialoguer::{Confirm, Input};
+use serde::Serialize;
 use std::fs;
-use std::io::IsTerminal;
-use std::path::Path;
+use std::io::{IsTerminal, Write};
+use std::path::{Path, PathBuf};
 use std::process;
 
-use crate::config::{config_to_toml, detect_source_dirs_with_confidence};
-use crate::types::SpecSyncConfig;
+use crate::config::{config_to_toml, detect_source_dirs_with_confidence, validate_config_file};
+use crate::types::{OutputFormat, SpecSyncConfig};
 
 /// Version stamp written to `.specsync/version` for fresh projects.
 const PROJECT_VERSION: &str = crate::change::SDD_VERSION;
@@ -19,102 +20,291 @@ const V4_DIRS: &[&str] = &[
     ".specsync/archive/changes",
 ];
 
-pub fn cmd_init(root: &Path, repair: bool, format: crate::types::OutputFormat) {
-    let json = matches!(format, crate::types::OutputFormat::Json);
+#[derive(Debug, Serialize)]
+struct InitReport {
+    command: &'static str,
+    success: bool,
+    created: bool,
+    repaired: bool,
+    unchanged: bool,
+    config: Option<String>,
+    source_dirs: Vec<String>,
+    detected: Option<bool>,
+    source_dirs_detected: Option<bool>,
+    missing: Vec<String>,
+    restored: Vec<String>,
+    warnings: Vec<String>,
+    repair_hint: Option<&'static str>,
+    migration_hint: Option<&'static str>,
+    initialized_ancestor: Option<String>,
+    error: Option<String>,
+}
+
+impl InitReport {
+    fn failure(error: String, config: Option<String>, ancestor: Option<PathBuf>) -> Self {
+        Self {
+            command: "init",
+            success: false,
+            created: false,
+            repaired: false,
+            unchanged: true,
+            config,
+            source_dirs: Vec::new(),
+            detected: None,
+            source_dirs_detected: None,
+            missing: Vec::new(),
+            restored: Vec::new(),
+            warnings: Vec::new(),
+            repair_hint: None,
+            migration_hint: None,
+            initialized_ancestor: ancestor.map(|path| path.display().to_string()),
+            error: Some(error),
+        }
+    }
+}
+
+pub fn cmd_init(root: &Path, repair: bool, format: OutputFormat) {
+    match execute_init(root, repair) {
+        Ok(report) => {
+            let should_bootstrap = report.created && matches!(format, OutputFormat::Text);
+            render_init_report(&report, format);
+            if should_bootstrap {
+                guided_sdd_bootstrap(root);
+            }
+        }
+        Err(report) => {
+            render_init_report(&report, format);
+            process::exit(1);
+        }
+    }
+}
+
+fn execute_init(root: &Path, repair: bool) -> Result<InitReport, Box<InitReport>> {
     // Refuse to clobber any existing config — current or legacy.
     let v4_toml = root.join(".specsync/config.toml");
     let v4_json = root.join(".specsync/config.json");
     let legacy_json = root.join("specsync.json");
     let legacy_toml = root.join(".specsync.toml");
     if v4_toml.exists() || v4_json.exists() {
-        let existing = if v4_toml.exists() {
-            ".specsync/config.toml"
+        let (existing, path) = if v4_toml.exists() {
+            (".specsync/config.toml", v4_toml)
         } else {
-            ".specsync/config.json"
+            (".specsync/config.json", v4_json)
         };
+        if let Err(error) = validate_config_file(&path) {
+            return Err(Box::new(InitReport::failure(
+                error,
+                Some(existing.to_string()),
+                None,
+            )));
+        }
         if repair {
-            repair_layout(root, existing, json);
-            return;
+            return repair_layout(root, existing, &path).map_err(|error| {
+                Box::new(InitReport::failure(error, Some(existing.to_string()), None))
+            });
         }
         let missing = missing_support_files(root);
-        if json {
-            println!(
-                "{}",
-                serde_json::json!({
-                    "created": false,
-                    "config": existing,
-                    "missing": missing,
-                    "repair_hint": "specsync init --repair",
-                })
-            );
-        } else {
-            println!("{existing} already exists");
-            if !missing.is_empty() {
-                println!(
-                    "  {} missing support file(s): {}",
-                    "!".yellow(),
-                    missing.join(", ")
-                );
-                println!(
-                    "  Run `specsync init --repair` to restore them (your config is left untouched)."
-                );
-            }
-        }
-        return;
+        return Ok(InitReport {
+            command: "init",
+            success: true,
+            created: false,
+            repaired: false,
+            unchanged: true,
+            config: Some(existing.to_string()),
+            source_dirs: Vec::new(),
+            detected: None,
+            source_dirs_detected: None,
+            repair_hint: (!missing.is_empty()).then_some("specsync init --repair"),
+            missing,
+            restored: Vec::new(),
+            warnings: Vec::new(),
+            migration_hint: None,
+            initialized_ancestor: None,
+            error: None,
+        });
     }
     if legacy_json.exists() {
-        println!("specsync.json already exists (legacy 3.x layout — run `specsync migrate`)");
-        return;
+        if repair {
+            return Err(Box::new(InitReport::failure(
+                "cannot repair legacy config specsync.json; run `specsync migrate` first"
+                    .to_string(),
+                Some("specsync.json".to_string()),
+                None,
+            )));
+        }
+        return Ok(legacy_init_report("specsync.json"));
     }
     if legacy_toml.exists() {
-        println!(".specsync.toml already exists (legacy 3.x layout — run `specsync migrate`)");
-        return;
+        if repair {
+            return Err(Box::new(InitReport::failure(
+                "cannot repair legacy config .specsync.toml; run `specsync migrate` first"
+                    .to_string(),
+                Some(".specsync.toml".to_string()),
+                None,
+            )));
+        }
+        return Ok(legacy_init_report(".specsync.toml"));
     }
 
     // Subdir footgun: running `init` inside a subdirectory of an initialized
     // project must not create a nested .specsync — point at the parent instead.
     if let Some(parent) = find_initialized_ancestor(root) {
-        eprintln!(
-            "{} A spec-sync project is already initialized at {} — no nested .specsync was created.",
-            "error:".red().bold(),
-            parent.display()
-        );
-        eprintln!(
-            "  Run from that root or pass `--root {}`.",
-            parent.display()
-        );
-        process::exit(1);
+        return Err(Box::new(InitReport::failure(
+            format!(
+                "a spec-sync project is already initialized at {}; no nested .specsync was created",
+                parent.display()
+            ),
+            None,
+            Some(parent),
+        )));
     }
 
     let (detected_dirs, actually_detected) = detect_source_dirs_with_confidence(root);
-    let dirs_display = detected_dirs.join(", ");
+    preflight_layout(root).map_err(|error| Box::new(InitReport::failure(error, None, None)))?;
+    for config in [
+        ".specsync/config.toml",
+        ".specsync/config.json",
+        "specsync.json",
+        ".specsync.toml",
+    ] {
+        preflight_absent_path(root, config)
+            .map_err(|error| Box::new(InitReport::failure(error, None, None)))?;
+    }
 
     if let Err(e) = write_current_layout(root, &detected_dirs) {
-        eprintln!("{} {e}", "error:".red().bold());
-        process::exit(1);
+        return Err(Box::new(InitReport::failure(e, None, None)));
     }
 
     if let Err(error) =
         crate::change::write_default_policy(root, crate::change::detect_verification_commands(root))
     {
-        eprintln!("{} {error}", "error:".red().bold());
-        process::exit(1);
+        return Err(Box::new(InitReport::failure(error, None, None)));
     }
 
-    if json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "created": true,
-                "config": ".specsync/config.toml",
-                "source_dirs": detected_dirs,
-                "detected": actually_detected,
-            })
+    let mut restored = Vec::new();
+    let mut warnings = Vec::new();
+    // Ensure .specsync/hashes.json is gitignored (hash cache is local-only)
+    match ensure_hashes_gitignored(root) {
+        Ok(true) => restored.push(".gitignore entry (.specsync/hashes.json)".to_string()),
+        Ok(false) => {}
+        Err(error) => warnings.push(error),
+    }
+
+    Ok(InitReport {
+        command: "init",
+        success: true,
+        created: true,
+        repaired: false,
+        unchanged: false,
+        config: Some(".specsync/config.toml".to_string()),
+        source_dirs: detected_dirs,
+        detected: Some(actually_detected),
+        source_dirs_detected: Some(actually_detected),
+        missing: Vec::new(),
+        restored,
+        warnings,
+        repair_hint: None,
+        migration_hint: None,
+        initialized_ancestor: None,
+        error: None,
+    })
+}
+
+fn legacy_init_report(config: &str) -> InitReport {
+    InitReport {
+        command: "init",
+        success: true,
+        created: false,
+        repaired: false,
+        unchanged: true,
+        config: Some(config.to_string()),
+        source_dirs: Vec::new(),
+        detected: None,
+        source_dirs_detected: None,
+        missing: Vec::new(),
+        restored: Vec::new(),
+        warnings: Vec::new(),
+        repair_hint: None,
+        migration_hint: Some("specsync migrate"),
+        initialized_ancestor: None,
+        error: None,
+    }
+}
+
+fn render_init_report(report: &InitReport, format: OutputFormat) {
+    match format {
+        OutputFormat::Json => {
+            println!(
+                "{}",
+                serde_json::to_string(report).expect("init report must serialize")
+            );
+        }
+        OutputFormat::Markdown | OutputFormat::Github => {
+            let status = if report.success { "success" } else { "failure" };
+            println!("## SpecSync init\n");
+            println!("- **Status:** {status}");
+            println!("- **Created:** {}", report.created);
+            println!("- **Repaired:** {}", report.repaired);
+            println!("- **Unchanged:** {}", report.unchanged);
+            if let Some(config) = &report.config {
+                println!("- **Config:** `{config}`");
+            }
+            if let Some(error) = &report.error {
+                println!("- **Error:** {error}");
+            }
+        }
+        OutputFormat::Table => {
+            println!("FIELD\tVALUE");
+            println!(
+                "status\t{}",
+                if report.success { "success" } else { "failure" }
+            );
+            println!("created\t{}", report.created);
+            println!("repaired\t{}", report.repaired);
+            println!("unchanged\t{}", report.unchanged);
+            if let Some(config) = &report.config {
+                println!("config\t{config}");
+            }
+            if let Some(error) = &report.error {
+                println!("error\t{error}");
+            }
+        }
+        OutputFormat::Csv => {
+            println!("command,success,created,repaired,unchanged,config,error");
+            println!(
+                "init,{},{},{},{},{},{}",
+                report.success,
+                report.created,
+                report.repaired,
+                report.unchanged,
+                csv_field(report.config.as_deref().unwrap_or_default()),
+                csv_field(report.error.as_deref().unwrap_or_default())
+            );
+        }
+        OutputFormat::Text => render_init_text(report),
+    }
+}
+
+fn render_init_text(report: &InitReport) {
+    if !report.success {
+        eprintln!(
+            "{} {}",
+            "error:".red().bold(),
+            report.error.as_deref().unwrap_or("initialization failed")
         );
-    } else {
+        if let Some(parent) = &report.initialized_ancestor {
+            eprintln!("  Run from that root or pass `--root {parent}`.");
+        }
+        return;
+    }
+
+    if report.created {
         println!("{} Created .specsync/config.toml (5.0 layout)", "✓".green());
-        if actually_detected {
-            println!("  Detected source directories: {dirs_display}");
+        if report.source_dirs_detected == Some(true) {
+            println!(
+                "  Detected source directories: {}",
+                report.source_dirs.join(", ")
+            );
         } else {
             println!(
                 "  {} No source directories detected — defaulted to source_dirs = [\"src\"].",
@@ -122,16 +312,125 @@ pub fn cmd_init(root: &Path, repair: bool, format: crate::types::OutputFormat) {
             );
             println!("  Edit .specsync/config.toml if your sources live elsewhere.");
         }
+        if report
+            .restored
+            .iter()
+            .any(|path| path == ".gitignore entry (.specsync/hashes.json)")
+        {
+            println!("{} Added .specsync/hashes.json to .gitignore", "✓".green());
+        }
+    } else if report.repaired {
+        if report.restored.is_empty() {
+            println!(
+                "{} Nothing to repair — .specsync layout is complete",
+                "✓".green()
+            );
+        } else {
+            println!("{} Repaired: {}", "✓".green(), report.restored.join(", "));
+        }
+    } else if let Some(config) = &report.config {
+        if report.migration_hint.is_some() {
+            println!("{config} already exists (legacy 3.x layout — run `specsync migrate`)");
+        } else {
+            println!("{config} already exists");
+            if !report.missing.is_empty() {
+                println!(
+                    "  {} missing support file(s): {}",
+                    "!".yellow(),
+                    report.missing.join(", ")
+                );
+                println!(
+                    "  Run `specsync init --repair` to restore them (your config is left untouched)."
+                );
+            }
+        }
     }
-
-    // Ensure .specsync/hashes.json is gitignored (hash cache is local-only)
-    match ensure_hashes_gitignored(root) {
-        Ok(true) if !json => println!("{} Added .specsync/hashes.json to .gitignore", "✓".green()),
-        Ok(_) => {}
-        Err(e) => eprintln!("{} {e}", "warning:".yellow().bold()),
+    for warning in &report.warnings {
+        eprintln!("{} {warning}", "warning:".yellow().bold());
     }
+}
 
-    guided_sdd_bootstrap(root);
+fn csv_field(value: &str) -> String {
+    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
+fn root_gitignore_has_hash_entry(root: &Path) -> bool {
+    fs::read(root.join(".gitignore"))
+        .ok()
+        .is_some_and(|content| gitignore_has_hash_entry(&content))
+}
+
+fn gitignore_has_hash_entry(content: &[u8]) -> bool {
+    content.split(|byte| *byte == b'\n').any(|line| {
+        let start = line
+            .iter()
+            .position(|byte| !byte.is_ascii_whitespace())
+            .unwrap_or(line.len());
+        let end = line
+            .iter()
+            .rposition(|byte| !byte.is_ascii_whitespace())
+            .map_or(start, |index| index + 1);
+        &line[start..end] == b".specsync/hashes.json"
+    })
+}
+
+fn preflight_layout(root: &Path) -> Result<(), String> {
+    preflight_directory(root, ".specsync")?;
+    for directory in V4_DIRS {
+        preflight_directory(root, directory)?;
+    }
+    for file in [
+        ".specsync/version",
+        ".specsync/.gitignore",
+        ".specsync/sdd.json",
+    ] {
+        preflight_regular_file(root, file)?;
+    }
+    Ok(())
+}
+
+fn preflight_directory(root: &Path, relative: &str) -> Result<(), String> {
+    let path = root.join(relative);
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            Err(format!("{relative} is a symlink; expected a directory"))
+        }
+        Ok(metadata) if !metadata.is_dir() => Err(format!(
+            "{relative} blocks initialization; expected a directory"
+        )),
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("failed to inspect {relative}: {error}")),
+    }
+}
+
+fn preflight_regular_file(root: &Path, relative: &str) -> Result<(), String> {
+    let path = root.join(relative);
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            Err(format!("{relative} is a symlink; expected a regular file"))
+        }
+        Ok(metadata) if !metadata.is_file() => Err(format!(
+            "{relative} blocks initialization; expected a regular file"
+        )),
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("failed to inspect {relative}: {error}")),
+    }
+}
+
+fn preflight_absent_path(root: &Path, relative: &str) -> Result<(), String> {
+    match fs::symlink_metadata(root.join(relative)) {
+        Ok(_) => Err(format!(
+            "{relative} already occupies a configuration path; initialization will not overwrite it"
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("failed to inspect {relative}: {error}")),
+    }
 }
 
 /// Support files a healthy `.specsync/` layout must have; missing ones are
@@ -152,70 +451,57 @@ fn missing_support_files(root: &Path) -> Vec<String> {
             missing.push(format!("{dir}/"));
         }
     }
+    if !root_gitignore_has_hash_entry(root) {
+        missing.push(".gitignore entry (.specsync/hashes.json)".to_string());
+    }
     missing
 }
 
 /// Restore missing `.specsync/` support files without touching the existing
 /// config. Also sanity-checks that the config is at least plausible.
-fn repair_layout(root: &Path, existing_config: &str, json: bool) {
+fn repair_layout(
+    root: &Path,
+    existing_config: &str,
+    config_path: &Path,
+) -> Result<InitReport, String> {
+    validate_config_file(config_path)?;
+    preflight_layout(root)?;
+
     let mut restored: Vec<String> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
-
-    // Sanity-check the existing config so a corrupt one is diagnosed, not ignored.
-    if let Ok(content) = fs::read_to_string(root.join(existing_config))
-        && !content.contains("specs_dir")
-    {
-        warnings.push(format!(
-            "{existing_config} has no `specs_dir` key — it may be corrupt; fix or regenerate it manually"
-        ));
-    }
 
     for dir in V4_DIRS {
         let path = root.join(dir);
         if !path.is_dir() {
-            match fs::create_dir_all(&path) {
-                Ok(_) => restored.push(format!("{dir}/")),
-                Err(e) => {
-                    eprintln!("{} Failed to create {dir}: {e}", "error:".red().bold());
-                    process::exit(1);
-                }
-            }
+            fs::create_dir_all(&path)
+                .map_err(|error| format!("failed to create {dir}: {error}"))?;
+            restored.push(format!("{dir}/"));
         }
     }
 
     let version_path = root.join(".specsync/version");
     if !version_path.is_file() {
-        match fs::write(&version_path, format!("{PROJECT_VERSION}\n")) {
-            Ok(_) => restored.push(".specsync/version".to_string()),
-            Err(e) => {
-                eprintln!("{} Failed to write .specsync/version: {e}", "error:".red().bold());
-                process::exit(1);
-            }
-        }
+        write_new_file(
+            &version_path,
+            format!("{PROJECT_VERSION}\n").as_bytes(),
+            ".specsync/version",
+        )?;
+        restored.push(".specsync/version".to_string());
     }
 
     let gitignore_path = root.join(".specsync/.gitignore");
     if !gitignore_path.is_file() {
-        match fs::write(&gitignore_path, specsync_gitignore_content()) {
-            Ok(_) => restored.push(".specsync/.gitignore".to_string()),
-            Err(e) => {
-                eprintln!(
-                    "{} Failed to write .specsync/.gitignore: {e}",
-                    "error:".red().bold()
-                );
-                process::exit(1);
-            }
-        }
+        write_new_file(
+            &gitignore_path,
+            specsync_gitignore_content().as_bytes(),
+            ".specsync/.gitignore",
+        )?;
+        restored.push(".specsync/.gitignore".to_string());
     }
 
     // sdd.json — write_default_policy is a no-op when the file exists.
     let had_policy = root.join(".specsync/sdd.json").is_file();
-    if let Err(error) =
-        crate::change::write_default_policy(root, crate::change::detect_verification_commands(root))
-    {
-        eprintln!("{} {error}", "error:".red().bold());
-        process::exit(1);
-    }
+    crate::change::write_default_policy(root, crate::change::detect_verification_commands(root))?;
     if !had_policy && root.join(".specsync/sdd.json").is_file() {
         restored.push(".specsync/sdd.json".to_string());
     }
@@ -226,24 +512,24 @@ fn repair_layout(root: &Path, existing_config: &str, json: bool) {
         Err(e) => warnings.push(e),
     }
 
-    if json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "repaired": restored,
-                "warnings": warnings,
-            })
-        );
-    } else {
-        if restored.is_empty() {
-            println!("{} Nothing to repair — .specsync layout is complete", "✓".green());
-        } else {
-            println!("{} Repaired: {}", "✓".green(), restored.join(", "));
-        }
-        for warning in &warnings {
-            eprintln!("{} {warning}", "warning:".yellow().bold());
-        }
-    }
+    Ok(InitReport {
+        command: "init",
+        success: true,
+        created: false,
+        repaired: true,
+        unchanged: restored.is_empty(),
+        config: Some(existing_config.to_string()),
+        source_dirs: Vec::new(),
+        detected: None,
+        source_dirs_detected: None,
+        missing: Vec::new(),
+        restored,
+        warnings,
+        repair_hint: None,
+        migration_hint: None,
+        initialized_ancestor: None,
+        error: None,
+    })
 }
 
 /// Walk up from `root` to find an ancestor directory that already contains a
@@ -343,42 +629,89 @@ fn write_current_layout(root: &Path, source_dirs: &[String]) -> Result<(), Strin
         ..Default::default()
     };
     let config_path = root.join(".specsync/config.toml");
-    fs::write(&config_path, config_to_toml(&config))
-        .map_err(|e| format!("Failed to write .specsync/config.toml: {e}"))?;
+    write_new_file(
+        &config_path,
+        config_to_toml(&config).as_bytes(),
+        ".specsync/config.toml",
+    )?;
 
     let version_path = root.join(".specsync/version");
-    fs::write(&version_path, format!("{PROJECT_VERSION}\n"))
-        .map_err(|e| format!("Failed to write .specsync/version: {e}"))?;
+    if !version_path.exists() {
+        write_new_file(
+            &version_path,
+            format!("{PROJECT_VERSION}\n").as_bytes(),
+            ".specsync/version",
+        )?;
+    }
 
     let gitignore_path = root.join(".specsync/.gitignore");
     if !gitignore_path.exists() {
-        fs::write(&gitignore_path, specsync_gitignore_content())
-            .map_err(|e| format!("Failed to write .specsync/.gitignore: {e}"))?;
+        write_new_file(
+            &gitignore_path,
+            specsync_gitignore_content().as_bytes(),
+            ".specsync/.gitignore",
+        )?;
     }
 
     Ok(())
+}
+
+fn write_new_file(path: &Path, bytes: &[u8], display: &str) -> Result<(), String> {
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .and_then(|mut file| file.write_all(bytes))
+        .map_err(|error| format!("Failed to write {display}: {error}"))
 }
 
 /// Append `.specsync/hashes.json` to the root `.gitignore` if not already present.
 /// Returns `Ok(true)` if added, `Ok(false)` if already present, `Err` on write failure.
 pub fn ensure_hashes_gitignored(root: &Path) -> Result<bool, String> {
     let gitignore_path = root.join(".gitignore");
-    let entry = ".specsync/hashes.json";
-
-    let existing = fs::read_to_string(&gitignore_path).unwrap_or_default();
-    if existing.lines().any(|line| line.trim() == entry) {
+    let existing = match fs::symlink_metadata(&gitignore_path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(
+                "Refusing to update symlinked .gitignore; add .specsync/hashes.json manually"
+                    .to_string(),
+            );
+        }
+        Ok(metadata) if !metadata.is_file() => {
+            return Err(
+                "Refusing to update .gitignore because it is not a regular file".to_string(),
+            );
+        }
+        Ok(_) => fs::read(&gitignore_path)
+            .map_err(|error| format!("Failed to read .gitignore: {error}"))?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(format!("Failed to inspect .gitignore: {error}")),
+    };
+    if gitignore_has_hash_entry(&existing) {
         return Ok(false);
     }
 
-    let mut content = existing;
-    if !content.is_empty() && !content.ends_with('\n') {
-        content.push('\n');
+    let mut addition = Vec::new();
+    if !existing.is_empty() {
+        if !existing.ends_with(b"\n") {
+            addition.push(b'\n');
+        }
+        addition.push(b'\n');
     }
-    content.push_str(&format!(
-        "\n# spec-sync hash cache (regenerated locally)\n{entry}\n"
-    ));
+    addition.extend_from_slice(
+        b"# spec-sync hash cache (regenerated locally)\n.specsync/hashes.json\n",
+    );
 
-    fs::write(&gitignore_path, content).map_err(|e| format!("Failed to update .gitignore: {e}"))?;
+    let mut options = fs::OpenOptions::new();
+    options.write(true);
+    if existing.is_empty() && !gitignore_path.exists() {
+        options.create_new(true);
+    } else {
+        options.append(true);
+    }
+    options
+        .open(&gitignore_path)
+        .and_then(|mut file| file.write_all(&addition))
+        .map_err(|error| format!("Failed to update .gitignore: {error}"))?;
     Ok(true)
 }
 
@@ -423,7 +756,37 @@ mod tests {
 
         let result = ensure_hashes_gitignored(tmp.path());
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Failed to update .gitignore"));
+        assert!(result.unwrap_err().contains("not a regular file"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn preserves_non_utf8_gitignore_bytes_when_appending() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join(".gitignore");
+        let original = b"target/\n\xffbinary\n";
+        fs::write(&path, original).unwrap();
+
+        assert!(ensure_hashes_gitignored(tmp.path()).unwrap());
+
+        let updated = fs::read(path).unwrap();
+        assert!(updated.starts_with(original));
+        assert!(gitignore_has_hash_entry(&updated));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_symlinked_root_gitignore_without_touching_target() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("outside-ignore");
+        fs::write(&target, b"keep-me\n").unwrap();
+        symlink(&target, tmp.path().join(".gitignore")).unwrap();
+
+        let error = ensure_hashes_gitignored(tmp.path()).unwrap_err();
+        assert!(error.contains("symlinked .gitignore"));
+        assert_eq!(fs::read(target).unwrap(), b"keep-me\n");
     }
 
     #[test]

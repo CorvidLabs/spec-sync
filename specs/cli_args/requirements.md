@@ -90,3 +90,13 @@ Acceptance Criteria
   mutation.
 - `--dry-run` and `--no-backup` remain accepted in both modes.
 
+### REQ-cli-args-008
+
+The shared CLI grammar SHALL expose additive initialization repair without a destructive overwrite mode.
+
+Acceptance Criteria
+
+- `specsync init --repair` parses as `Command::Init { repair: true }`.
+- Bare `specsync init` preserves `repair: false`.
+- Global `--json` and every `--format` value remain available before or after `init` and `init-registry`.
+- No `--force` or config-overwrite initialization flag is accepted.

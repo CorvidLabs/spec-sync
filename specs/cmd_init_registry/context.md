@@ -7,6 +7,10 @@ spec: cmd_init_registry.spec.md
 - The command is a thin wrapper around `registry::generate_registry`; all spec discovery and TOML rendering live in the `registry` module. This command only resolves the project name, guards against overwrite, and writes the file.
 - Project name defaults to the root directory's file name (`root.file_name()`), with `"project"` as a last-resort fallback, so the registry is usable even when run from an oddly-named or root path.
 - Like `init`, it refuses to overwrite an existing `specsync-registry.toml` and simply reports that it already exists.
+- Name validation happens before the existing-file guard so invalid CLI input is never silently ignored.
+- Existing registries are parsed before reporting an idempotent no-op; malformed/inert files fail visibly and remain untouched.
+- Selected config syntax/path-field shapes are checked before generation.
+- All output formats render one outcome record with explicit created/unchanged/failure state.
 
 ## Files to Read First
 
@@ -16,7 +20,7 @@ spec: cmd_init_registry.spec.md
 
 ## Current Status
 
-Implemented and stable. No tests target this file directly; the registry-rendering logic is covered by the `registry` module's own tests.
+Implemented and stable. Integration coverage exercises creation, valid existing no-op, invalid names, hostile TOML values/keys, and JSON output.
 
 ## Notes
 

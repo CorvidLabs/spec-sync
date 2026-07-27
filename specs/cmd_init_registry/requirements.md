@@ -14,6 +14,10 @@ spec: cmd_init_registry.spec.md
 - The project name is `name` when provided; otherwise the root directory's file name, falling back to `"project"` when that cannot be determined.
 - If `specsync-registry.toml` already exists, the command prints a message and returns without writing.
 - On success, prints "Created specsync-registry.toml".
+- Empty/whitespace-only names fail without output files.
+- Hostile names and module keys serialize as literal TOML values/keys.
+- Existing valid registries are unchanged visible no-ops; invalid existing files fail visibly.
+- Structured output exposes `success`, `created`, and `unchanged`.
 
 ## Constraints
 
@@ -36,3 +40,15 @@ Acceptance Criteria
 - If `specsync-registry.toml` already exists, the command prints a message and returns without writing.
 - On success, prints "Created specsync-registry.toml".
 
+### REQ-cmd-init-registry-002
+
+Registry initialization SHALL validate inputs and selected configuration, serialize TOML safely, and report every no-op or failure truthfully.
+
+Acceptance Criteria
+
+- Blank names fail before reading/writing registry state.
+- Selected config syntax and known path-field shapes are checked before creation.
+- Generated names, module keys, and paths round-trip literally without TOML injection.
+- Existing valid registries remain byte-identical and report `created = false`, `unchanged = true`.
+- Existing malformed/inert registries fail without overwrite.
+- JSON/Markdown/GitHub/table/CSV outputs distinguish created, unchanged, and failed outcomes.

@@ -20,6 +20,7 @@ spec: cli.spec.md
 - [x] Remove embedded provider/model generation flags and preserve deterministic agent integrations
 - [x] Wrap `run()` in `catch_unwind` so panics surface a friendly bug-report message
 - [x] Block inherited verification recursion before dispatching `change` or `lifecycle` subcommands
+- [x] Dispatch `init --repair` and format-aware init/init-registry outcomes
 
 ## Gaps
 

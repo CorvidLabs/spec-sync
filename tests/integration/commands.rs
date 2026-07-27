@@ -431,10 +431,250 @@ fn init_falls_back_to_src_when_no_source_files() {
         .arg(root)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Detected source directories: src"));
+        .stdout(predicate::str::contains(
+            "No source directories detected — defaulted to source_dirs = [\"src\"]",
+        ))
+        .stdout(predicate::str::contains("Detected source directories").not());
 
     let config = fs::read_to_string(root.join(".specsync/config.toml")).unwrap();
     assert!(config.contains("source_dirs = [\"src\"]"));
+}
+
+#[test]
+fn init_json_reports_fallback_and_complete_outcome_truthfully() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    let assert = specsync()
+        .args(["init", "--format", "json", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+    let value: serde_json::Value =
+        serde_json::from_slice(&assert.get_output().stdout).expect("stdout must be one JSON value");
+
+    assert_eq!(value["command"], "init");
+    assert_eq!(value["success"], true);
+    assert_eq!(value["created"], true);
+    assert_eq!(value["repaired"], false);
+    assert_eq!(value["unchanged"], false);
+    assert_eq!(value["source_dirs"], serde_json::json!(["src"]));
+    assert_eq!(value["source_dirs_detected"], false);
+    assert_eq!(value["warnings"], serde_json::json!([]));
+}
+
+#[test]
+fn init_does_not_claim_empty_app_and_lib_directories_were_detected() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("app")).unwrap();
+    fs::create_dir_all(root.join("lib")).unwrap();
+
+    let assert = specsync()
+        .args(["init", "--json", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+    let value: serde_json::Value =
+        serde_json::from_slice(&assert.get_output().stdout).expect("stdout must be JSON");
+    assert_eq!(value["source_dirs"], serde_json::json!(["src"]));
+    assert_eq!(value["detected"], false);
+    assert_eq!(value["source_dirs_detected"], false);
+}
+
+#[test]
+fn init_plain_reinit_is_byte_identical_and_json_reports_unchanged() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    specsync()
+        .args(["init", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+    let config_before = fs::read(root.join(".specsync/config.toml")).unwrap();
+    let policy_before = fs::read(root.join(".specsync/sdd.json")).unwrap();
+    let version_before = fs::read(root.join(".specsync/version")).unwrap();
+    let local_ignore_before = fs::read(root.join(".specsync/.gitignore")).unwrap();
+    let root_ignore_before = fs::read(root.join(".gitignore")).unwrap();
+
+    let assert = specsync()
+        .args(["init", "--json", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+    let value: serde_json::Value =
+        serde_json::from_slice(&assert.get_output().stdout).expect("stdout must be one JSON value");
+    assert_eq!(value["created"], false);
+    assert_eq!(value["repaired"], false);
+    assert_eq!(value["unchanged"], true);
+    assert_eq!(value["missing"], serde_json::json!([]));
+
+    assert_eq!(
+        fs::read(root.join(".specsync/config.toml")).unwrap(),
+        config_before
+    );
+    assert_eq!(
+        fs::read(root.join(".specsync/sdd.json")).unwrap(),
+        policy_before
+    );
+    assert_eq!(
+        fs::read(root.join(".specsync/version")).unwrap(),
+        version_before
+    );
+    assert_eq!(
+        fs::read(root.join(".specsync/.gitignore")).unwrap(),
+        local_ignore_before
+    );
+    assert_eq!(
+        fs::read(root.join(".gitignore")).unwrap(),
+        root_ignore_before
+    );
+}
+
+#[test]
+fn init_repair_restores_support_files_without_touching_owned_content() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::write(root.join(".gitignore"), "target/\n").unwrap();
+    fs::create_dir_all(root.join("specs/owned")).unwrap();
+    fs::write(root.join("specs/owned/owned.spec.md"), "owned bytes\n").unwrap();
+
+    specsync()
+        .args(["init", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+    let config_before = fs::read(root.join(".specsync/config.toml")).unwrap();
+    let spec_before = fs::read(root.join("specs/owned/owned.spec.md")).unwrap();
+    fs::remove_file(root.join(".specsync/version")).unwrap();
+    fs::remove_file(root.join(".specsync/.gitignore")).unwrap();
+    fs::remove_file(root.join(".specsync/sdd.json")).unwrap();
+
+    let assert = specsync()
+        .args(["init", "--repair", "--format", "json", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+    let value: serde_json::Value =
+        serde_json::from_slice(&assert.get_output().stdout).expect("stdout must be one JSON value");
+    assert_eq!(value["success"], true);
+    assert_eq!(value["created"], false);
+    assert_eq!(value["repaired"], true);
+    assert_eq!(value["unchanged"], false);
+    let restored = value["restored"].as_array().expect("restored array");
+    for expected in [
+        ".specsync/version",
+        ".specsync/.gitignore",
+        ".specsync/sdd.json",
+    ] {
+        assert!(
+            restored.iter().any(|entry| entry == expected),
+            "missing {expected} in {restored:?}"
+        );
+    }
+    assert_eq!(
+        fs::read(root.join(".specsync/config.toml")).unwrap(),
+        config_before
+    );
+    assert_eq!(
+        fs::read(root.join("specs/owned/owned.spec.md")).unwrap(),
+        spec_before
+    );
+    let root_ignore = fs::read_to_string(root.join(".gitignore")).unwrap();
+    assert!(root_ignore.starts_with("target/\n"));
+    assert_eq!(root_ignore.matches(".specsync/hashes.json").count(), 1);
+
+    let second = specsync()
+        .args(["init", "--repair", "--json", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+    let second_json: serde_json::Value =
+        serde_json::from_slice(&second.get_output().stdout).expect("stdout must be JSON");
+    assert_eq!(second_json["repaired"], true);
+    assert_eq!(second_json["unchanged"], true);
+    assert_eq!(second_json["restored"], serde_json::json!([]));
+}
+
+#[test]
+fn init_repair_rejects_corrupt_config_before_mutating_layout() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = [\"wrong-shape\"]\nunterminated = \"",
+    )
+    .unwrap();
+
+    let assert = specsync()
+        .args(["init", "--repair", "--json", "--root"])
+        .arg(root)
+        .assert()
+        .failure()
+        .code(1);
+    let value: serde_json::Value =
+        serde_json::from_slice(&assert.get_output().stdout).expect("stdout must be one JSON value");
+    assert_eq!(value["command"], "init");
+    assert_eq!(value["success"], false);
+    assert!(value["error"].as_str().unwrap().contains("config.toml"));
+    assert!(!root.join(".specsync/version").exists());
+    assert!(!root.join(".specsync/sdd.json").exists());
+    assert!(!root.join(".specsync/lifecycle").exists());
+}
+
+#[test]
+fn init_nested_project_json_fails_without_creating_nested_metadata() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src/deep")).unwrap();
+    specsync()
+        .args(["init", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+    let nested = root.join("src/deep");
+
+    let assert = specsync()
+        .args(["init", "--format", "json", "--root"])
+        .arg(&nested)
+        .assert()
+        .failure()
+        .code(1);
+    let value: serde_json::Value =
+        serde_json::from_slice(&assert.get_output().stdout).expect("stdout must be one JSON value");
+    assert_eq!(value["command"], "init");
+    assert_eq!(value["success"], false);
+    assert_eq!(
+        value["initialized_ancestor"],
+        root.canonicalize().unwrap().display().to_string()
+    );
+    assert!(!nested.join(".specsync").exists());
+}
+
+#[test]
+fn init_preflights_blocking_layout_without_partial_writes() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/changes"), "blocking file\n").unwrap();
+
+    specsync()
+        .args(["init", "--root"])
+        .arg(root)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains(".specsync/changes"));
+
+    assert!(!root.join(".specsync/config.toml").exists());
+    assert!(!root.join(".specsync/version").exists());
+    assert!(!root.join(".specsync/lifecycle").exists());
+    assert_eq!(
+        fs::read_to_string(root.join(".specsync/changes")).unwrap(),
+        "blocking file\n"
+    );
 }
 
 // ─── Score Command Tests ─────────────────────────────────────────────────

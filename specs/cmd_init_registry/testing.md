@@ -6,12 +6,12 @@ spec: cmd_init_registry.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/init_registry.rs` | (none) | No inline `#[cfg(test)]` module and no integration fixtures target this command. |
-| `src/registry.rs` | cargo test registry | The `registry` module owns tests for `generate_registry`; verify entry discovery and TOML shape there. |
+| `src/commands/init_registry.rs` | `cargo test --test integration init_registry_` | Creation, no-overwrite, structured outcomes, blank-name rejection, hostile serialization |
+| `src/registry.rs` | `cargo test registry::` | Checked parsing, safe generation, entry discovery, exact module identity |
 
 ## Coverage Gaps
 
-- No fixture creates a registry and asserts its contents. Add an integration test that: (1) runs `init-registry` in a project with a few specs and checks `specsync-registry.toml` is written with one entry per spec, (2) verifies `--name` sets the project name, and (3) verifies a second run does not overwrite the existing file.
+- Permission-denied behavior remains platform-dependent; deterministic blocking/create-new failures provide portable coverage.
 
 ## Behavioral Verification
 
@@ -20,13 +20,15 @@ spec: cmd_init_registry.spec.md
 | Generate registry | a project with N specs, no existing registry | `specsync init-registry` | Writes `specsync-registry.toml` (one entry per discovered spec); prints "Created specsync-registry.toml". |
 | Name override | any project | `specsync init-registry --name my-lib` | Registry's project name is `my-lib` instead of the directory name. |
 | Registry exists | `specsync-registry.toml` already present | `specsync init-registry` | Prints "specsync-registry.toml already exists" and writes nothing. |
+| Hostile name/key | quotes/newlines in name and `api.v2` module | `specsync init-registry --name ...` | Valid TOML, literal values, no injected mapping |
 
 ## Regression Matrix
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
-| Registry already exists | Early return, no overwrite | Add a fixture before changing the overwrite guard. |
-| `--name` provided | Used as the project name | Add a fixture before changing name resolution. |
+| Registry already exists | Visible unchanged success only when valid | `init_registry_json_reports_create_and_existing_noop_truthfully` |
+| `--name` provided | Used literally as the project name | `init_registry_serializes_hostile_name_and_module_key_as_valid_toml` |
+| Blank `--name` | Exit 1, structured error, no output file | `init_registry_rejects_blank_name_as_structured_failure_without_output_file` |
 | Name not provided | Defaults to root dir name, then `"project"` | Add a fixture before changing the fallback chain. |
 | Write fails | Prints error, exits 1 | Add a focused assertion before changing the write path. |
 

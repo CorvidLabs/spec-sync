@@ -167,7 +167,9 @@ fn run() {
             dir,
             template,
         } => commands::scaffold::cmd_scaffold(&root, &name, dir, template),
-        Command::InitRegistry { name } => commands::init_registry::cmd_init_registry(&root, name, format),
+        Command::InitRegistry { name } => {
+            commands::init_registry::cmd_init_registry(&root, name, format)
+        }
         Command::Resolve {
             remote,
             verify,

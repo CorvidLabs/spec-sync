@@ -6,20 +6,18 @@ spec: cmd_init_registry.spec.md
 
 - [x] Add integration coverage for `init-registry` creation and no-overwrite behavior — Evidence: `init_registry_uses_v4_path_in_migrated_project`, `init_registry_keeps_legacy_path_for_legacy_project`, and `init_registry_is_idempotent_for_v4_registry`.
 
-## Post-5.0 Test Debt
-
-- [ ] Add integration coverage for the `init-registry --name` override.
-
 ## Done
 
 - [x] `cmd_init_registry` writes `specsync-registry.toml` via `registry::generate_registry`.
 - [x] Project name resolution: `--name` → root dir name → `"project"`.
 - [x] No-overwrite guard when the registry already exists.
 - [x] Write-failure path prints an error and exits 1.
+- [x] Integration coverage for `--name`, structured create/no-op output, blank-name rejection, and hostile TOML serialization.
+- [x] Validate existing registries/config before claiming success or writing.
 
 ## Gaps
 
-- No integration or inline unit tests target `src/commands/init_registry.rs`. Registry generation logic itself is covered in the `registry` module's tests.
+- No platform-specific permission-denied fixture; portable blocking-path and create-new behavior cover deterministic write failures.
 
 ## Review Status
 

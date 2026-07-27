@@ -156,6 +156,12 @@ pub fn mcp_request(
         .write_stdin(input)
         .output()
         .expect("failed to run mcp");
+    assert!(
+        output.status.success(),
+        "MCP process failed with status {}; stderr={}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     stdout

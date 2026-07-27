@@ -9,6 +9,10 @@ spec: commands.spec.md
 - As a CI operator, I want exit codes that reflect enforcement mode and coverage thresholds so that pipeline pass/fail is predictable and actionable
 - As a maintainer, I want exit-code logic separated from process exit so that the decision is unit-testable without spawning a process
 - As a team using GitHub, I want validation errors turned into one issue per drifted spec so that drift gets tracked without flooding the tracker
+- As a terminal and GitHub user, I want hostile drift paths and provider text rendered safely so
+  that validation data cannot inject terminal or issue formatting
+- As a cross-platform user, I want every module name validated against portable component rules so
+  that a spec created on Unix cannot fail, alias a device, or exceed component limits on Windows.
 
 ## Acceptance Criteria
 
@@ -19,7 +23,16 @@ spec: commands.spec.md
 - `run_validation` validates each spec, applies global/inline/per-spec ignore rules to warnings, and returns `(errors, warnings, passed, total, error_strings, warning_strings)`; when `collect` is false it renders the full per-spec text report
 - `compute_exit_code` returns: Warn → always 0; EnforceNew → 1 if any unspecced files; Strict → 1 on any error and (with `--strict`) 1 on any warning; and 1 whenever `--require-coverage N` exceeds actual file coverage, regardless of mode
 - `exit_with_status` mirrors `compute_exit_code` but prints the reason and calls `process::exit`
-- `create_drift_issues` groups `"spec/path: message"` errors by spec and creates exactly one GitHub issue per spec using configured drift labels (default `spec-drift`)
+- `create_drift_issues` preserves its public rendered-string input contract, attributes errors
+  against the longest exact discovered spec-path prefix, and creates exactly one GitHub issue per
+  spec using configured drift labels (default `spec-drift`), including legal paths containing
+  `": "`.
+- `create_drift_issues` sanitizes untrusted repository-resolution failures, spec paths, created
+  issue URLs, and provider failures before terminal rendering; delegated GitHub issue titles and
+  bodies are sanitized independently
+- `validate_module_name` rejects path traversal/control/Windows-invalid characters, trailing
+  spaces/dots, case-insensitive Windows device basenames (including before an extension), and names
+  over 247 UTF-8 bytes; 247-byte ASCII and multibyte boundaries remain valid.
 
 ## Constraints
 
@@ -27,7 +40,10 @@ spec: commands.spec.md
 - Must reuse `load_config`, `find_spec_files`, `validate_spec` from the library rather than duplicating logic
 - `\r\n` is normalized to `\n` before frontmatter parsing in status filtering
 - GitHub issue creation must continue past individual `gh` failures, reporting each per-spec error
+- Drift-creation renderers must not emit raw terminal controls, bidirectional formatting controls,
+  or Unicode line/paragraph separators from repository, path, URL, or provider text
 - Output rendering must respect the requested `OutputFormat` (text vs collected JSON/markdown/GitHub)
+- Generated `<module>.spec.md` filenames must fit within one portable 255-byte component.
 
 ## Out of Scope
 
@@ -55,3 +71,36 @@ Acceptance Criteria
 - Structured JSON includes a deterministic notices array on normal, SDD-error, unmatched-filter, and no-spec exit paths.
 - Markdown and GitHub reports include a planned mappings section.
 - Notice-only results remain passing under strict enforcement.
+
+### REQ-commands-003
+
+Drift-issue creation SHALL render untrusted text safely at both the command terminal and GitHub
+issue boundaries.
+
+Acceptance Criteria
+
+- Repository-resolution failures, spec paths, returned issue URLs, and provider failures pass
+  through the shared safe diagnostic renderer before terminal output.
+- Terminal output does not preserve raw control characters, bidirectional formatting controls, or
+  Unicode line/paragraph separators from untrusted values.
+- The explicit GitHub creation helper sanitizes spec paths and validation errors separately for
+  title text and Markdown body text.
+- Sanitization does not change grouping: one drift issue is still attempted per spec, and an
+  individual creation failure does not stop later specs.
+- Public validation retains its rendered `Vec<String>` diagnostics contract. Private structured
+  attribution and longest exact discovered-path matching preserve legal paths containing `": "`
+  without exporting new command types.
+
+### REQ-commands-004
+
+Shared module-name validation SHALL enforce one portable generated-spec component contract on every
+host.
+
+Acceptance Criteria
+
+- Reject Windows reserved device basenames case-insensitively, including before extensions.
+- Reject Windows-invalid component characters on every host.
+- Reject trailing spaces/dots and names longer than 247 UTF-8 bytes so `<name>.spec.md` remains at
+  most 255 bytes.
+- Preserve valid ASCII and multibyte names exactly at the 247-byte boundary.
+

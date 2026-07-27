@@ -7,6 +7,7 @@ spec: exports.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/exports/mod.rs` | cargo test exports:: | No inline tests in `mod.rs` itself; covered indirectly via the per-language backends and `tests/integration.rs`. Add focused coverage for `get_exported_symbols`, `get_exported_symbols_full`, `is_test_file`, `is_source_file`, `has_extension` before risky changes |
+| Supplied-content extraction | cargo test exports::tests::supplied_content_extraction_never_resolves_ambient_typescript_imports | Caller-supplied TypeScript text is parsed while an ambient wildcard target remains unopened and contributes no exports |
 | `src/exports/typescript.rs` | cargo test exports::typescript:: | Existing ESM/re-export cases plus `test_commonjs_direct_and_object_exports`, `test_commonjs_ignores_non_static_and_non_code_names`, and `test_commonjs_mixed_with_esm_is_deduplicated` |
 | `src/exports/python.rs` | cargo test exports::python:: | `test_python_all`, `test_python_no_all`, `test_python_all_single_quotes`, `test_python_all_overrides_conventions`, `test_python_decorators_ignored`, `test_python_nested_not_captured` |
 | `src/exports/rust_lang.rs` | cargo test rust_lang | `test_rust_exports`, `test_pub_crate_included`, restricted-visibility exclusions, crate-visible re-exports, string/comment stripping, `test_real_registry_rs` |
@@ -41,6 +42,7 @@ spec: exports.spec.md
 | Python __all__ takes precedence | a `.py` file with `__all__ = ["create_auth", "AuthService"]` and additional top-level functions | `get_exported_symbols(path)` is called | returns only the symbols listed in `__all__`, not all top-level definitions |
 | Go uppercase convention | a `.go` file with `func CreateAuth()` and `func privateHelper()` | `get_exported_symbols(path)` is called | includes "CreateAuth" but not "privateHelper" |
 | Kotlin default visibility | a `.kt` file with `fun publicFun()` and `private fun privateFun()` | `get_exported_symbols(path)` is called | includes "publicFun" (public by default) but not "privateFun" |
+| Retained TypeScript snapshot | supplied barrel text has a local export plus `export * from './ambient'`, and the ambient sibling exists | `get_exported_symbols_from_content(path, content, ...)` is called | local supplied export is returned; ambient wildcard symbols are absent |
 
 ## Regression Matrix
 
@@ -50,6 +52,7 @@ spec: exports.spec.md
 | Unknown file extension | Returns empty vector | Keep or add a focused assertion before changing this behavior |
 | File has no exports | Returns empty vector | Keep or add a focused assertion before changing this behavior |
 | Binary or non-text file | Returns empty vector (read_to_string fails gracefully) | Keep or add a focused assertion before changing this behavior |
+| Supplied-content wildcard re-export | Does not open or resolve an ambient sibling/index target | Keep `supplied_content_extraction_never_resolves_ambient_typescript_imports` in both regex and AST coverage |
 
 ## Reviewer Checklist
 

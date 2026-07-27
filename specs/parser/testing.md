@@ -7,6 +7,7 @@ spec: parser.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/parser.rs` | cargo test parser:: | `test_parse_frontmatter_basic`, `test_strip_yaml_comment`, `test_parse_frontmatter_inline_comments`, `test_parse_frontmatter_tabs_and_whitespace`, `test_parse_frontmatter_trailing_spaces`, `test_parse_frontmatter_missing` |
+| `src/parser.rs` | cargo test parser::checked_issue_references | LF/CRLF delimiters and real-YAML comments/trailing commas are accepted; duplicate/global malformed YAML and blank/null/wrong shapes fail; nested extensions and block scalars do not contribute references; errors do not echo content |
 | `src/parser.rs` | cargo test parser::tests::test_get_spec_symbols_preserves_complete_punctuated_symbols | Dots, hyphens, selectors, operators, apostrophes, spaces, Unicode, and ordinary identifiers are preserved exactly |
 | `src/parser.rs` | cargo test parser::tests::test_api_table_symbol_parser_rejects_empty_or_malformed_rows | Empty, whitespace-only, unterminated, later-column, trailing-text, and prose spans remain excluded |
 | `tests/integration.rs` | cargo test --test integration check_github_actions_yaml_with_dotted_exports_passes_strict | Active GitHub Actions workflow contract reports `10/10 exports documented` with zero warnings under strict forced validation |
@@ -31,7 +32,12 @@ spec: parser.spec.md
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
 | No frontmatter delimiters | `parse_frontmatter` returns `None` | Keep or add a focused assertion before changing this behavior |
-| Malformed YAML in frontmatter | Unknown keys silently ignored, missing fields remain as `None` | Keep or add a focused assertion before changing this behavior |
+| Unsupported content on compatibility `parse_frontmatter` path | Unknown keys are ignored and missing fields remain `None` within the established subset | Keep focused compatibility assertions separate from checked issue parsing |
+| Checked issue YAML contains duplicate keys or malformed unknown extensions | Complete checked parse fails with a stable content-free error | Keep focused duplicate/global-malformed regressions |
+| Checked `implements`/`tracks` is blank, null, scalar, mapping, mixed, zero, negative, or overflowing | Complete checked parse fails; invalid entries cannot be filtered away | Keep focused known-field shape/number regressions |
+| Checked YAML uses comments or a valid trailing comma | Valid top-level positive unsigned lists are accepted | Keep valid-YAML compatibility regressions |
+| Checked YAML uses CRLF frontmatter delimiters | Parsed identically to LF without weakening complete-document validation | Keep the focused CRLF regression plus CLI/MCP caller regressions |
+| Nested extension or block-scalar text contains issue-like keys | Nested/text lookalikes are ignored; only top-level fields are authoritative | Keep extension/block-scalar regression |
 | No `## Public API` section | `get_spec_symbols` returns empty vector | Keep or add a focused assertion before changing this behavior |
 | Malformed or misplaced code span | Empty, unterminated, later-column, and prose spans are ignored | Keep the focused malformed-row regression |
 | Empty body | `get_missing_sections` reports all required sections as missing | Keep or add a focused assertion before changing this behavior |

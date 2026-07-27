@@ -72,7 +72,6 @@ fn run() {
         );
         process::exit(2);
     }
-    let root = root.canonicalize().unwrap_or(root);
 
     // --json flag is shorthand for --format json (backward compat)
     let format = if cli.json {
@@ -91,6 +90,24 @@ fn run() {
         stale: None,
         specs: vec![],
     });
+
+    // Security-sensitive retained-capability commands must bind the user-requested directory
+    // identity before canonicalizing any path. Canonicalizing a junction or symlink here would
+    // erase the public pathname whose replacement the retained traversal must detect.
+    let root = if matches!(
+        &command,
+        Command::Mcp { .. }
+            | Command::Check { .. }
+            | Command::Coverage
+            | Command::Generate { .. }
+            | Command::Score { .. }
+            | Command::Report { .. }
+            | Command::Comment { .. }
+    ) {
+        root
+    } else {
+        root.canonicalize().unwrap_or(root)
+    };
 
     if matches!(
         &command,
@@ -160,7 +177,12 @@ fn run() {
             &cli.only_status,
         ),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
-        Command::Mcp => mcp::run_mcp_server(&root),
+        Command::Mcp { allow_write } => {
+            if let Err(message) = mcp::run_mcp_server(&root, allow_write) {
+                eprintln!("{} {message}", "error:".red().bold());
+                process::exit(2);
+            }
+        }
         Command::AddSpec { name } => commands::scaffold::cmd_add_spec(&root, &name),
         Command::Scaffold {
             name,

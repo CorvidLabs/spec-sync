@@ -82,3 +82,30 @@ Acceptance Criteria
 - The process emits one contextual diagnostic and exits non-zero.
 - Commands outside the lifecycle boundary preserve current dispatch behavior.
 
+### REQ-cli-005
+
+The root CLI dispatcher SHALL preserve MCP write authorization and fail closed when the configured
+server root cannot be resolved.
+
+Acceptance Criteria
+
+- The dispatcher forwards the parsed `allow_write` capability to `run_mcp_server` without changing
+  its default.
+- MCP startup errors are printed to stderr and exit with usage status 2.
+- No MCP request is read when server-root initialization fails.
+
+### REQ-cli-006
+
+The root CLI dispatcher SHALL preserve the user-requested root spelling for commands whose
+retained-capability engines must detect public path replacement.
+
+Acceptance Criteria
+
+- MCP, check, coverage, generate, score, report, and comment receive the validated requested path
+  without eager canonicalization.
+- Generate retains the bound root authority through publication so a redirect after checked
+  coverage returns cannot redirect an output write into the replacement.
+- Other commands retain their established canonical-root dispatch behavior.
+- A symlink/junction replacement after capability retention remains observable to checked
+  traversal and cannot be hidden by dispatcher canonicalization.
+

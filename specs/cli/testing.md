@@ -8,6 +8,7 @@ spec: cli.spec.md
 |------|---------|---------------------|
 | `src/cli.rs` (clap grammar) | cargo test cli::tests | `no_subcommand_yields_none_and_text_default`, `global_flags_parse_before_subcommand`, `json_format_value_enum_parses`, `check_collects_flags_and_positional_specs`, `stale_threshold_defaults_and_overrides`, `exclude_status_splits_on_commas`, `unknown_subcommand_is_rejected`, `non_numeric_threshold_is_rejected` |
 | `src/main.rs` (exit codes) | cargo test --bin specsync tests:: | `warn_mode_exits_0_with_no_errors`, `warn_mode_exits_0_even_with_errors`, `warn_mode_exits_0_even_with_strict_flag`, `warn_mode_respects_require_coverage`, `enforce_new_exits_0_when_all_files_specced`, `enforce_new_exits_1_when_unspecced_files_exist`, `strict_mode_exits_1_with_warnings_and_strict_flag`, `strict_mode_respects_require_coverage` |
+| `src/main.rs` (MCP dispatch) | cargo test --test integration mcp:: | `mcp_help_documents_explicit_write_authorization`, `mcp_rejects_a_nonexistent_server_root` |
 | `tests/integration.rs` | cargo test --test integration strict_turns_warnings_into_errors | End-to-end fixture: `strict_turns_warnings_into_errors` |
 | `tests/integration.rs` | cargo test --test integration require_coverage_passes_when_met | End-to-end fixture: `require_coverage_passes_when_met` |
 | `tests/integration.rs` | cargo test --test integration require_coverage_fails_when_below_threshold | End-to-end fixture: `require_coverage_fails_when_below_threshold` |
@@ -29,6 +30,8 @@ spec: cli.spec.md
 | Deterministic generate | uncovered modules exist | `specsync generate` is run | local template specs and companions are created |
 | Retired provider/model flags | user supplies `--provider` or `--model` | Clap parses arguments | unknown arguments are rejected |
 | Recursive lifecycle dispatch | inherited verification context invokes `check`, `change`, or `lifecycle` | the binary dispatches | exits non-zero once and names the configured parent command |
+| MCP startup root failure | `--root` names a nonexistent directory and the `mcp` command is selected | the dispatcher starts MCP | exits 2 on stderr before reading a request |
+| Coverage root replacement | a gate pauses after retaining a requested symlink/junction root, or after checked coverage returns but before generation publication, then the public root is redirected | run check, coverage, generate, report, or score | exits nonzero with structured inconclusive output and never reads or writes the replacement target |
 | Panic is caught | a subcommand panics internally | the binary runs | a "specsync panicked … please report it" message is printed and the process exits 1 (no raw backtrace) |
 | Resolve without network | specs have cross-project `depends_on` refs | `specsync resolve` is run (without `--remote`) | lists the refs but does not verify them against remote registries |
 | Fix auto-adds undocumented exports | a spec's source files have exports not documented in the Public API section | `specsync check --fix` is run | skeleton rows for the missing exports are appended to the Public API section and the spec file is written to disk |

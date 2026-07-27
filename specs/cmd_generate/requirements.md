@@ -15,10 +15,12 @@ spec: cmd_generate.spec.md
 
 ### REQ-cmd-generate-001
 
-The generate command SHALL scaffold specs deterministically without invoking inference, network providers, credentials, or shell commands.
+The generate command SHALL create deterministic local specs only from trustworthy discovery.
 
 Acceptance Criteria
-- Provider and model flags are absent.
-- Default, batch, uncovered, and JSON modes retain their non-AI behavior.
-- Generated paths and exit status remain machine-readable for coding agents.
+
+- All generation modes use checked coverage discovery before selecting output.
+- Malformed Gradle/manifest discovery exits nonzero before mutation.
+- JSON mode remains parseable with `valid: false`, `inconclusive: true`, an explicit error, and an
+  empty `generated` collection.
 

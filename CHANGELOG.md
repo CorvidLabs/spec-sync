@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **MCP now starts read-only and fails closed at its trust boundary** (#414) — mutating tools require
+  the explicit `mcp --allow-write` opt-in; read paths are confined beneath the canonical server
+  root before filesystem probing; operations use bounded capability-safe snapshots and confined
+  writes to resist symlink/junction races; configuration and actual copied input bytes share one
+  operation budget; configured source roots remain visible; requests and responses are bounded;
+  GitHub issue access requires an explicit configured repository and `GITHUB_TOKEN` instead of Git metadata discovery;
+  unavailable Git freshness is reported and scored conservatively; malformed JSON-RPC envelopes and
+  resource arguments are rejected; startup root acquisition is identity-bound; root-wide and
+  manifest-derived inputs cannot disappear behind snapshot ignores; request IDs are bounded; and
+  generation is count/content bounded, staged, synced, and atomically published with identity-safe
+  failed-batch file rollback while conservatively retaining ambiguous empty parents; startup captures
+  the root handle and identity before canonicalization and rejects any mismatched canonical reopen;
+  read-root selection and generation rollback stay bound to retained parent capabilities and exact
+  filesystem identities even when ambient paths are replaced; generated-file identity also binds
+  exact staged bytes so immediate Unix inode reuse cannot authorize a replacement, with fail-closed
+  hashing bounded at the generated-output limit. Generic MCP project files now use no-follow,
+  non-blocking, identity-continuous retained reads for both tools and resources, rejecting special,
+  linked/reparse-backed, and replacement entries without consuming attacker bytes. Read-root
+  components and staged public parents are now reopened as regular no-link directories with
+  identity checks; null/fractional request IDs and malformed initialize negotiation are rejected;
+  and test helpers require successful MCP process exits before accepting protocol output.
+  Selected read-root component routes are revalidated again before successful responses. Every
+  post-link destination/public-parent failure cleans the exact quarantined staged identity before
+  returning, while generated batches share one transaction-wide root capability instead of
+  retaining one additional root handle per output.
+- **MCP manifest and issue checks fail closed under adversarial input** — bounded Cargo workspace
+  discovery uses real TOML, while shared checked Gradle discovery handles Groovy/Kotlin comments,
+  escapes, includes, and supported project directories; malformed discovery is inconclusive for
+  gates. Cargo snapshot paths come only from semantic target, workspace, and dependency tables;
+  unrelated metadata `path` keys are ignored. Manifest-relative sibling paths such as `../b` and
+  confined Windows-native forms such as `..\b` remain valid when normalization keeps them beneath
+  the retained server root, while drive, UNC, rooted, traversal, symlink, and junction escapes
+  still fail. Private quarantine cleanup
+  consumes its final retained directory capability before removal so Windows does not turn
+  successful init/generation into sharing-violation failures. Manifest discovery shares the 64 MiB
+  input budget and snapshots exact preflighted bytes. Every present Gradle filename, including a
+  lower-precedence shadowed variant, is preflighted and identity-bound across its retained read;
+  invoked unsupported inclusion APIs fail closed without rejecting unrelated control flow. CLI
+  checked coverage shares one retained project authority across caller-selected spec mappings,
+  every recognized manifest/workspace probe, spec-module enumeration, and source discovery,
+  applying iterative 8 MiB/file, 64 MiB total, 100,000-entry, and 256-component bounds with strict
+  UTF-8. Root retention precedes configuration and omitted-source autodetection, while explicit
+  source roots avoid unrelated autodetection. Nested config/manifest parents remain reachable,
+  selected-spec inventory identities remain authoritative through ownership parsing, and shared
+  spec/source bytes plus entries are bounded. Cargo member declarations and Node workspace
+  patterns consume bounded expansion work before deduplication and reuse normalized completed
+  results in both manifest and MCP-specific traversal. Retained Cargo and Node manifests are parsed
+  structurally and workspace directory listings remain identity-bound through child consumption.
+  Selected source directories are retained before the post-manifest checkpoint, selected MCP
+  configuration parents are revalidated through their complete edge chain after bounded reads, and
+  authority-bearing recursive snapshot directories reject regular-directory replacement. Recursive
+  MCP and checked-coverage traversal records sibling identities before opening children
+  sequentially, bounding live handles by depth; Node workspace discovery likewise consumes
+  identity-matching child capabilities without swap/read/restore mixing. Object-form Node
+  workspaces require `packages`, and every recognized nested package manifest is strictly parsed.
+  Separate
+  early and post-discovery checkpoints protect the checked-coverage operation and propagate failures
+  to gate callers. The root dispatcher preserves the caller-requested spelling for those gates so
+  eager canonicalization cannot hide a symlink/junction replacement; generation retains that
+  authority through publication so a redirect after checked coverage cannot redirect output.
+  Hosted Tarpaulin executes the
+  unchanged suite with one harness thread to avoid reproducible overlapping ptrace trap crashes
+  while retaining the 50% threshold.
+  Command-wide immutable CLI snapshots and generic structured discovery outcomes remain deferred
+  to later CLI/outcome/generation work outside issue #414; hosted-Windows junction/reparse runtime
+  remains required for final acceptance.
+  Issue reads, listing, and verification require `GITHUB_TOKEN`, use in-process GitHub REST, and
+  never spawn a `gh` provider process; `gh` remains only the explicit issue-creation write path.
+  Verification globally deduplicates/caps IDs, includes repository preflight in the complete batch
+  deadline, and revalidates repository access after apparent absence. Inaccessible repositories,
+  authentication failures, timeouts, and malformed responses are inconclusive rather than
+  not_found; issue-list pages above 100 raw provider entries fail before item parsing. All-error
+  CLI batches report their error count instead of claiming no references, and CLI/MCP issue scans
+  now fail inconclusive with content-free path attribution when a discovered spec is unreadable or
+  has malformed/missing frontmatter. A maintained `serde-saphyr` checked parser validates complete
+  real-YAML frontmatter for issue references: duplicate keys or malformed YAML anywhere and
+  blank/null/wrong-shaped known fields fail closed, comments and valid trailing commas work, and
+  only top-level `implements`/`tracks` lists are authoritative while nested extension/block-scalar
+  lookalikes are ignored. Recursive traversal and non-UTF-8 filename failures cannot silently
+  disappear. CLI `specs_dir` is confined beneath the project, and specs are captured through
+  retained capability-rooted, same-handle identity checks. The crate-visible
+  `validate_spec_content` API lets `issues --create` preserve normal drift validation and issue
+  creation against those exact immutable bytes without reopening discovered paths. Configured
+  repository syntax is validated even with zero references while Git/provider access stays
+  skipped. Hostile diagnostics escape controls, bidirectional formatting, and Unicode line/
+  paragraph separators and use valid Markdown code spans; MCP errors expose only bounded relative
+  paths and stable content-free reasons. Issue-list `pull_request` markers must be objects when
+  present, so explicit `null` rejects the page instead of becoming an issue. Every raw issue or
+  pull-request item is validated as open with exact repository/resource/number URL identity, and
+  duplicate raw identities fail within/across pages before pull-request filtering.
+  Single and batch GitHub imports use the same explicit-token typed REST path, with no authenticated
+  `gh` fallback. Batch import follows every valid page, bounded to 100 pages of 100 raw provider
+  entries, and fails on oversized or malformed pages, malformed links, duplicate issue IDs, or cap
+  truncation rather than returning a partial issue set.
+
 ## [5.2.0] - 2026-07-19
 
 ### Added

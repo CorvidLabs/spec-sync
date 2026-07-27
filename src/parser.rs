@@ -1,7 +1,10 @@
 use crate::types::Frontmatter;
 use crate::util::levenshtein;
 use regex::Regex;
+use serde::Deserialize;
+use serde::de::{IgnoredAny, MapAccess, SeqAccess, Visitor};
 use std::collections::HashSet;
+use std::fmt;
 use std::sync::LazyLock;
 
 /// Parsed spec file: frontmatter + markdown body.
@@ -12,6 +15,268 @@ pub struct ParsedSpec {
 
 static FRONTMATTER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)^---\n(.*?)\n---\n(.*)$").unwrap());
+
+const INVALID_YAML_FRONTMATTER_ERROR: &str = "invalid YAML frontmatter";
+const DUPLICATE_YAML_KEY_ERROR: &str = "duplicate YAML frontmatter key";
+const DUPLICATE_IMPLEMENTS_ERROR: &str = "duplicate `implements` issue-reference field";
+const DUPLICATE_TRACKS_ERROR: &str = "duplicate `tracks` issue-reference field";
+const INVALID_IMPLEMENTS_SHAPE_ERROR: &str =
+    "`implements` must be a list of unsigned issue numbers";
+const INVALID_TRACKS_SHAPE_ERROR: &str = "`tracks` must be a list of unsigned issue numbers";
+const INVALID_IMPLEMENTS_NUMBER_ERROR: &str =
+    "`implements` contains an invalid unsigned issue number";
+const INVALID_TRACKS_NUMBER_ERROR: &str = "`tracks` contains an invalid unsigned issue number";
+
+#[derive(Default)]
+struct CheckedIssueReferences {
+    implements: Vec<u64>,
+    tracks: Vec<u64>,
+}
+
+struct ImplementsIssueNumbers(Vec<u64>);
+struct TracksIssueNumbers(Vec<u64>);
+
+impl<'de> Deserialize<'de> for CheckedIssueReferences {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_map(CheckedIssueReferencesVisitor)
+    }
+}
+
+struct CheckedIssueReferencesVisitor;
+
+impl<'de> Visitor<'de> for CheckedIssueReferencesVisitor {
+    type Value = CheckedIssueReferences;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("YAML frontmatter mapping")
+    }
+
+    fn visit_map<Mapping>(self, mut mapping: Mapping) -> Result<Self::Value, Mapping::Error>
+    where
+        Mapping: MapAccess<'de>,
+    {
+        let mut references = CheckedIssueReferences::default();
+        let mut implements_seen = false;
+        let mut tracks_seen = false;
+
+        while let Some(key) = mapping.next_key::<String>()? {
+            match key.as_str() {
+                "implements" => {
+                    if implements_seen {
+                        return Err(serde::de::Error::custom(DUPLICATE_IMPLEMENTS_ERROR));
+                    }
+                    implements_seen = true;
+                    references.implements = mapping.next_value::<ImplementsIssueNumbers>()?.0;
+                }
+                "tracks" => {
+                    if tracks_seen {
+                        return Err(serde::de::Error::custom(DUPLICATE_TRACKS_ERROR));
+                    }
+                    tracks_seen = true;
+                    references.tracks = mapping.next_value::<TracksIssueNumbers>()?.0;
+                }
+                _ => {
+                    mapping.next_value::<IgnoredAny>()?;
+                }
+            }
+        }
+
+        Ok(references)
+    }
+}
+
+impl<'de> Deserialize<'de> for ImplementsIssueNumbers {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        deserialize_issue_number_list(
+            deserializer,
+            INVALID_IMPLEMENTS_SHAPE_ERROR,
+            INVALID_IMPLEMENTS_NUMBER_ERROR,
+        )
+        .map(Self)
+    }
+}
+
+impl<'de> Deserialize<'de> for TracksIssueNumbers {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        deserialize_issue_number_list(
+            deserializer,
+            INVALID_TRACKS_SHAPE_ERROR,
+            INVALID_TRACKS_NUMBER_ERROR,
+        )
+        .map(Self)
+    }
+}
+
+fn deserialize_issue_number_list<'de, Deserializer>(
+    deserializer: Deserializer,
+    shape_error: &'static str,
+    number_error: &'static str,
+) -> Result<Vec<u64>, Deserializer::Error>
+where
+    Deserializer: serde::Deserializer<'de>,
+{
+    deserializer.deserialize_any(IssueNumberListVisitor {
+        shape_error,
+        number_error,
+    })
+}
+
+struct IssueNumberListVisitor {
+    shape_error: &'static str,
+    number_error: &'static str,
+}
+
+impl<'de> Visitor<'de> for IssueNumberListVisitor {
+    type Value = Vec<u64>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("list of positive unsigned issue numbers")
+    }
+
+    fn visit_bool<Error>(self, _value: bool) -> Result<Self::Value, Error>
+    where
+        Error: serde::de::Error,
+    {
+        Err(Error::custom(self.shape_error))
+    }
+
+    fn visit_i64<Error>(self, _value: i64) -> Result<Self::Value, Error>
+    where
+        Error: serde::de::Error,
+    {
+        Err(Error::custom(self.shape_error))
+    }
+
+    fn visit_u64<Error>(self, _value: u64) -> Result<Self::Value, Error>
+    where
+        Error: serde::de::Error,
+    {
+        Err(Error::custom(self.shape_error))
+    }
+
+    fn visit_f64<Error>(self, _value: f64) -> Result<Self::Value, Error>
+    where
+        Error: serde::de::Error,
+    {
+        Err(Error::custom(self.shape_error))
+    }
+
+    fn visit_str<Error>(self, _value: &str) -> Result<Self::Value, Error>
+    where
+        Error: serde::de::Error,
+    {
+        Err(Error::custom(self.shape_error))
+    }
+
+    fn visit_string<Error>(self, _value: String) -> Result<Self::Value, Error>
+    where
+        Error: serde::de::Error,
+    {
+        Err(Error::custom(self.shape_error))
+    }
+
+    fn visit_none<Error>(self) -> Result<Self::Value, Error>
+    where
+        Error: serde::de::Error,
+    {
+        Err(Error::custom(self.shape_error))
+    }
+
+    fn visit_unit<Error>(self) -> Result<Self::Value, Error>
+    where
+        Error: serde::de::Error,
+    {
+        Err(Error::custom(self.shape_error))
+    }
+
+    fn visit_map<Mapping>(self, _mapping: Mapping) -> Result<Self::Value, Mapping::Error>
+    where
+        Mapping: MapAccess<'de>,
+    {
+        Err(serde::de::Error::custom(self.shape_error))
+    }
+
+    fn visit_seq<Sequence>(self, mut sequence: Sequence) -> Result<Self::Value, Sequence::Error>
+    where
+        Sequence: SeqAccess<'de>,
+    {
+        let mut numbers = Vec::new();
+        while let Some(number) = sequence
+            .next_element::<u64>()
+            .map_err(|_| serde::de::Error::custom(self.number_error))?
+        {
+            if number == 0 {
+                return Err(serde::de::Error::custom(self.number_error));
+            }
+            numbers.push(number);
+        }
+        Ok(numbers)
+    }
+}
+
+/// Parse and validate top-level GitHub issue references from YAML frontmatter.
+///
+/// Unknown extension fields remain valid YAML but are otherwise ignored. Errors are
+/// intentionally stable and content-free so callers can safely expose them.
+pub fn parse_checked_issue_references(content: &str) -> Result<(Vec<u64>, Vec<u64>), String> {
+    let content = content.trim_start_matches('\u{feff}');
+    let frontmatter = content
+        .strip_prefix("---\n")
+        .and_then(|remainder| remainder.split_once("\n---\n"))
+        .or_else(|| {
+            content
+                .strip_prefix("---\r\n")
+                .and_then(|remainder| remainder.split_once("\r\n---\r\n"))
+        })
+        .map(|(frontmatter, _)| frontmatter);
+    let Some(frontmatter) = frontmatter else {
+        return Err("missing or malformed YAML frontmatter".to_string());
+    };
+
+    let options = serde_saphyr::options! {
+        duplicate_keys: serde_saphyr::DuplicateKeyPolicy::Error,
+        with_snippet: false,
+    };
+    let frontmatter = format!("{frontmatter}\n");
+    let references =
+        serde_saphyr::from_str_with_options::<CheckedIssueReferences>(&frontmatter, options)
+            .map_err(checked_issue_reference_error)?;
+
+    Ok((references.implements, references.tracks))
+}
+
+fn checked_issue_reference_error(error: serde_saphyr::Error) -> String {
+    match error.without_snippet() {
+        serde_saphyr::Error::Message { msg, .. }
+            if [
+                DUPLICATE_IMPLEMENTS_ERROR,
+                DUPLICATE_TRACKS_ERROR,
+                INVALID_IMPLEMENTS_SHAPE_ERROR,
+                INVALID_TRACKS_SHAPE_ERROR,
+                INVALID_IMPLEMENTS_NUMBER_ERROR,
+                INVALID_TRACKS_NUMBER_ERROR,
+            ]
+            .contains(&msg.as_str()) =>
+        {
+            msg.clone()
+        }
+        serde_saphyr::Error::DuplicateMappingKey { key, .. } => match key.as_deref() {
+            Some("implements") => DUPLICATE_IMPLEMENTS_ERROR.to_string(),
+            Some("tracks") => DUPLICATE_TRACKS_ERROR.to_string(),
+            _ => DUPLICATE_YAML_KEY_ERROR.to_string(),
+        },
+        _ => INVALID_YAML_FRONTMATTER_ERROR.to_string(),
+    }
+}
 
 /// Parse YAML frontmatter from a spec file.
 /// Zero-dependency YAML: uses regex, no YAML parser needed.
@@ -818,6 +1083,191 @@ This prose contains `proseSymbol` but is not a table row.
         let parsed = parse_frontmatter(content).unwrap();
         assert!(parsed.frontmatter.implements.is_empty());
         assert!(parsed.frontmatter.tracks.is_empty());
+    }
+
+    #[test]
+    fn checked_issue_references_accept_normal_lists_and_inline_comments() {
+        let content = "\
+---
+module: auth
+implements:
+  - 41
+  - 42 # inline item comment
+tracks: [43, 44] # inline list comment
+---
+
+# Auth
+";
+
+        assert_eq!(
+            parse_checked_issue_references(content).unwrap(),
+            (vec![41, 42], vec![43, 44])
+        );
+
+        let max = "---\nimplements: [18446744073709551615]\n---\n\n# Auth\n";
+        assert_eq!(
+            parse_checked_issue_references(max).unwrap(),
+            (vec![u64::MAX], Vec::new())
+        );
+    }
+
+    #[test]
+    fn checked_issue_references_accept_crlf_frontmatter() {
+        let content = "---\r\nmodule: auth\r\nimplements:\r\n  - 41\r\n  - 42 # inline item comment\r\ntracks: [43, 44]\r\n---\r\n\r\n# Auth\r\n";
+
+        assert_eq!(
+            parse_checked_issue_references(content).unwrap(),
+            (vec![41, 42], vec![43, 44])
+        );
+    }
+
+    #[test]
+    fn checked_issue_references_keep_crlf_validation_strict() {
+        for (content, expected) in [
+            (
+                "---\r\nmodule: auth\r\nimplements: [41]\r\nimplements: [42]\r\n---\r\n\r\n# Auth\r\n",
+                DUPLICATE_IMPLEMENTS_ERROR,
+            ),
+            (
+                "---\r\nmodule: auth\r\nextensions:\r\n  nested: [unterminated\r\n---\r\n\r\n# Auth\r\n",
+                INVALID_YAML_FRONTMATTER_ERROR,
+            ),
+            (
+                "---\r\nmodule: auth\r\ntracks: 42\r\n---\r\n\r\n# Auth\r\n",
+                INVALID_TRACKS_SHAPE_ERROR,
+            ),
+        ] {
+            assert_eq!(
+                parse_checked_issue_references(content).unwrap_err(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn checked_issue_references_accept_yaml_trailing_commas() {
+        let content = "---\nmodule: auth\nimplements: [42,]\ntracks: []\n---\n\n# Auth\n";
+
+        assert_eq!(
+            parse_checked_issue_references(content).unwrap(),
+            (vec![42], Vec::new())
+        );
+    }
+
+    #[test]
+    fn checked_issue_references_reject_duplicate_keys() {
+        for (content, expected) in [
+            (
+                "---\nmodule: auth\nimplements: [41]\nimplements: [42]\n---\n\n# Auth\n",
+                DUPLICATE_IMPLEMENTS_ERROR,
+            ),
+            (
+                "---\nmodule: auth\nextensions:\n  mode: one\n  mode: two\n---\n\n# Auth\n",
+                DUPLICATE_YAML_KEY_ERROR,
+            ),
+        ] {
+            assert_eq!(
+                parse_checked_issue_references(content).unwrap_err(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn checked_issue_references_reject_invalid_known_values() {
+        let cases = [
+            ("implements:", INVALID_IMPLEMENTS_SHAPE_ERROR),
+            ("implements: null", INVALID_IMPLEMENTS_SHAPE_ERROR),
+            ("implements: 42", INVALID_IMPLEMENTS_SHAPE_ERROR),
+            ("implements: [0]", INVALID_IMPLEMENTS_NUMBER_ERROR),
+            ("implements: [-1]", INVALID_IMPLEMENTS_NUMBER_ERROR),
+            (
+                "implements: [18446744073709551616]",
+                INVALID_IMPLEMENTS_NUMBER_ERROR,
+            ),
+            ("implements: [41, nope]", INVALID_IMPLEMENTS_NUMBER_ERROR),
+            ("tracks:", INVALID_TRACKS_SHAPE_ERROR),
+            ("tracks: null", INVALID_TRACKS_SHAPE_ERROR),
+            ("tracks: [41, 0]", INVALID_TRACKS_NUMBER_ERROR),
+        ];
+
+        for (field, expected) in cases {
+            let content = format!("---\nmodule: auth\n{field}\n---\n\n# Auth\n");
+            let result = parse_checked_issue_references(&content);
+            assert!(
+                result.is_err(),
+                "expected rejection for {field}: {result:?}"
+            );
+            assert_eq!(
+                result.unwrap_err(),
+                expected,
+                "unexpected result for {field}"
+            );
+        }
+    }
+
+    #[test]
+    fn checked_issue_references_ignore_nested_extensions_and_block_scalars() {
+        let content = "\
+---
+module: auth
+extensions:
+  implements: [900]
+  nested:
+    tracks: invalid
+extension_sequence:
+  - implements: [901]
+    tracks: [902]
+notes: |
+  implements: invalid
+  tracks:
+    - 903
+folded: >
+  tracks: [904]
+implements: [41]
+tracks: [42]
+---
+
+# Auth
+";
+
+        assert_eq!(
+            parse_checked_issue_references(content).unwrap(),
+            (vec![41], vec![42])
+        );
+    }
+
+    #[test]
+    fn checked_issue_references_reject_malformed_unknown_extensions() {
+        let content = "---\nmodule: auth\nextensions:\n  nested: [unterminated\n---\n\n# Auth\n";
+
+        assert_eq!(
+            parse_checked_issue_references(content).unwrap_err(),
+            INVALID_YAML_FRONTMATTER_ERROR
+        );
+    }
+
+    #[test]
+    fn checked_issue_references_reject_reviewer_reproducer_without_leaking_content() {
+        let content = "\
+---
+module: auth
+implements:
+private_extension:
+  secret: [reviewer-reproducer
+---
+
+# Auth
+";
+
+        let error = parse_checked_issue_references(content).unwrap_err();
+
+        assert!(matches!(
+            error.as_str(),
+            INVALID_IMPLEMENTS_SHAPE_ERROR | INVALID_YAML_FRONTMATTER_ERROR
+        ));
+        assert!(!error.contains("reviewer-reproducer"));
+        assert!(!error.contains("private_extension"));
     }
 
     #[test]

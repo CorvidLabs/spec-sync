@@ -12,6 +12,8 @@ spec: cli_args.spec.md
 | `generate --model` | Clap rejects unknown argument |
 | `generate --batch` | Collects requested modules |
 | Agents/MCP/Change | Commands continue parsing |
+| `mcp` | Parses with `allow_write: false` and lists only read tools |
+| `mcp --allow-write` | Parses with `allow_write: true`; help names the configured project root |
 | `change reopen <id> --actor <human> --reason <text>` | Parses the audited transition inputs |
 | `change reopen` missing actor/reason | Clap rejects the incomplete command |
 | `change correct <id> <field> <value> --actor <human> --reason <text>` | Parses only the supported audited correction grammar (`REQ-cli-args-004`) |

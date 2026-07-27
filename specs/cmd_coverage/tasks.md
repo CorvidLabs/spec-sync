@@ -15,6 +15,7 @@ spec: cmd_coverage.spec.md
 - [x] End-to-end CLI behavior is covered by integration fixtures (full/partial coverage, `--require-coverage`, `--strict`, JSON via MCP) — see testing.md
 - [x] Verified JSON output keys and the two-decimal rounding / zero-denominator-as-100% behavior against the source
 - [x] Verified exit-code delegation to `exit_with_status` for the non-JSON path
+- [x] Emit structured inconclusive JSON and exit 1 for malformed checked manifest discovery — Evidence: `malformed_gradle_is_inconclusive_for_coverage_gating_commands`.
 
 ## Review Status
 

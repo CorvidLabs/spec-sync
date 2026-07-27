@@ -7,6 +7,7 @@ spec: cli_args.spec.md
 - As a user, I want one consistent Clap grammar and global flags.
 - As a developer, I want deterministic generation arguments without credential-bearing inference choices.
 - As an agent user, I want native Agents, MCP, Lifecycle, and Change command surfaces preserved.
+- As an MCP operator, I want mutation to require an explicit command-line capability grant.
 
 ### REQ-cli-args-001
 
@@ -89,4 +90,14 @@ Acceptance Criteria
 - An unknown source family fails through a deterministic Clap validation error before any
   mutation.
 - `--dry-run` and `--no-backup` remain accepted in both modes.
+
+### REQ-cli-args-008
+
+The shared CLI grammar SHALL expose explicit MCP write authorization.
+
+Acceptance Criteria
+
+- `specsync mcp --allow-write` enables mutating MCP tools.
+- Omitting the flag keeps MCP read-only.
+- Help describes the configured-root security boundary.
 

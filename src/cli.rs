@@ -107,7 +107,11 @@ pub enum Command {
     /// Watch spec and source files, re-running check on changes
     Watch,
     /// Run as an MCP (Model Context Protocol) server over stdio
-    Mcp,
+    Mcp {
+        /// Expose mutating MCP tools, confined to the configured project root
+        #[arg(long)]
+        allow_write: bool,
+    },
     /// Scaffold a new spec with required companion files and optional design.md
     AddSpec {
         /// Module name for the new spec

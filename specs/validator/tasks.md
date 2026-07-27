@@ -27,6 +27,52 @@ spec: validator.spec.md
 - [x] Measure default HTML, HTM, and CSS sources in coverage
 - [x] Reject known unfilled companion scaffold markers in strict mode
 - [x] Reject every marker emitted by the built-in design companion template
+- [x] Add checked coverage and route CLI/MCP gates through inconclusive manifest-discovery errors
+- [x] Add crate-visible `validate_spec_content` and route path-based `validate_spec` through the
+  shared exact-byte validation core.
+- [x] Enable capability-rooted `issues --create` validation to consume immutable pre-read spec
+  snapshots without reopening discovered paths.
+- [x] Add crate-private `SourceSnapshot` and `validate_spec_content_with_sources` so exact
+  spec-and-source validation never falls back to ambient mapped-source reads.
+
+## CHG-0063 Independent-Review Amendment
+
+- [x] Amend checked-coverage contracts so raw Gradle drive identifiers, unsupported
+  `setProjectDir` forms, and linked/reparse-backed derived directories remain inconclusive.
+- [x] Verify CLI and MCP checked gates return non-success without partial totals, outside bytes, or
+  generated output for every new Gradle confinement failure.
+- [x] Keep interpolated/encoded Gradle paths and linked/special Gradle manifests inconclusive
+  across checked CLI/MCP gates.
+- [x] Bind post-manifest coverage source traversal and reads to one retained root capability so
+  path replacement, links/reparse points, and special entries fail every coverage gate.
+- [x] Replace ambient coverage walks and LOC reopens with retained no-follow source snapshots,
+  including deterministic post-discovery Unix symlink and hosted-Windows junction race fixtures.
+- [x] Share one retained project capability across manifest discovery, spec-module enumeration,
+  configured source traversal, and final root verification.
+- [x] Read caller-selected spec ownership frontmatter through that retained capability with the
+  same no-follow, non-blocking, identity, UTF-8, depth, and cumulative-input enforcement.
+- [x] Replace recursive ambient enumeration with deterministic iterative traversal bounded to
+  8 MiB per file, 64 MiB cumulative bytes, 100,000 entries, and 256 components.
+- [x] Reject invalid-UTF-8 source names/content, special entries, and directory/file/root identity
+  replacement without returning partial coverage totals.
+- [x] Retain configuration and zero-config manifest/source detection before source selection, carry
+  selected-spec identities into ownership reads, and charge every selected-spec/source inventory
+  entry against the shared bound.
+- [x] Verify nested configuration and manifest-directory reachability before/after retained reads,
+  and avoid autodetection when explicit `source_dirs` are present.
+- [x] Keep separate early-after-root-retention and post-discovery checkpoints inside checked
+  coverage and propagate their failures through gate callers.
+- [x] Add retained config, shared selected-spec entry, bounded enumeration, pre-open replacement,
+  nested-parent replacement, and post-discovery Unix/Windows gate fixtures.
+- [x] Bound checked spec/source traversal handles by depth and prove 200 sibling directories succeed
+  beneath a 64-descriptor process limit without weakening replacement checks.
+- [x] Identity-select configured source roots without retaining every root handle, then prove 90
+  distinct roots succeed beneath a 64-descriptor process limit without weakening replacement
+  checks.
+- [ ] Later CLI/outcome/generation work: retain an immutable authority across complete command
+  pipelines and provide generic structured discovery-failure rendering. This is outside #414.
+- [ ] Obtain fresh exact-tree full reruns, independent reviews, hosted-Windows runtime,
+  repository/CI, trust, and Attest evidence.
 
 ## Gaps
 

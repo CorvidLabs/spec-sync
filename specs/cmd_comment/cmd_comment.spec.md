@@ -1,6 +1,6 @@
 ---
 module: cmd_comment
-version: 5
+version: 7
 status: stable
 files:
   - src/commands/comment.rs
@@ -34,12 +34,8 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 
 ## Invariants
 
-1. Runs full validation to generate the comment body
-2. When `--pr` is omitted, prints markdown to stdout for piping
-3. When `--pr N` is set, resolves repo and uses `gh pr comment` to post
-4. Exits 1 if `gh` CLI fails or repo cannot be determined
-5. The marketplace action and CI workflow both use `specsync comment` (stdout mode) as the single source of comment content — no alternative comment generation paths exist
-6. Configured SDD verification commands execute and fail closed, but their child stdout and stderr are suppressed so stdout remains a markdown-only protocol
+7. Coverage uses checked manifest discovery; malformed Gradle settings produce an inconclusive
+   stderr diagnostic and exit 1 before a misleading PR summary can be emitted.
 
 ## Behavioral Examples
 
@@ -73,6 +69,7 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 |-----------|----------|
 | `gh` CLI not installed | Command fails with error |
 | GitHub repo unresolvable | Exits 1 |
+| Malformed Gradle settings prevent coverage discovery | Prints an explicit "Coverage inconclusive" error to stderr and exits 1 |
 
 ## Dependencies
 
@@ -83,7 +80,7 @@ Implements the `specsync comment` command. Generates a spec-sync check summary a
 | commands | `load_and_discover`, `build_schema_columns` |
 | comment | `render_check_comment` |
 | github | `resolve_repo` |
-| validator | `validate_spec`, `compute_coverage` |
+| validator | `validate_spec`, `compute_coverage_checked` |
 
 **Consumed By**
 
@@ -99,9 +96,11 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-07-22 | v6: fail closed when malformed Gradle/manifest discovery prevents trustworthy coverage |
 | 2026-04-11 | Documented unified pipeline: marketplace action and CI both use `specsync comment` for identical PR comments |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting: Close final fail-closed review gaps in 5.0 lifecycle evidence and PR reporting |
 | 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

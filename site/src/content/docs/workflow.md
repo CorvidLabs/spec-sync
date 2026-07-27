@@ -393,10 +393,13 @@ SpecSync is designed for AI-assisted development. Three integration modes:
 ### MCP server (recommended)
 
 ```bash
-specsync mcp
+specsync mcp                 # read-only tools
+specsync mcp --allow-write   # opt in to root-confined init/generate tools
 ```
 
-Exposes `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score` as native tools. Claude Code, Cursor, and Windsurf can call them directly. See [For AI Agents](integrations/ai-agents.md) for setup.
+The default server exposes validation, coverage, listing, scoring, and issue-verification tools.
+`--allow-write` additionally exposes deterministic generation and initialization at the configured
+server root. Claude Code, Cursor, and Windsurf can call them directly. See [For AI Agents](integrations/ai-agents.md) for setup and confinement details.
 
 ### Agent instruction files
 

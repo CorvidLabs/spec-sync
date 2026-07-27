@@ -30,30 +30,25 @@ pub mod wizard;
 
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::process;
 
-use crate::config::load_config;
 use crate::ignore::IgnoreRules;
 use crate::parser;
 use crate::schema;
 use crate::scoring;
 use crate::types;
 use crate::types::SpecStatus;
-use crate::validator::{find_spec_files, source_within_root, validate_spec};
+use crate::validator::{
+    find_spec_files, load_config_and_discover_retained, source_within_root, validate_spec,
+};
 
 pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConfig, Vec<PathBuf>) {
-    let config = load_config(root);
-    let specs_dir = root.join(&config.specs_dir);
-    let spec_files: Vec<PathBuf> = find_spec_files(&specs_dir)
-        .into_iter()
-        .filter(|f| {
-            f.file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| !n.starts_with('_'))
-                .unwrap_or(true)
-        })
-        .collect();
+    let (config, spec_files) = load_config_and_discover_retained(root).unwrap_or_else(|error| {
+        eprintln!("SpecSync discovery is inconclusive: {error}");
+        process::exit(1);
+    });
 
     if spec_files.is_empty() && !allow_empty {
         let abs_specs = root.join(&config.specs_dir);
@@ -73,13 +68,16 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
 /// unvalidated name containing a path separator, `.`/`..`, or an absolute/drive-relative
 /// path would let scaffolding create files anywhere on disk (path traversal).
 ///
-/// A valid name is a single plain path segment: exactly one `Component::Normal`, with no
-/// raw path separator and no control characters. The component check is platform-aware —
-/// it also rejects Windows drive-relative prefixes like `C:foo` that `Path::is_absolute`
-/// misses. Control characters are rejected so a name cannot inject into the generated
-/// YAML frontmatter or create a control-char directory. Returns `Err` (to be printed and
-/// exited on) rather than writing outside the project.
+/// A valid name is a single portable path segment: exactly one `Component::Normal`, with no
+/// raw path separator, control characters, trailing spaces/dots, or Windows reserved device
+/// basename. The generated `<name>.spec.md` component must also fit within the portable 255-byte
+/// limit. The component check is platform-aware — it also rejects Windows drive-relative prefixes
+/// like `C:foo` that `Path::is_absolute` misses. Returns `Err` (to be printed and exited on) rather
+/// than writing outside the project.
 pub fn validate_module_name(module_name: &str) -> Result<(), String> {
+    const SPEC_SUFFIX: &str = ".spec.md";
+    const MAX_COMPONENT_BYTES: usize = 255;
+
     let single_normal_segment = {
         let mut components = Path::new(module_name).components();
         matches!(components.next(), Some(std::path::Component::Normal(_)))
@@ -87,15 +85,50 @@ pub fn validate_module_name(module_name: &str) -> Result<(), String> {
     };
     let clean = !module_name.contains('/')
         && !module_name.contains('\\')
+        && !module_name
+            .chars()
+            .any(|character| matches!(character, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
         && !module_name.chars().any(char::is_control);
-    if single_normal_segment && clean {
-        return Ok(());
+    if !single_normal_segment || !clean {
+        return Err(format!(
+            "invalid module name `{}`: use a single plain name — no path separators (`/`, `\\`), \
+             Windows-invalid characters (`<`, `>`, `:`, `\"`, `|`, `?`, `*`), `.`/`..`, drive \
+             prefixes, absolute paths, or control characters",
+            module_name.escape_default()
+        ));
     }
-    Err(format!(
-        "invalid module name `{}`: use a single plain name — no path separators (`/`, `\\`), \
-         `.`/`..`, drive prefixes, absolute paths, or control characters",
-        module_name.escape_default()
-    ))
+
+    if module_name.ends_with(' ') || module_name.ends_with('.') {
+        return Err(format!(
+            "invalid module name `{}`: trailing spaces and dots are not portable",
+            module_name.escape_default()
+        ));
+    }
+
+    if module_name.len() + SPEC_SUFFIX.len() > MAX_COMPONENT_BYTES {
+        return Err(format!(
+            "invalid module name `{}`: UTF-8 name must not exceed {} bytes so `{SPEC_SUFFIX}` fits \
+             within a {MAX_COMPONENT_BYTES}-byte path component",
+            module_name.escape_default(),
+            MAX_COMPONENT_BYTES - SPEC_SUFFIX.len()
+        ));
+    }
+
+    let basename = module_name.split('.').next().unwrap_or_default();
+    let uppercase_basename = basename.to_ascii_uppercase();
+    let numbered_device = uppercase_basename.len() == 4
+        && (uppercase_basename.starts_with("COM") || uppercase_basename.starts_with("LPT"))
+        && matches!(uppercase_basename.as_bytes()[3], b'1'..=b'9');
+    let reserved_device =
+        matches!(uppercase_basename.as_str(), "CON" | "PRN" | "AUX" | "NUL") || numbered_device;
+    if reserved_device {
+        return Err(format!(
+            "invalid module name `{}`: `{basename}` is a Windows reserved device basename",
+            module_name.escape_default()
+        ));
+    }
+
+    Ok(())
 }
 
 /// Filter spec files by user-provided spec names/paths.
@@ -256,6 +289,78 @@ pub fn build_schema_columns(
 /// when `spec_files` is an incremental subset.
 /// When `collect` is true, diagnostics are collected into vectors instead of printing inline.
 /// When `explain` is true (text mode), shows per-category score breakdown for each spec.
+#[derive(Debug, Default)]
+struct ValidationErrors {
+    rendered: Vec<String>,
+    drift_by_spec: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+impl ValidationErrors {
+    fn from_rendered(rendered: &[String], spec_paths: &[String]) -> Self {
+        let mut spec_paths = spec_paths.to_vec();
+        spec_paths.sort_by_key(|path| std::cmp::Reverse(path.len()));
+
+        let mut errors = Self {
+            rendered: rendered.to_vec(),
+            drift_by_spec: std::collections::BTreeMap::new(),
+        };
+        for entry in rendered {
+            let attributed = spec_paths.iter().find_map(|spec_path| {
+                entry
+                    .strip_prefix(spec_path)
+                    .and_then(|suffix| suffix.strip_prefix(": "))
+                    .map(|error| (spec_path, error))
+            });
+            let fallback = || entry.split_once(": ");
+            if let Some((spec_path, error)) = attributed
+                .map(|(spec_path, error)| (spec_path.as_str(), error))
+                .or_else(fallback)
+            {
+                errors
+                    .drift_by_spec
+                    .entry(spec_path.to_string())
+                    .or_default()
+                    .push(error.to_string());
+            }
+        }
+        errors
+    }
+
+    fn push_for_spec(&mut self, spec_path: &str, error: &str) {
+        self.rendered.push(format!("{spec_path}: {error}"));
+        self.drift_by_spec
+            .entry(spec_path.to_string())
+            .or_default()
+            .push(error.to_string());
+    }
+
+    fn push_unattributed(&mut self, error: String) {
+        self.rendered.push(error);
+    }
+
+    fn is_empty(&self) -> bool {
+        self.rendered.is_empty()
+    }
+
+    fn into_rendered(self) -> Vec<String> {
+        self.rendered
+    }
+}
+
+impl Deref for ValidationErrors {
+    type Target = [String];
+
+    fn deref(&self) -> &Self::Target {
+        &self.rendered
+    }
+}
+
+impl AsRef<[String]> for ValidationErrors {
+    fn as_ref(&self) -> &[String] {
+        &self.rendered
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn run_validation(
     root: &Path,
@@ -280,7 +385,7 @@ pub fn run_validation(
     let mut total_warnings = 0;
     let mut passed = 0;
     let mut drafts_skipped = 0;
-    let mut all_errors: Vec<String> = Vec::new();
+    let mut all_errors = ValidationErrors::default();
     let mut all_warnings: Vec<String> = Vec::new();
     let mut all_notices: Vec<String> = Vec::new();
     let mut file_owners: HashMap<String, Vec<String>> = HashMap::new();
@@ -361,7 +466,9 @@ pub fn run_validation(
 
         if collect {
             let prefix = &result.spec_path;
-            all_errors.extend(result.errors.iter().map(|e| format!("{prefix}: {e}")));
+            for error in &result.errors {
+                all_errors.push_for_spec(prefix, error);
+            }
             all_warnings.extend(filtered_warnings.iter().map(|w| format!("{prefix}: {w}")));
             all_notices.extend(
                 result
@@ -634,7 +741,7 @@ pub fn run_validation(
         for err in schema::schema_read_errors(&root.join(dir)) {
             total_errors += 1;
             if collect {
-                all_errors.push(err);
+                all_errors.push_unattributed(err);
             } else {
                 println!("\n{} {err}", "✗".red());
             }
@@ -653,7 +760,7 @@ pub fn run_validation(
         total_warnings,
         passed,
         spec_files.len(),
-        all_errors,
+        all_errors.into_rendered(),
         all_warnings,
         all_notices,
     )
@@ -788,12 +895,35 @@ pub fn create_drift_issues(
     all_errors: &[String],
     format: types::OutputFormat,
 ) {
+    let spec_paths = find_spec_files(&root.join(&config.specs_dir))
+        .into_iter()
+        .map(|path| {
+            path.strip_prefix(root)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    let diagnostics = ValidationErrors::from_rendered(all_errors, &spec_paths);
+    create_drift_issues_with_diagnostics(root, config, &diagnostics, format);
+}
+
+fn create_drift_issues_with_diagnostics(
+    root: &Path,
+    config: &types::SpecSyncConfig,
+    all_errors: &ValidationErrors,
+    format: types::OutputFormat,
+) {
     let repo_config = config.github.as_ref().and_then(|g| g.repo.as_deref());
     let repo = match crate::github::resolve_repo(repo_config, root) {
         Ok(r) => r,
         Err(e) => {
             if matches!(format, types::OutputFormat::Text) {
-                eprintln!("{} Cannot create issues: {e}", "error:".red().bold());
+                eprintln!(
+                    "{} Cannot create issues: {}",
+                    "error:".red().bold(),
+                    issues::safe_diagnostic(&e)
+                );
             }
             return;
         }
@@ -805,43 +935,34 @@ pub fn create_drift_issues(
         .map(|g| g.drift_labels.clone())
         .unwrap_or_else(|| vec!["spec-drift".to_string()]);
 
-    // Group errors by spec path (format: "spec/path: error message")
-    let mut errors_by_spec: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
-    for entry in all_errors {
-        if let Some((spec, error)) = entry.split_once(": ") {
-            errors_by_spec
-                .entry(spec.to_string())
-                .or_default()
-                .push(error.to_string());
-        }
-    }
-
     if matches!(format, types::OutputFormat::Text) {
         println!(
             "\n{} Creating GitHub issues for {} spec(s) with errors...",
             "⟳".cyan(),
-            errors_by_spec.len()
+            all_errors.drift_by_spec.len()
         );
     }
 
-    for (spec_path, errors) in &errors_by_spec {
+    for (spec_path, errors) in &all_errors.drift_by_spec {
         match crate::github::create_drift_issue(&repo, spec_path, errors, &labels) {
             Ok(issue) => {
                 if matches!(format, types::OutputFormat::Text) {
                     println!(
-                        "  {} Created issue #{} for {spec_path}: {}",
+                        "  {} Created issue #{} for {}: {}",
                         "✓".green(),
                         issue.number,
-                        issue.url
+                        issues::safe_diagnostic(spec_path),
+                        issues::safe_diagnostic(&issue.url)
                     );
                 }
             }
             Err(e) => {
                 if matches!(format, types::OutputFormat::Text) {
                     eprintln!(
-                        "  {} Failed to create issue for {spec_path}: {e}",
-                        "✗".red()
+                        "  {} Failed to create issue for {}: {}",
+                        "✗".red(),
+                        issues::safe_diagnostic(spec_path),
+                        issues::safe_diagnostic(&e)
                     );
                 }
             }
@@ -851,7 +972,36 @@ pub fn create_drift_issues(
 
 #[cfg(test)]
 mod tests {
-    use super::validate_module_name;
+    use super::{ValidationErrors, create_drift_issues, run_validation, validate_module_name};
+    use crate::ignore::IgnoreRules;
+    use crate::schema::SchemaTable;
+    use crate::types::{OutputFormat, SpecSyncConfig};
+    use std::collections::{HashMap, HashSet};
+    use std::path::{Path, PathBuf};
+
+    type RunValidationSignature = fn(
+        &Path,
+        &[PathBuf],
+        &[PathBuf],
+        &HashSet<String>,
+        &HashMap<String, SchemaTable>,
+        &SpecSyncConfig,
+        bool,
+        bool,
+        &IgnoreRules,
+    ) -> (
+        usize,
+        usize,
+        usize,
+        usize,
+        Vec<String>,
+        Vec<String>,
+        Vec<String>,
+    );
+    type CreateDriftIssuesSignature = fn(&Path, &SpecSyncConfig, &[String], OutputFormat);
+
+    const _: RunValidationSignature = run_validation;
+    const _: CreateDriftIssuesSignature = create_drift_issues;
 
     #[test]
     fn validate_module_name_accepts_plain_names() {
@@ -895,6 +1045,120 @@ mod tests {
                 name.escape_default()
             );
         }
+    }
+
+    #[test]
+    fn validate_module_name_rejects_windows_invalid_characters_portably() {
+        for name in [
+            "auth<api",
+            "auth>api",
+            "auth:api",
+            "auth\"api",
+            "auth|api",
+            "auth?api",
+            "auth*api",
+        ] {
+            assert!(
+                validate_module_name(name).is_err(),
+                "`{name}` must be rejected on every host"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_module_name_rejects_windows_reserved_basenames_portably() {
+        for name in [
+            "CON",
+            "con",
+            "Con.txt",
+            "PRN",
+            "prn.backup",
+            "AUX",
+            "aux.rs",
+            "NUL",
+            "nul.spec",
+            "COM1",
+            "com9.log",
+            "LPT1",
+            "lPt9.anything",
+        ] {
+            assert!(
+                validate_module_name(name).is_err(),
+                "`{name}` must be rejected as a Windows reserved basename"
+            );
+        }
+        for number in 1..=9 {
+            for prefix in ["COM", "LPT"] {
+                let bare = format!("{prefix}{number}");
+                let with_extension = format!("{}.txt", bare.to_ascii_lowercase());
+                assert!(
+                    validate_module_name(&bare).is_err(),
+                    "`{bare}` must be rejected"
+                );
+                assert!(
+                    validate_module_name(&with_extension).is_err(),
+                    "`{with_extension}` must be rejected"
+                );
+            }
+        }
+
+        for name in ["console", "com0", "com10", "lpt0", "lpt10", "module.con"] {
+            assert!(
+                validate_module_name(name).is_ok(),
+                "`{name}` is not a Windows reserved basename"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_module_name_rejects_trailing_spaces_and_dots() {
+        for name in ["auth ", "auth.", "auth. ", "Módulo."] {
+            assert!(
+                validate_module_name(name).is_err(),
+                "`{name}` must be rejected because Windows strips trailing spaces/dots"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_module_name_enforces_portable_spec_filename_byte_limit() {
+        let ascii_boundary = "a".repeat(247);
+        let ascii_too_long = "a".repeat(248);
+        let multibyte_boundary = format!("{}a", "é".repeat(123));
+        let multibyte_too_long = "é".repeat(124);
+
+        assert_eq!(ascii_boundary.len(), 247);
+        assert!(validate_module_name(&ascii_boundary).is_ok());
+        assert_eq!(ascii_too_long.len(), 248);
+        assert!(validate_module_name(&ascii_too_long).is_err());
+
+        assert_eq!(multibyte_boundary.len(), 247);
+        assert!(validate_module_name(&multibyte_boundary).is_ok());
+        assert_eq!(multibyte_too_long.len(), 248);
+        assert!(validate_module_name(&multibyte_too_long).is_err());
+    }
+
+    #[test]
+    fn rendered_drift_errors_prefer_longest_discovered_spec_path() {
+        let colon_path = "specs/team: api/auth.spec.md";
+        let prefix_path = "specs/team";
+        let rendered = vec![
+            format!("{colon_path}: Missing required section: Purpose"),
+            format!("{prefix_path}: independent failure"),
+        ];
+        let discovered_spec_paths = vec![prefix_path.to_string(), colon_path.to_string()];
+        let errors = ValidationErrors::from_rendered(&rendered, &discovered_spec_paths);
+
+        assert_eq!(errors.drift_by_spec.len(), 2);
+        assert_eq!(
+            errors.drift_by_spec.get(colon_path),
+            Some(&vec!["Missing required section: Purpose".to_string()])
+        );
+        assert_eq!(
+            errors.drift_by_spec.get(prefix_path),
+            Some(&vec!["independent failure".to_string()])
+        );
+        assert_eq!(errors.as_ref(), rendered);
     }
 
     #[test]

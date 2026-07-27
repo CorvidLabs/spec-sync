@@ -120,7 +120,7 @@ One tool, one format, 33 languages — the same `*.spec.md` contract and lifecyc
 
 SpecSync was built for the AI-assisted development era:
 
-- **MCP server mode** lets AI agents query your specs, check coverage, and generate new specs in real time
+- **MCP server mode** lets AI agents query specs and coverage read-only by default, with explicit root-confined generation when writes are enabled
 - **Agent-native enrichment** lets your existing coding agent refine deterministic scaffolds without moving credentials into SpecSync
 - **Structured output** (JSON mode) integrates cleanly with agent workflows
 - **AGENTS.md generation** produces instruction files for Claude Code, Cursor, and Copilot

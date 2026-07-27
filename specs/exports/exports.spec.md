@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 8
+version: 10
 status: stable
 files:
   - src/exports/mod.rs
@@ -172,6 +172,9 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 17. PHP backend treats types (class/interface/trait/enum) as always public; methods and constants require `public` or unqualified visibility; `private`/`protected` are excluded; magic methods (`__construct`, `__toString`, etc.) are excluded
 18. Ruby backend tracks visibility state via `public`/`private`/`protected` toggle statements; defaults to public; `initialize` is excluded; `_`-prefixed names are excluded; `attr_accessor`/`attr_reader`/`attr_writer` emit attribute names as symbols
 19. YAML backend extracts top-level mapping keys, named entries under well-known parent keys (any indentation level), and anchors; no test file patterns (YAML files are not test files)
+20. `get_exported_symbols_from_content` treats `file_path` only as language/type context, parses the
+    supplied snapshot text, never reopens the path, and disables TypeScript wildcard-import
+    resolution so a retained snapshot cannot regain ambient filesystem authority
 
 ## Behavioral Examples
 
@@ -277,6 +280,14 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 - **When** `is_test_file(path, root)` is called with `root = /home/user/spec/proj`
 - **Then** returns `false` — the `spec` component is above `root` and is not a project test directory
 
+### Scenario: Extract exports from a retained TypeScript snapshot
+
+- **Given** supplied barrel text exports a local name and contains `export * from './ambient'`,
+  while an ambient sibling file exists at the logical path
+- **When** `get_exported_symbols_from_content(path, content, ...)` is called
+- **Then** the local supplied-content export is returned, the wildcard target is not opened, and no
+  symbol from the ambient sibling is returned
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -285,6 +296,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | Unknown file extension | Returns empty vector |
 | File has no exports | Returns empty vector |
 | Binary or non-text file | Returns empty vector (read_to_string fails gracefully) |
+| Supplied TypeScript snapshot contains a wildcard re-export | Parses supplied text but skips ambient wildcard resolution |
 
 ## Dependencies
 
@@ -298,7 +310,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 
 | Module | What is used |
 |--------|-------------|
-| validator | `get_exported_symbols`, `has_extension`, `is_test_file` |
+| validator | `get_exported_symbols`, `get_exported_symbols_from_content`, `has_extension`, `is_test_file` |
 | scoring | `get_exported_symbols` |
 | generator | `has_extension`, `is_test_file` |
 | config | `has_extension` |
@@ -312,6 +324,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 
 | Date | Change |
 |------|--------|
+| 2026-07-22 | v9 / CHG-0063: add module-internal supplied-content extraction that never reopens source paths or resolves TypeScript wildcards through ambient paths |
 | 2026-07-10 | v3: parse one-level nested Kotlin annotation arguments and prevent members of annotated non-public types from leaking as exports |
 | 2026-07-10 | v2: support modern Android/Kotlin Multiplatform declarations (`value class`, `expect`/`actual`, `external`), same-line annotations, and flexible modifier ordering |
 | 2026-07-10 | v2: keep the optional real-world Swift verification test warning-free under current stable Clippy |
@@ -326,6 +339,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 | 2026-07-14 | CHG-0036-support-commonjs-exports-for-newly-discovered-cjs-modules-without-changing-esm: Support CommonJS exports for newly discovered .cjs modules without changing ESM behavior |
 | 2026-07-14 | CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript: Resolve extensionless mjs barrel exports for newly discovered module JavaScript sources |
 | 2026-07-14 | CHG-0038-harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener: Harden CommonJS export extraction and exclude module JavaScript tests from generated specs |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 
 ## CommonJS Extraction
 
@@ -337,4 +351,3 @@ The TypeScript/JavaScript backend supplements its ESM and TypeScript `export =` 
 - Mixed ESM/CommonJS names are stable and deduplicated without executing source code.
 
 For `exports.foo = 1; module.exports = { bar, baz: value, [dynamic]: value, ...extra };`, both parsing modes report `foo`, `bar`, and `baz`, while ignoring `dynamic` and `extra` because their exported names are not statically determined.
-

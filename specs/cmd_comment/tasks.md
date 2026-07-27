@@ -20,6 +20,7 @@ spec: cmd_comment.spec.md
 - [x] Prevented configured SDD verification child output from contaminating comment stdout while preserving execution and failure reporting
 - [x] Added end-to-end coverage proving comment mode is quiet while ordinary lifecycle checking still streams configured command output
 - [x] Made project CI capture comment output with quiet Cargo and a defensive UTF-8-safe byte cap
+- [x] Fail closed before rendering/posting when checked manifest discovery is inconclusive — Evidence: `malformed_gradle_is_inconclusive_for_coverage_gating_commands`.
 
 ## Review Status
 

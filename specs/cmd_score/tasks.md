@@ -15,6 +15,7 @@ spec: cmd_score.spec.md
 - [x] Text, JSON, table, and CSV output paths covered by `tests/integration.rs`
 - [x] MCP score tool path covered (`mcp_score_tool_returns_grades`)
 - [x] CSV SUMMARY row and table-without-`--all` behavior covered
+- [x] Fail closed with structured JSON when checked manifest discovery is inconclusive — Evidence: `malformed_gradle_is_inconclusive_for_coverage_gating_commands`.
 
 ## Gaps
 

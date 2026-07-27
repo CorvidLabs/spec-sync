@@ -9,12 +9,13 @@ spec: cmd_report.spec.md
 - **Graceful git absence**: outside a git repo, or when a spec has no commit history, the module is simply not flagged stale — no error is raised.
 - **Completeness heuristics**: missing `status`/`module`/`version` frontmatter, or a `Public API`/`Invariants` section that is absent/empty/`TODO`/`TBD`/`N/A`/HTML-comment-only, marks a module incomplete.
 - **Status scoping at the CLI layer**: `--only-status` / `--exclude-status` are global flags applied via `filter_by_status` before the report is built.
+- **Fail-closed project coverage**: malformed Gradle settings make overall coverage inconclusive; report exits 1 and preserves a structured JSON failure when requested.
 
 ## Files to Read First
 
 - `src/commands/report.rs` — the whole command, including the `ModuleInfo` aggregation and JSON/text rendering.
 - `src/git_utils.rs` — `git_last_commit_hash` and `git_commits_since`, the staleness primitives.
-- `src/validator.rs` — `compute_coverage`, the source of the overall coverage numbers.
+- `src/validator.rs` — `compute_coverage_checked`, the source of the overall coverage numbers and manifest-discovery errors.
 - `src/commands/mod.rs` — `load_and_discover` and `filter_by_status`.
 
 ## Current Status
@@ -24,4 +25,4 @@ Stable and implemented. Behavior is verified only indirectly today — `src/comm
 ## Notes
 
 - This is a command-layer module: it orchestrates `git_utils`, `parser`, and `validator` rather than holding domain logic.
-- Overall coverage comes from `compute_coverage` (project-wide), while per-module coverage is computed locally from each spec's `files:` list — the two can differ.
+- Overall coverage comes from `compute_coverage_checked` (project-wide), while per-module coverage is computed locally from each spec's `files:` list — the two can differ.

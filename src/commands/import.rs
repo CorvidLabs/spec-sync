@@ -9,11 +9,16 @@ use crate::github;
 use crate::importer;
 
 /// Result of a single import attempt (used for batch summary).
-#[derive(Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 struct BatchStats {
     imported: usize,
     skipped: usize,
     errors: usize,
+}
+
+enum BatchItemOutcome {
+    Imported(PathBuf),
+    Skipped,
 }
 
 pub fn cmd_import(
@@ -113,6 +118,13 @@ fn cmd_import_single(root: &Path, source: &str, id: &str, repo_override: Option<
             process::exit(1);
         }
     };
+    if let Err(error) = crate::commands::validate_module_name(&item.module_name) {
+        eprintln!(
+            "{} Imported item has an unsafe module name: {error}",
+            "Error:".red()
+        );
+        process::exit(1);
+    }
 
     println!("  {} Imported: {}", "✓".green(), item.purpose);
     if !item.requirements.is_empty() {
@@ -210,6 +222,26 @@ fn cmd_import_all_issues(root: &Path, repo_override: Option<&str>, label: Option
         issues.len()
     );
 
+    let stats = import_github_issue_batch(
+        root,
+        &specs_dir,
+        config.companions.design,
+        &repo,
+        &issues,
+        importer::import_github_issue,
+    );
+
+    finish_batch("import", &stats);
+}
+
+fn import_github_issue_batch(
+    root: &Path,
+    specs_dir: &Path,
+    design_enabled: bool,
+    repo: &str,
+    issues: &[github::GitHubIssue],
+    mut fetch_issue: impl FnMut(&str, u64) -> Result<importer::ImportedItem, String>,
+) -> BatchStats {
     let mut stats = BatchStats::default();
     let total = issues.len();
 
@@ -217,8 +249,7 @@ fn cmd_import_all_issues(root: &Path, repo_override: Option<&str>, label: Option
         let progress = format!("[{}/{}]", idx + 1, total);
         print!("  {} ", progress.dimmed());
 
-        let result = importer::import_github_issue(&repo, issue.number);
-        let item = match result {
+        let item = match fetch_issue(repo, issue.number) {
             Ok(item) => item,
             Err(e) => {
                 println!("{} #{}: {}", "✗".red(), issue.number, e);
@@ -227,47 +258,59 @@ fn cmd_import_all_issues(root: &Path, repo_override: Option<&str>, label: Option
             }
         };
 
-        let spec_dir = specs_dir.join(&item.module_name);
-        let spec_file = spec_dir.join(format!("{}.spec.md", item.module_name));
-
-        if spec_file.exists() {
-            println!(
-                "{} #{} skipped — spec already exists: {}",
-                "~".yellow(),
-                issue.number,
-                item.module_name
-            );
-            stats.skipped += 1;
-            continue;
-        }
-
-        let spec_content = importer::render_spec(&item);
-
-        if let Err(e) = fs::create_dir_all(&spec_dir) {
-            println!("{} #{}: Failed to create dir: {e}", "✗".red(), issue.number);
-            stats.errors += 1;
-            continue;
-        }
-
-        match fs::write(&spec_file, &spec_content) {
-            Ok(_) => {
+        match write_batch_item(root, specs_dir, design_enabled, &item) {
+            Ok(BatchItemOutcome::Imported(spec_file)) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
                 println!("{} #{} → {}", "✓".green(), issue.number, rel);
-                generator::generate_companion_files_for_spec(
-                    &spec_dir,
-                    &item.module_name,
-                    config.companions.design,
-                );
                 stats.imported += 1;
             }
-            Err(e) => {
-                println!("{} #{}: Failed to write spec: {e}", "✗".red(), issue.number);
+            Ok(BatchItemOutcome::Skipped) => {
+                println!(
+                    "{} #{} skipped — spec already exists: {}",
+                    "~".yellow(),
+                    issue.number,
+                    item.module_name
+                );
+                stats.skipped += 1;
+            }
+            Err(error) => {
+                println!("{} #{}: {error}", "✗".red(), issue.number);
                 stats.errors += 1;
             }
         }
     }
 
-    print_batch_summary("import", &stats);
+    stats
+}
+
+fn write_batch_item(
+    root: &Path,
+    specs_dir: &Path,
+    design_enabled: bool,
+    item: &importer::ImportedItem,
+) -> Result<BatchItemOutcome, String> {
+    crate::commands::validate_module_name(&item.module_name)
+        .map_err(|error| format!("Unsafe module name: {error}"))?;
+
+    let spec_dir = specs_dir.join(&item.module_name);
+    let spec_file = spec_dir.join(format!("{}.spec.md", item.module_name));
+
+    if spec_file.exists() {
+        return Ok(BatchItemOutcome::Skipped);
+    }
+
+    let spec_content = importer::render_spec(item);
+
+    fs::create_dir_all(&spec_dir).map_err(|error| format!("Failed to create dir: {error}"))?;
+    fs::write(&spec_file, &spec_content)
+        .map_err(|error| format!("Failed to write spec: {error}"))?;
+
+    generator::generate_companion_files_for_spec(&spec_dir, &item.module_name, design_enabled);
+
+    let output_path = spec_file
+        .strip_prefix(root)
+        .map_or_else(|_| spec_file.clone(), Path::to_path_buf);
+    Ok(BatchItemOutcome::Imported(output_path))
 }
 
 /// Batch import all markdown files from a directory as spec drafts.
@@ -314,6 +357,17 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
         md_files.len()
     );
 
+    let stats = import_markdown_file_batch(root, &specs_dir, config.companions.design, &md_files);
+
+    finish_batch("import", &stats);
+}
+
+fn import_markdown_file_batch(
+    root: &Path,
+    specs_dir: &Path,
+    design_enabled: bool,
+    md_files: &[PathBuf],
+) -> BatchStats {
     let mut stats = BatchStats::default();
     let total = md_files.len();
 
@@ -334,44 +388,32 @@ fn cmd_import_from_dir(root: &Path, dir: &Path) {
             }
         };
 
-        let item = parse_markdown_as_import_item(filename, &content);
+        let item = match parse_markdown_as_import_item(filename, &content) {
+            Ok(item) => item,
+            Err(error) => {
+                println!("{} {error}", "✗".red());
+                stats.errors += 1;
+                continue;
+            }
+        };
 
-        let spec_dir = specs_dir.join(&item.module_name);
-        let spec_file = spec_dir.join(format!("{}.spec.md", item.module_name));
-
-        if spec_file.exists() {
-            println!("{} skipped — spec already exists", "~".yellow());
-            stats.skipped += 1;
-            continue;
-        }
-
-        let spec_content = importer::render_spec(&item);
-
-        if let Err(e) = fs::create_dir_all(&spec_dir) {
-            println!("{} Failed to create dir: {e}", "✗".red());
-            stats.errors += 1;
-            continue;
-        }
-
-        match fs::write(&spec_file, &spec_content) {
-            Ok(_) => {
-                let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file).display();
-                println!("{} → {}", "✓".green(), rel);
-                generator::generate_companion_files_for_spec(
-                    &spec_dir,
-                    &item.module_name,
-                    config.companions.design,
-                );
+        match write_batch_item(root, specs_dir, design_enabled, &item) {
+            Ok(BatchItemOutcome::Imported(spec_file)) => {
+                println!("{} → {}", "✓".green(), spec_file.display());
                 stats.imported += 1;
             }
-            Err(e) => {
-                println!("{} Failed to write spec: {e}", "✗".red());
+            Ok(BatchItemOutcome::Skipped) => {
+                println!("{} skipped — spec already exists", "~".yellow());
+                stats.skipped += 1;
+            }
+            Err(error) => {
+                println!("{} {error}", "✗".red());
                 stats.errors += 1;
             }
         }
     }
 
-    print_batch_summary("import", &stats);
+    stats
 }
 
 /// Collect all .md files in a directory (one level deep).
@@ -398,7 +440,10 @@ fn collect_markdown_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// Parse a markdown file into an ImportedItem for spec generation.
-fn parse_markdown_as_import_item(filename: &str, content: &str) -> importer::ImportedItem {
+fn parse_markdown_as_import_item(
+    filename: &str,
+    content: &str,
+) -> Result<importer::ImportedItem, String> {
     // Extract title from first H1 heading, fall back to filename
     let title = content
         .lines()
@@ -417,8 +462,10 @@ fn parse_markdown_as_import_item(filename: &str, content: &str) -> importer::Imp
 
     let requirements = importer::extract_requirements_pub(content);
     let module_name = importer::slugify(filename);
+    crate::commands::validate_module_name(&module_name)
+        .map_err(|error| format!("Unsafe module name derived from `{filename}`: {error}"))?;
 
-    importer::ImportedItem {
+    Ok(importer::ImportedItem {
         module_name,
         purpose,
         requirements,
@@ -426,7 +473,18 @@ fn parse_markdown_as_import_item(filename: &str, content: &str) -> importer::Imp
         source_url: String::new(),
         issue_number: None,
         source_type: importer::ImportSource::Confluence, // closest semantic match for "doc"
+    })
+}
+
+fn finish_batch(operation: &str, stats: &BatchStats) {
+    print_batch_summary(operation, stats);
+    if batch_exit_code(stats) != 0 {
+        process::exit(1);
     }
+}
+
+fn batch_exit_code(stats: &BatchStats) -> i32 {
+    i32::from(stats.errors > 0)
 }
 
 fn print_batch_summary(operation: &str, stats: &BatchStats) {
@@ -449,5 +507,122 @@ fn print_batch_summary(operation: &str, stats: &BatchStats) {
             "Tip:".cyan().bold(),
             "specsync check".bold()
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+    use tempfile::TempDir;
+
+    fn imported_item(module_name: &str, issue_number: u64) -> importer::ImportedItem {
+        importer::ImportedItem {
+            module_name: module_name.to_string(),
+            purpose: format!("Issue {issue_number}"),
+            requirements: Vec::new(),
+            labels: Vec::new(),
+            source_url: format!("https://github.com/org/repo/issues/{issue_number}"),
+            issue_number: Some(issue_number),
+            source_type: importer::ImportSource::GitHub,
+        }
+    }
+
+    #[test]
+    fn github_batch_continues_after_unsafe_item_and_requires_nonzero_exit() {
+        let temporary = TempDir::new().unwrap();
+        let specs_dir = temporary.path().join("specs");
+        let issues = vec![
+            github::GitHubIssue {
+                number: 1,
+                title: "Unsafe".to_string(),
+                state: "open".to_string(),
+                labels: Vec::new(),
+                url: "https://github.com/org/repo/issues/1".to_string(),
+            },
+            github::GitHubIssue {
+                number: 2,
+                title: "Safe".to_string(),
+                state: "open".to_string(),
+                labels: Vec::new(),
+                url: "https://github.com/org/repo/issues/2".to_string(),
+            },
+        ];
+
+        let stats = import_github_issue_batch(
+            temporary.path(),
+            &specs_dir,
+            false,
+            "org/repo",
+            &issues,
+            |_repo, number| {
+                if number == 1 {
+                    Ok(imported_item("COM1", number))
+                } else {
+                    Ok(imported_item("safe-module", number))
+                }
+            },
+        );
+
+        assert_eq!(
+            stats,
+            BatchStats {
+                imported: 1,
+                skipped: 0,
+                errors: 1
+            }
+        );
+        assert_eq!(batch_exit_code(&stats), 1);
+        assert!(specs_dir.join("safe-module/safe-module.spec.md").is_file());
+        assert!(!specs_dir.join("COM1").exists());
+    }
+
+    #[test]
+    fn directory_batch_imports_valid_item_but_command_exits_nonzero_for_unsafe_item() {
+        const CHILD_ROOT: &str = "SPECSYNC_DIRECTORY_IMPORT_CHILD_ROOT";
+        const CHILD_INPUT: &str = "SPECSYNC_DIRECTORY_IMPORT_CHILD_INPUT";
+
+        if let (Ok(root), Ok(input)) = (std::env::var(CHILD_ROOT), std::env::var(CHILD_INPUT)) {
+            cmd_import(
+                Path::new(&root),
+                None,
+                None,
+                None,
+                false,
+                None,
+                Some(Path::new(&input)),
+            );
+            panic!("batch import with an unsafe item must exit nonzero");
+        }
+
+        let temporary = TempDir::new().unwrap();
+        let input = temporary.path().join("input");
+        fs::create_dir(&input).unwrap();
+        fs::write(input.join("CON.md"), "# Unsafe\n\nMust not create a spec.").unwrap();
+        fs::write(
+            input.join("valid-module.md"),
+            "# Valid\n\nMust create a spec.",
+        )
+        .unwrap();
+
+        let status = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "commands::import::tests::directory_batch_imports_valid_item_but_command_exits_nonzero_for_unsafe_item",
+                "--nocapture",
+            ])
+            .env(CHILD_ROOT, temporary.path())
+            .env(CHILD_INPUT, &input)
+            .status()
+            .unwrap();
+
+        assert_eq!(status.code(), Some(1));
+        assert!(
+            temporary
+                .path()
+                .join("specs/valid-module/valid-module.spec.md")
+                .is_file()
+        );
+        assert!(!temporary.path().join("specs/con").exists());
     }
 }

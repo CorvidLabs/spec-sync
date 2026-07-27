@@ -1,0 +1,106 @@
+---
+change: CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414
+artifact: plan
+---
+
+# Plan
+
+1. Reject absolute outside roots before canonicalization, retain the server-root directory
+   capability, and require explicit MCP issue-repository identity instead of consulting project Git
+   metadata.
+2. Validate complete JSON-RPC 2.0 envelopes and exact resource arguments before dispatch.
+3. Build bounded read snapshots with actual-byte accounting, including configuration inputs, and add
+   deterministic inbound-line and outbound-response bounds; propagate transport errors.
+4. Preflight capability-relative generation destinations, verify every required output, and roll
+   back partial multi-file writes on failure.
+5. Add Unix symlink, Windows junction, case-insensitive Git metadata, malformed envelope/resource,
+   byte-budget, response-ID-bound, and transactional write-failure regressions.
+6. Update the MCP semantic delta, companions, public documentation, and release changelog.
+7. Run focused tests, full repository/trust gates, private sandbox replay, two independent rereviews,
+   Attest provenance, and GitHub CI before requesting closing approval.
+8. Close follow-up adversarial findings by identity-binding startup root acquisition, preserving
+   manifest-derived inputs across ignores, bounding and atomically publishing generated output, and
+   adding Windows write-junction coverage; rerun every affected gate afterward.
+9. Close final acceptance findings by capturing the retained root handle before canonicalization
+   and retaining failed empty parents rather than claiming ownership across create/open races.
+10. Close the next independent findings by parsing/budgeting every manifest and making GitHub issue
+    verification repository-aware, typed, globally deduplicated, capped, strict, and time-bounded.
+11. Close final adversarial findings with capability-only read-root resolution, no provider
+    subprocess for GitHub reads/listing/verification, post-404 repository revalidation, immutable
+    preflighted manifest bytes, one shared full Gradle settings parser, identity-bound generation
+    rollback, truthful all-error summaries, and complete public compatibility limits.
+12. Close the final dual-review findings with scoped quarantine-based rollback, conservative empty
+    parent retention, staged-identity publication checks, real TOML Cargo workspace parsing, one
+    Windows-aware root suffix routine, in-process GitHub reads, fail-closed Gradle parsing, and
+    no-reference issue reporting before repository resolution.
+13. Close renewed acceptance findings by accepting CRLF checked frontmatter, testing the real
+    rendered-`Vec<String>` compatibility path, adding `REQ-config-006` for every malformed legacy
+    JSON repository type, retaining one project capability for specs and mapped sources, enforcing
+    the 100,000-total-entry bound, requiring canonical decimal provider URL spelling, and
+    synchronizing all six facets across definition artifacts; rerun both independent reviews and
+    all gates afterward.
+14. Close hosted-Windows and final adversarial findings by accepting identity-bound startup-root
+    aliases without trusting ambient candidates, preserving literal Unix diagnostic backslashes,
+    normalizing separators only on Windows, and making malformed/unreadable selected configuration
+    a structured non-zero issue-inspection finding; synchronize the definition and rerun every
+    exact-revision gate and both independent reviews.
+15. Close the renewed config/output findings by snapshotting CLI config through the same retained
+    project capability, enforcing same-handle identity and a 4 MiB bound, parsing exact JSON/TOML
+    bytes with known-field type checks, validating MCP selected configs before compatibility
+    loading, and routing missing-spec/repository failures through the selected structured renderer.
+16. Close the final adversarial selected-config and omitted-source findings with non-blocking,
+    no-follow, identity-verified regular-file snapshots, complete checked parsing, and
+    capability-derived source detection; rerun the exact-tree independent reviews and every final
+    gate.
+17. Close the renewed dual-review findings by binding selected-config and recognized-manifest opens
+    to their pre-open identities, rejecting special manifests without blocking, validating exact
+    legacy GitHub shapes before compatibility substitution, sharing ignored-directory policy,
+    rejecting direct-detail pull-request payloads, and refusing empty import slugs. Add focused
+    regressions, synchronize every affected contract, and rerun sandbox, independent, repository,
+    trust, provenance, Windows, and CI gates on the final tree.
+18. Close the final acceptance/defensive findings with retained-handle-first no-follow acquisition,
+    portable provider/directory import names, nonzero partial-batch outcomes, exact missing
+    characterization tests, and a hash-bound sandbox replay built from the cited commit.
+19. Close the reconciled Gradle review findings by validating raw drive-qualified module identities
+    before colon mapping, parsing/confining only the two literal official `setProjectDir` forms,
+    and checking every derived directory component no-follow through one retained root capability.
+    Add parser, CLI/MCP false-green, Unix symlink, and hosted-Windows reparse regressions; then
+    obtain fresh definition approval, rerun both independent reviews and every exact-tree
+    repository/CI/trust/provenance gate, and refresh the private sandbox receipt.
+20. Close the exact-commit interpolation finding by rejecting unescaped or encoded dynamic dollars
+    after Gradle escape decoding, preserving explicit literal-dollar forms, and adding assignment,
+    setter, include, CLI, and MCP regressions. Acquire Gradle build/settings manifests as bounded
+    regular non-link files through the same retained root capability before the final rereviews.
+21. Close the final constructor-token finding by requiring a real whitespace boundary between
+    Gradle `new` and `File`, rejecting dynamic `newFile(...)` lookalikes in assignment and setter
+    forms, and proving every CLI/MCP checked-discovery gate remains inconclusive without outside
+    reads, disclosure, mutation, or partial generation.
+22. Reconcile the concurrent directive scanner by treating ordinary/triple-quoted literals and
+    nested comments as inert, requiring supported directives to be top-level executable
+    statements, rejecting aliased/qualified/conditional/block-scoped/compound mutations, and
+    ensuring unsupported multiline directive arguments cannot collapse into empty successful
+    includes. Add parser plus CLI/MCP false-green regressions for every branch.
+23. Close the exact-head review findings by retaining configuration and zero-config discovery
+    authority, lazily autodetecting omitted source roots, reverifying nested config/manifest
+    parents, carrying selected-spec identities through ownership reads, charging shared
+    selected-spec/source bytes and entries, bounding and memoizing Cargo/Node workspace expansion
+    in manifest and MCP traversal, and retaining both checked-coverage race checkpoints. Add
+    injectable boundary, duplicate-chain, retained-input race, ecosystem-table, and hosted-Windows
+    junction/reparse regressions, then rerun exact-tree review and verification gates.
+24. Defer the command-wide immutable CLI analysis snapshot and generic structured discovery
+    outcomes to the later CLI/outcome/generation work. They are outside GitHub #414's MCP boundary
+    and are not completion claims for CHG-0063.
+25. Close the exact `237e548` rereview findings by consuming Node children through
+    identity-matching enumerated capabilities, requiring and checking root/nested Node workspace
+    manifests, and replacing retained sibling handles with sequential capability reopen in MCP and
+    checked coverage. Prove the handle bound under constrained child processes, rerun the full
+    suite, then obtain fresh exact-commit reviews and all platform/lifecycle/trust/CI evidence.
+26. Close the final exact-tree findings by retaining caller-requested coverage roots through
+    dispatch, rejecting public-parent and read-root alias replacement, tightening JSON-RPC
+    ID/initialize validation and MCP helper exit checks, and serializing the unchanged ptrace
+    coverage suite after reproducible overlap crashes. Rerun Windows, coverage, both independent
+    reviews, repository/trust/provenance, and lifecycle gates on the resulting exact tree.
+27. Close the follow-up publication findings by binding every CLI generation write to one retained
+    project capability, consuming exact quarantine bytes on post-link parent failure, and sharing
+    one transaction root capability across staged MCP outputs. Characterize the post-coverage and
+    post-link races before the final independent rereviews and hosted gates.

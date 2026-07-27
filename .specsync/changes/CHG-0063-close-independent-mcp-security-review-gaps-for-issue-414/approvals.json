@@ -1,0 +1,138 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784693729,
+      "digest": "c6545cfb90ec04396c114c4a8a0a6bb6d513d63566b649ffe9d95af3ae2b695f",
+      "note": "Human approved the corrected complete CHG-0063 successor definition and review gates"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784734137,
+      "digest": "fc59a37283ad193314194c2b5a080f1bee3b96a4a26216bbdbac5bd7d3b55584",
+      "note": "User explicitly approved the final corrected CHG-0063 definition on 2026-07-22."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784755121,
+      "digest": "1a559193551941edb9eee8bdfa4f1eb5d2adb53c55d5a57eaa6781b497cd0580",
+      "note": "Approved definition digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784761846,
+      "digest": "96858a355da188eceb8e9f09a937cfd4d16009634503a9b404db658c9d088a89",
+      "note": "User reapproved CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed on 2026-07-22; effective definition digest remained exact after obsolete unsigned succession-edge reconciliation."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784762913,
+      "digest": "c2f84eed45c14039350862c74cdc1962e3f5ddc51f2313760998c5b3f4095e3a",
+      "note": "User approved CHG-0063 artifact digest c2f84eed45c14039350862c74cdc1962e3f5ddc51f2313760998c5b3f4095e3a on 2026-07-22."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784774813,
+      "digest": "e318a5632ca2157b538530d4736807139e3a4efe492bd0becf47feb7efcbb11d",
+      "note": "User reapproved digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed after final compatibility amendments."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784785683,
+      "digest": "553586538e8150c522c0eee9713f52d6b86aff54c04116991c54affde49495ea",
+      "note": "User reapproved exact view digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784791548,
+      "digest": "0da4b01ad4ce3f26b9afb679533d223a9493b27b59e0761077f86ff686414951",
+      "note": "Recorded from the user's explicit reapproval of view digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed after final artifact stabilization and two independent PASS rereviews."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784798512,
+      "digest": "111c69c754342f66d075667c081156e477ac68c87e74b61097395f4201a00bd9",
+      "note": "User explicitly reapproved CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784800943,
+      "digest": "3bb2942747356febd5dcb116ca3680abb9df37e08519b0b88c2c3f4e85def52e",
+      "note": "User explicitly reapproved CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784803493,
+      "digest": "7f2bb79b6247bbd508a1ee0b1f1687aabb32e19c5ebff86bb5d25cb18bb31861",
+      "note": "User reapproved CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed."
+    },
+    {
+      "gate": "definition",
+      "actor": "Leif",
+      "timestamp": 1784818465,
+      "digest": "4bc13eb06e151b31c0cbbf08fa293c5b4e560cd49032a37861464251cd32c663",
+      "note": "User approved exact digest 4bc13eb06e151b31c0cbbf08fa293c5b4e560cd49032a37861464251cd32c663"
+    },
+    {
+      "gate": "definition",
+      "actor": "Leif",
+      "timestamp": 1784823965,
+      "digest": "2f9537c57c8bad9ebced63218a852dfd3f11404a703009880794ccb2576a0f46",
+      "note": "User approved exact digest 2f9537c57c8bad9ebced63218a852dfd3f11404a703009880794ccb2576a0f46."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1784868810,
+      "digest": "d44299774abbc65a51b496f81f1ee1ab0ddebb60524f744f0306da5a328d5c99",
+      "note": "User explicitly approved current CHG-0063 digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed on 2026-07-23."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785085727,
+      "digest": "c531e50845acbb46d7af726ca02cee622e3cdc1382a3514dd925839b9a8ceed6",
+      "note": "Recorded from the user's explicit approval of effective definition digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed; the effective digest remains exact after the Windows CI fixture-only remediation."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785087735,
+      "digest": "b6afcb547268341a93ad40a78bc1e24baa153b07d98a4fe6a411d508147b560f",
+      "note": "User explicitly reapproved effective definition digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed after the final Windows junction fixture remediation and task evidence update."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785101226,
+      "digest": "4fb9e6a009af4dadeb9aee3f17fff1c8123e90e67d76956bc676b36369985d76",
+      "note": "User explicitly reapproved digest 493b176a8547d9ed83b74868b41eb27df60f995a1a31dfbb7f39cf28852c7aed in the Codex task."
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785116364,
+      "digest": "0fb7b55f2f95bd3105887a8a0221d5315e15581ad2534433f2e30999ea8ea114",
+      "note": "User explicitly approved definition digest 0fb7b55f2f95bd3105887a8a0221d5315e15581ad2534433f2e30999ea8ea114."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "0xLeif",
+      "timestamp": 1785120220,
+      "digest": "7b67e1b439eb2de6248e57aca6e78e36e3934a02528f02691cbc9afecc624cf7",
+      "note": "Human closing approval: I approve closing CHG-0062 and CHG-0063 after fresh verification."
+    }
+  ],
+  "reopenings": []
+}

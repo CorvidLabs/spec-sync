@@ -1,6 +1,6 @@
 ---
 module: config
-version: 8
+version: 14
 status: stable
 files:
   - src/config.rs
@@ -16,36 +16,55 @@ depends_on:
 
 ## Purpose
 
-Loads canonical project configuration from `.specsync/config.toml`, with compatibility fallbacks for `.specsync/config.json`, `.specsync.toml`, and `specsync.json`, then auto-detects source directories from supported language and default static HTML, HTM, and CSS files when configuration does not provide them.
+Loads canonical project configuration from `.specsync/config.toml`, with compatibility fallbacks for `.specsync/config.json`, `.specsync.toml`, and `specsync.json`, then auto-detects source directories from manifests, supported language files, and default static HTML, HTM, and CSS files when configuration does not provide them. Fallible checked discovery APIs preserve malformed Gradle settings as errors, while infallible wrappers remain available for compatibility.
 
 ## Public API
-
-**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `load_config` | `root: &Path` | `SpecSyncConfig` | Load configuration in canonical-to-legacy precedence order, falling back to defaults with auto-detected source directories |
 | `load_config_from_path` | `config_path: &Path, root: &Path` | `SpecSyncConfig` | Load config from a specific file path (JSON or TOML based on extension), used by migration |
-| `detect_source_dirs` | `root: &Path` | `Vec<String>` | Auto-detect source directories by scanning for supported language files up to 3 levels deep |
+| `detect_source_dirs` | `root: &Path` | `Vec<String>` | Compatibility source-directory discovery; falls back to scan-based detection when checked manifest discovery fails |
+| `detect_source_dirs_checked` | `root: &Path` | `Result<Vec<String>, String>` | Auto-detect source directories while surfacing malformed or unreadable Gradle settings instead of returning partial manifest discovery |
+| `source_detection_ignores_directory` | `name: &str` | `bool` | Crate-visible shared classification for hidden and configured source-detection ignore names |
 | `default_schema_pattern` | — | `&'static str` | Returns the default regex for SQL CREATE TABLE extraction |
-| `discover_manifest_modules` | `root: &Path` | `ManifestDiscovery` | Discover modules from manifest files (Package.swift, Cargo.toml, etc.) |
+| `discover_manifest_modules` | `root: &Path` | `ManifestDiscovery` | Compatibility manifest discovery that preserves the infallible return type |
+| `discover_manifest_modules_checked` | `root: &Path` | `Result<ManifestDiscovery, String>` | Discover manifest modules while surfacing malformed or unreadable Gradle settings |
 | `is_legacy_layout` | `root: &Path` | `bool` | Detect whether a project uses a legacy 3.x layout (root-level config files without `.specsync/version` stamp) |
 | `config_to_toml` | `config: &SpecSyncConfig` | `String` | Serialize a `SpecSyncConfig` to the current canonical `.specsync/config.toml` format |
 | `config_to_toml_lossy_fields` | `config: &SpecSyncConfig` | `Vec<&'static str>` | List config fields `config_to_toml` cannot represent (e.g. `customRules`), so `migrate` can refuse rather than silently drop them |
 | `read_config_file` | `path: &Path` | `Option<String>` | Read a config file, dropping a leading UTF-8 BOM (lossless) so it does not attach to the first TOML key or break JSON parsing; shared by the loaders and `migrate` so config reads handle a BOM consistently. `None` if unreadable |
+| `parse_config_content_checked` | `config_path: &Path, content: &str, root: &Path` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte JSON/TOML parser for retained callers; validates syntax and known TOML field types without reopening the path |
+| `parse_config_content_checked_with_source_dirs` | `config_path: &Path, content: &str, root: &Path, detected_source_dirs: Option<Vec<String>>` | `Result<SpecSyncConfig, String>` | Crate-private exact-byte parser with caller-supplied retained source discovery for omitted source fields |
+| `is_detectable_source_file` | `path: &Path` | `bool` | Crate-private lexical classifier shared by ambient and retained source detection |
+
+| Constant | Type | Description |
+|----------|------|-------------|
+| `CONFIG_PATH_CANDIDATES` | `&[&str]` | Crate-private canonical-to-legacy configuration precedence shared by retained CLI discovery |
 
 ## Invariants
 
-1. Config file search order is `.specsync/config.toml`, `.specsync/config.json`, `.specsync.toml`, `specsync.json`, then defaults
-2. When no config file exists, source directories are auto-detected from the project root
-3. When a config file exists but omits canonical `source_dirs` or legacy `sourceDirs`, source dirs are still auto-detected
-4. 46 common build/cache directories are always excluded from source detection (node_modules, target, .git, dist, etc.)
-5. `detect_source_dirs` falls back to `["src"]` if no source files are found
-6. Root-level source files (no subdirectories) produce `["."]` as source dirs
-7. TOML parsing is zero-dependency — uses line-by-line string parsing, not a TOML library
-8. The reader accepts both TOML string kinds for scalar and array values: basic `"..."` strings (backslash escapes decoded) and literal `'...'` strings (taken verbatim, no escape processing); a `#`, `,`, `[`, or `]` appearing inside either kind is treated as content, not as a comment or array structure
-9. A config file that is absent is expected — defaults apply silently. But a config file that **exists yet cannot be read** (e.g. not valid UTF-8) fails loud: a warning naming the file is printed and built-in defaults are used, rather than silently reverting to defaults (which would downgrade enforcement — strict→warn, exit 1→0 — with no signal). The same applies to the optional local override file (`config.local.toml`)
-10. Retired AI key names are ignored with migration guidance; their values are never retained, serialized, printed, or executed
+1. Config file search order is `.specsync/config.toml`, `.specsync/config.json`, `.specsync.toml`, `specsync.json`, then defaults.
+2. When no config file exists, source directories are auto-detected from the project root.
+3. When a config file exists but omits canonical `source_dirs` or legacy `sourceDirs`, source dirs are still auto-detected.
+4. 46 common build/cache directories are always excluded from source detection.
+5. `detect_source_dirs` falls back to `["src"]` if no source files are found.
+6. Root-level source files produce `["."]` as source dirs.
+7. TOML parsing is zero-dependency and uses line-by-line string parsing.
+8. Basic and literal TOML strings preserve punctuation as content according to their string kind.
+9. Present-but-unreadable config and local override files warn before built-in defaults are used; absent files apply defaults silently.
+10. Retired AI key names are ignored with value-safe migration guidance and are never retained, serialized, printed, or executed.
+11. Checked source-directory and manifest discovery fail before returning partial results when Gradle settings are malformed or unreadable; compatibility wrappers remain infallible for existing callers.
+12. Checked retained-snapshot parsing validates real JSON/TOML syntax and known TOML field types
+    before applying the established compatibility parser.
+13. Capability callers may supply source-directory detection; omitted source fields consume that
+    list without consulting an ambient root pathname.
+14. Security-sensitive zero-config source detection begins only after the caller retains the
+    project root and consumes manifest observations obtained through that capability.
+15. Retained CLI discovery reads config bytes through its project capability, honors explicit
+    source lists without pre-traversal, and preserves malformed legacy config warning fallback.
+16. Nested configuration parents are reverified through the retained project root around the
+    bounded read; a detached parent cannot become mixed-generation configuration authority.
 
 ## Behavioral Examples
 
@@ -73,6 +92,12 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 - **When** `detect_source_dirs(root)` is called
 - **Then** it returns `["lib", "src"]` in deterministic order
 
+**Scenario: Checked discovery encounters malformed Gradle settings**
+
+- **Given** a project whose `settings.gradle.kts` contains an unterminated `include` declaration
+- **When** `detect_source_dirs_checked(root)` or `discover_manifest_modules_checked(root)` is called
+- **Then** it returns an error naming the Gradle settings manifest instead of partial discovery
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -80,6 +105,9 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | Config file exists but unreadable (e.g. not valid UTF-8) | Prints a warning naming the file to stderr, then falls back to `SpecSyncConfig::default()` (fail-loud, not silent) |
 | Config file absent | Silently uses `SpecSyncConfig::default()` with auto-detected source dirs (expected) |
 | Malformed JSON config | Prints warning to stderr, falls back to defaults |
+| Malformed retained JSON/TOML snapshot or wrong-shaped known TOML field | Checked snapshot parsing returns `Err`; the caller can fail closed without reopening the pathname |
+| Retained JSON has a wrong-shaped `github` section or `github.repo` | Checked snapshot parsing returns `Err`; no sentinel/default success is exposed to the capability caller |
+| Malformed or unreadable Gradle settings passed to checked discovery | Returns `Err`; compatibility wrappers preserve their infallible signatures |
 | Empty project root | Returns `["src"]` as source dirs |
 
 ## Dependencies
@@ -95,7 +123,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 
 | Module | What is used |
 |--------|-------------|
-| validator | `load_config` (indirectly via main) |
+| validator | `load_config` (indirectly via main), `discover_manifest_modules_checked` for fallible coverage discovery |
 | mcp | `load_config`, `detect_source_dirs` |
 | watch | `load_config` |
 | main | `load_config` |
@@ -105,6 +133,9 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 
 | Date | Change |
 |------|--------|
+| 2026-07-22 | v9 / CHG-0063: add checked source-directory and manifest discovery APIs so malformed Gradle settings remain explicit errors while compatibility wrappers stay infallible; fail closed on non-string legacy JSON `github.repo` shapes |
+| 2026-07-22 | v12 / CHG-0063 final agent review: reject wrong-shaped GitHub repository fields in exact-byte checked JSON parsing |
+| 2026-07-22 | v10 / CHG-0063: add exact-byte checked config parsing for retained callers with real TOML syntax and known-field type validation |
 | 2026-07-10 | v3: keep configuration round-trip tests warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document discover_manifest_modules |
@@ -116,6 +147,9 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
 | 2026-07-14 | CHG-0034-support-extensionless-source-discovery-through-an-explicit-include-extensionless: Support extensionless source discovery through an explicit include_extensionless setting while preserving omitted and empty source_extensions defaults, with parser, scanner, strict file coverage, LOC coverage, and wizard regressions for extensionless-only and mixed projects |
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
+| 2026-07-22 | CHG-0063 capability-source follow-up: Let exact-byte config callers supply retained-capability source discovery so omitted source dirs cannot consult a replaced ambient root |
+| 2026-07-24 | v13 / CHG-0063 exact-head remediation: expose shared config precedence and lexical source classification to retained CLI discovery while preserving explicit-source and malformed-config compatibility |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 
 ## Config File Structure
 

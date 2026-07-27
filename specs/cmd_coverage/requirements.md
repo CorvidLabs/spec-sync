@@ -11,31 +11,32 @@ spec: cmd_coverage.spec.md
 ## Acceptance Criteria
 
 - `cmd_coverage(root, strict, enforcement, require_coverage, format)` runs validation (`run_validation`) before computing coverage so results are consistent with `check`
-- Coverage is computed via `compute_coverage`; file-coverage and loc-coverage percentages are derived and rounded to two decimals, treating a zero-denominator as 100%
-- JSON output (`--format json`) emits `file_coverage`, `files_covered`, `files_total`, `loc_coverage`, `loc_covered`, `loc_total`, `modules` (unspecced), and `uncovered_files`, then exits 0
+- Coverage is computed via `compute_coverage_checked`; file-coverage and loc-coverage percentages are derived and rounded to two decimals, treating a trustworthy zero-denominator as 100%
+- JSON output emits coverage metrics and honors gates; malformed discovery exits 1 with valid JSON containing `valid: false`, `inconclusive: true`, null percentages, zero counts, empty collections, and an explicit error
 - Non-JSON output prints the coverage report, the validation summary, and a coverage line, then delegates the exit code to `exit_with_status`
 - `--enforcement` overrides config enforcement; `--strict` implies strict enforcement; `--require-coverage N` fails (exit 1) when coverage is below N
 
 ## Constraints
 
 - Coverage computation, validation, and exit-status logic all live in shared modules (`validator`, `commands` helpers); this wrapper orchestrates and formats
-- JSON path always exits 0 regardless of validation status (it is a metrics dump, not a gate)
+- JSON remains machine-readable while honoring validation, enforcement, threshold, and inconclusive-discovery failures
 - This command uses `IgnoreRules::default()` (no `.specsyncignore` loading), unlike `check`/`comment` which load ignore rules from disk
 
 ## Out of Scope
 
-- The coverage algorithm itself (owned by `validator::compute_coverage`)
+- The coverage algorithm itself (owned by `validator::compute_coverage_checked`)
 - Writing the report to a file (output goes to stdout)
 - Interactive prompts or GUI
 
 ### REQ-cmd-coverage-001
 
-The coverage command SHALL report file and LOC coverage in human and machine formats and SHALL honor configured release gates.
+The coverage command SHALL report trustworthy file and LOC coverage and SHALL fail closed when
+manifest discovery is inconclusive.
 
 Acceptance Criteria
-- `cmd_coverage(root, strict, enforcement, require_coverage, format)` runs validation (`run_validation`) before computing coverage so results are consistent with `check`
-- Coverage is computed via `compute_coverage`; file-coverage and loc-coverage percentages are derived and rounded to two decimals, treating a zero-denominator as 100%
-- JSON output (`--format json`) emits `file_coverage`, `files_covered`, `files_total`, `loc_coverage`, `loc_covered`, `loc_total`, `modules` (unspecced), and `uncovered_files`, then exits 0
-- Non-JSON output prints the coverage report, the validation summary, and a coverage line, then delegates the exit code to `exit_with_status`
-- `--enforcement` overrides config enforcement; `--strict` implies strict enforcement; `--require-coverage N` fails (exit 1) when coverage is below N
+
+- Coverage is computed through `compute_coverage_checked`.
+- Trustworthy zero-denominator coverage retains the documented 100% behavior.
+- Malformed Gradle/manifest discovery exits 1 with valid JSON containing `valid: false`,
+  `inconclusive: true`, null percentages, zero counts, empty collections, and an explicit error.
 

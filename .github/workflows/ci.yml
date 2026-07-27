@@ -164,7 +164,18 @@ jobs:
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin --version 0.35.2 --locked --no-default-features
       - name: Run coverage
-        run: cargo tarpaulin --skip-clean --fail-under 50
+        # Ptrace can abort this special-file/process-spawning suite with
+        # munmap/ECHILD failures. LLVM instrumentation preserves the full test
+        # set and 50% gate without relying on ptrace trap delivery.
+        run: >-
+          cargo tarpaulin
+          --engine llvm
+          --follow-exec
+          --post-test-delay 10
+          --skip-clean
+          --fail-under 50
+          --
+          --test-threads 1
 
   site:
     needs: classify

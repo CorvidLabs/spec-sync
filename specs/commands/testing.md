@@ -6,7 +6,7 @@ spec: commands.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/mod.rs` | cargo test commands::mod | No inline tests in mod.rs; add focused coverage for `load_and_discover`, `filter_specs`, `filter_by_status`, `build_schema_columns` before risky changes |
+| `src/commands/mod.rs` | cargo test commands::tests | `rendered_drift_errors_prefer_longest_discovered_spec_path` proves structured attribution for legal `": "` paths while the public `run_validation`/`create_drift_issues` signatures retain rendered `Vec<String>` compatibility. |
 | `compute_exit_code` | cargo test --bin specsync | Pure exit-code matrix tested in `src/main.rs`: `warn_mode_exits_0_with_no_errors`, `warn_mode_exits_0_even_with_errors`, `warn_mode_respects_require_coverage`, `enforce_new_exits_1_when_unspecced_files_exist`, `strict_mode_exits_1_with_errors`, `strict_mode_exits_1_with_warnings_and_strict_flag`, `strict_mode_respects_require_coverage`, `strict_mode_exits_0_when_coverage_meets_threshold` (12 cases total) |
 | `tests/integration.rs` | cargo test --test integration strict_turns_warnings_into_errors | End-to-end fixture: `strict_turns_warnings_into_errors` |
 | `tests/integration.rs` | cargo test --test integration require_coverage_passes_when_met | End-to-end fixture: `require_coverage_passes_when_met` |
@@ -16,14 +16,18 @@ spec: commands.spec.md
 | `tests/integration.rs` | cargo test --test integration require_coverage_on_coverage_subcommand | End-to-end fixture: `require_coverage_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration strict_on_coverage_subcommand | End-to-end fixture: `strict_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration action_validates_require_coverage_input | End-to-end fixture: `action_validates_require_coverage_input` |
+| Drift-creation hostile text | cargo test github::tests::drift_issue_capture_sanitizes_untrusted_title_and_markdown_arguments | Captured `gh` title/body arguments contain sanitized spec/error text; source review of `create_drift_issues` confirms terminal repository/path/URL/error values pass through `safe_diagnostic` |
 
 ## Behavioral Verification
 
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
 | Filter by module name | specs exist at `specs/auth/auth.spec.md` and `specs/api/api.spec.md` | `filter_specs(root, specs, &["auth"])` is called | returns only `specs/auth/auth.spec.md` |
+| Portable module validation | reserved names, trailing spaces/dots, and 247/248-byte ASCII or multibyte names | `cargo test commands::tests::validate_module_name` | reserved/non-portable/248-byte names fail; 247-byte boundaries pass |
 | Strict mode with warnings | enforcement is `Strict`, `--strict` is set, validation has 0 errors but 3 warnings | `compute_exit_code()` is called | returns 1 (warnings treated as errors) |
 | EnforceNew with unspecced files | enforcement is `EnforceNew`, coverage shows 2 unspecced files | `exit_with_status()` is called | prints count and exits with code 1 |
+| Hostile drift-creation text | repository/path/URL/provider values contain controls, bidi, or Zl/Zp characters | `create_drift_issues()` reports resolution, success, or failure | terminal diagnostics are sanitized and GitHub title/body arguments contain no hostile formatting characters |
+| Spec path contains `": "` | private validation diagnostics are routed to drift creation | create drift issues | the complete exact path receives its own errors; rendered diagnostic splitting cannot truncate it |
 
 ## Regression Matrix
 
@@ -32,8 +36,8 @@ spec: commands.spec.md
 | No spec files found and `allow_empty` is false | Prints suggestion to run `specsync generate` and exits 0 | Keep or add a focused assertion before changing this behavior |
 | Filter matches no specs | Prints warning listing unmatched filters, returns empty vec | Keep or add a focused assertion before changing this behavior |
 | `schema_dir` not configured | `build_schema_columns` returns empty map (no error) | Keep or add a focused assertion before changing this behavior |
-| GitHub repo unresolvable for drift issues | Prints error and returns without creating issues | Keep or add a focused assertion before changing this behavior |
-| `gh` CLI fails to create issue | Prints per-spec error but continues with remaining specs | Keep or add a focused assertion before changing this behavior |
+| GitHub repo unresolvable for drift issues | Prints sanitized error and returns without creating issues | Keep safe-diagnostic source coverage and add a captured terminal assertion before changing this behavior |
+| `gh` CLI fails to create issue | Prints sanitized per-spec error but continues with remaining specs | Keep the GitHub capture sanitizer regression and add a captured terminal assertion before changing this behavior |
 
 ## Reviewer Checklist
 

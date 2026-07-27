@@ -1,9 +1,10 @@
 use crate::exports::{has_configured_extension, is_test_file};
 use crate::types::{CoverageReport, Language, SpecSyncConfig};
+use cap_std::fs::{Dir, OpenOptions};
 use colored::Colorize;
 use std::fs;
-use std::io::Write;
-use std::path::Path;
+use std::io::{self, Write};
+use std::path::{Component, Path, PathBuf};
 use walkdir::WalkDir;
 
 const TASKS_TEMPLATE: &str = r#"---
@@ -670,6 +671,15 @@ pub fn generate_spec(
         }
     };
 
+    render_spec_template(module_name, source_files, root, template)
+}
+
+fn render_spec_template(
+    module_name: &str,
+    source_files: &[String],
+    root: &Path,
+    template: String,
+) -> String {
     let title = module_name
         .split('-')
         .map(|w| {
@@ -963,8 +973,262 @@ pub struct GenerationOutcome {
     pub generated_paths: Vec<String>,
 }
 
+/// Generate CLI scaffolds through a retained project-root capability.
+///
+/// This is intentionally separate from the ambient-path API used by MCP's
+/// snapshot-and-publication transaction. Every project filesystem side effect
+/// in this path is relative to `project`, so replacing the requested public
+/// root cannot redirect a write into the replacement.
+pub(crate) fn generate_specs_for_unspecced_modules_retained(
+    project: &Dir,
+    root: &Path,
+    report: &CoverageReport,
+    config: &SpecSyncConfig,
+    progress: bool,
+) -> Result<GenerationOutcome, String> {
+    let specs_relative = confined_generation_path(Path::new(&config.specs_dir), "specs directory")?;
+    let mut outcome = GenerationOutcome::default();
+
+    for module_name in &report.unspecced_modules {
+        let module_relative =
+            confined_generation_path(&specs_relative.join(module_name), "module destination")?;
+        let spec_relative = module_relative.join(format!("{module_name}.spec.md"));
+        if project.try_exists(&spec_relative).map_err(|error| {
+            format!(
+                "Cannot inspect retained generate destination {}: {error}",
+                spec_relative.display()
+            )
+        })? {
+            continue;
+        }
+
+        let module_files = module_files_from_coverage(report, module_name, config);
+        if module_files.is_empty() {
+            continue;
+        }
+
+        if let Err(error) = project.create_dir_all(&module_relative) {
+            if progress {
+                eprintln!(
+                    "  Failed to create {}: {error}",
+                    root.join(&module_relative).display()
+                );
+            }
+            continue;
+        }
+
+        let template = retained_generation_template(project, &specs_relative, &module_files);
+        let spec_content = render_spec_template(module_name, &module_files, root, template);
+        match write_new_retained_file(project, &spec_relative, spec_content.as_bytes()) {
+            Ok(true) => {
+                if progress {
+                    println!(
+                        "  {} Generated {} ({} files)",
+                        "✓".green(),
+                        spec_relative.display(),
+                        module_files.len()
+                    );
+                }
+                generate_retained_companion_files(
+                    project,
+                    &module_relative,
+                    module_name,
+                    config.companions.design,
+                    progress,
+                );
+                if progress {
+                    let _ = std::io::stdout().flush();
+                }
+                outcome.generated += 1;
+                outcome
+                    .generated_paths
+                    .push(spec_relative.to_string_lossy().replace('\\', "/"));
+            }
+            Ok(false) => {}
+            Err(error) => {
+                if progress {
+                    eprintln!(
+                        "  Failed to write {}: {error}",
+                        root.join(&spec_relative).display()
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(outcome)
+}
+
+fn confined_generation_path(path: &Path, label: &str) -> Result<PathBuf, String> {
+    if path.is_absolute() {
+        return Err(format!(
+            "Generate {label} must remain beneath the retained project root: {}",
+            path.display()
+        ));
+    }
+    let mut relative = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(name) => relative.push(name),
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(format!(
+                    "Generate {label} must remain beneath the retained project root: {}",
+                    path.display()
+                ));
+            }
+        }
+    }
+    Ok(relative)
+}
+
+fn module_files_from_coverage(
+    report: &CoverageReport,
+    module_name: &str,
+    config: &SpecSyncConfig,
+) -> Vec<String> {
+    let mut module_files = Vec::new();
+
+    if let Some(module) = config.modules.get(module_name) {
+        for configured in &module.files {
+            let Some(configured) = crate::validator::normalize_source_mapping(configured) else {
+                continue;
+            };
+            let configured = Path::new(&configured);
+            module_files.extend(
+                report
+                    .unspecced_files
+                    .iter()
+                    .filter(|source| {
+                        let source = Path::new(source);
+                        source == configured || source.starts_with(configured)
+                    })
+                    .cloned(),
+            );
+        }
+        if !module_files.is_empty() {
+            module_files.sort();
+            module_files.dedup();
+            return module_files;
+        }
+    }
+
+    for source_dir in &config.source_dirs {
+        let source_dir = if source_dir == "." {
+            PathBuf::new()
+        } else {
+            let Some(source_dir) = crate::validator::normalize_source_mapping(source_dir) else {
+                continue;
+            };
+            PathBuf::from(source_dir)
+        };
+        let module_dir = source_dir.join(module_name);
+        module_files.extend(
+            report
+                .unspecced_files
+                .iter()
+                .filter(|source| Path::new(source).starts_with(&module_dir))
+                .cloned(),
+        );
+    }
+
+    if module_files.is_empty() {
+        for source_dir in &config.source_dirs {
+            let source_dir = if source_dir == "." {
+                PathBuf::new()
+            } else {
+                let Some(source_dir) = crate::validator::normalize_source_mapping(source_dir)
+                else {
+                    continue;
+                };
+                PathBuf::from(source_dir)
+            };
+            module_files.extend(
+                report
+                    .unspecced_files
+                    .iter()
+                    .filter(|source| {
+                        let source = Path::new(source);
+                        source.parent().unwrap_or_else(|| Path::new("")) == source_dir
+                            && source.file_stem().and_then(|stem| stem.to_str())
+                                == Some(module_name)
+                    })
+                    .cloned(),
+            );
+        }
+    }
+
+    module_files.sort();
+    module_files.dedup();
+    module_files
+}
+
+fn retained_generation_template(
+    project: &Dir,
+    specs_relative: &Path,
+    source_files: &[String],
+) -> String {
+    project
+        .read_to_string(specs_relative.join("_template.spec.md"))
+        .unwrap_or_else(|_| match detect_primary_language(source_files) {
+            Some(language) => language_template(language).to_string(),
+            None => DEFAULT_TEMPLATE.to_string(),
+        })
+}
+
+fn write_new_retained_file(project: &Dir, relative: &Path, content: &[u8]) -> io::Result<bool> {
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    let mut file = match project.open_with(relative, &options) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    file.write_all(content)?;
+    file.flush()?;
+    Ok(true)
+}
+
+fn generate_retained_companion_files(
+    project: &Dir,
+    module_relative: &Path,
+    module_name: &str,
+    design_enabled: bool,
+    progress: bool,
+) {
+    let companions = [
+        ("tasks.md", TASKS_TEMPLATE),
+        ("context.md", CONTEXT_TEMPLATE),
+        ("requirements.md", REQUIREMENTS_TEMPLATE),
+        ("testing.md", TESTING_TEMPLATE),
+    ];
+    for (name, template) in companions {
+        let content = template.replace("{module}", module_name);
+        if write_new_retained_file(project, &module_relative.join(name), content.as_bytes())
+            .is_ok_and(|created| created)
+            && progress
+        {
+            println!("    {} Generated {name}", "✓".green());
+        }
+    }
+    if design_enabled {
+        let content = DESIGN_TEMPLATE.replace("{module}", module_name);
+        if write_new_retained_file(
+            project,
+            &module_relative.join("design.md"),
+            content.as_bytes(),
+        )
+        .is_ok_and(|created| created)
+            && progress
+        {
+            println!("    {} Generated design.md", "✓".green());
+        }
+    }
+}
+
 /// Generate spec files for all unspecced modules.
 /// Returns the deterministic generation outcome.
+#[allow(dead_code)]
 pub fn generate_specs_for_unspecced_modules(
     root: &Path,
     report: &CoverageReport,
@@ -1213,6 +1477,55 @@ mod tests {
         let spec = generate_spec("my-mod", &[], root, &specs_dir);
         assert!(spec.contains("Custom template marker"));
         assert!(spec.contains("module: my-mod"));
+    }
+
+    #[test]
+    fn retained_generation_uses_custom_template_for_configured_module() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("specs")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/custom.rs"), "pub fn custom() {}\n").unwrap();
+        fs::write(
+            root.join("specs/_template.spec.md"),
+            "---\nmodule: module-name\nversion: 1\nstatus: draft\nfiles: []\ndb_tables: []\ndepends_on: []\n---\n\n# Module Name\n\n## Purpose\n\nRetained custom template marker\n",
+        )
+        .unwrap();
+
+        let report = CoverageReport {
+            total_source_files: 1,
+            specced_file_count: 0,
+            unspecced_files: vec!["src/custom.rs".to_string()],
+            unspecced_modules: vec!["configured".to_string()],
+            coverage_percent: 0,
+            total_loc: 1,
+            specced_loc: 0,
+            loc_coverage_percent: 0,
+            unspecced_file_loc: vec![("src/custom.rs".to_string(), 1)],
+        };
+        let mut config = SpecSyncConfig::default();
+        config.modules.insert(
+            "configured".to_string(),
+            crate::types::ModuleDefinition {
+                files: vec!["src/custom.rs".to_string()],
+                depends_on: vec![],
+            },
+        );
+        let project =
+            Dir::open_ambient_dir(root, cap_std::ambient_authority()).expect("open retained root");
+
+        let outcome =
+            generate_specs_for_unspecced_modules_retained(&project, root, &report, &config, false)
+                .expect("retained generation succeeds");
+
+        assert_eq!(
+            outcome.generated_paths,
+            ["specs/configured/configured.spec.md"]
+        );
+        let generated = fs::read_to_string(root.join(&outcome.generated_paths[0])).unwrap();
+        assert!(generated.contains("Retained custom template marker"));
+        assert!(generated.contains("module: configured"));
+        assert!(generated.contains("  - src/custom.rs"));
     }
 
     #[test]

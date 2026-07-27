@@ -4,10 +4,43 @@ spec: manifest.spec.md
 
 ## Key Decisions
 
-- **Zero-dependency parsing**: All 7 manifest formats (Cargo.toml, Package.swift, build.gradle, package.json, pubspec.yaml, go.mod, pyproject.toml) are parsed with regex and string operations. No TOML, YAML, or Swift parser crates.
+- **Process-free parsing with structural Cargo security checks**: General metadata extraction remains string/regex based. MCP snapshot and confinement discovery parse bounded Cargo manifests with the in-process `toml` crate; no manifest discovery launches a process.
 - **Fixed parse order, merged results**: Parsers run in a fixed sequence; results are merged with first-module-name-wins on conflict. This keeps behavior deterministic across runs.
-- **Silent failure**: Missing or unreadable manifest files return `None` silently — a project might have some manifests but not others, and that's normal.
-- **Workspace/monorepo support**: Cargo workspaces, package.json workspaces, and Gradle multi-module projects are all handled, with recursive member discovery.
+- **Checked Gradle failure**: Missing ordinary manifests remain a normal skip. Present unreadable or malformed Gradle settings return `Err` from `discover_from_manifests_checked`; the checked path merges the exact single-read parse result, while the compatibility wrapper collapses failure to an empty result.
+- **Settings are independently authoritative**: A root `settings.gradle[.kts]` is sufficient to
+  discover a Gradle multi-project workspace. Its modules and parse failures are never hidden by a
+  missing root `build.gradle[.kts]`.
+- **Workspace/monorepo support**: Cargo workspaces, package.json workspaces, and Gradle multi-module projects are handled. Cargo security preflight uses real TOML; Gradle settings use one comment/escape-aware parser for Groovy/Kotlin include forms and effective `projectDir` mappings so MCP preflight and general discovery agree.
+- **Fail-closed Gradle subset**: Include arguments must be complete string literals. Supported
+  assignment-style `projectDir` and method-style `setProjectDir` expressions are exactly
+  `file(<literal>)` and `new File(rootDir, <literal>)` with no trailing expression; dynamic
+  arguments, unescaped double-quoted interpolation, alternate bases, extra arguments, and
+  unsupported mutators reject the parse. Escaped/single-quoted dollars stay literal, and
+  Unicode/octal escapes are decoded before path confinement.
+- **Executable-directive subset**: Triple-quoted documentation and nested comments are masked
+  before parsing. Include and project-directory mutations must use the supported top-level direct
+  syntax; aliases, qualification, conditionals, closure/block scope, spacing tricks, compound
+  assignment, and concatenated `newFile` lookalikes fail closed.
+- **Raw identity validation precedes colon mapping**: Drive-qualified, rooted, UNC, and
+  parent-escaping include identities and project selectors reject before Gradle `:` separators are
+  converted to `/`; ordinary nested Gradle identities remain compatible.
+- **Capability-confined Gradle probing**: Effective Gradle directories are walked component by
+  component through a retained project-root capability with no-follow metadata. Symlinks and
+  Windows reparse points fail checked discovery before source probing or traversal.
+- **Capability-confined Gradle manifests**: Present Gradle build/settings manifests are selected
+  through that retained capability. Every present filename variant is preflighted before
+  precedence selection, rejected when linked/reparse-backed, non-regular, or identity-unstable,
+  bounded to 4 MiB, and parsed from retained bytes instead of an ambient path read.
+- **Locally governed Gradle directives**: Unsupported inclusion APIs and indirect or conditional
+  include/project-directory mutations fail closed, while unrelated top-level control flow and
+  identifier/documentation uses remain compatible.
+- **One retained checked authority**: Caller-retained checked discovery uses the retained project
+  capability for Cargo, Swift, Node, Dart, Go, Python, and Gradle manifests plus nested workspace
+  directories. Non-Gradle retained reads are no-follow, non-blocking, identity-continuous, UTF-8
+  checked, and deterministically bounded; only compatibility wrappers retain ambient best effort.
+- **Bounded workspace graph**: Cargo member declarations and Node workspace patterns are charged as
+  work before expansion. Normalized workspace nodes are deduplicated and completed discoveries are
+  memoized, preventing duplicate declarations from replaying cached subtrees exponentially.
 - **Swift test target exclusion**: `.testTarget()` entries are explicitly skipped to avoid polluting the module list with test infrastructure.
 - **Python priority**: `[project]` section is checked before `[tool.poetry]` in pyproject.toml, reflecting the ecosystem's migration toward PEP 621.
 
@@ -17,7 +50,29 @@ spec: manifest.spec.md
 
 ## Current Status
 
-Fully implemented for all 7 manifest formats. The config module calls `discover_from_manifests()` to get module names and source paths before falling back to extension-based scanning.
+Implemented for all 7 manifest formats. Gate callers use `discover_from_manifests_checked()` so
+malformed Gradle discovery is inconclusive instead of a compatibility fallback. The CHG-0063
+independent-review contract additionally requires raw module validation before colon mapping,
+literal assignment/method project-directory parsing, and retained no-follow component confinement.
+Gradle build/settings selection and reads are likewise bounded and capability-confined; unescaped
+double-quoted interpolation rejects and encoded path escapes are decoded before confinement.
+The final parser amendment also rejects indirect executable mutations and drive-relative raw
+identities while preserving rooted nested Gradle names. The post-review amendment preflights
+shadowed Gradle filename variants, binds native file identity across open/read, rejects invoked
+unsupported inclusion APIs, and narrows control-flow rejection to governed directives.
+The acceptance-remediation pass extends retained authority to every recognized manifest parser and
+nested workspace probe, eliminating the ambient swap-read-restore interval.
+The latest remediation bounds and deduplicates Cargo/Node workspace expansion, memoizes completed
+nodes, and verifies that nested manifest/workspace directories remain reachable from the retained
+project root after enumeration and around reads. Structural Cargo/Node parsing and retained
+directory-listing continuity now close the latest independent-review gaps. Node workspace child
+identities are recorded during enumeration, then each child is opened sequentially through the
+retained workspace-base capability for manifest reads and source probes. A swap/read/restore
+interval cannot mix generations. Each completed base listing is reachability-verified and released,
+so broad sibling sets and broad distinct-base sets do not exhaust directory handles. Fresh
+combined results pass 52 focused manifest tests and 1,953 unit plus 312 integration tests. Fresh
+independent rereview, hosted-Windows runtime, repository/CI, trust, and provenance evidence remain
+pending. MCP Cargo workspace paths come from validated TOML values.
 
 ## Notes
 

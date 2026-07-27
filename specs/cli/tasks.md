@@ -20,6 +20,9 @@ spec: cli.spec.md
 - [x] Remove embedded provider/model generation flags and preserve deterministic agent integrations
 - [x] Wrap `run()` in `catch_unwind` so panics surface a friendly bug-report message
 - [x] Block inherited verification recursion before dispatching `change` or `lifecycle` subcommands
+- [x] Forward explicit MCP write authorization and fail closed on server-root startup errors
+- [x] Preserve requested roots for MCP and coverage-gating retained-capability traversal
+- [x] Keep generate writes bound to the retained root after checked coverage returns
 
 ## Gaps
 

@@ -193,105 +193,46 @@ pub fn slugify(title: &str) -> String {
         .join("-")
 }
 
+fn validated_slug(source: &str, title: &str) -> Result<String, String> {
+    let module_name = slugify(title);
+    crate::commands::validate_module_name(&module_name)
+        .map_err(|error| format!("{source} title cannot produce a safe module name: {error}"))?;
+    Ok(module_name)
+}
+
 // ─── GitHub Issues Importer ────────────────────────────────────────────
 
 /// Fetch a GitHub issue and convert it to an `ImportedItem`.
-/// Uses `gh` CLI first, falls back to REST API with `GITHUB_TOKEN`.
+/// Uses the shared in-process REST path with an explicit `GITHUB_TOKEN`.
 pub fn import_github_issue(repo: &str, number: u64) -> Result<ImportedItem, String> {
-    if crate::github::gh_is_available() {
-        import_github_issue_gh(repo, number)
-    } else {
-        import_github_issue_api(repo, number)
-    }
+    import_github_issue_with(repo, number, crate::github::fetch_issue_details)
 }
 
-fn import_github_issue_gh(repo: &str, number: u64) -> Result<ImportedItem, String> {
-    let output = std::process::Command::new("gh")
-        .args([
-            "issue",
-            "view",
-            &number.to_string(),
-            "--repo",
-            repo,
-            "--json",
-            "number,title,body,labels,url",
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run gh: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("gh error for #{number}: {}", stderr.trim()));
-    }
-
-    let json: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| format!("Failed to parse gh output: {e}"))?;
-
-    parse_github_json(&json, number)
+fn import_github_issue_with(
+    repo: &str,
+    number: u64,
+    fetch: impl FnOnce(&str, u64) -> Result<crate::github::GitHubIssueDetails, String>,
+) -> Result<ImportedItem, String> {
+    let details = fetch(repo, number)?;
+    import_github_issue_details(details)
 }
 
-fn import_github_issue_api(repo: &str, number: u64) -> Result<ImportedItem, String> {
-    let token = std::env::var("GITHUB_TOKEN")
-        .map_err(|_| "GITHUB_TOKEN not set and gh CLI not available".to_string())?;
-
-    let url = format!("https://api.github.com/repos/{repo}/issues/{number}");
-
-    let agent = ureq::Agent::new_with_config(
-        ureq::config::Config::builder()
-            .timeout_global(Some(Duration::from_secs(10)))
-            .build(),
-    );
-
-    let mut response = agent
-        .get(&url)
-        .header("Authorization", &format!("Bearer {token}"))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "specsync")
-        .call()
-        .map_err(|e| redact_secret(format!("GitHub API request failed: {e}"), &token))?;
-
-    if response.status() == 404 {
-        return Err(format!("Issue #{number} not found in {repo}"));
-    }
-    if response.status() != 200 {
-        return Err(format!("GitHub API returned HTTP {}", response.status()));
-    }
-
-    let json: serde_json::Value = response
-        .body_mut()
-        .read_json()
-        .map_err(|e| format!("Failed to parse GitHub API response: {e}"))?;
-
-    parse_github_json(&json, number)
-}
-
-fn parse_github_json(json: &serde_json::Value, number: u64) -> Result<ImportedItem, String> {
-    let title = json["title"].as_str().unwrap_or("").to_string();
-    let body = json["body"].as_str().unwrap_or("");
-    let url = json["url"]
-        .as_str()
-        .or_else(|| json["html_url"].as_str())
-        .unwrap_or("")
-        .to_string();
-
-    let labels: Vec<String> = json["labels"]
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|l| l["name"].as_str().map(String::from))
-                .collect()
-        })
-        .unwrap_or_default();
-
-    let requirements = extract_requirements(body);
+fn import_github_issue_details(
+    details: crate::github::GitHubIssueDetails,
+) -> Result<ImportedItem, String> {
+    let requirements = extract_requirements(&details.body);
+    let module_name = validated_slug(
+        &format!("GitHub issue #{}", details.issue.number),
+        &details.issue.title,
+    )?;
 
     Ok(ImportedItem {
-        module_name: slugify(&title),
-        purpose: title.clone(),
+        module_name,
+        purpose: details.issue.title,
         requirements,
-        labels,
-        source_url: url,
-        issue_number: Some(number),
+        labels: details.issue.labels,
+        source_url: details.issue.url,
+        issue_number: Some(details.issue.number),
         source_type: ImportSource::GitHub,
     })
 }
@@ -379,9 +320,10 @@ fn parse_jira_json(
     let requirements = extract_requirements(&description);
 
     let browse_url = format!("{}/browse/{issue_key}", base_url.trim_end_matches('/'));
+    let module_name = validated_slug(&format!("Jira issue {issue_key}"), &summary)?;
 
     Ok(ImportedItem {
-        module_name: slugify(&summary),
+        module_name,
         purpose: summary,
         requirements,
         labels,
@@ -511,9 +453,10 @@ fn parse_confluence_json(
             format!("{base}{webui}")
         })
         .unwrap_or_else(|| format!("{}/pages/{page_id}", base_url.trim_end_matches('/')));
+    let module_name = validated_slug(&format!("Confluence page {page_id}"), &title)?;
 
     Ok(ImportedItem {
-        module_name: slugify(&title),
+        module_name,
         purpose,
         requirements,
         labels: Vec::new(),
@@ -774,17 +717,22 @@ mod tests {
         assert_eq!(base64_encode("abc"), "YWJj");
     }
 
-    // ─── parse_github_json ─────────────────────────────────────────────
+    // ─── GitHub issue conversion ───────────────────────────────────────
 
     #[test]
-    fn test_parse_github_json_full() {
-        let json = serde_json::json!({
-            "title": "Add user registration",
-            "body": "## Summary\nUsers need to register.\n- [ ] Email validation\n- [ ] Password hashing",
-            "labels": [{"name": "enhancement"}, {"name": "auth"}],
-            "html_url": "https://github.com/org/repo/issues/99"
-        });
-        let item = parse_github_json(&json, 99).unwrap();
+    fn test_import_github_issue_details_full() {
+        let details = crate::github::GitHubIssueDetails {
+            issue: crate::github::GitHubIssue {
+                number: 99,
+                title: "Add user registration".to_string(),
+                state: "open".to_string(),
+                labels: vec!["enhancement".to_string(), "auth".to_string()],
+                url: "https://github.com/org/repo/issues/99".to_string(),
+            },
+            body: "## Summary\nUsers need to register.\n- [ ] Email validation\n- [ ] Password hashing"
+                .to_string(),
+        };
+        let item = import_github_issue_details(details).unwrap();
         assert_eq!(item.module_name, "add-user-registration");
         assert_eq!(item.purpose, "Add user registration");
         assert_eq!(
@@ -796,16 +744,115 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_github_json_minimal() {
-        let json = serde_json::json!({
-            "title": "Fix bug",
-            "body": "",
-            "labels": [],
-            "html_url": "https://github.com/org/repo/issues/1"
-        });
-        let item = parse_github_json(&json, 1).unwrap();
+    fn test_import_github_issue_details_empty_body() {
+        let details = crate::github::GitHubIssueDetails {
+            issue: crate::github::GitHubIssue {
+                number: 1,
+                title: "Fix bug".to_string(),
+                state: "open".to_string(),
+                labels: Vec::new(),
+                url: "https://github.com/org/repo/issues/1".to_string(),
+            },
+            body: String::new(),
+        };
+        let item = import_github_issue_details(details).unwrap();
         assert_eq!(item.module_name, "fix-bug");
         assert!(item.requirements.is_empty());
+    }
+
+    #[test]
+    fn test_import_github_issue_rejects_title_without_a_safe_module_name() {
+        let error = import_github_issue_with("org/repo", 7, |repo, number| {
+            Ok(crate::github::GitHubIssueDetails {
+                issue: crate::github::GitHubIssue {
+                    number,
+                    title: "!!! 🐦".to_string(),
+                    state: "open".to_string(),
+                    labels: Vec::new(),
+                    url: format!("https://github.com/{repo}/issues/{number}"),
+                },
+                body: String::new(),
+            })
+        })
+        .expect_err("punctuation-only titles must not produce an empty output path");
+
+        assert!(error.contains("safe module name"), "{error}");
+    }
+
+    #[test]
+    fn test_external_imports_reject_nonportable_slugs() {
+        let github_details = crate::github::GitHubIssueDetails {
+            issue: crate::github::GitHubIssue {
+                number: 8,
+                title: "CON".to_string(),
+                state: "open".to_string(),
+                labels: Vec::new(),
+                url: "https://github.com/org/repo/issues/8".to_string(),
+            },
+            body: String::new(),
+        };
+        assert!(import_github_issue_details(github_details).is_err());
+
+        let overlong_github_details = crate::github::GitHubIssueDetails {
+            issue: crate::github::GitHubIssue {
+                number: 9,
+                title: "a".repeat(248),
+                state: "open".to_string(),
+                labels: Vec::new(),
+                url: "https://github.com/org/repo/issues/9".to_string(),
+            },
+            body: String::new(),
+        };
+        assert!(import_github_issue_details(overlong_github_details).is_err());
+
+        let jira = serde_json::json!({
+            "fields": {
+                "summary": "LPT9",
+                "description": null,
+                "labels": []
+            }
+        });
+        assert!(parse_jira_json(&jira, "PROJ-9", "https://jira.example.com").is_err());
+
+        let confluence = serde_json::json!({
+            "title": "NUL",
+            "body": {"storage": {"value": "<p>Unsafe title</p>"}},
+            "_links": {}
+        });
+        assert!(parse_confluence_json(&confluence, "10", "https://wiki.example.com/wiki").is_err());
+    }
+
+    #[test]
+    fn test_import_github_issue_entry_path_converts_shared_typed_details() {
+        let item = import_github_issue_with("org/repo", 99, |repo, number| {
+            assert_eq!(repo, "org/repo");
+            assert_eq!(number, 99);
+            Ok(crate::github::GitHubIssueDetails {
+                issue: crate::github::GitHubIssue {
+                    number,
+                    title: "Add user registration".to_string(),
+                    state: "open".to_string(),
+                    labels: vec!["enhancement".to_string()],
+                    url: format!("https://github.com/{repo}/issues/{number}"),
+                },
+                body: "- [ ] Validate email".to_string(),
+            })
+        })
+        .expect("typed GitHub details must flow through the importer entry path");
+
+        assert_eq!(item.module_name, "add-user-registration");
+        assert_eq!(item.requirements, vec!["Validate email"]);
+        assert_eq!(item.issue_number, Some(99));
+    }
+
+    #[test]
+    fn test_import_github_issue_entry_path_returns_no_item_on_provider_failure() {
+        let error = import_github_issue_with("org/repo", 99, |_repo, _number| {
+            Err("GitHub repository access is inconclusive".to_string())
+        })
+        .expect_err("provider failures must abort before an imported item exists");
+
+        assert_eq!(error, "GitHub repository access is inconclusive");
     }
 
     // ─── parse_jira_json ───────────────────────────────────────────────

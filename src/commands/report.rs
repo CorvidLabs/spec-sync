@@ -1,11 +1,12 @@
 use colored::Colorize;
 use std::fs;
 use std::path::Path;
+use std::process;
 
 use crate::git_utils::{git_commits_since, git_last_commit_hash};
 use crate::parser;
 use crate::types;
-use crate::validator::compute_coverage;
+use crate::validator::compute_coverage_checked;
 
 use super::{filter_by_status, load_and_discover};
 
@@ -18,7 +19,27 @@ pub fn cmd_report(
 ) {
     let (config, all_spec_files) = load_and_discover(root, true);
     let spec_files = filter_by_status(&all_spec_files, exclude_status, only_status);
-    let coverage = compute_coverage(root, &spec_files, &config);
+    let coverage = compute_coverage_checked(root, &spec_files, &config).unwrap_or_else(|error| {
+        if matches!(format, types::OutputFormat::Json) {
+            let output = serde_json::json!({
+                "valid": false,
+                "inconclusive": true,
+                "error": format!("Coverage inconclusive: {error}"),
+                "overall_coverage_pct": serde_json::Value::Null,
+                "files_covered": 0,
+                "files_total": 0,
+                "total_modules": 0,
+                "stale_modules": 0,
+                "incomplete_modules": 0,
+                "stale_threshold": stale_threshold,
+                "modules": [],
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        } else {
+            eprintln!("Coverage inconclusive: {error}");
+        }
+        process::exit(1);
+    });
 
     // Build per-module stats from spec files
     struct ModuleInfo {

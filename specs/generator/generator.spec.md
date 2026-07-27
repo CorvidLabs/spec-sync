@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 6
+version: 8
 status: stable
 files:
   - src/generator.rs
@@ -23,6 +23,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
+| `generate_specs_for_unspecced_modules_retained` | `project, root, report, config, progress` | `Result<GenerationOutcome, String>` | Generate CLI scaffolds through one retained project-root capability |
 | `generate_specs_for_unspecced_modules` | `root, report, config` | `GenerationOutcome` | Generate local template specs for all unspecced modules with progress output |
 | `generate_specs_for_unspecced_modules_paths` | `root, report, config` | `GenerationOutcome` | Generate local template specs without progress output for JSON/MCP callers |
 | `generate_companion_files_for_spec` | `spec_dir, module_name, design_enabled` | `()` | Generate companion files (tasks.md, context.md, requirements.md, testing.md, and design.md if enabled) alongside a spec |
@@ -40,15 +41,8 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 
 ## Invariants
 
-1. Specs are never overwritten — if a `module.spec.md` already exists, it is skipped
-2. Custom templates at `specs/_template.spec.md` take precedence over the built-in default
-3. Template generation fills in module name, version (1), status (draft), discovered source files, and guided starter content without unfinished-work comments
-4. Module title is derived from the module name with dashes converted to title case (e.g. "api-gateway" -> "Api Gateway")
-5. Companion files (tasks.md, context.md, requirements.md, testing.md, and design.md when enabled) are only created if they don't already exist and use guidance text instead of empty template comments
-6. The design.md template includes its own YAML frontmatter with `spec:` (back-reference to the parent spec) and `sources:` (list of design asset references — Figma URLs, image paths, etc.). This frontmatter is companion-level metadata, not parsed by the spec validation pipeline
-7. Generation performs no network inference, credential lookup, source transmission, or shell execution
-8. Source file paths in frontmatter are relative to the project root
-9. Module source files are discovered by checking subdirectory-based modules first, then flat files
+- CLI generation confines template reads, directory creation, and no-overwrite publication to one
+  retained project-root capability so public-root replacement cannot redirect output.
 
 ## Behavioral Examples
 
@@ -83,6 +77,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | Cannot create spec directory | Prints error to stderr, skips module |
 | Cannot write spec file | Prints error to stderr, skips module |
 | No source files found for module | Skips module entirely |
+| Requested CLI root is replaced after coverage | Generation fails inconclusively and writes to neither the replacement nor an outside path |
 
 ## Dependencies
 
@@ -104,6 +99,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | v7 / CHG-0063: Bind CLI generation templates, directories, and no-overwrite file publication to one retained project-root capability |
 | 2026-07-10 | v5: keep module-discovery test fixtures warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |
 | 2026-04-07 | Document find_files_for_module, generate_spec, generate_spec_from_custom_template, generate_companion_files_from_template |
@@ -113,3 +109,4 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | 2026-06-11 | Return `GenerationOutcome` (count, paths, AI errors) from both generation entry points so AI failures surface with a non-zero exit |
 | 2026-06-11 | Add `find_single_source_fallback` so `new`/`scaffold` auto-detect the source in single-source-file projects (e.g. a fresh cargo crate with only `src/lib.rs`) |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

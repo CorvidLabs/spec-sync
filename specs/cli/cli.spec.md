@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 10
+version: 13
 status: stable
 files:
   - src/main.rs
@@ -104,7 +104,8 @@ Clap derive types define the root `Cli`, the `Command` namespace, and focused ac
 
 All functions in main.rs are private (no pub keyword). Key internal functions:
 
-- **main** — Parse CLI args, canonicalize root, dispatch to subcommand handler
+- **main** — Parse CLI args, retain the requested path spelling for capability-sensitive MCP and
+  coverage-gating commands, canonicalize other roots, and dispatch to the subcommand handler
 - **cmd_init** — Create the current `.specsync/` layout with auto-detected source dirs; no-op if config exists
 - **cmd_change** — Dispatch the verified SDD lifecycle and render equivalent text/JSON results
 - **cmd_check** — Load config, discover specs, validate, print results, exit with status
@@ -139,30 +140,22 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 
 ## Invariants
 
-1. When no subcommand is given, `check` runs by default
-2. `--root` defaults to the current working directory; the path is validated (must be an existing directory — otherwise an error is printed and the process exits 2) and canonicalized
-3. `--strict` causes warnings to produce a non-zero exit code
-4. `--require-coverage N` causes exit 1 if file coverage percent < N
-5. `--json` switches all output to machine-readable JSON (no ANSI colors)
-6. `cmd_init` is idempotent and never overwrites current or legacy project configuration
-7. `cmd_init_registry` is idempotent — does nothing if `specsync-registry.toml` already exists
-8. `cmd_add_spec` generates companion files even if the spec already exists
-9. `cmd_generate` re-runs validation after generating new specs to include them in the summary
-10. `cmd_resolve --remote` performs network calls; without the flag, cross-project refs are listed but not verified
-11. `load_and_discover` filters out spec files starting with `_` (template files)
-12. Exit codes: 0 = success, 1 = errors (or warnings in strict mode, or coverage below threshold)
-13. `collect_hook_targets` with no flags set returns an empty vec, meaning "all targets"
-14. `--fix` only adds exports not already documented in the spec (no duplicates)
-15. `--fix` modifies spec files on disk — validation runs after fix so the fixed specs are re-checked
-16. `--fix` with `--json` suppresses the human-readable fix summary but still writes the fix
-17. `cmd_diff` shells out to `git diff --name-only <base>` to detect changed files
-18. `cmd_diff` only reports specs whose `files:` frontmatter list intersects the changed file set
-19. `cmd_scaffold` auto-detects source files, creates companion files, and registers the module in `specsync-registry.toml` if it exists
-20. `cmd_report` flags modules whose specs are N+ commits behind their source files (default threshold: 5)
-21. `cmd_comment` without `--pr` prints the comment body to stdout; with `--pr N` posts via `gh` CLI
-22. `cmd_changelog` requires a git ref range (e.g., `v0.1..v0.2`); exits 1 if range is invalid
-23. `--enforcement` CLI flag overrides the effective loaded configuration (`.specsync/config.toml` first, with legacy compatibility fallbacks); `--strict` implies strict enforcement
-24. Inherited verification context rejects `check`, `change`, and `lifecycle` before handler dispatch, while unrelated commands preserve their current behavior.
+1. When no subcommand is given, `check` runs by default.
+2. `--root` defaults to the current working directory and is validated as an existing directory,
+   otherwise the process exits 2. MCP plus check/coverage/generate/score/report/comment preserve
+   the requested spelling so their retained-capability engines can detect public root replacement;
+   other commands receive the canonicalized path.
+3. `--strict` causes warnings to produce a non-zero exit code.
+4. `--require-coverage N` causes exit 1 if file coverage percent is below N.
+5. `--json` switches all output to machine-readable JSON without ANSI colors.
+6. Initialization and registry creation remain idempotent and preserve existing configuration.
+7. Generation, scoring, resolution, hooks, lifecycle, and reporting commands delegate policy to
+   their focused modules.
+8. Inherited verification context rejects recursive check/change/lifecycle dispatch before handler
+   execution.
+9. MCP dispatch forwards the parsed write capability unchanged; read-only remains the default.
+10. MCP server-root initialization failures are printed to stderr and exit 2 before request input is
+    processed.
 
 ## Behavioral Examples
 
@@ -373,3 +366,6 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
 | 2026-07-14 | CHG-0029-address-all-remaining-review-feedback-from-pr-366: Address all remaining review feedback from PR 366 |
+| 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |
+| 2026-07-26 | v12 / CHG-0063 Windows root-retention remediation: Preserve the requested root spelling for MCP and coverage-gating commands so junction/symlink replacement remains observable after capability retention, including through generation publication |
+| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |

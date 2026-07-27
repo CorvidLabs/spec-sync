@@ -3,7 +3,7 @@ use std::process;
 
 use crate::output::{print_coverage_line, print_coverage_report, print_summary};
 use crate::types;
-use crate::validator::{compute_coverage, get_schema_table_names};
+use crate::validator::{compute_coverage_checked, get_schema_table_names};
 
 use super::{
     build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
@@ -43,7 +43,30 @@ pub fn cmd_coverage(
             false,
             &ignore_rules,
         );
-    let coverage = compute_coverage(root, &spec_files, &config);
+    let coverage = match compute_coverage_checked(root, &spec_files, &config) {
+        Ok(coverage) => coverage,
+        Err(error) => {
+            if json {
+                let output = serde_json::json!({
+                    "valid": false,
+                    "inconclusive": true,
+                    "error": format!("Coverage inconclusive: {error}"),
+                    "file_coverage": serde_json::Value::Null,
+                    "files_covered": 0,
+                    "files_total": 0,
+                    "loc_coverage": serde_json::Value::Null,
+                    "loc_covered": 0,
+                    "loc_total": 0,
+                    "modules": [],
+                    "uncovered_files": [],
+                });
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            } else {
+                eprintln!("Coverage inconclusive: {error}");
+            }
+            process::exit(1);
+        }
+    };
 
     if json {
         let file_coverage = if coverage.total_source_files == 0 {

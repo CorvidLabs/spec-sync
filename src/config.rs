@@ -47,29 +47,53 @@ const IGNORED_DIRS: &[&str] = &[
     "obj",
 ];
 const DEFAULT_STATIC_SOURCE_EXTENSIONS: &[&str] = &["html", "htm", "css"];
+pub(crate) const CONFIG_PATH_CANDIDATES: &[&str] = &[
+    ".specsync/config.toml",
+    ".specsync/config.json",
+    ".specsync.toml",
+    "specsync.json",
+];
+
+pub(crate) fn source_detection_ignores_directory(name: &str) -> bool {
+    name.starts_with('.') || IGNORED_DIRS.contains(&name)
+}
 
 /// Auto-detect source directories by first checking manifest files
 /// (Cargo.toml, Package.swift, build.gradle.kts, package.json, etc.),
 /// then falling back to scanning the project root for files with supported
 /// language extensions. Returns directories relative to root.
 pub fn detect_source_dirs(root: &Path) -> Vec<String> {
+    detect_source_dirs_checked(root).unwrap_or_else(|_| detect_source_dirs_by_scan(root))
+}
+
+/// Auto-detect source directories while surfacing malformed manifest inputs.
+pub fn detect_source_dirs_checked(root: &Path) -> Result<Vec<String>, String> {
     // Try manifest-aware detection first
-    let manifest_discovery = manifest::discover_from_manifests(root);
+    let manifest_discovery = manifest::discover_from_manifests_checked(root)?;
     if !manifest_discovery.source_dirs.is_empty() {
         let mut dirs = manifest_discovery.source_dirs;
         dirs.sort();
         dirs.dedup();
-        return dirs;
+        return Ok(dirs);
     }
 
     // Fall back to directory scanning
-    detect_source_dirs_by_scan(root)
+    Ok(detect_source_dirs_by_scan(root))
 }
 
 /// Discover modules from manifest files (Package.swift, Cargo.toml, etc.).
 /// Returns the manifest discovery result for use in module detection.
+#[allow(dead_code)]
 pub fn discover_manifest_modules(root: &Path) -> manifest::ManifestDiscovery {
     manifest::discover_from_manifests(root)
+}
+
+/// Discover manifest modules while surfacing malformed manifest inputs.
+#[allow(dead_code)]
+pub fn discover_manifest_modules_checked(
+    root: &Path,
+) -> Result<manifest::ManifestDiscovery, String> {
+    manifest::discover_from_manifests_checked(root)
 }
 
 /// Scan-based source directory detection (fallback when no manifests found).
@@ -88,7 +112,7 @@ fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
         let name = entry.file_name().to_string_lossy().to_string();
 
         // Skip hidden dirs and ignored dirs
-        if name.starts_with('.') || ignored.contains(name.as_str()) {
+        if source_detection_ignores_directory(&name) {
             continue;
         }
 
@@ -142,7 +166,7 @@ fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usi
     false
 }
 
-fn is_detectable_source_file(path: &Path) -> bool {
+pub(crate) fn is_detectable_source_file(path: &Path) -> bool {
     has_extension(path, &[])
         || path
             .extension()
@@ -180,6 +204,204 @@ pub fn load_config_from_path(config_path: &Path, root: &Path) -> SpecSyncConfig 
         "toml" => load_toml_config(config_path, root),
         _ => load_json_config(config_path, root),
     }
+}
+
+/// Parse a retained configuration snapshot without reopening its pathname.
+///
+/// The caller is responsible for obtaining the bytes from a trusted, bounded
+/// filesystem handle. This function validates and parses those exact bytes while
+/// preserving the normal JSON/TOML compatibility behavior.
+pub(crate) fn parse_config_content_checked(
+    config_path: &Path,
+    content: &str,
+    root: &Path,
+) -> Result<SpecSyncConfig, String> {
+    parse_config_content_checked_with_source_dirs(config_path, content, root, None)
+}
+
+/// Parse a retained configuration snapshot with caller-supplied source discovery.
+///
+/// Security-sensitive capability callers use this to avoid consulting an ambient
+/// root pathname when the config omits its source directory list.
+pub(crate) fn parse_config_content_checked_with_source_dirs(
+    config_path: &Path,
+    content: &str,
+    root: &Path,
+    detected_source_dirs: Option<Vec<String>>,
+) -> Result<SpecSyncConfig, String> {
+    let content = content.trim_start_matches('\u{feff}');
+    let is_toml = config_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension == "toml");
+    let mut config = if is_toml {
+        let table = toml::from_str::<toml::Table>(content).map_err(|error| error.to_string())?;
+        validate_toml_config_types(&table)?;
+        parse_toml_config_with_source_dirs(content, root, detected_source_dirs.as_deref())
+    } else {
+        let value = serde_json::from_str::<serde_json::Value>(content)
+            .map_err(|error| error.to_string())?;
+        validate_checked_json_config_types(&value)?;
+        parse_json_config_with_source_dirs(content, root, detected_source_dirs.as_deref())
+            .map_err(|error| error.to_string())?
+    };
+    config.config_path = Some(config_path.to_path_buf());
+    Ok(config)
+}
+
+fn validate_checked_json_config_types(value: &serde_json::Value) -> Result<(), String> {
+    let root = value
+        .as_object()
+        .ok_or_else(|| "configuration root must be an object".to_string())?;
+    let Some(github) = root.get("github") else {
+        return Ok(());
+    };
+    let github = github
+        .as_object()
+        .ok_or_else(|| "`github` must be an object".to_string())?;
+    if github
+        .get("repo")
+        .is_some_and(|repo| !repo.is_null() && !repo.is_string())
+    {
+        return Err("`github.repo` must be a string or null".to_string());
+    }
+    Ok(())
+}
+
+fn validate_toml_config_types(table: &toml::Table) -> Result<(), String> {
+    for key in [
+        "specs_dir",
+        "schema_dir",
+        "schema_pattern",
+        "export_level",
+        "parse_mode",
+        "parseMode",
+        "enforcement",
+    ] {
+        validate_toml_field(table, key, "a string", toml::Value::is_str)?;
+    }
+    for key in [
+        "source_dirs",
+        "required_sections",
+        "exclude_dirs",
+        "exclude_patterns",
+        "source_extensions",
+    ] {
+        validate_toml_field(table, key, "an array of strings", is_toml_string_array)?;
+    }
+    for key in ["include_extensionless", "require_draft_files"] {
+        validate_toml_field(table, key, "a boolean", toml::Value::is_bool)?;
+    }
+    validate_toml_field(
+        table,
+        "task_archive_days",
+        "an integer",
+        toml::Value::is_integer,
+    )?;
+
+    if let Some(github) = validate_toml_table(table, "github")? {
+        validate_toml_field(github, "repo", "a string", toml::Value::is_str)?;
+        validate_toml_field(
+            github,
+            "drift_labels",
+            "an array of strings",
+            is_toml_string_array,
+        )?;
+        validate_toml_field(github, "verify_issues", "a boolean", toml::Value::is_bool)?;
+    }
+    if let Some(rules) = validate_toml_table(table, "rules")? {
+        for key in [
+            "max_changelog_entries",
+            "min_invariants",
+            "max_spec_size_kb",
+        ] {
+            validate_toml_field(rules, key, "an integer", toml::Value::is_integer)?;
+        }
+        for key in ["require_behavioral_examples", "require_depends_on"] {
+            validate_toml_field(rules, key, "a boolean", toml::Value::is_bool)?;
+        }
+    }
+    if let Some(companions) = validate_toml_table(table, "companions")? {
+        validate_toml_field(companions, "design", "a boolean", toml::Value::is_bool)?;
+    }
+    if let Some(lifecycle) = validate_toml_table(table, "lifecycle")? {
+        for key in ["track_history", "trackHistory"] {
+            validate_toml_field(lifecycle, key, "a boolean", toml::Value::is_bool)?;
+        }
+        for key in ["allowed_statuses", "allowedStatuses"] {
+            validate_toml_field(lifecycle, key, "an array of strings", is_toml_string_array)?;
+        }
+        for key in ["max_age", "maxAge"] {
+            if let Some(max_age) = validate_toml_table(lifecycle, key)? {
+                for (status, value) in max_age {
+                    if !value.is_integer() {
+                        return Err(format!("`lifecycle.{key}.{status}` must be an integer"));
+                    }
+                }
+            }
+        }
+        if let Some(guards) = validate_toml_table(lifecycle, "guards")? {
+            for (transition, value) in guards {
+                let guard = value
+                    .as_table()
+                    .ok_or_else(|| format!("`lifecycle.guards.{transition}` must be a table"))?;
+                for key in ["min_score", "minScore", "stale_threshold", "staleThreshold"] {
+                    validate_toml_field(guard, key, "an integer", toml::Value::is_integer)?;
+                }
+                for key in ["no_stale", "noStale"] {
+                    validate_toml_field(guard, key, "a boolean", toml::Value::is_bool)?;
+                }
+                for key in ["require_sections", "requireSections"] {
+                    validate_toml_field(guard, key, "an array of strings", is_toml_string_array)?;
+                }
+                validate_toml_field(guard, "message", "a string", toml::Value::is_str)?;
+            }
+        }
+    }
+    if let Some(modules) = validate_toml_table(table, "modules")? {
+        for (name, value) in modules {
+            let module = value
+                .as_table()
+                .ok_or_else(|| format!("`modules.{name}` must be a table"))?;
+            for key in ["files", "depends_on", "dependsOn"] {
+                validate_toml_field(module, key, "an array of strings", is_toml_string_array)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_toml_table<'a>(
+    table: &'a toml::Table,
+    key: &str,
+) -> Result<Option<&'a toml::Table>, String> {
+    table
+        .get(key)
+        .map(|value| {
+            value
+                .as_table()
+                .ok_or_else(|| format!("`{key}` must be a table"))
+        })
+        .transpose()
+}
+
+fn validate_toml_field(
+    table: &toml::Table,
+    key: &str,
+    expected: &str,
+    predicate: fn(&toml::Value) -> bool,
+) -> Result<(), String> {
+    if table.get(key).is_some_and(|value| !predicate(value)) {
+        return Err(format!("`{key}` must be {expected}"));
+    }
+    Ok(())
+}
+
+fn is_toml_string_array(value: &toml::Value) -> bool {
+    value
+        .as_array()
+        .is_some_and(|items| items.iter().all(toml::Value::is_str))
 }
 
 /// 1. `.specsync/config.toml` (v4 TOML — canonical)
@@ -658,10 +880,36 @@ const LEGACY_AI_TOML_KEYS: &[&str] = &[
     "ai_timeout",
 ];
 
+const INVALID_JSON_GITHUB_REPO: &str = "invalid-github-repo-config";
+
 fn warn_retired_ai_key(key: &str) {
     eprintln!(
         "Warning: retired embedded-AI config key `{key}` is ignored. spec-sync 5.0 generates deterministic scaffolds; use your coding agent to enrich them."
     );
+}
+
+fn fail_closed_invalid_json_github_repo(raw: &mut serde_json::Value) {
+    let Some(github) = raw
+        .as_object_mut()
+        .and_then(|config| config.get_mut("github"))
+    else {
+        return;
+    };
+    let Some(repo) = github
+        .as_object_mut()
+        .and_then(|github| github.get_mut("repo"))
+    else {
+        return;
+    };
+    if repo.is_null() || repo.is_string() {
+        return;
+    }
+
+    eprintln!(
+        "Warning: failed to parse specsync.json: `github.repo` must be a string or null; \
+         repository resolution will fail closed"
+    );
+    *repo = serde_json::Value::String(INVALID_JSON_GITHUB_REPO.to_string());
 }
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
@@ -681,10 +929,31 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
-    // Warn about unknown keys
-    if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&content)
-        && let Some(obj) = raw.as_object()
-    {
+    match parse_json_config(&content, root) {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!("Warning: failed to parse specsync.json: {error}");
+            SpecSyncConfig::default()
+        }
+    }
+}
+
+fn parse_json_config(content: &str, root: &Path) -> Result<SpecSyncConfig, serde_json::Error> {
+    parse_json_config_with_source_dirs(content, root, None)
+}
+
+fn parse_json_config_with_source_dirs(
+    content: &str,
+    root: &Path,
+    detected_source_dirs: Option<&[String]>,
+) -> Result<SpecSyncConfig, serde_json::Error> {
+    let mut raw = serde_json::from_str::<serde_json::Value>(content)?;
+    let source_dirs_configured = raw
+        .as_object()
+        .is_some_and(|config| config.contains_key("sourceDirs"));
+
+    // Warn about unknown keys.
+    if let Some(obj) = raw.as_object() {
         for key in obj.keys() {
             if LEGACY_AI_JSON_KEYS.contains(&key.as_str()) {
                 warn_retired_ai_key(key);
@@ -693,21 +962,15 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
             }
         }
     }
+    fail_closed_invalid_json_github_repo(&mut raw);
 
-    match serde_json::from_str::<SpecSyncConfig>(&content) {
-        Ok(config) => {
-            if !content.contains("\"sourceDirs\"") {
-                let mut config = config;
-                config.source_dirs = detect_source_dirs(root);
-                return config;
-            }
-            config
-        }
-        Err(e) => {
-            eprintln!("Warning: failed to parse specsync.json: {e}");
-            SpecSyncConfig::default()
-        }
+    let mut config = serde_json::from_value::<SpecSyncConfig>(raw)?;
+    if !source_dirs_configured {
+        config.source_dirs = detected_source_dirs
+            .map(<[String]>::to_vec)
+            .unwrap_or_else(|| detect_source_dirs(root));
     }
+    Ok(config)
 }
 
 /// Parse a TOML config file using zero-dependency parsing.
@@ -742,6 +1005,18 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
+    parse_toml_config(&content, root)
+}
+
+fn parse_toml_config(content: &str, root: &Path) -> SpecSyncConfig {
+    parse_toml_config_with_source_dirs(content, root, None)
+}
+
+fn parse_toml_config_with_source_dirs(
+    content: &str,
+    root: &Path,
+    detected_source_dirs: Option<&[String]>,
+) -> SpecSyncConfig {
     let mut config = SpecSyncConfig::default();
     let mut has_source_dirs = false;
     let mut current_section: Option<String> = None;
@@ -915,7 +1190,9 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
     }
 
     if !has_source_dirs {
-        config.source_dirs = detect_source_dirs(root);
+        config.source_dirs = detected_source_dirs
+            .map(<[String]>::to_vec)
+            .unwrap_or_else(|| detect_source_dirs(root));
     }
 
     config
@@ -1770,6 +2047,97 @@ mod tests {
     }
 
     #[test]
+    fn json_github_repo_wrong_types_fail_closed_without_discarding_valid_config() {
+        for invalid_repo in [
+            serde_json::json!(42),
+            serde_json::json!(true),
+            serde_json::json!({"owner": "repo"}),
+            serde_json::json!(["owner/repo"]),
+        ] {
+            let tmp = TempDir::new().unwrap();
+            let config_path = tmp.path().join("specsync.json");
+            let raw = serde_json::json!({
+                "specsDir": "configured-specs",
+                "sourceDirs": ["configured-src"],
+                "github": {
+                    "repo": invalid_repo,
+                    "verifyIssues": false
+                }
+            });
+            fs::write(&config_path, serde_json::to_vec(&raw).unwrap()).unwrap();
+
+            let config = load_config(tmp.path());
+            assert_eq!(config.specs_dir, "configured-specs");
+            assert_eq!(config.source_dirs, ["configured-src"]);
+            let github = config
+                .github
+                .expect("a malformed configured repository must remain explicit");
+            assert!(!github.verify_issues);
+            assert_eq!(
+                github.repo.as_deref(),
+                Some(INVALID_JSON_GITHUB_REPO),
+                "wrongly typed repositories must not become auto-detection"
+            );
+            assert!(
+                crate::github::resolve_repo(github.repo.as_deref(), tmp.path()).is_err(),
+                "wrongly typed repositories must fail before no-reference success"
+            );
+        }
+    }
+
+    #[test]
+    fn checked_json_config_rejects_wrong_typed_github_repo() {
+        let tmp = TempDir::new().unwrap();
+        let error = parse_config_content_checked(
+            &tmp.path().join("specsync.json"),
+            r#"{"specsDir":"specs","sourceDirs":["src"],"github":{"repo":42}}"#,
+            tmp.path(),
+        )
+        .expect_err("retained config parsing must reject a wrong-typed repository");
+
+        assert!(error.contains("github.repo"), "{error}");
+    }
+
+    #[test]
+    fn checked_json_config_rejects_non_object_github() {
+        let tmp = TempDir::new().unwrap();
+        let error = parse_config_content_checked(
+            &tmp.path().join("specsync.json"),
+            r#"{"specsDir":"specs","sourceDirs":["src"],"github":42}"#,
+            tmp.path(),
+        )
+        .expect_err("retained config parsing must reject a non-object GitHub section");
+
+        assert!(error.contains("`github` must be an object"), "{error}");
+    }
+
+    #[test]
+    fn json_github_repo_absent_null_and_string_remain_compatible() {
+        for (github, expected_repo) in [
+            (serde_json::json!({}), None),
+            (serde_json::json!({"repo": null}), None),
+            (
+                serde_json::json!({"repo": "CorvidLabs/spec-sync"}),
+                Some("CorvidLabs/spec-sync"),
+            ),
+        ] {
+            let tmp = TempDir::new().unwrap();
+            let config_path = tmp.path().join("specsync.json");
+            let raw = serde_json::json!({
+                "sourceDirs": ["src"],
+                "github": github
+            });
+            fs::write(&config_path, serde_json::to_vec(&raw).unwrap()).unwrap();
+
+            let config = load_config(tmp.path());
+            assert_eq!(
+                config.github.and_then(|github| github.repo).as_deref(),
+                expected_repo
+            );
+        }
+    }
+
+    #[test]
     fn test_load_config_json_without_source_dirs_auto_detects() {
         let tmp = TempDir::new().unwrap();
         fs::write(tmp.path().join("specsync.json"), r#"{"specsDir": "specs"}"#).unwrap();
@@ -1926,6 +2294,21 @@ verify_issues = false
         let dirs = detect_source_dirs(tmp.path());
 
         assert_eq!(dirs, vec!["."]);
+    }
+
+    #[test]
+    fn checked_source_detection_surfaces_malformed_gradle_settings() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join("src/main/kotlin")).unwrap();
+        fs::write(tmp.path().join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            tmp.path().join("settings.gradle.kts"),
+            "include(\":member\"\n",
+        )
+        .unwrap();
+
+        let error = detect_source_dirs_checked(tmp.path()).unwrap_err();
+        assert!(error.contains("Cannot parse Gradle settings manifest"));
     }
 
     // --- config.local.toml merging ---

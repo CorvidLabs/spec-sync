@@ -12,6 +12,8 @@ spec: exports.spec.md
 - As a polyglot team, I want export extraction for all 33 supported languages so that spec-sync works across our entire codebase
 - As a developer, I want test files automatically excluded from export extraction so that test helpers don't pollute the public API
 - As a power user, I want an opt-in AST parse mode (`ParseMode::Ast`) for TypeScript, Python, Rust, C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp so that I get higher-fidelity extraction with regex fallback when AST parsing fails
+- As a capability-confined validator, I want export extraction from retained source text without
+  ambient path resolution so that path replacement or wildcard imports cannot redirect validation
 
 ## Acceptance Criteria
 
@@ -27,6 +29,8 @@ spec: exports.spec.md
 - Test file detection uses language-specific patterns (`.test.ts`, `_test.go`, `test_*.py`, etc.) plus well-known test directory names (`tests`, `__tests__`, `fixtures`, `mocks`, ...)
 - All regex patterns are compiled once via `LazyLock` for performance
 - Rust regex and AST modes include `pub` and `pub(crate)` declarations and re-exports across all listed files while excluding `pub(super)`, `pub(self)`, and `pub(in ...)`
+- `get_exported_symbols_from_content` parses caller-supplied source text without reopening its
+  logical path and does not resolve TypeScript wildcard imports through ambient filesystem paths
 
 ## Constraints
 
@@ -35,6 +39,7 @@ spec: exports.spec.md
 - Each language backend lives in its own file under `src/exports/` for maintainability
 - Must strip comments before extracting exports to avoid false positives
 - AST results that come back empty fall back to the regex backend automatically
+- Supplied-content extraction must not derive additional filesystem authority from `file_path`
 
 ## Out of Scope
 
@@ -89,4 +94,19 @@ Acceptance Criteria
 - Regular-expression literals cannot create property exports or corrupt object scanning.
 - Type-level scans preserve local and inline classes exported through CommonJS.
 - Regex and AST modes remain ordered, deduplicated, and compatible with ESM.
+
+### REQ-exports-005
+
+Snapshot export extraction SHALL parse caller-supplied source content without reopening logical
+paths or resolving TypeScript wildcard imports through ambient filesystem authority.
+
+Acceptance Criteria
+
+- The module-internal `get_exported_symbols_from_content` entry point accepts logical path,
+  caller-supplied UTF-8 text, export level, and parse mode.
+- The logical path selects the language and type-filter context but is never opened.
+- Regex and AST TypeScript supplied-content paths pass no wildcard resolver, so ambient sibling or
+  index files cannot contribute symbols.
+- Local exports present in the supplied text retain normal ordering, deduplication, parse-mode, and
+  export-level behavior.
 

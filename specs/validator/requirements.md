@@ -24,12 +24,21 @@ spec: validator.spec.md
 - Flat source files (not in subdirectories) are detected as modules, excluding common entry points (main.rs, lib.rs, mod.rs, index.ts, etc.)
 - Source discovery respects `source_extensions` config
 - Requirements companions are validated when present but remain optional for technical/internal modules under adaptive artifact policy.
+- `validate_spec_content` applies the normal single-spec validation contract to caller-provided
+  bytes without opening `spec_path` or adjacent companions; the path remains diagnostic/source
+  context, while mapped sources retain normal path-based behavior.
+- `validate_spec_content_with_sources` accepts a capability-confined `SourceSnapshot` map and
+  validates mapped sources without reopening their ambient paths.
+- `validate_spec` reads the spec once and delegates its exact bytes to the shared content validator.
 
 ## Constraints
 
 - Validation must be fast enough for watch mode (~500ms debounce between runs)
 - Must accumulate all errors before reporting (not fail-fast on first error)
 - Error messages must include file paths and specific symbol/section names for actionability
+- Pre-read content validation must not reopen the logical spec path for spec bytes.
+- Supplied-source validation must treat its `SourceSnapshot` map as authoritative and must not
+  reopen mapped source paths.
 
 ## Out of Scope
 
@@ -40,19 +49,37 @@ spec: validator.spec.md
 
 ### REQ-validator-001
 
-The validator SHALL enforce bidirectional code-contract, metadata, dependency, schema, and coverage rules while accumulating actionable findings.
+The validator SHALL enforce bidirectional code-contract, metadata, dependency, schema, and coverage
+rules while accumulating actionable findings, and SHALL support exact pre-read spec snapshots
+without reopening their logical paths.
 
 Acceptance Criteria
-- Bidirectional validation: spec documents non-existent export = ERROR; code exports undocumented symbol = WARNING
-- Missing frontmatter fields (module, version, status) produce errors, not warnings
-- Cross-project refs (`owner/repo@module` format) are detected and skipped during local validation
-- Coverage computation excludes test files and configured exclude patterns
-- `find_spec_files` returns results sorted by path
-- Schema validation uses configurable regex pattern via `schema_pattern` config
-- File path suggestions use Levenshtein distance with max distance of 3
-- Flat source files (not in subdirectories) are detected as modules, excluding common entry points (main.rs, lib.rs, mod.rs, index.ts, etc.)
-- Source discovery respects `source_extensions` config
-- Requirements companions are validated when present but remain optional for technical/internal modules under adaptive artifact policy.
+
+- Bidirectional validation reports a documented-but-missing export as an error and an undocumented
+  code export as a warning.
+- Missing required frontmatter fields (`module`, `version`, `status`, `files`) are errors.
+- Cross-project references are recognized and skipped during local validation.
+- Coverage excludes test files and configured exclude patterns.
+- `find_spec_files` returns sorted results.
+- Schema validation uses the configured `schema_pattern`.
+- Missing source suggestions use Levenshtein distance with a maximum distance of three.
+- Flat source files are detected as modules while common entry points are excluded.
+- Source discovery respects configured `source_extensions`.
+- Requirements companions are validated when present and remain optional for technical/internal
+  modules under adaptive artifact policy.
+- `validate_spec_content` applies normal single-spec validation to caller-provided spec bytes.
+- `spec_path` remains the logical location for diagnostics and mapped-source resolution, but is not
+  reopened to obtain spec content; adjacent companion reads are deliberately skipped for the
+  pre-read spec-content API, while mapped sources retain normal path-based behavior.
+- CRLF normalization and spec-size policy are computed from the supplied content.
+- `validate_spec` preserves path-based compatibility by reading once and delegating the exact bytes
+  to `validate_spec_content`.
+- `SourceSnapshot` represents `Present`, `Missing`, `Rejected`, and `Unreadable` mapped-source
+  observations.
+- `validate_spec_content_with_sources` validates supplied spec bytes and supplied mapped-source
+  observations without reopening either through ambient project paths.
+- Supplied-content export extraction uses retained source bytes and does not resolve TypeScript
+  wildcard imports through ambient paths.
 
 ### REQ-validator-002
 
@@ -64,6 +91,8 @@ Acceptance Criteria
 - Unmapped HTML reports zero covered files out of one and fails a 100 percent gate.
 - Excluded assets remain excluded and static files require no exported symbols.
 - A zero-file project is reported distinctly from measured 100 percent coverage.
+- Coverage cannot report a percentage from a partial retained snapshot after a link/reparse,
+  special entry, identity replacement, invalid UTF-8 input, or deterministic budget failure.
 
 ### REQ-validator-003
 
@@ -123,3 +152,44 @@ Acceptance Criteria
 - Redundant dot segments cannot create coverage mismatches.
 - Absolute, parent-segment, prefixed, and backslash mappings remain errors in every lifecycle status and never count toward ownership or coverage.
 - A missing planned leaf beneath an existing symlinked parent that resolves outside the project or cannot be resolved is rejected before notice emission.
+
+### REQ-validator-008
+
+Coverage gates SHALL use fallible checked manifest discovery and SHALL report malformed, unreadable,
+unsupported, or unconfined Gradle discovery as inconclusive instead of accepting partial coverage
+or traversing outside the retained project root.
+
+Acceptance Criteria
+
+- `compute_coverage_checked` propagates checked manifest-discovery errors without producing a
+  partial `CoverageReport`.
+- CLI and MCP coverage/enforcement callers use checked coverage and fail with an inconclusive
+  diagnostic.
+- Raw drive-qualified module identities, dynamic/unsupported project-directory mutators, and
+  symlink/reparse components in Gradle-derived directories propagate as checked errors before
+  source probing, traversal, partial totals, or generation.
+- Interpolated/encoded-dynamic Gradle strings and unsafe or oversized Gradle manifest endpoints
+  propagate as checked errors before partial totals, outside reads, or generation.
+- After checked manifest discovery, every configured or manifest-derived source tree is traversed
+  through one retained project-root capability with no-follow directory opens and non-blocking,
+  identity-checked regular-file reads. Post-discovery replacement, links/reparse points, and
+  special files fail every coverage gate before totals, disclosure, or generated output.
+- Checked coverage acquires configured source roots and source bytes through retained no-follow
+  handles, binds directory/file identity before and after traversal, and derives file, LOC,
+  immediate-directory, and flat-file module results from that snapshot. Post-discovery
+  symlink/junction replacement fails inconclusive for every coverage gate before outside reads.
+- Caller-selected spec ownership reads, manifest discovery, spec-module enumeration, source
+  traversal, and final root verification share one retained project capability. Traversal is
+  sorted and iterative with 8 MiB per input file, 64 MiB cumulative bytes, 100,000 entries, and
+  256 path components.
+- Root retention precedes configuration and omitted-source manifest/source detection. Explicit
+  source roots skip autodetection; nested configuration/manifest parents remain reachable from the
+  retained root. Every selected spec and source inventory entry is charged to the shared entry
+  bound, and selected-spec discovery identity remains authoritative through ownership parsing.
+- Separate deterministic checkpoints immediately after root retention and after discovery scope
+  checked coverage; gate callers propagate their inconclusive errors.
+- Invalid UTF-8 source names/content, special entries, links/reparse points, root/directory/file
+  identity replacement, and exhausted bounds fail inconclusive before partial coverage totals.
+- `compute_coverage` remains available for compatibility and returns a zero-percent report carrying
+  an inconclusive module diagnostic when checked discovery fails.
+

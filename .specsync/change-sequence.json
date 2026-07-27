@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 61,
-  "id": "CHG-0061-document-the-5-2-0-lifecycle-surfaces-migrate-5-0-ledger-backfill-batch-and-si",
+  "sequence": 64,
+  "id": "CHG-0064-add-capability-safe-filesystem-support-for-mcp-security-hardening",
   "acknowledged_collisions": [
     {
       "sequence": 16,

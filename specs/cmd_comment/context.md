@@ -4,12 +4,13 @@ spec: cmd_comment.spec.md
 
 ## Key Decisions
 
-- Reuses the `check` pipeline verbatim: `load_and_discover` → `run_validation` (collect mode) → `compute_coverage` → `compute_exit_code`. This guarantees the comment's pass/fail badge matches what `check` would exit with in CI.
+- Reuses the `check` pipeline verbatim: `load_and_discover` → `run_validation` (collect mode) → `compute_coverage_checked` → `compute_exit_code`. This guarantees the comment's pass/fail badge matches what `check` would exit with in CI.
 - `render_check_comment` (in `src/comment.rs`) is the single renderer for the markdown body. There is intentionally no second comment-generation path — both the marketplace action and the project CI shell out to `specsync comment`.
 - Posting vs printing is the only branch in this wrapper: with `--pr N` it resolves the repo and shells out to `gh pr comment`; without `--pr` it prints the body to stdout.
 - Enforcement resolution: `--enforcement` overrides config; `--strict` implies strict enforcement; otherwise `config.enforcement` is used.
 - **Protocol-clean lifecycle checking**: comment mode calls `change::check_project_quiet`, which executes configured verification commands with child stdout/stderr suppressed. The ordinary lifecycle checker and explicit verification keep inherited output for local observability.
 - **Defense in depth in CI**: the project workflow uses `cargo run --quiet -- comment`; the renderer bounds the body, and the workflow applies a second UTF-8-safe byte cap before writing GitHub outputs.
+- Malformed Gradle settings make coverage inconclusive, so comment exits 1 with an explicit stderr diagnostic before rendering or posting a false-green summary.
 
 ## Files to Read First
 

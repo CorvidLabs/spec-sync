@@ -1,6 +1,6 @@
 ---
 id: CHG-0065-make-issue-417-changelog-compaction-idempotent-and-provide-truthful-portable-str
-state: accepted
+state: archived
 type: bug_fix
 base_commit: f74d52fdb6792dac2df89f545331b796dd7838ca
 ---

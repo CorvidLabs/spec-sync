@@ -17,6 +17,8 @@ spec: cli.spec.md
 | `tests/integration.rs` | cargo test --test integration require_coverage_on_coverage_subcommand | End-to-end fixture: `require_coverage_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration strict_on_coverage_subcommand | End-to-end fixture: `strict_on_coverage_subcommand` |
 | `tests/integration.rs` | cargo test --test integration toml_config_is_loaded | End-to-end fixture: `toml_config_is_loaded` |
+| `tests/integration/commands.rs` | `fledge run test -- compact_` | Compact text/JSON/Markdown routing, `--json` equivalence, and no-write dry runs |
+| `tests/integration/commands.rs` | `fledge run test -- archive_tasks_` | Archive-tasks text/JSON/Markdown routing, `--json` equivalence, and no-write dry runs |
 
 ## Behavioral Verification
 
@@ -24,7 +26,8 @@ spec: cli.spec.md
 |------|-----------------|--------|-----------------|
 | Default subcommand | the user runs `specsync` with no subcommand | the CLI parses arguments | the `check` command executes |
 | Strict mode with warnings | specs have undocumented exports (warnings but no errors) | `specsync check --strict` is run | the process exits with code 1 |
-| JSON output | `--json` flag is passed | any command runs | output is valid JSON with no ANSI escape codes |
+| JSON output | `--json` is passed | a structured-output command runs | output is valid JSON with no ANSI escape codes |
+| Compact/archive structured output | a fixture has compactable entries or completed tasks | run text, `--format json`, `--json`, and `--format markdown` variants | each handler receives the resolved format; structured stdout is parse-clean and dry-run safe |
 | Init idempotency | `specsync.json` already exists in the project root | `specsync init` is run | prints "specsync.json already exists" and returns without modifying it |
 | Coverage threshold | file coverage is 80% | `specsync check --require-coverage 90` is run | the process exits with code 1 and prints the unspecced files |
 | Deterministic generate | uncovered modules exist | `specsync generate` is run | local template specs and companions are created |
@@ -46,6 +49,7 @@ spec: cli.spec.md
 | Failed to write spec file | Prints error to stderr and exits 1 | Keep or add a focused assertion before changing this behavior |
 | Failed to write `specsync-registry.toml` | Prints error to stderr and exits 1 | Keep or add a focused assertion before changing this behavior |
 | No spec files found (non-generate commands) | Prints guidance message and exits 0 | Keep or add a focused assertion before changing this behavior |
+| Format silently ignored | Compact/archive JSON and Markdown requests must not fall through to terminal text | `compact_json_formats_are_clean_truthful_and_equivalent`, `archive_tasks_json_formats_are_clean_truthful_and_equivalent`, Markdown counterparts |
 
 ## Reviewer Checklist
 

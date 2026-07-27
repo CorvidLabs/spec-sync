@@ -23,6 +23,7 @@ spec: cli.spec.md
 - [x] Forward explicit MCP write authorization and fail closed on server-root startup errors
 - [x] Preserve requested roots for MCP and coverage-gating retained-capability traversal
 - [x] Keep generate writes bound to the retained root after checked coverage returns
+- [x] Forward global output format to `compact` and `archive-tasks` and cover JSON shorthand/Markdown dispatch end to end
 
 ## Gaps
 

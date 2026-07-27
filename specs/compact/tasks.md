@@ -17,6 +17,20 @@ spec: compact.spec.md
 - [x] Filter out results where `removed == 0`
 - [x] Bold-red error on write failure, continue with remaining specs
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
+- [x] Make generated summary folding byte-for-byte idempotent and preserve the original count/range
+- [x] Preserve escaped pipes, exact table width, and trailing-newline state
+- [x] Prevent user-authored `Compacted:` prose from being mistaken for generated state
+- [x] Add focused unit and end-to-end CLI regressions for issue #417
+- [x] Complete issue #417 structured command output in the owning `cmd_compact`, `cmd_archive_tasks`, and CLI modules
+- [x] Add provenance-bound summary ownership and reject duplicate generated summaries
+- [x] Preserve CRLF/mixed line endings and parse escaped/code-span pipes with correct backslash parity
+- [x] Add checked fixed-width summary counts, keep-zero coverage, and first-contiguous-table isolation
+- [x] Preflight and stage compact replacements before publication with typed incomplete/partial reporting
+- [x] Ignore fenced/indented changelog examples and prefix headings such as `## Change Logger`
+- [x] Preserve a missing final newline for LF and CRLF files when `keep = 0`
+- [x] Retain complete planned counts on staging failure and characterize deterministic late-publish partial results
+- [x] Stop before indented pipe-code and fail closed on indented separators
+- [x] Reject reordered generated summaries before no-final-newline reconstruction
 
 ## Review Status
 

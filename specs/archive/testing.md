@@ -6,11 +6,12 @@ spec: archive.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/archive.rs` | cargo test archive:: | `test_archive_completed_tasks`, `test_archive_no_completed`, `test_archive_preserves_existing` |
+| `src/archive.rs` | `fledge run test -- archive::tests` | Parsing, all/mixed plan failure, middle-stage failure, middle-publish rollback, rollback failure/partial state, dry-run/apply parity, and permission preservation |
+| `tests/integration/commands.rs` | `fledge run test -- archive_tasks_` | CLI preview plus parse-clean exit-1 failure report and zero-write assertion |
 
 ## Coverage Gaps
 
-- Integration gap: add a fixture for "Archive completed tasks" before changing user-visible CLI output, generated files, or error handling in archive.
+(none for the transactional archive-tasks remediation)
 
 ## Behavioral Verification
 
@@ -24,12 +25,15 @@ spec: archive.spec.md
 
 | Case | Required Behavior | Test Obligation |
 |------|-------------------|-----------------|
-| tasks.md file unreadable | Prints error in red, continues processing other files | Keep or add a focused assertion before changing this behavior |
-| tasks.md file unwritable | Prints error in red, continues processing other files | Keep or add a focused assertion before changing this behavior |
+| One candidate is unreadable/non-UTF-8 | Returns a read failure and modifies zero destinations | `planning_failure_prevents_all_destination_writes`, `archive_tasks_apply_failure_exits_one_and_reports_zero_writes` |
+| Middle candidate cannot be staged | Drops all staged temporaries and publishes zero destinations | `middle_staging_failure_prevents_all_destination_writes` |
+| Middle publication fails | Reports publish failure and restores prior destinations | `middle_publish_failure_rolls_back_prior_replacements` |
+| Rollback also fails | Leaves the unrestored operation in `succeeded` and exposes `partial: true` | `rollback_failure_exposes_the_remaining_partial_apply` |
+| Destination has non-default permissions | Atomic replacement preserves the original permission bits | `apply_preserves_original_unix_permissions` |
 
 ## Reviewer Checklist
 
 - Run the narrow source command above before the full suite when changing `src/archive.rs`.
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
-- If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
+- If an operation name or error schema changes, update the matching Regression Matrix row and structured-output assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.

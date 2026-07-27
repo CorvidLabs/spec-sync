@@ -17,13 +17,14 @@ spec: cli.spec.md
 - As a team lead, I want `specsync hooks install` to set up agent instructions for Claude, Cursor, and Copilot so that AI assistants respect our specs automatically
 - As a developer, I want `specsync add-spec <name>` to scaffold a single spec with companion files so that I can add documentation incrementally
 - As a developer or agent, I want one `specsync change` namespace for the complete verified SDD lifecycle so that delivery state and next actions remain predictable
+- As an automation author, I want the root dispatcher to honor JSON and Markdown formats for compact/archive maintenance commands instead of silently printing text
 
 ## Acceptance Criteria
 
 - No subcommand defaults to `check`
 - Exit code 0 on success, 1 on errors (or warnings in strict mode, or coverage below threshold)
-- `--json` suppresses all ANSI color codes and outputs valid JSON
-- `--format markdown` produces output suitable for PR comments
+- Commands that advertise JSON output suppress all ANSI color codes and emit one valid document
+- Commands that advertise Markdown output produce content suitable for PR comments
 - `--root <path>` allows running against a different project directory
 - All domain logic is delegated to library modules — `main.rs` is purely a dispatcher and the clap grammar lives in `src/cli.rs`
 - `--fix` only modifies spec files, never source code
@@ -31,6 +32,7 @@ spec: cli.spec.md
 - `generate` accepts no provider/model options and delegates only to the deterministic generator
 - A panic in any subcommand is caught and reported as a "please report it" bug message rather than a raw backtrace
 - `change` dispatches every lifecycle operation through the shared domain engine and preserves structured JSON output
+- `compact` and `archive-tasks` receive the resolved global `OutputFormat`; `--json` is equivalent to `--format json`
 
 ## Constraints
 
@@ -108,4 +110,14 @@ Acceptance Criteria
 - Other commands retain their established canonical-root dispatch behavior.
 - A symlink/junction replacement after capability retention remains observable to checked
   traversal and cannot be hidden by dispatcher canonicalization.
+
+### REQ-cli-007
+
+The root CLI SHALL forward the resolved global output format to compact and archive-tasks handlers.
+
+Acceptance Criteria
+
+- `--json` and `--format json` dispatch the same `OutputFormat::Json` value.
+- `--format markdown` dispatches `OutputFormat::Markdown`.
+- No human banner is emitted before the structured renderer.
 

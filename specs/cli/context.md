@@ -6,7 +6,8 @@ spec: cli.spec.md
 
 - **Thin dispatcher**: `main.rs` parses CLI args with `clap`, then routes to `cmd_*` handler functions that orchestrate calls to the library modules. No domain logic lives here — purely argument parsing, output formatting, and exit code management.
 - **Default subcommand**: `check` runs when no subcommand is given, making the most common operation the easiest to invoke.
-- **JSON mode**: `--json` is a global flag so all commands can produce machine-readable output for CI/scripting.
+- **JSON mode**: `--json` is normalized globally so structured-output handlers receive one consistent machine-readable format selection.
+- **Structured maintenance output**: `main.rs` forwards the resolved format to `compact` and `archive-tasks`; those wrappers own JSON/Markdown rendering and keep mutation logic in their delegates.
 - **Strict mode**: `--strict` converts warnings to errors, useful for CI pipelines that want zero-warning enforcement.
 - **Idempotent init**: Both `init` and `init-registry` check for existing files before writing, preventing accidental overwrites.
 - **No network by default**: `resolve` only performs network calls with `--remote`, keeping default behavior offline and fast.
@@ -32,7 +33,8 @@ spec: cli.spec.md
 Fully implemented. The CLI exposes deterministic validation/generation, complete lifecycle/change
 commands, and native Agents/MCP integration without embedded inference configuration. MCP mutation
 remains opt-in at dispatch, startup fails closed before request processing when the root is invalid,
-and capability-sensitive gates retain the requested root spelling for replacement detection.
+capability-sensitive gates retain the requested root spelling for replacement detection, and
+structured maintenance commands honor the resolved global output format.
 
 ## Notes
 

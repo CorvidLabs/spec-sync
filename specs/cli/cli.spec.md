@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 13
+version: 15
 status: stable
 files:
   - src/main.rs
@@ -75,8 +75,8 @@ Clap derive types define the root `Cli`, the `Command` namespace, and focused ac
 | hooks install | Install agent instructions and/or git hooks | --claude, --cursor, --copilot, --agents, --precommit, --claude-code-hook |
 | hooks uninstall | Remove previously installed hooks | --claude, --cursor, --copilot, --agents, --precommit, --claude-code-hook |
 | hooks status | Show installation status of all hooks | — |
-| compact | Compact changelog tables by summarizing old entries | --keep N (default 10), --dry-run |
-| archive-tasks | Move completed task items to archive section | --dry-run |
+| compact | Compact changelog tables by summarizing old entries | --keep N (default 10), --dry-run, --format, --json |
+| archive-tasks | Move completed task items to archive section | --dry-run, --format, --json |
 | view | Filter spec content by stakeholder role | --role (dev\|qa\|product\|agent), --spec PATH |
 | merge | Auto-resolve git merge conflicts in spec files | --dry-run, --all, --json |
 | issues | Verify GitHub issue references in spec frontmatter | --create (create drift issues for failures) |
@@ -95,7 +95,7 @@ Clap derive types define the root `Cli`, the `Command` namespace, and focused ac
 | --strict | bool | false | Treat warnings as errors (exit 1) |
 | --require-coverage | Option usize | None | Fail if file coverage percent is below threshold |
 | --root | Option PathBuf | cwd | Project root directory |
-| --format | text\|json\|markdown | text | Output format: colored text, machine-readable JSON, or markdown |
+| --format | text\|json\|markdown\|github\|table\|csv | text | Select a command-supported output renderer |
 | --json | bool | false | Shorthand for `--format json` |
 | --enforcement | Option EnforcementMode | None | Override configured enforcement mode (warn, enforce-new, strict) |
 | --force | bool | false | Bypass hash cache and re-validate all specs |
@@ -156,6 +156,8 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 9. MCP dispatch forwards the parsed write capability unchanged; read-only remains the default.
 10. MCP server-root initialization failures are printed to stderr and exit 2 before request input is
     processed.
+11. `compact` and `archive-tasks` receive the resolved global output format instead of silently
+    falling back to text.
 
 ## Behavioral Examples
 
@@ -173,8 +175,8 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 
 ### Scenario: JSON output
 
-- **Given** `--json` flag is passed
-- **When** any command runs
+- **Given** `--json` is passed to a structured-output command such as `compact` or `archive-tasks`
+- **When** the root dispatcher invokes the handler
 - **Then** output is valid JSON with no ANSI escape codes
 
 ### Scenario: Init idempotency
@@ -355,6 +357,7 @@ update is an explicit implementation edit because semantic section deltas do not
 
 | Date | Change |
 |------|--------|
+| 2026-07-26 | Fix #417: forward resolved output format to compact/archive-tasks so JSON shorthand and Markdown are honored |
 | 2026-07-10 | v5: dispatch the verified `specsync change` SDD lifecycle |
 | 2026-06-11 | v4: `--root` now errors (exit 2) for nonexistent paths; init scenario covers the v4 config layout |
 | 2026-04-10 | Add Performance Requirements section with response time targets, cache requirements, resource limits, and scalability targets |
@@ -369,3 +372,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |
 | 2026-07-26 | v12 / CHG-0063 Windows root-retention remediation: Preserve the requested root spelling for MCP and coverage-gating commands so junction/symlink replacement remains observable after capability retention, including through generation publication |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-27 | CHG-0065-make-issue-417-changelog-compaction-idempotent-and-provide-truthful-portable-str: Make issue 417 changelog compaction idempotent and provide truthful portable structured maintenance output |

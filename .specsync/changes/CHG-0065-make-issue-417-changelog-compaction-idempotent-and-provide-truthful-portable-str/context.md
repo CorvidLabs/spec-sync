@@ -25,3 +25,9 @@ user lookalikes, multiple summaries could corrupt counts, line reconstruction no
 backslash parity/code spans were parsed incorrectly, unchecked counts could overflow, Unix
 backslashes were aliased, Markdown paths were injectable, and write failures could leave partial
 state while exiting successfully. These findings are release blockers and are now in scope.
+
+The rebuilt PR #447 branch now contains eight dependency-ordered commits based directly on current
+`main`. Candidate `d6c12fdbf4f2a1d96c15408946392074c02244d5` passed the full local lane, private
+sandbox replay, two independent reviews, signed 0.95-confidence Attest verification, hosted Trust,
+all cross-platform GitHub checks, and Corvin approval. CHG-0065 is ready for a refreshed definition
+approval, native lifecycle verification, and explicit closing approval.

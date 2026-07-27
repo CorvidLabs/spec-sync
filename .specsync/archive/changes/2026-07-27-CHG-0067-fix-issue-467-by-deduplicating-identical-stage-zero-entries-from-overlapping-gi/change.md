@@ -1,6 +1,6 @@
 ---
 id: CHG-0067-fix-issue-467-by-deduplicating-identical-stage-zero-entries-from-overlapping-gi
-state: accepted
+state: archived
 type: bug_fix
 base_commit: e27cba1cdcb02b36ba7e4094b5ec5369a675b47a
 ---

@@ -45,3 +45,10 @@ Legacy acceptance-manifest reconstruction no longer aborts on adoption-era recor
 `backfill_reopen_digests` provides the native 5.0→5.1 ledger path: deterministic, idempotent repair of 5.0.1-era reopenings (stale from the embedded prior verification, current from the superseding verification or a live manifest-aware recomputation), verified against the 5.1 schema before any write and skipped per-change when undeterminable. `load_approvals` maps the missing-field parse failure to the `specsync migrate 5.0` remediation.
 
 Canonical module path resolution treats inert 5.0.1-era local registry stubs as absent via `load_local_registry`, so conventional `specs/<module>/` fallbacks remain available while non-inert unparsable registries keep the established fail-closed parse diagnostic.
+
+Bounded Git candidate inspection can receive the same tracked child through a broad parent
+pathspec in one batch and an exact child pathspec in another. Stage-zero observations are
+accumulated as one `(mode, normalized object ID)` pair per path: exact repeats are idempotent,
+while either field changing produces a deterministic conflicting-duplicate error without
+replacing the first pair. Output bounds and all other index, path, and working-tree checks remain
+unchanged.

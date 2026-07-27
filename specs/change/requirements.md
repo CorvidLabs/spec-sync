@@ -518,3 +518,18 @@ Acceptance Criteria
 - A non-inert unparsable local registry still fails closed with the exact pre-fix diagnostic `failed to parse local registry {path} while resolving `{module}``.
 - Named registries with safe mappings continue to win over the conventional fallback.
 
+### REQ-change-042
+
+Git candidate inspection SHALL deduplicate repeated stage-zero paths only when their normalized
+mode and object identity are exact, while conflicting observations fail closed.
+
+Acceptance Criteria
+
+- A stage-zero path returned through overlapping bounded pathspec batches is represented once when
+  every observed mode and normalized object ID is identical.
+- A repeated path with a differing mode fails closed without replacing the first observation.
+- A repeated path with a differing object ID fails closed without replacing the first observation.
+- Parent-directory and exact-child candidate scopes remain valid across pathspec batch boundaries.
+- Deterministic output bounds, unresolved-stage rejection, malformed metadata rejection, and
+  out-of-scope path rejection remain unchanged.
+

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "CHG-0067-fix-issue-467-by-deduplicating-identical-stage-zero-entries-from-overlapping-gi",
+  "slug": "fix-issue-467-by-deduplicating-identical-stage-zero-entries-from-overlapping-gi",
+  "title": "Fix issue #467 by deduplicating identical stage-zero entries from overlapping Git pathspec batches while rejecting conflicting mode or object observations",
+  "description": "Fix issue #467 by deduplicating identical stage-zero entries from overlapping Git pathspec batches while rejecting conflicting mode or object observations",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "e27cba1cdcb02b36ba7e4094b5ec5369a675b47a",
+  "created_at": 1785175148,
+  "updated_at": 1785179036,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Identical stage-zero entries returned through overlapping bounded pathspec batches are accepted and represented exactly once.",
+    "A repeated path with a different Git mode fails closed without replacing the first observed entry.",
+    "A repeated path with a different Git object ID fails closed without replacing the first observed entry.",
+    "A lifecycle delivery scope containing a parent directory and enough exact tracked children to cross the pathspec batch boundary completes Git candidate inspection successfully.",
+    "Existing deterministic output bounds, unresolved-stage rejection, and out-of-scope path rejection remain unchanged."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

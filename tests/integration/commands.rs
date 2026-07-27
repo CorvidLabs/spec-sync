@@ -3885,7 +3885,9 @@ Minimal module.
         .current_dir(root)
         .args(["merge", "--all"])
         .assert()
-        .success();
+        .success()
+        .stdout(predicate::str::contains("Auto-resolved"))
+        .stdout(predicate::str::contains("Auto-resolvable").not());
 
     let resolved = fs::read_to_string(&spec_path).unwrap();
     assert!(
@@ -3902,6 +3904,102 @@ Minimal module.
         .arg("check")
         .assert()
         .stdout(predicate::str::contains("Frontmatter invalid").not());
+}
+
+#[test]
+fn merge_issue_427_diff3_max_version_and_dry_run_are_lossless() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/minimal.ts"),
+        "export function doThing() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/minimal")).unwrap();
+
+    let conflicted = concat!(
+        "---\nmodule: minimal\n",
+        "<<<<",
+        "<<< HEAD\nversion: 3\n",
+        "||||",
+        "||| base\nversion: 1\n",
+        "===",
+        "====\nversion: 2\n",
+        ">>>>",
+        ">>> branch\n",
+        "status: active\nfiles:\n  - src/minimal.ts\ndb_tables: []\ndepends_on: []\n",
+        "---\n# Minimal\n\n## Purpose\n\nMinimal module.\n",
+    );
+    let spec_path = root.join("specs/minimal/minimal.spec.md");
+    fs::write(&spec_path, conflicted).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["merge", "--all", "--dry-run"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("would resolve"))
+        .stdout(predicate::str::contains("Auto-resolvable"));
+    assert_eq!(fs::read_to_string(&spec_path).unwrap(), conflicted);
+
+    specsync()
+        .current_dir(root)
+        .args(["merge", "--all"])
+        .assert()
+        .success();
+    let resolved = fs::read_to_string(&spec_path).unwrap();
+    assert!(resolved.contains("version: 3"), "{resolved}");
+    assert!(!resolved.contains("version: 2"), "{resolved}");
+    assert!(!resolved.contains("|||||||"), "{resolved}");
+    assert!(!resolved.contains("<<<<<<<"), "{resolved}");
+}
+
+#[test]
+fn merge_issue_427_mixed_manual_file_remains_byte_identical() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/minimal.ts"),
+        "export function doThing() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/minimal")).unwrap();
+
+    let conflicted = concat!(
+        "---\nmodule: minimal\n",
+        "<<<<",
+        "<<< HEAD\nversion: 3\n",
+        "===",
+        "====\nversion: 2\n",
+        ">>>>",
+        ">>> branch\n",
+        "status: active\nfiles:\n  - src/minimal.ts\ndb_tables: []\ndepends_on: []\n",
+        "---\n# Minimal\n\n## Public API\n\n| Name | Description |\n|------|-------------|\n",
+        "<<<<",
+        "<<< HEAD\n| `doThing` | Main description. |\n",
+        "===",
+        "====\n| `doThing` | Incoming description. |\n",
+        ">>>>",
+        ">>> branch\n",
+    );
+    let spec_path = root.join("specs/minimal/minimal.spec.md");
+    fs::write(&spec_path, conflicted).unwrap();
+
+    specsync()
+        .current_dir(root)
+        .args(["merge", "--all"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Auto-resolvable"))
+        .stdout(predicate::str::contains("HEAD"))
+        .stdout(predicate::str::contains("branch"))
+        .stdout(predicate::str::contains("left unchanged (all-or-nothing)"));
+
+    assert_eq!(fs::read_to_string(&spec_path).unwrap(), conflicted);
 }
 
 // ─── specsync hooks ─────────────────────────────────────────────────────

@@ -4,10 +4,12 @@ spec: merge.spec.md
 
 ## Key Decisions
 
-- **Section-aware strategies**: `resolve_conflict` dispatches on the enclosing section (last `## ` heading, computed via `detect_section` from text emitted so far). Frontmatter (before any heading) unions lists and takes theirs for scalars; `## Change Log` merges rows chronologically; any section that is *pure table rows* gets a key-based table merge; everything else (prose) is left for manual resolution.
-- **Region parsing, not regex**: `parse_conflict_regions` walks lines, peeling `<<<<<<< / ======= / >>>>>>>` blocks into `ours`/`theirs` strings and a `marker_label`. Clean text between blocks is preserved verbatim.
-- **Zero-dependency YAML**: `parse_yaml_fields` handles the project's simple key/scalar and key/list subset directly rather than pulling in a YAML crate. List keys `files`, `db_tables`, `depends_on` are unioned and sorted.
-- **Theirs-wins precedence**: for scalar frontmatter fields and generic-table row collisions, the incoming (theirs) value overrides ours, treating the merged-in branch as the newer change.
+- **Section-aware strategies**: `resolve_conflict` dispatches on the enclosing section (last `## ` heading, computed via `detect_section` from text emitted so far). Frontmatter (before any heading) unions known lists, takes the maximum numeric version, and rejects ambiguous scalars; `## Change Log` merges rows chronologically; any section that is *pure table rows* gets a lossless key-based union; everything else (prose) is left for manual resolution.
+- **Exact region parsing, not regex precedence**: `parse_conflict_regions` accepts exact `<<<<<<< / ||||||| / ======= / >>>>>>>` forms and separates HEAD, base, and incoming regions. Base content is excluded from auto-resolution inputs; orphan, nested, duplicate, incomplete, and lookalike markers keep the complete file manual.
+- **Conservative YAML subset plus checked validation**: `parse_yaml_fields` distinguishes null scalars from empty lists and handles only top-level key/scalar and known-list shapes. Nested mappings remain manual. Every candidate output must contain frontmatter and is checked by the shared YAML parser for duplicate keys and by canonical required-field/status rules.
+- **No ambiguous winner**: numeric versions use the maximum value and known frontmatter lists are unioned. Divergent or one-sided non-version scalars, nonnumeric versions, same-key table rows, and table header/separator hunks remain manual; no branch is silently selected.
+- **All-or-nothing persistence**: a file is written only after every hunk resolves and frontmatter validates. Auto-resolvable hunks are reported but not persisted when any hunk remains manual.
+- **Truthful persistence wording**: dry-run candidates remain `Auto-resolvable`; details become `Auto-resolved` only after the complete file is successfully written.
 - **Conservative fallbacks**: when `git diff` fails in git mode, `detect_conflicted_specs` returns an empty list (no specs processed); unreadable files become `Manual`; a still-conflicted result keeps its markers.
 
 ## Files to Read First
@@ -16,10 +18,10 @@ spec: merge.spec.md
 
 ## Current Status
 
-Stable and complete. Public API: `merge_specs`, `has_conflict_markers`, `print_results`, `results_to_json`, plus `MergeResult`/`MergeStatus`. Invoked by the `cmd_merge` subcommand.
+CHG-0066 implementation is under verification after independent acceptance and adversarial review. Public API remains `merge_specs`, `has_conflict_markers`, `print_results`, `results_to_json`, plus `MergeResult`/`MergeStatus`.
 
 ## Notes
 
-- Depends on `parser::parse_frontmatter` (post-resolution validation) and `validator::find_spec_files` (all-files scan).
+- Depends on `parser::parse_frontmatter` and `parse_checked_issue_references` for post-resolution structural/YAML validation and `validator::find_spec_files` for all-files scan.
 - Changelog sorting assumes ISO `YYYY-MM-DD` dates so lexicographic order is chronological.
 - `print_results` skips `Clean` entries; `results_to_json` includes all three statuses.

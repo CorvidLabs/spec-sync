@@ -1,6 +1,7 @@
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
@@ -31,6 +32,7 @@ const MAX_GIT_COMMAND_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 const MAX_GIT_DIAGNOSTIC_BYTES: usize = 64 * 1024;
 const MAX_GIT_INDEX_BYTES: usize = 256 * 1024 * 1024;
 const MAX_GIT_EVIDENCE_PAYLOAD_BYTES: usize = 256 * 1024 * 1024;
+const MAX_CHANGE_READ_CACHE_ENTRIES: usize = 100_000;
 const GIT_COMMAND_DEADLINE: Duration = Duration::from_secs(120);
 const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
     "requirements.md",
@@ -42,6 +44,147 @@ const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
 static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct GitEvidenceCacheKey {
+    regular_files_only: bool,
+    candidates: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct DiscoveredEvidenceCacheKey {
+    scopes: Option<Vec<String>>,
+    extra_candidates: Vec<String>,
+    regular_files_only: bool,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct GitTextQueryCacheKey {
+    allow_empty: bool,
+    arguments: Vec<String>,
+}
+
+#[derive(Debug)]
+struct ChangeReadSnapshot {
+    root: PathBuf,
+    active_records: Option<Result<Vec<ChangeRecord>, String>>,
+    all_records: Option<Result<BTreeMap<String, ChangeRecord>, String>>,
+    repository_present: Option<Result<bool, String>>,
+    repository_context: Option<Result<RepositoryContext, String>>,
+    checkout_overrides: Option<Result<Vec<String>, String>>,
+    project_input_digest: Option<Result<String, String>>,
+    git_evidence: BTreeMap<GitEvidenceCacheKey, Result<GitEvidence, String>>,
+    discovered_evidence:
+        BTreeMap<DiscoveredEvidenceCacheKey, Result<(Vec<String>, GitEvidence), String>>,
+    git_text_queries: BTreeMap<GitTextQueryCacheKey, Option<String>>,
+    terminal_evidence: Option<Result<BTreeMap<String, TerminalEvidenceSummary>, String>>,
+}
+
+impl ChangeReadSnapshot {
+    fn new(root: &Path) -> Self {
+        Self {
+            root: root.to_path_buf(),
+            active_records: None,
+            all_records: None,
+            repository_present: None,
+            repository_context: None,
+            checkout_overrides: None,
+            project_input_digest: None,
+            git_evidence: BTreeMap::new(),
+            discovered_evidence: BTreeMap::new(),
+            git_text_queries: BTreeMap::new(),
+            terminal_evidence: None,
+        }
+    }
+}
+
+thread_local! {
+    static CHANGE_READ_SCOPES: RefCell<Vec<ChangeReadSnapshot>> = const {
+        RefCell::new(Vec::new())
+    };
+    #[cfg(test)]
+    static TEST_GIT_PROCESS_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
+}
+
+/// Invocation-scoped snapshot for read-only lifecycle commands.
+///
+/// The snapshot is deliberately installed only by list/show/status adapters and the read-only
+/// domain check entry points. Mutating lifecycle APIs do not create one, so every mutation
+/// validates live repository and evidence state. Each first evidence collection within a snapshot
+/// still performs the full before/after Git index race check.
+pub(crate) struct ChangeReadScope {
+    root: PathBuf,
+}
+
+impl Drop for ChangeReadScope {
+    fn drop(&mut self) {
+        CHANGE_READ_SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            let removed = scopes.pop();
+            debug_assert_eq!(
+                removed.as_ref().map(|scope| scope.root.as_path()),
+                Some(self.root.as_path())
+            );
+        });
+    }
+}
+
+pub(crate) fn begin_change_read_scope(root: &Path) -> ChangeReadScope {
+    CHANGE_READ_SCOPES.with(|scopes| {
+        scopes.borrow_mut().push(ChangeReadSnapshot::new(root));
+    });
+    ChangeReadScope {
+        root: root.to_path_buf(),
+    }
+}
+
+fn ensure_change_read_scope(root: &Path) -> Option<ChangeReadScope> {
+    read_scope_value(root, |_| Some(()))
+        .is_none()
+        .then(|| begin_change_read_scope(root))
+}
+
+fn read_scope_value<Value: Clone>(
+    root: &Path,
+    read: impl FnOnce(&ChangeReadSnapshot) -> Option<Value>,
+) -> Option<Value> {
+    CHANGE_READ_SCOPES.with(|scopes| {
+        let scopes = scopes.borrow();
+        let scope = scopes.last()?;
+        (scope.root == root).then(|| read(scope)).flatten()
+    })
+}
+
+fn update_read_scope(root: &Path, update: impl FnOnce(&mut ChangeReadSnapshot)) -> bool {
+    CHANGE_READ_SCOPES.with(|scopes| {
+        let mut scopes = scopes.borrow_mut();
+        let Some(scope) = scopes.last_mut().filter(|scope| scope.root == root) else {
+            return false;
+        };
+        update(scope);
+        true
+    })
+}
+
+#[cfg(test)]
+fn record_test_git_process() {
+    TEST_GIT_PROCESS_COUNT.with(|count| count.set(count.get() + 1));
+}
+
+#[cfg(not(test))]
+fn record_test_git_process() {}
+
+#[cfg(test)]
+fn reset_test_git_process_count() {
+    TEST_GIT_PROCESS_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+fn test_git_process_count() -> usize {
+    TEST_GIT_PROCESS_COUNT.with(std::cell::Cell::get)
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct GitWorktreeState {
@@ -966,6 +1109,17 @@ pub fn list_changes(root: &Path) -> Vec<ChangeRecord> {
 }
 
 fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
+    if let Some(records) = read_scope_value(root, |scope| scope.active_records.clone()) {
+        return records;
+    }
+    let result = list_changes_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.active_records = Some(result.clone());
+    });
+    result
+}
+
+fn list_changes_uncached(root: &Path) -> Result<Vec<ChangeRecord>, String> {
     let mut records = Vec::new();
     let dir = root.join(CHANGES_PATH);
     let entries = match fs::read_dir(dir) {
@@ -2053,76 +2207,111 @@ fn validate_acceptance_owner_correction_records(record: &ChangeRecord) -> Result
     }
     let mut exact_pairs = BTreeSet::new();
     for (index, correction) in record.acceptance_owner_corrections.iter().enumerate() {
-        let expected_sequence = index as u64 + 1;
-        if correction.schema_version != 1 {
-            return Err(format!(
-                "unsupported acceptance owner correction schema {} at sequence {expected_sequence}",
-                correction.schema_version
-            ));
-        }
-        if correction.sequence != expected_sequence {
-            return Err(format!(
-                "acceptance owner correction sequence is not contiguous: expected {expected_sequence}, found {}",
-                correction.sequence
-            ));
-        }
-        if correction.path.len() > MAX_ACCEPTANCE_PATH_BYTES
-            || strict_portable_relative_path(&correction.path)? != correction.path
-        {
-            return Err(format!(
-                "invalid acceptance owner correction path `{}`",
-                correction.path
-            ));
-        }
-        if correction.module.len() > MAX_ACCEPTANCE_OWNER_BYTES
-            || correction.module.starts_with("@exact:")
-        {
-            return Err(format!(
-                "invalid acceptance owner correction module `{}`",
-                correction.module
-            ));
-        }
-        crate::commands::validate_module_name(&correction.module)
-            .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
-        if correction.actor.trim().is_empty()
-            || correction.actor.trim() != correction.actor
-            || correction.reason.trim().is_empty()
-            || correction.reason.trim() != correction.reason
-        {
-            return Err(format!(
-                "acceptance owner correction sequence {expected_sequence} has a missing or non-canonical actor/reason"
-            ));
-        }
-        if !record
-            .affected_paths
-            .iter()
-            .any(|scope| path_matches_scope(&correction.path, scope))
-        {
-            return Err(format!(
-                "acceptance owner correction path `{}` is outside the original affected path scope",
-                correction.path
-            ));
-        }
-        if record.affected_specs.contains(&correction.module) {
-            return Err(format!(
-                "acceptance owner `{}` is already represented by the original affected specs",
-                correction.module
-            ));
-        }
-        if !exact_pairs.insert((correction.path.as_str(), correction.module.as_str())) {
-            return Err(format!(
-                "duplicate acceptance owner correction `{}` for `{}`",
-                correction.module, correction.path
-            ));
-        }
+        validate_acceptance_owner_correction_record(
+            record,
+            correction,
+            index as u64 + 1,
+            &mut exact_pairs,
+        )?;
     }
     Ok(())
 }
 
-fn canonical_module_owns_exact_source_path(
+fn validate_acceptance_owner_correction_record(
+    record: &ChangeRecord,
+    correction: &AcceptanceOwnerCorrection,
+    expected_sequence: u64,
+    exact_pairs: &mut BTreeSet<(String, String)>,
+) -> Result<(), String> {
+    if correction.schema_version != 1 {
+        return Err(format!(
+            "unsupported acceptance owner correction schema {} at sequence {expected_sequence}",
+            correction.schema_version
+        ));
+    }
+    if correction.sequence != expected_sequence {
+        return Err(format!(
+            "acceptance owner correction sequence is not contiguous: expected {expected_sequence}, found {}",
+            correction.sequence
+        ));
+    }
+    if correction.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+        || strict_portable_relative_path(&correction.path)? != correction.path
+    {
+        return Err(format!(
+            "invalid acceptance owner correction path `{}`",
+            correction.path
+        ));
+    }
+    if correction.module.len() > MAX_ACCEPTANCE_OWNER_BYTES
+        || correction.module.starts_with("@exact:")
+    {
+        return Err(format!(
+            "invalid acceptance owner correction module `{}`",
+            correction.module
+        ));
+    }
+    crate::commands::validate_module_name(&correction.module)
+        .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
+    if correction.actor.trim().is_empty()
+        || correction.actor.trim() != correction.actor
+        || correction.reason.trim().is_empty()
+        || correction.reason.trim() != correction.reason
+    {
+        return Err(format!(
+            "acceptance owner correction sequence {expected_sequence} has a missing or non-canonical actor/reason"
+        ));
+    }
+    if !record
+        .affected_paths
+        .iter()
+        .any(|scope| path_matches_scope(&correction.path, scope))
+    {
+        return Err(format!(
+            "acceptance owner correction path `{}` is outside the original affected path scope",
+            correction.path
+        ));
+    }
+    if record.affected_specs.contains(&correction.module) {
+        return Err(format!(
+            "acceptance owner `{}` is already represented by the original affected specs",
+            correction.module
+        ));
+    }
+    if !exact_pairs.insert((correction.path.clone(), correction.module.clone())) {
+        return Err(format!(
+            "duplicate acceptance owner correction `{}` for `{}`",
+            correction.module, correction.path
+        ));
+    }
+    Ok(())
+}
+
+fn canonical_module_source_paths(root: &Path, module: &str) -> Result<BTreeSet<String>, String> {
+    let config = crate::config::load_config(root);
+    let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)?;
+    let spec_relative = strict_portable_project_path(root, &spec_path)?;
+    let candidates = BTreeSet::from([spec_relative.clone()]);
+    let evidence = git_regular_file_evidence(root, &candidates)?;
+    let entry = evidence.entry(&spec_relative)?;
+    let content = String::from_utf8(entry.payload.clone()).map_err(|_| {
+        format!("canonical spec for `{module}` is not valid UTF-8: {spec_relative}")
+    })?;
+    let parsed = crate::parser::parse_frontmatter(&content)
+        .ok_or_else(|| format!("canonical spec for `{module}` has invalid frontmatter"))?;
+    Ok(parsed
+        .frontmatter
+        .files
+        .iter()
+        .filter_map(|path| normalize_project_path(path).ok())
+        .collect())
+}
+
+fn canonical_module_owns_cached_source_path(
     root: &Path,
     module: &str,
     relative: &str,
+    owned_paths: &BTreeSet<String>,
 ) -> Result<(), String> {
     if !path_is_production_source(root, relative) {
         return Err(format!(
@@ -2137,22 +2326,7 @@ fn canonical_module_owns_exact_source_path(
             "acceptance owner correction path `{relative}` must be a regular file"
         ));
     }
-    let config = crate::config::load_config(root);
-    let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)?;
-    let spec_relative = strict_portable_project_path(root, &spec_path)?;
-    let candidates = BTreeSet::from([spec_relative.clone()]);
-    let evidence = git_regular_file_evidence(root, &candidates)?;
-    let entry = evidence.entry(&spec_relative)?;
-    let content = String::from_utf8(entry.payload.clone()).map_err(|_| {
-        format!("canonical spec for `{module}` is not valid UTF-8: {spec_relative}")
-    })?;
-    let parsed = crate::parser::parse_frontmatter(&content)
-        .ok_or_else(|| format!("canonical spec for `{module}` has invalid frontmatter"))?;
-    let owns =
-        parsed.frontmatter.files.iter().any(|path| {
-            normalize_project_path(path).is_ok_and(|normalized| normalized == relative)
-        });
-    if !owns {
+    if !owned_paths.contains(relative) {
         return Err(format!(
             "canonical module `{module}` does not own exact source path `{relative}`"
         ));
@@ -2164,9 +2338,28 @@ fn validate_acceptance_owner_corrections_current(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<(), String> {
+    validate_acceptance_owner_corrections_current_with_cache(root, record, &mut BTreeMap::new())
+}
+
+fn validate_acceptance_owner_corrections_current_with_cache(
+    root: &Path,
+    record: &ChangeRecord,
+    owned_by_module: &mut BTreeMap<String, BTreeSet<String>>,
+) -> Result<(), String> {
     validate_acceptance_owner_correction_records(record)?;
     for correction in &record.acceptance_owner_corrections {
-        canonical_module_owns_exact_source_path(root, &correction.module, &correction.path)?;
+        if !owned_by_module.contains_key(&correction.module) {
+            owned_by_module.insert(
+                correction.module.clone(),
+                canonical_module_source_paths(root, &correction.module)?,
+            );
+        }
+        canonical_module_owns_cached_source_path(
+            root,
+            &correction.module,
+            &correction.path,
+            &owned_by_module[&correction.module],
+        )?;
     }
     Ok(())
 }
@@ -2262,7 +2455,8 @@ pub fn add_acceptance_owner_corrections(
         );
     }
 
-    validate_acceptance_owner_correction_records(&record)?;
+    let mut owned_by_module = BTreeMap::new();
+    validate_acceptance_owner_corrections_current_with_cache(root, &record, &mut owned_by_module)?;
     let approvals = load_approvals(root, &record)?;
     let metadata_corrections = load_correction_ledger(root, &record)?;
     let reopening = latest_reopen_for_owner_correction(&record, &approvals, &metadata_corrections)?;
@@ -2281,6 +2475,11 @@ pub fn add_acceptance_owner_corrections(
 
     let timestamp = now();
     let mut provisional = record.clone();
+    let mut exact_pairs = provisional
+        .acceptance_owner_corrections
+        .iter()
+        .map(|correction| (correction.path.clone(), correction.module.clone()))
+        .collect();
     for (index, (path, module)) in entries.iter().enumerate() {
         let path = path.trim();
         let module = module.trim();
@@ -2300,25 +2499,44 @@ pub fn add_acceptance_owner_corrections(
         if module.starts_with("@exact:") {
             return Err("reserved exact owners cannot be added through correct-owner".into());
         }
-        provisional
-            .acceptance_owner_corrections
-            .push(AcceptanceOwnerCorrection {
-                schema_version: 1,
-                sequence: provisional.acceptance_owner_corrections.len() as u64 + 1,
-                path: path.to_string(),
-                module: module.to_string(),
-                actor: actor.to_string(),
-                reason: reason.to_string(),
-                timestamp,
-            });
-        // Validate after each append so batch-internal duplicates and scope errors name the
-        // failing entry while leaving the on-disk record untouched.
-        validate_acceptance_owner_corrections_current(root, &provisional).map_err(|error| {
+        let correction = AcceptanceOwnerCorrection {
+            schema_version: 1,
+            sequence: provisional.acceptance_owner_corrections.len() as u64 + 1,
+            path: path.to_string(),
+            module: module.to_string(),
+            actor: actor.to_string(),
+            reason: reason.to_string(),
+            timestamp,
+        };
+        validate_acceptance_owner_correction_record(
+            &provisional,
+            &correction,
+            correction.sequence,
+            &mut exact_pairs,
+        )
+        .map_err(|error| {
             format!(
                 "acceptance owner correction batch entry {} failed: {error}",
                 index + 1
             )
         })?;
+        if !owned_by_module.contains_key(module) {
+            let owned = canonical_module_source_paths(root, module).map_err(|error| {
+                format!(
+                    "acceptance owner correction batch entry {} failed: {error}",
+                    index + 1
+                )
+            })?;
+            owned_by_module.insert(module.to_string(), owned);
+        }
+        canonical_module_owns_cached_source_path(root, module, path, &owned_by_module[module])
+            .map_err(|error| {
+                format!(
+                    "acceptance owner correction batch entry {} failed: {error}",
+                    index + 1
+                )
+            })?;
+        provisional.acceptance_owner_corrections.push(correction);
     }
 
     record.acceptance_owner_corrections = provisional.acceptance_owner_corrections;
@@ -2376,18 +2594,32 @@ fn missing_acceptance_owner_paths(
     if module.starts_with("@exact:") {
         return Err("reserved exact owners cannot be discovered through correct-owner".into());
     }
+    let candidate_paths = record
+        .affected_paths
+        .iter()
+        .filter_map(|path| strict_portable_relative_path(path).ok())
+        .filter(|path| path_is_production_source(root, path))
+        .collect::<Vec<_>>();
+    if candidate_paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let owner_evidence = acceptance_owner_spec_evidence(root, &record)?;
+    // Preserve the established `--all-missing` behavior: an unavailable requested owner simply
+    // discovers no matching paths and the caller emits the existing empty-discovery diagnostic.
+    let requested_owner_paths = canonical_module_source_paths(root, module).ok();
     let mut missing = Vec::new();
-    for path in &record.affected_paths {
-        let Ok(path) = strict_portable_relative_path(path) else {
-            continue;
-        };
-        if !path_is_production_source(root, &path) {
+    for path in candidate_paths {
+        if !production_source_lacks_canonical_owner_with_evidence(
+            root,
+            &record,
+            &path,
+            &owner_evidence,
+        )? {
             continue;
         }
-        if !production_source_lacks_canonical_owner(root, &record, &path)? {
-            continue;
-        }
-        if canonical_module_owns_exact_source_path(root, module, &path).is_ok() {
+        if requested_owner_paths.as_ref().is_some_and(|owned_paths| {
+            canonical_module_owns_cached_source_path(root, module, &path, owned_paths).is_ok()
+        }) {
             missing.push(path);
         }
     }
@@ -2396,34 +2628,41 @@ fn missing_acceptance_owner_paths(
     Ok(missing)
 }
 
-fn production_source_lacks_canonical_owner(
+fn acceptance_owner_spec_evidence(
     root: &Path,
     record: &ChangeRecord,
-    relative: &str,
-) -> Result<bool, String> {
-    if !path_is_production_source(root, relative) {
-        return Ok(false);
-    }
+) -> Result<GitEvidence, String> {
     let config = crate::config::load_config(root);
     let mut candidates = BTreeSet::new();
     for module in &record.affected_specs {
         let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)?;
         candidates.insert(strict_portable_project_path(root, &spec_path)?);
     }
-    let evidence = if candidates.is_empty() {
-        GitEvidence {
+    if candidates.is_empty() {
+        Ok(GitEvidence {
             modes: BTreeMap::new(),
             entries: BTreeMap::new(),
-        }
+        })
     } else {
-        git_regular_file_evidence(root, &candidates)?
-    };
+        git_regular_file_evidence(root, &candidates)
+    }
+}
+
+fn production_source_lacks_canonical_owner_with_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+    relative: &str,
+    evidence: &GitEvidence,
+) -> Result<bool, String> {
+    if !path_is_production_source(root, relative) {
+        return Ok(false);
+    }
     let owners = acceptance_input_owners(
         root,
         record,
         relative,
         &[],
-        &evidence,
+        evidence,
         UnownedProductionSource::Reject,
     );
     match owners {
@@ -3807,12 +4046,14 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
 }
 
 pub fn check_project(root: &Path) -> SddCheckReport {
+    let _scope = ensure_change_read_scope(root);
     check_project_with_command_output(root, ConfiguredCommandOutput::Inherit)
 }
 
 /// Check SDD lifecycle state without allowing configured verification commands
 /// to write into a machine-consumed report stream.
 pub(crate) fn check_project_quiet(root: &Path) -> SddCheckReport {
+    let _scope = ensure_change_read_scope(root);
     check_project_with_command_output(root, ConfiguredCommandOutput::Suppress)
 }
 
@@ -4801,21 +5042,54 @@ fn create_effective_contract_workspace() -> Result<PathBuf, String> {
 }
 
 fn dependency_ordered_changes(changes: Vec<&ChangeRecord>) -> Result<Vec<&ChangeRecord>, String> {
-    let active_ids: BTreeSet<&str> = changes.iter().map(|record| record.id.as_str()).collect();
-    let mut remaining = changes;
-    let mut emitted = BTreeSet::new();
-    let mut ordered = Vec::new();
-    while !remaining.is_empty() {
-        let Some(index) = remaining.iter().position(|record| {
-            record.dependencies.iter().all(|dependency| {
-                !active_ids.contains(dependency.as_str()) || emitted.contains(dependency.as_str())
-            })
-        }) else {
-            return Err("active change dependency cycle prevents deterministic ordering".into());
-        };
-        let record = remaining.remove(index);
-        emitted.insert(record.id.as_str());
-        ordered.push(record);
+    let mut by_id = BTreeMap::new();
+    for record in changes {
+        if by_id.insert(record.id.as_str(), record).is_some() {
+            return Err(format!(
+                "duplicate active change `{}` prevents deterministic ordering",
+                record.id
+            ));
+        }
+    }
+    let active_ids: BTreeSet<&str> = by_id.keys().copied().collect();
+    let mut indegree = by_id
+        .keys()
+        .map(|id| (*id, 0_usize))
+        .collect::<BTreeMap<_, _>>();
+    let mut dependents: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for (id, record) in &by_id {
+        let dependencies = record
+            .dependencies
+            .iter()
+            .map(String::as_str)
+            .filter(|dependency| active_ids.contains(dependency))
+            .collect::<BTreeSet<_>>();
+        indegree.insert(id, dependencies.len());
+        for dependency in dependencies {
+            dependents.entry(dependency).or_default().insert(id);
+        }
+    }
+    let mut ready = indegree
+        .iter()
+        .filter_map(|(id, count)| (*count == 0).then_some(*id))
+        .collect::<BTreeSet<_>>();
+    let mut ordered = Vec::with_capacity(by_id.len());
+    while let Some(id) = ready.pop_first() {
+        ordered.push(by_id[id]);
+        if let Some(children) = dependents.get(id) {
+            for child in children {
+                let count = indegree
+                    .get_mut(child)
+                    .expect("dependent change has an indegree");
+                *count -= 1;
+                if *count == 0 {
+                    ready.insert(child);
+                }
+            }
+        }
+    }
+    if ordered.len() != by_id.len() {
+        return Err("active change dependency cycle prevents deterministic ordering".into());
     }
     Ok(ordered)
 }
@@ -5876,6 +6150,17 @@ fn correction_prefix_digest(
 }
 
 fn project_input_digest(root: &Path) -> Result<String, String> {
+    if let Some(digest) = read_scope_value(root, |scope| scope.project_input_digest.clone()) {
+        return digest;
+    }
+    let result = project_input_digest_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.project_input_digest = Some(result.clone());
+    });
+    result
+}
+
+fn project_input_digest_uncached(root: &Path) -> Result<String, String> {
     let (paths, evidence) = stable_discovered_evidence(root, None, &BTreeSet::new(), false)?;
     let mut digest = FramedDigest::new(PROJECT_DIGEST_DOMAIN);
     for relative in paths {
@@ -6159,13 +6444,29 @@ fn stable_discovered_evidence(
     extra_candidates: &BTreeSet<String>,
     regular_files_only: bool,
 ) -> Result<(Vec<String>, GitEvidence), String> {
-    stable_discovered_evidence_with_hook_internal(
+    let key = DiscoveredEvidenceCacheKey {
+        scopes: scopes.map(|values| values.iter().cloned().collect()),
+        extra_candidates: extra_candidates.iter().cloned().collect(),
+        regular_files_only,
+    };
+    if let Some(evidence) =
+        read_scope_value(root, |scope| scope.discovered_evidence.get(&key).cloned())
+    {
+        return evidence;
+    }
+    let result = stable_discovered_evidence_with_hook_internal(
         root,
         scopes,
         extra_candidates,
         regular_files_only,
         |_, _| {},
-    )
+    );
+    update_read_scope(root, |scope| {
+        if scope.discovered_evidence.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            scope.discovered_evidence.insert(key, result.clone());
+        }
+    });
+    result
 }
 
 #[cfg(test)]
@@ -7268,6 +7569,7 @@ fn run_git_command_bounded_with_deadline(
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    record_test_git_process();
     let mut child = command
         .spawn()
         .map_err(|error| format!("failed to run `git {}`: {error}", args.join(" ")))?;
@@ -7336,7 +7638,7 @@ fn run_git_command_bounded_with_deadline(
                     .map_err(|wait_error| format!("failed to reap Git subprocess: {wait_error}"));
             }
         }
-        std::thread::sleep(Duration::from_millis(2));
+        std::thread::sleep(Duration::from_micros(200));
     };
     let stdout = stdout_reader
         .join()
@@ -7432,6 +7734,17 @@ fn checkout_autocrlf_from_command(command: &mut Command) -> Result<Option<String
 }
 
 fn effective_checkout_overrides(root: &Path) -> Result<Vec<String>, String> {
+    if let Some(overrides) = read_scope_value(root, |scope| scope.checkout_overrides.clone()) {
+        return overrides;
+    }
+    let result = effective_checkout_overrides_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.checkout_overrides = Some(result.clone());
+    });
+    result
+}
+
+fn effective_checkout_overrides_uncached(root: &Path) -> Result<Vec<String>, String> {
     let mut overrides = Vec::new();
     if let Some(value) = effective_checkout_autocrlf(root)? {
         overrides.push(format!("core.autocrlf={value}"));
@@ -7473,6 +7786,17 @@ fn effective_checkout_overrides(root: &Path) -> Result<Vec<String>, String> {
 }
 
 fn git_repository_present(root: &Path) -> Result<bool, String> {
+    if let Some(present) = read_scope_value(root, |scope| scope.repository_present.clone()) {
+        return present;
+    }
+    let result = git_repository_present_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.repository_present = Some(result.clone());
+    });
+    result
+}
+
+fn git_repository_present_uncached(root: &Path) -> Result<bool, String> {
     let output = run_git_bounded(root, &["rev-parse", "--is-inside-work-tree"], None, 32)?;
     let stdout = std::str::from_utf8(&output.stdout)
         .map_err(|_| "Git repository detection output is not UTF-8".to_string())?
@@ -7521,6 +7845,17 @@ fn git_metadata_markers_present(root: &Path) -> Result<bool, String> {
 }
 
 fn repository_context(root: &Path) -> Result<RepositoryContext, String> {
+    if let Some(context) = read_scope_value(root, |scope| scope.repository_context.clone()) {
+        return context;
+    }
+    let result = repository_context_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.repository_context = Some(result.clone());
+    });
+    result
+}
+
+fn repository_context_uncached(root: &Path) -> Result<RepositoryContext, String> {
     if !git_repository_present(root)? {
         let canonical = root
             .canonicalize()
@@ -7546,14 +7881,35 @@ fn repository_context(root: &Path) -> Result<RepositoryContext, String> {
 }
 
 fn git_evidence(root: &Path, candidates: &BTreeSet<String>) -> Result<GitEvidence, String> {
-    git_evidence_with_policy(root, candidates, false, |_, _| {})
+    cached_git_evidence(root, candidates, false)
 }
 
 fn git_regular_file_evidence(
     root: &Path,
     candidates: &BTreeSet<String>,
 ) -> Result<GitEvidence, String> {
-    git_evidence_with_policy(root, candidates, true, |_, _| {})
+    cached_git_evidence(root, candidates, true)
+}
+
+fn cached_git_evidence(
+    root: &Path,
+    candidates: &BTreeSet<String>,
+    regular_files_only: bool,
+) -> Result<GitEvidence, String> {
+    let key = GitEvidenceCacheKey {
+        regular_files_only,
+        candidates: candidates.iter().cloned().collect(),
+    };
+    if let Some(evidence) = read_scope_value(root, |scope| scope.git_evidence.get(&key).cloned()) {
+        return evidence;
+    }
+    let result = git_evidence_with_policy(root, candidates, regular_files_only, |_, _| {});
+    update_read_scope(root, |scope| {
+        if scope.git_evidence.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            scope.git_evidence.insert(key, result.clone());
+        }
+    });
+    result
 }
 
 #[cfg(test)]
@@ -9045,10 +9401,58 @@ enum AcceptedInputValidity {
 }
 
 fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
+    if let Some(cached) = read_scope_value(root, |scope| scope.terminal_evidence.clone()) {
+        return terminal_summary_from_cache(record, cached);
+    }
+    if read_scope_value(root, |_| Some(())).is_some() {
+        let result = list_all_changes_checked(root).map(|records| {
+            let (results, _) = terminal_evidence_results_with_records(root, &records);
+            results
+                .into_iter()
+                .map(|result| (result.id, result.evidence))
+                .collect()
+        });
+        update_read_scope(root, |scope| {
+            scope.terminal_evidence = Some(result.clone());
+        });
+        return terminal_summary_from_cache(record, result);
+    }
     let result = list_all_changes_checked(root)
         .map(|records| terminal_evidence_summary_with_records(root, record, &records));
     match result {
         Ok(summary) => summary,
+        Err(reason) => TerminalEvidenceSummary {
+            validity: if record.state == ChangeState::Archived {
+                TerminalEvidenceValidity::CorruptHistory
+            } else {
+                TerminalEvidenceValidity::Stale
+            },
+            reason: Some(reason),
+        },
+    }
+}
+
+fn terminal_summary_from_cache(
+    record: &ChangeRecord,
+    cached: Result<BTreeMap<String, TerminalEvidenceSummary>, String>,
+) -> TerminalEvidenceSummary {
+    match cached {
+        Ok(summaries) => {
+            summaries
+                .get(&record.id)
+                .cloned()
+                .unwrap_or_else(|| TerminalEvidenceSummary {
+                    validity: if record.state == ChangeState::Archived {
+                        TerminalEvidenceValidity::CorruptHistory
+                    } else {
+                        TerminalEvidenceValidity::Stale
+                    },
+                    reason: Some(format!(
+                        "terminal evidence snapshot is missing change `{}`",
+                        record.id
+                    )),
+                })
+        }
         Err(reason) => TerminalEvidenceSummary {
             validity: if record.state == ChangeState::Archived {
                 TerminalEvidenceValidity::CorruptHistory
@@ -10238,6 +10642,17 @@ fn terminal_delivery_projection(record: &ChangeRecord) -> ChangeRecord {
 }
 
 fn list_all_changes_checked(root: &Path) -> Result<BTreeMap<String, ChangeRecord>, String> {
+    if let Some(records) = read_scope_value(root, |scope| scope.all_records.clone()) {
+        return records;
+    }
+    let result = list_all_changes_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.all_records = Some(result.clone());
+    });
+    result
+}
+
+fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecord>, String> {
     let mut records = BTreeMap::new();
     for record in list_changes_checked(root)? {
         records.insert(record.id.clone(), record);
@@ -12026,28 +12441,50 @@ fn require_state(
 }
 
 fn git_output(root: &Path, args: &[&str]) -> Option<String> {
+    cached_git_text_query(root, args, false)
+}
+
+fn git_output_allow_empty(root: &Path, args: &[&str]) -> Option<String> {
+    cached_git_text_query(root, args, true)
+}
+
+fn cached_git_text_query(root: &Path, args: &[&str], allow_empty: bool) -> Option<String> {
+    let key = GitTextQueryCacheKey {
+        allow_empty,
+        arguments: args
+            .iter()
+            .map(|argument| (*argument).to_string())
+            .collect(),
+    };
+    if let Some(value) = read_scope_value(root, |scope| scope.git_text_queries.get(&key).cloned()) {
+        return value;
+    }
+    record_test_git_process();
     let output = Command::new("git")
         .args(args)
         .current_dir(root)
         .output()
         .ok()?;
     if !output.status.success() {
+        update_read_scope(root, |scope| {
+            if scope.git_text_queries.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+                scope.git_text_queries.insert(key, None);
+            }
+        });
         return None;
     }
     let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if value.is_empty() { None } else { Some(value) }
-}
-
-fn git_output_allow_empty(root: &Path, args: &[&str]) -> Option<String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+    let result = if allow_empty || !value.is_empty() {
+        Some(value)
+    } else {
+        None
+    };
+    update_read_scope(root, |scope| {
+        if scope.git_text_queries.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            scope.git_text_queries.insert(key, result.clone());
+        }
+    });
+    result
 }
 
 fn git_repo_relative_path(root: &Path, project_path: &str) -> Result<String, String> {
@@ -12565,6 +13002,30 @@ mod tests {
             evidence.entry("governed.txt").unwrap().payload,
             b"payload\n"
         );
+    }
+
+    // Verifies REQ-change-043.
+    #[test]
+    fn read_scope_reuses_git_evidence_for_repeated_candidates() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("candidate.txt"), "candidate\n").unwrap();
+        quiet_git(root, &["add", "candidate.txt"]);
+        quiet_git(root, &["commit", "-m", "candidate"]);
+        let candidates = BTreeSet::from(["candidate.txt".to_string()]);
+
+        let _scope = begin_change_read_scope(root);
+        reset_test_git_process_count();
+        let first = git_evidence(root, &candidates).unwrap();
+        let first_queries = test_git_process_count();
+        let second = git_evidence(root, &candidates).unwrap();
+
+        assert_eq!(second, first);
+        assert!(first_queries > 0);
+        assert_eq!(test_git_process_count(), first_queries);
     }
 
     #[test]
@@ -14184,6 +14645,27 @@ mod tests {
                 .is_some_and(|reason| !reason.is_empty())
         );
         assert_eq!(check_project(root).terminal_evidence[0].evidence, stale);
+    }
+
+    // Verifies REQ-change-043.
+    #[test]
+    fn read_scope_memoizes_repeated_summary_git_lookups() {
+        let (temp, id, _) = verification_history_fixture();
+        let root = temp.path();
+        let record = load_change(root, &id).unwrap();
+        let _scope = begin_change_read_scope(root);
+
+        reset_test_git_process_count();
+        let first = summarize_change(root, &record);
+        let first_queries = test_git_process_count();
+        let second = summarize_change(root, &record);
+
+        assert_eq!(
+            serde_json::to_value(&second).unwrap(),
+            serde_json::to_value(&first).unwrap()
+        );
+        assert!(first_queries > 0);
+        assert_eq!(test_git_process_count(), first_queries);
     }
 
     #[test]
@@ -17396,6 +17878,63 @@ mod tests {
         );
     }
 
+    // Verifies REQ-change-043.
+    #[test]
+    fn owner_batch_validation_queries_canonical_module_once() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let paths = (0..20)
+            .map(|index| format!("src/owner_{index}.rs"))
+            .collect::<Vec<_>>();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/current")).unwrap();
+        for path in &paths {
+            fs::write(root.join(path), "pub fn owned() {}\n").unwrap();
+        }
+        let files = paths
+            .iter()
+            .map(|path| format!("  - {path}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(
+            root.join("specs/current/current.spec.md"),
+            format!(
+                "---\nmodule: current\nversion: 1\nstatus: stable\nfiles:\n{files}\n---\n\n# Current\n\n## Purpose\n\nOwner fixture.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"
+            ),
+        )
+        .unwrap();
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs = vec!["legacy".into()];
+        record.affected_paths = paths.clone();
+        record.acceptance_owner_corrections = paths
+            .iter()
+            .enumerate()
+            .map(|(index, path)| AcceptanceOwnerCorrection {
+                schema_version: 1,
+                sequence: index as u64 + 1,
+                path: path.clone(),
+                module: "current".into(),
+                actor: "Reviewer".into(),
+                reason: "Repair historical ownership".into(),
+                timestamp: 1,
+            })
+            .collect();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "owner fixture"]);
+
+        reset_test_git_process_count();
+        validate_acceptance_owner_corrections_current(root, &record).unwrap();
+        let queries = test_git_process_count();
+
+        assert!(
+            queries <= 40,
+            "one module should require one bounded evidence capture, observed {queries} Git queries"
+        );
+    }
+
     // Verifies REQ-change-033.
     #[test]
     fn owner_correction_rejects_invalid_requests_without_mutation() {
@@ -20105,6 +20644,83 @@ mod tests {
         let ordered = dependency_ordered_changes(vec![&dependent, &prerequisite]).unwrap();
         assert_eq!(ordered[0].id, prerequisite.id);
         assert_eq!(ordered[1].id, dependent.id);
+    }
+
+    // Verifies REQ-change-043.
+    #[test]
+    fn dependency_order_is_deterministic_for_every_input_permutation() {
+        let temp = TempDir::new().unwrap();
+        let mut alpha = completed_record(temp.path());
+        alpha.id = "CHG-0001-alpha".into();
+        alpha.dependencies.clear();
+        let mut beta = alpha.clone();
+        beta.id = "CHG-0002-beta".into();
+        let mut gamma = alpha.clone();
+        gamma.id = "CHG-0003-gamma".into();
+        gamma.dependencies = vec![alpha.id.clone(), beta.id.clone()];
+        let mut delta = alpha.clone();
+        delta.id = "CHG-0004-delta".into();
+        delta.dependencies = vec![beta.id.clone()];
+
+        let expected = vec![
+            alpha.id.as_str(),
+            beta.id.as_str(),
+            gamma.id.as_str(),
+            delta.id.as_str(),
+        ];
+        for input in [
+            vec![&alpha, &beta, &gamma, &delta],
+            vec![&delta, &gamma, &beta, &alpha],
+            vec![&gamma, &alpha, &delta, &beta],
+        ] {
+            let ordered = dependency_ordered_changes(input)
+                .unwrap()
+                .into_iter()
+                .map(|record| record.id.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(ordered, expected);
+        }
+    }
+
+    // Verifies REQ-change-043 and the issue #439 twenty-change characterization.
+    #[test]
+    fn dependency_order_is_deterministic_for_twenty_change_chain() {
+        let temp = TempDir::new().unwrap();
+        let seed = completed_record(temp.path());
+        let records = (0..20)
+            .map(|index| {
+                let mut record = seed.clone();
+                record.id = format!("CHG-{:04}-chain", index + 1);
+                record.dependencies = (index > 0)
+                    .then(|| format!("CHG-{index:04}-chain"))
+                    .into_iter()
+                    .collect();
+                record
+            })
+            .collect::<Vec<_>>();
+        let expected = records
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect::<Vec<_>>();
+        let ascending = (0..records.len()).collect::<Vec<_>>();
+        let descending = (0..records.len()).rev().collect::<Vec<_>>();
+        let interleaved = (0..records.len())
+            .step_by(2)
+            .chain((1..records.len()).step_by(2).rev())
+            .collect::<Vec<_>>();
+
+        for indices in [ascending, descending, interleaved] {
+            let input = indices
+                .iter()
+                .map(|index| &records[*index])
+                .collect::<Vec<_>>();
+            let ordered = dependency_ordered_changes(input)
+                .unwrap()
+                .into_iter()
+                .map(|record| record.id.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(ordered, expected);
+        }
     }
 
     #[test]

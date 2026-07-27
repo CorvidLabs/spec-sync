@@ -518,3 +518,25 @@ Acceptance Criteria
 - A non-inert unparsable local registry still fails closed with the exact pre-fix diagnostic `failed to parse local registry {path} while resolving `{module}``.
 - Named registries with safe mappings continue to win over the conventional fallback.
 
+### REQ-change-043
+
+Read-only lifecycle inspection SHALL reuse one bounded invocation snapshot without changing
+lifecycle validity, ordering, mutation, or Git race-detection semantics.
+
+Acceptance Criteria
+
+- `change list`, `change status`, `change show`, `change check`, unified `specsync check`, and quiet
+  comment reporting reuse stable active/all-record inventories, repository facts, project digests,
+  candidate evidence, and terminal validity only for the duration of that read operation.
+- Mutation APIs never install or consume a read snapshot; their policy, evidence, and repository
+  validation remains live.
+- The first evidence collection for each distinct candidate set retains the before/after Git index
+  fingerprint and candidate-state equality checks.
+- Snapshot maps have deterministic entry caps and identical repeated reads emit identical
+  summaries while spawning no additional Git evidence queries.
+- Dependency topological order is independent of input discovery order and selects ready change
+  IDs in stable lexical order.
+- Existing and proposed acceptance-owner corrections are validated in one pass, resolve canonical
+  source ownership at most once per module, preserve per-entry diagnostics, and remain
+  transactional.
+- Bounded Git subprocess polling does not impose a multi-millisecond floor after child exit.

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 43
+version: 45
 status: active
 files:
   - src/change.rs
@@ -35,6 +35,8 @@ Provides the spec-sync 5.0 verified spec-driven development lifecycle, including
 15. Supported accepted interview metadata changes only through a portable append-only correction ledger whose effective definition requires fresh gates and never replays canonical deltas.
 16. Audited exact acceptance-owner corrections can repair omitted canonical ownership on an already-scoped input without changing semantic scope or replaying canonical deltas.
 17. A transactional batch of audited exact acceptance-owner corrections validates every entry independently and persists all or none as sequenced ledger entries.
+18. Read-only lifecycle commands and unified check entry points use one bounded invocation snapshot for stable repository facts, evidence, records, and terminal validity; mutation APIs remain live and uncached.
+19. Dependency ordering is deterministic regardless of discovery order, and owner-correction batches resolve canonical ownership once per module.
 
 ## Public API
 
@@ -165,6 +167,7 @@ Acceptance Criteria
 28. Batch exact-owner correction validates every proposed path/module pair independently and fails closed with zero persisted mutations when any entry is invalid.
 29. The 5.0 ledger migration backfills reopening digest fields idempotently from recorded evidence only, verifies each repair before writing, and never mutates ledgers it cannot repair deterministically.
 30. Canonical module path resolution treats missing and inert local registries as absent fallbacks while non-inert unparsable registries still fail closed with the established parse diagnostic.
+31. Read-snapshot caches are thread- and invocation-scoped, capped at deterministic entry bounds, and never replace the before/after Git index race check for a first evidence capture.
 
 ## Behavioral Examples
 
@@ -203,6 +206,12 @@ Acceptance Criteria
 - **Given** a project with an inert 5.0.1-era `.specsync/registry.toml` stub and a conventional `specs/auth/auth.spec.md`
 - **When** semantic preparation resolves module `auth`
 - **Then** resolution succeeds via the conventional path without requiring a registry name
+
+**Scenario: Lifecycle backlog inspection**
+
+- **Given** many active and terminal changes share repository and acceptance evidence
+- **When** one list, status, show, or check invocation projects their lifecycle state
+- **Then** shared Git facts and evidence are captured once per distinct input set while every result retains the same validity and ordering semantics
 
 ## Error Cases
 
@@ -287,3 +296,4 @@ Acceptance Criteria
 | 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |
 | 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
 | 2026-07-19 | CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa: Tolerate inert 5.0.1 registry.toml stubs so module resolution falls back to default specs layout without failing closed on empty legacy stubs |
+| 2026-07-26 | v45: add bounded invocation-scoped lifecycle snapshots, deterministic graph ordering, and one-pass owner-batch validation |

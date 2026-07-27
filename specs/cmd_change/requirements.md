@@ -55,3 +55,15 @@ Acceptance Criteria
   and the next definition-approval gate.
 - Domain rejection exits non-zero without success output or partial lifecycle mutation.
 
+### REQ-cmd-change-006
+
+The change command adapter SHALL scope shared lifecycle reads to one command invocation without
+altering output, exit, or mutation behavior.
+
+Acceptance Criteria
+
+- List, show, status, and check create and drop one domain read snapshot around their established
+  operation.
+- Text and JSON projections remain semantically identical to uncached domain results.
+- No approve, start, verify, accept, reopen, correction, creation, archival, or adoption command
+  installs a read snapshot.

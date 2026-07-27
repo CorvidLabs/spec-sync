@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 8
+version: 10
 status: active
 files:
   - src/commands/change.rs
@@ -27,6 +27,7 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 5. Reopen renders the exact persisted versioned supersession event in deterministic JSON.
 6. Correct-owner renders one persisted exact canonical-owner correction and directs the user to definition reapproval.
 7. Batch correct-owner resolves repeated paths, a manifest, or `--all-missing` into domain entries, renders the persisted record, and directs the user to definition reapproval without partial mutation on failure.
+8. List, show, status, and check install one bounded domain read snapshot for the command invocation.
 
 ## Public API
 
@@ -39,6 +40,7 @@ Exposes the verified SDD lifecycle through equivalent human-readable and structu
 1. JSON output contains no terminal coloring.
 2. Domain errors always produce exit code 1.
 3. `change check` fails on any lifecycle error.
+4. Read snapshots never cross command boundaries or mutation operations.
 
 ## Behavioral Examples
 
@@ -90,3 +92,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-07-15 | CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec: Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors |
 | 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |
 | 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |
+| 2026-07-26 | v10: scope shared lifecycle evidence and repository facts to one read-only command invocation |

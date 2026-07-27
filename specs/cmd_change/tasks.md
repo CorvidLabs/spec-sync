@@ -12,3 +12,4 @@ spec: cmd_change.spec.md
 - [x] Dispatch accepted metadata correction with equivalent text and JSON projections
 - [x] Dispatch exact acceptance-owner correction with equivalent text and JSON projections
 - [x] Dispatch transactional batch correct-owner selection (paths/manifest/all-missing)
+- [x] Scope list/show/status/check evidence reuse to each read-only invocation

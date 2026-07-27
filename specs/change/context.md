@@ -45,3 +45,17 @@ Legacy acceptance-manifest reconstruction no longer aborts on adoption-era recor
 `backfill_reopen_digests` provides the native 5.0→5.1 ledger path: deterministic, idempotent repair of 5.0.1-era reopenings (stale from the embedded prior verification, current from the superseding verification or a live manifest-aware recomputation), verified against the 5.1 schema before any write and skipped per-change when undeterminable. `load_approvals` maps the missing-field parse failure to the `specsync migrate 5.0` remediation.
 
 Canonical module path resolution treats inert 5.0.1-era local registry stubs as absent via `load_local_registry`, so conventional `specs/<module>/` fallbacks remain available while non-inert unparsable registries keep the established fail-closed parse diagnostic.
+
+Read-only `change list`, `show`, and `status` adapters plus both normal and quiet domain check entry
+points install or reuse a thread-local, invocation-scoped snapshot. This also covers lifecycle
+validation reached through unified `specsync check` and comment reporting. The snapshot memoizes
+stable record inventories, repository facts, textual Git queries, project digests, candidate
+evidence, and terminal evidence, with every map capped at the lifecycle evidence inventory bound.
+A first evidence capture still performs both Git index fingerprints and both candidate inspections;
+mutation APIs never install the snapshot.
+
+Dependency application now uses a stable Kahn traversal keyed by change ID, so independent ready
+nodes cannot inherit filesystem discovery order. Acceptance-owner batches validate existing
+records once, carry one exact-pair set through proposed entries, and share canonical source-owner
+sets per module. `--all-missing` likewise captures affected-spec evidence once while preserving its
+existing empty-discovery and fail-closed diagnostics.

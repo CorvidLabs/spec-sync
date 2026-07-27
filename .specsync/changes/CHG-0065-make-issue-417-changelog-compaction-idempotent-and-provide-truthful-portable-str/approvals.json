@@ -20,6 +20,13 @@
       "timestamp": 1785159032,
       "digest": "7d765c925d71023d2730b1cd80b35adcd9298679f0e9ca6a3a7bb9a5acaaf8d8",
       "note": "User approved CHG-0065 digest 7d765c925d71023d2730b1cd80b35adcd9298679f0e9ca6a3a7bb9a5acaaf8d8."
+    },
+    {
+      "gate": "acceptance",
+      "actor": "human:leif",
+      "timestamp": 1785159899,
+      "digest": "b3e74ab3b6921d10292939aa478670c7a2eba4b4c752bb00ce4157f7ad0286ad",
+      "note": "User approved closing CHG-0065 after fresh verification."
     }
   ],
   "reopenings": []

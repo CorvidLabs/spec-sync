@@ -1,6 +1,6 @@
 ---
 module: cmd_compact
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/compact.rs
@@ -31,6 +31,15 @@ Implements the `specsync compact` command. Trims old entries from spec changelog
 1. Delegates to `compact::compact_changelogs()`
 2. `--keep N` controls how many entries to retain (default 10)
 3. Dry-run shows what would change without writing
+4. Per-spec and aggregate output use correct singular/plural labels and exclude the generated
+   summary from the kept count.
+5. JSON is one parseable, ANSI-free document; `--json` and `--format json` are equivalent.
+6. Markdown and GitHub formats render a heading, dry-run notice, result table, and truthful summary.
+7. Structured dry-run output distinguishes `would_change: true` from `applied: false`.
+8. JSON and Markdown project paths use `/` separators on Windows while preserving literal Unix backslashes
+9. Markdown/GitHub paths use one sanitized code element: variable-length Markdown spans normally and entity-safe HTML code when a literal pipe is present, so no table row can be injected and every legal Unix backslash is preserved
+10. JSON exposes `complete`, `partial`, planned/succeeded/failed operations, structured errors, and never sets `applied: true` for incomplete work
+11. Any compact failure is rendered before the command exits 1
 
 ## Behavioral Examples
 
@@ -81,3 +90,4 @@ Implements the `specsync compact` command. Trims old entries from spec changelog
 | 2026-07-26 | Fix #417 text reporting: truthful kept counts, correct singular/plural labels, and end-to-end dry-run/idempotence coverage |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-27 | CHG-0065-make-issue-417-changelog-compaction-idempotent-and-provide-truthful-portable-str: Make issue 417 changelog compaction idempotent and provide truthful portable structured maintenance output |

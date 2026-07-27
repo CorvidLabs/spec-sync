@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 14
+version: 15
 status: stable
 files:
   - src/main.rs
@@ -156,6 +156,8 @@ All functions in main.rs are private (no pub keyword). Key internal functions:
 9. MCP dispatch forwards the parsed write capability unchanged; read-only remains the default.
 10. MCP server-root initialization failures are printed to stderr and exit 2 before request input is
     processed.
+11. `compact` and `archive-tasks` receive the resolved global output format instead of silently
+    falling back to text.
 
 ## Behavioral Examples
 
@@ -370,3 +372,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |
 | 2026-07-26 | v12 / CHG-0063 Windows root-retention remediation: Preserve the requested root spelling for MCP and coverage-gating commands so junction/symlink replacement remains observable after capability retention, including through generation publication |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-27 | CHG-0065-make-issue-417-changelog-compaction-idempotent-and-provide-truthful-portable-str: Make issue 417 changelog compaction idempotent and provide truthful portable structured maintenance output |

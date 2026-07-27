@@ -53,7 +53,15 @@ Acceptance Criteria
 - The first two `|`-prefixed lines in the section (header + separator) are always preserved
 - The last `keep` ordinary data rows are kept verbatim; the earlier `total - keep` rows are replaced by a single summary row
 - The summary row reads `| <first_date> — <last_date> | Compacted: <N> entries |` for 2-column tables, and inserts a `—` placeholder for the middle column(s) on 3+ column tables
-- Column count is detected from the first data row (`| count - 1`)
+- A generated summary row is recognized only when its first cell contains a non-empty `start — end` range, every interior cell is `—`, and its final cell contains a grammatically-correct fixed-width count plus the exact `<!-- specsync:compact:v1 -->` marker
+- When new ordinary rows require another compaction, prior generated summary counts are accumulated and the original range start is retained
+- Multiple marked summaries fail closed instead of being summed
+- Column count and cells are parsed from one contiguous table without treating odd-backslash escaped pipes or code-span pipes as delimiters
 - If `total <= keep`, no rows are removed (`removed == 0`) and the spec is not written; such results are filtered out by `compact_changelogs`
 - `dry_run: true` collects `CompactResult` values but never writes files
 - Only results where `removed > 0` are returned from `compact_changelogs`
+- Re-running with no excess ordinary rows leaves the file byte-for-byte unchanged, including exact LF/CRLF terminators
+- `CompactResult.compacted_entries` reports ordinary entries retained and excludes the generated summary row
+- Count overflow, malformed widths, and ambiguous generated state fail closed
+- Preflight or staging failure writes nothing, and every incomplete apply is represented in the typed report
+

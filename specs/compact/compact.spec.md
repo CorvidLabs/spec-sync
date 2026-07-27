@@ -1,6 +1,6 @@
 ---
 module: compact
-version: 7
+version: 8
 status: stable
 files:
   - src/compact.rs
@@ -36,13 +36,20 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 
 ## Invariants
 
-1. Only specs with a `## Change Log` section containing a markdown table are processed
-2. Table header and separator rows (first two `|`-prefixed lines) are always preserved
+1. Only an exact `## Change Log` H2 outside fenced and indented code is processed
+2. Only the first contiguous, width-valid table outside fenced and indented code in the section is compacted; later tables are preserved
 3. The last `keep` data rows are preserved; earlier rows are summarized
 4. Summary row contains the date range of compacted entries and their count
 5. If a changelog has fewer than `keep + 1` entries, no compaction occurs
 6. `dry_run: true` returns results without modifying files
 7. Handles both 2-column and 3+ column tables with appropriate summary format
+8. Re-running compaction with the same `keep` value is byte-for-byte idempotent.
+9. Escaped table pipes, code-span pipes, every original LF/CRLF line terminator, and the original final-newline state are preserved
+10. Only rows carrying the exact `<!-- specsync:compact:v1 -->` provenance marker are folded as prior summaries
+11. Multiple marked summaries, malformed table widths, and fixed-width count overflow fail closed
+12. Apply mode preflights every replacement and stages same-directory temporary files before publication
+13. Staging failures retain every planned result/count with zero writes; late publish failures retain all results and report exact partial progress
+14. Indented pipe code terminates table data, indented separators fail before writes, and a generated summary is valid only as the first data row
 
 ## Behavioral Examples
 
@@ -106,3 +113,4 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-27 | CHG-0065-make-issue-417-changelog-compaction-idempotent-and-provide-truthful-portable-str: Make issue 417 changelog compaction idempotent and provide truthful portable structured maintenance output |

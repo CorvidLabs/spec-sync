@@ -110,3 +110,14 @@ Acceptance Criteria
 - Other commands retain their established canonical-root dispatch behavior.
 - A symlink/junction replacement after capability retention remains observable to checked
   traversal and cannot be hidden by dispatcher canonicalization.
+
+### REQ-cli-007
+
+The root CLI SHALL forward the resolved global output format to compact and archive-tasks handlers.
+
+Acceptance Criteria
+
+- `--json` and `--format json` dispatch the same `OutputFormat::Json` value.
+- `--format markdown` dispatches `OutputFormat::Markdown`.
+- No human banner is emitted before the structured renderer.
+

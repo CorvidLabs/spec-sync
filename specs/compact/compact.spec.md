@@ -23,6 +23,8 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `compact_changelogs` | `root: &Path, specs_dir: &Path, keep: usize, dry_run: bool` | `CompactReport` | Plan, stage, and compact changelog tables while reporting every failure |
+| `complete` | `&self` | `bool` | Whether the invocation recorded no failures |
+| `partial` | `&self` | `bool` | Whether an incomplete apply published at least one planned replacement |
 
 ### Exported Structs
 

@@ -4383,8 +4383,8 @@ fn generate_json_no_specs_emits_valid_json() {
 }
 
 // ─── compact: idempotent files and truthful text output ───────────────
-// Requirement evidence: REQ-cli-007, REQ-cmd-archive-tasks-001,
-// REQ-cmd-compact-001, and REQ-compact-001.
+// Requirement evidence: REQ-cli-007, REQ-archive-001,
+// REQ-cmd-archive-tasks-001, REQ-cmd-compact-001, and REQ-compact-001.
 
 fn setup_compact_project(tmp: &TempDir) -> std::path::PathBuf {
     let root = tmp.path().to_path_buf();

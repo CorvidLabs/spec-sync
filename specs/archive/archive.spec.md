@@ -24,6 +24,12 @@ Moves completed markdown task items (`- [x]`) from active sections of companion 
 |----------|-----------|---------|-------------|
 | `archive_tasks` | `root: &Path, specs_dir: &Path, dry_run: bool` | `ArchiveReport` | Plan every companion update, stage replacements, and atomically publish a complete archival report |
 | `count_completed_tasks` | `specs_dir: &Path` | `usize` | Count all completed tasks across all tasks.md files |
+| `as_str` | `self` | `&'static str` | Return the stable machine-readable archive operation name |
+| `is_complete` | `&self` | `bool` | Whether every planned operation was previewed or applied successfully |
+| `is_partial` | `&self` | `bool` | Whether an incomplete apply left at least one destination changed |
+| `applied` | `&self` | `bool` | Whether a complete non-empty apply was published |
+| `planned_tasks` | `&self` | `usize` | Total tasks selected by the operation plan |
+| `succeeded_tasks` | `&self` | `usize` | Total tasks that remain archived after execution |
 
 ### Exported Structs
 

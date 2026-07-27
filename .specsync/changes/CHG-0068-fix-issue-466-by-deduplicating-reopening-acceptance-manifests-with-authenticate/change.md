@@ -1,0 +1,28 @@
+---
+id: CHG-0068-fix-issue-466-by-deduplicating-reopening-acceptance-manifests-with-authenticate
+state: implementing
+type: bug_fix
+base_commit: fc091c88f72a6d2fb2df168f4baa4370579ff8a2
+---
+
+# Fix issue #466 by deduplicating reopening acceptance manifests with authenticated content-addressed references
+
+## Intent
+
+Fix issue #466 by deduplicating reopening acceptance manifests with authenticated content-addressed references
+
+## Affected Canonical Specs
+
+- `change`
+
+## Acceptance Criteria
+
+- Repeated reopen cycles write each distinct acceptance manifest exactly once as an immutable content-addressed object and store only a bounded authenticated reference in each new reopening event.
+- Loading, checking, reopening, reaccepting, and archiving fail closed when a referenced manifest object is missing, malformed, path-unsafe, digest-mismatched, or semantically inconsistent with the recorded prior verification.
+- Existing version-1 reopening ledgers with embedded prior verification manifests remain readable and verifiable without a bulk rewrite; new events use the compact versioned representation.
+- A large-manifest A/B/A reopen regression reuses the original A object, creates only one B object, and demonstrates approvals ledger growth proportional to event metadata rather than repeated manifest bytes.
+- Reopen, verify, accept, archive, and migrate-5.0 compatibility tests preserve authenticated history and deterministic serialization across legacy and compact ledgers.
+
+## No-spec Rationale
+
+Not applicable

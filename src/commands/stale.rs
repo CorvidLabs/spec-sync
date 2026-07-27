@@ -35,7 +35,7 @@ pub fn cmd_stale(
         std::process::exit(1);
     }
 
-    let (_config, all_spec_files) = load_and_discover(root, false);
+    let (config, all_spec_files) = load_and_discover(root, false);
     let spec_files = filter_by_status(&all_spec_files, exclude_status, only_status);
 
     let mut stale_specs: Vec<StaleInfo> = Vec::new();
@@ -233,11 +233,9 @@ pub fn cmd_stale(
         }
     }
 
-    // Exit with non-zero if stale specs found — unless `--enforcement warn`
-    // was passed explicitly, which is non-blocking by definition (the help
-    // text promises warn always exits 0). An unset flag keeps the historical
-    // exit-1-on-stale behavior regardless of config defaults.
-    let warn_only = enforcement == Some(types::EnforcementMode::Warn);
+    // Warn mode is non-blocking whether selected explicitly or inherited from
+    // project configuration.
+    let warn_only = enforcement.unwrap_or(config.enforcement) == types::EnforcementMode::Warn;
     if stale_count > 0 && !warn_only {
         std::process::exit(1);
     }

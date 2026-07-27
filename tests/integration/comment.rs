@@ -5,6 +5,24 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 fn setup_active_change(root: &Path, verification_commands: &[&str]) -> PathBuf {
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::write(
         root.join(".specsync/sdd.json"),

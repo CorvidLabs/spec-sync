@@ -43,6 +43,7 @@ fn sdd_failure_json_preserves_check_schema() {
         .arg("check")
         .arg("--root")
         .arg(&root)
+        .arg("--strict")
         .arg("--format")
         .arg("json")
         .assert()
@@ -2083,7 +2084,7 @@ fn stale_threshold_zero_passes_when_in_sync_and_fails_on_real_drift() {
 
     // Fully in-sync: 0 commits behind must not trip --threshold 0.
     specsync()
-        .args(["stale", "--threshold", "0"])
+        .args(["--enforcement", "strict", "stale", "--threshold", "0"])
         .arg("--root")
         .arg(&root)
         .assert()
@@ -2102,7 +2103,7 @@ fn stale_threshold_zero_passes_when_in_sync_and_fails_on_real_drift() {
         .status()
         .unwrap();
     specsync()
-        .args(["stale", "--threshold", "0"])
+        .args(["--enforcement", "strict", "stale", "--threshold", "0"])
         .arg("--root")
         .arg(&root)
         .assert()
@@ -2128,9 +2129,16 @@ fn stale_warn_enforcement_exits_zero_despite_drift() {
     git(&["add", "."]);
     git(&["commit", "-m", "drift"]);
 
-    // Default behavior preserved: stale findings exit 1.
+    // Config/default warn mode is non-blocking.
     specsync()
         .args(["stale", "--threshold", "1"])
+        .arg("--root")
+        .arg(&root)
+        .assert()
+        .success();
+    // Strict mode blocks on the same finding.
+    specsync()
+        .args(["--enforcement", "strict", "stale", "--threshold", "1"])
         .arg("--root")
         .arg(&root)
         .assert()
@@ -2187,9 +2195,9 @@ fn sdd_errors_honor_enforcement_warn_exit_semantics() {
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::write(root.join(".specsync/sdd.json"), "{").unwrap();
 
-    // Default behavior preserved: SDD errors exit 1.
+    // Strict mode blocks on SDD errors.
     specsync()
-        .arg("check")
+        .args(["--enforcement", "strict", "check"])
         .arg("--root")
         .arg(&root)
         .assert()

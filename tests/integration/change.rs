@@ -1,4 +1,4 @@
-use super::helpers::specsync;
+use super::helpers::{specsync, valid_spec};
 use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
@@ -30,7 +30,13 @@ fn verification_freshness_status_and_check_are_environment_independent() {
     git(&["commit", "-m", "seed"]);
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/lifecycle")).unwrap();
     fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    fs::write(
+        root.join("specs/lifecycle/lifecycle.spec.md"),
+        valid_spec("lifecycle", &["src/lib.rs"]),
+    )
+    .unwrap();
     fs::write(
         root.join(".specsync/sdd.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
@@ -56,6 +62,8 @@ fn verification_freshness_status_and_check_are_environment_independent() {
             "Harden verification freshness",
             "--kind",
             "bug-fix",
+            "--spec",
+            "lifecycle",
             "--path",
             "src/lib.rs",
             "--no-spec-change",
@@ -137,6 +145,25 @@ fn verification_freshness_status_and_check_are_environment_independent() {
         .args(["--root", root.to_str().unwrap(), "change", "verify", id])
         .assert()
         .success();
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Reviewer",
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(
+            "invalidates the prior verification",
+        ));
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "verify", id])
+        .assert()
+        .success();
     for name in [
         "state.json",
         "verification.json",
@@ -211,6 +238,12 @@ fn verification_freshness_status_and_check_are_environment_independent() {
 #[test]
 fn change_new_json_returns_state_and_interview() {
     let temp = TempDir::new().unwrap();
+    fs::create_dir_all(temp.path().join("specs/auth")).unwrap();
+    fs::write(
+        temp.path().join("specs/auth/auth.spec.md"),
+        "---\nmodule: auth\nversion: 1\nstatus: draft\nfiles: []\n---\n",
+    )
+    .unwrap();
     let output = specsync()
         .args([
             "--root",
@@ -238,6 +271,28 @@ fn change_new_json_returns_state_and_interview() {
             .join(".specsync/changes/CHG-0001-add-passkeys/change.md")
             .is_file()
     );
+}
+
+#[test]
+fn change_new_rejects_a_nonexistent_spec_before_allocating_state() {
+    let temp = TempDir::new().unwrap();
+    specsync()
+        .args([
+            "--root",
+            temp.path().to_str().unwrap(),
+            "change",
+            "new",
+            "Reference a missing module",
+            "--spec",
+            "missing",
+            "--path",
+            "src/missing.rs",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("does not exist"));
+    assert!(!temp.path().join(".specsync/changes").exists());
+    assert!(!temp.path().join(".specsync/change-sequence.json").exists());
 }
 
 #[test]
@@ -598,6 +653,17 @@ fn change_list_surfaces_malformed_workspaces_and_exits_nonzero() {
         .stdout(predicate::str::contains("CHG-0001-update-docs"))
         .stderr(predicate::str::contains("CHG-9999-bogus"))
         .stderr(predicate::str::contains("repair or remove"));
+    let output = specsync()
+        .args(["--root", root.to_str().unwrap(), "--json", "change", "list"])
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let value: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["valid"], false);
+    assert_eq!(value["changes"].as_array().unwrap().len(), 1);
+    assert_eq!(value["errors"].as_array().unwrap().len(), 1);
 }
 
 #[test]
@@ -640,8 +706,7 @@ fn change_status_prints_dependencies() {
         .success();
     let id = "CHG-0001-update-docs";
     let state_path = root.join(".specsync/changes").join(id).join("state.json");
-    let mut state: Value =
-        serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    let mut state: Value = serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
     state["dependencies"] = serde_json::json!(["CHG-0000-predecessor"]);
     fs::write(&state_path, serde_json::to_string_pretty(&state).unwrap()).unwrap();
     specsync()

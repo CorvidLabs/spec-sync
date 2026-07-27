@@ -19,7 +19,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
             artifacts,
             no_spec_change,
             rationale,
-        } => ChangeKind::parse(&kind)
+        } => specs
+            .iter()
+            .try_for_each(|module| change::validate_affected_spec(root, module))
+            .and_then(|()| ChangeKind::parse(&kind))
             .and_then(|kind| {
                 change::create_change(
                     root,
@@ -64,8 +67,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
         }
         ChangeAction::List => {
             let listing = change::list_changes_with_errors(root);
-            print_records(root, &listing.records, format);
-            report_listing_errors(&listing)
+            print_listing(root, &listing, format);
+            finish_listing(&listing, format)
         }
         ChangeAction::Show { id } => change::load_change(root, &id)
             .and_then(|record| print_record(root, &record, format, true)),
@@ -75,8 +78,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                     .and_then(|record| print_record(root, &record, format, false))
             } else {
                 let listing = change::list_changes_with_errors(root);
-                print_records(root, &listing.records, format);
-                report_listing_errors(&listing)
+                print_listing(root, &listing, format);
+                finish_listing(&listing, format)
             }
         }
         ChangeAction::Approve {
@@ -387,13 +390,9 @@ fn print_record(
             }
         }
     }
-    if summary
-        .terminal_evidence
-        .as_ref()
-        .is_some_and(|evidence| {
-            evidence.validity == change::TerminalEvidenceValidity::CorruptHistory
-        })
-    {
+    if summary.terminal_evidence.as_ref().is_some_and(|evidence| {
+        evidence.validity == change::TerminalEvidenceValidity::CorruptHistory
+    }) {
         return Err(format!(
             "{} has corrupt archived evidence; inspect the evidence reason above and restore the committed evidence or reopen the change",
             record.id
@@ -416,6 +415,13 @@ fn report_listing_errors(listing: &change::ChangeListing) -> Result<(), String> 
             listing.errors.len()
         ))
     }
+}
+
+fn finish_listing(listing: &change::ChangeListing, format: OutputFormat) -> Result<(), String> {
+    if format == OutputFormat::Json && !listing.errors.is_empty() {
+        process::exit(1);
+    }
+    report_listing_errors(listing)
 }
 
 fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat) {
@@ -443,6 +449,23 @@ fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat) {
                 );
             }
         }
+    }
+}
+
+fn print_listing(root: &Path, listing: &change::ChangeListing, format: OutputFormat) {
+    if format == OutputFormat::Json && !listing.errors.is_empty() {
+        let changes: Vec<_> = listing
+            .records
+            .iter()
+            .map(|record| change::summarize_change(root, record))
+            .collect();
+        print_json(&serde_json::json!({
+            "valid": false,
+            "changes": changes,
+            "errors": listing.errors,
+        }));
+    } else {
+        print_records(root, &listing.records, format);
     }
 }
 

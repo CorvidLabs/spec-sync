@@ -93,12 +93,17 @@ pub fn cmd_check(
     // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
     // message under --format json). Default warn mode still exits 0 there.
     let (config, all_spec_files) = load_and_discover(root, true);
+    // CLI --enforcement overrides config; otherwise the configured mode is
+    // authoritative. `--strict` supplies strict mode only when no explicit
+    // mode was selected.
+    let enforcement = enforcement.unwrap_or(if strict {
+        types::EnforcementMode::Strict
+    } else {
+        config.enforcement
+    });
     let sdd_report = crate::change::check_project(root);
-    // `--enforcement warn` is non-blocking by definition: SDD lifecycle
-    // violations then surface as warnings through the normal channels (and a
-    // zero exit) instead of hard-failing. An unset flag keeps the historical
-    // exit-1 behavior.
-    let sdd_warn_only = enforcement == Some(types::EnforcementMode::Warn);
+    // Warn mode is non-blocking whether selected by CLI or project config.
+    let sdd_warn_only = enforcement == types::EnforcementMode::Warn;
     if sdd_report.enabled {
         for warning in &sdd_report.warnings {
             if matches!(format, Text) {
@@ -137,13 +142,6 @@ pub fn cmd_check(
     }
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
-    // CLI --enforcement flag overrides config; --strict implies strict enforcement.
-    let enforcement = enforcement.unwrap_or(if strict {
-        types::EnforcementMode::Strict
-    } else {
-        config.enforcement
-    });
-
     // Spec name filters that matched nothing are an error — don't fall through
     // to the misleading "No spec files found" message when specs do exist.
     if spec_files.is_empty() && !spec_filters.is_empty() && !all_spec_files.is_empty() {

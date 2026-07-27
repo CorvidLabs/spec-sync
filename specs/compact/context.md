@@ -5,9 +5,10 @@ spec: compact.spec.md
 ## Key Decisions
 
 - **Fence-aware section slicing**: `compact_spec_changelog` recognizes only an exact `## Change Log` H2 outside fenced/indented code, computes the next real H2/EOF boundary, and rewrites only that slice. The rest of the file is copied byte-for-byte.
-- **One contiguous validated table**: the first unfenced pipe table is validated against its header width; fenced examples and later tables after prose/blank separation are not changelog data.
+- **One contiguous validated table**: the first unfenced pipe table is validated against its header width; fenced examples, indented pipe-code, and later tables after prose/blank separation are not changelog data. An indented separator is malformed.
 - **Keep-last semantics**: the most recent `keep` rows survive; older rows collapse into one summary row inserted at the position of the first removed row.
 - **Provenance-bound summary ownership**: a generated summary carries `<!-- specsync:compact:v1 -->`; unmarked lookalikes remain user history and duplicate marked summaries fail closed.
+- **Canonical summary position**: generated summaries must be the first data row; reordered marked state is rejected before reconstruction so EOF-byte preservation cannot concatenate retained rows.
 - **Idempotent summary folding**: prior generated counts are accumulated, the original range start is retained, and a no-excess re-run returns the original bytes.
 - **Escape/code-span-aware columns**: only odd backslash runs escape pipes, code-span pipes remain cell content, and 3+ column tables get `—` placeholders.
 - **Byte-preserving reconstruction**: inclusive source lines retain each untouched LF/CRLF terminator, including mixed-ending files and the no-final-newline state when `keep = 0`.
@@ -20,7 +21,7 @@ spec: compact.spec.md
 
 ## Current Status
 
-Issue #417's core behavior includes adversarial ownership, fenced-heading/table isolation, parsing, EOF/line-ending fidelity, overflow, complete staging counts, and deterministic partial-publication regressions. Structured rendering is covered in the owning command modules.
+Issue #417's core behavior includes adversarial ownership, fenced/indented heading and table isolation, canonical summary position, EOF/line-ending fidelity, overflow, complete staging counts, and deterministic partial-publication regressions. Structured rendering is covered in the owning command modules.
 
 ## Notes
 

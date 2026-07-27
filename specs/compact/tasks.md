@@ -29,6 +29,8 @@ spec: compact.spec.md
 - [x] Ignore fenced/indented changelog examples and prefix headings such as `## Change Logger`
 - [x] Preserve a missing final newline for LF and CRLF files when `keep = 0`
 - [x] Retain complete planned counts on staging failure and characterize deterministic late-publish partial results
+- [x] Stop before indented pipe-code and fail closed on indented separators
+- [x] Reject reordered generated summaries before no-final-newline reconstruction
 
 ## Review Status
 

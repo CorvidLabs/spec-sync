@@ -211,6 +211,9 @@ fn compact_spec_changelog(
     let Some(separator) = lines.get(separator_index) else {
         return Err("Change Log table is missing its separator row".to_string());
     };
+    if is_indented_code(separator.content) {
+        return Err("Change Log table separator cannot be indented code".to_string());
+    }
     let separator_cells = split_cells(separator.content.trim());
     if separator_cells.len() != header_cells.len()
         || !separator_cells.iter().all(|cell| is_separator_cell(cell))
@@ -226,6 +229,9 @@ fn compact_spec_changelog(
     // the section are prose and must remain byte-for-byte untouched.
     let mut data_rows: Vec<(usize, &str)> = Vec::new();
     for (index, line) in lines.iter().enumerate().skip(separator_index + 1) {
+        if is_indented_code(line.content) {
+            break;
+        }
         let trimmed = line.content.trim();
         if !trimmed.starts_with('|') {
             break;
@@ -250,6 +256,15 @@ fn compact_spec_changelog(
     if summary_rows.len() > 1 {
         return Err(
             "Change Log contains multiple SpecSync compaction summaries; refusing ambiguous folding"
+                .to_string(),
+        );
+    }
+    if summary_rows
+        .first()
+        .is_some_and(|(index, _)| *index != separator_index + 1)
+    {
+        return Err(
+            "SpecSync compaction summary must be the first Change Log data row; refusing reordered generated state"
                 .to_string(),
         );
     }
@@ -1009,6 +1024,81 @@ Test module.
         assert!(new_content.contains("| nested-1 | Nested one |"));
         assert!(new_content.contains("| 2026-01-03 | Third |"));
         assert!(!new_content.contains("| 2026-01-01 | First |"));
+    }
+
+    #[test]
+    fn compact_stops_before_indented_pipe_code() {
+        let content = concat!(
+            "## Change Log\n\n",
+            "| Date | Change |\n",
+            "|------|--------|\n",
+            "| 2026-01-01 | First |\n",
+            "| 2026-01-02 | Second |\n",
+            "    | example | indented code |\n",
+            "| not-table | prose after code |\n",
+        );
+
+        let (new_content, result) = compact_spec_changelog(content, "t.spec.md", 1)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(result.original_entries, 2);
+        assert_eq!(result.removed, 1);
+        assert!(new_content.contains("    | example | indented code |\n"));
+        assert!(new_content.contains("| not-table | prose after code |\n"));
+    }
+
+    #[test]
+    fn compact_indented_separator_fails_before_writing() {
+        let temporary = tempfile::tempdir().unwrap();
+        let specs = temporary.path().join("specs");
+        fs::create_dir_all(specs.join("broken")).unwrap();
+        let path = specs.join("broken/broken.spec.md");
+        let content = concat!(
+            "## Change Log\n\n",
+            "| Date | Change |\n",
+            "    |------|--------|\n",
+            "| 2026-01-01 | First |\n",
+            "| 2026-01-02 | Second |\n",
+        );
+        fs::write(&path, content).unwrap();
+
+        let report = compact_changelogs(temporary.path(), &specs, 1, false);
+
+        assert!(!report.complete());
+        assert_eq!(report.succeeded, 0);
+        assert_eq!(report.failures.len(), 1);
+        assert_eq!(report.failures[0].operation, "parse");
+        assert!(report.failures[0].message.contains("indented code"));
+        assert_eq!(fs::read_to_string(path).unwrap(), content);
+    }
+
+    #[test]
+    fn compact_rejects_reordered_unterminated_owned_summary_without_writing() {
+        let temporary = tempfile::tempdir().unwrap();
+        let specs = temporary.path().join("specs");
+        fs::create_dir_all(specs.join("broken")).unwrap();
+        let path = specs.join("broken/broken.spec.md");
+        let content = format!(
+            "## Change Log\n\n| Date | Change |\n|------|--------|\n\
+             | 2026-01-01 | First |\n\
+             | 2026-01-02 | Second |\n\
+             | 2025-01-01 — 2025-01-31 | Compacted: 2 entries {SUMMARY_MARKER} |"
+        );
+        fs::write(&path, &content).unwrap();
+
+        let report = compact_changelogs(temporary.path(), &specs, 1, false);
+
+        assert!(!report.complete());
+        assert_eq!(report.succeeded, 0);
+        assert_eq!(report.failures.len(), 1);
+        assert_eq!(report.failures[0].operation, "parse");
+        assert!(
+            report.failures[0]
+                .message
+                .contains("first Change Log data row")
+        );
+        assert_eq!(fs::read_to_string(path).unwrap(), content);
     }
 
     #[test]

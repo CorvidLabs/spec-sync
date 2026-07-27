@@ -6,7 +6,7 @@ spec: compact.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/compact.rs` | `fledge run test -- compact::tests` | Core trimming plus exact unfenced H2/table selection, marked ownership, duplicate rejection, fixed-width overflow, backslash parity/code spans, contiguous tables, exact CRLF/EOF preservation, keep-zero, staging all-or-none, late partial publication, and idempotence |
+| `src/compact.rs` | `fledge run test -- compact::tests` | Core trimming plus exact unfenced/unindented H2/table selection, canonical summary position, marked ownership, duplicate rejection, fixed-width overflow, backslash parity/code spans, exact CRLF/EOF preservation, keep-zero, staging all-or-none, late partial publication, and idempotence |
 | `tests/integration/commands.rs` | `fledge run test -- compact_` | CLI dry-run no-write behavior, output counts, newline preservation, and byte-identical second run |
 
 ## Coverage Gaps
@@ -29,6 +29,8 @@ spec: compact.spec.md
 |------|-------------------|-----------------|
 | Read/parse/stage failure | Typed failure, nonzero command outcome, zero writes, and complete planned counts before publication | `compact_preflight_failure_prevents_all_writes` plus command JSON failure fixture |
 | Fenced table or prefix heading | Ignore fenced/indented examples and `## Change Logger`; compact only the exact real H2 table | `compact_ignores_fenced_tables_and_change_logger_prefixes` |
+| Indented pipe code or separator | Stop data parsing before indented code; reject an indented separator with zero writes | `compact_stops_before_indented_pipe_code`, `compact_indented_separator_fails_before_writing` |
+| Reordered generated summary | Reject marked state outside the first data row without changing unterminated source bytes | `compact_rejects_reordered_unterminated_owned_summary_without_writing` |
 | No changelog section found | Spec is silently skipped | Keep or add a focused assertion before changing this behavior |
 | Unmarked row exactly resembles a summary | Preserve it as ordinary history; never fold it as generated state | `compact_preserves_exact_shape_user_row_without_marker` |
 | Duplicate generated summaries | Refuse ambiguous folding | `compact_rejects_multiple_marked_summaries` |

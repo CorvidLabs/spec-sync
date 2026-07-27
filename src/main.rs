@@ -198,9 +198,11 @@ fn run() {
         Command::Diff { base } => commands::diff::cmd_diff(&root, &base, format),
         Command::Hooks { action } => commands::hooks::cmd_hooks(&root, action),
         Command::Agents { action } => commands::agents::cmd_agents(&root, action),
-        Command::Compact { keep, dry_run } => commands::compact::cmd_compact(&root, keep, dry_run),
+        Command::Compact { keep, dry_run } => {
+            commands::compact::cmd_compact(&root, keep, dry_run, format)
+        }
         Command::ArchiveTasks { dry_run } => {
-            commands::archive_tasks::cmd_archive_tasks(&root, dry_run)
+            commands::archive_tasks::cmd_archive_tasks(&root, dry_run, format)
         }
         Command::View { role, spec } => commands::view::cmd_view(&root, &role, spec.as_deref()),
         Command::Merge { dry_run, all } => commands::merge::cmd_merge(&root, dry_run, all, format),

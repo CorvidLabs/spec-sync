@@ -8,6 +8,12 @@ spec: cmd_compact.spec.md
 - `--keep` is passed straight through; the wrapper only flips the printed verb ("would compact" vs "compacted") and prints the banner.
 - Empty result is a success case ("No changelogs need compaction (all within limit).") with an early return — not an error.
 - Per-spec output reports both `removed` and the surviving `compacted_entries` count so reviewers can sanity-check the keep limit.
+- Singular/plural labels derive from each reported count; the kept count is ordinary rows only.
+- `OutputFormat::Json` produces one document and expresses dry-run truth through separate `would_change` and `applied` booleans.
+- `OutputFormat::Markdown` and `Github` share the PR-suitable table renderer; text-like formats preserve the established terminal output.
+- Structured renderers normalize Windows separators to `/` without corrupting literal Unix backslashes.
+- Markdown/GitHub uses sanitized dynamic-backtick code spans; JSON retains machine-readable paths and reports complete/partial operation truth.
+- The command renders the full typed compact report and exits 1 when any operation fails.
 
 ## Files to Read First
 
@@ -17,8 +23,9 @@ spec: cmd_compact.spec.md
 
 ## Current Status
 
-Implemented and stable. The `compact` delegate is unit-tested (trim, no-op when under limit, three-column tables); the wrapper itself has no inline tests (output formatting only).
+Text, JSON/`--json`, Markdown/GitHub, hostile structured paths, failure truth, dry-run, and repeated-run behavior are covered end to end for issue #417.
 
 ## Notes
 
-- `CompactResult.spec_path` is already repo-relative; the wrapper prints it verbatim.
+- `CompactResult.spec_path` is repo-relative; Windows separators normalize while Unix literal backslashes survive.
+- Markdown table paths sanitize controls/bidi characters, escape pipes, and use a delimiter longer than every embedded backtick run.

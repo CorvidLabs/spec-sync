@@ -25,7 +25,7 @@ spec: cmd_compact.spec.md
 - `--json` is byte-equivalent to `--format json`
 - Markdown and GitHub modes emit a heading, optional dry-run notice, result table, and truthful singular/plural summary
 - JSON and Markdown result paths use `/` separators on Windows while preserving literal Unix backslashes
-- Markdown/GitHub path cells use sanitized variable-length code spans and cannot inject rows through pipes, backticks, controls, or bidi formatting
+- Markdown/GitHub path cells use one sanitized code element (a variable-length Markdown span or entity-safe HTML code for literal-pipe paths) and cannot inject rows through pipes, backticks, controls, or bidi formatting
 - JSON reports complete/partial state and planned/succeeded/failed operation counts; an incomplete apply never claims `applied: true`
 - The command exits 1 after rendering any read, parse, stage, or publication failure
 
@@ -59,6 +59,6 @@ Acceptance Criteria
 - `--json` is byte-equivalent to `--format json`
 - Markdown and GitHub modes emit a heading, optional dry-run notice, result table, and truthful singular/plural summary
 - JSON and Markdown result paths use `/` separators on Windows while preserving literal Unix backslashes
-- Markdown/GitHub paths are sanitized and rendered with safe variable-length code spans
+- Markdown/GitHub paths are sanitized and rendered as one safe code element while preserving every legal Unix backslash parity
 - JSON exposes complete/partial state, operation counts, and structured errors
 - Any incomplete apply renders before exiting 1 and never claims `applied: true`

@@ -356,11 +356,15 @@ fn safe_diagnostic(value: &str) -> String {
 }
 
 fn markdown_table_cell(value: &str) -> String {
-    safe_diagnostic(value).replace('|', "\\|")
+    markdown_html_text(&safe_diagnostic(value))
 }
 
 fn markdown_code_span(value: &str) -> String {
-    let value = markdown_table_cell(value);
+    let value = safe_diagnostic(value);
+    if value.contains('|') {
+        return format!("<code>{}</code>", markdown_html_text(&value));
+    }
+
     let longest_backtick_run = value
         .split(|character| character != '`')
         .map(str::len)
@@ -372,6 +376,15 @@ fn markdown_code_span(value: &str) -> String {
     } else {
         format!("{delimiter}{value}{delimiter}")
     }
+}
+
+fn markdown_html_text(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('\\', "&#92;")
+        .replace('|', "&#124;")
 }
 
 #[cfg(test)]
@@ -422,14 +435,15 @@ mod tests {
 
     #[test]
     fn markdown_paths_use_safe_dynamic_code_spans() {
-        let path = PathBuf::from("specs/pipe|ticks``\n\u{0007}\u{202E}/tasks.md");
+        let path = PathBuf::from("specs/pipe|ticks``</code>&\n\u{0007}\u{202E}/tasks.md");
         let markdown = render_markdown(&report_for(path, 1, true));
 
-        assert!(markdown.contains("\\|"));
-        assert!(markdown.contains("\\u{000A}"));
-        assert!(markdown.contains("\\u{0007}"));
-        assert!(markdown.contains("\\u{202E}"));
-        assert!(markdown.contains("```"));
+        assert!(markdown.contains("&#124;"));
+        assert!(markdown.contains("&lt;/code&gt;&amp;"));
+        assert!(markdown.contains("&#92;u{000A}"));
+        assert!(markdown.contains("&#92;u{0007}"));
+        assert!(markdown.contains("&#92;u{202E}"));
+        assert!(markdown.contains("<code>"));
         assert_eq!(
             markdown
                 .lines()
@@ -451,6 +465,25 @@ mod tests {
             "{markdown}"
         );
         assert!(!markdown.contains(r"`specs/\\\\server\\share/tasks.md`"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn markdown_paths_preserve_backslash_before_pipe_in_one_table_cell() {
+        let path = PathBuf::from(r"specs/a\|b/tasks.md");
+        let markdown = render_markdown(&report_for(path, 1, true));
+
+        assert!(
+            markdown.contains(r"<code>specs/a&#92;&#124;b/tasks.md</code>"),
+            "{markdown}"
+        );
+        assert_eq!(
+            markdown
+                .lines()
+                .filter(|line| line.contains("Would archive") && line.starts_with('|'))
+                .count(),
+            1
+        );
     }
 
     #[test]

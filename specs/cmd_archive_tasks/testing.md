@@ -7,7 +7,7 @@ spec: cmd_archive_tasks.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `tests/integration/commands.rs` | `fledge run test -- archive_tasks_` | Text dry-run, JSON shorthand equivalence, Markdown/GitHub structure, exit-1 failure schema, and no-write guarantees |
-| `src/commands/archive_tasks.rs` | `fledge run test -- commands::archive_tasks::tests` | Pluralization, platform-aware separators, dynamic code spans, text/Markdown control and bidi sanitization, and JSON escaping |
+| `src/commands/archive_tasks.rs` | `fledge run test -- commands::archive_tasks::tests` | Pluralization, platform-aware separators, one-element code rendering, backslash/pipe composition, text/Markdown control and bidi sanitization, and JSON escaping |
 | `src/archive.rs` (delegate logic) | `fledge run test -- archive::tests` | Parsing plus plan/stage/publish/rollback transaction boundaries |
 
 ## Coverage Gaps
@@ -24,7 +24,7 @@ spec: cmd_archive_tasks.spec.md
 | Markdown/GitHub dry run | `tasks.md` has completed items | run with `--format markdown` and `--format github` | both emit a heading, notice, table, and truthful summary; neither modifies files |
 | Incomplete apply | one candidate is valid and another is non-UTF-8 | run JSON apply | exits 1 with `complete: false`, no succeeded operations, a read failure, and zero file changes |
 | Platform-aware structured paths | Windows separators or a Unix literal backslash | render JSON or Markdown | Windows uses `/`; Unix preserves the literal backslash |
-| Adversarial Markdown path | path contains pipes, backtick runs, line/control, or bidi characters | render Markdown/GitHub | one intact row with a dynamic code span and visible safe escapes |
+| Adversarial Markdown path | path contains pipes, backtick runs, line/control, or bidi characters | render Markdown/GitHub | one intact row with one code element and visible safe escapes |
 
 ## Regression Matrix
 
@@ -35,7 +35,7 @@ spec: cmd_archive_tasks.spec.md
 | Structured stdout contamination | JSON must be exactly one parseable document with no banner or ANSI bytes | `archive_tasks_json_formats_are_clean_truthful_and_equivalent` |
 | Incomplete mutation | Failure must exit 1 after rendering; `applied` false; no success on preflight/stage failure | `archive_tasks_apply_failure_exits_one_and_reports_zero_writes` and archive transaction unit tests |
 | Host-native path separators | Windows separators normalize without corrupting Unix identities | cfg-specific `structured_output_*` unit tests and structured CLI assertions |
-| Markdown path injection | Pipes, backticks, controls, and bidi controls cannot create rows or malformed spans; Unix backslashes remain literal | `markdown_paths_use_safe_dynamic_code_spans`, `markdown_paths_preserve_literal_unix_backslashes` |
+| Markdown path injection | Pipes, backticks, controls, and bidi controls cannot create rows or malformed code elements; every Unix backslash parity, including backslash-before-pipe, remains literal | `markdown_paths_use_safe_dynamic_code_spans`, `markdown_paths_preserve_literal_unix_backslashes`, `markdown_paths_preserve_backslash_before_pipe_in_one_table_cell` |
 | Terminal diagnostic injection | Text paths/errors visibly encode controls and bidi characters | `text_paths_and_errors_visibly_escape_control_and_bidi_characters` |
 
 ## Reviewer Checklist

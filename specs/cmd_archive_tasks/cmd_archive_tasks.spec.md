@@ -37,7 +37,7 @@ Implements the `specsync archive-tasks` command. Moves completed tasks (checked 
 7. Structured paths retain `PathBuf` identity until rendering: Windows separators become `/`, while literal Unix backslashes remain literal
 8. JSON exposes `complete`, `partial`, and explicit planned/succeeded/rolled-back/failed operation arrays
 9. Any incomplete report is fully rendered before the command exits 1; `applied` is never true for an incomplete invocation
-10. Markdown/GitHub paths use dynamic-backtick code spans, escaped table pipes, visible escapes for control and bidirectional-control characters, and unchanged legal Unix backslashes
+10. Markdown/GitHub paths use one code element: dynamic-backtick spans normally and entity-safe HTML code for literal-pipe paths, plus visible escapes for control and bidirectional-control characters; every legal Unix backslash parity remains unchanged
 11. Text output uses correct task/tasks and file/files labels
 12. Text paths and filesystem errors visibly escape control and bidirectional-control characters
 
@@ -95,7 +95,7 @@ Implements the `specsync archive-tasks` command. Moves completed tasks (checked 
 
 | Date | Change |
 |------|--------|
-| 2026-07-26 | Preserve legal Unix backslashes through Markdown/GitHub code-span rendering |
+| 2026-07-26 | Preserve every legal Unix backslash parity, including backslash-before-pipe paths, through one safe Markdown/GitHub code cell |
 | 2026-07-26 | Add truthful typed failure output, exit-1 incomplete results, safe path rendering, and singular/plural text |
 | 2026-07-26 | Normalize structured result paths to portable `/` separators on Windows |
 | 2026-07-26 | Fix #417 structured output: parse-clean JSON, Markdown/GitHub tables, shorthand equivalence, and explicit dry-run truth |

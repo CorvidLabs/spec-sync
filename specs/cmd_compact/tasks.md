@@ -19,7 +19,7 @@ spec: cmd_compact.spec.md
 - [x] Preserve literal Unix backslashes and render adversarial Markdown/GitHub paths safely
 - [x] Render typed complete/partial failures and exit nonzero without false `applied` success
 - [x] Use correct singular/plural labels for aggregate spec counts
-- [x] Preserve literal Unix backslashes through Markdown/GitHub rendering
+- [x] Preserve every literal Unix backslash parity, including backslash-before-pipe paths, through Markdown/GitHub rendering
 - [x] Prove late-publish partial counts and errors in parseable JSON and Markdown
 
 ## Review Status

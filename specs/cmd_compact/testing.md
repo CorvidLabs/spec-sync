@@ -24,7 +24,7 @@ spec: cmd_compact.spec.md
 | Markdown dry run | a spec exceeds the keep limit | run with `--format markdown` | emits a heading, notice, table, and truthful summary; modifies no files |
 | Windows structured paths | the delegate returns a Windows path | render JSON or Markdown | output uses portable `/` separators |
 | Unix literal backslash | a legal Unix filename contains `\` | render structured output | path identity is preserved |
-| Hostile Markdown path | a path contains pipes, backtick runs, controls, or bidi marks | render Markdown/GitHub | one sanitized code span remains inside one table cell |
+| Hostile Markdown path | a path contains pipes, backtick runs, controls, or bidi marks | render Markdown/GitHub | one sanitized code element remains inside one table cell |
 | Incomplete apply | any read/parse/stage/publish operation fails | render JSON | exit 1; `complete: false`, truthful counts/errors, and no false `applied` |
 
 ## Regression Matrix
@@ -36,7 +36,7 @@ spec: cmd_compact.spec.md
 | Multiple affected specs | Summary sums `removed` across results and reports the spec count | Keep or add a focused assertion before changing this behavior |
 | Structured stdout contamination | JSON must be exactly one parseable document with no banner or ANSI bytes | `compact_json_formats_are_clean_truthful_and_equivalent` |
 | Host-native path separators | Normalize actual Windows separators without aliasing Unix filename bytes | cfg-specific portable-path tests and structured CLI assertions |
-| Markdown path injection | Pipes/backticks/controls cannot create rows or break code spans; Unix backslashes remain literal | `markdown_code_span_sanitizes_paths_and_uses_safe_delimiters`, `markdown_code_span_preserves_literal_unix_backslashes` |
+| Markdown path injection | Pipes/backticks/controls cannot create rows or break code elements; every Unix backslash parity, including backslash-before-pipe, remains literal | `markdown_code_span_sanitizes_paths_and_uses_safe_delimiters`, `markdown_code_span_preserves_literal_unix_backslashes`, `markdown_code_span_preserves_backslash_before_pipe_in_one_table_cell` |
 | Incomplete operations | Render valid structured output, exit 1, and never claim complete application | focused failure integration fixture, `partial_publish_reports_are_truthful_in_json_and_markdown` |
 
 ## Reviewer Checklist

@@ -36,7 +36,7 @@ Implements the `specsync compact` command. Trims old entries from spec changelog
 6. Markdown and GitHub formats render a heading, dry-run notice, result table, and truthful summary
 7. Structured dry-run output distinguishes `would_change: true` from `applied: false`
 8. JSON and Markdown project paths use `/` separators on Windows while preserving literal Unix backslashes
-9. Markdown/GitHub paths use sanitized variable-length code spans that cannot inject table rows or duplicate legal Unix backslashes
+9. Markdown/GitHub paths use one sanitized code element: variable-length Markdown spans normally and entity-safe HTML code when a literal pipe is present, so no table row can be injected and every legal Unix backslash is preserved
 10. JSON exposes `complete`, `partial`, planned/succeeded/failed operations, structured errors, and never sets `applied: true` for incomplete work
 11. Any compact failure is rendered before the command exits 1
 
@@ -82,7 +82,7 @@ Implements the `specsync compact` command. Trims old entries from spec changelog
 
 | Date | Change |
 |------|--------|
-| 2026-07-26 | Preserve literal Unix backslashes in rendered Markdown/GitHub and add truthful late-publish partial JSON/Markdown evidence |
+| 2026-07-26 | Preserve every Unix backslash parity, including backslash-before-pipe paths, in one rendered Markdown/GitHub code cell and add truthful late-publish partial JSON/Markdown evidence |
 | 2026-07-26 | Harden #417 result truth: correct spec pluralization, platform-aware paths, safe Markdown code spans, structured failures, and nonzero incomplete outcomes |
 | 2026-07-26 | Normalize structured result paths to portable `/` separators on Windows |
 | 2026-07-26 | Fix #417 structured output: parse-clean JSON, Markdown/GitHub tables, shorthand equivalence, and explicit dry-run truth |

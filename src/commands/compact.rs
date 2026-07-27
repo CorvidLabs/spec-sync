@@ -287,11 +287,15 @@ fn safe_diagnostic(value: &str) -> String {
 }
 
 fn markdown_cell(value: &str) -> String {
-    safe_diagnostic(value).replace('|', "\\|")
+    markdown_html_text(&safe_diagnostic(value))
 }
 
 fn markdown_code_span(value: &str) -> String {
-    let value = markdown_cell(value);
+    let value = safe_diagnostic(value);
+    if value.contains('|') {
+        return format!("<code>{}</code>", markdown_html_text(&value));
+    }
+
     let longest_backtick_run = value
         .split(|character| character != '`')
         .map(str::len)
@@ -303,6 +307,15 @@ fn markdown_code_span(value: &str) -> String {
     } else {
         format!("{delimiter}{value}{delimiter}")
     }
+}
+
+fn markdown_html_text(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('\\', "&#92;")
+        .replace('|', "&#124;")
 }
 
 fn portable_output_path(value: &str) -> String {
@@ -343,7 +356,11 @@ mod tests {
     fn markdown_code_span_sanitizes_paths_and_uses_safe_delimiters() {
         assert_eq!(
             markdown_code_span("bad`name|row\n.spec.md"),
-            "``bad`name\\|row\\u{000A}.spec.md``"
+            "<code>bad`name&#124;row&#92;u{000A}.spec.md</code>"
+        );
+        assert_eq!(
+            markdown_code_span("bad</code>&|row.spec.md"),
+            "<code>bad&lt;/code&gt;&amp;&#124;row.spec.md</code>"
         );
         assert_eq!(markdown_code_span("``edge"), "``` ``edge ```");
     }
@@ -354,6 +371,15 @@ mod tests {
         assert_eq!(
             markdown_code_span(r"specs/\\server\share/history.spec.md"),
             r"`specs/\\server\share/history.spec.md`"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn markdown_code_span_preserves_backslash_before_pipe_in_one_table_cell() {
+        assert_eq!(
+            markdown_code_span(r"specs/a\|b/history.spec.md"),
+            r"<code>specs/a&#92;&#124;b/history.spec.md</code>"
         );
     }
 

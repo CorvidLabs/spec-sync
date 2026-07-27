@@ -26,7 +26,7 @@ spec: cmd_archive_tasks.spec.md
 - `--json` is byte-equivalent to `--format json`
 - Markdown and GitHub modes emit equivalent headings, optional dry-run notices, result/failure tables, and truthful singular/plural summaries
 - Structured Windows paths use `/` separators; legal Unix backslashes remain literal
-- Markdown/GitHub paths cannot inject rows or break code spans through pipes, backtick runs, line/control characters, or bidirectional controls
+- Markdown/GitHub paths render as one safe code element and cannot inject rows through pipes, backtick runs, line/control characters, or bidirectional controls
 - Text output uses task/tasks and file/files according to the actual counts
 - Text paths and errors visibly encode line/control and bidirectional-control characters rather than emitting terminal-control content
 
@@ -60,6 +60,6 @@ Acceptance Criteria
 - `--json` is byte-equivalent to `--format json`
 - Markdown and GitHub modes emit equivalent headings, optional dry-run notices, result/failure tables, and truthful singular/plural summaries
 - Structured Windows paths use `/` separators; legal Unix backslashes remain literal
-- Markdown/GitHub paths cannot inject rows or break code spans through pipes, backtick runs, line/control characters, or bidirectional controls
+- Markdown/GitHub paths cannot inject rows or break their single code element through pipes, backtick runs, line/control characters, or bidirectional controls
 - Text output uses task/tasks and file/files according to the actual counts
 - Text paths and errors visibly encode line/control and bidirectional-control characters rather than emitting terminal-control content

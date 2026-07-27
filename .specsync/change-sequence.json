@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 65,
-  "id": "CHG-0065-make-issue-417-changelog-compaction-idempotent-and-provide-truthful-portable-str",
+  "sequence": 66,
+  "id": "CHG-0066-make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base",
   "acknowledged_collisions": [
     {
       "sequence": 16,

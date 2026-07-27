@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::process;
 
-use crate::parser::parse_frontmatter;
+use crate::parser::{parse_checked_issue_references, parse_frontmatter};
 use crate::validator::find_spec_files;
 
 /// Result of merging a single spec file.
@@ -37,10 +37,11 @@ pub fn merge_specs(
         let spec_files = find_spec_files(specs_dir);
         spec_files
             .into_iter()
-            .filter(|p| {
-                fs::read_to_string(p)
-                    .map(|c| has_conflict_markers(&c))
-                    .unwrap_or(false)
+            .filter(|path| match fs::read_to_string(path) {
+                Ok(content) => has_conflict_markers(&content),
+                // Keep unreadable candidates so the main loop emits an explicit
+                // Manual result instead of silently dropping them.
+                Err(_) => true,
             })
             .collect::<Vec<_>>()
     } else {
@@ -63,18 +64,25 @@ pub fn merge_specs(
             }
         };
 
-        let (resolved, result) = resolve_spec_conflicts(&content, &rel_path(root, spec_path));
+        let (resolved, mut result, should_write) =
+            resolve_spec_conflicts(&content, &rel_path(root, spec_path));
 
-        if !dry_run
-            && let MergeStatus::Resolved = &result.status
-            && let Err(e) = fs::write(spec_path, &resolved)
-        {
-            results.push(MergeResult {
-                spec_path: rel_path(root, spec_path),
-                status: MergeStatus::Manual,
-                details: vec![format!("Cannot write file: {e}")],
-            });
-            continue;
+        // Preserve all-or-nothing writes: an ambiguous hunk leaves the complete
+        // original file untouched, even when other hunks are auto-resolvable.
+        if !dry_run && should_write {
+            if let Err(e) = fs::write(spec_path, &resolved) {
+                results.push(MergeResult {
+                    spec_path: rel_path(root, spec_path),
+                    status: MergeStatus::Manual,
+                    details: vec![format!("Cannot write file: {e}")],
+                });
+                continue;
+            }
+            for detail in &mut result.details {
+                if let Some(suffix) = detail.strip_prefix("Auto-resolvable") {
+                    *detail = format!("Auto-resolved{suffix}");
+                }
+            }
         }
 
         results.push(result);
@@ -85,7 +93,7 @@ pub fn merge_specs(
 
 /// Check whether content contains git conflict markers.
 pub fn has_conflict_markers(content: &str) -> bool {
-    content.contains("\n<<<<<<< ") || content.starts_with("<<<<<<< ")
+    content.lines().any(is_conflict_marker_like)
 }
 
 /// Use `git status` to find spec files with merge conflicts.
@@ -96,8 +104,9 @@ fn detect_conflicted_specs(root: &Path, specs_dir: &Path) -> Vec<std::path::Path
         .output();
 
     let output = match output {
-        Ok(o) => o,
+        Ok(output) if output.status.success() => output,
         Err(_) => return Vec::new(),
+        Ok(_) => return Vec::new(),
     };
 
     let specs_rel = specs_dir
@@ -113,23 +122,32 @@ fn detect_conflicted_specs(root: &Path, specs_dir: &Path) -> Vec<std::path::Path
 }
 
 /// Resolve conflicts in a single spec file.
-/// Returns (resolved_content, merge_result).
-fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
+/// Returns (resolved_content, merge_result, should_write).
+///
+/// `should_write` is true only when every hunk was resolved and the output
+/// passed the frontmatter safety net. Ambiguous files remain byte-for-byte
+/// untouched.
+fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult, bool) {
     let mut details = Vec::new();
     let mut all_resolved = true;
+    let mut auto_count = 0usize;
+    let mut manual_count = 0usize;
 
     // Split the file into regions: clean text and conflict blocks
     let regions = parse_conflict_regions(content);
 
     let mut output = String::new();
 
-    for region in &regions {
+    for (index, region) in regions.iter().enumerate() {
         match region {
             Region::Clean(text) => output.push_str(text),
             Region::Conflict {
                 ours,
                 theirs,
                 marker_label,
+                theirs_label,
+                raw,
+                well_formed,
             } => {
                 // Determine what section this conflict is in. We are still inside
                 // the leading frontmatter block until its closing `---` — i.e.
@@ -137,49 +155,93 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
                 let section = detect_section(&output);
                 let in_frontmatter = output.lines().filter(|l| l.trim() == "---").count() < 2;
 
-                match resolve_conflict(ours, theirs, &section, in_frontmatter) {
-                    Resolution::Auto(merged) => {
+                let next_clean_starts_with_separator = regions
+                    .get(index + 1)
+                    .and_then(|region| match region {
+                        Region::Clean(text) => Some(text),
+                        Region::Conflict { .. } => None,
+                    })
+                    .is_some_and(|text| clean_region_starts_with_table_separator(text));
+
+                let resolution = if !*well_formed {
+                    Resolution::Manual("malformed or incomplete conflict markers")
+                } else if !in_frontmatter && next_clean_starts_with_separator {
+                    Resolution::Manual("conflict includes a table header")
+                } else {
+                    resolve_conflict(ours, theirs, &section, in_frontmatter)
+                };
+
+                match resolution {
+                    Resolution::Auto(merged, strategy) => {
+                        auto_count += 1;
                         details.push(format!(
-                            "Auto-resolved in {}: {}",
+                            "Auto-resolvable in {} ({} ↔ {}): {}",
                             section.as_deref().unwrap_or("unknown section"),
-                            marker_label
+                            marker_label,
+                            if theirs_label.is_empty() {
+                                "incoming"
+                            } else {
+                                theirs_label
+                            },
+                            strategy
                         ));
                         output.push_str(&merged);
                     }
-                    Resolution::Manual => {
+                    Resolution::Manual(reason) => {
+                        manual_count += 1;
                         details.push(format!(
-                            "Manual resolution needed in {}: {}",
+                            "Manual resolution needed in {} ({} ↔ {}): {}",
                             section.as_deref().unwrap_or("unknown section"),
-                            marker_label
+                            marker_label,
+                            if theirs_label.is_empty() {
+                                "incoming"
+                            } else {
+                                theirs_label
+                            },
+                            reason
                         ));
                         all_resolved = false;
-                        // Preserve the conflict markers
-                        output.push_str(&format!(
-                            "<<<<<<< {marker_label}\n{ours}=======\n{theirs}>>>>>>> {marker_label}\n"
-                        ));
+                        // Preserve the original conflict block verbatim (markers,
+                        // diff3 base section and all) — nothing is lost.
+                        output.push_str(raw);
                     }
                 }
             }
         }
     }
 
-    // Safety net for frontmatter validity: if the input had frontmatter but the
-    // assembled output no longer parses as frontmatter OR parses to one that lost
-    // its `module`, refuse — downgrade to Manual so the caller (which writes only
-    // on `Resolved`) leaves the ORIGINAL file untouched. (This guards frontmatter
-    // structure; body/row preservation is handled upstream by only auto-merging
-    // pure field/table hunks, never prose- or section-carrying ones.)
-    let had_frontmatter = content.lines().any(|l| l.trim() == "---");
+    // Safety net for frontmatter validity: if the assembled output does not parse
+    // as a complete spec frontmatter block, refuse to persist ANYTHING so the
+    // caller leaves the ORIGINAL
+    // file untouched. (This guards frontmatter structure; body/row preservation is
+    // handled upstream by only auto-merging pure field/table hunks, never prose- or
+    // section-carrying ones.)
     let resolved_frontmatter_ok = parse_frontmatter(&output)
-        .map(|parsed| parsed.frontmatter.module.is_some())
-        .unwrap_or(false);
-    if all_resolved && !output.is_empty() && had_frontmatter && !resolved_frontmatter_ok {
+        .map(|parsed| {
+            parsed.frontmatter.module.is_some()
+                && parsed.frontmatter.version.is_some()
+                && parsed.frontmatter.status.is_some()
+                && parsed.frontmatter.parsed_status().is_some()
+                && !parsed.frontmatter.files.is_empty()
+        })
+        .unwrap_or(false)
+        && parse_checked_issue_references(&output).is_ok();
+    let mut should_write = all_resolved && auto_count > 0;
+    if !output.is_empty() && !resolved_frontmatter_ok {
         all_resolved = false;
+        should_write = false;
         details.push(
             "Resolved content would have invalid or empty frontmatter — left for \
              manual resolution; the original file was not modified"
                 .to_string(),
         );
+    }
+
+    if manual_count > 0 && auto_count > 0 {
+        details.push(format!(
+            "{auto_count} hunk(s) are auto-resolvable, but {manual_count} hunk(s) need \
+             manual resolution; the file was left unchanged (all-or-nothing)"
+        ));
     }
 
     let status = if !all_resolved {
@@ -190,6 +252,8 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
         MergeStatus::Resolved
     };
 
+    let output = restore_input_line_endings(content, output);
+
     (
         output,
         MergeResult {
@@ -197,7 +261,22 @@ fn resolve_spec_conflicts(content: &str, path: &str) -> (String, MergeResult) {
             status,
             details,
         },
+        should_write,
     )
+}
+
+fn restore_input_line_endings(input: &str, mut output: String) -> String {
+    if !input.ends_with('\n') && output.ends_with('\n') {
+        output.pop();
+    }
+
+    let newline_count = input.bytes().filter(|byte| *byte == b'\n').count();
+    let crlf_count = input.match_indices("\r\n").count();
+    if newline_count > 0 && newline_count == crlf_count {
+        output.replace('\n', "\r\n")
+    } else {
+        output
+    }
 }
 
 enum Region {
@@ -205,18 +284,31 @@ enum Region {
     Conflict {
         ours: String,
         theirs: String,
+        /// Label on the `<<<<<<<` marker (ours side, usually `HEAD`).
         marker_label: String,
+        /// Label on the `>>>>>>>` marker (the incoming side).
+        theirs_label: String,
+        /// The complete original conflict block, markers included — re-emitted
+        /// verbatim when the hunk needs manual resolution so nothing (including
+        /// diff3 base sections) is lost or rewritten.
+        raw: String,
+        /// Whether the block contained exactly one separator and a closing marker.
+        well_formed: bool,
     },
 }
 
 /// Parse content into clean regions and conflict blocks.
+///
+/// Handles `merge.conflictStyle diff3` hunks: the `||||||| base` section is
+/// captured (in `raw`) but excluded from `ours`/`theirs`, so auto-resolution
+/// never leaks base content or the `|||||||` marker into the output.
 fn parse_conflict_regions(content: &str) -> Vec<Region> {
     let mut regions = Vec::new();
     let mut clean_buf = String::new();
     let mut lines = content.lines().peekable();
 
     while let Some(line) = lines.next() {
-        if let Some(label) = line.strip_prefix("<<<<<<< ") {
+        if let Some(label) = conflict_opener_label(line) {
             // Flush clean buffer
             if !clean_buf.is_empty() {
                 regions.push(Region::Clean(clean_buf.clone()));
@@ -224,19 +316,60 @@ fn parse_conflict_regions(content: &str) -> Vec<Region> {
             }
 
             let marker_label = label.to_string();
+            let mut raw = format!("{line}\n");
             let mut ours = String::new();
             let mut theirs = String::new();
+            let mut theirs_label = String::new();
+            let mut in_base = false;
             let mut in_theirs = false;
+            let mut saw_base = false;
+            let mut saw_separator = false;
+            let mut saw_end = false;
+            let mut malformed = false;
+            let mut nested_depth = 0usize;
 
             for inner_line in lines.by_ref() {
-                if inner_line == "=======" {
+                raw.push_str(inner_line);
+                raw.push('\n');
+
+                if conflict_opener_label(inner_line).is_some() {
+                    malformed = true;
+                    nested_depth += 1;
+                    continue;
+                }
+                if nested_depth > 0 {
+                    if conflict_closer_label(inner_line).is_some() {
+                        nested_depth -= 1;
+                    }
+                    continue;
+                }
+
+                if is_diff3_base_marker(inner_line) {
+                    if saw_base || saw_separator || in_theirs {
+                        malformed = true;
+                    }
+                    saw_base = true;
+                    in_base = true;
+                } else if inner_line == "=======" {
+                    if saw_separator {
+                        malformed = true;
+                    }
+                    saw_separator = true;
+                    in_base = false;
                     in_theirs = true;
-                } else if inner_line.starts_with(">>>>>>> ") {
+                } else if let Some(label) = conflict_closer_label(inner_line) {
+                    if !saw_separator {
+                        malformed = true;
+                    }
+                    theirs_label = label.to_string();
+                    saw_end = true;
                     break;
+                } else if is_conflict_marker_like(inner_line) {
+                    malformed = true;
                 } else if in_theirs {
                     theirs.push_str(inner_line);
                     theirs.push('\n');
-                } else {
+                } else if !in_base {
                     ours.push_str(inner_line);
                     ours.push('\n');
                 }
@@ -246,6 +379,22 @@ fn parse_conflict_regions(content: &str) -> Vec<Region> {
                 ours,
                 theirs,
                 marker_label,
+                theirs_label,
+                raw,
+                well_formed: saw_separator && saw_end && !malformed,
+            });
+        } else if is_conflict_marker_like(line) {
+            if !clean_buf.is_empty() {
+                regions.push(Region::Clean(clean_buf.clone()));
+                clean_buf.clear();
+            }
+            regions.push(Region::Conflict {
+                ours: String::new(),
+                theirs: String::new(),
+                marker_label: "unavailable".to_string(),
+                theirs_label: "unavailable".to_string(),
+                raw: format!("{line}\n"),
+                well_formed: false,
             });
         } else {
             clean_buf.push_str(line);
@@ -260,6 +409,28 @@ fn parse_conflict_regions(content: &str) -> Vec<Region> {
     regions
 }
 
+fn conflict_opener_label(line: &str) -> Option<&str> {
+    line.strip_prefix("<<<<<<< ")
+        .filter(|label| !label.is_empty() && !label.starts_with('<'))
+}
+
+fn conflict_closer_label(line: &str) -> Option<&str> {
+    line.strip_prefix(">>>>>>> ")
+        .filter(|label| !label.is_empty() && !label.starts_with('>'))
+}
+
+fn is_diff3_base_marker(line: &str) -> bool {
+    line.strip_prefix("||||||| ")
+        .is_some_and(|label| !label.is_empty() && !label.starts_with('|'))
+}
+
+fn is_conflict_marker_like(line: &str) -> bool {
+    line.starts_with("<<<<<<<")
+        || line.starts_with("|||||||")
+        || line.starts_with("=======")
+        || line.starts_with(">>>>>>>")
+}
+
 /// Detect which markdown section the cursor is currently in,
 /// based on the content already emitted.
 fn detect_section(content_so_far: &str) -> Option<String> {
@@ -272,8 +443,10 @@ fn detect_section(content_so_far: &str) -> Option<String> {
 }
 
 enum Resolution {
-    Auto(String),
-    Manual,
+    /// (merged content, human-readable description of WHICH side/strategy won
+    /// — reported so the log never claims HEAD won when it didn't, #427)
+    Auto(String, &'static str),
+    Manual(&'static str),
 }
 
 /// Try to auto-resolve a conflict based on section context.
@@ -303,7 +476,10 @@ fn resolve_conflict(
     // resolution instead.
     let pure_rows = is_pure_table_rows(ours) && is_pure_table_rows(theirs);
     match section_name {
-        _ if !pure_rows => Resolution::Manual,
+        _ if !pure_rows => Resolution::Manual("conflict contains prose or non-table content"),
+        _ if contains_table_separator(ours) || contains_table_separator(theirs) => {
+            Resolution::Manual("conflict includes a table header separator")
+        }
         "Change Log" => resolve_changelog_conflict(ours, theirs),
         _ => resolve_table_conflict(ours, theirs),
     }
@@ -316,13 +492,26 @@ fn is_pure_table_rows(text: &str) -> bool {
         .all(|l| l.trim_start().starts_with('|'))
 }
 
+fn contains_table_separator(text: &str) -> bool {
+    text.lines().any(|line| is_table_separator_row(line.trim()))
+}
+
+fn clean_region_starts_with_table_separator(text: &str) -> bool {
+    text.lines()
+        .find(|line| !line.trim().is_empty())
+        .is_some_and(|line| is_table_separator_row(line.trim()))
+}
+
 /// Merge changelog table rows by date (union, sorted chronologically).
 fn resolve_changelog_conflict(ours: &str, theirs: &str) -> Resolution {
     let our_rows = parse_table_rows(ours);
     let their_rows = parse_table_rows(theirs);
 
     if our_rows.is_empty() && their_rows.is_empty() {
-        return Resolution::Manual;
+        return Resolution::Manual("no changelog rows could be parsed");
+    }
+    if our_rows.is_empty() || their_rows.is_empty() {
+        return Resolution::Manual("one side deleted all changelog rows");
     }
 
     // Deduplicate by full row content, preserve chronological order
@@ -345,7 +534,10 @@ fn resolve_changelog_conflict(ours: &str, theirs: &str) -> Resolution {
         .collect::<Vec<_>>()
         .join("\n");
 
-    Resolution::Auto(format!("{merged}\n"))
+    Resolution::Auto(
+        format!("{merged}\n"),
+        "union of both sides, sorted chronologically",
+    )
 }
 
 /// Merge generic table rows (union, deduplicated by first cell / key).
@@ -354,20 +546,29 @@ fn resolve_table_conflict(ours: &str, theirs: &str) -> Resolution {
     let their_rows = parse_table_rows(theirs);
 
     if our_rows.is_empty() && their_rows.is_empty() {
-        return Resolution::Manual;
+        return Resolution::Manual("no table rows could be parsed");
+    }
+    if our_rows.is_empty() || their_rows.is_empty() {
+        return Resolution::Manual("one side deleted all table rows");
     }
 
-    // Deduplicate by first cell (e.g., symbol name)
-    let mut seen = HashMap::new();
+    // Union rows by first cell (e.g., symbol name), but never choose a winner
+    // when both sides changed the same key differently. Such a choice would
+    // silently discard one branch's API contract.
+    let mut seen: HashMap<String, String> = HashMap::new();
     let mut order = Vec::new();
 
     for row in our_rows.iter().chain(their_rows.iter()) {
         let key = extract_first_cell(row);
-        if !seen.contains_key(&key) {
-            order.push(key.clone());
+        let normalized = row.trim_end();
+        if let Some(existing) = seen.get(&key) {
+            if existing != normalized {
+                return Resolution::Manual("same table key has divergent row content");
+            }
+            continue;
         }
-        // Theirs wins on conflict (latest change takes precedence)
-        seen.insert(key, row.trim_end().to_string());
+        order.push(key.clone());
+        seen.insert(key, normalized.to_string());
     }
 
     let merged = order
@@ -377,7 +578,10 @@ fn resolve_table_conflict(ours: &str, theirs: &str) -> Resolution {
         .collect::<Vec<_>>()
         .join("\n");
 
-    Resolution::Auto(format!("{merged}\n"))
+    Resolution::Auto(
+        format!("{merged}\n"),
+        "union of both sides; identical duplicate rows deduplicated",
+    )
 }
 
 /// Whether a conflict-hunk side is ONLY interior frontmatter fields that
@@ -405,6 +609,12 @@ fn is_frontmatter_only(text: &str) -> bool {
             // Only safe when an owning list key was opened earlier in THIS hunk.
             return under_list_key;
         }
+        // Indented mappings are valid YAML extensions, but this deliberately
+        // small resolver would flatten them into top-level fields. Leave them
+        // untouched instead of changing their meaning.
+        if line.len() != line.trim_start().len() {
+            return false;
+        }
         // `key: value` with a spaceless key (a `---` fence has no colon → rejected).
         match line.find(':') {
             Some(c) => {
@@ -413,8 +623,9 @@ fn is_frontmatter_only(text: &str) -> bool {
                     return false;
                 }
                 let value = line[c + 1..].trim();
-                // An empty (or `[]`) value opens a list the parser attaches items to.
-                under_list_key = value.is_empty() || value == "[]";
+                // Only a block-style empty value can own following `- item`
+                // lines. An inline `[]` is already complete.
+                under_list_key = value.is_empty();
                 true
             }
             None => false,
@@ -424,7 +635,8 @@ fn is_frontmatter_only(text: &str) -> bool {
 
 /// Merge frontmatter YAML fields.
 /// Lists (files, depends_on, db_tables) are unioned.
-/// Scalars: theirs wins if different.
+/// Numeric versions take the maximum value. Other scalar conflicts are
+/// ambiguous and require manual resolution.
 fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
     // Only auto-merge when BOTH sides are pure interior frontmatter fields (no
     // `---` fence, heading, or body in the hunk). A plain `git merge` of specs
@@ -433,7 +645,7 @@ fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
     // fields alone, reconstructing those fences is error-prone (dropped body,
     // doubled fences). So we don't try — such hunks are left for manual resolution.
     if !is_frontmatter_only(ours) || !is_frontmatter_only(theirs) {
-        return Resolution::Manual;
+        return Resolution::Manual("frontmatter hunk contains unsupported content");
     }
 
     // Parse both sides as YAML-like key-value pairs
@@ -441,7 +653,10 @@ fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
     let their_fields = parse_yaml_fields(theirs);
 
     if our_fields.is_empty() && their_fields.is_empty() {
-        return Resolution::Manual;
+        return Resolution::Manual("no frontmatter fields could be parsed");
+    }
+    if has_duplicate_yaml_keys(&our_fields) || has_duplicate_yaml_keys(&their_fields) {
+        return Resolution::Manual("frontmatter contains duplicate keys");
     }
 
     let list_keys: HashSet<&str> = ["files", "db_tables", "depends_on"].into_iter().collect();
@@ -479,8 +694,8 @@ fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
                 if list_keys.contains(key.as_str()) =>
             {
                 // Union the lists
-                let mut combined = a.clone();
-                for item in b {
+                let mut combined = Vec::new();
+                for item in a.iter().chain(b.iter()) {
                     if !combined.contains(item) {
                         combined.push(item.clone());
                     }
@@ -495,12 +710,57 @@ fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
                     }
                 }
             }
-            (_, Some(val)) => {
-                // Theirs wins for scalars (or if only theirs has it)
+            (Some(YamlValue::Scalar(a)), Some(YamlValue::Scalar(b))) if key == "version" => {
+                // #427: version must never regress on merge — take max(), not
+                // blindly "theirs" (which could be the older number).
+                match (
+                    parse_numeric_version_scalar(a),
+                    parse_numeric_version_scalar(b),
+                ) {
+                    (Ok(x), Ok(y)) => {
+                        let selected = match x.cmp(&y) {
+                            std::cmp::Ordering::Greater => a,
+                            std::cmp::Ordering::Less => b,
+                            std::cmp::Ordering::Equal if a == b => a,
+                            std::cmp::Ordering::Equal => {
+                                return Resolution::Manual(
+                                    "equal version values use different scalar syntax",
+                                );
+                            }
+                        };
+                        merged_lines.push(format!("{key}: {selected}"));
+                    }
+                    _ => {
+                        return Resolution::Manual("version values are not both unsigned integers");
+                    }
+                }
+            }
+            (Some(YamlValue::Scalar(a)), Some(YamlValue::Scalar(b))) => {
+                if a != b {
+                    return Resolution::Manual("frontmatter scalar values differ");
+                }
+                merged_lines.push(format_yaml_field(key, &YamlValue::Scalar(a.clone())));
+            }
+            (Some(YamlValue::List(a)), Some(YamlValue::List(b))) => {
+                if a != b {
+                    return Resolution::Manual("unsupported frontmatter list values differ");
+                }
+                merged_lines.push(format_yaml_field(key, &YamlValue::List(a.clone())));
+            }
+            (Some(YamlValue::Null), Some(YamlValue::Null)) => {
+                merged_lines.push(format_yaml_field(key, &YamlValue::Null));
+            }
+            (Some(_), Some(_)) => {
+                return Resolution::Manual("frontmatter field types differ");
+            }
+            (None, Some(val @ YamlValue::List(_))) if list_keys.contains(key.as_str()) => {
                 merged_lines.push(format_yaml_field(key, val));
             }
-            (Some(val), None) => {
+            (Some(val @ YamlValue::List(_)), None) if list_keys.contains(key.as_str()) => {
                 merged_lines.push(format_yaml_field(key, val));
+            }
+            (None, Some(_)) | (Some(_), None) => {
+                return Resolution::Manual("frontmatter field exists on only one side");
             }
             (None, None) => {}
         }
@@ -510,13 +770,44 @@ fn resolve_frontmatter_conflict(ours: &str, theirs: &str) -> Resolution {
     // surrounding clean regions (guaranteed: `is_frontmatter_only` rejects any hunk
     // that contains a fence), so we never reconstruct or double a delimiter.
     let body = merged_lines.join("\n");
-    Resolution::Auto(format!("{body}\n"))
+    Resolution::Auto(
+        format!("{body}\n"),
+        "known lists unioned; version = max(both sides); equal scalars preserved",
+    )
+}
+
+fn parse_numeric_version_scalar(raw: &str) -> Result<u64, ()> {
+    let raw = raw.trim();
+    let value = if let Some(quote) = raw
+        .chars()
+        .next()
+        .filter(|character| *character == '\'' || *character == '"')
+    {
+        let remainder = &raw[quote.len_utf8()..];
+        let close = remainder.find(quote).ok_or(())?;
+        let suffix = &remainder[close + quote.len_utf8()..];
+        if !suffix.trim().is_empty() && !suffix.trim_start().starts_with('#') {
+            return Err(());
+        }
+        &remainder[..close]
+    } else {
+        let comment = raw.find(" #").unwrap_or(raw.len());
+        &raw[..comment]
+    };
+
+    value.trim().parse::<u64>().map_err(|_| ())
 }
 
 #[derive(Clone, Debug)]
 enum YamlValue {
     Scalar(String),
     List(Vec<String>),
+    Null,
+}
+
+fn has_duplicate_yaml_keys(fields: &[(String, YamlValue)]) -> bool {
+    let mut seen = HashSet::new();
+    fields.iter().any(|(key, _)| !seen.insert(key))
 }
 
 /// Simple YAML field parser (handles our zero-dep YAML subset).
@@ -541,14 +832,21 @@ fn parse_yaml_fields(text: &str) -> Vec<(String, YamlValue)> {
 
             // Flush previous
             if let Some(prev_key) = current_key.take() {
-                fields.push((prev_key, YamlValue::List(current_list.clone())));
+                let value = if current_list.is_empty() {
+                    YamlValue::Null
+                } else {
+                    YamlValue::List(current_list.clone())
+                };
+                fields.push((prev_key, value));
                 current_list.clear();
             }
 
             let value = line[colon_pos + 1..].trim();
-            if value.is_empty() || value == "[]" {
+            if value.is_empty() {
                 current_key = Some(key.to_string());
                 current_list.clear();
+            } else if value == "[]" {
+                fields.push((key.to_string(), YamlValue::List(Vec::new())));
             } else {
                 fields.push((key.to_string(), YamlValue::Scalar(value.to_string())));
             }
@@ -556,7 +854,12 @@ fn parse_yaml_fields(text: &str) -> Vec<(String, YamlValue)> {
     }
 
     if let Some(prev_key) = current_key.take() {
-        fields.push((prev_key, YamlValue::List(current_list)));
+        let value = if current_list.is_empty() {
+            YamlValue::Null
+        } else {
+            YamlValue::List(current_list)
+        };
+        fields.push((prev_key, value));
     }
 
     fields
@@ -573,6 +876,7 @@ fn format_yaml_field(key: &str, value: &YamlValue) -> String {
             }
             lines.join("\n")
         }
+        YamlValue::Null => format!("{key}:"),
     }
 }
 
@@ -731,10 +1035,13 @@ mod tests {
                 ours,
                 theirs,
                 marker_label,
+                theirs_label,
+                ..
             } => {
                 assert_eq!(ours, "ours line\n");
                 assert_eq!(theirs, "theirs line\n");
                 assert_eq!(marker_label, "HEAD");
+                assert_eq!(theirs_label, "branch");
             }
             _ => panic!("expected Conflict"),
         }
@@ -750,7 +1057,7 @@ mod tests {
         let theirs = "| 2026-01-01 | Added auth |\n| 2026-01-10 | Added signup |\n";
 
         match resolve_changelog_conflict(ours, theirs) {
-            Resolution::Auto(merged) => {
+            Resolution::Auto(merged, _) => {
                 assert!(merged.contains("Added auth"));
                 assert!(merged.contains("Fixed login"));
                 assert!(merged.contains("Added signup"));
@@ -761,23 +1068,34 @@ mod tests {
                 assert!(lines[1].contains("2026-01-10"));
                 assert!(lines[2].contains("2026-01-15"));
             }
-            Resolution::Manual => panic!("expected auto resolution"),
+            Resolution::Manual(reason) => panic!("expected auto resolution: {reason}"),
         }
     }
 
     #[test]
     fn test_resolve_table_conflict() {
         let ours = "| `createAuth` | config: Config | Auth | Creates auth |\n";
-        let theirs = "| `createAuth` | config: Config | Auth | Updated desc |\n| `validateToken` | token: string | bool | Validates |\n";
+        let theirs = "| `validateToken` | token: string | bool | Validates |\n";
 
         match resolve_table_conflict(ours, theirs) {
-            Resolution::Auto(merged) => {
+            Resolution::Auto(merged, _) => {
+                assert!(merged.contains("createAuth"));
                 assert!(merged.contains("validateToken"));
-                // theirs wins for createAuth
-                assert!(merged.contains("Updated desc"));
-                assert!(!merged.contains("Creates auth"));
             }
-            Resolution::Manual => panic!("expected auto resolution"),
+            Resolution::Manual(reason) => panic!("expected auto resolution: {reason}"),
+        }
+    }
+
+    #[test]
+    fn divergent_table_rows_require_manual_resolution() {
+        let ours = "| `createAuth` | config: Config | Auth | Creates auth |\n";
+        let theirs = "| `createAuth` | config: Config | Auth | Updated desc |\n";
+
+        match resolve_table_conflict(ours, theirs) {
+            Resolution::Manual(reason) => {
+                assert!(reason.contains("divergent row content"), "{reason}");
+            }
+            Resolution::Auto(merged, _) => panic!("must not discard a row: {merged}"),
         }
     }
 
@@ -788,7 +1106,7 @@ mod tests {
         let theirs = "module: auth\nversion: 3\nfiles:\n  - src/auth.ts\n  - src/signup.ts\ndepends_on: []\n";
 
         match resolve_frontmatter_conflict(ours, theirs) {
-            Resolution::Auto(merged) => {
+            Resolution::Auto(merged, _) => {
                 // Theirs wins for scalar (version)
                 assert!(merged.contains("version: 3"));
                 // Lists are unioned
@@ -796,7 +1114,7 @@ mod tests {
                 assert!(merged.contains("src/login.ts"));
                 assert!(merged.contains("src/signup.ts"));
             }
-            Resolution::Manual => panic!("expected auto resolution"),
+            Resolution::Manual(reason) => panic!("expected auto resolution: {reason}"),
         }
     }
 
@@ -841,10 +1159,10 @@ Auth module.
 >>>>>>> feature-branch
 "#;
 
-        let (resolved, result) = resolve_spec_conflicts(content, "specs/auth/auth.spec.md");
+        let (resolved, result, _) = resolve_spec_conflicts(content, "specs/auth/auth.spec.md");
         assert!(matches!(result.status, MergeStatus::Resolved));
         assert!(!has_conflict_markers(&resolved));
-        // Frontmatter: version 3 (theirs wins), files unioned
+        // Frontmatter: maximum version is 3, files are unioned
         assert!(resolved.contains("version: 3"));
         assert!(resolved.contains("src/login.ts"));
         assert!(resolved.contains("src/signup.ts"));
@@ -882,7 +1200,8 @@ depends_on: []
 >>>>>>> branch
 # Minimal
 ";
-        let (resolved, result) = resolve_spec_conflicts(content, "specs/minimal/minimal.spec.md");
+        let (resolved, result, _) =
+            resolve_spec_conflicts(content, "specs/minimal/minimal.spec.md");
         assert_eq!(
             result.status,
             MergeStatus::Manual,
@@ -919,7 +1238,7 @@ version: 3
 >>>>>>> feature
 # Body
 ";
-        let (resolved, result) = resolve_spec_conflicts(content, "specs/a/a.spec.md");
+        let (resolved, result, _) = resolve_spec_conflicts(content, "specs/a/a.spec.md");
         assert_eq!(
             result.status,
             MergeStatus::Manual,
@@ -970,7 +1289,7 @@ depends_on: []
 Theirs purpose.
 >>>>>>> feature
 ";
-        let (resolved, result) = resolve_spec_conflicts(content, "specs/alpha/alpha.spec.md");
+        let (resolved, result, _) = resolve_spec_conflicts(content, "specs/alpha/alpha.spec.md");
         assert_eq!(
             result.status,
             MergeStatus::Manual,
@@ -1020,7 +1339,7 @@ TODO: rewrite the auth flow
 
 The module.
 ";
-        let (resolved, result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        let (resolved, result, _) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
         assert_eq!(
             result.status,
             MergeStatus::Manual,
@@ -1061,7 +1380,7 @@ depends_on: []
 ---
 # M
 ";
-        let (resolved, result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        let (resolved, result, _) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
         assert_eq!(
             result.status,
             MergeStatus::Manual,
@@ -1110,7 +1429,7 @@ Run the migration script before deploying.
 Run it after.
 >>>>>>> feature
 ";
-        let (resolved, result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        let (resolved, result, _) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
         assert_eq!(
             result.status,
             MergeStatus::Manual,
@@ -1162,7 +1481,7 @@ depends_on: []
 | --quiet | Quiet mode |
 >>>>>>> feature
 ";
-        let (resolved, _result) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        let (resolved, _result, _) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
         assert!(
             !has_conflict_markers(&resolved),
             "should auto-resolve:\n{resolved}"
@@ -1177,7 +1496,7 @@ depends_on: []
     #[test]
     fn test_manual_fallback_for_prose() {
         let content = "## Purpose\n\n<<<<<<< HEAD\nThis is our purpose description.\n=======\nThis is their different purpose.\n>>>>>>> branch\n";
-        let (resolved, result) = resolve_spec_conflicts(content, "test.spec.md");
+        let (resolved, result, _) = resolve_spec_conflicts(content, "test.spec.md");
         // Prose conflicts should remain for manual resolution
         assert!(matches!(result.status, MergeStatus::Manual));
         assert!(has_conflict_markers(&resolved));
@@ -1197,5 +1516,642 @@ depends_on: []
         assert!(is_pure_table_rows("| a | b |\n| c | d |\n"));
         assert!(!is_pure_table_rows("some text\n| a | b |\n"));
         assert!(is_pure_table_rows("| a | b |\n\n| c | d |\n"));
+    }
+
+    // ── #427 regressions ────────────────────────────────────────────
+
+    const OPEN_HEAD: &str = concat!("<<<<", "<<< HEAD\n");
+    const OPEN_OUTER: &str = concat!("<<<<", "<<< outer-ours\n");
+    const OPEN_INNER: &str = concat!("<<<<", "<<< inner-ours\n");
+    const BASE_MARKER: &str = concat!("||||", "||| base\n");
+    const SEPARATOR: &str = concat!("===", "====\n");
+    const CLOSE_SIDE: &str = concat!(">>>>", ">>> side\n");
+    const CLOSE_OUTER: &str = concat!(">>>>", ">>> outer-incoming\n");
+    const CLOSE_INNER: &str = concat!(">>>>", ">>> inner-incoming\n");
+
+    #[test]
+    fn divergent_api_row_detail_names_both_sides_and_requires_manual_resolution() {
+        // #427: never claim HEAD won while selecting incoming content. Divergent
+        // rows are ambiguous, so neither side may be selected.
+        let content = format!(
+            "---\nmodule: m\nversion: 1\n---\n# M\n\n## Public API\n\n\
+             | Name | Description |\n|------|-------------|\n\
+             {OPEN_HEAD}| `a` | MAIN description. |\n\
+             {SEPARATOR}| `a` | SIDE description. |\n{CLOSE_SIDE}"
+        );
+        let (resolved, result, should_write) =
+            resolve_spec_conflicts(&content, "specs/m/m.spec.md");
+        assert_eq!(result.status, MergeStatus::Manual);
+        assert!(!should_write);
+        let detail = &result.details[0];
+        assert!(detail.contains("HEAD"), "{detail}");
+        assert!(detail.contains("side"), "{detail}");
+        assert!(detail.contains("divergent row content"), "{detail}");
+        assert!(resolved.contains("MAIN description."), "{resolved}");
+        assert!(resolved.contains("SIDE description."), "{resolved}");
+        assert!(has_conflict_markers(&resolved));
+    }
+
+    #[test]
+    fn lossless_table_union_detail_names_both_sides_and_strategy() {
+        let content = concat!(
+            "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n",
+            "---\n# M\n\n## Public API\n\n",
+            "| Name | Description |\n|------|-------------|\n",
+            "<<<<",
+            "<<< HEAD\n| `a` | MAIN description. |\n",
+            "===",
+            "====\n| `b` | SIDE description. |\n",
+            ">>>>",
+            ">>> side\n",
+        );
+        let (resolved, result, should_write) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert_eq!(result.status, MergeStatus::Resolved);
+        assert!(should_write);
+        assert!(resolved.contains("MAIN description."), "{resolved}");
+        assert!(resolved.contains("SIDE description."), "{resolved}");
+        let detail = &result.details[0];
+        assert!(detail.contains("HEAD"), "{detail}");
+        assert!(detail.contains("side"), "{detail}");
+        assert!(detail.contains("union of both sides"), "{detail}");
+        assert!(!detail.contains("wins"), "{detail}");
+    }
+
+    #[test]
+    fn frontmatter_version_takes_max_not_incoming() {
+        // #427: version 3 on HEAD regressing to 2 from the incoming side.
+        let ours = "module: auth\nversion: 3\n";
+        let theirs = "module: auth\nversion: 2\n";
+        match resolve_frontmatter_conflict(ours, theirs) {
+            Resolution::Auto(merged, _) => {
+                assert!(merged.contains("version: 3"), "{merged}");
+                assert!(!merged.contains("version: 2"));
+            }
+            Resolution::Manual(reason) => panic!("expected auto resolution: {reason}"),
+        }
+    }
+
+    #[test]
+    fn nonnumeric_version_requires_manual_resolution() {
+        let ours = "module: auth\nversion: next\n";
+        let theirs = "module: auth\nversion: 3\n";
+        match resolve_frontmatter_conflict(ours, theirs) {
+            Resolution::Manual(reason) => {
+                assert!(reason.contains("unsigned integers"), "{reason}");
+            }
+            Resolution::Auto(merged, _) => panic!("must not choose a version: {merged}"),
+        }
+    }
+
+    #[test]
+    fn numeric_versions_accept_supported_yaml_scalar_syntax_and_preserve_the_max_side() {
+        let ours = "module: auth\nversion: '3' # current\nstatus: stable\n";
+        let theirs = "module: auth\nversion: \"2\" # incoming\nstatus: stable\n";
+        match resolve_frontmatter_conflict(ours, theirs) {
+            Resolution::Auto(merged, _) => {
+                assert!(merged.contains("version: '3' # current"), "{merged}");
+                assert!(!merged.contains("\"2\""), "{merged}");
+            }
+            Resolution::Manual(reason) => panic!("expected auto resolution: {reason}"),
+        }
+
+        assert_eq!(parse_numeric_version_scalar("0"), Ok(0));
+        assert_eq!(
+            parse_numeric_version_scalar(&u64::MAX.to_string()),
+            Ok(u64::MAX)
+        );
+        assert!(parse_numeric_version_scalar("-1").is_err());
+        assert!(parse_numeric_version_scalar("1.2.3").is_err());
+        assert!(parse_numeric_version_scalar("18446744073709551616").is_err());
+    }
+
+    #[test]
+    fn equal_versions_with_different_scalar_syntax_require_manual_resolution() {
+        let ours = "module: auth\nversion: 3\n";
+        let theirs = "module: auth\nversion: '3'\n";
+        assert!(matches!(
+            resolve_frontmatter_conflict(ours, theirs),
+            Resolution::Manual("equal version values use different scalar syntax")
+        ));
+    }
+
+    #[test]
+    fn divergent_frontmatter_scalar_requires_manual_resolution() {
+        let ours = "module: auth\nversion: 3\nstatus: stable\n";
+        let theirs = "module: auth\nversion: 3\nstatus: deprecated\n";
+        match resolve_frontmatter_conflict(ours, theirs) {
+            Resolution::Manual(reason) => {
+                assert!(reason.contains("scalar values differ"), "{reason}");
+            }
+            Resolution::Auto(merged, _) => panic!("must not choose a scalar: {merged}"),
+        }
+    }
+
+    #[test]
+    fn one_sided_scalar_fields_require_manual_resolution() {
+        for (ours, theirs) in [
+            (
+                "module: auth\nversion: 3\nstatus: stable\n",
+                "module: auth\nversion: 3\n",
+            ),
+            (
+                "module: auth\nversion: 3\n",
+                "module: auth\nversion: 3\nstatus: stable\n",
+            ),
+            (
+                "module: auth\nversion: 3\nstatus: stable\n",
+                "module: auth\nstatus: stable\n",
+            ),
+            (
+                "module: auth\nversion: 3\nowner: team\n",
+                "module: auth\nversion: 3\n",
+            ),
+        ] {
+            assert!(matches!(
+                resolve_frontmatter_conflict(ours, theirs),
+                Resolution::Manual("frontmatter field exists on only one side")
+            ));
+        }
+    }
+
+    #[test]
+    fn supported_frontmatter_lists_union_and_sort_every_key() {
+        let ours = "\
+module: auth
+version: 3
+status: stable
+files:
+  - src/z.rs
+db_tables:
+  - z_table
+depends_on:
+  - specs/z/z.spec.md
+";
+        let theirs = "\
+module: auth
+version: 3
+status: stable
+files:
+  - src/a.rs
+db_tables:
+  - a_table
+depends_on:
+  - specs/a/a.spec.md
+";
+        match resolve_frontmatter_conflict(ours, theirs) {
+            Resolution::Auto(merged, _) => {
+                assert!(
+                    merged.contains("files:\n  - src/a.rs\n  - src/z.rs"),
+                    "{merged}"
+                );
+                assert!(
+                    merged.contains("db_tables:\n  - a_table\n  - z_table"),
+                    "{merged}"
+                );
+                assert!(
+                    merged.contains("depends_on:\n  - specs/a/a.spec.md\n  - specs/z/z.spec.md"),
+                    "{merged}"
+                );
+            }
+            Resolution::Manual(reason) => panic!("expected auto resolution: {reason}"),
+        }
+    }
+
+    #[test]
+    fn diff3_base_markers_do_not_leak_into_output() {
+        // #427: with merge.conflictStyle diff3, `|||||||` base content must not
+        // survive in an auto-resolved file.
+        let content = format!(
+            "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n\
+             ---\n# M\n\n## Public API\n\n\
+             | Name | Description |\n|------|-------------|\n\
+             {OPEN_HEAD}| `a` | MAIN description. |\n\
+             {BASE_MARKER}| `base` | BASE description. |\n\
+             {SEPARATOR}| `b` | SIDE description. |\n{CLOSE_SIDE}"
+        );
+        let (resolved, result, _) = resolve_spec_conflicts(&content, "specs/m/m.spec.md");
+        assert_eq!(result.status, MergeStatus::Resolved);
+        assert!(!resolved.contains("|||||||"), "{resolved}");
+        assert!(!resolved.contains("BASE description"), "{resolved}");
+        assert!(resolved.contains("MAIN description"), "{resolved}");
+        assert!(resolved.contains("SIDE description"), "{resolved}");
+    }
+
+    #[test]
+    fn manual_hunk_preserves_diff3_block_verbatim() {
+        let content = format!(
+            "## Purpose\n\n{OPEN_HEAD}Our purpose.\n{BASE_MARKER}Base purpose.\n\
+             {SEPARATOR}Their purpose.\n{CLOSE_SIDE}"
+        );
+        let (resolved, result, should_write) = resolve_spec_conflicts(&content, "test.spec.md");
+        assert_eq!(result.status, MergeStatus::Manual);
+        assert!(!should_write, "nothing auto-resolved — do not write");
+        assert!(resolved.contains("||||||| base"), "{resolved}");
+        assert!(resolved.contains("Base purpose."), "{resolved}");
+    }
+
+    #[test]
+    fn malformed_conflict_block_is_never_auto_resolved() {
+        let content = concat!(
+            "---\nmodule: m\nversion: 1\n---\n# M\n\n## Public API\n\n",
+            "<<<<",
+            "<<< HEAD\n| `a` | MAIN description. |\n",
+            "===",
+            "====\n| `b` | SIDE description. |\n",
+        );
+        let (resolved, result, should_write) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert_eq!(result.status, MergeStatus::Manual);
+        assert!(!should_write);
+        assert!(resolved.contains("<<<<<<< HEAD"), "{resolved}");
+        assert!(
+            result
+                .details
+                .iter()
+                .any(|detail| detail.contains("malformed or incomplete")),
+            "{:?}",
+            result.details
+        );
+    }
+
+    #[test]
+    fn diff3_marker_requires_exact_seven_pipes_and_label_separator() {
+        let malformed_base = concat!("||||", "|||| base\n");
+        let content = format!(
+            "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n---\n\
+             # M\n\n## Public API\n\n| Name | Description |\n|------|-------------|\n\
+             {OPEN_HEAD}| `a` | ours |\n{malformed_base}| discarded | must survive |\n\
+             {SEPARATOR}| `b` | incoming |\n{CLOSE_SIDE}"
+        );
+        let (resolved, result, should_write) =
+            resolve_spec_conflicts(&content, "specs/m/m.spec.md");
+        assert_eq!(result.status, MergeStatus::Manual);
+        assert!(!should_write);
+        assert_eq!(resolved, content);
+    }
+
+    #[test]
+    fn orphan_marker_families_after_a_valid_hunk_block_every_write() {
+        for orphan in [
+            SEPARATOR,
+            BASE_MARKER,
+            CLOSE_SIDE,
+            concat!("||||", "|||| base\n"),
+        ] {
+            let content = format!(
+                "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n---\n\
+                 # M\n\n## Public API\n\n| Name | Description |\n|------|-------------|\n\
+                 {OPEN_HEAD}| `a` | ours |\n\
+                 {SEPARATOR}| `b` | incoming |\n{CLOSE_SIDE}{orphan}"
+            );
+            let (resolved, result, should_write) =
+                resolve_spec_conflicts(&content, "specs/m/m.spec.md");
+            assert_eq!(result.status, MergeStatus::Manual, "orphan {orphan:?}");
+            assert!(!should_write, "orphan {orphan:?}");
+            assert!(resolved.contains(orphan.trim_end()), "orphan {orphan:?}");
+
+            let tmp = tempfile::tempdir().unwrap();
+            let specs = tmp.path().join("specs");
+            fs::create_dir_all(&specs).unwrap();
+            let spec = specs.join("m.spec.md");
+            fs::write(&spec, &content).unwrap();
+            let results = merge_specs(tmp.path(), &specs, false, true);
+            assert_eq!(results[0].status, MergeStatus::Manual);
+            assert_eq!(fs::read_to_string(&spec).unwrap(), content);
+        }
+    }
+
+    #[test]
+    fn nested_marker_diagnostics_keep_the_outer_side_labels() {
+        let content = format!(
+            "## Purpose\n\n{OPEN_OUTER}ours\n{OPEN_INNER}inner ours\n\
+             {SEPARATOR}inner incoming\n{CLOSE_INNER}outer ours tail\n\
+             {SEPARATOR}outer incoming\n{CLOSE_OUTER}"
+        );
+        let (_resolved, result, should_write) = resolve_spec_conflicts(&content, "test.spec.md");
+        assert_eq!(result.status, MergeStatus::Manual);
+        assert!(!should_write);
+        let detail = &result.details[0];
+        assert!(detail.contains("outer-ours ↔ outer-incoming"), "{detail}");
+        assert!(!detail.contains("inner-incoming"), "{detail}");
+    }
+
+    #[test]
+    fn table_hunks_containing_headers_or_separators_remain_manual() {
+        for section in ["Public API", "Change Log"] {
+            let content = format!(
+                "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n---\n\
+                 # M\n\n## {section}\n\n{OPEN_HEAD}| Name | Description |\n\
+                 |------|-------------|\n| `a` | ours |\n\
+                 {SEPARATOR}| Name | Description |\n|------|-------------|\n\
+                 | `b` | incoming |\n{CLOSE_SIDE}"
+            );
+            let (resolved, result, should_write) =
+                resolve_spec_conflicts(&content, "specs/m/m.spec.md");
+            assert_eq!(result.status, MergeStatus::Manual, "{section}");
+            assert!(!should_write, "{section}");
+            assert_eq!(resolved, content, "{section}");
+            assert!(
+                result
+                    .details
+                    .iter()
+                    .any(|detail| detail.contains("table header separator")),
+                "{:?}",
+                result.details
+            );
+        }
+    }
+
+    #[test]
+    fn table_header_only_hunks_remain_manual_and_byte_identical() {
+        for section in ["Public API", "Change Log"] {
+            let tmp = tempfile::tempdir().unwrap();
+            let specs = tmp.path().join("specs/m");
+            fs::create_dir_all(&specs).unwrap();
+            let spec = specs.join("m.spec.md");
+            let content = format!(
+                "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n---\n\
+                 # M\n\n## {section}\n\n\
+                 {OPEN_HEAD}| Name | Description |\n\
+                 {SEPARATOR}| Symbol | Summary |\n\
+                 {CLOSE_SIDE}|------|-------------|\n| `a` | body row |\n"
+            );
+            fs::write(&spec, &content).unwrap();
+
+            let results = merge_specs(tmp.path(), &tmp.path().join("specs"), false, true);
+            assert_eq!(results.len(), 1, "{section}");
+            assert_eq!(results[0].status, MergeStatus::Manual, "{section}");
+            assert!(
+                results[0]
+                    .details
+                    .iter()
+                    .any(|detail| detail.contains("table header")),
+                "{:?}",
+                results[0].details
+            );
+            assert_eq!(fs::read_to_string(&spec).unwrap(), content, "{section}");
+        }
+    }
+
+    #[test]
+    fn unknown_empty_scalar_and_empty_list_are_not_equivalent() {
+        for (ours, theirs) in [("metadata:", "metadata: []"), ("metadata: []", "metadata:")] {
+            let tmp = tempfile::tempdir().unwrap();
+            let specs = tmp.path().join("specs/m");
+            fs::create_dir_all(&specs).unwrap();
+            let spec = specs.join("m.spec.md");
+            let content = format!(
+                "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n\
+                 {OPEN_HEAD}{ours}\n\
+                 {SEPARATOR}{theirs}\n\
+                 {CLOSE_SIDE}---\n# M\n"
+            );
+            fs::write(&spec, &content).unwrap();
+
+            let results = merge_specs(tmp.path(), &tmp.path().join("specs"), false, true);
+            assert_eq!(results.len(), 1, "{ours:?} vs {theirs:?}");
+            assert_eq!(
+                results[0].status,
+                MergeStatus::Manual,
+                "{ours:?} vs {theirs:?}"
+            );
+            assert_eq!(
+                fs::read_to_string(&spec).unwrap(),
+                content,
+                "{ours:?} vs {theirs:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn missing_frontmatter_prevents_resolvable_body_write() {
+        let tmp = tempfile::tempdir().unwrap();
+        let specs = tmp.path().join("specs/m");
+        fs::create_dir_all(&specs).unwrap();
+        let spec = specs.join("m.spec.md");
+        let content = format!(
+            "# M\n\n## Public API\n\n| Name | Description |\n|------|-------------|\n\
+             {OPEN_HEAD}| `a` | ours |\n\
+             {SEPARATOR}| `b` | incoming |\n{CLOSE_SIDE}"
+        );
+        fs::write(&spec, &content).unwrap();
+
+        let results = merge_specs(tmp.path(), &tmp.path().join("specs"), false, true);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].status, MergeStatus::Manual);
+        assert!(
+            results[0]
+                .details
+                .iter()
+                .any(|detail| detail.contains("invalid or empty frontmatter")),
+            "{:?}",
+            results[0].details
+        );
+        assert_eq!(fs::read_to_string(&spec).unwrap(), content);
+    }
+
+    #[test]
+    fn nested_frontmatter_mapping_is_not_flattened() {
+        let content = format!(
+            "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n\
+             {OPEN_HEAD}metadata:\n  owner: team-a\n\
+             {SEPARATOR}metadata:\n  owner: team-b\n{CLOSE_SIDE}---\n# M\n"
+        );
+        let (resolved, result, should_write) =
+            resolve_spec_conflicts(&content, "specs/m/m.spec.md");
+        assert_eq!(result.status, MergeStatus::Manual);
+        assert!(!should_write);
+        assert_eq!(resolved, content);
+    }
+
+    #[test]
+    fn duplicate_or_invalid_frontmatter_suppresses_otherwise_resolvable_writes() {
+        for frontmatter in [
+            "module: m\nmodule: duplicate\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n",
+            "module: m\nstatus: stable\nfiles:\n  - src/m.rs\n",
+            "module: m\nversion: 1\nfiles:\n  - src/m.rs\n",
+            "module: m\nversion: 1\nstatus: impossible\nfiles:\n  - src/m.rs\n",
+            "module: m\nversion: 1\nstatus: stable\nfiles: []\n",
+        ] {
+            let content = format!(
+                "---\n{frontmatter}---\n# M\n\n## Public API\n\n\
+                 | Name | Description |\n|------|-------------|\n\
+                 {OPEN_HEAD}| `a` | ours |\n\
+                 {SEPARATOR}| `b` | incoming |\n{CLOSE_SIDE}"
+            );
+            let (_resolved, result, should_write) =
+                resolve_spec_conflicts(&content, "specs/m/m.spec.md");
+            assert_eq!(result.status, MergeStatus::Manual, "{frontmatter}");
+            assert!(!should_write, "{frontmatter}");
+            assert!(
+                result
+                    .details
+                    .iter()
+                    .any(|detail| detail.contains("invalid or empty frontmatter")),
+                "{:?}",
+                result.details
+            );
+        }
+    }
+
+    #[test]
+    fn resolved_diff3_file_preserves_crlf_line_endings() {
+        let content = concat!(
+            "---\r\nmodule: m\r\nversion: 1\r\nstatus: stable\r\n",
+            "files:\r\n  - src/m.rs\r\n---\r\n# M\r\n\r\n",
+            "## Public API\r\n\r\n| Name | Description |\r\n|------|-------------|\r\n",
+            "<<<<",
+            "<<< HEAD\r\n| `a` | MAIN description. |\r\n",
+            "||||",
+            "||| base\r\n| `base` | BASE description. |\r\n",
+            "===",
+            "====\r\n| `b` | SIDE description. |\r\n",
+            ">>>>",
+            ">>> side\r\n",
+        );
+        let (resolved, result, should_write) = resolve_spec_conflicts(content, "specs/m/m.spec.md");
+        assert_eq!(result.status, MergeStatus::Resolved);
+        assert!(should_write);
+        assert!(!resolved.replace("\r\n", "").contains('\n'), "{resolved:?}");
+        assert!(resolved.ends_with("\r\n"));
+    }
+
+    #[test]
+    fn fully_resolved_file_preserves_missing_final_newline() {
+        let content = format!(
+            "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n---\n\
+             # M\n\n## Public API\n\n| Name | Description |\n|------|-------------|\n\
+             {OPEN_HEAD}| `a` | ours |\n\
+             {SEPARATOR}| `b` | incoming |\n{}",
+            CLOSE_SIDE.trim_end()
+        );
+        let (resolved, result, should_write) =
+            resolve_spec_conflicts(&content, "specs/m/m.spec.md");
+        assert_eq!(result.status, MergeStatus::Resolved);
+        assert!(should_write);
+        assert!(!resolved.ends_with('\n'));
+    }
+
+    #[test]
+    fn fully_resolvable_dry_run_leaves_disk_bytes_unchanged() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let specs = root.join("specs");
+        fs::create_dir_all(&specs).unwrap();
+        let spec = specs.join("m.spec.md");
+        let content = format!(
+            "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n---\n\
+             # M\n\n## Public API\n\n| Name | Description |\n|------|-------------|\n\
+             {OPEN_HEAD}| `a` | ours |\n\
+             {SEPARATOR}| `b` | incoming |\n{CLOSE_SIDE}"
+        );
+        fs::write(&spec, &content).unwrap();
+
+        let results = merge_specs(root, &specs, true, true);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].status, MergeStatus::Resolved);
+        assert_eq!(fs::read_to_string(&spec).unwrap(), content);
+    }
+
+    #[test]
+    fn git_discovery_failure_is_a_safe_noop() {
+        let tmp = tempfile::tempdir().unwrap();
+        let specs = tmp.path().join("specs");
+        fs::create_dir_all(&specs).unwrap();
+        assert!(detect_conflicted_specs(tmp.path(), &specs).is_empty());
+    }
+
+    #[test]
+    fn partial_resolution_preview_keeps_all_or_nothing_write_boundary() {
+        let content = format!(
+            "---\nmodule: m\nversion: 1\n---\n# M\n\n## Public API\n\n\
+             | Name | Description |\n|------|-------------|\n\
+             {OPEN_HEAD}| `a` | MAIN description. |\n\
+             {SEPARATOR}| `b` | SIDE description. |\n{CLOSE_SIDE}\n\
+             ## Purpose\n\n{OPEN_HEAD}Our purpose.\n\
+             {SEPARATOR}Their purpose.\n{CLOSE_SIDE}"
+        );
+        let (resolved, result, should_write) =
+            resolve_spec_conflicts(&content, "specs/m/m.spec.md");
+        assert_eq!(result.status, MergeStatus::Manual);
+        assert!(!should_write, "ambiguous files must remain untouched");
+        assert!(resolved.contains("MAIN description"), "{resolved}");
+        assert!(resolved.contains("SIDE description"), "{resolved}");
+        assert!(has_conflict_markers(&resolved), "manual hunk keeps markers");
+        assert!(resolved.contains("Our purpose."), "{resolved}");
+        assert!(
+            result
+                .details
+                .iter()
+                .any(|d| d.contains("left unchanged (all-or-nothing)")),
+            "{:?}",
+            result.details
+        );
+        assert!(
+            result
+                .details
+                .iter()
+                .all(|detail| !detail.contains("Auto-resolved")),
+            "{:?}",
+            result.details
+        );
+    }
+
+    #[test]
+    fn merge_specs_leaves_partially_resolvable_file_untouched() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let specs = root.join("specs");
+        fs::create_dir_all(&specs).unwrap();
+        let spec = specs.join("m.spec.md");
+        let content = format!(
+            "---\nmodule: m\nversion: 1\n---\n# M\n\n## Public API\n\n\
+             | Name | Description |\n|------|-------------|\n\
+             {OPEN_HEAD}| `a` | MAIN description. |\n\
+             {SEPARATOR}| `b` | SIDE description. |\n{CLOSE_SIDE}\n\
+             ## Purpose\n\n{OPEN_HEAD}Our purpose.\n\
+             {SEPARATOR}Their purpose.\n{CLOSE_SIDE}"
+        );
+        fs::write(&spec, &content).unwrap();
+        let results = merge_specs(root, &specs, false, true);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].status, MergeStatus::Manual);
+        let on_disk = fs::read_to_string(&spec).unwrap();
+        assert_eq!(on_disk, content);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn all_files_reports_unreadable_specs_as_manual() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let specs = root.join("specs");
+        fs::create_dir_all(&specs).unwrap();
+        let spec = specs.join("m.spec.md");
+        fs::write(
+            &spec,
+            format!(
+                "---\nmodule: m\nversion: 1\nstatus: stable\nfiles:\n  - src/m.rs\n---\n\
+                 # M\n\n## Public API\n\n{OPEN_HEAD}| `a` | ours |\n\
+                 {SEPARATOR}| `b` | incoming |\n{CLOSE_SIDE}"
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&spec, fs::Permissions::from_mode(0o000)).unwrap();
+
+        let results = merge_specs(root, &specs, false, true);
+
+        fs::set_permissions(&spec, fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].status, MergeStatus::Manual);
+        assert!(
+            results[0]
+                .details
+                .iter()
+                .any(|detail| detail.contains("Cannot read file")),
+            "{:?}",
+            results[0].details
+        );
     }
 }

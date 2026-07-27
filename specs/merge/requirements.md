@@ -16,33 +16,40 @@ spec: merge.spec.md
 ## Acceptance Criteria
 
 - Frontmatter list fields (`files`, `db_tables`, `depends_on`) are unioned and sorted alphabetically when both sides have conflicting values
-- Frontmatter scalar fields (like `version`, `status`) use "theirs wins" strategy (latest change takes precedence)
+- Numeric frontmatter `version` fields use `max(ours, theirs)`, accept supported quoted/commented unsigned scalars, and never regress
+- Divergent or one-sided non-version frontmatter scalars, nonnumeric versions, and equal numeric versions with different scalar syntax require manual resolution
+- Nested mappings, YAML null-versus-list disagreements, and unsupported frontmatter shapes inside a hunk require manual resolution
 - Changelog table rows are merged chronologically by date, with deduplication by full row content
-- Generic markdown tables are merged by first cell (symbol name), with "theirs wins" on conflicts and deduplication
+- Generic markdown tables union distinct data rows and deduplicate identical rows by first cell; divergent rows with the same key, headers/separators inside the hunk, or a conflicted header whose separator immediately follows the hunk require manual resolution
 - Prose section conflicts (like `## Purpose` body text) are never auto-resolved and preserve conflict markers
 - `all_files: false` uses `git diff --diff-filter=U` to find only git-conflicted files
-- `all_files: true` scans all `.spec.md` files for conflict markers regardless of git state
+- `all_files: true` scans all `.spec.md` files for every conflict-marker family regardless of git state and retains unreadable candidates as explicit findings
 - `dry_run: true` returns resolution results without writing any changes to disk
 - Unreadable spec files are marked as `Manual` with the read error included in details
 - If `git diff` fails in git mode (`all_files: false`), `detect_conflicted_specs` returns no files (the run is a safe no-op); explicit `all_files: true` is the way to scan everything
-- Post-resolution frontmatter validation warnings are printed but don't prevent file writes
+- Only exact standard opener/base/separator/closer forms are accepted; orphan, nested, duplicate, incomplete, and lookalike markers require manual resolution
+- Diff3 base sections are excluded from auto-resolution input and preserved verbatim when a hunk remains manual
+- Resolution details name both marker labels and the applied strategy or manual-resolution reason, use `Auto-resolvable` for candidates, and use `Auto-resolved` only after successful persistence
+- A file is written only when every hunk resolves safely and the resulting output contains valid frontmatter
+- Post-resolution YAML errors, duplicate keys, missing required fields, invalid status, or empty files leave the original file unchanged
+- Uniform CRLF/LF style and final-newline presence are preserved
 - Results include `spec_path`, `status` (`Resolved` | `Manual` | `Clean`), and `details` for each file
 - Human-readable output uses colored formatting to distinguish status types
 
 ## Constraints
 
-- Must not depend on external YAML libraries — uses custom parser for simple key-value and list fields
+- Auto-resolution uses a custom parser for its simple top-level key/scalar and known-list subset; candidate output uses the shared checked YAML parser
 - Prose sections must never be auto-resolved to prevent loss of important description changes
 - Changelog sorting relies on ISO date format (YYYY-MM-DD) for lexicographic ordering
 - Resolution strategies are context-aware and cannot be overridden per-file
-- Conflict marker detection looks for standard git markers: `<<<<<<< `, `=======`, `>>>>>>> `
+- Conflict parsing accepts exact standard git markers plus diff3 `||||||| base` sections and fails closed on every marker-like deviation
 - Must handle both Windows (`\r\n`) and Unix (`\n`) line endings in conflicted files
 - Post-resolution validation must use the same frontmatter parser as the main `parser` module
 
 ## Out of Scope
 
 - Interactive merge conflict resolution (TUI or prompts)
-- Three-way merge with base ancestor analysis
+- Semantic three-way reconciliation using the base ancestor (diff3 base text is parsed only to keep it out of branch inputs)
 - Custom resolution strategies per-project or per-file
 - Resolving conflicts in non-spec files (`.rs`, `.md` without spec frontmatter)
 - Automatic git add/commit after resolution
@@ -55,16 +62,23 @@ The merge engine SHALL resolve only lossless known conflict shapes and SHALL lea
 
 Acceptance Criteria
 - Frontmatter list fields (`files`, `db_tables`, `depends_on`) are unioned and sorted alphabetically when both sides have conflicting values
-- Frontmatter scalar fields (like `version`, `status`) use "theirs wins" strategy (latest change takes precedence)
+- Numeric frontmatter `version` fields use `max(ours, theirs)`, accept supported quoted/commented unsigned scalars, and never regress
+- Divergent or one-sided non-version frontmatter scalars, nonnumeric versions, and equal numeric versions with different scalar syntax require manual resolution
+- Nested mappings, YAML null-versus-list disagreements, and unsupported frontmatter shapes inside a hunk require manual resolution
 - Changelog table rows are merged chronologically by date, with deduplication by full row content
-- Generic markdown tables are merged by first cell (symbol name), with "theirs wins" on conflicts and deduplication
+- Generic markdown tables union distinct data rows and deduplicate identical rows by first cell; divergent rows with the same key, headers/separators inside the hunk, or a conflicted header whose separator immediately follows the hunk require manual resolution
 - Prose section conflicts (like `## Purpose` body text) are never auto-resolved and preserve conflict markers
 - `all_files: false` uses `git diff --diff-filter=U` to find only git-conflicted files
-- `all_files: true` scans all `.spec.md` files for conflict markers regardless of git state
+- `all_files: true` scans all `.spec.md` files for every conflict-marker family regardless of git state and retains unreadable candidates as explicit findings
 - `dry_run: true` returns resolution results without writing any changes to disk
 - Unreadable spec files are marked as `Manual` with the read error included in details
 - If `git diff` fails in git mode (`all_files: false`), `detect_conflicted_specs` returns no files (the run is a safe no-op); explicit `all_files: true` is the way to scan everything
-- Post-resolution frontmatter validation warnings are printed but don't prevent file writes
+- Only exact standard opener/base/separator/closer forms are accepted; orphan, nested, duplicate, incomplete, and lookalike markers require manual resolution
+- Diff3 base sections are excluded from auto-resolution input and preserved verbatim when a hunk remains manual
+- Resolution details name both marker labels and the applied strategy or manual-resolution reason, use `Auto-resolvable` for candidates, and use `Auto-resolved` only after successful persistence
+- A file is written only when every hunk resolves safely and the resulting output contains valid frontmatter
+- Post-resolution YAML errors, duplicate keys, missing required fields, invalid status, or empty files leave the original file unchanged
+- Uniform CRLF/LF style and final-newline presence are preserved
 - Results include `spec_path`, `status` (`Resolved` | `Manual` | `Clean`), and `details` for each file
 - Human-readable output uses colored formatting to distinguish status types
 

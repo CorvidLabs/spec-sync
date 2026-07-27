@@ -22,6 +22,7 @@ spec: cmd_archive_tasks.spec.md
 - [x] Replace task(s)/file(s) placeholders with truthful singular/plural labels
 - [x] Sanitize text paths and errors against control and bidirectional terminal injection
 - [x] Add explicit GitHub-format and structured zero-write failure integration coverage
+- [x] Preserve legal Unix backslashes through Markdown/GitHub code-span rendering
 
 ## Review Status
 

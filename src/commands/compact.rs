@@ -104,6 +104,10 @@ fn print_text(report: &compact::CompactReport, dry_run: bool) {
 }
 
 fn print_json(report: &compact::CompactReport, keep: usize, dry_run: bool) {
+    println!("{}", render_json(report, keep, dry_run));
+}
+
+fn render_json(report: &compact::CompactReport, keep: usize, dry_run: bool) -> String {
     let entries_affected: usize = report.results.iter().map(|result| result.removed).sum();
     let entries_applied: usize = report
         .results
@@ -162,23 +166,36 @@ fn print_json(report: &compact::CompactReport, keep: usize, dry_run: bool) {
         "results": rendered_results,
         "errors": failures,
     });
-    println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    serde_json::to_string_pretty(&output).unwrap()
 }
 
 fn print_markdown(report: &compact::CompactReport, dry_run: bool) {
-    println!("## SpecSync Compact Results\n");
+    print!("{}", render_markdown(report, dry_run));
+}
+
+fn render_markdown(report: &compact::CompactReport, dry_run: bool) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "## SpecSync Compact Results\n")
+        .expect("writing to a String cannot fail");
     if dry_run {
-        println!("> Dry run — no files will be modified.\n");
+        writeln!(&mut output, "> Dry run — no files will be modified.\n")
+            .expect("writing to a String cannot fail");
     }
 
     if report.results.is_empty() && report.failures.is_empty() {
-        println!("No changelogs need compaction (all within limit).");
-        return;
+        writeln!(
+            &mut output,
+            "No changelogs need compaction (all within limit)."
+        )
+        .expect("writing to a String cannot fail");
+        return output;
     }
 
     if !report.results.is_empty() {
-        println!("| Spec | Action | Entries affected | Kept |");
-        println!("|------|--------|-----------------:|-----:|");
+        writeln!(&mut output, "| Spec | Action | Entries affected | Kept |")
+            .expect("writing to a String cannot fail");
+        writeln!(&mut output, "|------|--------|-----------------:|-----:|")
+            .expect("writing to a String cannot fail");
         for result in &report.results {
             let action = if dry_run {
                 "Would compact"
@@ -187,25 +204,31 @@ fn print_markdown(report: &compact::CompactReport, dry_run: bool) {
             } else {
                 "Not applied"
             };
-            println!(
+            writeln!(
+                &mut output,
                 "| {} | {action} | {} | {} |",
                 markdown_code_span(&portable_output_path(&result.spec_path)),
                 result.removed,
                 result.compacted_entries,
-            );
+            )
+            .expect("writing to a String cannot fail");
         }
     }
 
     if !report.failures.is_empty() {
-        println!("\n| Failed path | Operation | Error |");
-        println!("|-------------|-----------|-------|");
+        writeln!(&mut output, "\n| Failed path | Operation | Error |")
+            .expect("writing to a String cannot fail");
+        writeln!(&mut output, "|-------------|-----------|-------|")
+            .expect("writing to a String cannot fail");
         for failure in &report.failures {
-            println!(
+            writeln!(
+                &mut output,
                 "| {} | {} | {} |",
                 markdown_code_span(&portable_output_path(&failure.spec_path)),
                 markdown_cell(failure.operation),
                 markdown_cell(&failure.message),
-            );
+            )
+            .expect("writing to a String cannot fail");
         }
     }
 
@@ -217,7 +240,8 @@ fn print_markdown(report: &compact::CompactReport, dry_run: bool) {
     } else {
         "Planned"
     };
-    println!(
+    writeln!(
+        &mut output,
         "\n**Summary:** {action} {entries_affected} {} across {} {}.",
         if entries_affected == 1 {
             "entry"
@@ -230,7 +254,9 @@ fn print_markdown(report: &compact::CompactReport, dry_run: bool) {
         } else {
             "specs"
         },
-    );
+    )
+    .expect("writing to a String cannot fail");
+    output
 }
 
 fn is_unsafe_diagnostic_character(character: char) -> bool {
@@ -261,9 +287,7 @@ fn safe_diagnostic(value: &str) -> String {
 }
 
 fn markdown_cell(value: &str) -> String {
-    safe_diagnostic(value)
-        .replace('\\', "\\\\")
-        .replace('|', "\\|")
+    safe_diagnostic(value).replace('|', "\\|")
 }
 
 fn markdown_code_span(value: &str) -> String {
@@ -294,7 +318,8 @@ fn portable_output_path(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{markdown_code_span, portable_output_path};
+    use super::{markdown_code_span, portable_output_path, render_json, render_markdown};
+    use crate::compact::{CompactFailure, CompactReport, CompactResult};
 
     #[cfg(windows)]
     #[test]
@@ -318,8 +343,64 @@ mod tests {
     fn markdown_code_span_sanitizes_paths_and_uses_safe_delimiters() {
         assert_eq!(
             markdown_code_span("bad`name|row\n.spec.md"),
-            "``bad`name\\|row\\\\u{000A}.spec.md``"
+            "``bad`name\\|row\\u{000A}.spec.md``"
         );
         assert_eq!(markdown_code_span("``edge"), "``` ``edge ```");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn markdown_code_span_preserves_literal_unix_backslashes() {
+        assert_eq!(
+            markdown_code_span(r"specs/\\server\share/history.spec.md"),
+            r"`specs/\\server\share/history.spec.md`"
+        );
+    }
+
+    #[test]
+    fn partial_publish_reports_are_truthful_in_json_and_markdown() {
+        let report = CompactReport {
+            results: vec![
+                CompactResult {
+                    spec_path: "specs/a/a.spec.md".to_string(),
+                    original_entries: 4,
+                    compacted_entries: 2,
+                    removed: 2,
+                    applied: true,
+                },
+                CompactResult {
+                    spec_path: "specs/b/b.spec.md".to_string(),
+                    original_entries: 4,
+                    compacted_entries: 2,
+                    removed: 2,
+                    applied: false,
+                },
+            ],
+            failures: vec![CompactFailure {
+                spec_path: "specs/b/b.spec.md".to_string(),
+                operation: "publish",
+                message: "publication failed".to_string(),
+            }],
+            planned: 2,
+            succeeded: 1,
+        };
+
+        let json: serde_json::Value = serde_json::from_str(&render_json(&report, 2, false))
+            .expect("partial JSON must be parseable");
+        assert_eq!(json["complete"], false);
+        assert_eq!(json["partial"], true);
+        assert_eq!(json["applied"], false);
+        assert_eq!(json["entries_affected"], 4);
+        assert_eq!(json["entries_applied"], 2);
+        assert_eq!(json["specs_affected"], 2);
+        assert_eq!(json["operations"]["planned"], 2);
+        assert_eq!(json["operations"]["succeeded"], 1);
+        assert_eq!(json["errors"][0]["operation"], "publish");
+
+        let markdown = render_markdown(&report, false);
+        assert!(markdown.contains("| `specs/a/a.spec.md` | Compacted | 2 | 2 |"));
+        assert!(markdown.contains("| `specs/b/b.spec.md` | Not applied | 2 | 2 |"));
+        assert!(markdown.contains("| `specs/b/b.spec.md` | publish | publication failed |"));
+        assert!(markdown.contains("**Summary:** Planned 4 entries across 2 specs."));
     }
 }

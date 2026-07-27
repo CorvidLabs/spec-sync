@@ -7,7 +7,7 @@ use crate::validator::find_spec_files;
 const SUMMARY_MARKER: &str = "<!-- specsync:compact:v1 -->";
 
 /// Result of compacting a single spec's changelog.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CompactResult {
     pub spec_path: String,
     #[allow(dead_code)]
@@ -48,6 +48,12 @@ struct CompactPlan {
     result: CompactResult,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct FailureInjection {
+    stage_index: Option<usize>,
+    publish_index: Option<usize>,
+}
+
 /// Compact changelog entries across all specs.
 /// Keeps the last `keep` entries and summarizes older ones.
 pub fn compact_changelogs(
@@ -55,6 +61,16 @@ pub fn compact_changelogs(
     specs_dir: &Path,
     keep: usize,
     dry_run: bool,
+) -> CompactReport {
+    compact_changelogs_with_failures(root, specs_dir, keep, dry_run, FailureInjection::default())
+}
+
+fn compact_changelogs_with_failures(
+    root: &Path,
+    specs_dir: &Path,
+    keep: usize,
+    dry_run: bool,
+    failure_injection: FailureInjection,
 ) -> CompactReport {
     let spec_files = find_spec_files(specs_dir);
     let mut plans = Vec::new();
@@ -92,9 +108,10 @@ pub fn compact_changelogs(
     }
 
     let planned = plans.len();
+    let planned_results: Vec<_> = plans.iter().map(|plan| plan.result.clone()).collect();
     if dry_run || !failures.is_empty() {
         return CompactReport {
-            results: plans.into_iter().map(|plan| plan.result).collect(),
+            results: planned_results,
             failures,
             planned,
             succeeded: 0,
@@ -102,7 +119,16 @@ pub fn compact_changelogs(
     }
 
     let mut staged = Vec::with_capacity(planned);
-    for plan in plans {
+    for (index, plan) in plans.into_iter().enumerate() {
+        if failure_injection.stage_index == Some(index) {
+            failures.push(CompactFailure {
+                spec_path: plan.result.spec_path.clone(),
+                operation: "stage",
+                message: "injected staging failure".to_string(),
+            });
+            continue;
+        }
+
         match stage_replacement(&plan.path, plan.replacement.as_bytes()) {
             Ok(temporary) => staged.push((temporary, plan)),
             Err(error) => failures.push(CompactFailure {
@@ -115,7 +141,7 @@ pub fn compact_changelogs(
 
     if !failures.is_empty() {
         return CompactReport {
-            results: staged.into_iter().map(|(_, plan)| plan.result).collect(),
+            results: planned_results,
             failures,
             planned,
             succeeded: 0,
@@ -124,7 +150,17 @@ pub fn compact_changelogs(
 
     let mut results = Vec::with_capacity(planned);
     let mut succeeded = 0usize;
-    for (temporary, mut plan) in staged {
+    for (index, (temporary, mut plan)) in staged.into_iter().enumerate() {
+        if failure_injection.publish_index == Some(index) {
+            failures.push(CompactFailure {
+                spec_path: plan.result.spec_path.clone(),
+                operation: "publish",
+                message: "injected publication failure".to_string(),
+            });
+            results.push(plan.result);
+            continue;
+        }
+
         match temporary.persist(&plan.path) {
             Ok(_) => {
                 plan.result.applied = true;
@@ -157,25 +193,14 @@ fn compact_spec_changelog(
     rel_path: &str,
     keep: usize,
 ) -> Result<Option<(String, CompactResult)>, String> {
-    // Find the ## Change Log section
-    let changelog_marker = "## Change Log";
-    let Some(cl_start) = content.find(changelog_marker) else {
+    // Locate an exact level-two heading outside fenced and indented code.
+    let Some((cl_start, section_end)) = changelog_section_bounds(content) else {
         return Ok(None);
     };
 
-    // Find where this section ends (next ## heading or EOF)
-    let after_header = cl_start + changelog_marker.len();
-    let section_end = content[after_header..]
-        .find("\n## ")
-        .map(|p| after_header + p)
-        .unwrap_or(content.len());
-
     let section = &content[cl_start..section_end];
     let lines = source_lines(section);
-    let Some(header_index) = lines
-        .iter()
-        .position(|line| line.content.trim().starts_with('|'))
-    else {
+    let Some(header_index) = first_table_header_index(&lines) else {
         return Ok(None);
     };
     let header_cells = split_cells(lines[header_index].content.trim());
@@ -289,6 +314,12 @@ fn compact_spec_changelog(
         .map(|(i, _)| *i)
         .collect();
     let insert_at = remove_indices.iter().min().copied();
+    let summary_ending = remove_indices
+        .iter()
+        .max()
+        .and_then(|index| lines.get(*index))
+        .map(|line| line.ending)
+        .unwrap_or("");
 
     // Reconstruct from inclusive source lines so every untouched line keeps
     // its original LF/CRLF terminator (including mixed-ending files).
@@ -297,7 +328,7 @@ fn compact_spec_changelog(
         if remove_indices.contains(&i) {
             if Some(i) == insert_at {
                 new_section.push_str(&summary_row);
-                new_section.push_str(line.ending);
+                new_section.push_str(summary_ending);
             }
             // Skip this line (it was compacted / an outdated summary)
         } else {
@@ -320,6 +351,123 @@ fn compact_spec_changelog(
             applied: false,
         },
     )))
+}
+
+#[derive(Clone, Copy)]
+struct MarkdownFence {
+    marker: char,
+    length: usize,
+}
+
+fn changelog_section_bounds(content: &str) -> Option<(usize, usize)> {
+    let mut offset = 0usize;
+    let mut start = None;
+    let mut fence = None;
+
+    for line in source_lines(content) {
+        if update_markdown_fence(line.content, &mut fence) {
+            offset += line.raw.len();
+            continue;
+        }
+        if fence.is_some() || is_indented_code(line.content) {
+            offset += line.raw.len();
+            continue;
+        }
+
+        if start.is_none() {
+            if exact_h2_text(line.content) == Some("Change Log") {
+                start = Some(offset);
+            }
+        } else if exact_h2_text(line.content).is_some() {
+            return Some((start?, offset));
+        }
+
+        offset += line.raw.len();
+    }
+
+    start.map(|section_start| (section_start, content.len()))
+}
+
+fn first_table_header_index(lines: &[SourceLine<'_>]) -> Option<usize> {
+    let mut fence = None;
+    for (index, line) in lines.iter().enumerate().skip(1) {
+        if update_markdown_fence(line.content, &mut fence) {
+            continue;
+        }
+        if fence.is_some() || is_indented_code(line.content) {
+            continue;
+        }
+        if line.content.trim().starts_with('|') {
+            return Some(index);
+        }
+    }
+    None
+}
+
+fn exact_h2_text(line: &str) -> Option<&str> {
+    let indent = line
+        .chars()
+        .take_while(|character| *character == ' ')
+        .count();
+    if indent > 3 {
+        return None;
+    }
+    let heading = line.get(indent..)?.trim_end();
+    let text = heading.strip_prefix("## ")?;
+    if text.starts_with('#') || text.is_empty() {
+        return None;
+    }
+    Some(text)
+}
+
+fn is_indented_code(line: &str) -> bool {
+    line.starts_with("    ") || line.starts_with('\t')
+}
+
+/// Update fenced-code state and report whether this line is a fence delimiter.
+fn update_markdown_fence(line: &str, fence: &mut Option<MarkdownFence>) -> bool {
+    let indent = line
+        .chars()
+        .take_while(|character| *character == ' ')
+        .count();
+    if indent > 3 {
+        return false;
+    }
+    let rest = match line.get(indent..) {
+        Some(rest) => rest,
+        None => return false,
+    };
+    let Some(marker) = rest
+        .chars()
+        .next()
+        .filter(|marker| matches!(marker, '`' | '~'))
+    else {
+        return false;
+    };
+    let length = rest
+        .chars()
+        .take_while(|character| *character == marker)
+        .count();
+    if length < 3 {
+        return false;
+    }
+
+    match *fence {
+        Some(active) if active.marker == marker && length >= active.length => {
+            let trailing = rest.get(length..).unwrap_or("");
+            if trailing.trim().is_empty() {
+                *fence = None;
+                true
+            } else {
+                false
+            }
+        }
+        Some(_) => false,
+        None => {
+            *fence = Some(MarkdownFence { marker, length });
+            true
+        }
+    }
 }
 
 /// Whether a changelog table row is a spec-sync compaction summary row.
@@ -820,6 +968,50 @@ Test module.
     }
 
     #[test]
+    fn compact_ignores_fenced_tables_and_change_logger_prefixes() {
+        let content = concat!(
+            "```markdown\n",
+            "## Change Log\n\n",
+            "| Date | Change |\n",
+            "|------|--------|\n",
+            "| example-1 | Example one |\n",
+            "| example-2 | Example two |\n",
+            "| example-3 | Example three |\n",
+            "```\n\n",
+            "## Change Logger\n\n",
+            "| Date | Change |\n",
+            "|------|--------|\n",
+            "| logger-1 | Logger one |\n",
+            "| logger-2 | Logger two |\n",
+            "| logger-3 | Logger three |\n\n",
+            "## Change Log\n\n",
+            "```markdown\n",
+            "| Date | Change |\n",
+            "|------|--------|\n",
+            "| nested-1 | Nested one |\n",
+            "| nested-2 | Nested two |\n",
+            "| nested-3 | Nested three |\n",
+            "```\n\n",
+            "| Date | Change |\n",
+            "|------|--------|\n",
+            "| 2026-01-01 | First |\n",
+            "| 2026-01-02 | Second |\n",
+            "| 2026-01-03 | Third |\n",
+        );
+
+        let (new_content, result) = compact_spec_changelog(content, "t.spec.md", 1)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(result.removed, 2);
+        assert!(new_content.contains("| example-1 | Example one |"));
+        assert!(new_content.contains("| logger-1 | Logger one |"));
+        assert!(new_content.contains("| nested-1 | Nested one |"));
+        assert!(new_content.contains("| 2026-01-03 | Third |"));
+        assert!(!new_content.contains("| 2026-01-01 | First |"));
+    }
+
+    #[test]
     fn compact_supports_keep_zero() {
         let (new_content, result) = compact_spec_changelog(&changelog_21(), "t.spec.md", 0)
             .unwrap()
@@ -829,6 +1021,29 @@ Test module.
         assert_eq!(result.compacted_entries, 0);
         assert_eq!(new_content.matches(SUMMARY_MARKER).count(), 1);
         assert!(!new_content.contains("| 2026-01-21 | Change number 21 |"));
+    }
+
+    #[test]
+    fn compact_keep_zero_preserves_missing_final_newline_for_lf_and_crlf() {
+        for line_ending in ["\n", "\r\n"] {
+            let content = [
+                "## Change Log",
+                "",
+                "| Date | Change |",
+                "|------|--------|",
+                "| 2026-01-01 | First |",
+                "| 2026-01-02 | Second |",
+            ]
+            .join(line_ending);
+
+            let (new_content, result) = compact_spec_changelog(&content, "t.spec.md", 0)
+                .unwrap()
+                .unwrap();
+
+            assert_eq!(result.removed, 2);
+            assert!(!new_content.ends_with('\n'), "{new_content:?}");
+            assert_eq!(new_content.matches(SUMMARY_MARKER).count(), 1);
+        }
     }
 
     #[test]
@@ -866,8 +1081,68 @@ Test module.
         let report = compact_changelogs(temporary.path(), &specs, 5, false);
 
         assert!(!report.complete());
+        assert_eq!(report.planned, 2);
         assert_eq!(report.succeeded, 0);
+        assert_eq!(report.results.len(), 2);
+        assert_eq!(
+            report
+                .results
+                .iter()
+                .map(|result| result.removed)
+                .sum::<usize>(),
+            32
+        );
         assert_eq!(fs::read_to_string(&first).unwrap(), content);
+        assert_eq!(fs::read_to_string(&second).unwrap(), content);
+    }
+
+    #[test]
+    fn compact_publish_failure_reports_partial_results_and_exact_counts() {
+        let temporary = tempfile::tempdir().unwrap();
+        let specs = temporary.path().join("specs");
+        fs::create_dir_all(specs.join("a")).unwrap();
+        fs::create_dir_all(specs.join("b")).unwrap();
+        let first = specs.join("a/a.spec.md");
+        let second = specs.join("b/b.spec.md");
+        let content = changelog_21();
+        fs::write(&first, &content).unwrap();
+        fs::write(&second, &content).unwrap();
+
+        let report = compact_changelogs_with_failures(
+            temporary.path(),
+            &specs,
+            5,
+            false,
+            FailureInjection {
+                stage_index: None,
+                publish_index: Some(1),
+            },
+        );
+
+        assert!(!report.complete());
+        assert!(report.partial());
+        assert_eq!(report.planned, 2);
+        assert_eq!(report.succeeded, 1);
+        assert_eq!(report.results.len(), 2);
+        assert_eq!(
+            report
+                .results
+                .iter()
+                .map(|result| result.removed)
+                .sum::<usize>(),
+            32
+        );
+        assert_eq!(
+            report
+                .results
+                .iter()
+                .filter(|result| result.applied)
+                .count(),
+            1
+        );
+        assert_eq!(report.failures.len(), 1);
+        assert_eq!(report.failures[0].operation, "publish");
+        assert_ne!(fs::read_to_string(&first).unwrap(), content);
         assert_eq!(fs::read_to_string(&second).unwrap(), content);
     }
 }

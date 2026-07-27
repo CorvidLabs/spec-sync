@@ -7,6 +7,7 @@ spec: cmd_compact.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `tests/integration/commands.rs` | `fledge run test -- compact_` | Text dry-run/idempotence, JSON shorthand equivalence and portable paths, Markdown structure, newline preservation |
+| `src/commands/compact.rs` | `fledge run test -- commands::compact::tests` | Unix backslash identity, hostile dynamic spans, and truthful late-publish partial JSON/Markdown |
 | `src/compact.rs` (delegate logic) | `fledge run test -- compact::tests` | Core and #417 regression matrix |
 
 ## Coverage Gaps
@@ -35,8 +36,8 @@ spec: cmd_compact.spec.md
 | Multiple affected specs | Summary sums `removed` across results and reports the spec count | Keep or add a focused assertion before changing this behavior |
 | Structured stdout contamination | JSON must be exactly one parseable document with no banner or ANSI bytes | `compact_json_formats_are_clean_truthful_and_equivalent` |
 | Host-native path separators | Normalize actual Windows separators without aliasing Unix filename bytes | cfg-specific portable-path tests and structured CLI assertions |
-| Markdown path injection | Pipes/backticks/controls cannot create rows or break code spans | `markdown_code_span_sanitizes_paths_and_uses_safe_delimiters` |
-| Incomplete operations | Render valid structured output, exit 1, and never claim complete application | focused failure integration fixture |
+| Markdown path injection | Pipes/backticks/controls cannot create rows or break code spans; Unix backslashes remain literal | `markdown_code_span_sanitizes_paths_and_uses_safe_delimiters`, `markdown_code_span_preserves_literal_unix_backslashes` |
+| Incomplete operations | Render valid structured output, exit 1, and never claim complete application | focused failure integration fixture, `partial_publish_reports_are_truthful_in_json_and_markdown` |
 
 ## Reviewer Checklist
 

@@ -35,7 +35,7 @@ spec: cmd_archive_tasks.spec.md
 | Structured stdout contamination | JSON must be exactly one parseable document with no banner or ANSI bytes | `archive_tasks_json_formats_are_clean_truthful_and_equivalent` |
 | Incomplete mutation | Failure must exit 1 after rendering; `applied` false; no success on preflight/stage failure | `archive_tasks_apply_failure_exits_one_and_reports_zero_writes` and archive transaction unit tests |
 | Host-native path separators | Windows separators normalize without corrupting Unix identities | cfg-specific `structured_output_*` unit tests and structured CLI assertions |
-| Markdown path injection | Pipes, backticks, controls, and bidi controls cannot create rows or malformed spans | `markdown_paths_use_safe_dynamic_code_spans` |
+| Markdown path injection | Pipes, backticks, controls, and bidi controls cannot create rows or malformed spans; Unix backslashes remain literal | `markdown_paths_use_safe_dynamic_code_spans`, `markdown_paths_preserve_literal_unix_backslashes` |
 | Terminal diagnostic injection | Text paths/errors visibly encode controls and bidi characters | `text_paths_and_errors_visibly_escape_control_and_bidi_characters` |
 
 ## Reviewer Checklist

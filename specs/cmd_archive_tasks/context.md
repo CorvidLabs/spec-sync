@@ -8,7 +8,7 @@ spec: cmd_archive_tasks.spec.md
 - Dry-run is passed straight through to the delegate; rendering uses the report plan while keeping `applied` false.
 - Empty result is treated as a success case ("No completed tasks to archive.") with an early return — not an error.
 - `OutputFormat::Json` produces one document with planned/succeeded/rolled-back/failed arrays plus `would_change`, `applied`, `complete`, and `partial`.
-- `OutputFormat::Markdown` and `Github` share a PR-suitable renderer with dynamic code-span delimiters and sanitized table cells.
+- `OutputFormat::Markdown` and `Github` share a PR-suitable renderer with dynamic code-span delimiters, sanitized table cells, and unchanged legal Unix backslashes.
 - Paths stay as `PathBuf` values until rendering. Only Windows separators are normalized; a legal Unix backslash is preserved.
 - Text rendering passes paths and filesystem errors through the same visible control/bidirectional escaping used by structured diagnostics.
 - Failure reports are rendered and stdout is flushed before exit 1.
@@ -21,7 +21,7 @@ spec: cmd_archive_tasks.spec.md
 
 ## Current Status
 
-Text, JSON/`--json`, Markdown/GitHub, adversarial paths, and fail-closed exit behavior are covered; the delegate independently proves the transactional filesystem boundaries.
+Text, JSON/`--json`, Markdown/GitHub, adversarial paths, literal Unix backslashes, and fail-closed exit behavior are covered; the delegate independently proves the transactional filesystem boundaries.
 
 ## Notes
 

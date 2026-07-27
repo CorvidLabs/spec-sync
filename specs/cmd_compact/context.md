@@ -12,7 +12,7 @@ spec: cmd_compact.spec.md
 - `OutputFormat::Json` produces one document and expresses dry-run truth through separate `would_change` and `applied` booleans.
 - `OutputFormat::Markdown` and `Github` share the PR-suitable table renderer; text-like formats preserve the established terminal output.
 - Structured renderers normalize Windows separators to `/` without corrupting literal Unix backslashes.
-- Markdown/GitHub uses sanitized dynamic-backtick code spans; JSON retains machine-readable paths and reports complete/partial operation truth.
+- Markdown/GitHub uses sanitized dynamic-backtick code spans without doubling legal Unix backslashes; JSON retains machine-readable paths and reports complete/partial operation truth.
 - The command renders the full typed compact report and exits 1 when any operation fails.
 
 ## Files to Read First
@@ -23,7 +23,7 @@ spec: cmd_compact.spec.md
 
 ## Current Status
 
-Text, JSON/`--json`, Markdown/GitHub, hostile structured paths, failure truth, dry-run, and repeated-run behavior are covered end to end for issue #417.
+Text, JSON/`--json`, Markdown/GitHub, hostile structured paths, literal Unix backslashes, deterministic late-publish partial truth, dry-run, and repeated-run behavior are covered end to end for issue #417.
 
 ## Notes
 

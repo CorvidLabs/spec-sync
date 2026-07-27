@@ -26,6 +26,9 @@ spec: compact.spec.md
 - [x] Preserve CRLF/mixed line endings and parse escaped/code-span pipes with correct backslash parity
 - [x] Add checked fixed-width summary counts, keep-zero coverage, and first-contiguous-table isolation
 - [x] Preflight and stage compact replacements before publication with typed incomplete/partial reporting
+- [x] Ignore fenced/indented changelog examples and prefix headings such as `## Change Logger`
+- [x] Preserve a missing final newline for LF and CRLF files when `keep = 0`
+- [x] Retain complete planned counts on staging failure and characterize deterministic late-publish partial results
 
 ## Review Status
 

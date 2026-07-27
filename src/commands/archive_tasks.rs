@@ -356,9 +356,7 @@ fn safe_diagnostic(value: &str) -> String {
 }
 
 fn markdown_table_cell(value: &str) -> String {
-    safe_diagnostic(value)
-        .replace('\\', "\\\\")
-        .replace('|', "\\|")
+    safe_diagnostic(value).replace('|', "\\|")
 }
 
 fn markdown_code_span(value: &str) -> String {
@@ -440,6 +438,19 @@ mod tests {
             1,
             "adversarial path injected a Markdown row"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn markdown_paths_preserve_literal_unix_backslashes() {
+        let path = PathBuf::from(r"specs/\\server\share/tasks.md");
+        let markdown = render_markdown(&report_for(path, 1, true));
+
+        assert!(
+            markdown.contains(r"`specs/\\server\share/tasks.md`"),
+            "{markdown}"
+        );
+        assert!(!markdown.contains(r"`specs/\\\\server\\share/tasks.md`"));
     }
 
     #[test]

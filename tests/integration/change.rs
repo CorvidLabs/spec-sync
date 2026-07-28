@@ -1,9 +1,60 @@
 use super::helpers::specsync;
 use predicates::prelude::*;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::process::Command;
 use tempfile::TempDir;
+
+fn closing_digest_without_manifest(
+    change_id: &str,
+    contract_digest: &str,
+    workspace_digest: &str,
+    acceptance_input_digest: &str,
+) -> String {
+    fn frame(hasher: &mut Sha256, tag: &[u8], value: &[u8]) {
+        hasher.update((tag.len() as u64).to_be_bytes());
+        hasher.update(tag);
+        hasher.update((value.len() as u64).to_be_bytes());
+        hasher.update(value);
+    }
+
+    let mut hasher = Sha256::new();
+    frame(&mut hasher, b"domain", b"specsync.closing-digest.v2");
+    frame(&mut hasher, b"record-id", change_id.as_bytes());
+    frame(&mut hasher, b"contract", contract_digest.as_bytes());
+    frame(&mut hasher, b"workspace", workspace_digest.as_bytes());
+    frame(&mut hasher, b"commit", b"");
+    let mut acceptance = Vec::with_capacity(acceptance_input_digest.len() + 1);
+    acceptance.push(1);
+    acceptance.extend_from_slice(acceptance_input_digest.as_bytes());
+    frame(&mut hasher, b"acceptance", &acceptance);
+    format!("{:x}", hasher.finalize())
+}
+
+fn commit_lifecycle_fixture(root: &std::path::Path, message: &str) {
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    if !root.join(".git").exists() {
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+    }
+    git(&["add", "."]);
+    git(&["commit", "-m", message]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+}
 
 #[test]
 fn verification_freshness_status_and_check_are_environment_independent() {
@@ -833,6 +884,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         ])
         .assert()
         .success();
+    commit_lifecycle_fixture(root, "accept review-instructions baseline");
 
     fs::write(root.join("README.md"), "Final review instructions.\n").unwrap();
     specsync()
@@ -865,7 +917,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         .clone();
     let value: Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["change"]["state"], "verifying");
-    assert_eq!(value["audit"]["schema_version"], 1);
+    assert_eq!(value["audit"]["schema_version"], 2);
     assert_eq!(value["audit"]["from_state"], "accepted");
     assert_eq!(value["audit"]["to_state"], "verifying");
     assert_eq!(
@@ -1055,6 +1107,7 @@ fn reopened_owner_correction_is_deterministic_through_json_cli() {
         }
         specsync().args(args).assert().success();
     }
+    commit_lifecycle_fixture(root, "accept ownership baseline");
 
     fs::write(
         root.join("src/lib.rs"),
@@ -1215,6 +1268,7 @@ fn batch_correct_owner_through_cli_is_transactional() {
         }
         specsync().args(args).assert().success();
     }
+    commit_lifecycle_fixture(root, "accept batch owner-correction baseline");
 
     fs::write(
         root.join("src/lib.rs"),
@@ -1576,6 +1630,10 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
     let root = temp.path();
     let workspace = root.join(".specsync/changes/CHG-0001-adopt-trust");
     fs::create_dir_all(&workspace).unwrap();
+    let stale_digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let current_digest = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    let superseded_closing_digest =
+        closing_digest_without_manifest("CHG-0001-adopt-trust", "ccc", "www", stale_digest);
     let reopening = serde_json::json!({
         "schema_version": 1,
         "change_id": "CHG-0001-adopt-trust",
@@ -1588,7 +1646,7 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
             "gate": "acceptance",
             "actor": "0xLeif",
             "timestamp": 90,
-            "digest": "aaa",
+            "digest": superseded_closing_digest,
             "note": null
         },
         "prior_verification": {
@@ -1596,14 +1654,15 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
             "commit": null,
             "contract_digest": "ccc",
             "workspace_digest": "www",
-            "acceptance_input_digest": "stale-digest-aaa",
+            "acceptance_input_digest": stale_digest,
             "passed": true,
             "commands": [],
             "requirement_ids": []
         }
     });
+    let superseded_approval = reopening["superseded_approval"].clone();
     let ledger = serde_json::json!({
-        "approvals": [],
+        "approvals": [superseded_approval],
         "reopenings": [reopening]
     });
     let approvals_path = workspace.join("approvals.json");
@@ -1614,7 +1673,9 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
     .unwrap();
     fs::write(
         workspace.join("verification.json"),
-        "{\n  \"timestamp\": 200,\n  \"commit\": null,\n  \"contract_digest\": \"ccc\",\n  \"workspace_digest\": \"www\",\n  \"acceptance_input_digest\": \"current-digest-bbb\",\n  \"passed\": true,\n  \"commands\": [],\n  \"requirement_ids\": []\n}\n",
+        format!(
+            "{{\n  \"timestamp\": 200,\n  \"commit\": null,\n  \"contract_digest\": \"ccc\",\n  \"workspace_digest\": \"www\",\n  \"acceptance_input_digest\": \"{current_digest}\",\n  \"passed\": true,\n  \"commands\": [],\n  \"requirement_ids\": []\n}}\n"
+        ),
     )
     .unwrap();
 
@@ -1647,11 +1708,11 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
         serde_json::from_str(&fs::read_to_string(&approvals_path).unwrap()).unwrap();
     assert_eq!(
         repaired["reopenings"][0]["stale_acceptance_input_digest"],
-        "stale-digest-aaa"
+        stale_digest
     );
     assert_eq!(
         repaired["reopenings"][0]["current_acceptance_input_digest"],
-        "current-digest-bbb"
+        current_digest
     );
 
     // A second run is a no-op.

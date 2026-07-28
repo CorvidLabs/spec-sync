@@ -5,14 +5,15 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Capture the large-manifest repeated-reopen failure before implementation
-- [ ] Add private compact reopening persistence and manifest reference types
-- [ ] Add strict immutable object write, reuse, and hydration helpers
-- [ ] Route all approval ledger mutations through the compatibility layer
-- [ ] Emit compact schema-v2 reopening events
-- [ ] Preserve schema-v1 reads and deterministic migration behavior
-- [ ] Add adversarial object-integrity and path-safety tests
-- [ ] Add A/B/A growth, reacceptance, archive, and migration regressions
-- [ ] Update the canonical `change` spec and companions
+- [x] Capture the large-manifest repeated-reopen failure before implementation
+- [x] Add private compact reopening persistence and manifest reference types
+- [x] Add strict immutable object write, reuse, and hydration helpers
+- [x] Route all approval ledger mutations through the compatibility layer
+- [x] Emit compact schema-v2 reopening events
+- [x] Preserve schema-v1 reads and deterministic migration behavior
+- [x] Preserve exact protected schema-v1 ledger prefixes after squash-discarded intermediate roots
+- [x] Add adversarial object-integrity and path-safety tests
+- [x] Add A/B/A growth, reacceptance, archive, and migration regressions
+- [x] Prepare the canonical `change` spec and companion update through the lifecycle delta
 - [ ] Pass targeted, full repository, strict spec, score, trust, and provenance gates
-- [ ] Resolve all independent implementation and adversarial review findings
+- [x] Resolve all independent implementation and adversarial review findings

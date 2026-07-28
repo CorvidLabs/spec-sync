@@ -1,3 +1,6 @@
+#[cfg(any(unix, windows))]
+use cap_std::fs::OpenOptionsExt as _;
+use cap_std::fs::{Dir as CapDir, OpenOptions as CapOpenOptions};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -18,7 +21,9 @@ const LEGACY_BASELINE_PATH: &str = ".specsync/archive/legacy-baseline.json";
 const LOCK_PATH: &str = ".specsync/change.lock";
 const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
+const ARCHIVE_MOVE_TRANSACTION_PATH: &str = ".specsync/archive-move-transaction.json";
 const CORRECTIONS_FILE: &str = "corrections.json";
+const ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY: &str = "evidence/acceptance-manifests";
 const PORTABLE_DEFINITION_PROJECTION_V501: &str = "specsync-5.0.1";
 const DEFINITION_APPROVAL_PAIR_DOMAIN: &[u8] = b"specsync.definition-approval-pair.v1";
 const CORRECTION_PREFIX_DOMAIN: &[u8] = b"specsync.correction-prefix.v1";
@@ -57,10 +62,14 @@ struct GitCapturedEntry {
     payload: Vec<u8>,
 }
 
+type LegacyReconstructionEvidence = BTreeMap<String, GitCapturedEntry>;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct GitEvidence {
     modes: BTreeMap<String, u32>,
+    objects: BTreeMap<String, String>,
     entries: BTreeMap<String, GitCapturedEntry>,
+    index_backed: BTreeSet<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -93,6 +102,10 @@ impl GitEvidence {
             )),
         }
     }
+
+    fn is_index_backed(&self, path: &str) -> bool {
+        self.index_backed.contains(path)
+    }
 }
 
 const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
@@ -104,6 +117,7 @@ const SEMANTIC_SUCCESSION_DOMAIN: &[u8] = b"specsync.semantic-succession.v1";
 const LEGACY_BASELINE_DOMAIN: &[u8] = b"specsync.legacy-archive-baseline.v1";
 const LEGACY_SUBTREE_DOMAIN: &[u8] = b"specsync.legacy-archive-subtree.v1";
 const CLOSING_DIGEST_DOMAIN: &[u8] = b"specsync.closing-digest.v2";
+const REOPENING_AUDIT_DIGEST_DOMAIN: &[u8] = b"specsync.reopening-audit-digest.v1";
 const CORRECTION_VIEW_DIGEST_DOMAIN: &[u8] = b"specsync.correction-view-digest.v1";
 const EXACT_TEST_OWNER: &str = "@exact:test";
 const EXACT_DELIVERY_OWNER: &str = "@exact:delivery";
@@ -111,6 +125,156 @@ const MAX_ACCEPTANCE_ENTRIES: usize = 100_000;
 const MAX_ACCEPTANCE_PATH_BYTES: usize = 4_096;
 const MAX_ACCEPTANCE_OWNERS: usize = 1_024;
 const MAX_ACCEPTANCE_OWNER_BYTES: usize = 256;
+const MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_TRUSTED_REOPENING_ANCHOR_COMMITS: usize = 4_096;
+const MAX_TRUSTED_REOPENING_ANCHOR_BYTES: usize = 512 * 1024 * 1024;
+const MAX_LEGACY_RECONSTRUCTION_TREE_ENTRIES: usize = 100_000;
+const MAX_LEGACY_RECONSTRUCTION_TREE_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_REOPENING_EVENTS: usize = 4_096;
+const MAX_APPROVAL_EVENTS: usize = 8_192;
+const MAX_UNIQUE_HYDRATED_MANIFEST_BYTES: usize = 256 * 1024 * 1024;
+const MAX_EXPANDED_HYDRATED_MANIFEST_BYTES: usize = 256 * 1024 * 1024;
+const MAX_TRANSACTION_JOURNAL_BYTES: usize = 64 * 1024 * 1024;
+const MAX_TRANSACTION_ENTRIES: usize = 100_000;
+const MAX_ARCHIVE_MOVE_JOURNAL_BYTES: usize = 16 * 1024 * 1024;
+const PROJECT_LOCK_REBIND_ATTEMPTS: usize = 8;
+static ACCEPTANCE_MANIFEST_OBJECT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static MIGRATION_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LegacyReconstructionTreeEntry {
+    path: String,
+    mode: u32,
+    object: String,
+    size: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LegacyReconstructionTreeListing {
+    entries: Vec<LegacyReconstructionTreeEntry>,
+    aggregate_bytes: u64,
+}
+
+type LegacyReconstructionBlobOffsets = BTreeMap<String, (usize, usize)>;
+
+#[derive(Debug)]
+struct LegacyReconstructionMaterializationBudget {
+    entries: usize,
+    bytes: u64,
+    maximum_entries: usize,
+    maximum_bytes: u64,
+}
+
+impl Default for LegacyReconstructionMaterializationBudget {
+    fn default() -> Self {
+        Self {
+            entries: 0,
+            bytes: 0,
+            maximum_entries: MAX_LEGACY_RECONSTRUCTION_TREE_ENTRIES,
+            maximum_bytes: MAX_LEGACY_RECONSTRUCTION_TREE_BYTES,
+        }
+    }
+}
+
+impl LegacyReconstructionMaterializationBudget {
+    #[cfg(test)]
+    fn with_limits(maximum_entries: usize, maximum_bytes: u64) -> Self {
+        Self {
+            entries: 0,
+            bytes: 0,
+            maximum_entries,
+            maximum_bytes,
+        }
+    }
+
+    fn charge(&mut self, listing: &LegacyReconstructionTreeListing) -> Result<(), String> {
+        self.entries = self
+            .entries
+            .checked_add(listing.entries.len())
+            .ok_or_else(|| "legacy reconstruction aggregate entry count overflowed".to_string())?;
+        if self.entries > self.maximum_entries {
+            return Err(format!(
+                "legacy reconstruction history exceeds {} aggregate entries across distinct trees",
+                self.maximum_entries
+            ));
+        }
+        self.bytes = self
+            .bytes
+            .checked_add(listing.aggregate_bytes)
+            .ok_or_else(|| "legacy reconstruction aggregate byte count overflowed".to_string())?;
+        if self.bytes > self.maximum_bytes {
+            return Err(format!(
+                "legacy reconstruction history exceeds {} aggregate blob bytes across distinct trees",
+                self.maximum_bytes
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct TrustedHistoryScanBudget {
+    commits: BTreeSet<String>,
+    validated_reopening_roots: BTreeSet<String>,
+    files: BTreeMap<(String, String), Option<Vec<u8>>>,
+    file_modes: BTreeMap<(String, String), Option<u32>>,
+    bytes: usize,
+    maximum_commits: usize,
+    maximum_bytes: usize,
+}
+
+impl Default for TrustedHistoryScanBudget {
+    fn default() -> Self {
+        Self {
+            commits: BTreeSet::new(),
+            validated_reopening_roots: BTreeSet::new(),
+            files: BTreeMap::new(),
+            file_modes: BTreeMap::new(),
+            bytes: 0,
+            maximum_commits: MAX_TRUSTED_REOPENING_ANCHOR_COMMITS,
+            maximum_bytes: MAX_TRUSTED_REOPENING_ANCHOR_BYTES,
+        }
+    }
+}
+
+impl TrustedHistoryScanBudget {
+    #[cfg(test)]
+    fn with_limits(maximum_commits: usize, maximum_bytes: usize) -> Self {
+        Self {
+            commits: BTreeSet::new(),
+            validated_reopening_roots: BTreeSet::new(),
+            files: BTreeMap::new(),
+            file_modes: BTreeMap::new(),
+            bytes: 0,
+            maximum_commits,
+            maximum_bytes,
+        }
+    }
+
+    fn charge_commit(&mut self, commit: &str) -> Result<(), String> {
+        if self.commits.insert(commit.to_string()) && self.commits.len() > self.maximum_commits {
+            return Err(format!(
+                "trusted lifecycle history exceeds {} distinct candidate commits",
+                self.maximum_commits
+            ));
+        }
+        Ok(())
+    }
+
+    fn charge_bytes(&mut self, additional_bytes: usize) -> Result<(), String> {
+        self.bytes = self
+            .bytes
+            .checked_add(additional_bytes)
+            .ok_or_else(|| "trusted lifecycle history byte budget overflowed".to_string())?;
+        if self.bytes > self.maximum_bytes {
+            return Err(format!(
+                "trusted lifecycle history exceeds {} aggregate bytes",
+                self.maximum_bytes
+            ));
+        }
+        Ok(())
+    }
+}
 
 struct FramedDigest {
     hasher: Sha256,
@@ -175,64 +339,1533 @@ struct ProjectLock {
     file: fs::File,
 }
 
+struct ProjectLockLocation {
+    root: PathBuf,
+    path: PathBuf,
+    create_directory: bool,
+}
+
+const NON_GIT_PROJECT_LOCK_DIRECTORY: &str = "specsync-project-locks-v1";
+#[cfg(unix)]
+const NON_GIT_ACCOUNT_RUNTIME_DIRECTORY: &str = ".specsync-runtime-v1";
+#[cfg(windows)]
+const NON_GIT_ACCOUNT_RUNTIME_DIRECTORY: &str = "SpecSyncRuntime-v1";
+
 impl Drop for ProjectLock {
     fn drop(&mut self) {
         let _ = FileExt::unlock(&self.file);
     }
 }
 
-fn acquire_project_lock(root: &Path) -> Result<ProjectLock, String> {
-    let path = root.join(LOCK_PATH);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+fn project_lock_location(root: &Path) -> Result<ProjectLockLocation, String> {
+    let transaction = transaction_journal_location(root)?;
+    let (lock_root, path, create_directory) = if transaction.root == root {
+        let canonical_root = fs::canonicalize(root).map_err(|error| {
+            format!(
+                "failed to canonicalize non-Git project for lifecycle locking {}: {error}",
+                root.display()
+            )
+        })?;
+        let mut key = FramedDigest::new(b"specsync.non-git-project-lock.v1");
+        key.frame(
+            b"canonical-root",
+            canonical_root.to_string_lossy().as_bytes(),
+        );
+        let runtime_root = non_git_lock_runtime_root()?;
+        let lock_directory = ensure_private_non_git_lock_directory(&runtime_root)?;
+        let path = lock_directory.join(format!("{}.lock", key.finish()));
+        (runtime_root, path, false)
+    } else {
+        let path = transaction
+            .root
+            .join("specsync/locks")
+            .join(format!("{}.lock", transaction.project_key));
+        (transaction.root, path, true)
+    };
+    Ok(ProjectLockLocation {
+        root: lock_root,
+        path,
+        create_directory,
+    })
+}
+
+#[cfg(unix)]
+fn non_git_lock_runtime_root() -> Result<PathBuf, String> {
+    let account_home = effective_user_home_directory()?;
+    ensure_private_non_git_account_runtime(&account_home)
+}
+
+#[cfg(unix)]
+fn effective_user_home_directory() -> Result<PathBuf, String> {
+    use std::ffi::{CStr, OsString};
+    use std::os::unix::ffi::OsStringExt;
+
+    const DEFAULT_ACCOUNT_BUFFER_BYTES: usize = 16 * 1024;
+    const MAX_ACCOUNT_BUFFER_BYTES: usize = 1024 * 1024;
+
+    // SAFETY: `geteuid` and `sysconf` do not dereference pointers.
+    let effective_user = unsafe { libc::geteuid() };
+    // SAFETY: `_SC_GETPW_R_SIZE_MAX` is a valid `sysconf` selector.
+    let suggested = unsafe { libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) };
+    let mut buffer_bytes = if suggested > 0 {
+        usize::try_from(suggested)
+            .unwrap_or(MAX_ACCOUNT_BUFFER_BYTES)
+            .clamp(1, MAX_ACCOUNT_BUFFER_BYTES)
+    } else {
+        DEFAULT_ACCOUNT_BUFFER_BYTES
+    };
+    loop {
+        let mut entry = std::mem::MaybeUninit::<libc::passwd>::zeroed();
+        let mut result = std::ptr::null_mut();
+        let mut buffer = vec![0_u8; buffer_bytes];
+        // SAFETY: `entry`, `buffer`, and `result` are writable for the supplied sizes. The
+        // returned `pw_dir` pointer is consumed while `buffer` remains alive.
+        let status = unsafe {
+            libc::getpwuid_r(
+                effective_user,
+                entry.as_mut_ptr(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                &mut result,
+            )
+        };
+        if status == libc::ERANGE && buffer_bytes < MAX_ACCOUNT_BUFFER_BYTES {
+            buffer_bytes = buffer_bytes.saturating_mul(2).min(MAX_ACCOUNT_BUFFER_BYTES);
+            continue;
+        }
+        if status != 0 {
+            return Err(format!(
+                "failed to resolve effective OS account {effective_user}: {}",
+                std::io::Error::from_raw_os_error(status)
+            ));
+        }
+        if result.is_null() {
+            return Err(format!(
+                "effective OS account {effective_user} has no account database entry"
+            ));
+        }
+        // SAFETY: A successful non-null `getpwuid_r` result initialized `entry`.
+        let entry = unsafe { entry.assume_init() };
+        if entry.pw_dir.is_null() {
+            return Err(format!(
+                "effective OS account {effective_user} has no home directory"
+            ));
+        }
+        // SAFETY: `pw_dir` points to a NUL-terminated string in the live `buffer`.
+        let home = unsafe { CStr::from_ptr(entry.pw_dir) }.to_bytes();
+        if home.is_empty() {
+            return Err(format!(
+                "effective OS account {effective_user} has an empty home directory"
+            ));
+        }
+        return Ok(PathBuf::from(OsString::from_vec(home.to_vec())));
     }
-    let file = OpenOptions::new()
-        .create(true)
-        .read(true)
-        .write(true)
-        .truncate(false)
-        .open(&path)
-        .map_err(|error| format!("failed to open lifecycle lock {}: {error}", path.display()))?;
-    file.lock_exclusive().map_err(|error| {
+}
+
+#[cfg(unix)]
+fn ensure_private_non_git_account_runtime(account_home: &Path) -> Result<PathBuf, String> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+
+    // SAFETY: `geteuid` has no preconditions and does not dereference memory.
+    let effective_user = unsafe { libc::geteuid() };
+    if !account_home.is_absolute() {
+        return Err(format!(
+            "the effective OS account home must be absolute for non-Git lifecycle locking: {}",
+            account_home.display()
+        ));
+    }
+    let home_metadata = fs::symlink_metadata(account_home).map_err(|error| {
         format!(
-            "failed to acquire lifecycle lock {}: {error}",
-            path.display()
+            "failed to inspect effective OS account home {}: {error}",
+            account_home.display()
         )
     })?;
-    let lock = ProjectLock { file };
-    recover_pending_transaction(root)?;
-    Ok(lock)
+    if home_metadata.file_type().is_symlink() || !home_metadata.is_dir() {
+        return Err(format!(
+            "effective OS account home is not a real directory: {}",
+            account_home.display()
+        ));
+    }
+    if home_metadata.uid() != effective_user {
+        return Err(format!(
+            "effective OS account home is not owned by the current user: {}",
+            account_home.display()
+        ));
+    }
+    if home_metadata.permissions().mode() & 0o022 != 0 {
+        return Err(format!(
+            "effective OS account home is writable by a group or other users: {}",
+            account_home.display()
+        ));
+    }
+    let canonical_home = fs::canonicalize(account_home).map_err(|error| {
+        format!(
+            "failed to canonicalize effective OS account home {}: {error}",
+            account_home.display()
+        )
+    })?;
+    let canonical_metadata = fs::symlink_metadata(&canonical_home).map_err(|error| {
+        format!(
+            "failed to inspect canonical effective OS account home {}: {error}",
+            canonical_home.display()
+        )
+    })?;
+    if canonical_metadata.dev() != home_metadata.dev()
+        || canonical_metadata.ino() != home_metadata.ino()
+    {
+        return Err(format!(
+            "effective OS account home changed during lifecycle runtime validation: {}",
+            account_home.display()
+        ));
+    }
+
+    let runtime = canonical_home.join(NON_GIT_ACCOUNT_RUNTIME_DIRECTORY);
+    let mut builder = fs::DirBuilder::new();
+    builder.mode(0o700);
+    match builder.create(&runtime) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => {
+            return Err(format!(
+                "failed to create private OS-account lifecycle runtime {}: {error}",
+                runtime.display()
+            ));
+        }
+    }
+    let runtime_metadata = fs::symlink_metadata(&runtime).map_err(|error| {
+        format!(
+            "failed to inspect private OS-account lifecycle runtime {}: {error}",
+            runtime.display()
+        )
+    })?;
+    if runtime_metadata.file_type().is_symlink() || !runtime_metadata.is_dir() {
+        return Err(format!(
+            "private OS-account lifecycle runtime is not a real directory: {}",
+            runtime.display()
+        ));
+    }
+    if runtime_metadata.uid() != effective_user {
+        return Err(format!(
+            "private OS-account lifecycle runtime is not owned by the current user: {}",
+            runtime.display()
+        ));
+    }
+    if runtime_metadata.permissions().mode() & 0o7777 != 0o700 {
+        return Err(format!(
+            "private OS-account lifecycle runtime permissions are not mode 0700: {}",
+            runtime.display()
+        ));
+    }
+    let canonical_runtime = fs::canonicalize(&runtime).map_err(|error| {
+        format!(
+            "failed to canonicalize private OS-account lifecycle runtime {}: {error}",
+            runtime.display()
+        )
+    })?;
+    let canonical_runtime_metadata = fs::symlink_metadata(&canonical_runtime).map_err(|error| {
+        format!(
+            "failed to inspect canonical private OS-account lifecycle runtime {}: {error}",
+            canonical_runtime.display()
+        )
+    })?;
+    if canonical_runtime_metadata.dev() != runtime_metadata.dev()
+        || canonical_runtime_metadata.ino() != runtime_metadata.ino()
+    {
+        return Err(format!(
+            "private OS-account lifecycle runtime changed during validation: {}",
+            runtime.display()
+        ));
+    }
+    Ok(canonical_runtime)
+}
+
+#[cfg(unix)]
+fn validate_private_non_git_runtime_root(
+    runtime_root: &Path,
+    description: &str,
+) -> Result<PathBuf, String> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    // SAFETY: `geteuid` has no preconditions and does not dereference memory.
+    let effective_user = unsafe { libc::geteuid() };
+    if !runtime_root.is_absolute() {
+        return Err(format!(
+            "{description} must be an absolute path for non-Git lifecycle locking: {}",
+            runtime_root.display()
+        ));
+    }
+    let runtime_metadata = fs::symlink_metadata(runtime_root).map_err(|error| {
+        format!(
+            "failed to inspect {description} {}: {error}",
+            runtime_root.display()
+        )
+    })?;
+    if runtime_metadata.file_type().is_symlink() || !runtime_metadata.is_dir() {
+        return Err(format!(
+            "{description} is not a real directory: {}",
+            runtime_root.display()
+        ));
+    }
+    if runtime_metadata.uid() != effective_user {
+        return Err(format!(
+            "{description} is not owned by the current user: {}",
+            runtime_root.display()
+        ));
+    }
+    if runtime_metadata.permissions().mode() & 0o7777 != 0o700 {
+        return Err(format!(
+            "{description} permissions are not private mode 0700: {}",
+            runtime_root.display()
+        ));
+    }
+    let canonical = fs::canonicalize(runtime_root).map_err(|error| {
+        format!(
+            "failed to canonicalize {description} {}: {error}",
+            runtime_root.display()
+        )
+    })?;
+    let canonical_metadata = fs::symlink_metadata(&canonical).map_err(|error| {
+        format!(
+            "failed to inspect canonical {description} {}: {error}",
+            canonical.display()
+        )
+    })?;
+    if canonical_metadata.dev() != runtime_metadata.dev()
+        || canonical_metadata.ino() != runtime_metadata.ino()
+    {
+        return Err(format!(
+            "{description} changed during validation: {}",
+            runtime_root.display()
+        ));
+    }
+    Ok(canonical)
+}
+
+#[cfg(unix)]
+fn ensure_private_non_git_lock_directory(runtime_root: &Path) -> Result<PathBuf, String> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+
+    let runtime_root = validate_private_non_git_runtime_root(
+        runtime_root,
+        "the non-Git lifecycle lock runtime directory",
+    )?;
+    // SAFETY: `geteuid` has no preconditions and does not dereference memory.
+    let effective_user = unsafe { libc::geteuid() };
+    let directory = runtime_root.join(NON_GIT_PROJECT_LOCK_DIRECTORY);
+    let mut builder = fs::DirBuilder::new();
+    builder.mode(0o700);
+    match builder.create(&directory) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => {
+            return Err(format!(
+                "failed to create private non-Git lifecycle lock directory {}: {error}",
+                directory.display()
+            ));
+        }
+    }
+    let metadata = fs::symlink_metadata(&directory).map_err(|error| {
+        format!(
+            "failed to inspect private non-Git lifecycle lock directory {}: {error}",
+            directory.display()
+        )
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(format!(
+            "private non-Git lifecycle lock directory is not a real directory: {}",
+            directory.display()
+        ));
+    }
+    if metadata.uid() != effective_user {
+        return Err(format!(
+            "private non-Git lifecycle lock directory is not owned by the current user: {}",
+            directory.display()
+        ));
+    }
+    if metadata.permissions().mode() & 0o7777 != 0o700 {
+        return Err(format!(
+            "private non-Git lifecycle lock directory permissions are not mode 0700: {}",
+            directory.display()
+        ));
+    }
+    Ok(directory)
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsGuid {
+    _data1: u32,
+    _data2: u16,
+    _data3: u16,
+    _data4: [u8; 8],
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsAclHeader {
+    _revision: u8,
+    _reserved1: u8,
+    _size: u16,
+    ace_count: u16,
+    _reserved2: u16,
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsAceHeader {
+    ace_type: u8,
+    _ace_flags: u8,
+    ace_size: u16,
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsSidAndAttributes {
+    sid: *mut std::ffi::c_void,
+    _attributes: u32,
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsTokenUser {
+    user: WindowsSidAndAttributes,
+}
+
+#[cfg(windows)]
+const WINDOWS_FOLDER_ID_LOCAL_APP_DATA: WindowsGuid = WindowsGuid {
+    _data1: 0xf1b32785,
+    _data2: 0x6fba,
+    _data3: 0x4fcf,
+    _data4: [0x9d, 0x55, 0x7b, 0x8e, 0x7f, 0x15, 0x70, 0x91],
+};
+
+#[cfg(windows)]
+#[link(name = "shell32")]
+unsafe extern "system" {
+    fn SHGetKnownFolderPath(
+        folder: *const WindowsGuid,
+        flags: u32,
+        token: *mut std::ffi::c_void,
+        path: *mut *mut u16,
+    ) -> i32;
+}
+
+#[cfg(windows)]
+#[link(name = "ole32")]
+unsafe extern "system" {
+    fn CoTaskMemFree(memory: *mut std::ffi::c_void);
+}
+
+#[cfg(windows)]
+#[link(name = "advapi32")]
+unsafe extern "system" {
+    fn OpenProcessToken(
+        process: *mut std::ffi::c_void,
+        access: u32,
+        token: *mut *mut std::ffi::c_void,
+    ) -> i32;
+    fn GetTokenInformation(
+        token: *mut std::ffi::c_void,
+        information_class: i32,
+        information: *mut std::ffi::c_void,
+        information_bytes: u32,
+        required_bytes: *mut u32,
+    ) -> i32;
+    fn GetFileSecurityW(
+        path: *const u16,
+        requested_information: u32,
+        security_descriptor: *mut std::ffi::c_void,
+        descriptor_bytes: u32,
+        required_bytes: *mut u32,
+    ) -> i32;
+    fn GetSecurityDescriptorOwner(
+        security_descriptor: *const std::ffi::c_void,
+        owner: *mut *mut std::ffi::c_void,
+        owner_defaulted: *mut i32,
+    ) -> i32;
+    fn GetSecurityDescriptorDacl(
+        security_descriptor: *const std::ffi::c_void,
+        dacl_present: *mut i32,
+        dacl: *mut *mut std::ffi::c_void,
+        dacl_defaulted: *mut i32,
+    ) -> i32;
+    fn GetAce(acl: *const std::ffi::c_void, index: u32, ace: *mut *mut std::ffi::c_void) -> i32;
+    fn EqualSid(left: *const std::ffi::c_void, right: *const std::ffi::c_void) -> i32;
+    fn IsWellKnownSid(sid: *const std::ffi::c_void, sid_type: i32) -> i32;
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn GetCurrentProcess() -> *mut std::ffi::c_void;
+    fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
+}
+
+#[cfg(windows)]
+fn non_git_lock_runtime_root() -> Result<PathBuf, String> {
+    let account_root = windows_account_local_app_data()?;
+    let account_root = validate_windows_private_directory(
+        &account_root,
+        "the effective OS account Local AppData directory",
+    )?;
+    let account_volume = windows_volume_root(&account_root)?;
+    let retained_account = open_retained_project_directory(
+        &account_volume,
+        &account_root,
+        false,
+        "effective OS account Local AppData directory",
+    )?;
+    let runtime = account_root.join(NON_GIT_ACCOUNT_RUNTIME_DIRECTORY);
+    let retained_runtime = open_retained_project_directory(
+        &account_root,
+        &runtime,
+        true,
+        "private non-Git lifecycle runtime",
+    )?;
+    let runtime =
+        validate_windows_private_directory(&runtime, "the private non-Git lifecycle runtime")?;
+    ensure_retained_project_directory_is_bound(&account_volume, &retained_account)?;
+    ensure_retained_project_directory_is_bound(&account_root, &retained_runtime)?;
+    Ok(runtime)
+}
+
+#[cfg(windows)]
+fn windows_account_local_app_data() -> Result<PathBuf, String> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+
+    let mut raw_path = std::ptr::null_mut();
+    // SAFETY: The known-folder identifier is valid, the current-user token is requested with a
+    // null token handle, and `raw_path` is writable.
+    let status = unsafe {
+        SHGetKnownFolderPath(
+            &WINDOWS_FOLDER_ID_LOCAL_APP_DATA,
+            0,
+            std::ptr::null_mut(),
+            &mut raw_path,
+        )
+    };
+    if status < 0 {
+        return Err(format!(
+            "failed to resolve the effective OS account Local AppData directory: HRESULT {status:#010x}"
+        ));
+    }
+    if raw_path.is_null() {
+        return Err("the effective OS account Local AppData known folder returned no path".into());
+    }
+    let result = (|| {
+        let mut length = 0_usize;
+        // SAFETY: `SHGetKnownFolderPath` returned a NUL-terminated allocated UTF-16 string.
+        while unsafe { *raw_path.add(length) } != 0 {
+            length = length
+                .checked_add(1)
+                .ok_or_else(|| "Local AppData path length overflowed".to_string())?;
+            if length > 32_767 {
+                return Err("Local AppData path exceeds the Windows path limit".into());
+            }
+        }
+        // SAFETY: The preceding scan found the terminator and `raw_path` remains allocated.
+        let path = unsafe { std::slice::from_raw_parts(raw_path, length) };
+        Ok(PathBuf::from(OsString::from_wide(path)))
+    })();
+    // SAFETY: `raw_path` was allocated by `SHGetKnownFolderPath`.
+    unsafe { CoTaskMemFree(raw_path.cast()) };
+    result
+}
+
+#[cfg(windows)]
+fn windows_volume_root(path: &Path) -> Result<PathBuf, String> {
+    let mut root = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Prefix(_) | std::path::Component::RootDir => {
+                root.push(component.as_os_str());
+            }
+            _ => break,
+        }
+    }
+    if root.as_os_str().is_empty() {
+        return Err(format!(
+            "Windows lifecycle runtime path has no volume root: {}",
+            path.display()
+        ));
+    }
+    Ok(root)
+}
+
+#[cfg(windows)]
+fn validate_windows_private_directory(
+    directory: &Path,
+    description: &str,
+) -> Result<PathBuf, String> {
+    use std::os::windows::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+
+    let metadata = fs::symlink_metadata(directory).map_err(|error| {
+        format!(
+            "failed to inspect {description} {}: {error}",
+            directory.display()
+        )
+    })?;
+    if !metadata.is_dir() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(format!(
+            "{description} is not a real non-reparse directory: {}",
+            directory.display()
+        ));
+    }
+    validate_windows_private_directory_security(directory, description)?;
+    let canonical = fs::canonicalize(directory).map_err(|error| {
+        format!(
+            "failed to canonicalize {description} {}: {error}",
+            directory.display()
+        )
+    })?;
+    let canonical_metadata = fs::symlink_metadata(&canonical).map_err(|error| {
+        format!(
+            "failed to inspect canonical {description} {}: {error}",
+            canonical.display()
+        )
+    })?;
+    if !canonical_metadata.is_dir()
+        || canonical_metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    {
+        return Err(format!(
+            "canonical {description} is not a real non-reparse directory: {}",
+            canonical.display()
+        ));
+    }
+    validate_windows_private_directory_security(&canonical, description)?;
+    Ok(canonical)
+}
+
+#[cfg(windows)]
+fn validate_windows_private_directory_security(
+    directory: &Path,
+    description: &str,
+) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+
+    const OWNER_SECURITY_INFORMATION: u32 = 0x0000_0001;
+    const DACL_SECURITY_INFORMATION: u32 = 0x0000_0004;
+    const TOKEN_QUERY: u32 = 0x0008;
+    const TOKEN_USER_INFORMATION_CLASS: i32 = 1;
+    const ACCESS_ALLOWED_ACE_TYPE: u8 = 0;
+    const ACCESS_ALLOWED_COMPOUND_ACE_TYPE: u8 = 4;
+    const ACCESS_ALLOWED_OBJECT_ACE_TYPE: u8 = 5;
+    const ACCESS_ALLOWED_CALLBACK_ACE_TYPE: u8 = 9;
+    const ACCESS_ALLOWED_CALLBACK_OBJECT_ACE_TYPE: u8 = 11;
+    const DIRECTORY_MUTATION_RIGHTS: u32 = 0x0000_0002
+        | 0x0000_0004
+        | 0x0000_0010
+        | 0x0000_0040
+        | 0x0000_0100
+        | 0x0001_0000
+        | 0x0004_0000
+        | 0x0008_0000
+        | 0x1000_0000
+        | 0x4000_0000;
+
+    let wide_path = directory
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let mut token = std::ptr::null_mut();
+    // SAFETY: `token` is writable and `GetCurrentProcess` returns the current-process pseudo
+    // handle.
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return Err(format!(
+            "failed to open the current Windows account token while validating {description}: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    let token_result = (|| {
+        let mut token_bytes = 0_u32;
+        // SAFETY: The zero-length probe supplies a valid output-size pointer.
+        unsafe {
+            GetTokenInformation(
+                token,
+                TOKEN_USER_INFORMATION_CLASS,
+                std::ptr::null_mut(),
+                0,
+                &mut token_bytes,
+            );
+        }
+        if token_bytes == 0 {
+            return Err(format!(
+                "failed to size the current Windows account identity while validating {description}: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let token_words = (token_bytes as usize).div_ceil(std::mem::size_of::<usize>());
+        let mut token_buffer = vec![0_usize; token_words];
+        // SAFETY: `token_buffer` is aligned and writable for `token_bytes`.
+        if unsafe {
+            GetTokenInformation(
+                token,
+                TOKEN_USER_INFORMATION_CLASS,
+                token_buffer.as_mut_ptr().cast(),
+                token_bytes,
+                &mut token_bytes,
+            )
+        } == 0
+        {
+            return Err(format!(
+                "failed to read the current Windows account identity while validating {description}: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        // SAFETY: A successful TokenUser query returned a `WindowsTokenUser` at the buffer start.
+        let account_sid = unsafe {
+            (*(token_buffer.as_ptr().cast::<WindowsTokenUser>()))
+                .user
+                .sid
+        };
+        if account_sid.is_null() {
+            return Err(format!(
+                "the current Windows account token has no SID while validating {description}"
+            ));
+        }
+
+        let requested = OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION;
+        let mut descriptor_bytes = 0_u32;
+        // SAFETY: The zero-length probe supplies a valid path and output-size pointer.
+        unsafe {
+            GetFileSecurityW(
+                wide_path.as_ptr(),
+                requested,
+                std::ptr::null_mut(),
+                0,
+                &mut descriptor_bytes,
+            );
+        }
+        if descriptor_bytes == 0 {
+            return Err(format!(
+                "failed to size the Windows security descriptor for {description} {}: {}",
+                directory.display(),
+                std::io::Error::last_os_error()
+            ));
+        }
+        let descriptor_words = (descriptor_bytes as usize).div_ceil(std::mem::size_of::<usize>());
+        let mut descriptor = vec![0_usize; descriptor_words];
+        // SAFETY: `descriptor` is aligned and writable for `descriptor_bytes`.
+        if unsafe {
+            GetFileSecurityW(
+                wide_path.as_ptr(),
+                requested,
+                descriptor.as_mut_ptr().cast(),
+                descriptor_bytes,
+                &mut descriptor_bytes,
+            )
+        } == 0
+        {
+            return Err(format!(
+                "failed to read the Windows security descriptor for {description} {}: {}",
+                directory.display(),
+                std::io::Error::last_os_error()
+            ));
+        }
+        let descriptor_pointer = descriptor.as_ptr().cast();
+        let mut owner = std::ptr::null_mut();
+        let mut owner_defaulted = 0;
+        // SAFETY: `descriptor_pointer` addresses the successfully populated security descriptor.
+        if unsafe {
+            GetSecurityDescriptorOwner(descriptor_pointer, &mut owner, &mut owner_defaulted)
+        } == 0
+            || owner.is_null()
+        {
+            return Err(format!(
+                "failed to read the Windows owner for {description} {}: {}",
+                directory.display(),
+                std::io::Error::last_os_error()
+            ));
+        }
+        // SAFETY: Both SIDs come from live validated buffers.
+        if unsafe { EqualSid(owner, account_sid) } == 0 {
+            return Err(format!(
+                "{description} is not owned by the current Windows account: {}",
+                directory.display()
+            ));
+        }
+        let mut dacl_present = 0;
+        let mut dacl = std::ptr::null_mut();
+        let mut dacl_defaulted = 0;
+        // SAFETY: `descriptor_pointer` addresses the successfully populated security descriptor.
+        if unsafe {
+            GetSecurityDescriptorDacl(
+                descriptor_pointer,
+                &mut dacl_present,
+                &mut dacl,
+                &mut dacl_defaulted,
+            )
+        } == 0
+            || dacl_present == 0
+            || dacl.is_null()
+        {
+            return Err(format!(
+                "{description} has no private Windows DACL: {}",
+                directory.display()
+            ));
+        }
+        // SAFETY: `dacl` points to a live ACL in `descriptor`.
+        let acl = unsafe { std::ptr::read_unaligned(dacl.cast::<WindowsAclHeader>()) };
+        for index in 0..u32::from(acl.ace_count) {
+            let mut ace = std::ptr::null_mut();
+            // SAFETY: `dacl` is live and `index` is below the ACL's advertised ACE count.
+            if unsafe { GetAce(dacl, index, &mut ace) } == 0 || ace.is_null() {
+                return Err(format!(
+                    "failed to inspect Windows DACL entry {index} for {description} {}: {}",
+                    directory.display(),
+                    std::io::Error::last_os_error()
+                ));
+            }
+            // SAFETY: `GetAce` returned a pointer to an ACE header within the live ACL.
+            let header = unsafe { std::ptr::read_unaligned(ace.cast::<WindowsAceHeader>()) };
+            let is_allow = matches!(
+                header.ace_type,
+                ACCESS_ALLOWED_ACE_TYPE
+                    | ACCESS_ALLOWED_COMPOUND_ACE_TYPE
+                    | ACCESS_ALLOWED_OBJECT_ACE_TYPE
+                    | ACCESS_ALLOWED_CALLBACK_ACE_TYPE
+                    | ACCESS_ALLOWED_CALLBACK_OBJECT_ACE_TYPE
+            );
+            if !is_allow || header.ace_size < 8 {
+                continue;
+            }
+            // SAFETY: Every access-allowed ACE stores its access mask immediately after the
+            // four-byte header, and the size check above covers that field.
+            let mask = unsafe { std::ptr::read_unaligned((ace.cast::<u8>().add(4)).cast::<u32>()) };
+            if mask & DIRECTORY_MUTATION_RIGHTS == 0 {
+                continue;
+            }
+            if header.ace_type != ACCESS_ALLOWED_ACE_TYPE {
+                return Err(format!(
+                    "{description} has an unsupported writable Windows ACL entry: {}",
+                    directory.display()
+                ));
+            }
+            // SAFETY: A basic ACCESS_ALLOWED_ACE stores its SID after the header and mask.
+            let sid = unsafe { ace.cast::<u8>().add(8).cast() };
+            // SAFETY: `sid` and `account_sid` point to live SID data.
+            let trusted = unsafe {
+                EqualSid(sid, account_sid) != 0
+                    || IsWellKnownSid(sid, 3) != 0
+                    || IsWellKnownSid(sid, 22) != 0
+                    || IsWellKnownSid(sid, 26) != 0
+                    || IsWellKnownSid(sid, 71) != 0
+            };
+            if !trusted {
+                return Err(format!(
+                    "{description} grants directory mutation rights to another Windows principal: {}",
+                    directory.display()
+                ));
+            }
+        }
+        Ok(())
+    })();
+    // SAFETY: `token` is a real token handle returned by `OpenProcessToken`.
+    unsafe {
+        CloseHandle(token);
+    }
+    token_result
+}
+
+#[cfg(windows)]
+fn ensure_private_non_git_lock_directory(runtime_root: &Path) -> Result<PathBuf, String> {
+    let runtime_root = validate_windows_private_directory(
+        runtime_root,
+        "the non-Git lifecycle lock runtime directory",
+    )?;
+    let runtime_volume = windows_volume_root(&runtime_root)?;
+    let retained_runtime = open_retained_project_directory(
+        &runtime_volume,
+        &runtime_root,
+        false,
+        "the non-Git lifecycle lock runtime directory",
+    )?;
+    let directory = runtime_root.join(NON_GIT_PROJECT_LOCK_DIRECTORY);
+    let retained_directory = open_retained_project_directory(
+        &runtime_root,
+        &directory,
+        true,
+        "private non-Git lifecycle lock directory",
+    )?;
+    let directory = validate_windows_private_directory(
+        &directory,
+        "the private non-Git lifecycle lock directory",
+    )?;
+    ensure_retained_project_directory_is_bound(&runtime_volume, &retained_runtime)?;
+    ensure_retained_project_directory_is_bound(&runtime_root, &retained_directory)?;
+    Ok(directory)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn non_git_lock_runtime_root() -> Result<PathBuf, String> {
+    Err("this platform has no authenticated OS-account lifecycle lock authority".into())
+}
+
+#[cfg(not(any(unix, windows)))]
+fn ensure_private_non_git_lock_directory(runtime_root: &Path) -> Result<PathBuf, String> {
+    let directory = runtime_root.join(NON_GIT_PROJECT_LOCK_DIRECTORY);
+    fs::create_dir_all(&directory).map_err(|error| {
+        format!(
+            "failed to create private non-Git lifecycle lock directory {}: {error}",
+            directory.display()
+        )
+    })?;
+    Ok(directory)
+}
+
+fn acquire_project_lock(root: &Path) -> Result<ProjectLock, String> {
+    acquire_project_lock_with_hook(root, |_, _| {})
+}
+
+fn acquire_project_lock_with_hook<Hook>(
+    root: &Path,
+    mut after_lock: Hook,
+) -> Result<ProjectLock, String>
+where
+    Hook: FnMut(usize, &Path),
+{
+    let location = project_lock_location(root)?;
+    let path = location.path;
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("lifecycle lock has no parent: {}", path.display()))?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| format!("lifecycle lock has no file name: {}", path.display()))?;
+    for attempt in 0..PROJECT_LOCK_REBIND_ATTEMPTS {
+        let directory = open_retained_project_directory(
+            &location.root,
+            parent,
+            location.create_directory,
+            "lifecycle lock directory",
+        )?;
+        let mut create_options = CapOpenOptions::new();
+        create_options
+            .create_new(true)
+            .read(true)
+            .write(true)
+            .truncate(false);
+        configure_cap_no_follow(&mut create_options, false);
+        let file = match directory.handle.open_with(name, &create_options) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                let mut existing_options = CapOpenOptions::new();
+                existing_options.read(true).write(true);
+                configure_cap_no_follow(&mut existing_options, false);
+                directory
+                    .handle
+                    .open_with(name, &existing_options)
+                    .map_err(|error| {
+                        format!("failed to open lifecycle lock {}: {error}", path.display())
+                    })?
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to create lifecycle lock {}: {error}",
+                    path.display()
+                ));
+            }
+        };
+        let metadata = file.metadata().map_err(|error| {
+            format!(
+                "failed to inspect lifecycle lock {}: {error}",
+                path.display()
+            )
+        })?;
+        if manifest_metadata_is_link(&metadata) || !metadata.is_file() {
+            return Err(format!(
+                "lifecycle lock is not a real regular file: {}",
+                path.display()
+            ));
+        }
+        let opened_identity = manifest_metadata_identity(&metadata)?;
+        ensure_retained_project_directory_is_bound(&location.root, &directory)?;
+        let file = file.into_std();
+        file.lock_exclusive().map_err(|error| {
+            format!(
+                "failed to acquire lifecycle lock {}: {error}",
+                path.display()
+            )
+        })?;
+        after_lock(attempt, &path);
+        ensure_retained_project_directory_is_bound(&location.root, &directory)?;
+        let named_metadata = directory.handle.symlink_metadata(name);
+        let still_named = matches!(
+            named_metadata,
+            Ok(ref metadata)
+                if !manifest_metadata_is_link(metadata)
+                    && metadata.is_file()
+                    && manifest_metadata_identity(metadata).ok() == Some(opened_identity)
+        );
+        if still_named {
+            let lock = ProjectLock { file };
+            recover_pending_archive_move(root)?;
+            recover_pending_transaction(root)?;
+            return Ok(lock);
+        }
+        FileExt::unlock(&file).map_err(|error| {
+            format!(
+                "failed to release replaced lifecycle lock {}: {error}",
+                path.display()
+            )
+        })?;
+        if attempt + 1 == PROJECT_LOCK_REBIND_ATTEMPTS {
+            return Err(format!(
+                "lifecycle lock changed while acquiring it after {PROJECT_LOCK_REBIND_ATTEMPTS} attempts: {}",
+                path.display()
+            ));
+        }
+    }
+    unreachable!()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TransactionEntry {
+    path: String,
+    original: Option<String>,
+    replacement: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TransactionJournal {
+    schema_version: u32,
+    project_key: String,
+    entries: Vec<TransactionEntry>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+enum TransactionJournalDisk {
+    Current(TransactionJournal),
+    Legacy(Vec<LegacyTransactionEntry>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyTransactionEntry {
     path: String,
     original: Option<String>,
 }
 
-fn recover_pending_transaction(root: &Path) -> Result<(), String> {
-    let journal = root.join(TRANSACTION_PATH);
-    if !journal.exists() {
-        return Ok(());
+struct TransactionJournalLocation {
+    root: PathBuf,
+    path: PathBuf,
+    project_key: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ArchiveMoveJournal {
+    schema_version: u32,
+    project_key: String,
+    phase: ArchiveMovePhase,
+    source: String,
+    destination: String,
+    original_state: String,
+    original_markdown: String,
+    staged_accepted_state: String,
+    final_state: String,
+    final_markdown: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ArchiveMovePhase {
+    Prepared,
+    Moved,
+    Finalized,
+}
+
+struct JsonByteCounter {
+    bytes: usize,
+    maximum: usize,
+}
+
+impl Write for JsonByteCounter {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let next = self
+            .bytes
+            .checked_add(buffer.len())
+            .ok_or_else(|| std::io::Error::other("JSON byte count overflowed"))?;
+        if next > self.maximum {
+            return Err(std::io::Error::other("JSON byte limit exceeded"));
+        }
+        self.bytes = next;
+        Ok(buffer.len())
     }
-    let content = fs::read_to_string(&journal)
-        .map_err(|error| format!("failed to read transaction journal: {error}"))?;
-    let entries: Vec<TransactionEntry> = serde_json::from_str(&content)
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+struct BoundedJsonWriter {
+    bytes: Vec<u8>,
+    maximum: usize,
+}
+
+impl Write for BoundedJsonWriter {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let next = self
+            .bytes
+            .len()
+            .checked_add(buffer.len())
+            .ok_or_else(|| std::io::Error::other("JSON output size overflowed"))?;
+        if next > self.maximum {
+            return Err(std::io::Error::other("JSON output limit exceeded"));
+        }
+        self.bytes.extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn bounded_json_content<Value: Serialize>(
+    value: &Value,
+    maximum: usize,
+    description: &str,
+) -> Result<String, String> {
+    let mut writer = BoundedJsonWriter {
+        bytes: Vec::with_capacity(maximum.min(64 * 1024)),
+        maximum,
+    };
+    serde_json::to_writer_pretty(&mut writer, value)
+        .map_err(|_| format!("{description} exceeds {maximum} bytes"))?;
+    writer
+        .write_all(b"\n")
+        .map_err(|_| format!("{description} exceeds {maximum} bytes"))?;
+    String::from_utf8(writer.bytes)
+        .map_err(|_| format!("{description} serialization was not UTF-8"))
+}
+
+fn transaction_project_identity(root: &Path) -> Result<(bool, String), String> {
+    let git = git_repository_present(root)?;
+    let mut digest = FramedDigest::new(b"specsync.transaction-project.v1");
+    if git {
+        let prefix = run_git_required(root, &["rev-parse", "--show-prefix"], None, 16 * 1024)?;
+        let prefix = std::str::from_utf8(&prefix)
+            .map_err(|_| "Git project prefix is not UTF-8".to_string())?
+            .trim_end_matches(['\r', '\n']);
+        let prefix = if prefix.is_empty() {
+            String::new()
+        } else {
+            strict_portable_relative_path(prefix.trim_end_matches('/'))?
+        };
+        digest.frame(b"git-project-prefix", prefix.as_bytes());
+    } else {
+        digest.frame(b"non-git-project", b"root");
+    }
+    Ok((git, digest.finish()))
+}
+
+#[cfg(test)]
+fn transaction_project_key(root: &Path) -> Result<String, String> {
+    transaction_project_identity(root).map(|(_, key)| key)
+}
+
+fn transaction_journal_location(root: &Path) -> Result<TransactionJournalLocation, String> {
+    let (git, project_key) = transaction_project_identity(root)?;
+    if git {
+        let git_directory =
+            run_git_required(root, &["rev-parse", "--absolute-git-dir"], None, 16 * 1024)?;
+        let git_directory = std::str::from_utf8(&git_directory)
+            .map_err(|_| "Git metadata directory is not UTF-8".to_string())?
+            .trim_end_matches(['\r', '\n']);
+        let git_directory = PathBuf::from(git_directory);
+        if !git_directory.is_absolute() {
+            return Err("Git returned a non-absolute metadata directory".into());
+        }
+        let path = git_directory
+            .join("specsync/transactions")
+            .join(format!("{project_key}.json"));
+        return Ok(TransactionJournalLocation {
+            root: git_directory,
+            path,
+            project_key,
+        });
+    }
+    Ok(TransactionJournalLocation {
+        root: root.to_path_buf(),
+        path: root.join(TRANSACTION_PATH),
+        project_key,
+    })
+}
+
+fn archive_move_journal_location(root: &Path) -> Result<TransactionJournalLocation, String> {
+    let mut location = transaction_journal_location(root)?;
+    location.path = if location.root == root {
+        root.join(ARCHIVE_MOVE_TRANSACTION_PATH)
+    } else {
+        location
+            .root
+            .join("specsync/archive-moves")
+            .join(format!("{}.json", location.project_key))
+    };
+    Ok(location)
+}
+
+fn validate_archive_move_paths(
+    source: &str,
+    destination: &str,
+) -> Result<(String, String), String> {
+    let source = strict_portable_relative_path(source)?;
+    let destination = strict_portable_relative_path(destination)?;
+    let source_parts: Vec<&str> = source.split('/').collect();
+    let destination_parts: Vec<&str> = destination.split('/').collect();
+    if source_parts.len() != 3
+        || source_parts[0] != ".specsync"
+        || source_parts[1] != "changes"
+        || validate_change_id(source_parts[2]).is_err()
+        || destination_parts.len() != 4
+        || destination_parts[0] != ".specsync"
+        || destination_parts[1] != "archive"
+        || destination_parts[2] != "changes"
+        || !destination_parts[3].ends_with(source_parts[2])
+    {
+        return Err("archive move journal contains noncanonical lifecycle paths".into());
+    }
+    Ok((source, destination))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_archive_move_journal(
+    root: &Path,
+    source: &Path,
+    destination: &Path,
+    original_state: String,
+    original_markdown: String,
+    staged_accepted_state: String,
+    final_state: String,
+    final_markdown: String,
+) -> Result<(ArchiveMoveJournal, String), String> {
+    let location = archive_move_journal_location(root)?;
+    let source = strict_portable_project_path(root, source)?;
+    let destination = strict_portable_project_path(root, destination)?;
+    validate_archive_move_paths(&source, &destination)?;
+    let journal = ArchiveMoveJournal {
+        schema_version: 2,
+        project_key: location.project_key.clone(),
+        phase: ArchiveMovePhase::Prepared,
+        source,
+        destination,
+        original_state,
+        original_markdown,
+        staged_accepted_state,
+        final_state,
+        final_markdown,
+    };
+    let content = bounded_json_content(
+        &journal,
+        MAX_ARCHIVE_MOVE_JOURNAL_BYTES,
+        "archive move journal",
+    )?;
+    publish_retained_project_text(&location.root, &location.path, &content)?;
+    Ok((journal, content))
+}
+
+fn update_archive_move_journal_phase(
+    root: &Path,
+    expected_content: &str,
+    journal: &mut ArchiveMoveJournal,
+    phase: ArchiveMovePhase,
+) -> Result<String, String> {
+    let location = archive_move_journal_location(root)?;
+    journal.phase = phase;
+    let content = bounded_json_content(
+        journal,
+        MAX_ARCHIVE_MOVE_JOURNAL_BYTES,
+        "archive move journal",
+    )?;
+    publish_retained_project_text_if_matches(
+        &location.root,
+        &location.path,
+        Some(expected_content),
+        &content,
+    )?;
+    Ok(content)
+}
+
+fn clear_exact_archive_move_journal(root: &Path, expected_content: &str) -> Result<(), String> {
+    let location = archive_move_journal_location(root)?;
+    remove_retained_project_file_if_matches(&location.root, &location.path, expected_content)
+}
+
+fn clear_exact_transaction_journal(root: &Path, expected_content: &str) -> Result<(), String> {
+    let location = transaction_journal_location(root)?;
+    remove_retained_project_file_if_matches(&location.root, &location.path, expected_content)
+}
+
+fn recover_pending_archive_move(root: &Path) -> Result<(), String> {
+    let location = archive_move_journal_location(root)?;
+    let Some(content) = read_retained_project_text(&location.root, &location.path)
+        .map_err(|error| format!("failed to read archive move journal: {error}"))?
+    else {
+        return Ok(());
+    };
+    let journal: ArchiveMoveJournal = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid archive move journal: {error}"))?;
+    if journal.schema_version != 2 {
+        return Err(format!(
+            "unsupported archive move journal schema version {}",
+            journal.schema_version
+        ));
+    }
+    if journal.project_key != location.project_key {
+        return Err("archive move journal belongs to another project".into());
+    }
+    let (source, destination) = validate_archive_move_paths(&journal.source, &journal.destination)?;
+    let source = root.join(source);
+    let destination = root.join(destination);
+    let exists = |path: &Path| match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "failed to inspect archive move recovery path {}: {error}",
+            path.display()
+        )),
+    };
+    let source_exists = exists(&source)?;
+    let destination_exists = exists(&destination)?;
+    let read_workspace = |workspace: &Path| -> Result<(String, String, Option<String>), String> {
+        let state = read_retained_project_text(root, &workspace.join("state.json"))?
+            .ok_or_else(|| "archive recovery workspace is missing state.json".to_string())?;
+        let markdown = read_retained_project_text(root, &workspace.join("change.md"))?
+            .ok_or_else(|| "archive recovery workspace is missing change.md".to_string())?;
+        let accepted = read_retained_project_text(root, &workspace.join("accepted-state.json"))?;
+        Ok((state, markdown, accepted))
+    };
+    let require_original = |workspace: &Path, accepted: Option<&str>| -> Result<(), String> {
+        let (state, markdown, snapshot) = read_workspace(workspace)?;
+        if state != journal.original_state || markdown != journal.original_markdown {
+            return Err(
+                "archive recovery found unknown edits in the original lifecycle files".into(),
+            );
+        }
+        if snapshot.as_deref() != accepted {
+            return Err("archive recovery found an unknown accepted-state snapshot state".into());
+        }
+        Ok(())
+    };
+    let rollback_moved = |workspace: &Path| -> Result<(), String> {
+        let (state, markdown, snapshot) = read_workspace(workspace)?;
+        if !matches!(
+            state.as_str(),
+            value if value == journal.original_state || value == journal.final_state
+        ) || !matches!(
+            markdown.as_str(),
+            value if value == journal.original_markdown || value == journal.final_markdown
+        ) || snapshot.as_deref() != Some(journal.staged_accepted_state.as_str())
+        {
+            return Err(
+                "archive recovery found unknown post-journal edits; preserving the workspace and journal"
+                    .into(),
+            );
+        }
+        if state == journal.final_state {
+            publish_retained_project_text_if_matches(
+                root,
+                &workspace.join("state.json"),
+                Some(journal.final_state.as_str()),
+                &journal.original_state,
+            )?;
+        }
+        if markdown == journal.final_markdown {
+            publish_retained_project_text_if_matches(
+                root,
+                &workspace.join("change.md"),
+                Some(journal.final_markdown.as_str()),
+                &journal.original_markdown,
+            )?;
+        }
+        Ok(())
+    };
+    match (journal.phase, source_exists, destination_exists) {
+        (ArchiveMovePhase::Prepared, true, false) => {
+            let (_, _, snapshot) = read_workspace(&source)?;
+            if snapshot.is_some()
+                && snapshot.as_deref() != Some(journal.staged_accepted_state.as_str())
+            {
+                return Err(
+                    "archive recovery found an unknown accepted-state snapshot state".into(),
+                );
+            }
+            let expected_snapshot = snapshot.as_deref();
+            require_original(&source, expected_snapshot)?;
+            if snapshot.is_some() {
+                remove_retained_project_file_if_matches(
+                    root,
+                    &source.join("accepted-state.json"),
+                    &journal.staged_accepted_state,
+                )?;
+            }
+        }
+        (ArchiveMovePhase::Prepared, false, true) => {
+            require_original(&destination, Some(&journal.staged_accepted_state))?;
+            move_retained_project_directory(root, &destination, &source)?;
+            remove_retained_project_file_if_matches(
+                root,
+                &source.join("accepted-state.json"),
+                &journal.staged_accepted_state,
+            )?;
+        }
+        (ArchiveMovePhase::Moved, false, true) => {
+            rollback_moved(&destination)?;
+            move_retained_project_directory(root, &destination, &source)?;
+            remove_retained_project_file_if_matches(
+                root,
+                &source.join("accepted-state.json"),
+                &journal.staged_accepted_state,
+            )?;
+        }
+        (ArchiveMovePhase::Moved, true, false) => {
+            let (_, _, snapshot) = read_workspace(&source)?;
+            if snapshot.is_some()
+                && snapshot.as_deref() != Some(journal.staged_accepted_state.as_str())
+            {
+                return Err(
+                    "archive recovery found an unknown accepted-state snapshot state".into(),
+                );
+            }
+            require_original(&source, snapshot.as_deref())?;
+            if snapshot.is_some() {
+                remove_retained_project_file_if_matches(
+                    root,
+                    &source.join("accepted-state.json"),
+                    &journal.staged_accepted_state,
+                )?;
+            }
+        }
+        (ArchiveMovePhase::Finalized, false, true) => {
+            let (state, markdown, snapshot) = read_workspace(&destination)?;
+            if state != journal.final_state
+                || markdown != journal.final_markdown
+                || snapshot.as_deref() != Some(journal.staged_accepted_state.as_str())
+            {
+                return Err(
+                    "finalized archive recovery found unknown post-journal edits; preserving the archive and journal"
+                        .into(),
+                );
+            }
+            let archived: ChangeRecord = serde_json::from_str(&state)
+                .map_err(|error| format!("finalized archive state is invalid: {error}"))?;
+            validate_archived_integrity(root, &archived)?;
+        }
+        (_, true, true) => {
+            return Err("archive move recovery found both active and archived workspaces".into());
+        }
+        (_, false, false) => {
+            return Err("archive move recovery found neither active nor archived workspace".into());
+        }
+        (phase, source_exists, destination_exists) => {
+            return Err(format!(
+                "archive move recovery found invalid topology for phase {phase:?}: source={source_exists}, destination={destination_exists}"
+            ));
+        }
+    }
+    clear_exact_archive_move_journal(root, &content)
+}
+
+fn recover_pending_transaction(root: &Path) -> Result<(), String> {
+    let journal_location = transaction_journal_location(root)?;
+    let Some(content) = read_retained_project_text(&journal_location.root, &journal_location.path)
+        .map_err(|error| format!("failed to read transaction journal: {error}"))?
+    else {
+        return Ok(());
+    };
+    let disk: TransactionJournalDisk = serde_json::from_str(&content)
         .map_err(|error| format!("invalid transaction journal: {error}"))?;
+    let entries = match disk {
+        TransactionJournalDisk::Current(journal)
+            if journal.schema_version == 2
+                && journal.project_key == journal_location.project_key =>
+        {
+            journal.entries
+        }
+        TransactionJournalDisk::Current(journal) if journal.schema_version != 2 => {
+            return Err(format!(
+                "unsupported transaction journal schema version {}",
+                journal.schema_version
+            ));
+        }
+        TransactionJournalDisk::Current(journal) => {
+            return Err(format!(
+                "transaction journal belongs to another project: expected {}, found {}",
+                journal_location.project_key, journal.project_key
+            ));
+        }
+        TransactionJournalDisk::Legacy(entries) if journal_location.root == root => {
+            for entry in entries {
+                validate_transaction_target(root, &entry.path)?;
+                let path = safe_project_path(root, &entry.path)?;
+                let current = read_retained_project_text(root, &path)?;
+                if current != entry.original {
+                    return Err(format!(
+                        "legacy transaction journal cannot safely distinguish a partial write from a concurrent edit at {}; restore or remove the journal manually",
+                        path.display()
+                    ));
+                }
+            }
+            clear_exact_transaction_journal(root, &content)?;
+            return Ok(());
+        }
+        TransactionJournalDisk::Legacy(_) => {
+            return Err("legacy transaction journals are not accepted from Git metadata".into());
+        }
+    };
+    if entries.len() > MAX_TRANSACTION_ENTRIES {
+        return Err(format!(
+            "transaction journal exceeds {MAX_TRANSACTION_ENTRIES} entries"
+        ));
+    }
+    let mut paths = BTreeSet::new();
+    for entry in &entries {
+        validate_transaction_target(root, &entry.path)?;
+        if !paths.insert(entry.path.clone()) {
+            return Err(format!(
+                "transaction journal contains duplicate target `{}`",
+                entry.path
+            ));
+        }
+    }
+    let mut restore = Vec::with_capacity(entries.len());
     for entry in entries {
         let path = safe_project_path(root, &entry.path)?;
-        if let Some(original) = entry.original {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-            }
-            fs::write(&path, original)
-                .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
-        } else if path.exists() {
-            fs::remove_file(&path)
+        let current = read_retained_project_text(root, &path)?;
+        if current == entry.original {
+            continue;
+        }
+        if current.as_deref() != Some(entry.replacement.as_str()) {
+            return Err(format!(
+                "transaction recovery found an unknown post-journal edit at {}; preserving the edit and recovery journal",
+                path.display()
+            ));
+        }
+        restore.push((path, entry.original, entry.replacement));
+    }
+    for (path, original, replacement) in restore {
+        if let Some(original) = original {
+            publish_retained_project_text_if_matches(
+                root,
+                &path,
+                Some(replacement.as_str()),
+                &original,
+            )
+            .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
+        } else {
+            remove_retained_project_file_if_matches(root, &path, &replacement)
                 .map_err(|error| format!("failed to remove {}: {error}", path.display()))?;
         }
     }
-    fs::remove_file(&journal)
+    clear_exact_transaction_journal(root, &content)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))
 }
 
@@ -481,7 +2114,8 @@ pub struct CreateChangeRequest {
     pub rationale: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ApprovalRecord {
     pub gate: String,
     pub actor: String,
@@ -514,7 +2148,8 @@ pub struct DefinitionApprovalPairV1 {
     pub event_index: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReopenRecord {
     pub schema_version: u32,
     pub change_id: String,
@@ -644,12 +2279,15 @@ pub struct CommandEvidence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VerificationRecord {
     pub timestamp: u64,
     pub commit: Option<String>,
     pub contract_digest: String,
     #[serde(default)]
     pub workspace_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reopening_audit_digest: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub acceptance_input_digest: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -685,6 +2323,412 @@ pub struct AcceptanceInputEntryV1 {
 pub struct AcceptanceManifestV1 {
     pub schema_version: u32,
     pub entries: Vec<AcceptanceInputEntryV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AcceptanceManifestReferenceV1 {
+    schema_version: u32,
+    digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+struct AcceptanceManifestReferenceSlot(Option<AcceptanceManifestReferenceV1>);
+
+#[derive(Debug, Clone, Default)]
+struct AcceptanceManifestField {
+    present: bool,
+    value: Option<AcceptanceManifestV1>,
+}
+
+impl<'de> Deserialize<'de> for AcceptanceManifestField {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        Ok(Self {
+            present: true,
+            value: Option::<AcceptanceManifestV1>::deserialize(deserializer)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VerificationRecordDisk {
+    timestamp: u64,
+    commit: Option<String>,
+    contract_digest: String,
+    #[serde(default)]
+    workspace_digest: String,
+    #[serde(default)]
+    reopening_audit_digest: Option<String>,
+    #[serde(default)]
+    acceptance_input_digest: Option<String>,
+    #[serde(default)]
+    acceptance_manifest: AcceptanceManifestField,
+    #[serde(default)]
+    semantic_succession: Option<SemanticSuccessionEvidenceV1>,
+    passed: bool,
+    commands: Vec<CommandEvidence>,
+    requirement_ids: Vec<String>,
+}
+
+impl VerificationRecordDisk {
+    fn hydrate(self) -> VerificationRecord {
+        VerificationRecord {
+            timestamp: self.timestamp,
+            commit: self.commit,
+            contract_digest: self.contract_digest,
+            workspace_digest: self.workspace_digest,
+            reopening_audit_digest: self.reopening_audit_digest,
+            acceptance_input_digest: self.acceptance_input_digest,
+            acceptance_manifest: self.acceptance_manifest.value,
+            semantic_succession: self.semantic_succession,
+            passed: self.passed,
+            commands: self.commands,
+            requirement_ids: self.requirement_ids,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompactVerificationRecord {
+    timestamp: u64,
+    commit: Option<String>,
+    contract_digest: String,
+    #[serde(default)]
+    workspace_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reopening_audit_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    acceptance_input_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    semantic_succession: Option<SemanticSuccessionEvidenceV1>,
+    passed: bool,
+    commands: Vec<CommandEvidence>,
+    requirement_ids: Vec<String>,
+}
+
+impl CompactVerificationRecord {
+    fn from_hydrated(verification: &VerificationRecord) -> Self {
+        Self {
+            timestamp: verification.timestamp,
+            commit: verification.commit.clone(),
+            contract_digest: verification.contract_digest.clone(),
+            workspace_digest: verification.workspace_digest.clone(),
+            reopening_audit_digest: verification.reopening_audit_digest.clone(),
+            acceptance_input_digest: verification.acceptance_input_digest.clone(),
+            semantic_succession: verification.semantic_succession.clone(),
+            passed: verification.passed,
+            commands: verification.commands.clone(),
+            requirement_ids: verification.requirement_ids.clone(),
+        }
+    }
+
+    fn hydrate(self, acceptance_manifest: Option<AcceptanceManifestV1>) -> VerificationRecord {
+        VerificationRecord {
+            timestamp: self.timestamp,
+            commit: self.commit,
+            contract_digest: self.contract_digest,
+            workspace_digest: self.workspace_digest,
+            reopening_audit_digest: self.reopening_audit_digest,
+            acceptance_input_digest: self.acceptance_input_digest,
+            acceptance_manifest,
+            semantic_succession: self.semantic_succession,
+            passed: self.passed,
+            commands: self.commands,
+            requirement_ids: self.requirement_ids,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReopenRecordV1Disk {
+    schema_version: u32,
+    change_id: String,
+    actor: String,
+    reason: String,
+    timestamp: u64,
+    from_state: ChangeState,
+    to_state: ChangeState,
+    superseded_approval: ApprovalRecord,
+    prior_verification: VerificationRecord,
+    stale_acceptance_input_digest: String,
+    current_acceptance_input_digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReopenRecordV2Disk {
+    schema_version: u32,
+    change_id: String,
+    actor: String,
+    reason: String,
+    timestamp: u64,
+    from_state: ChangeState,
+    to_state: ChangeState,
+    superseded_approval: ApprovalRecord,
+    prior_verification: CompactVerificationRecord,
+    prior_acceptance_manifest: AcceptanceManifestReferenceSlot,
+    stale_acceptance_input_digest: String,
+    current_acceptance_input_digest: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+enum ReopenRecordDisk {
+    V1(ReopenRecordV1Disk),
+    V2(ReopenRecordV2Disk),
+}
+
+impl<'de> Deserialize<'de> for ReopenRecordDisk {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        struct ReopenRecordDiskVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ReopenRecordDiskVisitor {
+            type Value = ReopenRecordDisk;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a versioned reopening record")
+            }
+
+            fn visit_map<Map>(self, mut map: Map) -> Result<Self::Value, Map::Error>
+            where
+                Map: serde::de::MapAccess<'de>,
+            {
+                let mut schema_version = None;
+                let mut change_id = None;
+                let mut actor = None;
+                let mut reason = None;
+                let mut timestamp = None;
+                let mut from_state = None;
+                let mut to_state = None;
+                let mut superseded_approval = None;
+                let mut prior_verification = None;
+                let mut prior_acceptance_manifest = None;
+                let mut stale_acceptance_input_digest = None;
+                let mut current_acceptance_input_digest = None;
+                while let Some(field) = map.next_key::<String>()? {
+                    match field.as_str() {
+                        "schema_version" => {
+                            if schema_version.is_some() {
+                                return Err(serde::de::Error::duplicate_field("schema_version"));
+                            }
+                            schema_version = Some(map.next_value()?);
+                        }
+                        "change_id" => {
+                            if change_id.is_some() {
+                                return Err(serde::de::Error::duplicate_field("change_id"));
+                            }
+                            change_id = Some(map.next_value()?);
+                        }
+                        "actor" => {
+                            if actor.is_some() {
+                                return Err(serde::de::Error::duplicate_field("actor"));
+                            }
+                            actor = Some(map.next_value()?);
+                        }
+                        "reason" => {
+                            if reason.is_some() {
+                                return Err(serde::de::Error::duplicate_field("reason"));
+                            }
+                            reason = Some(map.next_value()?);
+                        }
+                        "timestamp" => {
+                            if timestamp.is_some() {
+                                return Err(serde::de::Error::duplicate_field("timestamp"));
+                            }
+                            timestamp = Some(map.next_value()?);
+                        }
+                        "from_state" => {
+                            if from_state.is_some() {
+                                return Err(serde::de::Error::duplicate_field("from_state"));
+                            }
+                            from_state = Some(map.next_value()?);
+                        }
+                        "to_state" => {
+                            if to_state.is_some() {
+                                return Err(serde::de::Error::duplicate_field("to_state"));
+                            }
+                            to_state = Some(map.next_value()?);
+                        }
+                        "superseded_approval" => {
+                            if superseded_approval.is_some() {
+                                return Err(serde::de::Error::duplicate_field(
+                                    "superseded_approval",
+                                ));
+                            }
+                            superseded_approval = Some(map.next_value()?);
+                        }
+                        "prior_verification" => {
+                            if prior_verification.is_some() {
+                                return Err(serde::de::Error::duplicate_field(
+                                    "prior_verification",
+                                ));
+                            }
+                            prior_verification = Some(map.next_value::<VerificationRecordDisk>()?);
+                        }
+                        "prior_acceptance_manifest" => {
+                            if prior_acceptance_manifest.is_some() {
+                                return Err(serde::de::Error::duplicate_field(
+                                    "prior_acceptance_manifest",
+                                ));
+                            }
+                            prior_acceptance_manifest =
+                                Some(map.next_value::<Option<AcceptanceManifestReferenceV1>>()?);
+                        }
+                        "stale_acceptance_input_digest" => {
+                            if stale_acceptance_input_digest.is_some() {
+                                return Err(serde::de::Error::duplicate_field(
+                                    "stale_acceptance_input_digest",
+                                ));
+                            }
+                            stale_acceptance_input_digest = Some(map.next_value()?);
+                        }
+                        "current_acceptance_input_digest" => {
+                            if current_acceptance_input_digest.is_some() {
+                                return Err(serde::de::Error::duplicate_field(
+                                    "current_acceptance_input_digest",
+                                ));
+                            }
+                            current_acceptance_input_digest = Some(map.next_value()?);
+                        }
+                        _ => {
+                            return Err(serde::de::Error::unknown_field(
+                                &field,
+                                &[
+                                    "schema_version",
+                                    "change_id",
+                                    "actor",
+                                    "reason",
+                                    "timestamp",
+                                    "from_state",
+                                    "to_state",
+                                    "superseded_approval",
+                                    "prior_verification",
+                                    "prior_acceptance_manifest",
+                                    "stale_acceptance_input_digest",
+                                    "current_acceptance_input_digest",
+                                ],
+                            ));
+                        }
+                    }
+                }
+                let schema_version = schema_version
+                    .ok_or_else(|| serde::de::Error::missing_field("schema_version"))?;
+                let change_id =
+                    change_id.ok_or_else(|| serde::de::Error::missing_field("change_id"))?;
+                let actor = actor.ok_or_else(|| serde::de::Error::missing_field("actor"))?;
+                let reason = reason.ok_or_else(|| serde::de::Error::missing_field("reason"))?;
+                let timestamp =
+                    timestamp.ok_or_else(|| serde::de::Error::missing_field("timestamp"))?;
+                let from_state =
+                    from_state.ok_or_else(|| serde::de::Error::missing_field("from_state"))?;
+                let to_state =
+                    to_state.ok_or_else(|| serde::de::Error::missing_field("to_state"))?;
+                let superseded_approval = superseded_approval
+                    .ok_or_else(|| serde::de::Error::missing_field("superseded_approval"))?;
+                let prior_verification = prior_verification
+                    .ok_or_else(|| serde::de::Error::missing_field("prior_verification"))?;
+                let stale_acceptance_input_digest =
+                    stale_acceptance_input_digest.ok_or_else(|| {
+                        serde::de::Error::missing_field("stale_acceptance_input_digest")
+                    })?;
+                let current_acceptance_input_digest =
+                    current_acceptance_input_digest.ok_or_else(|| {
+                        serde::de::Error::missing_field("current_acceptance_input_digest")
+                    })?;
+                match schema_version {
+                    1 => {
+                        if prior_acceptance_manifest.is_some() {
+                            return Err(serde::de::Error::custom(
+                                "embedded reopening cannot carry a compact manifest reference",
+                            ));
+                        }
+                        Ok(ReopenRecordDisk::V1(ReopenRecordV1Disk {
+                            schema_version,
+                            change_id,
+                            actor,
+                            reason,
+                            timestamp,
+                            from_state,
+                            to_state,
+                            superseded_approval,
+                            prior_verification: prior_verification.hydrate(),
+                            stale_acceptance_input_digest,
+                            current_acceptance_input_digest,
+                        }))
+                    }
+                    2 => {
+                        let prior_acceptance_manifest =
+                            prior_acceptance_manifest.ok_or_else(|| {
+                                serde::de::Error::missing_field("prior_acceptance_manifest")
+                            })?;
+                        if prior_verification.acceptance_manifest.present {
+                            return Err(serde::de::Error::custom(
+                                "compact reopening cannot embed an acceptance manifest",
+                            ));
+                        }
+                        let prior_verification = prior_verification.hydrate();
+                        Ok(ReopenRecordDisk::V2(ReopenRecordV2Disk {
+                            schema_version,
+                            change_id,
+                            actor,
+                            reason,
+                            timestamp,
+                            from_state,
+                            to_state,
+                            superseded_approval,
+                            prior_verification: CompactVerificationRecord::from_hydrated(
+                                &prior_verification,
+                            ),
+                            prior_acceptance_manifest: AcceptanceManifestReferenceSlot(
+                                prior_acceptance_manifest,
+                            ),
+                            stale_acceptance_input_digest,
+                            current_acceptance_input_digest,
+                        }))
+                    }
+                    version => Err(serde::de::Error::custom(format!(
+                        "unsupported reopening schema version {version}"
+                    ))),
+                }
+            }
+        }
+
+        deserializer.deserialize_map(ReopenRecordDiskVisitor)
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ApprovalLedgerDisk {
+    approvals: Vec<ApprovalRecord>,
+    #[serde(default)]
+    reopenings: Vec<ReopenRecordDisk>,
+}
+
+impl ApprovalLedgerDisk {
+    fn referenced_manifest_digests(&self) -> BTreeSet<String> {
+        self.reopenings
+            .iter()
+            .filter_map(|reopening| match reopening {
+                ReopenRecordDisk::V1(_) => None,
+                ReopenRecordDisk::V2(reopening) => reopening
+                    .prior_acceptance_manifest
+                    .0
+                    .as_ref()
+                    .map(|reference| reference.digest.clone()),
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -829,11 +2873,11 @@ pub fn load_policy(root: &Path) -> Option<SddPolicy> {
 
 fn load_policy_checked(root: &Path) -> Result<Option<SddPolicy>, String> {
     let path = root.join(POLICY_PATH);
-    if !path.exists() {
+    let Some(content) = read_retained_project_text(root, &path)
+        .map_err(|error| format!("failed to read SDD policy {}: {error}", path.display()))?
+    else {
         return Ok(None);
-    }
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("failed to read SDD policy {}: {error}", path.display()))?;
+    };
     serde_json::from_str(&content)
         .map(Some)
         .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))
@@ -841,10 +2885,7 @@ fn load_policy_checked(root: &Path) -> Result<Option<SddPolicy>, String> {
 
 pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> Result<(), String> {
     let path = root.join(POLICY_PATH);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    if path.exists() {
+    if read_retained_project_text(root, &path)?.is_some() {
         return Ok(());
     }
     let mut policy = SddPolicy {
@@ -864,7 +2905,7 @@ pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> 
             policy.meaningful_paths.push(scope);
         }
     }
-    write_json(&path, &policy)
+    publish_retained_project_text(root, &path, &json_content(&policy)?)
 }
 
 pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<ChangeRecord, String> {
@@ -936,14 +2977,18 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         answers: BTreeMap::new(),
     };
     let dir = change_dir(root, &record.id);
-    fs::create_dir_all(dir.join("deltas")).map_err(|error| error.to_string())?;
+    open_retained_project_directory(root, &dir.join("deltas"), true, "change delta directory")?;
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
-    write_json(&dir.join("approvals.json"), &ApprovalLedger::default())?;
+    publish_retained_project_text(
+        root,
+        &dir.join("approvals.json"),
+        &json_content(&ApprovalLedger::default())?,
+    )?;
     for artifact in &record.selected_artifacts {
         let path = dir.join(artifact.file_name());
-        if !path.exists() {
-            fs::write(&path, artifact_template(root, artifact, &record))
+        if read_retained_project_text(root, &path)?.is_none() {
+            publish_retained_project_text(root, &path, &artifact_template(root, artifact, &record))
                 .map_err(|error| format!("failed to write {}: {error}", path.display()))?;
         }
     }
@@ -952,10 +2997,18 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
 }
 
 pub fn load_change(root: &Path, id: &str) -> Result<ChangeRecord, String> {
-    let path = find_change_dir(root, id)?.join("state.json");
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-    let record = serde_json::from_str(&content)
+    let workspace = find_change_dir(root, id)?;
+    let path = workspace.join("state.json");
+    let directory = open_retained_change_workspace(root, &workspace)?;
+    let snapshot = read_retained_workspace_file(
+        root,
+        &workspace,
+        &directory,
+        "state.json",
+        MAX_CHANGE_ARTIFACT_BYTES,
+    )?
+    .ok_or_else(|| format!("failed to read {}: file is missing", path.display()))?;
+    let record = serde_json::from_slice(&snapshot.bytes)
         .map_err(|error| format!("invalid change state {}: {error}", path.display()))?;
     validate_loaded_change(&record, id, &path)?;
     Ok(record)
@@ -989,14 +3042,18 @@ fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
                 entry.path().display()
             )
         })?;
-        let path = entry.path().join("state.json");
-        let content = fs::read_to_string(&path).map_err(|error| {
-            format!(
-                "failed to read active change state {}: {error}",
-                path.display()
-            )
-        })?;
-        let record = serde_json::from_str(&content)
+        let workspace = entry.path();
+        let path = workspace.join("state.json");
+        let directory = open_retained_change_workspace(root, &workspace)?;
+        let snapshot = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "state.json",
+            MAX_CHANGE_ARTIFACT_BYTES,
+        )?
+        .ok_or_else(|| format!("active change state is missing: {}", path.display()))?;
+        let record = serde_json::from_slice(&snapshot.bytes)
             .map_err(|error| format!("invalid active change state {}: {error}", path.display()))?;
         validate_loaded_change(&record, &expected_id, &path)?;
         records.push(record);
@@ -1031,11 +3088,9 @@ fn change_id_sorts_after(candidate: &str, predecessor: &str) -> bool {
 
 fn load_change_sequence_ledger(root: &Path) -> Result<Option<ChangeSequenceLedger>, String> {
     let path = root.join(SEQUENCE_PATH);
-    if !path.exists() {
+    let Some(content) = read_retained_project_text(root, &path)? else {
         return Ok(None);
-    }
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("failed to read change sequence ledger: {error}"))?;
+    };
     let ledger: ChangeSequenceLedger = serde_json::from_str(&content)
         .map_err(|error| format!("invalid change sequence ledger: {error}"))?;
     if ledger.schema_version != 1 {
@@ -1058,14 +3113,15 @@ fn update_change_sequence_claim(root: &Path, id: &str) -> Result<(), String> {
     let acknowledged_collisions = load_change_sequence_ledger(root)?
         .map(|ledger| ledger.acknowledged_collisions)
         .unwrap_or_default();
-    write_json(
+    publish_retained_project_text(
+        root,
         &root.join(SEQUENCE_PATH),
-        &ChangeSequenceLedger {
+        &json_content(&ChangeSequenceLedger {
             schema_version: 1,
             sequence,
             id: id.to_string(),
             acknowledged_collisions,
-        },
+        })?,
     )
 }
 
@@ -1094,31 +3150,34 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
             {
                 continue;
             }
-            let state_path = entry.path().join("state.json");
-            let content = match fs::read_to_string(&state_path) {
-                Ok(content) => content,
-                Err(error)
-                    if archived
-                        && error.kind() == std::io::ErrorKind::NotFound
-                        && is_positive_legacy_tombstone(&entry.path()) =>
-                {
-                    continue;
-                }
-                Err(error) => {
+            let workspace = entry.path();
+            let state_path = workspace.join("state.json");
+            let directory = open_retained_change_workspace(root, &workspace)?;
+            let snapshot = match read_retained_workspace_file(
+                root,
+                &workspace,
+                &directory,
+                "state.json",
+                MAX_CHANGE_ARTIFACT_BYTES,
+            )? {
+                Some(snapshot) => snapshot,
+                None if archived && is_positive_legacy_tombstone(&workspace) => continue,
+                None => {
                     return Err(format!(
-                        "failed to read {} change state {}: {error}",
+                        "{} change state is missing: {}",
                         if archived { "archived" } else { "active" },
                         state_path.display()
                     ));
                 }
             };
-            let record: ChangeRecord = serde_json::from_str(&content).map_err(|error| {
-                format!(
-                    "invalid {} change state {}: {error}",
-                    if archived { "archived" } else { "active" },
-                    state_path.display()
-                )
-            })?;
+            let record: ChangeRecord =
+                serde_json::from_slice(&snapshot.bytes).map_err(|error| {
+                    format!(
+                        "invalid {} change state {}: {error}",
+                        if archived { "archived" } else { "active" },
+                        state_path.display()
+                    )
+                })?;
             let expected_id = if archived {
                 record.id.clone()
             } else {
@@ -1155,7 +3214,7 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
     let Some(reopening) = approvals.reopenings.last() else {
         return false;
     };
-    if reopening.schema_version != 1
+    if !matches!(reopening.schema_version, 1 | 2)
         || reopening.change_id != record.id
         || reopening.actor.trim().is_empty()
         || reopening.reason.trim().is_empty()
@@ -1704,11 +3763,22 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
     let acceptance_evidence_present =
         acceptance_criteria_have_evidence(&record, has_semantic_acceptance_item);
     let passed = commands_passed && acceptance_evidence_present && missing_evidence.is_empty();
+    let approval_ledger = load_approvals(root, &record)?;
+    let reopening_audit_digest = if approval_ledger
+        .reopenings
+        .iter()
+        .any(|reopening| reopening.schema_version >= 2)
+    {
+        Some(reopening_audit_digest(&approval_ledger.reopenings)?)
+    } else {
+        None
+    };
     let verification = VerificationRecord {
         timestamp: now(),
         commit: git_output(root, &["rev-parse", "HEAD"]),
         contract_digest: definition_digest(root, &record)?,
         workspace_digest: project_input_digest(root)?,
+        reopening_audit_digest,
         acceptance_input_digest: None,
         acceptance_manifest: None,
         semantic_succession: None,
@@ -1771,8 +3841,9 @@ pub fn reopen_change(
         .acceptance_input_digest
         .clone()
         .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
-    let expected_closing_digest = closing_digest(&record, &prior_verification);
     let mut ledger = load_approvals(root, &record)?;
+    validate_reopening_audit_binding(&prior_verification, &ledger.reopenings)?;
+    let expected_closing_digest = closing_digest(&record, &prior_verification);
     let superseded_approval = ledger
         .approvals
         .iter()
@@ -1796,6 +3867,26 @@ pub fn reopen_change(
                 .into(),
         );
     }
+    let audit = ReopenRecord {
+        schema_version: 2,
+        change_id: record.id.clone(),
+        actor: actor.to_string(),
+        reason: reason.to_string(),
+        timestamp: now(),
+        from_state: ChangeState::Accepted,
+        to_state: ChangeState::Verifying,
+        superseded_approval,
+        prior_verification: prior_verification.clone(),
+        stale_acceptance_input_digest: stale_acceptance_input_digest.clone(),
+        current_acceptance_input_digest: current_acceptance_input_digest.clone(),
+    };
+    validate_hydrated_reopening(&audit)?;
+    ledger.reopenings.push(audit.clone());
+    validate_trusted_reopening_anchors(root, &record.id, &ledger).map_err(|error| {
+        format!(
+            "cannot reopen unanchored accepted evidence; merge the most recent accepted lifecycle evidence into the remote default branch first: {error}"
+        )
+    })?;
     authenticate_accepted_evidence(root, &record)?;
     let records = list_all_changes_checked(root)?;
     let mut visiting = BTreeSet::new();
@@ -1807,20 +3898,16 @@ pub fn reopen_change(
                 .into(),
         );
     }
-    let audit = ReopenRecord {
-        schema_version: 1,
-        change_id: record.id.clone(),
-        actor: actor.to_string(),
-        reason: reason.to_string(),
-        timestamp: now(),
-        from_state: ChangeState::Accepted,
-        to_state: ChangeState::Verifying,
-        superseded_approval,
-        prior_verification,
-        stale_acceptance_input_digest,
-        current_acceptance_input_digest,
-    };
-    ledger.reopenings.push(audit.clone());
+    if let Some(manifest) = &prior_verification.acceptance_manifest {
+        let workspace = find_change_dir(root, &record.id)?;
+        let object_digest = write_acceptance_manifest_object(root, &workspace, manifest)?;
+        if object_digest != stale_acceptance_input_digest {
+            return Err(
+                "acceptance manifest object digest disagrees with prior verification evidence"
+                    .into(),
+            );
+        }
+    }
     record.state = ChangeState::Verifying;
     record.canonical_applied = true;
     record.updated_at = now();
@@ -1829,7 +3916,7 @@ pub fn reopen_change(
         &[
             (
                 change_dir(root, &record.id).join("approvals.json"),
-                json_content(&ledger)?,
+                approval_ledger_content(root, &record, &ledger)?,
             ),
             (
                 change_dir(root, &record.id).join("state.json"),
@@ -1870,24 +3957,93 @@ impl ReopenBackfillReport {
 /// re-validate before the write lands; a reopening that cannot be repaired deterministically
 /// fails its change without mutating that ledger while other changes still migrate.
 pub fn backfill_reopen_digests(root: &Path, dry_run: bool) -> Result<ReopenBackfillReport, String> {
+    let _lock = if dry_run {
+        None
+    } else {
+        Some(acquire_project_lock(root)?)
+    };
     let mut report = ReopenBackfillReport {
         dry_run,
         ..Default::default()
     };
     for workspace in change_workspaces_for_backfill(root)? {
-        let approvals_path = workspace.join("approvals.json");
-        let Ok(content) = fs::read_to_string(&approvals_path) else {
-            continue;
-        };
         let id = workspace
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| workspace.display().to_string());
-        if serde_json::from_str::<ApprovalLedger>(&content).is_ok() {
+        let directory = match open_retained_change_workspace(root, &workspace) {
+            Ok(directory) => directory,
+            Err(error) => {
+                report.failed.push((id, error));
+                continue;
+            }
+        };
+        let approvals = match read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        ) {
+            Ok(Some(approvals)) => approvals,
+            Ok(None) => continue,
+            Err(error) => {
+                report.failed.push((id, error));
+                continue;
+            }
+        };
+        let state = match read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "state.json",
+            MAX_CHANGE_ARTIFACT_BYTES,
+        ) {
+            Ok(state) => state,
+            Err(error) => {
+                report.failed.push((id, error));
+                continue;
+            }
+        };
+        let expected_change_id = match workspace_change_id(root, &workspace, state.as_ref()) {
+            Ok(id) => id,
+            Err(error) => {
+                report.failed.push((id, error));
+                continue;
+            }
+        };
+        if load_approval_ledger_from_retained_workspace_bytes(
+            &directory,
+            &expected_change_id,
+            &approvals.bytes,
+        )
+        .is_ok()
+        {
             report.unchanged.push(id);
             continue;
         }
-        match backfill_change_ledger(root, &workspace, &content, dry_run)? {
+        let verification = match read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "verification.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        ) {
+            Ok(verification) => verification,
+            Err(error) => {
+                report.failed.push((id, error));
+                continue;
+            }
+        };
+        match backfill_change_ledger(
+            root,
+            &directory,
+            &approvals,
+            state.as_ref(),
+            verification.as_ref(),
+            &expected_change_id,
+            dry_run,
+        )? {
             Ok(true) => report.repaired.push(id),
             Ok(false) => report.unchanged.push(id),
             Err(reason) => report.failed.push((id, reason)),
@@ -1899,16 +4055,92 @@ pub fn backfill_reopen_digests(root: &Path, dry_run: bool) -> Result<ReopenBackf
     Ok(report)
 }
 
+fn workspace_change_id(
+    root: &Path,
+    workspace: &Path,
+    state: Option<&RetainedFileSnapshot>,
+) -> Result<String, String> {
+    let bytes = match state {
+        Some(state) => &state.bytes,
+        None if workspace.parent() == Some(root.join(CHANGES_PATH).as_path()) => {
+            let id = workspace
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| {
+                    format!(
+                        "active change workspace name is not portable UTF-8: {}",
+                        workspace.display()
+                    )
+                })?
+                .to_string();
+            validate_change_id(&id)?;
+            return Ok(id);
+        }
+        None => {
+            return Err(format!(
+                "archived change workspace is missing state.json: {}",
+                workspace.display()
+            ));
+        }
+    };
+    let record: ChangeRecord = serde_json::from_slice(bytes).map_err(|error| {
+        format!(
+            "invalid change state {}: {error}",
+            workspace.join("state.json").display()
+        )
+    })?;
+    validate_change_id(&record.id)?;
+    Ok(record.id)
+}
+
 fn change_workspaces_for_backfill(root: &Path) -> Result<Vec<PathBuf>, String> {
     let mut workspaces = Vec::new();
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
-        let Ok(entries) = fs::read_dir(&base) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                workspaces.push(path);
+        match fs::symlink_metadata(&base) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "failed to inspect lifecycle workspace root {}: {error}",
+                    base.display()
+                ));
+            }
+            Ok(_) => {}
+        }
+        let retained = open_retained_lifecycle_directory(
+            root,
+            &base,
+            &base,
+            false,
+            "lifecycle workspace root",
+        )?;
+        let entries = retained.handle.entries().map_err(|error| {
+            format!(
+                "failed to enumerate lifecycle workspace root {}: {error}",
+                base.display()
+            )
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                format!(
+                    "failed to enumerate lifecycle workspace root {}: {error}",
+                    base.display()
+                )
+            })?;
+            let file_type = entry.file_type().map_err(|error| {
+                format!(
+                    "failed to inspect lifecycle workspace entry in {}: {error}",
+                    base.display()
+                )
+            })?;
+            let name = entry.file_name();
+            if file_type.is_symlink() {
+                return Err(format!(
+                    "lifecycle workspace entry is a symlink: {}",
+                    base.join(name).display()
+                ));
+            }
+            if file_type.is_dir() {
+                workspaces.push(base.join(name));
             }
         }
     }
@@ -1916,35 +4148,308 @@ fn change_workspaces_for_backfill(root: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(workspaces)
 }
 
+struct JsonByteCursor<'a> {
+    bytes: &'a [u8],
+    position: usize,
+}
+
+impl<'a> JsonByteCursor<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, position: 0 }
+    }
+
+    fn skip_whitespace(&mut self) {
+        while self
+            .bytes
+            .get(self.position)
+            .is_some_and(u8::is_ascii_whitespace)
+        {
+            self.position += 1;
+        }
+    }
+
+    fn expect(&mut self, expected: u8) -> Result<(), String> {
+        self.skip_whitespace();
+        if self.bytes.get(self.position) != Some(&expected) {
+            return Err(format!(
+                "expected `{}` at byte {}",
+                char::from(expected),
+                self.position
+            ));
+        }
+        self.position += 1;
+        Ok(())
+    }
+
+    fn scan_string(&mut self) -> Result<std::ops::Range<usize>, String> {
+        self.skip_whitespace();
+        let start = self.position;
+        if self.bytes.get(self.position) != Some(&b'"') {
+            return Err(format!("expected JSON string at byte {}", self.position));
+        }
+        self.position += 1;
+        while let Some(byte) = self.bytes.get(self.position).copied() {
+            match byte {
+                b'"' => {
+                    self.position += 1;
+                    return Ok(start..self.position);
+                }
+                b'\\' => {
+                    self.position += 1;
+                    if self.position >= self.bytes.len() {
+                        return Err("unterminated JSON string escape".into());
+                    }
+                    self.position += 1;
+                }
+                0..=0x1f => return Err("JSON string contains an unescaped control byte".into()),
+                _ => self.position += 1,
+            }
+        }
+        Err("unterminated JSON string".into())
+    }
+
+    fn scan_value(&mut self) -> Result<std::ops::Range<usize>, String> {
+        self.skip_whitespace();
+        let start = self.position;
+        match self.bytes.get(self.position).copied() {
+            Some(b'"') => {
+                self.scan_string()?;
+            }
+            Some(b'{') => {
+                self.position += 1;
+                self.skip_whitespace();
+                if self.bytes.get(self.position) == Some(&b'}') {
+                    self.position += 1;
+                } else {
+                    loop {
+                        self.scan_string()?;
+                        self.expect(b':')?;
+                        self.scan_value()?;
+                        self.skip_whitespace();
+                        match self.bytes.get(self.position) {
+                            Some(b',') => self.position += 1,
+                            Some(b'}') => {
+                                self.position += 1;
+                                break;
+                            }
+                            _ => {
+                                return Err(format!(
+                                    "expected object separator at byte {}",
+                                    self.position
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            Some(b'[') => {
+                self.position += 1;
+                self.skip_whitespace();
+                if self.bytes.get(self.position) == Some(&b']') {
+                    self.position += 1;
+                } else {
+                    loop {
+                        self.scan_value()?;
+                        self.skip_whitespace();
+                        match self.bytes.get(self.position) {
+                            Some(b',') => self.position += 1,
+                            Some(b']') => {
+                                self.position += 1;
+                                break;
+                            }
+                            _ => {
+                                return Err(format!(
+                                    "expected array separator at byte {}",
+                                    self.position
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            Some(_) => {
+                while self.bytes.get(self.position).is_some_and(|byte| {
+                    !byte.is_ascii_whitespace() && !matches!(byte, b',' | b']' | b'}')
+                }) {
+                    self.position += 1;
+                }
+                if self.position == start {
+                    return Err(format!("expected JSON value at byte {start}"));
+                }
+            }
+            None => return Err("expected JSON value at end of input".into()),
+        }
+        Ok(start..self.position)
+    }
+}
+
+fn reopening_object_ranges(bytes: &[u8]) -> Result<Vec<std::ops::Range<usize>>, String> {
+    let mut cursor = JsonByteCursor::new(bytes);
+    cursor.expect(b'{')?;
+    let mut reopening_ranges = None;
+    cursor.skip_whitespace();
+    if cursor.bytes.get(cursor.position) != Some(&b'}') {
+        loop {
+            let key_range = cursor.scan_string()?;
+            let key: String = serde_json::from_slice(&bytes[key_range])
+                .map_err(|error| format!("invalid approval ledger key: {error}"))?;
+            cursor.expect(b':')?;
+            if key == "reopenings" {
+                if reopening_ranges.is_some() {
+                    return Err("approval ledger contains duplicate `reopenings` fields".into());
+                }
+                cursor.expect(b'[')?;
+                let mut ranges = Vec::new();
+                cursor.skip_whitespace();
+                if cursor.bytes.get(cursor.position) == Some(&b']') {
+                    cursor.position += 1;
+                } else {
+                    loop {
+                        cursor.skip_whitespace();
+                        if cursor.bytes.get(cursor.position) != Some(&b'{') {
+                            return Err(format!(
+                                "reopening at byte {} is not a JSON object",
+                                cursor.position
+                            ));
+                        }
+                        if ranges.len() >= MAX_REOPENING_EVENTS {
+                            return Err(format!(
+                                "approval ledger exceeds {MAX_REOPENING_EVENTS} reopening events"
+                            ));
+                        }
+                        ranges.push(cursor.scan_value()?);
+                        cursor.skip_whitespace();
+                        match cursor.bytes.get(cursor.position) {
+                            Some(b',') => cursor.position += 1,
+                            Some(b']') => {
+                                cursor.position += 1;
+                                break;
+                            }
+                            _ => {
+                                return Err(format!(
+                                    "expected reopening separator at byte {}",
+                                    cursor.position
+                                ));
+                            }
+                        }
+                    }
+                }
+                reopening_ranges = Some(ranges);
+            } else {
+                cursor.scan_value()?;
+            }
+            cursor.skip_whitespace();
+            match cursor.bytes.get(cursor.position) {
+                Some(b',') => cursor.position += 1,
+                Some(b'}') => {
+                    cursor.position += 1;
+                    break;
+                }
+                _ => {
+                    return Err(format!(
+                        "expected approval ledger separator at byte {}",
+                        cursor.position
+                    ));
+                }
+            }
+        }
+    } else {
+        cursor.position += 1;
+    }
+    cursor.skip_whitespace();
+    if cursor.position != bytes.len() {
+        return Err(format!(
+            "approval ledger has trailing bytes at {}",
+            cursor.position
+        ));
+    }
+    Ok(reopening_ranges.unwrap_or_default())
+}
+
 /// Repairs one change's `approvals.json`, returning `Ok(true)` when reopenings were backfilled,
 /// `Ok(false)` when nothing needed repair, or `Err(reason)` when a reopening cannot be repaired
 /// deterministically. On `Err` or verification failure the ledger is left byte-identical.
 fn backfill_change_ledger(
     root: &Path,
-    workspace: &Path,
-    content: &str,
+    directory: &ManifestObjectDirectory,
+    approvals: &RetainedFileSnapshot,
+    state: Option<&RetainedFileSnapshot>,
+    verification: Option<&RetainedFileSnapshot>,
+    expected_change_id: &str,
     dry_run: bool,
 ) -> Result<Result<bool, String>, String> {
-    let mut ledger: serde_json::Value = match serde_json::from_str(content) {
+    let workspace = &directory.path;
+    let content = &approvals.bytes;
+    let migration_input_digest = migration_input_binding_digest(state, verification);
+    if let Err(error) = preflight_approval_ledger_event_bounds(content) {
+        return Ok(Err(format!(
+            "approval ledger event preflight failed: {error}"
+        )));
+    }
+    let ledger: serde_json::Value = match serde_json::from_slice(content) {
         Ok(ledger) => ledger,
         Err(error) => return Ok(Err(format!("approvals ledger is not valid JSON: {error}"))),
     };
     let Some(reopenings) = ledger
-        .get_mut("reopenings")
-        .and_then(serde_json::Value::as_array_mut)
+        .get("reopenings")
+        .and_then(serde_json::Value::as_array)
     else {
         return Ok(Ok(false));
     };
-    let mut repaired = false;
-    for reopening in reopenings.iter_mut() {
-        let has_stale = reopening
-            .get("stale_acceptance_input_digest")
-            .and_then(serde_json::Value::as_str)
-            .is_some();
-        let has_current = reopening
-            .get("current_acceptance_input_digest")
-            .and_then(serde_json::Value::as_str)
-            .is_some();
+    let ranges = reopening_object_ranges(content)
+        .map_err(|error| format!("failed to preserve approval ledger bytes: {error}"))?;
+    if ranges.len() != reopenings.len() {
+        return Ok(Err(
+            "approval ledger reopening syntax disagrees with parsed reopening records".into(),
+        ));
+    }
+    let mut insertions = Vec::new();
+    for (index, (reopening, range)) in reopenings.iter().zip(ranges).enumerate() {
+        let Some(schema_version) = reopening
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
+        else {
+            return Ok(Err("reopening is missing a numeric schema version".into()));
+        };
+        let stale_field = reopening.get("stale_acceptance_input_digest");
+        let current_field = reopening.get("current_acceptance_input_digest");
+        if stale_field.is_some_and(|value| !value.is_string())
+            || current_field.is_some_and(|value| !value.is_string())
+        {
+            return Ok(Err(
+                "reopening digest fields must be strings when present".into()
+            ));
+        }
+        let has_stale = stale_field.is_some();
+        let has_current = current_field.is_some();
+        if schema_version == 2 {
+            if reopening
+                .get("prior_verification")
+                .and_then(|verification| verification.get("acceptance_manifest"))
+                .is_some()
+            {
+                return Ok(Err(
+                    "compact reopening mixes an embedded manifest with a manifest reference".into(),
+                ));
+            }
+            if !has_stale || !has_current {
+                return Ok(Err(
+                    "compact reopening digest fields are incomplete and cannot be repaired by migrate 5.0"
+                        .into(),
+                ));
+            }
+            continue;
+        }
+        if schema_version != 1 {
+            return Ok(Err(format!(
+                "unsupported reopening schema version {schema_version}"
+            )));
+        }
+        if reopening.get("prior_acceptance_manifest").is_some() {
+            return Ok(Err(
+                "embedded reopening cannot carry a compact manifest reference".into(),
+            ));
+        }
         if has_stale && has_current {
             continue;
         }
@@ -1963,9 +4468,19 @@ fn backfill_change_ledger(
             .get("timestamp")
             .and_then(serde_json::Value::as_u64)
             .unwrap_or_default();
-        let current = match superseding_acceptance_digest(workspace, reopen_timestamp)? {
+        let next_reopening_digest = reopenings
+            .get(index + 1)
+            .and_then(|next| next.get("prior_verification"))
+            .and_then(|prior| prior.get("acceptance_input_digest"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string);
+        let current = match next_reopening_digest {
+            Some(digest) => Some(digest),
+            None => superseding_acceptance_digest(verification, reopen_timestamp)?,
+        };
+        let current = match current {
             Some(digest) => digest,
-            None => match live_acceptance_digest(root, workspace) {
+            None => match live_acceptance_digest(root, state, verification) {
                 Ok(digest) => digest,
                 Err(error) => {
                     return Ok(Err(format!(
@@ -1979,40 +4494,152 @@ fn backfill_change_ledger(
                 "repaired digests are identical; the recorded drift cannot be proven".into(),
             ));
         }
-        reopening["stale_acceptance_input_digest"] = serde_json::Value::String(stale);
-        reopening["current_acceptance_input_digest"] = serde_json::Value::String(current);
-        repaired = true;
+        let mut fields = Vec::new();
+        if !has_stale {
+            fields.push(format!(
+                "\"stale_acceptance_input_digest\":{}",
+                serde_json::to_string(&stale)
+                    .map_err(|error| format!("failed to encode repaired digest: {error}"))?
+            ));
+        }
+        if !has_current {
+            fields.push(format!(
+                "\"current_acceptance_input_digest\":{}",
+                serde_json::to_string(&current)
+                    .map_err(|error| format!("failed to encode repaired digest: {error}"))?
+            ));
+        }
+        if !fields.is_empty() {
+            let prefix = if content[range.start + 1..range.end - 1]
+                .iter()
+                .all(u8::is_ascii_whitespace)
+            {
+                ""
+            } else {
+                ","
+            };
+            insertions.push((range.end - 1, format!("{prefix}{}", fields.join(","))));
+        }
     }
-    if !repaired {
-        return Ok(Ok(false));
+    if insertions.is_empty() {
+        return Ok(load_approval_ledger_from_retained_workspace_bytes(
+            directory,
+            expected_change_id,
+            content,
+        )
+        .map(|_| false)
+        .map_err(|error| format!("approval ledger failed compatibility validation: {error}")));
     }
-    let bytes = serde_json::to_vec_pretty(&ledger)
-        .map_err(|error| format!("failed to encode repaired approvals ledger: {error}"))?;
-    if let Err(error) = serde_json::from_slice::<ApprovalLedger>(&bytes) {
+    let mut bytes = content.clone();
+    insertions.sort_by_key(|insertion| std::cmp::Reverse(insertion.0));
+    for (offset, insertion) in insertions {
+        bytes.splice(offset..offset, insertion.bytes());
+    }
+    if let Err(error) =
+        load_approval_ledger_from_retained_workspace_bytes(directory, expected_change_id, &bytes)
+    {
         return Ok(Err(format!(
             "repaired approvals ledger failed 5.1 schema verification: {error}"
         )));
     }
     if !dry_run {
-        let mut bytes = bytes;
-        bytes.push(b'\n');
-        fs::write(workspace.join("approvals.json"), bytes)
-            .map_err(|error| format!("failed to write repaired approvals ledger: {error}"))?;
+        atomically_replace_retained_workspace_file_with_hook(
+            root,
+            workspace,
+            directory,
+            "approvals.json",
+            approvals,
+            &bytes,
+            || {
+                ensure_migration_inputs_match(
+                    root,
+                    workspace,
+                    directory,
+                    state,
+                    verification,
+                    &migration_input_digest,
+                )
+            },
+            || {
+                ensure_migration_inputs_match(
+                    root,
+                    workspace,
+                    directory,
+                    state,
+                    verification,
+                    &migration_input_digest,
+                )
+            },
+        )?;
     }
     Ok(Ok(true))
+}
+
+fn migration_input_binding_digest(
+    state: Option<&RetainedFileSnapshot>,
+    verification: Option<&RetainedFileSnapshot>,
+) -> String {
+    let mut digest = FramedDigest::new(b"specsync.migrate-5.0-inputs.v1");
+    match state {
+        Some(state) => digest.frame(b"state", &state.bytes),
+        None => digest.frame(b"state-absent", b""),
+    }
+    match verification {
+        Some(verification) => digest.frame(b"verification", &verification.bytes),
+        None => digest.frame(b"verification-absent", b""),
+    }
+    digest.finish()
+}
+
+fn ensure_migration_inputs_match(
+    root: &Path,
+    workspace: &Path,
+    directory: &ManifestObjectDirectory,
+    state: Option<&RetainedFileSnapshot>,
+    verification: Option<&RetainedFileSnapshot>,
+    expected_digest: &str,
+) -> Result<(), String> {
+    let ensure =
+        |name: &str, maximum: u64, expected: Option<&RetainedFileSnapshot>| -> Result<(), String> {
+            match expected {
+                Some(expected) => ensure_retained_workspace_file_matches(
+                    root, workspace, directory, name, expected,
+                ),
+                None => {
+                    if read_retained_workspace_file(root, workspace, directory, name, maximum)?
+                        .is_some()
+                    {
+                        return Err(format!(
+                            "migration input `{name}` appeared before approvals publication"
+                        ));
+                    }
+                    Ok(())
+                }
+            }
+        };
+    ensure("state.json", MAX_CHANGE_ARTIFACT_BYTES, state)?;
+    ensure(
+        "verification.json",
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        verification,
+    )?;
+    let live_digest = migration_input_binding_digest(state, verification);
+    if live_digest != expected_digest {
+        return Err("migration input digest changed before approvals publication".into());
+    }
+    Ok(())
 }
 
 /// Returns the signed acceptance-input digest of the change's current verification record when
 /// it supersedes the reopening (recorded after it), matching the rollout-proven repair.
 fn superseding_acceptance_digest(
-    workspace: &Path,
+    verification: Option<&RetainedFileSnapshot>,
     reopen_timestamp: u64,
 ) -> Result<Option<String>, String> {
-    let verification_path = workspace.join("verification.json");
-    let Ok(content) = fs::read_to_string(&verification_path) else {
+    let Some(content) = verification.map(|verification| verification.bytes.as_slice()) else {
         return Ok(None);
     };
-    let verification: serde_json::Value = serde_json::from_str(&content)
+    let verification: serde_json::Value = serde_json::from_slice(content)
         .map_err(|error| format!("verification evidence is not valid JSON: {error}"))?;
     let timestamp = verification
         .get("timestamp")
@@ -2029,19 +4656,36 @@ fn superseding_acceptance_digest(
 
 /// Recomputes the acceptance-input digest for a change that has no superseding verification,
 /// using the same manifest-aware path as the 5.1 reopen flow.
-fn live_acceptance_digest(root: &Path, workspace: &Path) -> Result<String, String> {
-    let state: ChangeRecord = serde_json::from_str(
-        &fs::read_to_string(workspace.join("state.json"))
-            .map_err(|error| format!("failed to read change state: {error}"))?,
-    )
-    .map_err(|error| format!("change state is not valid: {error}"))?;
-    let record = load_change(root, &state.id)?;
-    let verification = load_verification(root, &record)?;
+fn live_acceptance_digest(
+    root: &Path,
+    state: Option<&RetainedFileSnapshot>,
+    verification: Option<&RetainedFileSnapshot>,
+) -> Result<String, String> {
+    let state = state.ok_or_else(|| "change workspace is missing state.json".to_string())?;
+    let record: ChangeRecord = serde_json::from_slice(&state.bytes)
+        .map_err(|error| format!("change state is not valid: {error}"))?;
+    let verification =
+        verification.ok_or_else(|| "change workspace is missing verification.json".to_string())?;
+    let verification: VerificationRecord = serde_json::from_slice(&verification.bytes)
+        .map_err(|error| format!("verification evidence is not valid: {error}"))?;
+    let sequence_evidence = historical_sequence_ledger_acceptance_content_unchecked(root, &record)?;
     if let Some(manifest) = &verification.acceptance_manifest {
-        let current = acceptance_manifest_with_signed_owners(root, &record, &[], manifest)?;
+        let current = acceptance_manifest_internal(
+            root,
+            &record,
+            &[],
+            Some(manifest),
+            UnownedProductionSource::Reject,
+            HistoricalSequenceEvidence::Retained(sequence_evidence),
+        )?;
         acceptance_manifest_digest(&current)
     } else {
-        acceptance_input_digest(root, &record, &[])
+        acceptance_input_digest_internal(
+            root,
+            &record,
+            &[],
+            HistoricalSequenceEvidence::Retained(sequence_evidence),
+        )
     }
 }
 
@@ -2179,7 +4823,7 @@ fn latest_reopen_for_owner_correction<'a>(
     let reopening = approvals.reopenings.last().ok_or_else(|| {
         "acceptance owner correction requires an audited reopen event".to_string()
     })?;
-    if reopening.schema_version != 1
+    if !matches!(reopening.schema_version, 1 | 2)
         || reopening.change_id != record.id
         || reopening.from_state != ChangeState::Accepted
         || reopening.to_state != ChangeState::Verifying
@@ -2413,7 +5057,9 @@ fn production_source_lacks_canonical_owner(
     let evidence = if candidates.is_empty() {
         GitEvidence {
             modes: BTreeMap::new(),
+            objects: BTreeMap::new(),
             entries: BTreeMap::new(),
+            index_backed: BTreeSet::new(),
         }
     } else {
         git_regular_file_evidence(root, &candidates)?
@@ -2685,34 +5331,119 @@ pub fn effective_change_definition(
     validate_correction_records(record, &ledger.corrections)
 }
 
+fn trusted_remote_default_ref(root: &Path) -> Result<Option<String>, String> {
+    let symbolic = run_git_bounded(
+        root,
+        &["symbolic-ref", "refs/remotes/origin/HEAD"],
+        None,
+        1_024,
+    )?;
+    if symbolic.status.success() {
+        let reference = std::str::from_utf8(&symbolic.stdout)
+            .map_err(|_| "remote-default symbolic reference is not UTF-8".to_string())?
+            .trim()
+            .to_string();
+        let branch = reference
+            .strip_prefix("refs/remotes/origin/")
+            .filter(|branch| !branch.is_empty())
+            .ok_or_else(|| {
+                format!(
+                    "remote-default symbolic reference `{reference}` is outside `refs/remotes/origin/`"
+                )
+            })?;
+        let commit = format!("refs/remotes/origin/{branch}^{{commit}}");
+        let resolved = run_git_bounded(
+            root,
+            &["rev-parse", "--verify", "--quiet", &commit],
+            None,
+            256,
+        )?;
+        if resolved.status.success() {
+            return Ok(Some(reference));
+        }
+    }
+    for candidate in ["refs/remotes/origin/main", "refs/remotes/origin/master"] {
+        let commit = format!("{candidate}^{{commit}}");
+        let resolved = run_git_bounded(
+            root,
+            &["rev-parse", "--verify", "--quiet", &commit],
+            None,
+            256,
+        )?;
+        if resolved.status.success() {
+            return Ok(Some(candidate.to_string()));
+        }
+    }
+    Ok(None)
+}
+
 fn validate_trusted_correction_history(
     root: &Path,
     record: &ChangeRecord,
     current: &CorrectionLedger,
 ) -> Result<(), String> {
-    let Some(head) = git_output(root, &["rev-parse", "--verify", "HEAD"]) else {
-        // A project that has not entered Git history has no trusted historical
-        // anchor yet. Its local correction chain is still validated below by
-        // `validate_correction_records`.
+    if !git_repository_present(root)? {
         return Ok(());
-    };
-    let mut references = vec![head];
-    if let Some(remote_default) = remote_default_ref(root) {
-        let remote_default_commit = format!("{remote_default}^{{commit}}");
-        if let Some(resolved) = git_output(root, &["rev-parse", "--verify", &remote_default_commit])
-        {
-            references.push(resolved);
+    }
+    let head = run_git_bounded(
+        root,
+        &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+        None,
+        256,
+    )
+    .map_err(|error| format!("failed to resolve trusted correction HEAD: {error}"))?;
+    let mut references = Vec::new();
+    if head.status.success() {
+        let head = std::str::from_utf8(&head.stdout)
+            .map_err(|_| "trusted correction HEAD is not UTF-8".to_string())?
+            .trim()
+            .to_string();
+        if head.is_empty() {
+            return Err("trusted correction HEAD resolved to an empty commit".into());
         }
+        references.push(head);
+    }
+    if let Some(remote_default) = trusted_remote_default_ref(root)? {
+        let remote_default_commit = format!("{remote_default}^{{commit}}");
+        let resolved = run_git_required(
+            root,
+            &["rev-parse", "--verify", &remote_default_commit],
+            None,
+            256,
+        )?;
+        let resolved = std::str::from_utf8(&resolved)
+            .map_err(|_| "trusted remote-default commit is not UTF-8".to_string())?
+            .trim()
+            .to_string();
+        references.push(resolved);
+    }
+    if references.is_empty() {
+        if current.corrections.is_empty() {
+            // An initialized repository has no authenticated history until its
+            // first commit. There is nothing to roll back when the current
+            // ledger is also empty.
+            return Ok(());
+        }
+        return Err(format!(
+            "cannot validate append-only correction history for {} because the Git repository has no trusted commit",
+            record.id
+        ));
     }
     references.sort();
     references.dedup();
-    let shallow = git_output(root, &["rev-parse", "--is-shallow-repository"])
-        .is_some_and(|value| value == "true");
+    let shallow = run_git_required(root, &["rev-parse", "--is-shallow-repository"], None, 16)?;
+    let shallow = std::str::from_utf8(&shallow)
+        .map_err(|_| "Git shallow status is not UTF-8".to_string())?
+        .trim()
+        == "true";
+    let mut history_budget = TrustedHistoryScanBudget::default();
     // A correction-free shallow tip is indistinguishable from a correction
     // that was accepted and rolled back below the shallow boundary. Require
     // history through the recorded base before trusting either case; only a
     // demonstrably new change at or after that boundary can safely pass.
-    if shallow && !shallow_history_is_complete_for_change(root, record, &references)? {
+    if shallow
+        && !shallow_history_is_complete_for_change(root, record, &references, &mut history_budget)?
+    {
         return Err(format!(
             "cannot validate append-only correction history for {} from an incomplete shallow Git checkout; fetch through its recorded base commit",
             record.id
@@ -2743,35 +5474,21 @@ fn validate_trusted_correction_history(
         archive_root.trim_end_matches('/'),
         record.id
     );
-    let reference_args: Vec<&str> = references.iter().map(String::as_str).collect();
-    let active_corrections = format!("{active_directory}/{CORRECTIONS_FILE}");
-    let archive_corrections_glob = format!(
-        ":(glob,top){}/**/*-{}/{}",
-        archive_root.trim_end_matches('/'),
-        record.id,
-        CORRECTIONS_FILE
-    );
     let history_exclusion = shallow
         .then(|| record.base_commit.as_ref().map(|base| format!("^{base}")))
         .flatten();
-    let mut correction_probe = Command::new("git");
-    correction_probe
-        .args(["rev-list", "--full-history", "--max-count=1"])
-        .args(&reference_args);
-    if let Some(exclusion) = &history_exclusion {
-        correction_probe.arg(exclusion);
+    let mut history_arguments = vec!["rev-list".to_string(), "--full-history".to_string()];
+    history_arguments.extend(references.iter().cloned());
+    if let Some(exclusion) = history_exclusion {
+        history_arguments.push(exclusion);
     }
-    let correction_probe = correction_probe
-        .arg("--")
-        .arg(&active_corrections)
-        .arg(&archive_corrections_glob)
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to probe trusted correction history: {error}"))?;
-    if !correction_probe.status.success() {
-        return Err("failed to probe trusted correction history".into());
-    }
-    if correction_probe.stdout.is_empty() {
+    history_arguments.push("--".to_string());
+    history_arguments.push(active_directory.clone());
+    history_arguments.push(archive_glob);
+    let history_arguments: Vec<&str> = history_arguments.iter().map(String::as_str).collect();
+    let output = run_git_required(root, &history_arguments, None, MAX_GIT_COMMAND_OUTPUT_BYTES)
+        .map_err(|error| format!("failed to enumerate trusted correction history: {error}"))?;
+    if output.is_empty() {
         let mut cache = cache
             .lock()
             .map_err(|_| "trusted correction history cache is unavailable".to_string())?;
@@ -2781,28 +5498,23 @@ fn validate_trusted_correction_history(
         cache.insert(cache_key);
         return Ok(());
     }
-    let output = Command::new("git")
-        .args(["rev-list", "--full-history"])
-        .args(&reference_args)
-        .args(history_exclusion)
-        .arg("--")
-        .arg(&active_directory)
-        .arg(&archive_glob)
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect trusted correction history: {error}"))?;
-    if !output.status.success() {
-        return Err("failed to enumerate trusted correction history".into());
-    }
-    let commits: BTreeSet<String> = String::from_utf8_lossy(&output.stdout)
+    let commits: BTreeSet<String> = String::from_utf8_lossy(&output)
         .lines()
         .filter(|commit| !commit.is_empty())
         .map(str::to_string)
         .collect();
     for commit in commits {
-        for directory in historical_change_directories(root, &commit, &record.id)? {
-            let Some(anchor) =
-                closing_authenticated_correction_anchor(root, &commit, &directory, &record.id)?
+        history_budget.charge_commit(&commit)?;
+        for directory in
+            historical_change_directories(root, &commit, &record.id, &mut history_budget)?
+        {
+            let Some(anchor) = closing_authenticated_correction_anchor(
+                root,
+                &commit,
+                &directory,
+                &record.id,
+                &mut history_budget,
+            )?
             else {
                 continue;
             };
@@ -2848,40 +5560,61 @@ fn shallow_history_is_complete_for_change(
     root: &Path,
     record: &ChangeRecord,
     references: &[String],
+    budget: &mut TrustedHistoryScanBudget,
 ) -> Result<bool, String> {
     let Some(base) = record.base_commit.as_deref() else {
         return Ok(false);
     };
     let commit_object = format!("{base}^{{commit}}");
-    if !Command::new("git")
-        .args(["cat-file", "-e", commit_object.as_str()])
-        .current_dir(root)
-        .output()
-        .is_ok_and(|output| output.status.success())
+    if !run_git_bounded(root, &["cat-file", "-e", &commit_object], None, 64)?
+        .status
+        .success()
     {
         return Ok(false);
     }
-    if !historical_change_directories(root, base, &record.id)?.is_empty() {
+    if !historical_change_directories(root, base, &record.id, budget)?.is_empty() {
         return Ok(false);
     }
-    if !references.iter().all(|reference| {
-        Command::new("git")
-            .args(["merge-base", "--is-ancestor", base, reference])
-            .current_dir(root)
-            .status()
-            .is_ok_and(|status| status.success())
-    }) {
-        return Ok(false);
+    for reference in references {
+        if !run_git_bounded(
+            root,
+            &["merge-base", "--is-ancestor", base, reference],
+            None,
+            64,
+        )?
+        .status
+        .success()
+        {
+            return Ok(false);
+        }
     }
-    let Some(shallow_path) = git_output(root, &["rev-parse", "--git-path", "shallow"]) else {
-        return Ok(false);
-    };
+    let shallow_path = run_git_required(
+        root,
+        &["rev-parse", "--git-path", "shallow"],
+        None,
+        16 * 1024,
+    )?;
+    let shallow_path = std::str::from_utf8(&shallow_path)
+        .map_err(|_| "Git shallow path is not UTF-8".to_string())?
+        .trim();
     let shallow_path = Path::new(&shallow_path);
     let shallow_path = if shallow_path.is_absolute() {
         shallow_path.to_path_buf()
     } else {
         root.join(shallow_path)
     };
+    let metadata = fs::metadata(&shallow_path).map_err(|error| {
+        format!(
+            "failed to inspect shallow Git boundaries {}: {error}",
+            shallow_path.display()
+        )
+    })?;
+    if !metadata.is_file() || metadata.len() > MAX_GIT_COMMAND_OUTPUT_BYTES as u64 {
+        return Err(format!(
+            "shallow Git boundaries exceed deterministic limits: {}",
+            shallow_path.display()
+        ));
+    }
     let boundaries = fs::read_to_string(&shallow_path).map_err(|error| {
         format!(
             "failed to read shallow Git boundaries {}: {error}",
@@ -2889,19 +5622,30 @@ fn shallow_history_is_complete_for_change(
         )
     })?;
     for boundary in boundaries.lines().filter(|line| !line.trim().is_empty()) {
-        let reachable = references.iter().any(|reference| {
-            Command::new("git")
-                .args(["merge-base", "--is-ancestor", boundary, reference])
-                .current_dir(root)
-                .status()
-                .is_ok_and(|status| status.success())
-        });
+        let mut reachable = false;
+        for reference in references {
+            if run_git_bounded(
+                root,
+                &["merge-base", "--is-ancestor", boundary, reference],
+                None,
+                64,
+            )?
+            .status
+            .success()
+            {
+                reachable = true;
+                break;
+            }
+        }
         if reachable
-            && !Command::new("git")
-                .args(["merge-base", "--is-ancestor", boundary, base])
-                .current_dir(root)
-                .status()
-                .is_ok_and(|status| status.success())
+            && !run_git_bounded(
+                root,
+                &["merge-base", "--is-ancestor", boundary, base],
+                None,
+                64,
+            )?
+            .status
+            .success()
         {
             return Ok(false);
         }
@@ -2913,14 +5657,17 @@ fn historical_change_directories(
     root: &Path,
     commit: &str,
     change_id: &str,
+    budget: &mut TrustedHistoryScanBudget,
 ) -> Result<Vec<String>, String> {
+    budget.charge_commit(commit)?;
     let active_state =
         git_repo_relative_path(root, &format!("{CHANGES_PATH}/{change_id}/state.json"))?;
     let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
     let active_state_pathspec = format!(":(top,literal){active_state}");
     let archive_root_pathspec = format!(":(top,literal){archive_root}");
-    let output = Command::new("git")
-        .args([
+    let output = run_git_required(
+        root,
+        &[
             "ls-tree",
             "-z",
             "-r",
@@ -2930,22 +5677,18 @@ fn historical_change_directories(
             "--",
             active_state_pathspec.as_str(),
             archive_root_pathspec.as_str(),
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect correction history at {commit}: {error}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "failed to inspect trusted correction paths at commit {commit}"
-        ));
-    }
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .map_err(|error| format!("failed to inspect correction history at {commit}: {error}"))?;
     let active_directory = active_state
         .strip_suffix("/state.json")
         .unwrap_or(active_state.as_str());
     let archive_prefix = format!("{}/", archive_root.trim_end_matches('/'));
     let archive_suffix = format!("-{change_id}/state.json");
     let mut directories = BTreeSet::new();
-    for path in nul_terminated_git_paths(&output.stdout, "trusted correction paths")? {
+    for path in nul_terminated_git_paths(&output, "trusted correction paths")? {
         if path == active_state {
             directories.insert(active_directory.to_string());
         } else if path.starts_with(&archive_prefix)
@@ -2963,8 +5706,15 @@ fn closing_authenticated_correction_anchor(
     commit: &str,
     directory: &str,
     change_id: &str,
+    budget: &mut TrustedHistoryScanBudget,
 ) -> Result<Option<CorrectionLedger>, String> {
-    let Some(state_bytes) = git_file_at_commit(root, commit, &format!("{directory}/state.json"))?
+    let Some(state_bytes) = trusted_history_file_at_commit(
+        root,
+        commit,
+        &format!("{directory}/state.json"),
+        MAX_CHANGE_ARTIFACT_BYTES,
+        budget,
+    )?
     else {
         return Ok(None);
     };
@@ -2978,8 +5728,13 @@ fn closing_authenticated_correction_anchor(
     {
         return Ok(None);
     }
-    let Some(correction_bytes) =
-        git_file_at_commit(root, commit, &format!("{directory}/{CORRECTIONS_FILE}"))?
+    let Some(correction_bytes) = trusted_history_file_at_commit(
+        root,
+        commit,
+        &format!("{directory}/{CORRECTIONS_FILE}"),
+        MAX_CHANGE_ARTIFACT_BYTES,
+        budget,
+    )?
     else {
         return Ok(None);
     };
@@ -2992,20 +5747,37 @@ fn closing_authenticated_correction_anchor(
     {
         return Ok(None);
     }
-    let Some(approval_bytes) =
-        git_file_at_commit(root, commit, &format!("{directory}/approvals.json"))?
+    let Some(approval_bytes) = trusted_history_file_at_commit(
+        root,
+        commit,
+        &format!("{directory}/approvals.json"),
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        budget,
+    )?
     else {
         return Ok(None);
     };
-    let Some(verification_bytes) =
-        git_file_at_commit(root, commit, &format!("{directory}/verification.json"))?
+    let Some(verification_bytes) = trusted_history_file_at_commit(
+        root,
+        commit,
+        &format!("{directory}/verification.json"),
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        budget,
+    )?
     else {
         return Ok(None);
     };
-    let (Ok(approvals), Ok(verification)) = (
-        serde_json::from_slice::<ApprovalLedger>(&approval_bytes),
-        serde_json::from_slice::<VerificationRecord>(&verification_bytes),
-    ) else {
+    let approvals = load_approval_ledger_from_bytes(
+        &approval_bytes,
+        &state.id,
+        &mut ApprovalManifestSource::Git {
+            root,
+            commit,
+            directory,
+            budget: Some(budget),
+        },
+    )?;
+    let Ok(verification) = serde_json::from_slice::<VerificationRecord>(&verification_bytes) else {
         return Ok(None);
     };
     if !verification.passed || verification.acceptance_input_digest.is_none() {
@@ -3025,7 +5797,10 @@ fn closing_authenticated_correction_anchor(
         .iter()
         .rev()
         .find(|approval| approval.gate == "acceptance")
-        .is_some_and(|approval| approval.digest == closing_digest(&state, &verification));
+        .is_some_and(|approval| {
+            validate_reopening_audit_binding(&verification, &approvals.reopenings).is_ok()
+                && approval.digest == closing_digest(&state, &verification)
+        });
     let contract_matches = historical_definition_digest_matches(
         root,
         commit,
@@ -3033,6 +5808,7 @@ fn closing_authenticated_correction_anchor(
         &state,
         &corrections,
         &verification.contract_digest,
+        budget,
     )?;
     if !definition_matches || !closing_matches || !contract_matches {
         return Ok(None);
@@ -3047,7 +5823,9 @@ fn historical_definition_digest_matches(
     record: &ChangeRecord,
     corrections: &CorrectionLedger,
     expected: &str,
+    budget: &mut TrustedHistoryScanBudget,
 ) -> Result<bool, String> {
+    budget.charge_commit(commit)?;
     for explicit_false in [false, true] {
         let mut canonical_record = record.clone();
         canonical_record.state = ChangeState::Draft;
@@ -3085,8 +5863,9 @@ fn historical_definition_digest_matches(
         }
         let delta_directory = format!("{directory}/deltas");
         let delta_pathspec = format!(":(top,literal){delta_directory}");
-        let output = Command::new("git")
-            .args([
+        let output = run_git_required(
+            root,
+            &[
                 "ls-tree",
                 "-z",
                 "-r",
@@ -3095,14 +5874,12 @@ fn historical_definition_digest_matches(
                 commit,
                 "--",
                 delta_pathspec.as_str(),
-            ])
-            .current_dir(root)
-            .output()
-            .map_err(|error| format!("failed to inspect historical deltas: {error}"))?;
-        if !output.status.success() {
-            return Ok(false);
-        }
-        for path in nul_terminated_git_paths(&output.stdout, "historical delta paths")? {
+            ],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )
+        .map_err(|error| format!("failed to inspect historical deltas: {error}"))?;
+        for path in nul_terminated_git_paths(&output, "historical delta paths")? {
             let local_path = path
                 .strip_prefix(directory)
                 .and_then(|suffix| suffix.strip_prefix('/'))
@@ -3111,8 +5888,13 @@ fn historical_definition_digest_matches(
             files.push((path.clone(), local_path));
         }
         let policy_path = git_repo_relative_path(root, POLICY_PATH)?;
-        if let Some(policy_bytes) = git_file_at_commit(root, commit, &policy_path)?
-            && let Ok(policy) = serde_json::from_slice::<SddPolicy>(&policy_bytes)
+        if let Some(policy_bytes) = trusted_history_file_at_commit(
+            root,
+            commit,
+            &policy_path,
+            MAX_CHANGE_ARTIFACT_BYTES,
+            budget,
+        )? && let Ok(policy) = serde_json::from_slice::<SddPolicy>(&policy_bytes)
             && let Some(principles) = policy.principles_file
         {
             let local_path = strict_portable_relative_path(&principles)?;
@@ -3125,7 +5907,14 @@ fn historical_definition_digest_matches(
         digest.frame(b"record", &record_bytes);
         let mut complete = true;
         for (repo_path, local_path) in files {
-            let Some((mode, content)) = git_entry_at_commit(root, commit, &repo_path)? else {
+            let Some((mode, content)) = trusted_history_entry_at_commit(
+                root,
+                commit,
+                &repo_path,
+                MAX_GIT_EVIDENCE_PAYLOAD_BYTES as u64,
+                budget,
+            )?
+            else {
                 complete = false;
                 break;
             };
@@ -3142,9 +5931,19 @@ fn historical_definition_digest_matches(
         if !corrections.corrections.is_empty() {
             let repo_path = format!("{directory}/{CORRECTIONS_FILE}");
             let local_path = format!("{local_directory}/{CORRECTIONS_FILE}");
-            let Some((mode, _)) = git_entry_at_commit(root, commit, &repo_path)? else {
+            let Some((mode, _)) = trusted_history_entry_at_commit(
+                root,
+                commit,
+                &repo_path,
+                MAX_CHANGE_ARTIFACT_BYTES,
+                budget,
+            )?
+            else {
                 continue;
             };
+            if mode != 0o100644 {
+                continue;
+            }
             digest.entry(
                 &local_path,
                 b"file",
@@ -3159,24 +5958,42 @@ fn historical_definition_digest_matches(
     Ok(false)
 }
 
+#[cfg(test)]
 fn git_entry_at_commit(
     root: &Path,
     commit: &str,
     path: &str,
 ) -> Result<Option<(u32, Vec<u8>)>, String> {
+    trusted_history_entry_at_commit(
+        root,
+        commit,
+        path,
+        MAX_GIT_EVIDENCE_PAYLOAD_BYTES as u64,
+        &mut TrustedHistoryScanBudget::default(),
+    )
+}
+
+fn git_bounded_entry_at_commit(
+    root: &Path,
+    commit: &str,
+    path: &str,
+    maximum_bytes: u64,
+) -> Result<Option<(u32, Vec<u8>)>, String> {
     let pathspec = format!(":(top,literal){path}");
-    let output = Command::new("git")
-        .args([
+    let output = run_git_bounded(
+        root,
+        &[
             "ls-tree",
+            "-l",
             "-z",
             "--full-name",
             commit,
             "--",
             pathspec.as_str(),
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to inspect trusted historical entry: {error}"))?;
+        ],
+        None,
+        64 * 1024,
+    )?;
     if !output.status.success() || output.stdout.is_empty() {
         return Ok(None);
     }
@@ -3188,30 +6005,155 @@ fn git_entry_at_commit(
         return Ok(None);
     };
     if entries.next().is_some() {
-        return Ok(None);
+        return Err("trusted historical path resolved to multiple Git entries".into());
     }
     let Some(separator) = entry.iter().position(|byte| *byte == b'\t') else {
-        return Ok(None);
+        return Err("trusted historical Git entry has malformed metadata".into());
     };
+    if &entry[separator + 1..] != path.as_bytes() {
+        return Err("trusted historical Git entry path does not match its request".into());
+    }
     let metadata = std::str::from_utf8(&entry[..separator])
         .map_err(|_| "invalid UTF-8 in historical Git entry metadata".to_string())?;
-    let listed_path = &entry[separator + 1..];
-    if listed_path != path.as_bytes() {
-        return Ok(None);
-    }
     let mut fields = metadata.split_whitespace();
-    let Some(mode) = fields.next() else {
-        return Ok(None);
-    };
-    let Some(kind) = fields.next() else {
-        return Ok(None);
-    };
-    if kind != "blob" {
-        return Ok(None);
+    let mode = fields
+        .next()
+        .ok_or_else(|| "trusted historical Git entry is missing its mode".to_string())?;
+    let kind = fields
+        .next()
+        .ok_or_else(|| "trusted historical Git entry is missing its kind".to_string())?;
+    let object = fields
+        .next()
+        .ok_or_else(|| "trusted historical Git entry is missing its object ID".to_string())?;
+    let size = fields
+        .next()
+        .ok_or_else(|| "trusted historical Git entry is missing its size".to_string())?;
+    if fields.next().is_some() || kind != "blob" {
+        return Err("trusted historical Git entry is not a single blob".into());
+    }
+    if !matches!(object.len(), 40 | 64) || !object.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("trusted historical Git entry has an invalid object ID".into());
+    }
+    let size = size
+        .parse::<u64>()
+        .map_err(|_| "trusted historical Git entry has an invalid blob size".to_string())?;
+    if size > maximum_bytes {
+        return Err(format!(
+            "trusted historical Git entry `{path}` exceeds {maximum_bytes} bytes"
+        ));
     }
     let mode = u32::from_str_radix(mode, 8)
         .map_err(|_| format!("invalid historical Git mode `{mode}`"))?;
-    Ok(git_file_at_commit(root, commit, path)?.map(|content| (mode, content)))
+    let cap = usize::try_from(maximum_bytes)
+        .map_err(|_| "trusted historical Git entry limit exceeds this platform".to_string())?;
+    let bytes = run_git_required(root, &["cat-file", "blob", object], None, cap)?;
+    if bytes.len() as u64 != size {
+        return Err(format!(
+            "trusted historical Git entry `{path}` changed size while reading"
+        ));
+    }
+    Ok(Some((mode, bytes)))
+}
+
+fn git_bounded_regular_file_at_commit(
+    root: &Path,
+    commit: &str,
+    path: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    git_bounded_regular_file_at_commit_with_limit(
+        root,
+        commit,
+        path,
+        MAX_GIT_EVIDENCE_PAYLOAD_BYTES as u64,
+    )
+}
+
+fn git_bounded_regular_file_at_commit_with_limit(
+    root: &Path,
+    commit: &str,
+    path: &str,
+    maximum_bytes: u64,
+) -> Result<Option<Vec<u8>>, String> {
+    let Some((mode, bytes)) = git_bounded_entry_at_commit(root, commit, path, maximum_bytes)?
+    else {
+        return Ok(None);
+    };
+    if mode != 0o100644 {
+        return Err(format!(
+            "trusted historical Git entry `{path}` at `{commit}` has mode {mode:o}; expected 100644"
+        ));
+    }
+    Ok(Some(bytes))
+}
+
+fn trusted_history_file_at_commit(
+    root: &Path,
+    commit: &str,
+    path: &str,
+    maximum_bytes: u64,
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<Option<Vec<u8>>, String> {
+    let entry = trusted_history_entry_at_commit(root, commit, path, maximum_bytes, budget)?;
+    let Some((mode, bytes)) = entry else {
+        return Ok(None);
+    };
+    if mode != 0o100644 {
+        return Err(format!(
+            "trusted historical Git entry `{path}` at `{commit}` has mode {mode:o}; expected 100644"
+        ));
+    }
+    Ok(Some(bytes))
+}
+
+fn trusted_history_entry_at_commit(
+    root: &Path,
+    commit: &str,
+    path: &str,
+    maximum_bytes: u64,
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<Option<(u32, Vec<u8>)>, String> {
+    budget.charge_commit(commit)?;
+    let key = (commit.to_string(), path.to_string());
+    if let Some(cached) = budget.files.get(&key) {
+        if cached
+            .as_ref()
+            .is_some_and(|bytes| bytes.len() as u64 > maximum_bytes)
+        {
+            return Err(format!(
+                "trusted historical Git entry `{path}` exceeds {maximum_bytes} bytes"
+            ));
+        }
+        let mode = budget.file_modes.get(&key).copied().flatten();
+        return Ok(cached.clone().zip(mode).map(|(bytes, mode)| (mode, bytes)));
+    }
+    let entry = git_bounded_entry_at_commit(root, commit, path, maximum_bytes)?;
+    if let Some((_, bytes)) = &entry {
+        budget.charge_bytes(bytes.len())?;
+    }
+    budget
+        .files
+        .insert(key.clone(), entry.as_ref().map(|(_, bytes)| bytes.clone()));
+    budget
+        .file_modes
+        .insert(key, entry.as_ref().map(|(mode, _)| *mode));
+    Ok(entry)
+}
+
+fn trusted_history_change_record_at(
+    root: &Path,
+    commit: &str,
+    path: &str,
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<Option<ChangeRecord>, String> {
+    let Some(bytes) =
+        trusted_history_file_at_commit(root, commit, path, MAX_CHANGE_ARTIFACT_BYTES, budget)?
+    else {
+        return Ok(None);
+    };
+    let record = serde_json::from_slice(&bytes).map_err(|error| {
+        format!("trusted lifecycle state `{path}` at `{commit}` is invalid: {error}")
+    })?;
+    Ok(Some(record))
 }
 
 fn nul_terminated_git_paths(output: &[u8], context: &str) -> Result<Vec<String>, String> {
@@ -3224,20 +6166,6 @@ fn nul_terminated_git_paths(output: &[u8], context: &str) -> Result<Vec<String>,
                 .map_err(|_| format!("invalid UTF-8 in {context}"))
         })
         .collect()
-}
-
-fn git_file_at_commit(root: &Path, commit: &str, path: &str) -> Result<Option<Vec<u8>>, String> {
-    let object = format!("{commit}:{path}");
-    let output = Command::new("git")
-        .args(["show", object.as_str()])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to read trusted correction history: {error}"))?;
-    if output.status.success() {
-        Ok(Some(output.stdout))
-    } else {
-        Ok(None)
-    }
 }
 
 pub fn correction_history(
@@ -3502,8 +6430,12 @@ pub fn accept_change(
     verification.acceptance_input_digest = Some(acceptance_manifest_digest(&manifest)?);
     verification.acceptance_manifest = Some(manifest);
     verification.semantic_succession = (!succession.tuples.is_empty()).then_some(succession);
-    let closing_digest = closing_digest(&record, &verification);
     let mut ledger = load_approvals(root, &record)?;
+    if !ledger.reopenings.is_empty() {
+        validate_trusted_reopening_anchors(root, &record.id, &ledger)?;
+    }
+    validate_reopening_audit_binding(&verification, &ledger.reopenings)?;
+    let closing_digest = closing_digest(&record, &verification);
     let actor = resolve_actor(root, actor)?;
     let stable_definition_digest = definition_digest(root, &record)?;
     let definition_is_stable =
@@ -3529,7 +6461,10 @@ pub fn accept_change(
         definition_pair: None,
     });
     let approvals_path = change_dir(root, &record.id).join("approvals.json");
-    prepared.push((approvals_path, json_content(&ledger)?));
+    prepared.push((
+        approvals_path,
+        approval_ledger_content(root, &record, &ledger)?,
+    ));
     prepared.push((
         change_dir(root, &record.id).join("verification.json"),
         json_content(&verification)?,
@@ -3589,24 +6524,74 @@ fn archive_change_with_finalize_failure(
         }
     }
     let source = change_dir(root, &record.id);
-    let original_state_bytes = fs::read(source.join("state.json"))
-        .map_err(|error| format!("failed to preserve accepted state before archive: {error}"))?;
-    let original_markdown_bytes = fs::read(source.join("change.md"))
-        .map_err(|error| format!("failed to preserve accepted change before archive: {error}"))?;
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
+    let source_directory = open_retained_change_workspace(root, &source)?;
+    let original_state = read_retained_workspace_file(
+        root,
+        &source,
+        &source_directory,
+        "state.json",
+        MAX_CHANGE_ARTIFACT_BYTES,
+    )?
+    .ok_or_else(|| "accepted change state disappeared before archive".to_string())?;
+    let original_markdown = read_retained_workspace_file(
+        root,
+        &source,
+        &source_directory,
+        "change.md",
+        MAX_CHANGE_ARTIFACT_BYTES,
+    )?
+    .ok_or_else(|| "accepted change markdown disappeared before archive".to_string())?;
+    let original_state_text = String::from_utf8(original_state.bytes.clone())
+        .map_err(|_| "accepted change state is not UTF-8".to_string())?;
+    let original_markdown_text = String::from_utf8(original_markdown.bytes)
+        .map_err(|_| "accepted change markdown is not UTF-8".to_string())?;
     let accepted_snapshot = source.join("accepted-state.json");
     let accepted_state_bytes = authenticated_accepted_transition(root, &record)
         .map(|(_, bytes, _)| bytes)
-        .unwrap_or_else(|_| original_state_bytes.clone());
-    fs::write(&accepted_snapshot, &accepted_state_bytes)
-        .map_err(|error| format!("failed to stage authenticated accepted state: {error}"))?;
-    let mut simulated = list_all_changes_checked(root)?;
+        .unwrap_or_else(|_| original_state.bytes.clone());
+    let accepted_state_text = String::from_utf8(accepted_state_bytes)
+        .map_err(|_| "authenticated accepted state is not UTF-8".to_string())?;
+    if read_retained_project_text(root, &accepted_snapshot)?.is_some() {
+        return Err(format!(
+            "archive staging path already exists: {}",
+            accepted_snapshot.display()
+        ));
+    }
+    let mut archived = record.clone();
+    archived.state = ChangeState::Archived;
+    archived.updated_at = now();
+    let final_state_text = json_content(&archived)?;
+    let final_markdown_text = change_markdown_content(&archived);
+    let (mut archive_journal, mut archive_journal_content) = write_archive_move_journal(
+        root,
+        &source,
+        &destination,
+        original_state_text.clone(),
+        original_markdown_text.clone(),
+        accepted_state_text.clone(),
+        final_state_text.clone(),
+        final_markdown_text.clone(),
+    )
+    .map_err(|error| format!("failed to persist archive recovery journal: {error}"))?;
+    if let Err(error) =
+        publish_retained_project_text(root, &accepted_snapshot, &accepted_state_text)
+    {
+        let _ = clear_exact_archive_move_journal(root, &archive_journal_content);
+        return Err(format!(
+            "failed to stage authenticated accepted state: {error}"
+        ));
+    }
+    let mut simulated = match list_all_changes_checked(root) {
+        Ok(simulated) => simulated,
+        Err(error) => {
+            let _ = recover_pending_archive_move(root);
+            return Err(error);
+        }
+    };
     let mut archived_projection = record.clone();
     archived_projection.state = ChangeState::Archived;
     if let Err(error) = validate_archived_integrity(root, &archived_projection) {
-        let _ = fs::remove_file(&accepted_snapshot);
+        let _ = recover_pending_archive_move(root);
         return Err(format!(
             "archive target historical-integrity preflight failed: {error}"
         ));
@@ -3625,47 +6610,60 @@ fn archive_change_with_finalize_failure(
             &mut visiting,
             &mut memo,
         ) {
-            let _ = fs::remove_file(&accepted_snapshot);
+            let _ = recover_pending_archive_move(root);
             return Err(format!(
                 "archive post-move preflight would invalidate `{}`: {error}",
                 candidate.id
             ));
         }
     }
-    if let Err(error) = fs::rename(&source, &destination) {
-        let _ = fs::remove_file(&accepted_snapshot);
+    if let Err(error) = move_retained_project_directory(root, &source, &destination) {
+        let _ = recover_pending_archive_move(root);
         return Err(format!(
             "failed to archive {} to {}: {error}",
             source.display(),
             destination.display()
         ));
     }
-    let mut archived = record.clone();
-    archived.state = ChangeState::Archived;
-    archived.updated_at = now();
+    archive_journal_content = match update_archive_move_journal_phase(
+        root,
+        &archive_journal_content,
+        &mut archive_journal,
+        ArchiveMovePhase::Moved,
+    ) {
+        Ok(content) => content,
+        Err(error) => {
+            let recovery = recover_pending_archive_move(root);
+            return match recovery {
+                Ok(()) => Err(format!(
+                    "failed to record archive move phase; source restored: {error}"
+                )),
+                Err(recovery) => Err(format!(
+                    "failed to record archive move phase ({error}); recovery failed closed: {recovery}"
+                )),
+            };
+        }
+    };
     let finalize = if force_finalize_failure {
         Err("forced post-move archive finalization failure".to_string())
     } else {
-        write_json(&destination.join("state.json"), &archived).and_then(|()| {
-            fs::write(
-                destination.join("change.md"),
-                change_markdown_content(&archived),
+        publish_retained_project_text_if_matches(
+            root,
+            &destination.join("state.json"),
+            Some(original_state_text.as_str()),
+            &final_state_text,
+        )
+        .and_then(|()| {
+            publish_retained_project_text_if_matches(
+                root,
+                &destination.join("change.md"),
+                Some(original_markdown_text.as_str()),
+                &final_markdown_text,
             )
-            .map_err(|error| error.to_string())
         })
     };
     if let Err(error) = finalize {
-        let restore = fs::write(destination.join("state.json"), &original_state_bytes)
-            .map_err(|error| error.to_string())
-            .and_then(|()| {
-                fs::write(destination.join("change.md"), &original_markdown_bytes)
-                    .map_err(|error| error.to_string())
-            })
-            .and_then(|()| {
-                fs::remove_file(destination.join("accepted-state.json"))
-                    .map_err(|error| error.to_string())
-            })
-            .and_then(|()| fs::rename(&destination, &source).map_err(|error| error.to_string()));
+        let restore = recover_pending_archive_move(root);
         return match restore {
             Ok(()) => Err(format!(
                 "failed to finalize archive; source restored: {error}"
@@ -3676,17 +6674,7 @@ fn archive_change_with_finalize_failure(
         };
     }
     if let Err(error) = validate_archived_integrity(root, &archived) {
-        let restore = fs::write(destination.join("state.json"), &original_state_bytes)
-            .map_err(|error| error.to_string())
-            .and_then(|()| {
-                fs::write(destination.join("change.md"), &original_markdown_bytes)
-                    .map_err(|error| error.to_string())
-            })
-            .and_then(|()| {
-                fs::remove_file(destination.join("accepted-state.json"))
-                    .map_err(|error| error.to_string())
-            })
-            .and_then(|()| fs::rename(&destination, &source).map_err(|error| error.to_string()));
+        let restore = recover_pending_archive_move(root);
         return match restore {
             Ok(()) => Err(format!(
                 "archived evidence failed post-move validation; source restored: {error}"
@@ -3696,6 +6684,27 @@ fn archive_change_with_finalize_failure(
             )),
         };
     }
+    archive_journal_content = match update_archive_move_journal_phase(
+        root,
+        &archive_journal_content,
+        &mut archive_journal,
+        ArchiveMovePhase::Finalized,
+    ) {
+        Ok(content) => content,
+        Err(error) => {
+            let recovery = recover_pending_archive_move(root);
+            return match recovery {
+                Ok(()) => Err(format!(
+                    "failed to record finalized archive phase; source restored: {error}"
+                )),
+                Err(recovery) => Err(format!(
+                    "failed to record finalized archive phase ({error}); recovery failed closed: {recovery}"
+                )),
+            };
+        }
+    };
+    clear_exact_archive_move_journal(root, &archive_journal_content)
+        .map_err(|error| format!("failed to clear completed archive recovery journal: {error}"))?;
     Ok(destination)
 }
 
@@ -4558,7 +7567,7 @@ fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> 
     let effective = effective_change_definition(root, record)?;
     for artifact in &effective.selected_artifacts {
         let path = dir.join(artifact.file_name());
-        let content = read_bounded_change_text(&path, "artifact")?;
+        let content = read_bounded_change_text(root, &path, "artifact")?;
         if content.contains("<!-- TODO") || content.trim().is_empty() {
             return Err(format!("artifact is incomplete: {}", path.display()));
         }
@@ -4566,17 +7575,30 @@ fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> 
     Ok(())
 }
 
-fn read_bounded_change_text(path: &Path, kind: &str) -> Result<String, String> {
-    let metadata = fs::metadata(path)
-        .map_err(|_| format!("required {kind} is missing: {}", path.display()))?;
-    if metadata.len() > MAX_CHANGE_ARTIFACT_BYTES {
-        return Err(format!(
-            "{kind} exceeds {} byte limit: {}",
-            MAX_CHANGE_ARTIFACT_BYTES,
-            path.display()
-        ));
-    }
-    fs::read_to_string(path).map_err(|error| format!("failed to read {}: {error}", path.display()))
+fn read_bounded_change_text(root: &Path, path: &Path, kind: &str) -> Result<String, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("required {kind} has no parent: {}", path.display()))?;
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("required {kind} has no portable name: {}", path.display()))?;
+    let directory =
+        open_retained_project_directory(root, parent, false, "change artifact directory")?;
+    let snapshot = read_retained_project_file(root, &directory, name, MAX_CHANGE_ARTIFACT_BYTES)
+        .map_err(|error| {
+            if error.contains("exceeds") {
+                format!(
+                    "{kind} exceeds {MAX_CHANGE_ARTIFACT_BYTES} byte limit: {}",
+                    path.display()
+                )
+            } else {
+                error
+            }
+        })?
+        .ok_or_else(|| format!("required {kind} is missing: {}", path.display()))?;
+    String::from_utf8(snapshot.bytes)
+        .map_err(|_| format!("required {kind} is not UTF-8: {}", path.display()))
 }
 
 fn ensure_tasks_complete(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -4585,7 +7607,7 @@ fn ensure_tasks_complete(root: &Path, record: &ChangeRecord) -> Result<(), Strin
         return Ok(());
     }
     let path = change_dir(root, &record.id).join("tasks.md");
-    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let content = read_bounded_change_text(root, &path, "tasks artifact")?;
     if content
         .lines()
         .any(|line| line.trim_start().starts_with("- [ ]"))
@@ -4610,8 +7632,11 @@ fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result
         return Ok(true);
     }
     for module in &record.affected_specs {
-        let content =
-            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+        let content = read_bounded_change_text(
+            root,
+            &delta_path_checked(root, record, module)?,
+            "semantic delta",
+        )?;
         if parse_delta(&content)?.iter().any(|item| {
             matches!(
                 item.target,
@@ -4712,7 +7737,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
             }
             let delta_path =
                 delta_path_checked(root, record, &module).map_err(|error| vec![error])?;
-            let delta = match read_bounded_change_text(&delta_path, "semantic delta") {
+            let delta = match read_bounded_change_text(root, &delta_path, "semantic delta") {
                 Ok(delta) => delta,
                 Err(error) => {
                     errors.push(format!(
@@ -4876,7 +7901,7 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     let tombstones = removed_requirement_ids(root)?;
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let content = read_bounded_change_text(&path, "semantic delta")
+        let content = read_bounded_change_text(root, &path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let items = parse_delta(&content)?;
         if items.is_empty() {
@@ -4957,8 +7982,8 @@ fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
                     path.display()
                 ));
             }
-            let content =
-                read_bounded_change_text(path, "historical semantic delta").map_err(|error| {
+            let content = read_bounded_change_text(root, path, "historical semantic delta")
+                .map_err(|error| {
                     format!(
                         "failed to read historical semantic delta {}: {error}",
                         path.display()
@@ -4995,7 +8020,7 @@ fn collect_requirement_ids(root: &Path, record: &ChangeRecord) -> Result<Vec<Str
     let mut ids = BTreeSet::new();
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let content = read_bounded_change_text(root, &path, "semantic delta")?;
         for item in parse_delta(&content)? {
             if item.target == DeltaTarget::Requirement && item.operation != DeltaOperation::Removed
             {
@@ -5116,8 +8141,11 @@ fn prepare_delta_application(
     let specs_dir = crate::config::load_config(root).specs_dir;
     let mut prepared = Vec::new();
     for module in &record.affected_specs {
-        let delta =
-            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+        let delta = read_bounded_change_text(
+            root,
+            &delta_path_checked(root, record, module)?,
+            "semantic delta",
+        )?;
         let items = parse_delta(&delta)?;
         let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
         let mut spec = fs::read_to_string(&spec_path)
@@ -5411,41 +8439,822 @@ fn changelog_table_row(section: &str, spec: &str, description: &str) -> Option<S
 }
 
 fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(), String> {
-    for (path, _) in prepared {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    if prepared.len() > MAX_TRANSACTION_ENTRIES {
+        return Err(format!(
+            "transaction journal exceeds {MAX_TRANSACTION_ENTRIES} entries"
+        ));
+    }
+    let journal_location = transaction_journal_location(root)?;
+    let mut entries = Vec::with_capacity(prepared.len());
+    let mut journal_size = JsonByteCounter {
+        bytes: 1_024,
+        maximum: MAX_TRANSACTION_JOURNAL_BYTES,
+    };
+    for (path, content) in prepared {
+        let relative = path
+            .strip_prefix(root)
+            .map_err(|_| format!("transaction path escapes project: {}", path.display()))?
+            .to_string_lossy()
+            .replace('\\', "/");
+        validate_transaction_target(root, &relative)?;
+        let original = read_retained_project_text(root, path)?;
+        let entry = TransactionEntry {
+            path: relative,
+            original,
+            replacement: content.clone(),
+        };
+        serde_json::to_writer(&mut journal_size, &entry).map_err(|_| {
+            format!("transaction journal exceeds {MAX_TRANSACTION_JOURNAL_BYTES} bytes")
+        })?;
+        journal_size.bytes = journal_size
+            .bytes
+            .checked_add(128)
+            .filter(|bytes| *bytes <= MAX_TRANSACTION_JOURNAL_BYTES)
+            .ok_or_else(|| {
+                format!("transaction journal exceeds {MAX_TRANSACTION_JOURNAL_BYTES} bytes")
+            })?;
+        entries.push(entry);
+    }
+    let journal = TransactionJournal {
+        schema_version: 2,
+        project_key: journal_location.project_key.clone(),
+        entries,
+    };
+    let journal_content = bounded_json_content(
+        &journal,
+        MAX_TRANSACTION_JOURNAL_BYTES,
+        "transaction journal",
+    )?;
+    publish_retained_project_text(
+        &journal_location.root,
+        &journal_location.path,
+        &journal_content,
+    )?;
+    for ((path, content), entry) in prepared.iter().zip(&journal.entries) {
+        if let Err(error) =
+            publish_retained_project_text_if_matches(root, path, entry.original.as_deref(), content)
+        {
+            return match recover_pending_transaction(root) {
+                Ok(()) => Err(format!(
+                    "atomic delta application failed at {} and prior writes were restored: {error}",
+                    path.display()
+                )),
+                Err(recovery) => Err(format!(
+                    "atomic delta application failed at {} ({error}); fail-closed recovery preserved the journal: {recovery}",
+                    path.display()
+                )),
+            };
         }
     }
-    let backups: Vec<(PathBuf, Option<String>)> = prepared
-        .iter()
-        .map(|(path, _)| (path.clone(), fs::read_to_string(path).ok()))
-        .collect();
-    let journal: Vec<TransactionEntry> = backups
-        .iter()
-        .map(|(path, original)| {
-            Ok(TransactionEntry {
-                path: path
-                    .strip_prefix(root)
-                    .map_err(|_| format!("transaction path escapes project: {}", path.display()))?
-                    .to_string_lossy()
-                    .replace('\\', "/"),
-                original: original.clone(),
-            })
-        })
-        .collect::<Result<_, String>>()?;
-    write_json(&root.join(TRANSACTION_PATH), &journal)?;
-    for (path, content) in prepared {
-        if let Err(error) = fs::write(path, content) {
-            recover_pending_transaction(root)?;
+    clear_exact_transaction_journal(root, &journal_content)
+        .map_err(|error| format!("failed to clear transaction journal: {error}"))?;
+    Ok(())
+}
+
+fn validate_transaction_target(root: &Path, relative: &str) -> Result<(), String> {
+    let relative = strict_portable_relative_path(relative)?;
+    if relative == ".git" || relative.starts_with(".git/") || relative == TRANSACTION_PATH {
+        return Err(format!(
+            "transaction target is outside SpecSync-owned lifecycle/spec files: `{relative}`"
+        ));
+    }
+    let components: Vec<&str> = relative.split('/').collect();
+    let active_lifecycle_file = components.len() == 4
+        && components[0] == ".specsync"
+        && components[1] == "changes"
+        && validate_change_id(components[2]).is_ok();
+    let archived_lifecycle_file = components.len() == 5
+        && components[0] == ".specsync"
+        && components[1] == "archive"
+        && components[2] == "changes"
+        && components[3].contains("CHG-");
+    if active_lifecycle_file || archived_lifecycle_file {
+        return Ok(());
+    }
+
+    let configured_specs_directory = crate::config::load_config(root).specs_dir;
+    let spec_relative = if configured_specs_directory == "." {
+        Some(relative.as_str())
+    } else {
+        let specs_directory = strict_portable_relative_path(&configured_specs_directory)?;
+        let specs_prefix = format!("{specs_directory}/");
+        relative.strip_prefix(&specs_prefix)
+    };
+    if let Some(spec_relative) = spec_relative {
+        let spec_components: Vec<&str> = spec_relative.split('/').collect();
+        if spec_components.len() >= 2 {
+            let leaf = spec_components.last().copied().unwrap_or_default();
+            if leaf == "requirements.md" || leaf.ends_with(".spec.md") {
+                return Ok(());
+            }
+        }
+    }
+    if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
+        for (_, registered) in registry.specs {
+            let registered = strict_portable_relative_path(&registered)?;
+            if relative == registered
+                || Path::new(&registered)
+                    .parent()
+                    .is_some_and(|parent| parent.join("requirements.md") == Path::new(&relative))
+            {
+                return Ok(());
+            }
+        }
+    }
+    Err(format!(
+        "transaction target is outside SpecSync-owned lifecycle/spec files: `{relative}`"
+    ))
+}
+
+fn read_retained_project_text(root: &Path, path: &Path) -> Result<Option<String>, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("prepared path has no parent: {}", path.display()))?;
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| {
+            format!(
+                "prepared path has no portable file name: {}",
+                path.display()
+            )
+        })?;
+    let directory = open_retained_project_directory(root, parent, true, "prepared file directory")?;
+    let Some(snapshot) =
+        read_retained_project_file(root, &directory, name, MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES)?
+    else {
+        return Ok(None);
+    };
+    String::from_utf8(snapshot.bytes)
+        .map(Some)
+        .map_err(|_| format!("prepared file is not UTF-8 text: {}", path.display()))
+}
+
+fn publish_retained_project_text(root: &Path, path: &Path, content: &str) -> Result<(), String> {
+    publish_retained_project_text_if_matches_with_hook(root, path, None, content, || {})
+}
+
+fn publish_retained_project_text_if_matches(
+    root: &Path,
+    path: &Path,
+    expected: Option<&str>,
+    content: &str,
+) -> Result<(), String> {
+    publish_retained_project_text_if_matches_with_hook(root, path, Some(expected), content, || {})
+}
+
+#[cfg(test)]
+fn publish_retained_project_text_with_hook<Hook>(
+    root: &Path,
+    path: &Path,
+    content: &str,
+    before_publish: Hook,
+) -> Result<(), String>
+where
+    Hook: FnOnce(),
+{
+    publish_retained_project_text_if_matches_with_hook(root, path, None, content, before_publish)
+}
+
+fn publish_retained_project_text_if_matches_with_hook<Hook>(
+    root: &Path,
+    path: &Path,
+    required_original: Option<Option<&str>>,
+    content: &str,
+    before_publish: Hook,
+) -> Result<(), String>
+where
+    Hook: FnOnce(),
+{
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("prepared path has no parent: {}", path.display()))?;
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| {
+            format!(
+                "prepared path has no portable file name: {}",
+                path.display()
+            )
+        })?;
+    let directory = open_retained_project_directory(root, parent, true, "prepared file directory")?;
+    let original =
+        read_retained_project_file(root, &directory, name, MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES)?;
+    if let Some(required_original) = required_original {
+        let captured = original.as_ref().map(|snapshot| snapshot.bytes.as_slice());
+        if captured != required_original.map(str::as_bytes) {
             return Err(format!(
-                "atomic delta application failed at {}: {error}",
+                "prepared file no longer matches the journaled content: {}",
                 path.display()
             ));
         }
     }
-    fs::remove_file(root.join(TRANSACTION_PATH))
-        .map_err(|error| format!("failed to clear transaction journal: {error}"))?;
+    let sequence = MIGRATION_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temporary = PathBuf::from(format!(
+        ".specsync-write-{}-{sequence}.tmp",
+        std::process::id()
+    ));
+    let mut options = CapOpenOptions::new();
+    options.write(true).create_new(true);
+    configure_cap_no_follow(&mut options, false);
+    let mut file = directory
+        .handle
+        .open_with(&temporary, &options)
+        .map_err(|error| {
+            format!(
+                "failed to create prepared temporary file in {}: {error}",
+                directory.path.display()
+            )
+        })?;
+    let mut exchange_published = false;
+    let mut creation_published = false;
+    let mut before_publish = Some(before_publish);
+    let result = (|| -> Result<(), String> {
+        file.write_all(content.as_bytes())
+            .map_err(|error| format!("failed to write prepared temporary file: {error}"))?;
+        file.sync_all()
+            .map_err(|error| format!("failed to sync prepared temporary file: {error}"))?;
+        if let Some(original) = &original {
+            directory
+                .handle
+                .set_permissions(&temporary, original.permissions.clone())
+                .map_err(|error| {
+                    format!("failed to preserve prepared file permissions: {error}")
+                })?;
+        }
+        drop(file);
+        ensure_retained_project_directory_is_bound(root, &directory)?;
+        let target = Path::new(name);
+        if let Some(expected) = &original {
+            let current = read_retained_project_file(
+                root,
+                &directory,
+                name,
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+            )?
+            .ok_or_else(|| format!("prepared file disappeared before write: {}", path.display()))?;
+            if current.identity != expected.identity || current.bytes != expected.bytes {
+                return Err(format!(
+                    "prepared file changed before write: {}",
+                    path.display()
+                ));
+            }
+            if let Some(before_publish) = before_publish.take() {
+                before_publish();
+            }
+            let retained =
+                publish_retained_workspace_replacement(&directory, &temporary, target, sequence)?;
+            exchange_published = true;
+            let post_publication = (|| -> Result<(), String> {
+                sync_published_retained_file(
+                    &directory,
+                    target,
+                    "prepared replacement publication",
+                )?;
+                ensure_retained_project_directory_is_bound(root, &directory)?;
+                let replaced = read_retained_directory_file(
+                    &directory,
+                    &retained.to_string_lossy(),
+                    MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+                )?
+                .ok_or_else(|| "prepared file exchange lost the original file".to_string())?;
+                if replaced.identity != expected.identity || replaced.bytes != expected.bytes {
+                    return Err(format!(
+                        "prepared file changed during atomic exchange: {}",
+                        path.display()
+                    ));
+                }
+                let published = read_retained_directory_file(
+                    &directory,
+                    name,
+                    MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+                )?
+                .ok_or_else(|| {
+                    format!("prepared file disappeared after write: {}", path.display())
+                })?;
+                if published.bytes != content.as_bytes() {
+                    return Err(format!(
+                        "prepared file changed after publication: {}",
+                        path.display()
+                    ));
+                }
+                Ok(())
+            })();
+            if let Err(error) = post_publication {
+                rollback_retained_workspace_replacement(
+                    &directory, &retained, target, sequence,
+                )
+                .and_then(|()| sync_retained_directory(&directory, "prepared file rollback"))
+                .map_err(|rollback| {
+                    format!(
+                        "prepared file publication failed ({error}); rollback failed: {rollback}"
+                    )
+                })?;
+                exchange_published = false;
+                return Err(format!(
+                    "prepared file changed during atomic exchange: {}: {error}",
+                    path.display()
+                ));
+            }
+            if let Err(error) = sync_retained_directory(&directory, "prepared file publication") {
+                rollback_retained_workspace_replacement(
+                    &directory, &retained, target, sequence,
+                )
+                .and_then(|()| sync_retained_directory(&directory, "prepared file rollback"))
+                .map_err(|rollback| {
+                    format!(
+                        "failed to sync prepared file publication ({error}); rollback failed: {rollback}"
+                    )
+                })?;
+                exchange_published = false;
+                return Err(error);
+            }
+            if let Err(error) = directory.handle.remove_file(&retained) {
+                rollback_retained_workspace_replacement(
+                    &directory, &retained, target, sequence,
+                )
+                .and_then(|()| sync_retained_directory(&directory, "prepared file rollback"))
+                .map_err(|rollback| {
+                    format!(
+                        "failed to remove retained prepared-file backup ({error}); rollback failed: {rollback}"
+                    )
+                })?;
+                exchange_published = false;
+                return Err(format!(
+                    "failed to remove retained prepared-file backup {}: {error}",
+                    directory.path.join(&retained).display()
+                ));
+            }
+        } else {
+            match directory.handle.symlink_metadata(target) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Ok(_) => {
+                    return Err(format!(
+                        "prepared file appeared before atomic creation: {}",
+                        path.display()
+                    ));
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "failed to inspect prepared destination {}: {error}",
+                        path.display()
+                    ));
+                }
+            }
+            if let Some(before_publish) = before_publish.take() {
+                before_publish();
+            }
+            directory
+                .handle
+                .hard_link(&temporary, &directory.handle, target)
+                .map_err(|error| {
+                    format!(
+                        "failed to atomically create prepared file {}: {error}",
+                        path.display()
+                    )
+                })?;
+            creation_published = true;
+            sync_published_retained_file(&directory, target, "prepared hard-link publication")?;
+            directory
+                .handle
+                .remove_file(&temporary)
+                .map_err(|error| format!("failed to remove prepared temporary file: {error}"))?;
+            let post_publication = (|| -> Result<(), String> {
+                ensure_retained_project_directory_is_bound(root, &directory)?;
+                let published = read_retained_directory_file(
+                    &directory,
+                    name,
+                    MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+                )?
+                .ok_or_else(|| {
+                    format!("prepared file disappeared after create: {}", path.display())
+                })?;
+                if published.bytes != content.as_bytes() {
+                    return Err(format!(
+                        "prepared file changed after atomic creation: {}",
+                        path.display()
+                    ));
+                }
+                Ok(())
+            })();
+            if let Err(error) = post_publication {
+                directory.handle.remove_file(target).map_err(|rollback| {
+                    format!("prepared file creation failed ({error}); rollback failed: {rollback}")
+                })?;
+                sync_retained_directory(&directory, "prepared file creation rollback")?;
+                creation_published = false;
+                return Err(error);
+            }
+        }
+        sync_retained_directory(&directory, "prepared file directory")?;
+        Ok(())
+    })();
+    if result.is_err() && creation_published {
+        let _ = directory.handle.remove_file(name);
+        let _ = sync_retained_directory(&directory, "prepared file creation cleanup");
+    }
+    if result.is_err() && !exchange_published && !creation_published {
+        let _ = directory.handle.remove_file(&temporary);
+        let _ = sync_retained_directory(&directory, "prepared temporary cleanup");
+    }
+    result
+}
+
+#[cfg(unix)]
+fn sync_retained_directory(
+    directory: &ManifestObjectDirectory,
+    description: &str,
+) -> Result<(), String> {
+    directory
+        .handle
+        .try_clone()
+        .and_then(|directory| directory.into_std_file().sync_all())
+        .map_err(|error| format!("failed to sync {description}: {error}"))
+}
+
+#[cfg(windows)]
+fn sync_retained_directory(
+    _directory: &ManifestObjectDirectory,
+    _description: &str,
+) -> Result<(), String> {
     Ok(())
+}
+
+#[cfg(not(any(unix, windows)))]
+fn sync_retained_directory(
+    directory: &ManifestObjectDirectory,
+    description: &str,
+) -> Result<(), String> {
+    directory
+        .handle
+        .try_clone()
+        .and_then(|directory| directory.into_std_file().sync_all())
+        .map_err(|error| format!("failed to sync {description}: {error}"))
+}
+
+#[cfg(windows)]
+fn sync_published_retained_file(
+    directory: &ManifestObjectDirectory,
+    name: &Path,
+    description: &str,
+) -> Result<(), String> {
+    let mut options = CapOpenOptions::new();
+    options.read(true).write(true);
+    configure_cap_no_follow(&mut options, false);
+    let file = directory
+        .handle
+        .open_with(name, &options)
+        .map_err(|error| {
+            format!(
+                "failed to reopen {description} {} for durability: {error}",
+                directory.path.join(name).display()
+            )
+        })?;
+    file.sync_all().map_err(|error| {
+        format!(
+            "failed to sync {description} {}: {error}",
+            directory.path.join(name).display()
+        )
+    })
+}
+
+#[cfg(not(windows))]
+fn sync_published_retained_file(
+    _directory: &ManifestObjectDirectory,
+    _name: &Path,
+    _description: &str,
+) -> Result<(), String> {
+    Ok(())
+}
+
+fn remove_retained_project_file_if_matches(
+    root: &Path,
+    path: &Path,
+    expected: &str,
+) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("prepared path has no parent: {}", path.display()))?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| format!("prepared path has no file name: {}", path.display()))?;
+    let directory =
+        open_retained_project_directory(root, parent, false, "prepared file directory")?;
+    let snapshot = read_retained_project_file(
+        root,
+        &directory,
+        &name.to_string_lossy(),
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+    )?
+    .ok_or_else(|| {
+        format!(
+            "prepared file disappeared before recovery: {}",
+            path.display()
+        )
+    })?;
+    if snapshot.bytes != expected.as_bytes() {
+        return Err(format!(
+            "prepared file no longer matches the journaled replacement: {}",
+            path.display()
+        ));
+    }
+    let sequence = MIGRATION_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let retained_name = std::ffi::OsString::from(format!(
+        ".specsync-delete-{}-{sequence}.tmp",
+        std::process::id()
+    ));
+    rename_retained_directory_no_replace(&directory, name, &directory, &retained_name)?;
+    let retained = read_retained_directory_file(
+        &directory,
+        &retained_name.to_string_lossy(),
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+    )?
+    .ok_or_else(|| "prepared recovery lost its retained deletion file".to_string())?;
+    if retained.identity != snapshot.identity || retained.bytes != snapshot.bytes {
+        rename_retained_directory_no_replace(&directory, &retained_name, &directory, name)
+            .map_err(|rollback| {
+                format!(
+                    "prepared file changed during atomic recovery deletion and rollback failed: {rollback}"
+                )
+            })?;
+        return Err(format!(
+            "prepared file changed during atomic recovery deletion: {}",
+            path.display()
+        ));
+    }
+    ensure_retained_project_directory_is_bound(root, &directory)?;
+    if let Err(error) = sync_retained_directory(&directory, "prepared recovery deletion") {
+        rename_retained_directory_no_replace(&directory, &retained_name, &directory, name)
+            .and_then(|()| {
+                sync_retained_directory(&directory, "prepared recovery deletion rollback")
+            })
+            .map_err(|rollback| {
+                format!(
+                    "failed to sync prepared recovery deletion ({error}); rollback failed: {rollback}"
+                )
+            })?;
+        return Err(error);
+    }
+    if let Err(error) = directory.handle.remove_file(&retained_name) {
+        rename_retained_directory_no_replace(&directory, &retained_name, &directory, name)
+            .and_then(|()| {
+                sync_retained_directory(&directory, "prepared recovery deletion rollback")
+            })
+            .map_err(|rollback| {
+                format!(
+                    "failed to remove retained recovery file ({error}); rollback failed: {rollback}"
+                )
+            })?;
+        return Err(format!(
+            "failed to remove retained recovery file {}: {error}",
+            directory.path.join(&retained_name).display()
+        ));
+    }
+    sync_retained_directory(&directory, "prepared recovery deletion cleanup")
+}
+
+fn move_retained_project_directory(
+    root: &Path,
+    source: &Path,
+    destination: &Path,
+) -> Result<(), String> {
+    move_retained_project_directory_with_hook(root, source, destination, || {})
+}
+
+fn move_retained_project_directory_with_hook<Hook>(
+    root: &Path,
+    source: &Path,
+    destination: &Path,
+    before_move: Hook,
+) -> Result<(), String>
+where
+    Hook: FnOnce(),
+{
+    let source_parent = source
+        .parent()
+        .ok_or_else(|| format!("directory move source has no parent: {}", source.display()))?;
+    let destination_parent = destination.parent().ok_or_else(|| {
+        format!(
+            "directory move destination has no parent: {}",
+            destination.display()
+        )
+    })?;
+    let source_name = source.file_name().ok_or_else(|| {
+        format!(
+            "directory move source has no portable name: {}",
+            source.display()
+        )
+    })?;
+    let destination_name = destination.file_name().ok_or_else(|| {
+        format!(
+            "directory move destination has no portable name: {}",
+            destination.display()
+        )
+    })?;
+    let retained_source_parent = open_retained_project_directory(
+        root,
+        source_parent,
+        false,
+        "directory move source parent",
+    )?;
+    let retained_destination_parent = open_retained_project_directory(
+        root,
+        destination_parent,
+        true,
+        "directory move destination parent",
+    )?;
+    let source_metadata = retained_source_parent
+        .handle
+        .symlink_metadata(source_name)
+        .map_err(|error| {
+            format!(
+                "failed to inspect directory move source {}: {error}",
+                source.display()
+            )
+        })?;
+    if manifest_metadata_is_link(&source_metadata) || !source_metadata.is_dir() {
+        return Err(format!(
+            "directory move source is not a real directory: {}",
+            source.display()
+        ));
+    }
+    let source_identity = manifest_metadata_identity(&source_metadata)?;
+    match retained_destination_parent
+        .handle
+        .symlink_metadata(destination_name)
+    {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Ok(_) => {
+            return Err(format!(
+                "directory move destination already exists: {}",
+                destination.display()
+            ));
+        }
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect directory move destination {}: {error}",
+                destination.display()
+            ));
+        }
+    }
+    ensure_retained_project_directory_is_bound(root, &retained_source_parent)?;
+    ensure_retained_project_directory_is_bound(root, &retained_destination_parent)?;
+    before_move();
+    rename_retained_directory_no_replace(
+        &retained_source_parent,
+        source_name,
+        &retained_destination_parent,
+        destination_name,
+    )
+    .map_err(|error| {
+        format!(
+            "failed to move directory {} to {}: {error}",
+            source.display(),
+            destination.display()
+        )
+    })?;
+    let post_move = (|| -> Result<(), String> {
+        ensure_retained_project_directory_is_bound(root, &retained_source_parent)?;
+        ensure_retained_project_directory_is_bound(root, &retained_destination_parent)?;
+        let moved = retained_destination_parent
+            .handle
+            .symlink_metadata(destination_name)
+            .map_err(|error| {
+                format!(
+                    "failed to inspect moved directory {}: {error}",
+                    destination.display()
+                )
+            })?;
+        if manifest_metadata_is_link(&moved)
+            || !moved.is_dir()
+            || manifest_metadata_identity(&moved)? != source_identity
+        {
+            return Err(format!(
+                "directory changed during retained move: {}",
+                destination.display()
+            ));
+        }
+        sync_retained_directory(&retained_source_parent, "directory move source parent")?;
+        sync_retained_directory(
+            &retained_destination_parent,
+            "directory move destination parent",
+        )
+    })();
+    if let Err(error) = post_move {
+        rename_retained_directory_no_replace(
+            &retained_destination_parent,
+            destination_name,
+            &retained_source_parent,
+            source_name,
+        )
+        .and_then(|()| {
+            sync_retained_directory(&retained_source_parent, "directory move rollback source")
+        })
+        .and_then(|()| {
+            sync_retained_directory(
+                &retained_destination_parent,
+                "directory move rollback destination",
+            )
+        })
+        .map_err(|rollback| {
+            format!("retained directory move failed ({error}); rollback failed: {rollback}")
+        })?;
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn rename_retained_directory_no_replace(
+    source_parent: &ManifestObjectDirectory,
+    source_name: &std::ffi::OsStr,
+    destination_parent: &ManifestObjectDirectory,
+    destination_name: &std::ffi::OsStr,
+) -> Result<(), String> {
+    use std::ffi::CString;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::ffi::OsStrExt;
+
+    let source_name = CString::new(source_name.as_bytes())
+        .map_err(|_| "directory move source contains a NUL byte".to_string())?;
+    let destination_name = CString::new(destination_name.as_bytes())
+        .map_err(|_| "directory move destination contains a NUL byte".to_string())?;
+    let source_handle = source_parent
+        .handle
+        .try_clone()
+        .map_err(|error| format!("failed to retain directory move source parent: {error}"))?
+        .into_std_file();
+    let destination_handle = destination_parent
+        .handle
+        .try_clone()
+        .map_err(|error| format!("failed to retain directory move destination parent: {error}"))?
+        .into_std_file();
+
+    #[cfg(target_vendor = "apple")]
+    let result = {
+        // SAFETY: both names are single NUL-terminated components relative to retained
+        // directory descriptors, and RENAME_EXCL atomically rejects an existing destination.
+        unsafe {
+            libc::renameatx_np(
+                source_handle.as_raw_fd(),
+                source_name.as_ptr(),
+                destination_handle.as_raw_fd(),
+                destination_name.as_ptr(),
+                libc::RENAME_EXCL,
+            )
+        }
+    };
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    let result = {
+        // SAFETY: both names are single NUL-terminated components relative to retained
+        // directory descriptors, and RENAME_NOREPLACE atomically rejects an existing destination.
+        unsafe {
+            libc::renameat2(
+                source_handle.as_raw_fd(),
+                source_name.as_ptr(),
+                destination_handle.as_raw_fd(),
+                destination_name.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        }
+    };
+    #[cfg(not(any(target_vendor = "apple", target_os = "linux", target_os = "android")))]
+    let result = -1;
+    if result != 0 {
+        return Err(format!(
+            "atomic no-replace directory rename failed: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn rename_retained_directory_no_replace(
+    source_parent: &ManifestObjectDirectory,
+    source_name: &std::ffi::OsStr,
+    destination_parent: &ManifestObjectDirectory,
+    destination_name: &std::ffi::OsStr,
+) -> Result<(), String> {
+    source_parent
+        .handle
+        .rename(
+            Path::new(source_name),
+            &destination_parent.handle,
+            Path::new(destination_name),
+        )
+        .map_err(|error| format!("atomic no-replace directory rename failed: {error}"))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn rename_retained_directory_no_replace(
+    _source_parent: &ManifestObjectDirectory,
+    _source_name: &std::ffi::OsStr,
+    _destination_parent: &ManifestObjectDirectory,
+    _destination_name: &std::ffi::OsStr,
+) -> Result<(), String> {
+    Err("atomic no-replace directory rename is unavailable on this platform".into())
 }
 
 fn ensure_no_delta_conflicts(root: &Path, current: &ChangeRecord) -> Result<(), String> {
@@ -6205,11 +10014,19 @@ where
                 if initial_context.git {
                     let index = git_index_fingerprint(root)?;
                     let inspected = inspect_git_candidates(root, candidates, regular_files_only)?;
+                    let index_backed = inspected
+                        .modes
+                        .keys()
+                        .filter(|path| !inspected.worktree.modified.contains(*path))
+                        .cloned()
+                        .collect();
                     Ok((
                         Some(index),
                         GitEvidence {
                             modes: inspected.modes,
+                            objects: inspected.objects,
                             entries: inspected.entries,
+                            index_backed,
                         },
                     ))
                 } else {
@@ -6217,11 +10034,13 @@ where
                         None,
                         GitEvidence {
                             modes: BTreeMap::new(),
+                            objects: BTreeMap::new(),
                             entries: capture_non_git_candidates(
                                 root,
                                 candidates,
                                 regular_files_only,
                             )?,
+                            index_backed: BTreeSet::new(),
                         },
                     ))
                 }
@@ -6364,14 +10183,21 @@ fn strict_portable_project_path(root: &Path, path: &Path) -> Result<String, Stri
 }
 
 fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> String {
+    closing_digest_for_change_id(&record.id, verification)
+}
+
+fn closing_digest_for_change_id(change_id: &str, verification: &VerificationRecord) -> String {
     let mut digest = FramedDigest::new(CLOSING_DIGEST_DOMAIN);
-    digest.frame(b"record-id", record.id.as_bytes());
+    digest.frame(b"record-id", change_id.as_bytes());
     digest.frame(b"contract", verification.contract_digest.as_bytes());
     digest.frame(b"workspace", verification.workspace_digest.as_bytes());
     digest.frame(
         b"commit",
         verification.commit.as_deref().unwrap_or("").as_bytes(),
     );
+    if let Some(reopening_audit) = &verification.reopening_audit_digest {
+        digest.frame(b"reopening-audit-v1", reopening_audit.as_bytes());
+    }
     if let Some(acceptance) = &verification.acceptance_input_digest {
         // Presence is explicit: an absent field and an empty field cannot alias.
         let mut value = Vec::with_capacity(acceptance.len() + 1);
@@ -6392,6 +10218,83 @@ fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> S
     digest.finish()
 }
 
+fn reopening_audit_digest(reopenings: &[ReopenRecord]) -> Result<String, String> {
+    let mut digest = FramedDigest::new(REOPENING_AUDIT_DIGEST_DOMAIN);
+    for reopening in reopenings {
+        digest.frame(b"event", b"");
+        digest.frame(b"schema-version", &reopening.schema_version.to_be_bytes());
+        digest.frame(b"change-id", reopening.change_id.as_bytes());
+        digest.frame(b"actor", reopening.actor.as_bytes());
+        digest.frame(b"reason", reopening.reason.as_bytes());
+        digest.frame(b"timestamp", &reopening.timestamp.to_be_bytes());
+        digest.frame(
+            b"from-state",
+            serde_json::to_string(&reopening.from_state)
+                .map_err(|error| format!("failed to hash reopening source state: {error}"))?
+                .as_bytes(),
+        );
+        digest.frame(
+            b"to-state",
+            serde_json::to_string(&reopening.to_state)
+                .map_err(|error| format!("failed to hash reopening destination state: {error}"))?
+                .as_bytes(),
+        );
+        digest.frame(
+            b"superseded-approval",
+            &serde_json::to_vec(&reopening.superseded_approval)
+                .map_err(|error| format!("failed to hash reopening approval: {error}"))?,
+        );
+        digest.frame(
+            b"prior-verification",
+            &serde_json::to_vec(&CompactVerificationRecord::from_hydrated(
+                &reopening.prior_verification,
+            ))
+            .map_err(|error| format!("failed to hash reopening verification: {error}"))?,
+        );
+        digest.frame(
+            b"stale-acceptance-input",
+            reopening.stale_acceptance_input_digest.as_bytes(),
+        );
+        digest.frame(
+            b"current-acceptance-input",
+            reopening.current_acceptance_input_digest.as_bytes(),
+        );
+    }
+    Ok(digest.finish())
+}
+
+fn validate_reopening_audit_binding(
+    verification: &VerificationRecord,
+    reopenings: &[ReopenRecord],
+) -> Result<(), String> {
+    let binding_required = reopenings
+        .iter()
+        .any(|reopening| reopening.schema_version >= 2);
+    match (
+        binding_required,
+        verification.reopening_audit_digest.as_deref(),
+    ) {
+        (false, None) => Ok(()),
+        (false, Some(_)) => {
+            Err("verification carries reopening audit evidence without a compact reopening".into())
+        }
+        (true, None) => {
+            Err("verification is missing its complete compact reopening audit binding".into())
+        }
+        (true, Some(actual)) => {
+            validate_sha256_digest(actual, "reopening audit digest")?;
+            let expected = reopening_audit_digest(reopenings)?;
+            if actual != expected {
+                return Err(
+                    "verification reopening audit digest does not match the exact event history"
+                        .into(),
+                );
+            }
+            Ok(())
+        }
+    }
+}
+
 /// Governs how owner resolution treats production-source inputs with no deterministic
 /// canonical owner. Current acceptance stays fail-closed; legacy acceptance-manifest
 /// reconstruction assigns the exact delivery owner so adoption-era archived ledgers validate
@@ -6400,6 +10303,31 @@ fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> S
 enum UnownedProductionSource {
     Reject,
     AssignExactDelivery,
+}
+
+enum HistoricalSequenceEvidence {
+    Validate,
+    Retained(Option<Vec<u8>>),
+}
+
+fn preserve_legacy_reconstruction_evidence(
+    paths: &mut Vec<String>,
+    evidence: &mut GitEvidence,
+    reconstruction_evidence: &LegacyReconstructionEvidence,
+) {
+    for (path, entry) in reconstruction_evidence {
+        paths.push(path.clone());
+        evidence.modes.insert(path.clone(), entry.mode);
+        if let Some(object) = &entry.object {
+            evidence.objects.insert(path.clone(), object.clone());
+        } else {
+            evidence.objects.remove(path);
+        }
+        evidence.entries.insert(path.clone(), entry.clone());
+        evidence.index_backed.remove(path);
+    }
+    paths.sort();
+    paths.dedup();
 }
 
 fn acceptance_manifest(
@@ -6413,20 +10341,24 @@ fn acceptance_manifest(
         overrides,
         None,
         UnownedProductionSource::Reject,
+        HistoricalSequenceEvidence::Validate,
     )
 }
 
-fn acceptance_manifest_legacy(
+fn acceptance_manifest_legacy_with_reconstruction_evidence(
     root: &Path,
     record: &ChangeRecord,
     overrides: &[(PathBuf, String)],
+    reconstruction_evidence: &LegacyReconstructionEvidence,
 ) -> Result<AcceptanceManifestV1, String> {
-    acceptance_manifest_internal(
+    acceptance_manifest_internal_with_reconstruction_evidence(
         root,
         record,
         overrides,
         None,
         UnownedProductionSource::AssignExactDelivery,
+        HistoricalSequenceEvidence::Validate,
+        Some(reconstruction_evidence),
     )
 }
 
@@ -6442,6 +10374,7 @@ fn acceptance_manifest_with_signed_owners(
         overrides,
         Some(signed),
         UnownedProductionSource::Reject,
+        HistoricalSequenceEvidence::Validate,
     )
 }
 
@@ -6451,6 +10384,27 @@ fn acceptance_manifest_internal(
     overrides: &[(PathBuf, String)],
     signed: Option<&AcceptanceManifestV1>,
     unowned_source: UnownedProductionSource,
+    sequence_evidence: HistoricalSequenceEvidence,
+) -> Result<AcceptanceManifestV1, String> {
+    acceptance_manifest_internal_with_reconstruction_evidence(
+        root,
+        record,
+        overrides,
+        signed,
+        unowned_source,
+        sequence_evidence,
+        None,
+    )
+}
+
+fn acceptance_manifest_internal_with_reconstruction_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+    signed: Option<&AcceptanceManifestV1>,
+    unowned_source: UnownedProductionSource,
+    sequence_evidence: HistoricalSequenceEvidence,
+    reconstruction_evidence: Option<&LegacyReconstructionEvidence>,
 ) -> Result<AcceptanceManifestV1, String> {
     let discovery_scopes = acceptance_discovery_scopes(root, record)?;
     let override_content: BTreeMap<String, &[u8]> = overrides
@@ -6477,14 +10431,22 @@ fn acceptance_manifest_internal(
     if let Some(signed) = signed {
         extra_candidates.extend(signed.entries.iter().map(|entry| entry.path.clone()));
     }
-    let (mut paths, evidence) =
+    let (mut paths, mut evidence) =
         stable_discovered_evidence(root, Some(&discovery_scopes), &extra_candidates, false)?;
+    if let Some(reconstruction_evidence) = reconstruction_evidence {
+        preserve_legacy_reconstruction_evidence(&mut paths, &mut evidence, reconstruction_evidence);
+    }
     paths.retain(|path| {
         (!project_input_is_volatile(path) || path == LEGACY_BASELINE_PATH)
             && record_covers_project_path(root, record, path)
     });
     let historical_sequence_ledger = if record_covers_project_path(root, record, SEQUENCE_PATH) {
-        historical_sequence_ledger_acceptance_content(root, record)?
+        match sequence_evidence {
+            HistoricalSequenceEvidence::Validate => {
+                historical_sequence_ledger_acceptance_content(root, record)?
+            }
+            HistoricalSequenceEvidence::Retained(content) => content,
+        }
     } else {
         None
     };
@@ -6915,8 +10877,11 @@ fn semantic_acceptance_item_exists_for_module(
     record: &ChangeRecord,
     module: &str,
 ) -> Result<bool, String> {
-    let content =
-        read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+    let content = read_bounded_change_text(
+        root,
+        &delta_path_checked(root, record, module)?,
+        "semantic delta",
+    )?;
     Ok(parse_delta(&content)?.iter().any(|item| {
         matches!(
             item.target,
@@ -7161,6 +11126,7 @@ fn path_is_production_source(root: &Path, path: &str) -> bool {
 fn rooted_git_command(root: &Path) -> Command {
     let mut command = Command::new("git");
     command.current_dir(root);
+    command.env("GIT_NO_REPLACE_OBJECTS", "1");
     for key in [
         "GIT_DIR",
         "GIT_WORK_TREE",
@@ -7587,7 +11553,9 @@ where
         let entries = capture_non_git_candidates(root, candidates, regular_files_only)?;
         return Ok(GitEvidence {
             modes: BTreeMap::new(),
+            objects: BTreeMap::new(),
             entries,
+            index_backed: BTreeSet::new(),
         });
     }
     for attempt in 0..2 {
@@ -7597,9 +11565,17 @@ where
         let after = inspect_git_candidates(root, candidates, regular_files_only)?;
         let after_index = git_index_fingerprint(root)?;
         if before_index == after_index && before == after {
+            let index_backed = before
+                .modes
+                .keys()
+                .filter(|path| !before.worktree.modified.contains(*path))
+                .cloned()
+                .collect();
             return Ok(GitEvidence {
                 modes: before.modes,
+                objects: before.objects,
                 entries: before.entries,
+                index_backed,
             });
         }
         if attempt == 1 {
@@ -8355,6 +12331,7 @@ fn resolved_acceptance_manifest(
             ));
         }
         let ledger = load_approvals(root, record)?;
+        validate_reopening_audit_binding(&verification, &ledger.reopenings)?;
         let approval = ledger
             .approvals
             .iter()
@@ -8377,11 +12354,16 @@ fn reconstruct_legacy_acceptance_manifest(
     record: &ChangeRecord,
     signed_legacy_digest: &str,
 ) -> Result<AcceptanceManifestV1, String> {
-    let anchors = accepted_transition_anchors(root, record)?;
+    let mut history_budget = TrustedHistoryScanBudget::default();
+    let anchors = accepted_transition_anchors(root, record, &mut history_budget)?;
+    let trees = unique_legacy_reconstruction_trees(root, &anchors)?;
+    let mut materialization_budget = LegacyReconstructionMaterializationBudget::default();
     let mut reconstructions: BTreeMap<Vec<u8>, AcceptanceManifestV1> = BTreeMap::new();
     let mut first_failure = None;
-    for anchor in anchors {
-        match reconstruct_legacy_at_anchor(root, record, signed_legacy_digest, &anchor) {
+    for (tree_object, anchor) in trees {
+        let listing = preflight_legacy_reconstruction_tree(root, &tree_object)?;
+        materialization_budget.charge(&listing)?;
+        match reconstruct_legacy_at_tree(root, record, signed_legacy_digest, &anchor, &listing) {
             Ok((key, manifest)) => {
                 reconstructions.entry(key).or_insert(manifest);
             }
@@ -8407,32 +12389,53 @@ fn reconstruct_legacy_acceptance_manifest(
         .ok_or_else(|| "legacy reconstruction disappeared unexpectedly".to_string())
 }
 
-fn reconstruct_legacy_at_anchor(
+fn unique_legacy_reconstruction_trees(
+    root: &Path,
+    anchors: &[String],
+) -> Result<Vec<(String, String)>, String> {
+    let mut trees = BTreeMap::new();
+    for anchor in anchors {
+        let expression = format!("{anchor}^{{tree}}");
+        let output = run_git_required(
+            root,
+            &["rev-parse", "--verify", "--end-of-options", &expression],
+            None,
+            256,
+        )
+        .map_err(|error| {
+            format!("failed to resolve legacy reconstruction tree at `{anchor}`: {error}")
+        })?;
+        let tree = std::str::from_utf8(&output)
+            .map_err(|_| "legacy reconstruction tree object ID is not UTF-8".to_string())?
+            .trim()
+            .to_string();
+        if !matches!(tree.len(), 40 | 64) || !tree.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(format!(
+                "legacy reconstruction tree at `{anchor}` has an invalid object ID"
+            ));
+        }
+        trees.entry(tree).or_insert_with(|| anchor.clone());
+    }
+    Ok(trees.into_iter().collect())
+}
+
+fn reconstruct_legacy_at_tree(
     root: &Path,
     record: &ChangeRecord,
     signed_legacy_digest: &str,
     anchor: &str,
+    listing: &LegacyReconstructionTreeListing,
 ) -> Result<(Vec<u8>, AcceptanceManifestV1), String> {
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
-    let added = Command::new("git")
-        .args([
-            "worktree",
-            "add",
-            "--detach",
-            tree.to_string_lossy().as_ref(),
-            anchor,
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to reconstruct legacy acceptance tree: {error}"))?;
-    if !added.status.success() {
-        let _ = fs::remove_dir_all(&temporary);
-        return Err(format!(
-            "failed to reconstruct legacy acceptance tree: {}",
-            String::from_utf8_lossy(&added.stderr).trim()
-        ));
-    }
+    let reconstruction_evidence = match materialize_legacy_reconstruction_tree(root, listing, &tree)
+    {
+        Ok(evidence) => evidence,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&temporary);
+            return Err(error);
+        }
+    };
     let result = (|| {
         let historical = load_change(&tree, &record.id)?;
         if historical.state != ChangeState::Accepted {
@@ -8447,6 +12450,7 @@ fn reconstruct_legacy_at_anchor(
             return Err("historical accepted verification did not pass".into());
         }
         let ledger = load_approvals(&tree, &historical)?;
+        validate_reopening_audit_binding(&verification, &ledger.reopenings)?;
         let closing = ledger
             .approvals
             .iter()
@@ -8456,14 +12460,25 @@ fn reconstruct_legacy_at_anchor(
         if closing.digest != closing_digest(&historical, &verification) {
             return Err("historical accepted closing approval is invalid".into());
         }
-        let aggregate = acceptance_input_digest(&tree, &historical, &[])?;
+        let aggregate = acceptance_input_digest_internal_with_reconstruction_evidence(
+            &tree,
+            &historical,
+            &[],
+            HistoricalSequenceEvidence::Validate,
+            Some(&reconstruction_evidence),
+        )?;
         if aggregate != signed_legacy_digest {
             return Err(format!(
                 "legacy accepted change `{}` cannot reproduce its signed raw-content aggregate",
                 record.id
             ));
         }
-        let manifest = acceptance_manifest_legacy(&tree, &historical, &[])?;
+        let manifest = acceptance_manifest_legacy_with_reconstruction_evidence(
+            &tree,
+            &historical,
+            &[],
+            &reconstruction_evidence,
+        )?;
         let key = serde_json::to_vec(&serde_json::json!({
             "manifest": manifest,
             "verification": verification,
@@ -8472,28 +12487,370 @@ fn reconstruct_legacy_at_anchor(
         .map_err(|error| format!("failed to canonicalize historical evidence: {error}"))?;
         Ok((key, manifest))
     })();
-    let removed = Command::new("git")
-        .args([
-            "worktree",
-            "remove",
-            "--force",
-            tree.to_string_lossy().as_ref(),
-        ])
-        .current_dir(root)
-        .output();
-    if !removed.is_ok_and(|output| output.status.success()) {
-        let _ = fs::remove_dir_all(&temporary);
-        return Err("failed to remove legacy reconstruction workspace".into());
+    let cleanup = fs::remove_dir_all(&temporary)
+        .map_err(|error| format!("failed to remove legacy reconstruction workspace: {error}"));
+    match (result, cleanup) {
+        (Ok(value), Ok(())) => Ok(value),
+        (Err(error), _) => Err(error),
+        (Ok(_), Err(error)) => Err(error),
     }
-    let _ = fs::remove_dir_all(&temporary);
-    result
 }
 
-fn accepted_transition_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec<String>, String> {
-    let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
-    let state = git_repo_relative_path(root, &state)?;
+fn preflight_legacy_reconstruction_tree(
+    root: &Path,
+    tree_object: &str,
+) -> Result<LegacyReconstructionTreeListing, String> {
+    let output = run_git_required(
+        root,
+        &["ls-tree", "-r", "-l", "-z", "--full-tree", tree_object],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .map_err(|error| format!("failed to preflight legacy reconstruction tree: {error}"))?;
+    validate_legacy_reconstruction_tree_listing(
+        &output,
+        MAX_LEGACY_RECONSTRUCTION_TREE_ENTRIES,
+        MAX_LEGACY_RECONSTRUCTION_TREE_BYTES,
+    )
+}
+
+fn validate_legacy_reconstruction_tree_listing(
+    output: &[u8],
+    maximum_entries: usize,
+    maximum_bytes: u64,
+) -> Result<LegacyReconstructionTreeListing, String> {
+    let mut entries = Vec::new();
+    let mut aggregate_bytes = 0_u64;
+    for entry in output
+        .split(|byte| *byte == b'\0')
+        .filter(|entry| !entry.is_empty())
+    {
+        if entries.len() >= maximum_entries {
+            return Err(format!(
+                "legacy reconstruction tree exceeds {maximum_entries} entries"
+            ));
+        }
+        let separator = entry
+            .iter()
+            .position(|byte| *byte == b'\t')
+            .ok_or_else(|| {
+                "legacy reconstruction tree entry is missing its path separator".to_string()
+            })?;
+        let metadata = std::str::from_utf8(&entry[..separator])
+            .map_err(|_| "legacy reconstruction tree metadata is not UTF-8".to_string())?;
+        let path = std::str::from_utf8(&entry[separator + 1..])
+            .map_err(|_| "legacy reconstruction tree path is not UTF-8".to_string())?;
+        let path = strict_portable_relative_path(path)?;
+        if path.len() > MAX_ACCEPTANCE_PATH_BYTES {
+            return Err("legacy reconstruction tree path exceeds deterministic limits".into());
+        }
+        if path
+            .split('/')
+            .any(|component| component.eq_ignore_ascii_case(".git"))
+        {
+            return Err("legacy reconstruction tree contains a Git administrative path".into());
+        }
+        let fields: Vec<&str> = metadata.split_whitespace().collect();
+        if fields.len() != 4 || !matches!(fields[1], "blob" | "commit") {
+            return Err("legacy reconstruction tree entry has an unsupported object shape".into());
+        }
+        let mode = u32::from_str_radix(fields[0], 8)
+            .map_err(|_| "legacy reconstruction tree has an invalid Git mode".to_string())?;
+        if !matches!(
+            (fields[1], mode),
+            ("blob", 0o100644 | 0o100755 | 0o120000) | ("commit", 0o160000)
+        ) {
+            return Err("legacy reconstruction tree entry has an unsupported Git mode".into());
+        }
+        if !matches!(fields[2].len(), 40 | 64)
+            || !fields[2].bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err("legacy reconstruction tree has an invalid object ID".into());
+        }
+        let size = if fields[1] == "commit" {
+            0
+        } else {
+            fields[3]
+                .parse::<u64>()
+                .map_err(|_| "legacy reconstruction tree has an invalid blob size".to_string())?
+        };
+        aggregate_bytes = aggregate_bytes
+            .checked_add(size)
+            .ok_or_else(|| "legacy reconstruction tree byte count overflowed".to_string())?;
+        if aggregate_bytes > maximum_bytes {
+            return Err(format!(
+                "legacy reconstruction tree exceeds {maximum_bytes} aggregate blob bytes"
+            ));
+        }
+        entries.push(LegacyReconstructionTreeEntry {
+            path,
+            mode,
+            object: fields[2].to_string(),
+            size,
+        });
+    }
+    let mut paths = entries
+        .iter()
+        .map(|entry| entry.path.as_str())
+        .collect::<Vec<_>>();
+    paths.sort_unstable();
+    for adjacent in paths.windows(2) {
+        if adjacent[0] == adjacent[1]
+            || adjacent[1]
+                .strip_prefix(adjacent[0])
+                .is_some_and(|suffix| suffix.starts_with('/'))
+        {
+            return Err("legacy reconstruction tree contains conflicting paths".into());
+        }
+    }
+    Ok(LegacyReconstructionTreeListing {
+        entries,
+        aggregate_bytes,
+    })
+}
+
+fn materialize_legacy_reconstruction_tree(
+    root: &Path,
+    listing: &LegacyReconstructionTreeListing,
+    destination: &Path,
+) -> Result<LegacyReconstructionEvidence, String> {
+    fs::create_dir(destination).map_err(|error| {
+        format!(
+            "failed to create legacy reconstruction workspace {}: {error}",
+            destination.display()
+        )
+    })?;
+    let (blob_output, blob_ranges) = legacy_reconstruction_blob_batch(root, listing)?;
+    let mut reconstruction_evidence = BTreeMap::new();
+    for symlinks in [false, true] {
+        for entry in &listing.entries {
+            if (entry.mode == 0o120000) != symlinks {
+                continue;
+            }
+            let target = destination.join(&entry.path);
+            if entry.mode == 0o160000 {
+                fs::create_dir_all(&target).map_err(|error| {
+                    format!(
+                        "failed to materialize legacy Gitlink {}: {error}",
+                        entry.path
+                    )
+                })?;
+                reconstruction_evidence.insert(
+                    entry.path.clone(),
+                    GitCapturedEntry {
+                        kind: AcceptanceInputKind::Gitlink,
+                        mode: entry.mode,
+                        object: Some(entry.object.clone()),
+                        payload: entry.object.as_bytes().to_vec(),
+                    },
+                );
+                continue;
+            }
+            let (start, end) = blob_ranges.get(&entry.object).copied().ok_or_else(|| {
+                format!(
+                    "legacy reconstruction blob batch omitted object {}",
+                    entry.object
+                )
+            })?;
+            let payload = &blob_output[start..end];
+            let captured = legacy_reconstruction_blob_evidence(entry, payload)?;
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent).map_err(|error| {
+                    format!(
+                        "failed to create legacy reconstruction parent for {}: {error}",
+                        entry.path
+                    )
+                })?;
+            }
+            if entry.mode == 0o120000 {
+                materialize_legacy_symlink(&target, payload)?;
+            } else {
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&target)
+                    .map_err(|error| {
+                        format!(
+                            "failed to create legacy reconstruction file {}: {error}",
+                            entry.path
+                        )
+                    })?;
+                file.write_all(payload).map_err(|error| {
+                    format!(
+                        "failed to write legacy reconstruction file {}: {error}",
+                        entry.path
+                    )
+                })?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    fs::set_permissions(&target, fs::Permissions::from_mode(entry.mode & 0o777))
+                        .map_err(|error| {
+                            format!(
+                                "failed to set legacy reconstruction mode for {}: {error}",
+                                entry.path
+                            )
+                        })?;
+                }
+            }
+            reconstruction_evidence.insert(entry.path.clone(), captured);
+        }
+    }
+    Ok(reconstruction_evidence)
+}
+
+fn legacy_reconstruction_blob_evidence(
+    entry: &LegacyReconstructionTreeEntry,
+    payload: &[u8],
+) -> Result<GitCapturedEntry, String> {
+    if payload.len() as u64 != entry.size {
+        return Err(format!(
+            "legacy reconstruction blob {} changed size during materialization",
+            entry.object
+        ));
+    }
+    let kind = acceptance_kind_for_mode(entry.mode);
+    if kind == AcceptanceInputKind::Symlink {
+        let target = std::str::from_utf8(payload).map_err(|_| {
+            format!(
+                "legacy reconstruction symlink target is not UTF-8: `{}`",
+                entry.path
+            )
+        })?;
+        validate_portable_symlink_target(target)?;
+    }
+    Ok(GitCapturedEntry {
+        kind,
+        mode: entry.mode,
+        object: Some(entry.object.clone()),
+        payload: payload.to_vec(),
+    })
+}
+
+fn legacy_reconstruction_blob_batch(
+    root: &Path,
+    listing: &LegacyReconstructionTreeListing,
+) -> Result<(Vec<u8>, LegacyReconstructionBlobOffsets), String> {
+    let mut blobs = BTreeMap::new();
+    for entry in &listing.entries {
+        if entry.mode == 0o160000 {
+            continue;
+        }
+        if let Some(previous) = blobs.insert(entry.object.clone(), entry.size)
+            && previous != entry.size
+        {
+            return Err(format!(
+                "legacy reconstruction blob {} has conflicting sizes",
+                entry.object
+            ));
+        }
+    }
+    let mut input = Vec::new();
+    for object in blobs.keys() {
+        input.extend_from_slice(object.as_bytes());
+        input.push(b'\n');
+    }
+    let header_bytes = blobs
+        .len()
+        .checked_mul(160)
+        .ok_or_else(|| "legacy reconstruction blob header budget overflowed".to_string())?;
+    let payload_bytes = usize::try_from(
+        blobs
+            .values()
+            .try_fold(0_u64, |total, size| total.checked_add(*size))
+            .ok_or_else(|| "legacy reconstruction blob byte budget overflowed".to_string())?,
+    )
+    .map_err(|_| "legacy reconstruction blob byte budget exceeds this platform".to_string())?;
+    let output_cap = payload_bytes
+        .checked_add(header_bytes)
+        .ok_or_else(|| "legacy reconstruction blob output budget overflowed".to_string())?;
+    let output = run_git_required(root, &["cat-file", "--batch"], Some(input), output_cap)
+        .map_err(|error| format!("failed to read raw legacy reconstruction blobs: {error}"))?;
+    let mut ranges = BTreeMap::new();
+    let mut cursor = 0_usize;
+    for (expected_object, expected_size) in blobs {
+        let relative_newline = output[cursor..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .ok_or_else(|| {
+                "legacy reconstruction blob batch has no header terminator".to_string()
+            })?;
+        let header_end = cursor + relative_newline;
+        let header = std::str::from_utf8(&output[cursor..header_end])
+            .map_err(|_| "legacy reconstruction blob header is not UTF-8".to_string())?;
+        let fields = header.split_whitespace().collect::<Vec<_>>();
+        let expected_size_usize = usize::try_from(expected_size)
+            .map_err(|_| "legacy reconstruction blob size exceeds this platform".to_string())?;
+        if fields.len() != 3
+            || fields[0] != expected_object
+            || fields[1] != "blob"
+            || fields[2].parse::<usize>().ok() != Some(expected_size_usize)
+        {
+            return Err(format!(
+                "legacy reconstruction blob batch returned invalid metadata for {expected_object}"
+            ));
+        }
+        let start = header_end + 1;
+        let end = start
+            .checked_add(expected_size_usize)
+            .ok_or_else(|| "legacy reconstruction blob range overflowed".to_string())?;
+        if output.get(end) != Some(&b'\n') {
+            return Err(format!(
+                "legacy reconstruction blob batch returned a truncated payload for {expected_object}"
+            ));
+        }
+        ranges.insert(expected_object, (start, end));
+        cursor = end + 1;
+    }
+    if cursor != output.len() {
+        return Err("legacy reconstruction blob batch returned trailing output".into());
+    }
+    Ok((output, ranges))
+}
+
+#[cfg(unix)]
+fn materialize_legacy_symlink(path: &Path, payload: &[u8]) -> Result<(), String> {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    std::os::unix::fs::symlink(OsStr::from_bytes(payload), path).map_err(|error| {
+        format!(
+            "failed to create legacy reconstruction symlink {}: {error}",
+            path.display()
+        )
+    })
+}
+
+#[cfg(not(unix))]
+fn materialize_legacy_symlink(path: &Path, payload: &[u8]) -> Result<(), String> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| {
+            format!(
+                "failed to create legacy reconstruction symlink payload {}: {error}",
+                path.display()
+            )
+        })?;
+    file.write_all(payload).map_err(|error| {
+        format!(
+            "failed to write legacy reconstruction symlink payload {}: {error}",
+            path.display()
+        )
+    })
+}
+
+fn accepted_transition_anchors(
+    root: &Path,
+    record: &ChangeRecord,
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<Vec<String>, String> {
+    let directory = git_repo_relative_path(root, &format!("{CHANGES_PATH}/{}", record.id))?;
+    let state = format!("{directory}/state.json");
+    let verification = format!("{directory}/verification.json");
+    let approvals = format!("{directory}/approvals.json");
     let mut references = vec!["HEAD".to_string()];
-    if let Some(remote_default) = remote_default_ref(root)
+    if let Some(remote_default) = trusted_remote_default_ref(root)?
         && !references.contains(&remote_default)
     {
         references.push(remote_default);
@@ -8501,36 +12858,45 @@ fn accepted_transition_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec
     let mut anchors = Vec::new();
     for reference in references {
         let state_pathspec = format!(":(top,literal){state}");
-        let output = Command::new("git")
-            .args([
+        let verification_pathspec = format!(":(top,literal){verification}");
+        let approvals_pathspec = format!(":(top,literal){approvals}");
+        let output = run_git_required(
+            root,
+            &[
                 "log",
                 "--format=%H",
                 &reference,
                 "--",
                 state_pathspec.as_str(),
-            ])
-            .current_dir(root)
-            .output()
-            .map_err(|error| format!("failed to inspect accepted history: {error}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "failed to inspect accepted history at `{reference}`"
-            ));
-        }
-        for commit in String::from_utf8_lossy(&output.stdout).lines() {
-            let current = git_change_record_at(root, commit, &state);
+                verification_pathspec.as_str(),
+                approvals_pathspec.as_str(),
+            ],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )
+        .map_err(|error| format!("failed to inspect accepted history at `{reference}`: {error}"))?;
+        for commit in String::from_utf8_lossy(&output).lines() {
+            let current = trusted_history_change_record_at(root, commit, &state, budget)?;
             if !current.is_some_and(|current| {
                 current.id == record.id && current.state == ChangeState::Accepted
             }) {
                 continue;
             }
-            let parents =
-                git_output(root, &["rev-list", "--parents", "-n", "1", commit]).unwrap_or_default();
-            let parent_accepted = parents.split_whitespace().skip(1).any(|parent| {
-                git_change_record_at(root, parent, &state).is_some_and(|parent| {
-                    parent.id == record.id && parent.state == ChangeState::Accepted
-                })
-            });
+            let parents = run_git_required(
+                root,
+                &["rev-list", "--parents", "-n", "1", commit],
+                None,
+                4 * 1024,
+            )?;
+            let mut parent_accepted = false;
+            for parent in String::from_utf8_lossy(&parents).split_whitespace().skip(1) {
+                if trusted_history_change_record_at(root, parent, &state, budget)?.is_some_and(
+                    |parent| parent.id == record.id && parent.state == ChangeState::Accepted,
+                ) {
+                    parent_accepted = true;
+                    break;
+                }
+            }
             if !parent_accepted {
                 anchors.push(commit.to_string());
             }
@@ -8541,16 +12907,22 @@ fn accepted_transition_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec
     Ok(anchors)
 }
 
-/// Lists every commit reachable from `HEAD` or the remote default whose `state.json` records
-/// `record` as accepted, regardless of the parent state. Unlike
+/// Lists every lifecycle-evidence commit reachable from `HEAD` or the remote default whose
+/// `state.json` records `record` as accepted, regardless of the parent state. Unlike
 /// [`accepted_transition_anchors`], this also matches commits that refresh accepted evidence
 /// while the change is already accepted, which is the shape squash-merged re-verification
 /// produces on the default branch.
-fn accepted_recording_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec<String>, String> {
-    let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
-    let state = git_repo_relative_path(root, &state)?;
+fn accepted_recording_anchors(
+    root: &Path,
+    record: &ChangeRecord,
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<Vec<String>, String> {
+    let directory = git_repo_relative_path(root, &format!("{CHANGES_PATH}/{}", record.id))?;
+    let state = format!("{directory}/state.json");
+    let verification = format!("{directory}/verification.json");
+    let approvals = format!("{directory}/approvals.json");
     let mut references = vec!["HEAD".to_string()];
-    if let Some(remote_default) = remote_default_ref(root)
+    if let Some(remote_default) = trusted_remote_default_ref(root)?
         && !references.contains(&remote_default)
     {
         references.push(remote_default);
@@ -8558,26 +12930,29 @@ fn accepted_recording_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec<
     let mut anchors = Vec::new();
     for reference in references {
         let state_pathspec = format!(":(top,literal){state}");
-        let output = Command::new("git")
-            .args([
+        let verification_pathspec = format!(":(top,literal){verification}");
+        let approvals_pathspec = format!(":(top,literal){approvals}");
+        let output = run_git_required(
+            root,
+            &[
                 "log",
                 "--format=%H",
                 &reference,
                 "--",
                 state_pathspec.as_str(),
-            ])
-            .current_dir(root)
-            .output()
-            .map_err(|error| format!("failed to inspect accepted recording history: {error}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "failed to inspect accepted recording history at `{reference}`"
-            ));
-        }
-        for commit in String::from_utf8_lossy(&output.stdout).lines() {
-            if git_change_record_at(root, commit, &state).is_some_and(|current| {
-                current.id == record.id && current.state == ChangeState::Accepted
-            }) {
+                verification_pathspec.as_str(),
+                approvals_pathspec.as_str(),
+            ],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )
+        .map_err(|error| {
+            format!("failed to inspect accepted recording history at `{reference}`: {error}")
+        })?;
+        for commit in String::from_utf8_lossy(&output).lines() {
+            if trusted_history_change_record_at(root, commit, &state, budget)?.is_some_and(
+                |current| current.id == record.id && current.state == ChangeState::Accepted,
+            ) {
                 anchors.push(commit.to_string());
             }
         }
@@ -8601,25 +12976,65 @@ fn consider_accepted_evidence_anchor(
     current_verification: &[u8],
     current_approvals: &[u8],
     eligible: &mut BTreeMap<String, (String, Vec<u8>, ChangeRecord)>,
-) {
-    let Some(state_bytes) = git_object_bytes(root, anchor, state_path) else {
-        return;
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<(), String> {
+    let Some(state_bytes) = trusted_history_file_at_commit(
+        root,
+        anchor,
+        state_path,
+        MAX_CHANGE_ARTIFACT_BYTES,
+        budget,
+    )?
+    else {
+        return Ok(());
     };
-    let Some(verification_bytes) = git_object_bytes(root, anchor, verification_path) else {
-        return;
+    let Some(verification_bytes) = trusted_history_file_at_commit(
+        root,
+        anchor,
+        verification_path,
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        budget,
+    )?
+    else {
+        return Ok(());
     };
-    let Some(approval_bytes) = git_object_bytes(root, anchor, approvals_path) else {
-        return;
+    let Some(approval_bytes) = trusted_history_file_at_commit(
+        root,
+        anchor,
+        approvals_path,
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        budget,
+    )?
+    else {
+        return Ok(());
     };
     if verification_bytes != current_verification || approval_bytes != current_approvals {
-        return;
+        return Ok(());
     }
     let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
-        return;
+        return Ok(());
     };
     if accepted.id != record.id || accepted.state != ChangeState::Accepted {
-        return;
+        return Ok(());
     }
+    let directory = approvals_path
+        .strip_suffix("/approvals.json")
+        .ok_or_else(|| format!("invalid trusted approvals path `{approvals_path}`"))?;
+    let approval_ledger = {
+        let mut source = ApprovalManifestSource::Git {
+            root,
+            commit: anchor,
+            directory,
+            budget: Some(budget),
+        };
+        load_approval_ledger_from_bytes(&approval_bytes, &accepted.id, &mut source)
+    }
+    .map_err(|error| {
+        format!(
+            "trusted lifecycle anchor `{anchor}` has invalid referenced approval evidence: {error}"
+        )
+    })?;
+    validate_trusted_reopening_anchors_with_budget(root, &accepted.id, &approval_ledger, budget)?;
     let mut projection = record.clone();
     if record.state == ChangeState::Archived {
         projection.state = ChangeState::Accepted;
@@ -8631,21 +13046,437 @@ fn consider_accepted_evidence_anchor(
             .entry(key)
             .or_insert((anchor.to_string(), state_bytes, accepted));
     }
+    Ok(())
+}
+
+fn trusted_reopening_root_references(root: &Path) -> Result<Vec<String>, String> {
+    Ok(trusted_remote_default_ref(root)?.into_iter().collect())
+}
+
+fn validate_trusted_reopening_anchors(
+    root: &Path,
+    change_id: &str,
+    ledger: &ApprovalLedger,
+) -> Result<(), String> {
+    validate_trusted_reopening_anchors_with_budget(
+        root,
+        change_id,
+        ledger,
+        &mut TrustedHistoryScanBudget::default(),
+    )
+}
+
+fn validate_trusted_reopening_anchors_with_budget(
+    root: &Path,
+    change_id: &str,
+    ledger: &ApprovalLedger,
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<(), String> {
+    if ledger.reopenings.is_empty() {
+        return Ok(());
+    }
+    let references = trusted_reopening_root_references(root)?;
+    validate_trusted_reopening_anchors_from_references(root, &references, change_id, ledger, budget)
+}
+
+fn validate_trusted_reopening_anchors_from_references(
+    root: &Path,
+    references: &[String],
+    change_id: &str,
+    ledger: &ApprovalLedger,
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<(), String> {
+    if ledger.reopenings.is_empty() {
+        return Ok(());
+    }
+    if references.is_empty() {
+        return Err(
+            "reopening history requires a protected remote-default acceptance anchor".into(),
+        );
+    }
+    let positions = validate_reopening_approval_chain(&ledger.approvals, &ledger.reopenings)?;
+    let validation_key =
+        trusted_reopening_root_validation_key(references, change_id, ledger, &positions)?;
+    if budget.validated_reopening_roots.contains(&validation_key) {
+        return Ok(());
+    }
+    validate_trusted_acceptance_roots(root, references, change_id, ledger, &positions, budget)?;
+    budget.validated_reopening_roots.insert(validation_key);
+    Ok(())
+}
+
+fn trusted_reopening_root_validation_key(
+    references: &[String],
+    change_id: &str,
+    ledger: &ApprovalLedger,
+    positions: &[usize],
+) -> Result<String, String> {
+    let mut digest = FramedDigest::new(b"specsync.trusted-reopening-root-cache.v2");
+    digest.frame(b"change_id", change_id.as_bytes());
+    for reference in references {
+        digest.frame(b"reference", reference.as_bytes());
+    }
+    for approval in &ledger.approvals {
+        digest.frame(b"approval", json_content(approval)?.as_bytes());
+    }
+    for (index, reopening) in ledger.reopenings.iter().enumerate() {
+        let position = positions
+            .get(index)
+            .copied()
+            .ok_or_else(|| "reopening approval position disappeared".to_string())?;
+        digest.frame(b"approval_position", &(position as u64).to_be_bytes());
+        digest.frame(b"reopening_schema", &reopening.schema_version.to_be_bytes());
+        digest.frame(b"reopening_actor", reopening.actor.as_bytes());
+        digest.frame(b"reopening_reason", reopening.reason.as_bytes());
+        digest.frame(b"reopening_timestamp", &reopening.timestamp.to_be_bytes());
+        digest.frame(
+            b"reopening_from_state",
+            format!("{:?}", reopening.from_state).as_bytes(),
+        );
+        digest.frame(
+            b"reopening_to_state",
+            format!("{:?}", reopening.to_state).as_bytes(),
+        );
+        digest.frame(
+            b"reopening_superseded_approval",
+            json_content(&reopening.superseded_approval)?.as_bytes(),
+        );
+        digest.frame(
+            b"reopening_prior_verification",
+            json_content(&CompactVerificationRecord::from_hydrated(
+                &reopening.prior_verification,
+            ))?
+            .as_bytes(),
+        );
+        digest.frame(
+            b"reopening_stale_digest",
+            reopening.stale_acceptance_input_digest.as_bytes(),
+        );
+        digest.frame(
+            b"reopening_current_digest",
+            reopening.current_acceptance_input_digest.as_bytes(),
+        );
+    }
+    Ok(digest.finish())
+}
+
+fn validate_trusted_acceptance_roots(
+    root: &Path,
+    references: &[String],
+    change_id: &str,
+    ledger: &ApprovalLedger,
+    positions: &[usize],
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<(), String> {
+    if references.is_empty() {
+        return Err(
+            "reopening history requires a protected remote-default acceptance anchor".into(),
+        );
+    }
+    let active_directory = git_repo_relative_path(root, &format!("{CHANGES_PATH}/{change_id}"))?;
+    let state_path = format!("{active_directory}/state.json");
+    let verification_path = format!("{active_directory}/verification.json");
+    let approvals_path = format!("{active_directory}/approvals.json");
+    let state_pathspec = format!(":(top,literal){state_path}");
+    let verification_pathspec = format!(":(top,literal){verification_path}");
+    let approvals_pathspec = format!(":(top,literal){approvals_path}");
+    let mut arguments = vec!["log".to_string(), "--format=%H".to_string()];
+    arguments.extend(references.iter().cloned());
+    arguments.push("--".to_string());
+    arguments.push(state_pathspec);
+    arguments.push(verification_pathspec);
+    arguments.push(approvals_pathspec);
+    let borrowed_arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    let commits = run_git_required(
+        root,
+        &borrowed_arguments,
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )?;
+    let commits_text = String::from_utf8_lossy(&commits);
+    let commits: Vec<&str> = commits_text
+        .lines()
+        .filter(|commit| !commit.is_empty())
+        .collect();
+    let legacy_prefix_length = ledger
+        .reopenings
+        .iter()
+        .take_while(|reopening| reopening.schema_version == 1)
+        .count();
+    if legacy_prefix_length > 0 {
+        let approval_prefix_length = if legacy_prefix_length < ledger.reopenings.len() {
+            positions[legacy_prefix_length]
+                .checked_add(1)
+                .ok_or_else(|| "legacy reopening approval position overflowed".to_string())?
+        } else {
+            ledger.approvals.len()
+        };
+        let expected_approvals = &ledger.approvals[..approval_prefix_length];
+        let expected_reopenings = &ledger.reopenings[..legacy_prefix_length];
+        let expected_verification = ledger
+            .reopenings
+            .get(legacy_prefix_length)
+            .map(|reopening| &reopening.prior_verification);
+        let mut authenticated = false;
+        for commit in &commits {
+            let Some(state_bytes) = trusted_history_file_at_commit(
+                root,
+                commit,
+                &state_path,
+                MAX_CHANGE_ARTIFACT_BYTES,
+                budget,
+            )?
+            else {
+                continue;
+            };
+            let Ok(state) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
+                continue;
+            };
+            if state.id != change_id || state.state != ChangeState::Accepted {
+                continue;
+            }
+            let Some(verification_bytes) = trusted_history_file_at_commit(
+                root,
+                commit,
+                &verification_path,
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+                budget,
+            )?
+            else {
+                continue;
+            };
+            let Ok(verification) =
+                serde_json::from_slice::<VerificationRecord>(&verification_bytes)
+            else {
+                continue;
+            };
+            if !verification.passed
+                || expected_verification.is_some_and(|expected| expected != &verification)
+                || validate_reopening_audit_binding(&verification, expected_reopenings).is_err()
+            {
+                continue;
+            }
+            let Some(approvals_bytes) = trusted_history_file_at_commit(
+                root,
+                commit,
+                &approvals_path,
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+                budget,
+            )?
+            else {
+                continue;
+            };
+            let directory = approvals_path
+                .strip_suffix("/approvals.json")
+                .ok_or_else(|| format!("invalid trusted approvals path `{approvals_path}`"))?;
+            let historical = {
+                let mut source = ApprovalManifestSource::Git {
+                    root,
+                    commit,
+                    directory,
+                    budget: Some(budget),
+                };
+                load_approval_ledger_from_bytes(&approvals_bytes, change_id, &mut source)
+            };
+            let Ok(historical) = historical else {
+                continue;
+            };
+            let closing_matches = historical
+                .approvals
+                .iter()
+                .rev()
+                .find(|approval| approval.gate == "acceptance")
+                .is_some_and(|approval| approval.digest == closing_digest(&state, &verification));
+            if historical.approvals == expected_approvals
+                && historical.reopenings == expected_reopenings
+                && closing_matches
+            {
+                authenticated = true;
+                break;
+            }
+        }
+        if !authenticated {
+            return Err(format!(
+                "schema-v1 reopening prefix of {legacy_prefix_length} event(s) has no protected remote-default accepted root containing its exact approval ledger"
+            ));
+        }
+    }
+    for (index, reopening) in ledger
+        .reopenings
+        .iter()
+        .enumerate()
+        .skip(legacy_prefix_length)
+    {
+        let expected_approvals = &ledger.approvals[..=positions[index]];
+        let expected_reopenings = &ledger.reopenings[..index];
+        let mut authenticated = false;
+        for commit in &commits {
+            let Some(state_bytes) = trusted_history_file_at_commit(
+                root,
+                commit,
+                &state_path,
+                MAX_CHANGE_ARTIFACT_BYTES,
+                budget,
+            )?
+            else {
+                continue;
+            };
+            let Ok(state) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
+                continue;
+            };
+            if state.id != change_id || state.state != ChangeState::Accepted {
+                continue;
+            }
+            let Some(verification_bytes) = trusted_history_file_at_commit(
+                root,
+                commit,
+                &verification_path,
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+                budget,
+            )?
+            else {
+                continue;
+            };
+            let Ok(verification) =
+                serde_json::from_slice::<VerificationRecord>(&verification_bytes)
+            else {
+                continue;
+            };
+            if verification != reopening.prior_verification {
+                continue;
+            }
+            let Some(approvals_bytes) = trusted_history_file_at_commit(
+                root,
+                commit,
+                &approvals_path,
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+                budget,
+            )?
+            else {
+                continue;
+            };
+            let directory = approvals_path
+                .strip_suffix("/approvals.json")
+                .ok_or_else(|| format!("invalid trusted approvals path `{approvals_path}`"))?;
+            let historical = {
+                let mut source = ApprovalManifestSource::Git {
+                    root,
+                    commit,
+                    directory,
+                    budget: Some(budget),
+                };
+                load_approval_ledger_from_bytes(&approvals_bytes, change_id, &mut source)
+            };
+            let Ok(historical) = historical else {
+                continue;
+            };
+            if historical.approvals == expected_approvals
+                && historical.reopenings == expected_reopenings
+            {
+                authenticated = true;
+                break;
+            }
+        }
+        if !authenticated {
+            return Err(format!(
+                "reopening {} has no protected remote-default acceptance root for its exact prior verification and approval/reopening prefix",
+                index + 1
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn charge_trusted_reopening_anchor_bytes(
+    aggregate_bytes: &mut usize,
+    additional_bytes: usize,
+) -> Result<(), String> {
+    *aggregate_bytes = aggregate_bytes
+        .checked_add(additional_bytes)
+        .ok_or_else(|| "trusted reopening anchor byte budget overflowed".to_string())?;
+    if *aggregate_bytes > MAX_TRUSTED_REOPENING_ANCHOR_BYTES {
+        return Err(format!(
+            "trusted reopening anchor evidence exceeds {MAX_TRUSTED_REOPENING_ANCHOR_BYTES} aggregate bytes"
+        ));
+    }
+    Ok(())
 }
 
 fn authenticated_accepted_transition(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<(String, Vec<u8>, ChangeRecord), String> {
+    authenticated_accepted_transition_with_budget(
+        root,
+        record,
+        &mut TrustedHistoryScanBudget::default(),
+    )
+}
+
+fn authenticated_accepted_transition_with_budget(
+    root: &Path,
+    record: &ChangeRecord,
+    history_budget: &mut TrustedHistoryScanBudget,
+) -> Result<(String, Vec<u8>, ChangeRecord), String> {
     let workspace = find_change_dir(root, &record.id)?;
     let workspace_relative = strict_portable_project_path(root, &workspace)?;
+    let current_state_path = if record.state == ChangeState::Archived {
+        format!("{workspace_relative}/accepted-state.json")
+    } else {
+        format!("{workspace_relative}/state.json")
+    };
     let current_verification_path = format!("{workspace_relative}/verification.json");
     let current_approvals_path = format!("{workspace_relative}/approvals.json");
-    let candidates = BTreeSet::from([
+    let mut candidates = BTreeSet::from([
+        current_state_path.clone(),
         current_verification_path.clone(),
         current_approvals_path.clone(),
     ]);
-    let evidence = git_evidence(root, &candidates)?;
+    let mut evidence = git_evidence(root, &candidates)?;
+    for path in [
+        &current_state_path,
+        &current_verification_path,
+        &current_approvals_path,
+    ] {
+        reject_staged_lifecycle_worktree_divergence(root, &evidence, path)?;
+    }
+    if evidence.is_index_backed(&current_approvals_path) {
+        let disk: ApprovalLedgerDisk =
+            serde_json::from_slice(&evidence.entry(&current_approvals_path)?.payload)
+                .map_err(|error| format!("invalid staged accepted approvals: {error}"))?;
+        for digest in disk.referenced_manifest_digests() {
+            validate_acceptance_manifest_digest(&digest)?;
+            candidates.insert(format!(
+                "{workspace_relative}/{ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY}/{digest}.json"
+            ));
+        }
+        if candidates.len() > 3 {
+            evidence = git_evidence(root, &candidates)?;
+            if !evidence.is_index_backed(&current_approvals_path) {
+                return Err(
+                    "accepted approvals changed while binding staged manifest objects".into(),
+                );
+            }
+            for path in candidates.iter().filter(|path| {
+                path.starts_with(&format!(
+                    "{workspace_relative}/{ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY}/"
+                ))
+            }) {
+                if !evidence.is_index_backed(path) {
+                    return Err(format!(
+                        "staged compact approval ledger references acceptance manifest object `{path}` that is not staged"
+                    ));
+                }
+                let entry = evidence.entry(path)?;
+                if entry.kind != AcceptanceInputKind::File || entry.mode != 0o100644 {
+                    return Err(format!(
+                        "staged acceptance manifest object `{path}` must be a non-executable regular file"
+                    ));
+                }
+            }
+        }
+    }
     let current_verification = evidence.entry(&current_verification_path)?.payload.clone();
     let current_approvals = evidence.entry(&current_approvals_path)?.payload.clone();
     let active = format!("{CHANGES_PATH}/{}", record.id);
@@ -8653,7 +13484,7 @@ fn authenticated_accepted_transition(
     let verification_path = git_repo_relative_path(root, &format!("{active}/verification.json"))?;
     let approvals_path = git_repo_relative_path(root, &format!("{active}/approvals.json"))?;
     let mut eligible = BTreeMap::new();
-    for anchor in accepted_transition_anchors(root, record)? {
+    for anchor in accepted_transition_anchors(root, record, history_budget)? {
         consider_accepted_evidence_anchor(
             root,
             record,
@@ -8664,7 +13495,8 @@ fn authenticated_accepted_transition(
             &current_verification,
             &current_approvals,
             &mut eligible,
-        );
+            history_budget,
+        )?;
     }
     if record.state == ChangeState::Archived {
         let project_directory = strict_portable_project_path(root, &workspace)?;
@@ -8674,32 +13506,56 @@ fn authenticated_accepted_transition(
         let approvals_path = format!("{repository_directory}/approvals.json");
         let accepted_state_pathspec = format!(":(top,literal){accepted_state_path}");
         let mut references = vec!["HEAD".to_string()];
-        if let Some(remote_default) = remote_default_ref(root)
+        if let Some(remote_default) = trusted_remote_default_ref(root)?
             && !references.contains(&remote_default)
         {
             references.push(remote_default);
         }
-        let mut command = Command::new("git");
-        command.args(["log", "--format=%H", "--diff-filter=A"]);
-        command.args(&references);
-        let output = command
-            .arg("--")
-            .arg(&accepted_state_pathspec)
-            .current_dir(root)
-            .output()
-            .map_err(|error| format!("failed to inspect archived acceptance history: {error}"))?;
-        if !output.status.success() {
-            return Err("failed to inspect archived acceptance history".into());
-        }
-        for anchor in String::from_utf8_lossy(&output.stdout).lines() {
-            let Some(state_bytes) = git_object_bytes(root, anchor, &accepted_state_path) else {
-                continue;
-            };
-            let Some(verification_bytes) = git_object_bytes(root, anchor, &verification_path)
+        let mut arguments = vec![
+            "log".to_string(),
+            "--format=%H".to_string(),
+            "--diff-filter=A".to_string(),
+        ];
+        arguments.extend(references);
+        arguments.push("--".to_string());
+        arguments.push(accepted_state_pathspec);
+        let borrowed_arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
+        let output = run_git_required(
+            root,
+            &borrowed_arguments,
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )
+        .map_err(|error| format!("failed to inspect archived acceptance history: {error}"))?;
+        for anchor in String::from_utf8_lossy(&output).lines() {
+            let Some(state_bytes) = trusted_history_file_at_commit(
+                root,
+                anchor,
+                &accepted_state_path,
+                MAX_CHANGE_ARTIFACT_BYTES,
+                history_budget,
+            )?
             else {
                 continue;
             };
-            let Some(approval_bytes) = git_object_bytes(root, anchor, &approvals_path) else {
+            let Some(verification_bytes) = trusted_history_file_at_commit(
+                root,
+                anchor,
+                &verification_path,
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+                history_budget,
+            )?
+            else {
+                continue;
+            };
+            let Some(approval_bytes) = trusted_history_file_at_commit(
+                root,
+                anchor,
+                &approvals_path,
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+                history_budget,
+            )?
+            else {
                 continue;
             };
             if verification_bytes != current_verification || approval_bytes != current_approvals {
@@ -8711,6 +13567,26 @@ fn authenticated_accepted_transition(
             if accepted.id != record.id || accepted.state != ChangeState::Accepted {
                 continue;
             }
+            let approval_ledger = {
+                let mut source = ApprovalManifestSource::Git {
+                    root,
+                    commit: anchor,
+                    directory: &repository_directory,
+                    budget: Some(history_budget),
+                };
+                load_approval_ledger_from_bytes(&approval_bytes, &accepted.id, &mut source)
+            }
+            .map_err(|error| {
+                format!(
+                    "trusted archived lifecycle anchor `{anchor}` has invalid referenced approval evidence: {error}"
+                )
+            })?;
+            validate_trusted_reopening_anchors_with_budget(
+                root,
+                &accepted.id,
+                &approval_ledger,
+                history_budget,
+            )?;
             let mut projection = record.clone();
             projection.state = ChangeState::Accepted;
             projection.updated_at = accepted.updated_at;
@@ -8727,7 +13603,7 @@ fn authenticated_accepted_transition(
         // the accepted evidence bytes in later default-branch commits. Trust any in-history
         // commit that records this change as accepted when it carries byte-identical
         // evidence; the per-anchor checks and the exactly-one rule still fail closed.
-        for anchor in accepted_recording_anchors(root, record)? {
+        for anchor in accepted_recording_anchors(root, record, history_budget)? {
             consider_accepted_evidence_anchor(
                 root,
                 record,
@@ -8738,37 +13614,39 @@ fn authenticated_accepted_transition(
                 &current_verification,
                 &current_approvals,
                 &mut eligible,
-            );
+                history_budget,
+            )?;
         }
     }
-    if eligible.is_empty()
-        && let Ok(state_bytes) = fs::read(workspace.join("accepted-state.json"))
-        && let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes)
-    {
-        let mut projection = record.clone();
-        if record.state == ChangeState::Archived {
-            projection.state = ChangeState::Accepted;
-            projection.updated_at = accepted.updated_at;
-        }
-        if projection == accepted
-            && accepted.state == ChangeState::Accepted
-            && staged_accepted_snapshot_is_closing_authenticated(
-                root,
-                &accepted,
-                &current_verification,
-                &current_approvals,
-            )?
-        {
-            let key =
-                accepted_evidence_key(&state_bytes, &current_verification, &current_approvals);
-            eligible.insert(
-                key,
-                (
-                    "working-tree-closing-evidence".into(),
-                    state_bytes,
-                    accepted,
-                ),
-            );
+    if eligible.is_empty() {
+        let state_bytes = evidence.entry(&current_state_path)?.payload.clone();
+        if let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) {
+            let mut projection = record.clone();
+            if record.state == ChangeState::Archived {
+                projection.state = ChangeState::Accepted;
+                projection.updated_at = accepted.updated_at;
+            }
+            if projection == accepted
+                && accepted.state == ChangeState::Accepted
+                && staged_accepted_snapshot_is_closing_authenticated(
+                    root,
+                    &accepted,
+                    &current_verification,
+                    &current_approvals,
+                    &evidence,
+                )?
+            {
+                let key =
+                    accepted_evidence_key(&state_bytes, &current_verification, &current_approvals);
+                eligible.insert(
+                    key,
+                    (
+                        "working-tree-closing-evidence".into(),
+                        state_bytes,
+                        accepted,
+                    ),
+                );
+            }
         }
     }
     if eligible.len() != 1 {
@@ -8784,16 +13662,109 @@ fn authenticated_accepted_transition(
         .ok_or_else(|| "authenticated accepted transition disappeared".to_string())
 }
 
+fn reject_staged_lifecycle_worktree_divergence(
+    root: &Path,
+    evidence: &GitEvidence,
+    path: &str,
+) -> Result<(), String> {
+    if evidence.is_index_backed(path) {
+        return Ok(());
+    }
+    if !evidence.modes.contains_key(path) {
+        let repository_path = git_repo_relative_path(root, path)?;
+        if git_bounded_entry_at_commit(
+            root,
+            "HEAD",
+            &repository_path,
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )?
+        .is_some()
+        {
+            return Err(format!(
+                "staged lifecycle evidence `{path}` is deleted from the index while a worktree copy remains"
+            ));
+        }
+        return Ok(());
+    }
+    let mode = evidence
+        .modes
+        .get(path)
+        .copied()
+        .ok_or_else(|| format!("Git index evidence disappeared for `{path}`"))?;
+    let object = evidence
+        .objects
+        .get(path)
+        .ok_or_else(|| format!("Git index object evidence disappeared for `{path}`"))?;
+    if mode != 0o100644 {
+        return Err(format!(
+            "staged lifecycle evidence `{path}` has mode {mode:o}; expected 100644"
+        ));
+    }
+    let index_bytes = git_blob_bytes(root, object)?;
+    if index_bytes.len() as u64 > MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES {
+        return Err(format!(
+            "staged lifecycle evidence `{path}` exceeds {MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES} bytes"
+        ));
+    }
+    let repository_path = git_repo_relative_path(root, path)?;
+    let head = git_bounded_entry_at_commit(
+        root,
+        "HEAD",
+        &repository_path,
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+    )?;
+    if head
+        .as_ref()
+        .is_none_or(|(head_mode, head_bytes)| *head_mode != mode || head_bytes != &index_bytes)
+    {
+        return Err(format!(
+            "staged lifecycle evidence `{path}` has additional unstaged worktree changes"
+        ));
+    }
+    Ok(())
+}
+
 fn staged_accepted_snapshot_is_closing_authenticated(
     root: &Path,
     accepted: &ChangeRecord,
     verification_bytes: &[u8],
     approval_bytes: &[u8],
+    evidence: &GitEvidence,
 ) -> Result<bool, String> {
     let verification: VerificationRecord = serde_json::from_slice(verification_bytes)
         .map_err(|error| format!("invalid staged accepted verification: {error}"))?;
-    let approvals: ApprovalLedger = serde_json::from_slice(approval_bytes)
-        .map_err(|error| format!("invalid staged accepted approvals: {error}"))?;
+    let workspace = find_change_dir(root, &accepted.id)?;
+    let workspace_relative = strict_portable_project_path(root, &workspace)?;
+    let repository_directory = git_repo_relative_path(root, &workspace_relative)?;
+    let repository_approvals = format!("{repository_directory}/approvals.json");
+    let head_approvals = git_bounded_regular_file_at_commit(root, "HEAD", &repository_approvals)?;
+    let approvals = if head_approvals.as_deref() == Some(approval_bytes) {
+        load_approval_ledger_from_bytes(
+            approval_bytes,
+            &accepted.id,
+            &mut ApprovalManifestSource::Git {
+                root,
+                commit: "HEAD",
+                directory: &repository_directory,
+                budget: None,
+            },
+        )
+    } else if evidence.is_index_backed(&format!("{workspace_relative}/approvals.json")) {
+        load_approval_ledger_from_bytes(
+            approval_bytes,
+            &accepted.id,
+            &mut ApprovalManifestSource::Captured {
+                directory: &workspace_relative,
+                evidence,
+            },
+        )
+    } else {
+        load_approval_ledger_from_workspace_bytes(root, &workspace, &accepted.id, approval_bytes)
+    }
+    .map_err(|error| format!("invalid staged accepted approvals: {error}"))?;
+    if !approvals.reopenings.is_empty() {
+        validate_trusted_reopening_anchors(root, &accepted.id, &approvals)?;
+    }
     if !verification.passed
         || !definition_digest_matches(root, accepted, &verification.contract_digest)?
     {
@@ -8814,6 +13785,9 @@ fn staged_accepted_snapshot_is_closing_authenticated(
     } else if verification.semantic_succession.is_some() {
         return Ok(false);
     }
+    if validate_reopening_audit_binding(&verification, &approvals.reopenings).is_err() {
+        return Ok(false);
+    }
     let closing_matches = approvals
         .approvals
         .iter()
@@ -8831,6 +13805,7 @@ fn accepted_evidence_key(state: &[u8], verification: &[u8], approvals: &[u8]) ->
     digest.finish()
 }
 
+#[cfg(test)]
 fn git_object_bytes(root: &Path, commit: &str, path: &str) -> Option<Vec<u8>> {
     let object = format!("{commit}:{path}");
     let output = Command::new("git")
@@ -8841,24 +13816,40 @@ fn git_object_bytes(root: &Path, commit: &str, path: &str) -> Option<Vec<u8>> {
     output.status.success().then_some(output.stdout)
 }
 
-fn git_change_record_at(root: &Path, commit: &str, path: &str) -> Option<ChangeRecord> {
-    let object = format!("{commit}:{path}");
-    let output = Command::new("git")
-        .args(["show", object.as_str()])
-        .current_dir(root)
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| serde_json::from_slice(&output.stdout).ok())
-        .flatten()
-}
-
 fn acceptance_input_digest(
     root: &Path,
     record: &ChangeRecord,
     overrides: &[(PathBuf, String)],
+) -> Result<String, String> {
+    acceptance_input_digest_internal(
+        root,
+        record,
+        overrides,
+        HistoricalSequenceEvidence::Validate,
+    )
+}
+
+fn acceptance_input_digest_internal(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+    sequence_evidence: HistoricalSequenceEvidence,
+) -> Result<String, String> {
+    acceptance_input_digest_internal_with_reconstruction_evidence(
+        root,
+        record,
+        overrides,
+        sequence_evidence,
+        None,
+    )
+}
+
+fn acceptance_input_digest_internal_with_reconstruction_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+    overrides: &[(PathBuf, String)],
+    sequence_evidence: HistoricalSequenceEvidence,
+    reconstruction_evidence: Option<&LegacyReconstructionEvidence>,
 ) -> Result<String, String> {
     let discovery_scopes = acceptance_discovery_scopes(root, record)?;
     let override_content: BTreeMap<String, &[u8]> = overrides
@@ -8871,13 +13862,21 @@ fn acceptance_input_digest(
         })
         .collect::<Result<_, String>>()?;
     let extra_candidates = override_content.keys().cloned().collect();
-    let (mut paths, evidence) =
+    let (mut paths, mut evidence) =
         stable_discovered_evidence(root, Some(&discovery_scopes), &extra_candidates, false)?;
+    if let Some(reconstruction_evidence) = reconstruction_evidence {
+        preserve_legacy_reconstruction_evidence(&mut paths, &mut evidence, reconstruction_evidence);
+    }
     paths.retain(|path| {
         !project_input_is_volatile(path) && record_covers_project_path(root, record, path)
     });
     let historical_sequence_ledger = if record_covers_project_path(root, record, SEQUENCE_PATH) {
-        historical_sequence_ledger_acceptance_content(root, record)?
+        match sequence_evidence {
+            HistoricalSequenceEvidence::Validate => {
+                historical_sequence_ledger_acceptance_content(root, record)?
+            }
+            HistoricalSequenceEvidence::Retained(content) => content,
+        }
     } else {
         None
     };
@@ -8914,6 +13913,13 @@ fn historical_sequence_ledger_acceptance_content(
     record: &ChangeRecord,
 ) -> Result<Option<Vec<u8>>, String> {
     validate_change_sequences(root)?;
+    historical_sequence_ledger_acceptance_content_unchecked(root, record)
+}
+
+fn historical_sequence_ledger_acceptance_content_unchecked(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Option<Vec<u8>>, String> {
     let Some(ledger) = load_change_sequence_ledger(root)? else {
         return Ok(None);
     };
@@ -9163,15 +14169,105 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo).map(|_| ())
 }
 
+struct TerminalAuthenticationSnapshot {
+    workspace: PathBuf,
+    directory: ManifestObjectDirectory,
+    state_bytes: Vec<u8>,
+    verification_bytes: Vec<u8>,
+    approvals_bytes: Vec<u8>,
+    verification: VerificationRecord,
+    ledger: ApprovalLedger,
+}
+
+fn load_terminal_authentication_snapshot(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<TerminalAuthenticationSnapshot, String> {
+    let workspace = find_change_dir(root, &record.id)?;
+    let directory = open_retained_change_workspace(root, &workspace)?;
+    let state = read_retained_workspace_file(
+        root,
+        &workspace,
+        &directory,
+        "state.json",
+        MAX_CHANGE_ARTIFACT_BYTES,
+    )?
+    .ok_or_else(|| "accepted change state is missing".to_string())?;
+    let persisted: ChangeRecord = serde_json::from_slice(&state.bytes).map_err(|error| {
+        format!(
+            "invalid change state {}: {error}",
+            workspace.join("state.json").display()
+        )
+    })?;
+    validate_loaded_change(&persisted, &record.id, &workspace.join("state.json"))?;
+    if persisted != *record {
+        return Err(
+            "accepted change state does not match the retained terminal authentication snapshot"
+                .into(),
+        );
+    }
+    let verification = read_retained_workspace_file(
+        root,
+        &workspace,
+        &directory,
+        "verification.json",
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+    )?
+    .ok_or_else(|| "verification evidence is missing".to_string())?;
+    let parsed_verification = serde_json::from_slice(&verification.bytes)
+        .map_err(|error| format!("invalid verification evidence: {error}"))?;
+    let approvals = read_retained_workspace_file(
+        root,
+        &workspace,
+        &directory,
+        "approvals.json",
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+    )?
+    .ok_or_else(|| "approval ledger is missing".to_string())?;
+    let ledger = load_approval_ledger_from_retained_workspace_bytes(
+        &directory,
+        &record.id,
+        &approvals.bytes,
+    )?;
+    Ok(TerminalAuthenticationSnapshot {
+        workspace,
+        directory,
+        state_bytes: state.bytes,
+        verification_bytes: verification.bytes,
+        approvals_bytes: approvals.bytes,
+        verification: parsed_verification,
+        ledger,
+    })
+}
+
 fn authenticate_accepted_evidence(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<VerificationRecord, String> {
+    authenticate_accepted_evidence_with_terminal_hook(root, record, || Ok(()))
+}
+
+fn authenticate_accepted_evidence_with_terminal_hook<TerminalHook>(
+    root: &Path,
+    record: &ChangeRecord,
+    terminal_hook: TerminalHook,
+) -> Result<VerificationRecord, String>
+where
+    TerminalHook: FnOnce() -> Result<(), String>,
+{
     validate_acceptance_owner_correction_records(record)?;
     if record.state == ChangeState::Archived {
         validate_archived_accepted_snapshot(root, record)?;
     }
-    let verification = load_verification(root, record)?;
+    let terminal_snapshot = if record.state == ChangeState::Accepted {
+        Some(load_terminal_authentication_snapshot(root, record)?)
+    } else {
+        None
+    };
+    let verification = match &terminal_snapshot {
+        Some(snapshot) => snapshot.verification.clone(),
+        None => load_verification(root, record)?,
+    };
     if !verification.passed {
         return Err("accepted change has failed verification evidence".into());
     }
@@ -9203,8 +14299,12 @@ fn authenticate_accepted_evidence(
     } else if verification.semantic_succession.is_some() {
         return Err("legacy acceptance cannot carry succession evidence without a manifest".into());
     }
+    let ledger = match &terminal_snapshot {
+        Some(snapshot) => snapshot.ledger.clone(),
+        None => load_approvals(root, record)?,
+    };
+    validate_reopening_audit_binding(&verification, &ledger.reopenings)?;
     let expected = closing_digest(record, &verification);
-    let ledger = load_approvals(root, record)?;
     let approval = ledger
         .approvals
         .iter()
@@ -9214,11 +14314,22 @@ fn authenticate_accepted_evidence(
     if approval.digest != expected {
         return Err("accepted change closing approval does not match verification evidence".into());
     }
-    if !verification_commit_is_accepted_current(root, &verification)
-        && !accepted_workspace_is_integrated(root, record)
-        && !accepted_change_is_recorded_on_remote_default(root, record)
-    {
+    if terminal_snapshot.is_some() {
+        terminal_hook()?;
+    }
+    let terminal_inventory = terminal_snapshot
+        .map(|snapshot| retained_terminal_authentication_inventory(root, snapshot))
+        .transpose()?;
+    let verification_is_current = verification_commit_is_accepted_current(root, &verification);
+    let workspace_is_integrated = terminal_inventory.as_ref().is_some_and(|inventory| {
+        accepted_workspace_inventory_is_integrated(root, record, inventory)
+    });
+    let recorded_on_remote_default = accepted_change_is_recorded_on_remote_default(root, record);
+    if !verification_is_current && !workspace_is_integrated && !recorded_on_remote_default {
         return Err("accepted change verification commit is not in current history and canonical acceptance is not recorded on the remote default branch".into());
+    }
+    if record.state == ChangeState::Accepted && !ledger.reopenings.is_empty() {
+        authenticated_accepted_transition(root, record)?;
     }
     Ok(verification)
 }
@@ -9227,22 +14338,30 @@ fn validate_archived_accepted_snapshot(root: &Path, archived: &ChangeRecord) -> 
     let workspace = find_change_dir(root, &archived.id)?;
     let path = workspace.join("accepted-state.json");
     let (_, historical_bytes, historical) = authenticated_accepted_transition(root, archived)?;
-    let accepted = match fs::read(&path) {
-        Ok(content) => {
-            if content != historical_bytes {
+    let directory = open_retained_change_workspace(root, &workspace)?;
+    let snapshot = read_retained_workspace_file(
+        root,
+        &workspace,
+        &directory,
+        "accepted-state.json",
+        MAX_CHANGE_ARTIFACT_BYTES,
+    )?;
+    let accepted = match snapshot {
+        Some(snapshot) => {
+            if snapshot.bytes != historical_bytes {
                 return Err(format!(
                     "archived change `{}` accepted-state snapshot does not match its trusted transition",
                     archived.id
                 ));
             }
-            serde_json::from_slice(&content).map_err(|error| {
+            serde_json::from_slice(&snapshot.bytes).map_err(|error| {
                 format!(
                     "invalid accepted-state snapshot {}: {error}",
                     path.display()
                 )
             })?
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+        None => {
             let verification = load_verification(root, archived)?;
             if verification.acceptance_manifest.is_some() {
                 return Err(format!(
@@ -9252,7 +14371,6 @@ fn validate_archived_accepted_snapshot(root: &Path, archived: &ChangeRecord) -> 
             }
             historical
         }
-        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
     };
     if accepted.id != archived.id || accepted.state != ChangeState::Accepted {
         return Err(format!(
@@ -9336,6 +14454,7 @@ fn validate_archived_integrity_with_cache(
         reconstruct_legacy_acceptance_manifest(root, archived, expected_inputs)?;
     }
     let ledger = load_approvals(root, archived)?;
+    validate_reopening_audit_binding(&verification, &ledger.reopenings)?;
     let approval = ledger
         .approvals
         .iter()
@@ -10277,23 +15396,21 @@ fn list_all_changes_checked(root: &Path) -> Result<BTreeMap<String, ChangeRecord
         {
             continue;
         }
-        let path = entry.path().join("state.json");
-        let content = match fs::read_to_string(&path) {
-            Ok(content) => content,
-            Err(error)
-                if error.kind() == std::io::ErrorKind::NotFound
-                    && is_positive_legacy_tombstone(&entry.path()) =>
-            {
-                continue;
-            }
-            Err(error) => {
-                return Err(format!(
-                    "failed to read archived state {}: {error}",
-                    path.display()
-                ));
-            }
+        let workspace = entry.path();
+        let path = workspace.join("state.json");
+        let directory = open_retained_change_workspace(root, &workspace)?;
+        let snapshot = match read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "state.json",
+            MAX_CHANGE_ARTIFACT_BYTES,
+        )? {
+            Some(snapshot) => snapshot,
+            None if is_positive_legacy_tombstone(&workspace) => continue,
+            None => return Err(format!("archived state is missing: {}", path.display())),
         };
-        let record: ChangeRecord = serde_json::from_str(&content)
+        let record: ChangeRecord = serde_json::from_slice(&snapshot.bytes)
             .map_err(|error| format!("invalid archived state {}: {error}", path.display()))?;
         validate_loaded_change(&record, &record.id, &path)?;
         if records.insert(record.id.clone(), record.clone()).is_some() {
@@ -10354,9 +15471,12 @@ fn append_approval(
         note,
         definition_pair: None,
     });
-    write_json(
-        &change_dir(root, &record.id).join("approvals.json"),
-        &ledger,
+    write_prepared_files(
+        root,
+        &[(
+            change_dir(root, &record.id).join("approvals.json"),
+            approval_ledger_content(root, record, &ledger)?,
+        )],
     )
 }
 
@@ -10371,12 +15491,21 @@ fn append_portable_definition_approval_v501(
     let actor = resolve_actor(root, actor)?;
     let timestamp = now();
     let path = change_dir(root, &record.id).join("approvals.json");
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-    let mut document: serde_json::Value = serde_json::from_str(&content)
+    let workspace = find_change_dir(root, &record.id)?;
+    let directory = open_retained_change_workspace(root, &workspace)?;
+    let snapshot = read_retained_workspace_file(
+        root,
+        &workspace,
+        &directory,
+        "approvals.json",
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+    )?
+    .ok_or_else(|| format!("approval ledger is missing: {}", path.display()))?;
+    let mut document: serde_json::Value = serde_json::from_slice(&snapshot.bytes)
         .map_err(|error| format!("invalid approval ledger {}: {error}", path.display()))?;
-    let ledger: ApprovalLedger = serde_json::from_value(document.clone())
-        .map_err(|error| format!("invalid approval ledger {}: {error}", path.display()))?;
+    let ledger =
+        load_approval_ledger_from_retained_workspace_bytes(&directory, &record.id, &snapshot.bytes)
+            .map_err(|error| format!("invalid approval ledger {}: {error}", path.display()))?;
     let event_index = ledger.approvals.len() as u64;
     let pair_id = definition_approval_pair_id(
         record,
@@ -10458,25 +15587,31 @@ fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
 }
 
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {
-    let path = find_change_dir(root, &record.id)?.join("approvals.json");
-    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    serde_json::from_str(&content).map_err(|error| {
-        let message = error.to_string();
-        if message.contains("missing field `stale_acceptance_input_digest`")
-            || message.contains("missing field `current_acceptance_input_digest`")
-        {
-            format!("{message}; run `specsync migrate 5.0` to backfill 5.0.1-era reopening records")
-        } else {
-            message
-        }
-    })
+    let workspace = find_change_dir(root, &record.id)?;
+    let directory = open_retained_change_workspace(root, &workspace)?;
+    let snapshot = read_retained_workspace_file(
+        root,
+        &workspace,
+        &directory,
+        "approvals.json",
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+    )?
+    .ok_or_else(|| "approval ledger is missing".to_string())?;
+    load_approval_ledger_from_retained_workspace_bytes(&directory, &record.id, &snapshot.bytes)
 }
 
 fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationRecord, String> {
-    let path = find_change_dir(root, &record.id)?.join("verification.json");
-    let content =
-        fs::read_to_string(&path).map_err(|_| "verification evidence is missing".to_string())?;
-    serde_json::from_str(&content)
+    let workspace = find_change_dir(root, &record.id)?;
+    let directory = open_retained_change_workspace(root, &workspace)?;
+    let snapshot = read_retained_workspace_file(
+        root,
+        &workspace,
+        &directory,
+        "verification.json",
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+    )?
+    .ok_or_else(|| "verification evidence is missing".to_string())?;
+    serde_json::from_slice(&snapshot.bytes)
         .map_err(|error| format!("invalid verification evidence: {error}"))
 }
 
@@ -10486,9 +15621,7 @@ fn record_verification_attempt(
     verification: &VerificationRecord,
 ) -> Result<(), String> {
     let history_path = change_dir(root, &record.id).join("verification-attempts.json");
-    let mut history = if history_path.exists() {
-        let content = fs::read_to_string(&history_path)
-            .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
+    let mut history = if let Some(content) = read_retained_project_text(root, &history_path)? {
         let history: VerificationAttemptLedger = serde_json::from_str(&content)
             .map_err(|error| format!("invalid verification attempt history: {error}"))?;
         if history.schema_version != 1 {
@@ -11349,15 +16482,19 @@ fn validate_foreign_tree(root: &Path) -> Result<(), String> {
 }
 
 fn save_change(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    write_json(&change_dir(root, &record.id).join("state.json"), record)
+    publish_retained_project_text(
+        root,
+        &change_dir(root, &record.id).join("state.json"),
+        &json_content(record)?,
+    )
 }
 
 fn write_change_markdown(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    fs::write(
-        change_dir(root, &record.id).join("change.md"),
-        change_markdown_content(record),
+    publish_retained_project_text(
+        root,
+        &change_dir(root, &record.id).join("change.md"),
+        &change_markdown_content(record),
     )
-    .map_err(|error| error.to_string())
 }
 
 fn change_markdown_content(record: &ChangeRecord) -> String {
@@ -11402,9 +16539,8 @@ fn ensure_artifact_files(root: &Path, record: &ChangeRecord) -> Result<(), Strin
     let dir = change_dir(root, &record.id);
     for artifact in &record.selected_artifacts {
         let path = dir.join(artifact.file_name());
-        if !path.exists() {
-            fs::write(path, artifact_template(root, artifact, record))
-                .map_err(|error| error.to_string())?;
+        if read_retained_project_text(root, &path)?.is_none() {
+            publish_retained_project_text(root, &path, &artifact_template(root, artifact, record))?;
         }
     }
     Ok(())
@@ -11454,22 +16590,47 @@ fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
     validate_change_id(id)?;
     let active = change_dir(root, id);
     let mut matches = Vec::new();
-    if active.is_dir() {
-        matches.push(active);
+    match fs::symlink_metadata(&active) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "active change workspace entry is a symlink: {}",
+                active.display()
+            ));
+        }
+        Ok(metadata) if metadata.is_dir() => matches.push(active),
+        Ok(_) => {
+            return Err(format!(
+                "active change workspace entry is not a directory: {}",
+                active.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect active change workspace {}: {error}",
+                active.display()
+            ));
+        }
     }
     let archive = root.join(ARCHIVE_PATH);
     if let Ok(entries) = fs::read_dir(archive) {
         for entry in entries.flatten() {
-            if !entry.path().is_dir() {
+            if !entry.file_type().is_ok_and(|file_type| file_type.is_dir()) {
                 continue;
             }
-            let state = entry.path().join("state.json");
-            let matches_id = fs::read(&state)
-                .ok()
-                .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
-                .is_some_and(|record| record.id == id);
+            let workspace = entry.path();
+            let directory = open_retained_change_workspace(root, &workspace)?;
+            let matches_id = read_retained_workspace_file(
+                root,
+                &workspace,
+                &directory,
+                "state.json",
+                MAX_CHANGE_ARTIFACT_BYTES,
+            )?
+            .and_then(|snapshot| serde_json::from_slice::<ChangeRecord>(&snapshot.bytes).ok())
+            .is_some_and(|record| record.id == id);
             if matches_id {
-                matches.push(entry.path());
+                matches.push(workspace);
             }
         }
     }
@@ -11773,11 +16934,10 @@ fn ensure_verification_persistence_consistent(
         ));
     }
     let history_path = change_dir(root, id).join("verification-attempts.json");
-    let history: VerificationAttemptLedger = serde_json::from_slice(
-        &fs::read(&history_path)
-            .map_err(|error| format!("failed to read {}: {error}", history_path.display()))?,
-    )
-    .map_err(|error| format!("invalid verification attempt history: {error}"))?;
+    let history_content =
+        read_bounded_change_text(root, &history_path, "verification attempt history")?;
+    let history: VerificationAttemptLedger = serde_json::from_str(&history_content)
+        .map_err(|error| format!("invalid verification attempt history: {error}"))?;
     if history.schema_version != 1 || history.attempts.last() != Some(&verification) {
         return Err(format!(
             "verification persistence for `{id}` does not match its latest attempt"
@@ -11795,59 +16955,396 @@ fn ensure_verification_persistence_consistent(
 
 fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationRecord) -> bool {
     let Some(commit) = evidence.commit.as_deref() else {
-        return git_output(root, &["rev-parse", "HEAD"]).is_none();
+        return run_git_bounded(
+            root,
+            &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+            None,
+            256,
+        )
+        .is_ok_and(|output| !output.status.success());
     };
-    Command::new("git")
-        .args(["merge-base", "--is-ancestor", commit, "HEAD"])
-        .current_dir(root)
-        .status()
-        .is_ok_and(|status| status.success())
+    run_git_bounded(
+        root,
+        &["merge-base", "--is-ancestor", commit, "HEAD"],
+        None,
+        256,
+    )
+    .is_ok_and(|output| output.status.success())
 }
 
+#[cfg(test)]
 fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool {
-    let Some(remote_default) = remote_default_ref(root) else {
+    let workspace = root.join(CHANGES_PATH).join(&record.id);
+    let Ok(workspace_inventory) = retained_terminal_workspace_inventory(root, &workspace) else {
         return false;
     };
-    let head_is_integrated = Command::new("git")
-        .args([
+    accepted_workspace_inventory_is_integrated(root, record, &workspace_inventory)
+}
+
+fn accepted_workspace_inventory_is_integrated(
+    root: &Path,
+    record: &ChangeRecord,
+    workspace_inventory: &BTreeMap<String, (u32, Vec<u8>)>,
+) -> bool {
+    let Ok(Some(remote_default)) = trusted_remote_default_ref(root) else {
+        return false;
+    };
+    let head_is_integrated = run_git_bounded(
+        root,
+        &[
             "merge-base",
             "--is-ancestor",
             "HEAD",
             remote_default.as_str(),
-        ])
-        .current_dir(root)
-        .status()
-        .is_ok_and(|status| status.success());
+        ],
+        None,
+        256,
+    )
+    .is_ok_and(|output| output.status.success());
     if !head_is_integrated {
         return false;
     }
     let workspace = format!("{CHANGES_PATH}/{}", record.id);
-    let state = format!("{workspace}/state.json");
     let Ok(repo_workspace) = git_repo_relative_path(root, &workspace) else {
         return false;
     };
-    let Ok(repo_state) = git_repo_relative_path(root, &state) else {
+    let Ok(remote_inventory) =
+        terminal_remote_workspace_inventory(root, &remote_default, &repo_workspace)
+    else {
         return false;
     };
-    let remote_state = format!("{remote_default}:{repo_state}");
-    let repo_workspace_pathspec = format!(":(top,literal){repo_workspace}");
-    let state_exists = Command::new("git")
-        .args(["cat-file", "-e", remote_state.as_str()])
-        .current_dir(root)
-        .status()
-        .is_ok_and(|status| status.success());
-    state_exists
-        && Command::new("git")
-            .args([
-                "diff",
-                "--quiet",
-                remote_default.as_str(),
-                "--",
-                repo_workspace_pathspec.as_str(),
-            ])
-            .current_dir(root)
-            .status()
-            .is_ok_and(|status| status.success())
+    if !remote_inventory.contains_key("state.json") {
+        return false;
+    }
+    workspace_inventory == &remote_inventory
+}
+
+fn terminal_remote_workspace_inventory(
+    root: &Path,
+    reference: &str,
+    repo_workspace: &str,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let pathspec = format!(":(top,literal){repo_workspace}");
+    let output = run_git_required(
+        root,
+        &[
+            "ls-tree",
+            "-r",
+            "-l",
+            "-z",
+            "--full-tree",
+            reference,
+            "--",
+            pathspec.as_str(),
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )?;
+    let prefix = format!("{repo_workspace}/");
+    let mut entries = Vec::new();
+    let mut aggregate_bytes = 0_usize;
+    for raw in output
+        .split(|byte| *byte == 0)
+        .filter(|raw| !raw.is_empty())
+    {
+        if entries.len() >= MAX_ACCEPTANCE_ENTRIES {
+            return Err(format!(
+                "trusted remote workspace exceeds {MAX_ACCEPTANCE_ENTRIES} entries"
+            ));
+        }
+        let raw = std::str::from_utf8(raw)
+            .map_err(|_| "trusted remote workspace contains non-UTF-8 metadata".to_string())?;
+        let (metadata, path) = raw
+            .split_once('\t')
+            .ok_or_else(|| format!("invalid trusted remote workspace entry `{raw}`"))?;
+        let mut fields = metadata.split_whitespace();
+        let mode = fields
+            .next()
+            .ok_or_else(|| "trusted remote workspace entry has no mode".to_string())?;
+        let kind = fields
+            .next()
+            .ok_or_else(|| "trusted remote workspace entry has no kind".to_string())?;
+        let object = fields
+            .next()
+            .ok_or_else(|| "trusted remote workspace entry has no object".to_string())?;
+        let size = fields
+            .next()
+            .ok_or_else(|| "trusted remote workspace entry has no size".to_string())?;
+        if fields.next().is_some() {
+            return Err(format!(
+                "trusted remote workspace entry has malformed metadata `{metadata}`"
+            ));
+        }
+        let mode = u32::from_str_radix(mode, 8)
+            .map_err(|_| "trusted remote workspace entry has an invalid mode".to_string())?;
+        if kind != "blob" || !matches!(mode, 0o100644 | 0o100755) {
+            return Err(format!(
+                "trusted remote workspace contains unsupported `{kind}` mode `{mode:o}`"
+            ));
+        }
+        let size = size
+            .parse::<usize>()
+            .map_err(|_| "trusted remote workspace entry has an invalid size".to_string())?;
+        if size > MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES as usize {
+            return Err(format!(
+                "trusted remote workspace entry `{path}` exceeds {MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES} bytes"
+            ));
+        }
+        aggregate_bytes = aggregate_bytes
+            .checked_add(size)
+            .ok_or_else(|| "trusted remote workspace byte count overflowed".to_string())?;
+        if aggregate_bytes > MAX_GIT_EVIDENCE_PAYLOAD_BYTES {
+            return Err(format!(
+                "trusted remote workspace exceeds {MAX_GIT_EVIDENCE_PAYLOAD_BYTES} aggregate bytes"
+            ));
+        }
+        let relative = path.strip_prefix(&prefix).ok_or_else(|| {
+            format!("trusted remote workspace path `{path}` escaped `{repo_workspace}`")
+        })?;
+        let relative = strict_portable_relative_path(relative)?;
+        if relative.len() > MAX_ACCEPTANCE_PATH_BYTES {
+            return Err(format!(
+                "trusted remote workspace path exceeds {MAX_ACCEPTANCE_PATH_BYTES} bytes: `{relative}`"
+            ));
+        }
+        entries.push((relative, mode, object.to_string(), size));
+    }
+    let objects: Vec<&str> = entries
+        .iter()
+        .map(|(_, _, object, _)| object.as_str())
+        .collect();
+    let blobs = git_blob_bytes_batch(root, &objects)?;
+    let mut inventory = BTreeMap::new();
+    for ((relative, mode, _object, size), bytes) in entries.into_iter().zip(blobs) {
+        if bytes.len() != size {
+            return Err(format!(
+                "trusted remote workspace blob `{relative}` changed size while reading"
+            ));
+        }
+        if inventory.insert(relative.clone(), (mode, bytes)).is_some() {
+            return Err(format!(
+                "trusted remote workspace repeats path `{relative}`"
+            ));
+        }
+    }
+    Ok(inventory)
+}
+
+#[cfg(test)]
+fn retained_terminal_workspace_inventory(
+    root: &Path,
+    workspace: &Path,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let retained = open_retained_change_workspace(root, workspace)?;
+    retained_terminal_workspace_inventory_from_retained(root, workspace, retained)
+}
+
+fn retained_terminal_authentication_inventory(
+    root: &Path,
+    snapshot: TerminalAuthenticationSnapshot,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let TerminalAuthenticationSnapshot {
+        workspace,
+        directory,
+        state_bytes,
+        verification_bytes,
+        approvals_bytes,
+        ..
+    } = snapshot;
+    let inventory =
+        retained_terminal_workspace_inventory_from_retained(root, &workspace, directory)?;
+    for (path, expected) in [
+        ("state.json", state_bytes.as_slice()),
+        ("verification.json", verification_bytes.as_slice()),
+        ("approvals.json", approvals_bytes.as_slice()),
+    ] {
+        let Some((_, actual)) = inventory.get(path) else {
+            return Err(format!(
+                "terminal authentication evidence `{path}` disappeared before workspace inventory"
+            ));
+        };
+        if actual.as_slice() != expected {
+            return Err(format!(
+                "terminal authentication evidence `{path}` changed before workspace inventory"
+            ));
+        }
+    }
+    Ok(inventory)
+}
+
+fn retained_terminal_workspace_inventory_from_retained(
+    root: &Path,
+    workspace: &Path,
+    retained: ManifestObjectDirectory,
+) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
+    let retained_identity = retained.identity;
+    let mut pending = vec![(String::new(), retained)];
+    let mut inventory = BTreeMap::new();
+    let mut entries_seen = 0_usize;
+    let mut aggregate_bytes = 0_usize;
+    while let Some((prefix, directory)) = pending.pop() {
+        let entries = directory.handle.entries().map_err(|error| {
+            format!(
+                "failed to enumerate retained terminal workspace {}: {error}",
+                directory.path.display()
+            )
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                format!(
+                    "failed to enumerate retained terminal workspace {}: {error}",
+                    directory.path.display()
+                )
+            })?;
+            entries_seen = entries_seen
+                .checked_add(1)
+                .ok_or_else(|| "retained terminal workspace entry count overflowed".to_string())?;
+            if entries_seen > MAX_ACCEPTANCE_ENTRIES {
+                return Err(format!(
+                    "retained terminal workspace exceeds {MAX_ACCEPTANCE_ENTRIES} entries"
+                ));
+            }
+            let name = entry
+                .file_name()
+                .to_str()
+                .ok_or_else(|| {
+                    format!(
+                        "retained terminal workspace name is not portable UTF-8 in {}",
+                        directory.path.display()
+                    )
+                })?
+                .to_string();
+            let relative = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{prefix}/{name}")
+            };
+            let relative = strict_portable_relative_path(&relative)?;
+            if relative.len() > MAX_ACCEPTANCE_PATH_BYTES {
+                return Err(format!(
+                    "retained terminal workspace path exceeds {MAX_ACCEPTANCE_PATH_BYTES} bytes: `{relative}`"
+                ));
+            }
+            let name_path = Path::new(&name);
+            let metadata = directory
+                .handle
+                .symlink_metadata(name_path)
+                .map_err(|error| {
+                    format!(
+                        "failed to inspect retained terminal workspace entry {}: {error}",
+                        directory.path.join(&name).display()
+                    )
+                })?;
+            if manifest_metadata_is_link(&metadata) {
+                return Err(format!(
+                    "retained terminal workspace entry is a symlink: {}",
+                    directory.path.join(&name).display()
+                ));
+            }
+            if metadata.is_dir() {
+                let expected_identity = manifest_metadata_identity(&metadata)?;
+                let parent = directory
+                    .handle
+                    .try_clone()
+                    .map_err(|error| {
+                        format!(
+                            "failed to retain terminal workspace directory {}: {error}",
+                            directory.path.display()
+                        )
+                    })?
+                    .into_std_file();
+                let opened =
+                    cap_primitives::fs::open_dir_nofollow(&parent, name_path).map_err(|error| {
+                        format!(
+                            "retained terminal workspace directory changed while opening {}: {error}",
+                            directory.path.join(&name).display()
+                        )
+                    })?;
+                let child = CapDir::from_std_file(opened);
+                let opened_identity =
+                    manifest_metadata_identity(&child.dir_metadata().map_err(|error| {
+                        format!(
+                            "failed to inspect retained terminal workspace directory {}: {error}",
+                            directory.path.join(&name).display()
+                        )
+                    })?)?;
+                if opened_identity != expected_identity {
+                    return Err(format!(
+                        "retained terminal workspace directory changed while opening: {}",
+                        directory.path.join(&name).display()
+                    ));
+                }
+                pending.push((
+                    relative,
+                    ManifestObjectDirectory {
+                        handle: child,
+                        path: directory.path.join(&name),
+                        identity: opened_identity,
+                    },
+                ));
+                continue;
+            }
+            if !metadata.is_file() {
+                return Err(format!(
+                    "retained terminal workspace contains unsupported entry: {}",
+                    directory.path.join(&name).display()
+                ));
+            }
+            let mode = retained_terminal_file_mode(&metadata);
+            let snapshot = read_retained_directory_file(
+                &directory,
+                &name,
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+            )?
+            .ok_or_else(|| {
+                format!(
+                    "retained terminal workspace file disappeared: {}",
+                    directory.path.join(&name).display()
+                )
+            })?;
+            aggregate_bytes = aggregate_bytes
+                .checked_add(snapshot.bytes.len())
+                .ok_or_else(|| "retained terminal workspace byte count overflowed".to_string())?;
+            if aggregate_bytes > MAX_GIT_EVIDENCE_PAYLOAD_BYTES {
+                return Err(format!(
+                    "retained terminal workspace exceeds {MAX_GIT_EVIDENCE_PAYLOAD_BYTES} aggregate bytes"
+                ));
+            }
+            if inventory
+                .insert(relative.clone(), (mode, snapshot.bytes))
+                .is_some()
+            {
+                return Err(format!(
+                    "retained terminal workspace repeats path `{relative}`"
+                ));
+            }
+        }
+    }
+    let rebound = open_retained_change_workspace(root, workspace)?;
+    if rebound.identity != retained_identity {
+        return Err(format!(
+            "change workspace changed while inventorying: {}",
+            workspace.display()
+        ));
+    }
+    Ok(inventory)
+}
+
+fn retained_terminal_file_mode(metadata: &cap_std::fs::Metadata) -> u32 {
+    #[cfg(unix)]
+    {
+        use cap_std::fs::MetadataExt;
+        if metadata.mode() & 0o111 == 0 {
+            0o100644
+        } else {
+            0o100755
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        0o100644
+    }
 }
 
 #[cfg(test)]
@@ -11856,45 +17353,66 @@ fn accepted_change_is_recorded_in_current_history(root: &Path, record: &ChangeRe
 }
 
 fn accepted_change_is_recorded_on_remote_default(root: &Path, record: &ChangeRecord) -> bool {
-    remote_default_ref(root).is_some_and(|remote_default| {
-        accepted_change_is_recorded_in_ref(root, record, &remote_default)
-    })
+    trusted_remote_default_ref(root)
+        .ok()
+        .flatten()
+        .is_some_and(|remote_default| {
+            accepted_change_is_recorded_in_ref(root, record, &remote_default)
+        })
 }
 
 fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, reference: &str) -> bool {
+    accepted_change_is_recorded_in_ref_with_budget(
+        root,
+        record,
+        reference,
+        &mut TrustedHistoryScanBudget::default(),
+    )
+    .unwrap_or(false)
+}
+
+fn accepted_change_is_recorded_in_ref_with_budget(
+    root: &Path,
+    record: &ChangeRecord,
+    reference: &str,
+    budget: &mut TrustedHistoryScanBudget,
+) -> Result<bool, String> {
     let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
-    let Ok(repo_state) = git_repo_relative_path(root, &state) else {
-        return false;
-    };
+    let repo_state = git_repo_relative_path(root, &state)?;
     let top_state = format!(":(top,literal){repo_state}");
-    let history = Command::new("git")
-        .args(["log", "--format=%H", reference, "--", top_state.as_str()])
-        .current_dir(root)
-        .output();
-    let Ok(history) = history else {
-        return false;
-    };
-    if !history.status.success() {
-        return false;
+    let maximum_candidates = budget
+        .maximum_commits
+        .checked_add(1)
+        .ok_or_else(|| "trusted lifecycle history candidate limit overflowed".to_string())?;
+    let maximum_candidates_argument = maximum_candidates.to_string();
+    let maximum_history_bytes = maximum_candidates
+        .checked_mul(65)
+        .ok_or_else(|| "trusted lifecycle history query byte limit overflowed".to_string())?;
+    let history = run_git_required(
+        root,
+        &[
+            "log",
+            "--format=%H",
+            "--max-count",
+            maximum_candidates_argument.as_str(),
+            reference,
+            "--",
+            top_state.as_str(),
+        ],
+        None,
+        maximum_history_bytes,
+    )?;
+    let history = std::str::from_utf8(&history)
+        .map_err(|_| "trusted lifecycle history commit list is not UTF-8".to_string())?;
+    let mut accepted = false;
+    for commit in history.lines() {
+        if trusted_history_change_record_at(root, commit, &repo_state, budget)?.is_some_and(
+            |historical| historical.id == record.id && historical.state == ChangeState::Accepted,
+        ) {
+            accepted = true;
+        }
     }
-    String::from_utf8_lossy(&history.stdout)
-        .lines()
-        .any(|commit| {
-            let object = format!("{commit}:{repo_state}");
-            let snapshot = Command::new("git")
-                .args(["show", object.as_str()])
-                .current_dir(root)
-                .output();
-            let Ok(snapshot) = snapshot else {
-                return false;
-            };
-            snapshot.status.success()
-                && serde_json::from_slice::<ChangeRecord>(&snapshot.stdout).is_ok_and(
-                    |historical| {
-                        historical.id == record.id && historical.state == ChangeState::Accepted
-                    },
-                )
-        })
+    Ok(accepted)
 }
 
 #[cfg(test)]
@@ -12075,9 +17593,19 @@ fn git_repo_relative_path(root: &Path, project_path: &str) -> Result<String, Str
 }
 
 fn git_repo_prefix(root: &Path) -> Result<String, String> {
-    let prefix = git_output_allow_empty(root, &["rev-parse", "--show-prefix"])
-        .ok_or_else(|| "unable to determine project path within Git repository".to_string())?
+    let output = run_git_required(root, &["rev-parse", "--show-prefix"], None, 16 * 1024).map_err(
+        |error| format!("unable to determine project path within Git repository: {error}"),
+    )?;
+    let prefix = std::str::from_utf8(&output)
+        .map_err(|_| "project path within Git repository is not UTF-8".to_string())?
+        .trim_end_matches(['\r', '\n'])
         .replace('\\', "/");
+    if !prefix.is_empty() {
+        let normalized = strict_portable_relative_path(prefix.trim_end_matches('/'))?;
+        if format!("{normalized}/") != prefix {
+            return Err("Git returned a non-canonical project prefix".into());
+        }
+    }
     Ok(prefix)
 }
 
@@ -12306,6 +17834,43 @@ mod tests {
         accept_change(root, &record.id, Some("Closing reviewer".into()), None).unwrap()
     }
 
+    fn accepted_manifest_record(root: &Path) -> ChangeRecord {
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        accept_change(root, &record.id, Some("Closer".into()), None).unwrap()
+    }
+
+    fn compact_reopened_fixture(root: &Path) -> ReopenResult {
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept initial evidence"]);
+        protect_current_acceptance(root);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Accepted delivery inputs changed".into(),
+        )
+        .unwrap()
+    }
+
+    fn manifest_object_path(root: &Path, reopening: &ReopenRecord) -> PathBuf {
+        change_dir(root, &reopening.change_id)
+            .join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY)
+            .join(format!("{}.json", reopening.stale_acceptance_input_digest))
+    }
+
     #[test]
     fn successor_evidence_fields_are_byte_compatible_when_absent() {
         let temp = TempDir::new().unwrap();
@@ -12324,6 +17889,7 @@ mod tests {
             commit: None,
             contract_digest: "contract".into(),
             workspace_digest: "workspace".into(),
+            reopening_audit_digest: None,
             acceptance_input_digest: None,
             acceptance_manifest: None,
             semantic_succession: None,
@@ -12593,9 +18159,9 @@ mod tests {
         let root = temp.path();
         let target = root.join("target-index");
         fs::write(&target, b"index").unwrap();
-        let link = root.join("linked-index");
         #[cfg(unix)]
         {
+            let link = root.join("linked-index");
             std::os::unix::fs::symlink(&target, &link).unwrap();
             let error = fingerprint_git_index_paths(vec![link]).unwrap_err();
             assert!(error.contains("not a regular file"), "{error}");
@@ -13607,6 +19173,7 @@ mod tests {
         let second = ".specsync/archive/changes/2026-07-15-CHG-0002-second/state.json";
         let evidence = GitEvidence {
             modes: BTreeMap::new(),
+            objects: BTreeMap::new(),
             entries: BTreeMap::from([
                 (
                     first.to_string(),
@@ -13627,6 +19194,7 @@ mod tests {
                     },
                 ),
             ]),
+            index_backed: BTreeSet::new(),
         };
         let paths = vec![first.to_string(), second.to_string()];
 
@@ -14231,12 +19799,12 @@ mod tests {
 
         let all_error = list_all_changes_checked(root).unwrap_err();
         assert!(
-            all_error.contains("failed to read archived state"),
+            all_error.contains("archived state is missing"),
             "{all_error}"
         );
         let sequence_error = located_change_sequences(root).unwrap_err();
         assert!(
-            sequence_error.contains("failed to read archived change state"),
+            sequence_error.contains("archived change state is missing"),
             "{sequence_error}"
         );
     }
@@ -14335,6 +19903,7 @@ mod tests {
             commit: None,
             contract_digest: definition_digest(root, &record).unwrap(),
             workspace_digest: project_input_digest(root).unwrap(),
+            reopening_audit_digest: None,
             acceptance_input_digest: Some(acceptance_input_digest(root, &record, &[]).unwrap()),
             acceptance_manifest: None,
             semantic_succession: None,
@@ -14408,6 +19977,7 @@ mod tests {
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
         record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept reopening migration baseline");
         fs::write(
             root.join("src/lib.rs"),
             "pub fn ready() -> bool { false }\n",
@@ -14426,7 +19996,15 @@ mod tests {
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         let mut ledger: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(&approvals_path).unwrap()).unwrap();
-        for reopening in ledger["reopenings"].as_array_mut().unwrap() {
+        let hydrated = load_approvals(root, &record).unwrap();
+        for (reopening, hydrated) in ledger["reopenings"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .zip(hydrated.reopenings)
+        {
+            *reopening = serde_json::to_value(hydrated).unwrap();
+            reopening["schema_version"] = serde_json::json!(1);
             reopening
                 .as_object_mut()
                 .unwrap()
@@ -14534,6 +20112,675 @@ mod tests {
     }
 
     #[test]
+    fn backfill_preserves_every_preexisting_ledger_byte() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let before = fs::read(&approvals_path).unwrap();
+        let report = backfill_reopen_digests(root, false).unwrap();
+        assert_eq!(report.repaired, vec![record.id]);
+        assert!(report.failed.is_empty());
+
+        let after = fs::read(&approvals_path).unwrap();
+        let repaired: serde_json::Value = serde_json::from_slice(&after).unwrap();
+        let stale = repaired["reopenings"][0]["stale_acceptance_input_digest"]
+            .as_str()
+            .unwrap();
+        let current = repaired["reopenings"][0]["current_acceptance_input_digest"]
+            .as_str()
+            .unwrap();
+        let insertion = format!(
+            ",\"stale_acceptance_input_digest\":{},\"current_acceptance_input_digest\":{}",
+            serde_json::to_string(stale).unwrap(),
+            serde_json::to_string(current).unwrap()
+        );
+        let insertion = insertion.as_bytes();
+        let offset = after
+            .windows(insertion.len())
+            .position(|window| window == insertion)
+            .expect("migration must add one deterministic field fragment");
+        let mut stripped = after;
+        stripped.drain(offset..offset + insertion.len());
+        assert_eq!(stripped, before);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn backfill_rejects_symlinked_workspace_and_ledger_without_mutation() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let workspace = change_dir(root, &record.id);
+        let approvals_path = workspace.join("approvals.json");
+        let external = root.join("external-approvals.json");
+        fs::rename(&approvals_path, &external).unwrap();
+        symlink(&external, &approvals_path).unwrap();
+        let before = fs::read(&external).unwrap();
+
+        let report = backfill_reopen_digests(root, false).unwrap();
+        assert_eq!(report.failed.len(), 1);
+        assert!(report.failed[0].1.contains("not a real regular file"));
+        assert_eq!(fs::read(&external).unwrap(), before);
+
+        fs::remove_file(&approvals_path).unwrap();
+        fs::remove_dir_all(&workspace).unwrap();
+        symlink(
+            root,
+            root.join(CHANGES_PATH).join("CHG-9999-symlink-workspace"),
+        )
+        .unwrap();
+        let error = backfill_reopen_digests(root, false).unwrap_err();
+        assert!(error.contains("workspace entry is a symlink"), "{error}");
+        assert_eq!(fs::read(&external).unwrap(), before);
+    }
+
+    #[test]
+    fn migration_rejects_same_inode_same_length_concurrent_ledger_edits() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let workspace = change_dir(root, &record.id);
+        let directory = open_retained_change_workspace(root, &workspace).unwrap();
+        let snapshot = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let mut concurrent = snapshot.bytes.clone();
+        let whitespace = concurrent
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .expect("fixture ledger must contain whitespace");
+        concurrent[whitespace] = b' ';
+        fs::write(workspace.join("approvals.json"), &concurrent).unwrap();
+
+        let error = atomically_replace_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            &snapshot,
+            b"replacement\n",
+        )
+        .unwrap_err();
+
+        assert!(error.contains("changed before migration write"), "{error}");
+        assert_eq!(
+            fs::read(workspace.join("approvals.json")).unwrap(),
+            concurrent
+        );
+    }
+
+    #[test]
+    fn migration_exchange_rolls_back_a_final_window_ledger_edit() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let workspace = change_dir(root, &record.id);
+        let directory = open_retained_change_workspace(root, &workspace).unwrap();
+        let snapshot = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let mut concurrent = snapshot.bytes.clone();
+        let whitespace = concurrent
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .expect("fixture ledger must contain whitespace");
+        concurrent[whitespace] = b' ';
+
+        let error = atomically_replace_retained_workspace_file_with_hook(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            &snapshot,
+            b"replacement\n",
+            || {
+                fs::write(workspace.join("approvals.json"), &concurrent).unwrap();
+                Ok(())
+            },
+            || Ok(()),
+        )
+        .unwrap_err();
+
+        assert!(
+            error.contains("during atomic migration exchange"),
+            "{error}"
+        );
+        assert_eq!(
+            fs::read(workspace.join("approvals.json")).unwrap(),
+            concurrent
+        );
+        assert!(fs::read_dir(&workspace).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".specsync-migrate-")
+        }));
+    }
+
+    #[test]
+    fn migration_rejects_a_final_window_state_input_edit_before_exchange() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let workspace = change_dir(root, &record.id);
+        let directory = open_retained_change_workspace(root, &workspace).unwrap();
+        let approvals = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let state = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "state.json",
+            MAX_CHANGE_ARTIFACT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let verification = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "verification.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let input_digest = migration_input_binding_digest(Some(&state), Some(&verification));
+        let concurrent_state = b"{\"state\":\"concurrent edit\"}\n";
+
+        let error = atomically_replace_retained_workspace_file_with_hook(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            &approvals,
+            b"replacement\n",
+            || {
+                fs::write(workspace.join("state.json"), concurrent_state).unwrap();
+                ensure_migration_inputs_match(
+                    root,
+                    &workspace,
+                    &directory,
+                    Some(&state),
+                    Some(&verification),
+                    &input_digest,
+                )
+            },
+            || Ok(()),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("changed before migration write"), "{error}");
+        assert_eq!(
+            fs::read(workspace.join("approvals.json")).unwrap(),
+            approvals.bytes
+        );
+        assert_eq!(
+            fs::read(workspace.join("state.json")).unwrap(),
+            concurrent_state
+        );
+    }
+
+    #[test]
+    fn migration_rolls_back_approval_exchange_when_state_changes_after_publication() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let workspace = change_dir(root, &record.id);
+        let directory = open_retained_change_workspace(root, &workspace).unwrap();
+        let approvals = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let state = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "state.json",
+            MAX_CHANGE_ARTIFACT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let verification = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "verification.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let input_digest = migration_input_binding_digest(Some(&state), Some(&verification));
+        let concurrent_state = b"{\"state\":\"post-publication edit\"}\n";
+
+        let error = atomically_replace_retained_workspace_file_with_hook(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            &approvals,
+            b"replacement\n",
+            || {
+                ensure_migration_inputs_match(
+                    root,
+                    &workspace,
+                    &directory,
+                    Some(&state),
+                    Some(&verification),
+                    &input_digest,
+                )
+            },
+            || {
+                fs::write(workspace.join("state.json"), concurrent_state).unwrap();
+                ensure_migration_inputs_match(
+                    root,
+                    &workspace,
+                    &directory,
+                    Some(&state),
+                    Some(&verification),
+                    &input_digest,
+                )
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("changed before migration write"), "{error}");
+        assert_eq!(
+            fs::read(workspace.join("approvals.json")).unwrap(),
+            approvals.bytes
+        );
+        assert_eq!(
+            fs::read(workspace.join("state.json")).unwrap(),
+            concurrent_state
+        );
+        assert!(fs::read_dir(&workspace).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".specsync-migrate-")
+        }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn migration_exchange_rolls_back_when_workspace_binding_changes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let workspace = change_dir(root, &record.id);
+        let directory = open_retained_change_workspace(root, &workspace).unwrap();
+        let snapshot = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let detached = root.join("detached-migration-workspace");
+        let victim = b"replacement workspace must remain untouched\n";
+
+        let error = atomically_replace_retained_workspace_file_with_hook(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            &snapshot,
+            b"migrated\n",
+            || {
+                fs::rename(&workspace, &detached).unwrap();
+                fs::create_dir_all(&workspace).unwrap();
+                fs::write(workspace.join("approvals.json"), victim).unwrap();
+                Ok(())
+            },
+            || Ok(()),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("workspace changed"), "{error}");
+        assert_eq!(
+            fs::read(detached.join("approvals.json")).unwrap(),
+            snapshot.bytes
+        );
+        assert_eq!(fs::read(workspace.join("approvals.json")).unwrap(), victim);
+        assert!(fs::read_dir(&detached).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".specsync-migrate-")
+        }));
+    }
+
+    #[test]
+    fn migration_preflights_reopening_count_before_materializing_json() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let approvals = change_dir(root, &record.id).join("approvals.json");
+        let events = std::iter::repeat_n("{}", MAX_REOPENING_EVENTS + 1)
+            .collect::<Vec<_>>()
+            .join(",");
+        let oversized = format!("{{\"approvals\":[],\"reopenings\":[{events}]}}\n");
+        fs::write(&approvals, &oversized).unwrap();
+
+        let report = backfill_reopen_digests(root, false).unwrap();
+
+        assert_eq!(report.failed.len(), 1);
+        assert!(
+            report.failed[0].1.contains("exceeds 4096 reopening events"),
+            "{:?}",
+            report.failed
+        );
+        assert_eq!(fs::read_to_string(approvals).unwrap(), oversized);
+    }
+
+    #[test]
+    fn migration_live_digest_uses_retained_state_and_verification_snapshots() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = reopening_ledger_without_digest_fields(root);
+        let workspace = change_dir(root, &record.id);
+        let directory = open_retained_change_workspace(root, &workspace).unwrap();
+        let state = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "state.json",
+            MAX_CHANGE_ARTIFACT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let verification = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "verification.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let expected = live_acceptance_digest(root, Some(&state), Some(&verification)).unwrap();
+
+        let detached = root.join("retained-migration-workspace");
+        fs::rename(&workspace, &detached).unwrap();
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(workspace.join("state.json"), b"{\"forged\":true}\n").unwrap();
+        fs::write(workspace.join("verification.json"), b"{\"forged\":true}\n").unwrap();
+
+        assert_eq!(
+            live_acceptance_digest(root, Some(&state), Some(&verification)).unwrap(),
+            expected
+        );
+    }
+
+    #[test]
+    fn reopening_history_budgets_fail_at_the_first_excess_byte_and_event() {
+        let mut bytes = MAX_TRUSTED_REOPENING_ANCHOR_BYTES;
+        let error = charge_trusted_reopening_anchor_bytes(&mut bytes, 1).unwrap_err();
+        assert!(error.contains("aggregate bytes"), "{error}");
+        assert!(
+            validate_approval_ledger_event_bounds(MAX_APPROVAL_EVENTS + 1, 0)
+                .unwrap_err()
+                .contains("approval events")
+        );
+        assert!(
+            validate_approval_ledger_event_bounds(0, MAX_REOPENING_EVENTS + 1)
+                .unwrap_err()
+                .contains("reopening events")
+        );
+        let approvals = format!(
+            "{{\"approvals\":[{}{{}}],\"reopenings\":[]}}",
+            "{},".repeat(MAX_APPROVAL_EVENTS)
+        );
+        let error = preflight_approval_ledger_event_bounds(approvals.as_bytes()).unwrap_err();
+        assert!(error.contains("approval events"), "{error}");
+        let reopenings = format!(
+            "{{\"approvals\":[],\"reopenings\":[{}{{}}]}}",
+            "{},".repeat(MAX_REOPENING_EVENTS)
+        );
+        let error = preflight_approval_ledger_event_bounds(reopenings.as_bytes()).unwrap_err();
+        assert!(error.contains("reopening events"), "{error}");
+    }
+
+    #[test]
+    fn oversized_approval_ledger_is_rejected_by_metadata_before_allocation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = accepted_manifest_record(root);
+        let approvals = change_dir(root, &record.id).join("approvals.json");
+        let file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&approvals)
+            .unwrap();
+        file.set_len(MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES + 1)
+            .unwrap();
+        drop(file);
+
+        let error = load_approvals(root, &record).unwrap_err();
+
+        assert!(
+            error.contains(&format!(
+                "exceeds {MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES} bytes"
+            )),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn terminal_history_scans_bound_rejected_candidates_and_files() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let accepted = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept lifecycle evidence"]);
+
+        let mut rejected = accepted.clone();
+        rejected.state = ChangeState::Draft;
+        save_change(root, &rejected).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "record rejected candidate"]);
+
+        let mut byte_budget = TrustedHistoryScanBudget::with_limits(16, 1);
+        let error = accepted_transition_anchors(root, &accepted, &mut byte_budget).unwrap_err();
+        assert!(error.contains("aggregate bytes"), "{error}");
+
+        let mut commit_budget = TrustedHistoryScanBudget::with_limits(0, usize::MAX);
+        let error = accepted_recording_anchors(root, &accepted, &mut commit_budget).unwrap_err();
+        assert!(error.contains("candidate commits"), "{error}");
+
+        fs::write(
+            change_dir(root, &accepted.id).join("state.json"),
+            vec![b' '; MAX_CHANGE_ARTIFACT_BYTES as usize + 1],
+        )
+        .unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(
+            root,
+            &["commit", "-m", "record oversized rejected candidate"],
+        );
+        let error =
+            accepted_transition_anchors(root, &accepted, &mut TrustedHistoryScanBudget::default())
+                .unwrap_err();
+        assert!(error.contains("exceeds 4194304 bytes"), "{error}");
+    }
+
+    #[test]
+    fn terminal_remote_record_fallback_caps_candidates_and_reuses_history_cache() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let accepted = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "record initial acceptance"]);
+
+        let mut rejected = accepted.clone();
+        rejected.state = ChangeState::Draft;
+        for revision in 0..4 {
+            rejected.description = format!("Rejected terminal revision {revision}");
+            save_change(root, &rejected).unwrap();
+            quiet_git(root, &["add", "."]);
+            quiet_git(root, &["commit", "-m", "record rejected terminal revision"]);
+        }
+        save_change(root, &accepted).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "record current acceptance"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let mut commit_limited = TrustedHistoryScanBudget::with_limits(2, usize::MAX);
+        let error = accepted_change_is_recorded_in_ref_with_budget(
+            root,
+            &accepted,
+            "refs/remotes/origin/main",
+            &mut commit_limited,
+        )
+        .unwrap_err();
+        assert!(error.contains("candidate commits"), "{error}");
+        assert_eq!(commit_limited.commits.len(), 3);
+        assert_eq!(commit_limited.files.len(), 2);
+
+        let mut byte_limited = TrustedHistoryScanBudget::with_limits(6, 1);
+        let error = accepted_change_is_recorded_in_ref_with_budget(
+            root,
+            &accepted,
+            "refs/remotes/origin/main",
+            &mut byte_limited,
+        )
+        .unwrap_err();
+        assert!(error.contains("aggregate bytes"), "{error}");
+
+        let mut sufficient = TrustedHistoryScanBudget::with_limits(6, usize::MAX);
+        assert!(
+            accepted_change_is_recorded_in_ref_with_budget(
+                root,
+                &accepted,
+                "refs/remotes/origin/main",
+                &mut sufficient,
+            )
+            .unwrap()
+        );
+        assert_eq!(sufficient.commits.len(), 6);
+        assert_eq!(sufficient.files.len(), 6);
+        let charged_bytes = sufficient.bytes;
+        assert!(
+            accepted_change_is_recorded_in_ref_with_budget(
+                root,
+                &accepted,
+                "refs/remotes/origin/main",
+                &mut sufficient,
+            )
+            .unwrap()
+        );
+        assert_eq!(sufficient.bytes, charged_bytes);
+        assert_eq!(sufficient.files.len(), 6);
+    }
+
+    #[test]
+    fn repeated_manifest_references_load_once_and_bound_expansion() {
+        let manifest = AcceptanceManifestV1 {
+            schema_version: 1,
+            entries: Vec::new(),
+        };
+        let reference = AcceptanceManifestReferenceV1 {
+            schema_version: 1,
+            digest: acceptance_manifest_digest(&manifest).unwrap(),
+        };
+        let mut cache = ManifestHydrationCache::default();
+        let mut loads = 0;
+        for _ in 0..3 {
+            let hydrated = read_manifest_reference_with(&reference, &mut cache, || {
+                loads += 1;
+                Ok(manifest.clone())
+            })
+            .unwrap();
+            assert_eq!(hydrated, manifest);
+        }
+        assert_eq!(loads, 1);
+        assert_eq!(cache.manifests.len(), 1);
+
+        cache.expanded_bytes = MAX_EXPANDED_HYDRATED_MANIFEST_BYTES;
+        let error =
+            read_manifest_reference_with(&reference, &mut cache, || unreachable!()).unwrap_err();
+        assert!(error.contains("expanded reopening"), "{error}");
+    }
+
+    #[test]
+    fn retained_migration_hydration_ignores_workspace_path_replacement() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let reopened = compact_reopened_fixture(root);
+        let workspace = change_dir(root, &reopened.change.id);
+        let directory = open_retained_change_workspace(root, &workspace).unwrap();
+        let approvals = read_retained_workspace_file(
+            root,
+            &workspace,
+            &directory,
+            "approvals.json",
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )
+        .unwrap()
+        .unwrap();
+        let detached = root.join("retained-compact-workspace");
+        fs::rename(&workspace, &detached).unwrap();
+        fs::create_dir_all(workspace.join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY)).unwrap();
+        let digest = reopened.audit.stale_acceptance_input_digest.clone();
+        fs::write(
+            workspace
+                .join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY)
+                .join(format!("{digest}.json")),
+            b"{\"forged\":true}\n",
+        )
+        .unwrap();
+
+        let ledger = load_approval_ledger_from_retained_workspace_bytes(
+            &directory,
+            &reopened.change.id,
+            &approvals.bytes,
+        )
+        .unwrap();
+        assert_eq!(ledger.reopenings.len(), 1);
+        assert_eq!(
+            ledger.reopenings[0].stale_acceptance_input_digest,
+            reopened.audit.stale_acceptance_input_digest
+        );
+    }
+
+    #[test]
     fn normal_merge_does_not_create_a_duplicate_accepted_transition() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -14575,6 +20822,123 @@ mod tests {
         assert_eq!(accepted.id, record.id);
         assert_ne!(anchor, git_output(root, &["rev-parse", "HEAD"]).unwrap());
         assert!(ensure_closing_approval_valid(root, &record).is_ok());
+    }
+
+    #[test]
+    fn retained_directory_move_never_replaces_a_racing_destination() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let source = root.join(CHANGES_PATH).join("CHG-0001-archive-race");
+        let destination = root
+            .join(ARCHIVE_PATH)
+            .join("2026-01-01-CHG-0001-archive-race");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("source.txt"), "source\n").unwrap();
+
+        let error = move_retained_project_directory_with_hook(root, &source, &destination, || {
+            fs::create_dir_all(&destination).unwrap();
+            fs::write(destination.join("victim.txt"), "victim\n").unwrap();
+        })
+        .unwrap_err();
+
+        assert!(error.contains("no-replace"), "{error}");
+        assert_eq!(
+            fs::read_to_string(source.join("source.txt")).unwrap(),
+            "source\n"
+        );
+        assert_eq!(
+            fs::read_to_string(destination.join("victim.txt")).unwrap(),
+            "victim\n"
+        );
+    }
+
+    #[test]
+    fn project_lock_recovers_a_process_lost_immediately_after_archive_move() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let source = root
+            .join(CHANGES_PATH)
+            .join("CHG-0001-archive-crash-recovery");
+        let destination = root
+            .join(ARCHIVE_PATH)
+            .join("2026-01-01-CHG-0001-archive-crash-recovery");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("state.json"), "accepted state\n").unwrap();
+        fs::write(source.join("change.md"), "accepted markdown\n").unwrap();
+        fs::write(source.join("accepted-state.json"), "anchor\n").unwrap();
+        write_archive_move_journal(
+            root,
+            &source,
+            &destination,
+            "accepted state\n".into(),
+            "accepted markdown\n".into(),
+            "anchor\n".into(),
+            "archived state\n".into(),
+            "archived markdown\n".into(),
+        )
+        .unwrap();
+        move_retained_project_directory(root, &source, &destination).unwrap();
+        assert!(!source.exists());
+        assert!(destination.exists());
+
+        let lock = acquire_project_lock(root).unwrap();
+        drop(lock);
+
+        assert_eq!(
+            fs::read_to_string(source.join("state.json")).unwrap(),
+            "accepted state\n"
+        );
+        assert_eq!(
+            fs::read_to_string(source.join("change.md")).unwrap(),
+            "accepted markdown\n"
+        );
+        assert!(!source.join("accepted-state.json").exists());
+        assert!(!destination.exists());
+        assert!(!archive_move_journal_location(root).unwrap().path.exists());
+    }
+
+    #[test]
+    fn archive_recovery_preserves_unknown_post_journal_edits() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let source = root
+            .join(CHANGES_PATH)
+            .join("CHG-0001-archive-cas-recovery");
+        let destination = root
+            .join(ARCHIVE_PATH)
+            .join("2026-01-01-CHG-0001-archive-cas-recovery");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("state.json"), "accepted state\n").unwrap();
+        fs::write(source.join("change.md"), "accepted markdown\n").unwrap();
+        fs::write(source.join("accepted-state.json"), "anchor\n").unwrap();
+        write_archive_move_journal(
+            root,
+            &source,
+            &destination,
+            "accepted state\n".into(),
+            "accepted markdown\n".into(),
+            "anchor\n".into(),
+            "archived state\n".into(),
+            "archived markdown\n".into(),
+        )
+        .unwrap();
+        move_retained_project_directory(root, &source, &destination).unwrap();
+        fs::write(
+            destination.join("state.json"),
+            "user edit after archive crash\n",
+        )
+        .unwrap();
+
+        let error = recover_pending_archive_move(root).unwrap_err();
+
+        assert!(error.contains("unknown"), "{error}");
+        assert_eq!(
+            fs::read_to_string(destination.join("state.json")).unwrap(),
+            "user edit after archive crash\n"
+        );
+        assert!(!source.exists());
+        assert!(destination.exists());
+        assert!(archive_move_journal_location(root).unwrap().path.is_file());
     }
 
     #[test]
@@ -14733,6 +21097,7 @@ mod tests {
         assert_eq!(entry.kind, AcceptanceInputKind::Gitlink);
         assert_eq!(entry.mode, 0o160000);
         assert_eq!(entry.payload_digest, sha256_hex(object.as_bytes()));
+        assert!(!manifest.entries.iter().any(|entry| entry.path == "seed"));
     }
 
     #[test]
@@ -14860,6 +21225,8 @@ mod tests {
         );
         let archived_successor = archive_change(root, &successor.id).unwrap();
         assert!(archived_successor.is_dir());
+        successor = load_change(root, &successor.id).unwrap();
+        assert_eq!(successor.state, ChangeState::Archived);
         let recursive_evidence = summarize_change(root, &predecessor)
             .terminal_evidence
             .unwrap();
@@ -14934,7 +21301,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             intermediate_evidence.validity,
-            TerminalEvidenceValidity::SuccessorCovered,
+            TerminalEvidenceValidity::AuthenticatedHistory,
             "{:?}",
             intermediate_evidence.reason
         );
@@ -14953,6 +21320,343 @@ mod tests {
             "{:?}",
             recursive_report.errors
         );
+    }
+
+    #[test]
+    fn legacy_reconstruction_tree_preflight_bounds_entries_and_aggregate_bytes() {
+        let object = "0".repeat(40);
+        let listing = format!("100644 blob {object} 9\tone.txt\0100644 blob {object} 9\ttwo.txt\0");
+
+        let entry_error =
+            validate_legacy_reconstruction_tree_listing(listing.as_bytes(), 1, 32).unwrap_err();
+        assert!(entry_error.contains("exceeds 1 entries"), "{entry_error}");
+
+        let byte_error =
+            validate_legacy_reconstruction_tree_listing(listing.as_bytes(), 2, 16).unwrap_err();
+        assert!(
+            byte_error.contains("exceeds 16 aggregate blob bytes"),
+            "{byte_error}"
+        );
+    }
+
+    #[test]
+    fn legacy_reconstruction_preserves_tree_executable_mode_over_host_metadata() {
+        let path = "tool".to_string();
+        let payload = b"#!/bin/sh\n";
+        let tree_entry = LegacyReconstructionTreeEntry {
+            path: path.clone(),
+            mode: 0o100755,
+            object: "1".repeat(40),
+            size: payload.len() as u64,
+        };
+        let preserved = BTreeMap::from([(
+            path.clone(),
+            legacy_reconstruction_blob_evidence(&tree_entry, payload).unwrap(),
+        )]);
+        let mut host_evidence = GitEvidence {
+            modes: BTreeMap::from([(path.clone(), 0o100644)]),
+            objects: BTreeMap::new(),
+            entries: BTreeMap::from([(
+                path.clone(),
+                GitCapturedEntry {
+                    kind: AcceptanceInputKind::File,
+                    mode: 0o100644,
+                    object: None,
+                    payload: payload.to_vec(),
+                },
+            )]),
+            index_backed: BTreeSet::new(),
+        };
+        let mut paths = Vec::new();
+
+        preserve_legacy_reconstruction_evidence(&mut paths, &mut host_evidence, &preserved);
+
+        assert_eq!(paths, ["tool"]);
+        let captured = host_evidence.entry(&path).unwrap();
+        assert_eq!(captured.kind, AcceptanceInputKind::File);
+        assert_eq!(captured.mode, 0o100755);
+        assert_eq!(captured.payload, payload);
+        let payload_digest = sha256_hex(payload);
+        assert_eq!(
+            acceptance_entry_digest(&path, &captured.kind, captured.mode, &payload_digest),
+            acceptance_entry_digest(&path, &AcceptanceInputKind::File, 0o100755, &payload_digest,)
+        );
+        assert_ne!(
+            acceptance_entry_digest(&path, &captured.kind, captured.mode, &payload_digest),
+            acceptance_entry_digest(&path, &AcceptanceInputKind::File, 0o100644, &payload_digest,)
+        );
+    }
+
+    #[test]
+    fn legacy_reconstruction_preserves_tree_symlink_kind_over_host_file() {
+        let path = "current".to_string();
+        let payload = b"releases/current";
+        let tree_entry = LegacyReconstructionTreeEntry {
+            path: path.clone(),
+            mode: 0o120000,
+            object: "2".repeat(40),
+            size: payload.len() as u64,
+        };
+        let preserved = BTreeMap::from([(
+            path.clone(),
+            legacy_reconstruction_blob_evidence(&tree_entry, payload).unwrap(),
+        )]);
+        let mut host_evidence = GitEvidence {
+            modes: BTreeMap::from([(path.clone(), 0o100644)]),
+            objects: BTreeMap::new(),
+            entries: BTreeMap::from([(
+                path.clone(),
+                GitCapturedEntry {
+                    kind: AcceptanceInputKind::File,
+                    mode: 0o100644,
+                    object: None,
+                    payload: payload.to_vec(),
+                },
+            )]),
+            index_backed: BTreeSet::new(),
+        };
+        let mut paths = Vec::new();
+
+        preserve_legacy_reconstruction_evidence(&mut paths, &mut host_evidence, &preserved);
+
+        assert_eq!(paths, ["current"]);
+        let captured = host_evidence.entry(&path).unwrap();
+        assert_eq!(captured.kind, AcceptanceInputKind::Symlink);
+        assert_eq!(captured.mode, 0o120000);
+        assert_eq!(captured.payload, payload);
+        let payload_digest = sha256_hex(payload);
+        assert_eq!(
+            acceptance_entry_digest(&path, &captured.kind, captured.mode, &payload_digest),
+            acceptance_entry_digest(
+                &path,
+                &AcceptanceInputKind::Symlink,
+                0o120000,
+                &payload_digest,
+            )
+        );
+        assert_ne!(
+            acceptance_entry_digest(&path, &captured.kind, captured.mode, &payload_digest),
+            acceptance_entry_digest(&path, &AcceptanceInputKind::File, 0o100644, &payload_digest,)
+        );
+    }
+
+    #[test]
+    fn manifestless_legacy_reconstruction_restores_governed_gitlink() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed"]);
+        quiet_git(root, &["commit", "-m", "seed Gitlink target"]);
+        let object = quiet_git(root, &["rev-parse", "HEAD"]);
+
+        let mut record = completed_no_spec_record(root);
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            definition_digest(root, &record).unwrap(),
+            None,
+        )
+        .unwrap();
+        record.state = ChangeState::Accepted;
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        quiet_git(
+            root,
+            &[
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                &format!("160000,{object},src/vendor/library"),
+            ],
+        );
+        let signed_legacy_digest = acceptance_input_digest(root, &record, &[]).unwrap();
+        let verification = VerificationRecord {
+            timestamp: now(),
+            commit: None,
+            contract_digest: definition_digest(root, &record).unwrap(),
+            workspace_digest: project_input_digest(root).unwrap(),
+            reopening_audit_digest: None,
+            acceptance_input_digest: Some(signed_legacy_digest),
+            acceptance_manifest: None,
+            semantic_succession: None,
+            passed: true,
+            commands: Vec::new(),
+            requirement_ids: Vec::new(),
+        };
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &verification,
+        )
+        .unwrap();
+        append_approval(
+            root,
+            &record,
+            "acceptance",
+            Some("Closer".into()),
+            closing_digest(&record, &verification),
+            None,
+        )
+        .unwrap();
+        quiet_git(root, &["add", ".specsync", "specs", "src/lib.rs"]);
+        quiet_git(
+            root,
+            &[
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                &format!("160000,{object},src/vendor/library"),
+            ],
+        );
+        quiet_git(root, &["commit", "-m", "accept manifestless Gitlink"]);
+
+        let manifest = resolved_acceptance_manifest(root, &record).unwrap();
+        let entry = manifest
+            .entries
+            .iter()
+            .find(|entry| entry.path == "src/vendor/library")
+            .expect("reconstruction must restore the governed Gitlink");
+        assert_eq!(entry.kind, AcceptanceInputKind::Gitlink);
+        assert_eq!(entry.mode, 0o160000);
+        assert_eq!(entry.payload_digest, sha256_hex(object.as_bytes()));
+    }
+
+    #[test]
+    fn legacy_reconstruction_deduplicates_tree_objects_before_shared_budgeting() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("tracked.txt"), "a").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "tree a"]);
+        let first = quiet_git(root, &["rev-parse", "HEAD"]);
+        quiet_git(root, &["commit", "--allow-empty", "-m", "repeat tree a"]);
+        let repeated = quiet_git(root, &["rev-parse", "HEAD"]);
+        fs::write(root.join("tracked.txt"), "bb").unwrap();
+        quiet_git(root, &["add", "tracked.txt"]);
+        quiet_git(root, &["commit", "-m", "tree b"]);
+        let distinct = quiet_git(root, &["rev-parse", "HEAD"]);
+
+        let duplicate_trees =
+            unique_legacy_reconstruction_trees(root, &[first.clone(), repeated.clone()]).unwrap();
+        assert_eq!(duplicate_trees.len(), 1);
+        let mut duplicate_budget = LegacyReconstructionMaterializationBudget::with_limits(1, 1);
+        for (tree, _) in duplicate_trees {
+            let listing = preflight_legacy_reconstruction_tree(root, &tree).unwrap();
+            duplicate_budget.charge(&listing).unwrap();
+        }
+
+        let distinct_trees =
+            unique_legacy_reconstruction_trees(root, &[first, repeated, distinct]).unwrap();
+        assert_eq!(distinct_trees.len(), 2);
+        let mut aggregate_budget =
+            LegacyReconstructionMaterializationBudget::with_limits(1, u64::MAX);
+        let mut aggregate_error = None;
+        for (tree, _) in distinct_trees {
+            let listing = preflight_legacy_reconstruction_tree(root, &tree).unwrap();
+            if let Err(error) = aggregate_budget.charge(&listing) {
+                aggregate_error = Some(error);
+                break;
+            }
+        }
+        let aggregate_error = aggregate_error.expect("the second distinct tree must exceed budget");
+        assert!(
+            aggregate_error.contains("aggregate entries across distinct trees"),
+            "{aggregate_error}"
+        );
+
+        let distinct_trees = unique_legacy_reconstruction_trees(
+            root,
+            &[
+                quiet_git(root, &["rev-parse", "HEAD~2"]),
+                quiet_git(root, &["rev-parse", "HEAD~1"]),
+                quiet_git(root, &["rev-parse", "HEAD"]),
+            ],
+        )
+        .unwrap();
+        let mut byte_budget = LegacyReconstructionMaterializationBudget::with_limits(usize::MAX, 2);
+        let mut byte_error = None;
+        for (tree, _) in distinct_trees {
+            let listing = preflight_legacy_reconstruction_tree(root, &tree).unwrap();
+            if let Err(error) = byte_budget.charge(&listing) {
+                byte_error = Some(error);
+                break;
+            }
+        }
+        let byte_error = byte_error.expect("the second distinct tree must exceed byte budget");
+        assert!(
+            byte_error.contains("aggregate blob bytes across distinct trees"),
+            "{byte_error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn legacy_reconstruction_materializes_raw_blobs_without_hooks_or_smudge_filters() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("repository");
+        fs::create_dir(&root).unwrap();
+        quiet_git(&root, &["init", "-b", "main"]);
+        quiet_git(&root, &["config", "user.email", "test@example.com"]);
+        quiet_git(&root, &["config", "user.name", "Test"]);
+
+        let hook_marker = temp.path().join("checkout-hook-ran");
+        let filter_marker = temp.path().join("smudge-filter-ran");
+        let hook = root.join(".git/hooks/post-checkout");
+        fs::write(
+            &hook,
+            format!("#!/bin/sh\nprintf ran > '{}'\n", hook_marker.display()),
+        )
+        .unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+        let filter = temp.path().join("smudge-filter");
+        fs::write(
+            &filter,
+            format!(
+                "#!/bin/sh\ncat >/dev/null\nprintf smudged\nprintf ran > '{}'\n",
+                filter_marker.display()
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&filter, fs::Permissions::from_mode(0o755)).unwrap();
+        quiet_git(
+            &root,
+            &[
+                "config",
+                "filter.legacy-review.smudge",
+                filter.to_string_lossy().as_ref(),
+            ],
+        );
+        fs::write(
+            root.join(".gitattributes"),
+            "filtered.txt filter=legacy-review\n",
+        )
+        .unwrap();
+        fs::write(root.join("filtered.txt"), "canonical\n").unwrap();
+        quiet_git(&root, &["add", ".gitattributes", "filtered.txt"]);
+        quiet_git(&root, &["commit", "-m", "filtered tree"]);
+
+        let anchor = quiet_git(&root, &["rev-parse", "HEAD"]);
+        let trees = unique_legacy_reconstruction_trees(&root, &[anchor]).unwrap();
+        assert_eq!(trees.len(), 1);
+        let listing = preflight_legacy_reconstruction_tree(&root, &trees[0].0).unwrap();
+        let destination = temp.path().join("materialized");
+        materialize_legacy_reconstruction_tree(&root, &listing, &destination).unwrap();
+
+        assert_eq!(
+            fs::read(destination.join("filtered.txt")).unwrap(),
+            b"canonical\n"
+        );
+        assert!(!hook_marker.exists());
+        assert!(!filter_marker.exists());
     }
 
     #[test]
@@ -15379,6 +22083,290 @@ mod tests {
         drop(second);
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn non_git_project_lock_uses_a_private_owned_runtime_directory() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let temp = TempDir::new().unwrap();
+        let location = project_lock_location(temp.path()).unwrap();
+        let directory = location.path.parent().unwrap();
+        let metadata = fs::symlink_metadata(directory).unwrap();
+
+        // SAFETY: `geteuid` has no preconditions and does not dereference memory.
+        let effective_user = unsafe { libc::geteuid() };
+        assert_eq!(metadata.uid(), effective_user);
+        assert_eq!(metadata.permissions().mode() & 0o077, 0);
+        assert!(metadata.is_dir());
+        assert!(!metadata.file_type().is_symlink());
+        assert_eq!(
+            directory.file_name().unwrap(),
+            NON_GIT_PROJECT_LOCK_DIRECTORY
+        );
+        assert_eq!(location.root, non_git_lock_runtime_root().unwrap());
+        assert!(!location.create_directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_git_project_lock_uses_the_effective_os_account_home() {
+        let account_home = fs::canonicalize(effective_user_home_directory().unwrap()).unwrap();
+        let runtime = non_git_lock_runtime_root().unwrap();
+
+        assert_eq!(
+            runtime,
+            account_home.join(NON_GIT_ACCOUNT_RUNTIME_DIRECTORY)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_git_project_lock_creates_a_private_account_runtime() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+        let account_home = TempDir::new().unwrap();
+        fs::set_permissions(account_home.path(), fs::Permissions::from_mode(0o755)).unwrap();
+
+        let runtime = ensure_private_non_git_account_runtime(account_home.path()).unwrap();
+        let runtime_metadata = fs::symlink_metadata(&runtime).unwrap();
+        let lock_directory = ensure_private_non_git_lock_directory(&runtime).unwrap();
+        let lock_metadata = fs::symlink_metadata(&lock_directory).unwrap();
+
+        // SAFETY: `geteuid` has no preconditions and does not dereference memory.
+        let effective_user = unsafe { libc::geteuid() };
+        assert_eq!(
+            runtime,
+            fs::canonicalize(account_home.path())
+                .unwrap()
+                .join(NON_GIT_ACCOUNT_RUNTIME_DIRECTORY)
+        );
+        assert_eq!(runtime_metadata.uid(), effective_user);
+        assert_eq!(runtime_metadata.permissions().mode() & 0o7777, 0o700);
+        assert!(!runtime_metadata.file_type().is_symlink());
+        assert_eq!(lock_metadata.uid(), effective_user);
+        assert_eq!(lock_metadata.permissions().mode() & 0o7777, 0o700);
+        assert!(!lock_metadata.file_type().is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_git_project_lock_rejects_attacker_writable_or_symlinked_account_runtime() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+
+        let writable_account_home = TempDir::new().unwrap();
+        fs::set_permissions(
+            writable_account_home.path(),
+            fs::Permissions::from_mode(0o770),
+        )
+        .unwrap();
+        let error =
+            ensure_private_non_git_account_runtime(writable_account_home.path()).unwrap_err();
+        assert!(
+            error.contains("effective OS account home is writable by a group or other users"),
+            "{error}"
+        );
+
+        let safe_account_home = TempDir::new().unwrap();
+        fs::set_permissions(safe_account_home.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        let attacker_runtime = TempDir::new().unwrap();
+        fs::set_permissions(attacker_runtime.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        symlink(
+            attacker_runtime.path(),
+            safe_account_home
+                .path()
+                .join(NON_GIT_ACCOUNT_RUNTIME_DIRECTORY),
+        )
+        .unwrap();
+        let error = ensure_private_non_git_account_runtime(safe_account_home.path()).unwrap_err();
+        assert!(
+            error.contains("private OS-account lifecycle runtime is not a real directory"),
+            "{error}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_git_project_lock_rejects_permissive_or_symlinked_lock_directories() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+
+        let permissive_root = TempDir::new().unwrap();
+        fs::set_permissions(permissive_root.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let permissive = permissive_root.path().join(NON_GIT_PROJECT_LOCK_DIRECTORY);
+        fs::create_dir(&permissive).unwrap();
+        fs::set_permissions(&permissive, fs::Permissions::from_mode(0o755)).unwrap();
+        let error = ensure_private_non_git_lock_directory(permissive_root.path()).unwrap_err();
+        assert!(error.contains("permissions are not mode 0700"), "{error}");
+
+        let symlink_root = TempDir::new().unwrap();
+        fs::set_permissions(symlink_root.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let backing = symlink_root.path().join("backing");
+        fs::create_dir(&backing).unwrap();
+        fs::set_permissions(&backing, fs::Permissions::from_mode(0o700)).unwrap();
+        symlink(
+            &backing,
+            symlink_root.path().join(NON_GIT_PROJECT_LOCK_DIRECTORY),
+        )
+        .unwrap();
+        let error = ensure_private_non_git_lock_directory(symlink_root.path()).unwrap_err();
+        assert!(error.contains("not a real directory"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_git_project_lock_rejects_a_hostile_precreated_shared_temp_namespace() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+
+        // SAFETY: `geteuid` has no preconditions and does not dereference memory.
+        let effective_user = unsafe { libc::geteuid() };
+        let shared_temp = TempDir::new().unwrap();
+        fs::set_permissions(shared_temp.path(), fs::Permissions::from_mode(0o1777)).unwrap();
+        let attacker_target = TempDir::new().unwrap();
+        let hostile_namespace = shared_temp
+            .path()
+            .join(format!("specsync-project-locks-{effective_user}"));
+        symlink(attacker_target.path(), &hostile_namespace).unwrap();
+
+        let runtime = non_git_lock_runtime_root().unwrap();
+
+        assert!(!runtime.starts_with(shared_temp.path()));
+        assert!(
+            fs::symlink_metadata(&hostile_namespace)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert!(
+            !shared_temp
+                .path()
+                .join(NON_GIT_PROJECT_LOCK_DIRECTORY)
+                .exists()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_git_project_lock_is_mutually_exclusive_across_different_environments() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let project = TempDir::new().unwrap();
+        let owner = acquire_project_lock(project.path()).unwrap();
+        let expected = project_lock_location(project.path()).unwrap().path;
+        let alternate_xdg = TempDir::new().unwrap();
+        fs::set_permissions(alternate_xdg.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let alternate_home = TempDir::new().unwrap();
+        fs::set_permissions(alternate_home.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let alternate_temp = TempDir::new().unwrap();
+        fs::set_permissions(alternate_temp.path(), fs::Permissions::from_mode(0o1777)).unwrap();
+
+        let status = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "change::tests::non_git_project_lock_environment_probe",
+                "--nocapture",
+            ])
+            .env("SPECSYNC_PROJECT_LOCK_PROBE_ROOT", project.path())
+            .env("SPECSYNC_PROJECT_LOCK_PROBE_EXPECTED", &expected)
+            .env("XDG_RUNTIME_DIR", alternate_xdg.path())
+            .env("HOME", alternate_home.path())
+            .env("TMPDIR", alternate_temp.path())
+            .env("TEMP", alternate_temp.path())
+            .env("TMP", alternate_temp.path())
+            .status()
+            .unwrap();
+
+        assert!(status.success());
+        drop(owner);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_git_project_lock_environment_probe() {
+        let Some(root) = std::env::var_os("SPECSYNC_PROJECT_LOCK_PROBE_ROOT") else {
+            return;
+        };
+        let expected =
+            PathBuf::from(std::env::var_os("SPECSYNC_PROJECT_LOCK_PROBE_EXPECTED").unwrap());
+        let location = project_lock_location(Path::new(&root)).unwrap();
+
+        assert_eq!(location.path, expected);
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&location.path)
+            .unwrap();
+        assert!(file.try_lock_exclusive().is_err());
+    }
+
+    #[test]
+    fn windows_non_git_project_lock_uses_account_authority_and_retained_parent_checks() {
+        let source = include_str!("change.rs");
+        let windows = source
+            .split_once("#[cfg(windows)]\nfn non_git_lock_runtime_root")
+            .unwrap()
+            .1
+            .split_once("#[cfg(not(any(unix, windows)))]\nfn non_git_lock_runtime_root")
+            .unwrap()
+            .0;
+
+        assert!(windows.contains("windows_account_local_app_data"));
+        assert!(windows.contains("validate_windows_private_directory"));
+        assert!(windows.contains("open_retained_project_directory"));
+        assert!(windows.contains("ensure_retained_project_directory_is_bound"));
+        assert!(windows.contains("FILE_ATTRIBUTE_REPARSE_POINT"));
+        assert!(windows.contains("GetFileSecurityW"));
+        assert!(!windows.contains("temp_dir"));
+    }
+
+    #[test]
+    fn git_project_lock_stays_authoritative_after_worktree_leaf_replacement() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        assert!(
+            Command::new("git")
+                .args(["init", "-b", "main"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let worktree_lock = root.join(LOCK_PATH);
+        fs::write(&worktree_lock, "replaceable worktree leaf\n").unwrap();
+        let first = acquire_project_lock(root).unwrap();
+        let location = project_lock_location(root).unwrap();
+        assert_ne!(location.path, worktree_lock);
+        assert!(
+            location
+                .path
+                .starts_with(fs::canonicalize(root.join(".git")).unwrap())
+        );
+
+        let detached = root.join(".specsync/detached-change.lock");
+        fs::rename(&worktree_lock, detached).unwrap();
+        fs::write(&worktree_lock, "replacement worktree leaf\n").unwrap();
+
+        let root = root.to_path_buf();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (acquired_tx, acquired_rx) = std::sync::mpsc::channel();
+        let contender = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            let result = acquire_project_lock(&root).map(|lock| drop(lock));
+            acquired_tx.send(result).unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(matches!(
+            acquired_rx.recv_timeout(Duration::from_millis(250)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+        ));
+
+        drop(first);
+        acquired_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .unwrap();
+        contender.join().unwrap();
+    }
+
     #[test]
     fn archive_waits_until_delivery_diff_no_longer_needs_coverage() {
         let temp = TempDir::new().unwrap();
@@ -15564,6 +22552,104 @@ mod tests {
             root,
             &verification
         ));
+        let archived = archive_change(root, &record.id).unwrap();
+        assert!(archived.join("accepted-state.json").exists());
+    }
+
+    #[test]
+    fn multiple_reacceptances_survive_sequential_protected_squash_merges() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            let status = Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap();
+            assert!(status.success(), "git {args:?} failed");
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "core.autocrlf", "false"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept A"]);
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash initial acceptance"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        git(&["switch", "-c", "refresh"]);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { true }\n// B\n",
+        )
+        .unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "drift to B"]);
+        reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Refresh accepted inputs to B".into(),
+        )
+        .unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept B"]);
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "refresh"]);
+        git(&["commit", "-m", "squash B refresh"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        git(&["switch", "-c", "refresh-c"]);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { true }\n// C\n",
+        )
+        .unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "drift to C"]);
+        reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Refresh accepted inputs to C".into(),
+        )
+        .unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "accept C"]);
+        assert_eq!(load_approvals(root, &record).unwrap().reopenings.len(), 2);
+
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "refresh-c"]);
+        git(&["commit", "-m", "squash C refresh"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        assert!(authenticate_accepted_evidence(root, &record).is_ok());
         let archived = archive_change(root, &record.id).unwrap();
         assert!(archived.join("accepted-state.json").exists());
     }
@@ -15919,6 +23005,7 @@ mod tests {
             commit: None,
             contract_digest: definition_digest(root, &record).unwrap(),
             workspace_digest: project_input_digest(root).unwrap(),
+            reopening_audit_digest: None,
             acceptance_input_digest: Some(acceptance_input_digest(root, &record, &[]).unwrap()),
             acceptance_manifest: None,
             semantic_succession: None,
@@ -16489,6 +23576,7 @@ mod tests {
         )
         .unwrap();
         assert!(ensure_closing_approval_valid(root, &record).is_ok());
+        commit_fixture_snapshot(root, "accept transitional reopening baseline");
 
         fs::write(
             root.join("src/lib.rs"),
@@ -16916,6 +24004,7 @@ mod tests {
             commit: None,
             contract_digest: definition_digest(root, &record).unwrap(),
             workspace_digest: "workspace".into(),
+            reopening_audit_digest: None,
             acceptance_input_digest: None,
             acceptance_manifest: None,
             semantic_succession: None,
@@ -16995,6 +24084,7 @@ mod tests {
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
         record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept audited reopening baseline");
         let prior_verification = load_verification(root, &record).unwrap();
         let prior_ledger = load_approvals(root, &record).unwrap();
         assert!(check_project(root).errors.is_empty());
@@ -17257,6 +24347,7 @@ mod tests {
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
         record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept owner-correction baseline");
 
         fs::write(
             root.join("src/lib.rs"),
@@ -17407,6 +24498,7 @@ mod tests {
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
         record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept batch owner-correction baseline");
         fs::write(
             root.join("src/lib.rs"),
             "pub fn ready() -> bool { false }\n",
@@ -17493,6 +24585,7 @@ mod tests {
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
         record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept owner-correction validation baseline");
         let state_path = change_dir(root, &record.id).join("state.json");
         let before = fs::read(&state_path).unwrap();
 
@@ -17653,11 +24746,17 @@ mod tests {
     fn reopen_rejects_current_evidence_and_requires_explicit_audit_fields() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
         let mut record = completed_no_spec_record(root);
         record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
         record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept initial evidence"]);
+        protect_current_acceptance(root);
 
         let error =
             reopen_change(root, &record.id, "Reviewer".into(), "Not stale".into()).unwrap_err();
@@ -17687,6 +24786,7 @@ mod tests {
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
         record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept canonical-application baseline");
 
         fs::write(
             root.join("src/lib.rs"),
@@ -18238,14 +25338,21 @@ mod tests {
         let commit = git_output(&root, &["rev-parse", "HEAD"]).unwrap();
         let directory =
             git_repo_relative_path(&root, &format!("{CHANGES_PATH}/{}", record.id)).unwrap();
+        let mut history_budget = TrustedHistoryScanBudget::default();
         assert_eq!(
-            historical_change_directories(&root, &commit, &record.id).unwrap(),
+            historical_change_directories(&root, &commit, &record.id, &mut history_budget).unwrap(),
             vec![directory.clone()]
         );
         assert!(
-            closing_authenticated_correction_anchor(&root, &commit, &directory, &record.id)
-                .unwrap()
-                .is_some()
+            closing_authenticated_correction_anchor(
+                &root,
+                &commit,
+                &directory,
+                &record.id,
+                &mut history_budget,
+            )
+            .unwrap()
+            .is_some()
         );
         assert!(
             git_entry_at_commit(&root, &commit, &format!("{directory}/state.json"))
@@ -19576,8 +26683,13 @@ mod tests {
     #[test]
     fn prepared_write_failure_rolls_back_prior_files() {
         let temp = TempDir::new().unwrap();
-        let first = temp.path().join("first.md");
-        let second = temp.path().join("second.md");
+        let workspace = temp
+            .path()
+            .join(CHANGES_PATH)
+            .join("CHG-0001-prepared-write");
+        fs::create_dir_all(&workspace).unwrap();
+        let first = workspace.join("state.json");
+        let second = workspace.join("change.md");
         fs::write(&first, "original\n").unwrap();
         fs::create_dir(&second).unwrap();
         let result = write_prepared_files(
@@ -19592,6 +26704,429 @@ mod tests {
     }
 
     #[test]
+    fn prepared_write_rejects_an_oversized_escaped_journal_before_mutation() {
+        let temp = TempDir::new().unwrap();
+        let workspace = temp
+            .path()
+            .join(CHANGES_PATH)
+            .join("CHG-0001-large-journal");
+        fs::create_dir_all(&workspace).unwrap();
+        let target = workspace.join("state.json");
+        let original = "\"".repeat(40 * 1024 * 1024);
+        fs::write(&target, &original).unwrap();
+
+        let error = write_prepared_files(temp.path(), &[(target.clone(), "replacement\n".into())])
+            .unwrap_err();
+
+        assert!(error.contains("transaction journal exceeds"), "{error}");
+        assert_eq!(fs::read_to_string(target).unwrap(), original);
+        assert!(!temp.path().join(TRANSACTION_PATH).exists());
+    }
+
+    #[test]
+    fn prepared_write_bounds_multiple_backups_before_serializing_the_journal() {
+        let temp = TempDir::new().unwrap();
+        let workspace = temp
+            .path()
+            .join(CHANGES_PATH)
+            .join("CHG-0001-aggregate-journal");
+        fs::create_dir_all(&workspace).unwrap();
+        let original = "\"".repeat(9 * 1024 * 1024);
+        let mut prepared = Vec::new();
+        for name in ["state.json", "change.md", "context.md", "tasks.md"] {
+            let path = workspace.join(name);
+            fs::write(&path, &original).unwrap();
+            prepared.push((path, "replacement\n".into()));
+        }
+
+        let error = write_prepared_files(temp.path(), &prepared).unwrap_err();
+
+        assert!(error.contains("transaction journal exceeds"), "{error}");
+        for (path, _) in prepared {
+            assert_eq!(fs::read_to_string(path).unwrap(), original);
+        }
+    }
+
+    #[test]
+    fn tracked_worktree_journal_is_never_trusted_as_recovery_instructions() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let config = root.join(".git/config");
+        let original_config = fs::read(&config).unwrap();
+        write_json(
+            &root.join(TRANSACTION_PATH),
+            &[LegacyTransactionEntry {
+                path: ".git/config".into(),
+                original: Some("malicious replacement\n".into()),
+            }],
+        )
+        .unwrap();
+
+        let lock = acquire_project_lock(root).unwrap();
+        drop(lock);
+
+        assert_eq!(fs::read(config).unwrap(), original_config);
+        assert!(root.join(TRANSACTION_PATH).is_file());
+        let location = transaction_journal_location(root).unwrap();
+        assert_ne!(location.path, root.join(TRANSACTION_PATH));
+        assert!(!location.path.exists());
+    }
+
+    #[test]
+    fn transaction_git_discovery_explicitly_clears_repository_overrides() {
+        let command = rooted_git_command(Path::new("."));
+        let cleared: BTreeSet<String> = command
+            .get_envs()
+            .filter_map(|(key, value)| value.is_none().then(|| key.to_string_lossy().into_owned()))
+            .collect();
+        for key in ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_PREFIX"] {
+            assert!(cleared.contains(key), "{key} was not cleared");
+        }
+    }
+
+    #[test]
+    fn git_transaction_recovery_survives_a_project_root_rename() {
+        let temp = TempDir::new().unwrap();
+        let old_root = temp.path().join("old-project");
+        let new_root = temp.path().join("renamed-project");
+        fs::create_dir_all(&old_root).unwrap();
+        assert!(
+            Command::new("git")
+                .args(["init", "-b", "main"])
+                .current_dir(&old_root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let workspace = old_root.join(CHANGES_PATH).join("CHG-0001-moved-recovery");
+        fs::create_dir_all(&workspace).unwrap();
+        let state = workspace.join("state.json");
+        fs::write(&state, "partial write\n").unwrap();
+        let location = transaction_journal_location(&old_root).unwrap();
+        let journal = TransactionJournal {
+            schema_version: 2,
+            project_key: location.project_key.clone(),
+            entries: vec![TransactionEntry {
+                path: format!("{CHANGES_PATH}/CHG-0001-moved-recovery/state.json"),
+                original: Some("original\n".into()),
+                replacement: "partial write\n".into(),
+            }],
+        };
+        publish_retained_project_text(
+            &location.root,
+            &location.path,
+            &json_content(&journal).unwrap(),
+        )
+        .unwrap();
+
+        fs::rename(&old_root, &new_root).unwrap();
+        recover_pending_transaction(&new_root).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(
+                new_root
+                    .join(CHANGES_PATH)
+                    .join("CHG-0001-moved-recovery/state.json")
+            )
+            .unwrap(),
+            "original\n"
+        );
+        assert!(
+            !transaction_journal_location(&new_root)
+                .unwrap()
+                .path
+                .exists()
+        );
+    }
+
+    #[test]
+    fn recovery_rejects_non_specsync_transaction_targets() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let victim = root.join("README.md");
+        fs::write(&victim, "trusted\n").unwrap();
+        let lifecycle = root.join(CHANGES_PATH).join("CHG-0001-recovery");
+        fs::create_dir_all(&lifecycle).unwrap();
+        let lifecycle_state = lifecycle.join("state.json");
+        fs::write(&lifecycle_state, "trusted state\n").unwrap();
+        write_json(
+            &root.join(TRANSACTION_PATH),
+            &TransactionJournal {
+                schema_version: 2,
+                project_key: transaction_project_key(root).unwrap(),
+                entries: vec![
+                    TransactionEntry {
+                        path: format!("{CHANGES_PATH}/CHG-0001-recovery/state.json"),
+                        original: Some("must not be applied before full validation\n".into()),
+                        replacement: "trusted state\n".into(),
+                    },
+                    TransactionEntry {
+                        path: "README.md".into(),
+                        original: Some("malicious\n".into()),
+                        replacement: "trusted\n".into(),
+                    },
+                ],
+            },
+        )
+        .unwrap();
+
+        let error = recover_pending_transaction(root).unwrap_err();
+
+        assert!(error.contains("outside SpecSync-owned"), "{error}");
+        assert_eq!(fs::read_to_string(victim).unwrap(), "trusted\n");
+        assert_eq!(
+            fs::read_to_string(lifecycle_state).unwrap(),
+            "trusted state\n"
+        );
+        assert!(root.join(TRANSACTION_PATH).is_file());
+    }
+
+    #[test]
+    fn project_lock_retries_when_the_named_leaf_is_replaced_after_locking() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let lock_path = project_lock_location(root).unwrap().path;
+        let detached = lock_path.with_extension("detached");
+        let mut swapped = false;
+
+        let lock = acquire_project_lock_with_hook(root, |attempt, path| {
+            if attempt == 0 {
+                fs::rename(path, &detached).unwrap();
+                fs::write(path, "").unwrap();
+                swapped = true;
+            }
+        })
+        .unwrap();
+
+        assert!(swapped);
+        let named = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(lock_path)
+            .unwrap();
+        assert!(named.try_lock_exclusive().is_err());
+        drop(lock);
+        named.try_lock_exclusive().unwrap();
+        FileExt::unlock(&named).unwrap();
+    }
+
+    #[test]
+    fn directory_sync_platform_branches_preserve_unix_flush_and_skip_windows_flush() {
+        let source = include_str!("change.rs");
+        let unix = source
+            .split_once("#[cfg(unix)]\nfn sync_retained_directory")
+            .unwrap()
+            .1
+            .split_once("#[cfg(windows)]\nfn sync_retained_directory")
+            .unwrap()
+            .0;
+        let windows = source
+            .split_once("#[cfg(windows)]\nfn sync_retained_directory")
+            .unwrap()
+            .1
+            .split_once("#[cfg(not(any(unix, windows)))]\nfn sync_retained_directory")
+            .unwrap()
+            .0;
+
+        assert!(unix.contains("sync_all()"));
+        assert!(!windows.contains("sync_all()"));
+        assert!(windows.contains("Ok(())"));
+    }
+
+    #[test]
+    fn windows_publication_flushes_each_new_hard_link_and_replacement_name() {
+        let source = include_str!("change.rs");
+        let windows_file_sync = source
+            .split_once("#[cfg(windows)]\nfn sync_published_retained_file")
+            .unwrap()
+            .1
+            .split_once("#[cfg(not(windows))]\nfn sync_published_retained_file")
+            .unwrap()
+            .0;
+        assert!(windows_file_sync.contains("options.read(true).write(true)"));
+        assert!(windows_file_sync.contains("configure_cap_no_follow"));
+        assert!(windows_file_sync.contains("file.sync_all()"));
+
+        let retained_publication = source
+            .split_once("fn publish_retained_project_text_if_matches_with_hook")
+            .unwrap()
+            .1
+            .split_once("#[cfg(unix)]\nfn sync_retained_directory")
+            .unwrap()
+            .0;
+        let compact_retained_publication =
+            retained_publication.split_whitespace().collect::<String>();
+        assert!(compact_retained_publication.contains(
+            "sync_published_retained_file(&directory,target,\"preparedreplacementpublication\","
+        ));
+        assert!(compact_retained_publication.contains(
+            "sync_published_retained_file(&directory,target,\"preparedhard-linkpublication\")"
+        ));
+
+        let windows_publish = source
+            .split_once("#[cfg(windows)]\nfn publish_retained_workspace_replacement")
+            .unwrap()
+            .1
+            .split_once(
+                "#[cfg(not(any(unix, windows)))]\nfn publish_retained_workspace_replacement",
+            )
+            .unwrap()
+            .0;
+        assert!(windows_publish.contains(
+            "sync_published_retained_file(directory, target, \"lifecycle replacement publication\")"
+        ));
+        assert!(windows_publish.contains("\"lifecycle replacement rollback\""));
+
+        let windows_replacement = source
+            .split_once("#[cfg(windows)]\nfn replace_file_with_backup")
+            .unwrap()
+            .1
+            .split_once("fn ensure_retained_workspace_file_matches")
+            .unwrap()
+            .0;
+        assert!(windows_replacement.contains(
+            "sync_published_retained_file(directory, backup, \"lifecycle replacement backup\")"
+        ));
+        let migration_publication = source
+            .split_once("fn atomically_replace_retained_workspace_file_with_hook")
+            .unwrap()
+            .1
+            .split_once("#[cfg(unix)]\nfn publish_retained_workspace_replacement")
+            .unwrap()
+            .0;
+        let compact_migration_publication =
+            migration_publication.split_whitespace().collect::<String>();
+        assert!(compact_migration_publication.contains(
+            "sync_published_retained_file(directory,target,\"migrationreplacementpublication\")"
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_write_rolls_back_a_final_window_symlink_leaf_swap() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let workspace = root.join(CHANGES_PATH).join("CHG-0001-retained-write");
+        fs::create_dir_all(&workspace).unwrap();
+        let target = workspace.join("state.json");
+        fs::write(&target, "original\n").unwrap();
+        let outside = root.join("outside.json");
+        fs::write(&outside, "outside\n").unwrap();
+
+        let error = publish_retained_project_text_with_hook(root, &target, "replacement\n", || {
+            fs::remove_file(&target).unwrap();
+            symlink(&outside, &target).unwrap();
+        })
+        .unwrap_err();
+
+        assert!(error.contains("atomic exchange"), "{error}");
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside\n");
+        assert!(
+            fs::symlink_metadata(&target)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert!(fs::read_dir(&workspace).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".specsync-write-")
+        }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_write_never_follows_a_final_window_workspace_swap() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let workspace = root.join(CHANGES_PATH).join("CHG-0001-retained-write");
+        fs::create_dir_all(&workspace).unwrap();
+        let target = workspace.join("state.json");
+        fs::write(&target, "original\n").unwrap();
+        let detached = root.join("detached-workspace");
+        let outside = root.join("outside-workspace");
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("state.json"), "outside\n").unwrap();
+
+        let error = publish_retained_project_text_with_hook(root, &target, "replacement\n", || {
+            fs::rename(&workspace, &detached).unwrap();
+            symlink(&outside, &workspace).unwrap();
+        })
+        .unwrap_err();
+
+        assert!(error.contains("symlinked ancestor"), "{error}");
+        assert_eq!(
+            fs::read_to_string(detached.join("state.json")).unwrap(),
+            "original\n"
+        );
+        assert_eq!(
+            fs::read_to_string(outside.join("state.json")).unwrap(),
+            "outside\n"
+        );
+        assert!(fs::read_dir(&detached).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".specsync-write-")
+        }));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn retained_write_never_follows_a_windows_workspace_replacement() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let workspace = root.join(CHANGES_PATH).join("CHG-0001-retained-write");
+        fs::create_dir_all(&workspace).unwrap();
+        let target = workspace.join("state.json");
+        fs::write(&target, "original\n").unwrap();
+        let detached = root.join("detached-workspace");
+
+        let error = publish_retained_project_text_with_hook(root, &target, "replacement\n", || {
+            fs::rename(&workspace, &detached).unwrap();
+            fs::create_dir_all(&workspace).unwrap();
+            fs::write(workspace.join("state.json"), "outside\n").unwrap();
+        })
+        .unwrap_err();
+
+        assert!(error.contains("changed during the operation"), "{error}");
+        assert_eq!(
+            fs::read_to_string(detached.join("state.json")).unwrap(),
+            "original\n"
+        );
+        assert_eq!(
+            fs::read_to_string(workspace.join("state.json")).unwrap(),
+            "outside\n"
+        );
+        assert!(fs::read_dir(&detached).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".specsync-write-")
+        }));
+    }
+
+    #[test]
     fn pending_transaction_is_recovered_before_next_lifecycle_write() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -19600,10 +27135,15 @@ mod tests {
         fs::write(&canonical, "corrupted partial write\n").unwrap();
         write_json(
             &root.join(TRANSACTION_PATH),
-            &[TransactionEntry {
-                path: "specs/auth/auth.spec.md".into(),
-                original: Some("original canonical content\n".into()),
-            }],
+            &TransactionJournal {
+                schema_version: 2,
+                project_key: transaction_project_key(root).unwrap(),
+                entries: vec![TransactionEntry {
+                    path: "specs/auth/auth.spec.md".into(),
+                    original: Some("original canonical content\n".into()),
+                    replacement: "corrupted partial write\n".into(),
+                }],
+            },
         )
         .unwrap();
         let lock = acquire_project_lock(root).unwrap();
@@ -19613,6 +27153,109 @@ mod tests {
             "original canonical content\n"
         );
         assert!(!root.join(TRANSACTION_PATH).exists());
+    }
+
+    #[test]
+    fn transaction_recovery_preserves_unknown_post_journal_edits() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let workspace = root.join(CHANGES_PATH).join("CHG-0001-recovery-cas");
+        fs::create_dir_all(&workspace).unwrap();
+        let target = workspace.join("state.json");
+        fs::write(&target, "user edit after crash\n").unwrap();
+        let journal = TransactionJournal {
+            schema_version: 2,
+            project_key: transaction_project_key(root).unwrap(),
+            entries: vec![TransactionEntry {
+                path: format!("{CHANGES_PATH}/CHG-0001-recovery-cas/state.json"),
+                original: Some("original\n".into()),
+                replacement: "transaction replacement\n".into(),
+            }],
+        };
+        write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
+
+        let error = recover_pending_transaction(root).unwrap_err();
+
+        assert!(error.contains("unknown post-journal edit"), "{error}");
+        assert_eq!(
+            fs::read_to_string(target).unwrap(),
+            "user edit after crash\n"
+        );
+        assert!(root.join(TRANSACTION_PATH).is_file());
+    }
+
+    #[test]
+    fn transaction_journal_clear_preserves_a_replaced_valid_journal() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let location = transaction_journal_location(root).unwrap();
+        let first = TransactionJournal {
+            schema_version: 2,
+            project_key: location.project_key.clone(),
+            entries: vec![TransactionEntry {
+                path: format!("{CHANGES_PATH}/CHG-0001-first/state.json"),
+                original: Some("first original\n".into()),
+                replacement: "first replacement\n".into(),
+            }],
+        };
+        let second = TransactionJournal {
+            schema_version: 2,
+            project_key: location.project_key.clone(),
+            entries: vec![TransactionEntry {
+                path: format!("{CHANGES_PATH}/CHG-0002-second/state.json"),
+                original: Some("second original\n".into()),
+                replacement: "second replacement\n".into(),
+            }],
+        };
+        let first_content = json_content(&first).unwrap();
+        let second_content = json_content(&second).unwrap();
+        publish_retained_project_text(&location.root, &location.path, &first_content).unwrap();
+        publish_retained_project_text_if_matches(
+            &location.root,
+            &location.path,
+            Some(&first_content),
+            &second_content,
+        )
+        .unwrap();
+
+        let error = clear_exact_transaction_journal(root, &first_content).unwrap_err();
+
+        assert!(error.contains("no longer matches"), "{error}");
+        assert_eq!(fs::read_to_string(&location.path).unwrap(), second_content);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn transaction_recovery_rejects_a_symlink_leaf_without_outside_mutation() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let workspace = root.join(CHANGES_PATH).join("CHG-0001-recovery");
+        fs::create_dir_all(&workspace).unwrap();
+        let target = workspace.join("state.json");
+        let outside = root.join("outside.json");
+        fs::write(&outside, "outside\n").unwrap();
+        symlink(&outside, &target).unwrap();
+        write_json(
+            &root.join(TRANSACTION_PATH),
+            &TransactionJournal {
+                schema_version: 2,
+                project_key: transaction_project_key(root).unwrap(),
+                entries: vec![TransactionEntry {
+                    path: format!("{CHANGES_PATH}/CHG-0001-recovery/state.json"),
+                    original: Some("trusted\n".into()),
+                    replacement: "partial write\n".into(),
+                }],
+            },
+        )
+        .unwrap();
+
+        let error = recover_pending_transaction(root).unwrap_err();
+
+        assert!(error.contains("not a real regular file"), "{error}");
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside\n");
+        assert!(root.join(TRANSACTION_PATH).is_file());
     }
 
     #[test]
@@ -20771,6 +28414,21 @@ mod tests {
         String::from_utf8(output.stdout).unwrap().trim().to_string()
     }
 
+    fn commit_fixture_snapshot(root: &Path, message: &str) {
+        if !root.join(".git").exists() {
+            quiet_git(root, &["init", "-b", "main"]);
+            quiet_git(root, &["config", "user.email", "test@example.com"]);
+            quiet_git(root, &["config", "user.name", "Test"]);
+        }
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", message]);
+        protect_current_acceptance(root);
+    }
+
+    fn protect_current_acceptance(root: &Path) {
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    }
+
     fn commit_paths(root: &Path, paths: &[&str], message: &str) {
         let output = Command::new("git")
             .args(["add", "--"])
@@ -21058,6 +28716,631 @@ mod tests {
     }
 
     #[test]
+    fn trusted_remote_default_ref_rejects_targets_outside_origin_namespace() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(
+            root,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/heads/forged",
+            ],
+        );
+
+        let error = trusted_remote_default_ref(root).unwrap_err();
+        assert!(error.contains("outside `refs/remotes/origin/`"), "{error}");
+    }
+
+    #[test]
+    fn lifecycle_trust_anchor_discovery_ignores_ambient_git_repository_overrides() {
+        const CHILD_MARKER: &str = "SPECSYNC_LIFECYCLE_TRUST_ANCHOR_CHILD";
+        const CHILD_ROOT: &str = "SPECSYNC_LIFECYCLE_TRUST_ANCHOR_ROOT";
+        const CHILD_ID: &str = "SPECSYNC_LIFECYCLE_TRUST_ANCHOR_ID";
+        const CHILD_MAIN_COMMIT: &str = "SPECSYNC_LIFECYCLE_TRUST_ANCHOR_MAIN_COMMIT";
+
+        if std::env::var_os(CHILD_MARKER).is_some() {
+            let root = PathBuf::from(std::env::var_os(CHILD_ROOT).unwrap());
+            let change_id = std::env::var(CHILD_ID).unwrap();
+            let main_commit = std::env::var(CHILD_MAIN_COMMIT).unwrap();
+            let record: ChangeRecord = serde_json::from_slice(
+                &fs::read(change_dir(&root, &change_id).join("state.json")).unwrap(),
+            )
+            .unwrap();
+
+            assert_eq!(
+                trusted_remote_default_ref(&root).unwrap(),
+                Some("refs/remotes/origin/main".into())
+            );
+            assert_eq!(
+                trusted_reopening_root_references(&root).unwrap(),
+                vec!["refs/remotes/origin/main".to_string()]
+            );
+            assert_eq!(
+                accepted_transition_anchors(
+                    &root,
+                    &record,
+                    &mut TrustedHistoryScanBudget::default(),
+                )
+                .unwrap(),
+                vec![main_commit.clone()]
+            );
+            assert_eq!(
+                accepted_recording_anchors(
+                    &root,
+                    &record,
+                    &mut TrustedHistoryScanBudget::default(),
+                )
+                .unwrap(),
+                vec![main_commit]
+            );
+            return;
+        }
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("target");
+        fs::create_dir(&root).unwrap();
+        quiet_git(&root, &["init", "-b", "main"]);
+        quiet_git(&root, &["config", "user.email", "test@example.com"]);
+        quiet_git(&root, &["config", "user.name", "Test"]);
+        let mut record = completed_no_spec_record(&root);
+        quiet_git(&root, &["add", "."]);
+        quiet_git(&root, &["commit", "-m", "draft lifecycle state"]);
+        let draft_commit = quiet_git(&root, &["rev-parse", "HEAD"]);
+
+        record.state = ChangeState::Accepted;
+        save_change(&root, &record).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(&root, &["commit", "-m", "trusted accepted lifecycle state"]);
+        let main_commit = quiet_git(&root, &["rev-parse", "HEAD"]);
+
+        quiet_git(&root, &["switch", "-c", "forged", draft_commit.as_str()]);
+        let mut forged = record.clone();
+        forged.updated_at = forged.updated_at.saturating_add(1);
+        save_change(&root, &forged).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(&root, &["commit", "-m", "forged accepted lifecycle state"]);
+        let forged_commit = quiet_git(&root, &["rev-parse", "HEAD"]);
+        quiet_git(&root, &["switch", "main"]);
+        quiet_git(
+            &root,
+            &[
+                "update-ref",
+                "refs/remotes/origin/main",
+                main_commit.as_str(),
+            ],
+        );
+        quiet_git(
+            &root,
+            &[
+                "update-ref",
+                "refs/remotes/origin/forged",
+                forged_commit.as_str(),
+            ],
+        );
+        quiet_git(
+            &root,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+        );
+
+        let attacker = temp.path().join("attacker");
+        fs::create_dir(&attacker).unwrap();
+        quiet_git(&attacker, &["init", "-b", "main"]);
+        quiet_git(&attacker, &["config", "user.email", "attacker@example.com"]);
+        quiet_git(&attacker, &["config", "user.name", "Attacker"]);
+        quiet_git(
+            &attacker,
+            &["commit", "--allow-empty", "-m", "attacker repository"],
+        );
+        quiet_git(
+            &attacker,
+            &["update-ref", "refs/remotes/origin/forged", "HEAD"],
+        );
+        quiet_git(
+            &attacker,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/forged",
+            ],
+        );
+
+        let output = Command::new(std::env::current_exe().unwrap())
+            .arg("lifecycle_trust_anchor_discovery_ignores_ambient_git_repository_overrides")
+            .arg("--nocapture")
+            .env(CHILD_MARKER, "1")
+            .env(CHILD_ROOT, &root)
+            .env(CHILD_ID, &record.id)
+            .env(CHILD_MAIN_COMMIT, main_commit)
+            .env("GIT_DIR", attacker.join(".git"))
+            .env("GIT_WORK_TREE", &attacker)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "lifecycle trust-anchor child failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn authenticate_accepted_evidence_ignores_hostile_ambient_git_repository() {
+        const CHILD_MARKER: &str = "SPECSYNC_TERMINAL_AUTHENTICATION_CHILD";
+        const CHILD_ROOT: &str = "SPECSYNC_TERMINAL_AUTHENTICATION_ROOT";
+        const CHILD_ID: &str = "SPECSYNC_TERMINAL_AUTHENTICATION_ID";
+
+        if std::env::var_os(CHILD_MARKER).is_some() {
+            let root = PathBuf::from(std::env::var_os(CHILD_ROOT).unwrap());
+            let change_id = std::env::var(CHILD_ID).unwrap();
+            let record: ChangeRecord = serde_json::from_slice(
+                &fs::read(change_dir(&root, &change_id).join("state.json")).unwrap(),
+            )
+            .unwrap();
+            let verification = load_verification(&root, &record).unwrap();
+
+            assert!(!verification_commit_is_accepted_current(
+                &root,
+                &verification
+            ));
+            assert!(!accepted_workspace_is_integrated(&root, &record));
+            assert!(!accepted_change_is_recorded_on_remote_default(
+                &root, &record
+            ));
+            let error = authenticate_accepted_evidence(&root, &record).unwrap_err();
+            assert!(
+                error.contains("verification commit is not in current history"),
+                "{error}"
+            );
+            return;
+        }
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("target");
+        fs::create_dir(&root).unwrap();
+        quiet_git(&root, &["init", "-b", "main"]);
+        quiet_git(&root, &["config", "user.email", "test@example.com"]);
+        quiet_git(&root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "trusted main\n").unwrap();
+        quiet_git(&root, &["add", "seed.txt"]);
+        quiet_git(&root, &["commit", "-m", "trusted main"]);
+        let main_commit = quiet_git(&root, &["rev-parse", "HEAD"]);
+
+        quiet_git(&root, &["switch", "-c", "feature"]);
+        write_default_policy(&root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(&root);
+        record = approve_definition(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(&root, &record.id).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(&root, &["commit", "-m", "implement accepted change"]);
+        verify_change(&root, &record.id).unwrap();
+        record = accept_change(&root, &record.id, Some("Closer".into()), None).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(&root, &["commit", "-m", "record accepted change"]);
+        let feature_commit = quiet_git(&root, &["rev-parse", "HEAD"]);
+
+        quiet_git(&root, &["switch", "main"]);
+        quiet_git(
+            &root,
+            &[
+                "restore",
+                "--source",
+                "feature",
+                "--staged",
+                "--worktree",
+                "--",
+                ".",
+            ],
+        );
+        quiet_git(
+            &root,
+            &[
+                "update-ref",
+                "refs/remotes/origin/main",
+                main_commit.as_str(),
+            ],
+        );
+        quiet_git(
+            &root,
+            &[
+                "update-ref",
+                "refs/remotes/origin/forged",
+                feature_commit.as_str(),
+            ],
+        );
+        quiet_git(
+            &root,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+        );
+
+        let attacker = temp.path().join("attacker");
+        fs::create_dir(&attacker).unwrap();
+        quiet_git(&attacker, &["init", "-b", "main"]);
+        let target = root.to_string_lossy().into_owned();
+        quiet_git(&attacker, &["fetch", target.as_str(), "feature"]);
+        quiet_git(&attacker, &["switch", "-C", "main", "FETCH_HEAD"]);
+        quiet_git(
+            &attacker,
+            &["update-ref", "refs/remotes/origin/forged", "HEAD"],
+        );
+        quiet_git(
+            &attacker,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/forged",
+            ],
+        );
+
+        let output = Command::new(std::env::current_exe().unwrap())
+            .arg("authenticate_accepted_evidence_ignores_hostile_ambient_git_repository")
+            .arg("--nocapture")
+            .env(CHILD_MARKER, "1")
+            .env(CHILD_ROOT, &root)
+            .env(CHILD_ID, &record.id)
+            .env("GIT_DIR", attacker.join(".git"))
+            .env("GIT_WORK_TREE", &attacker)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "terminal-authentication child failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn authenticate_accepted_evidence_rejects_assume_unchanged_alternate_index_forgery() {
+        const CHILD_MARKER: &str = "SPECSYNC_TERMINAL_ALTERNATE_INDEX_CHILD";
+        const CHILD_ROOT: &str = "SPECSYNC_TERMINAL_ALTERNATE_INDEX_ROOT";
+        const CHILD_ID: &str = "SPECSYNC_TERMINAL_ALTERNATE_INDEX_ID";
+
+        if std::env::var_os(CHILD_MARKER).is_some() {
+            let root = PathBuf::from(std::env::var_os(CHILD_ROOT).unwrap());
+            let change_id = std::env::var(CHILD_ID).unwrap();
+            let record: ChangeRecord = serde_json::from_slice(
+                &fs::read(change_dir(&root, &change_id).join("state.json")).unwrap(),
+            )
+            .unwrap();
+            let verification = load_verification(&root, &record).unwrap();
+
+            assert!(!verification_commit_is_accepted_current(
+                &root,
+                &verification
+            ));
+            assert!(!accepted_change_is_recorded_on_remote_default(
+                &root, &record
+            ));
+            assert!(!accepted_workspace_is_integrated(&root, &record));
+            let error = authenticate_accepted_evidence(&root, &record).unwrap_err();
+            assert!(
+                error.contains("verification commit is not in current history"),
+                "{error}"
+            );
+            return;
+        }
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("target");
+        fs::create_dir(&root).unwrap();
+        quiet_git(&root, &["init", "-b", "main"]);
+        quiet_git(&root, &["config", "user.email", "test@example.com"]);
+        quiet_git(&root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "trusted main\n").unwrap();
+        quiet_git(&root, &["add", "seed.txt"]);
+        quiet_git(&root, &["commit", "-m", "trusted main"]);
+
+        quiet_git(&root, &["switch", "-c", "accepted"]);
+        write_default_policy(&root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(&root);
+        record = approve_definition(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(&root, &record.id).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(&root, &["commit", "-m", "implement accepted change"]);
+        verify_change(&root, &record.id).unwrap();
+        record = accept_change(&root, &record.id, Some("Closer".into()), None).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(&root, &["commit", "-m", "record accepted change"]);
+
+        quiet_git(&root, &["switch", "main"]);
+        quiet_git(
+            &root,
+            &[
+                "restore",
+                "--source",
+                "accepted",
+                "--staged",
+                "--worktree",
+                "--",
+                ".",
+            ],
+        );
+        let mut remote_record = record.clone();
+        remote_record.state = ChangeState::Verifying;
+        save_change(&root, &remote_record).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(
+            &root,
+            &["commit", "-m", "record nonterminal remote workspace"],
+        );
+        quiet_git(&root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        quiet_git(
+            &root,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+        );
+
+        save_change(&root, &record).unwrap();
+        let alternate_index = temp.path().join("hostile.index");
+        let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
+        for arguments in [
+            vec!["read-tree", "HEAD"],
+            vec!["update-index", "--assume-unchanged", "--", state.as_str()],
+        ] {
+            let output = Command::new("git")
+                .args(arguments)
+                .current_dir(&root)
+                .env("GIT_INDEX_FILE", &alternate_index)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "failed to prepare hostile alternate index: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let workspace = format!("{CHANGES_PATH}/{}", record.id);
+        let workspace_pathspec = format!(":(top,literal){workspace}");
+        let hidden = Command::new("git")
+            .args([
+                "diff",
+                "--quiet",
+                "refs/remotes/origin/main",
+                "--",
+                workspace_pathspec.as_str(),
+            ])
+            .current_dir(&root)
+            .env("GIT_INDEX_FILE", &alternate_index)
+            .status()
+            .unwrap();
+        assert!(
+            hidden.success(),
+            "alternate index control must hide the forged state bytes"
+        );
+
+        let output = Command::new(std::env::current_exe().unwrap())
+            .arg("authenticate_accepted_evidence_rejects_assume_unchanged_alternate_index_forgery")
+            .arg("--nocapture")
+            .env(CHILD_MARKER, "1")
+            .env(CHILD_ROOT, &root)
+            .env(CHILD_ID, &record.id)
+            .env("GIT_INDEX_FILE", &alternate_index)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "terminal alternate-index child failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn authenticate_accepted_evidence_ignores_local_replace_object_forgery() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("target");
+        fs::create_dir(&root).unwrap();
+        quiet_git(&root, &["init", "-b", "main"]);
+        quiet_git(&root, &["config", "user.email", "test@example.com"]);
+        quiet_git(&root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "trusted main\n").unwrap();
+        quiet_git(&root, &["add", "seed.txt"]);
+        quiet_git(&root, &["commit", "-m", "trusted main"]);
+
+        quiet_git(&root, &["switch", "-c", "accepted"]);
+        write_default_policy(&root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(&root);
+        record = approve_definition(&root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(&root, &record.id).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(&root, &["commit", "-m", "implement accepted change"]);
+        verify_change(&root, &record.id).unwrap();
+        record = accept_change(&root, &record.id, Some("Closer".into()), None).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(&root, &["commit", "-m", "record accepted change"]);
+        let accepted_commit = quiet_git(&root, &["rev-parse", "HEAD"]);
+
+        quiet_git(&root, &["switch", "main"]);
+        quiet_git(
+            &root,
+            &[
+                "restore",
+                "--source",
+                "accepted",
+                "--staged",
+                "--worktree",
+                "--",
+                ".",
+            ],
+        );
+        let mut remote_record = record.clone();
+        remote_record.state = ChangeState::Verifying;
+        save_change(&root, &remote_record).unwrap();
+        quiet_git(&root, &["add", "."]);
+        quiet_git(
+            &root,
+            &["commit", "-m", "record nonterminal remote workspace"],
+        );
+        let remote_commit = quiet_git(&root, &["rev-parse", "HEAD"]);
+        quiet_git(
+            &root,
+            &[
+                "update-ref",
+                "refs/remotes/origin/main",
+                remote_commit.as_str(),
+            ],
+        );
+        quiet_git(
+            &root,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+        );
+        save_change(&root, &record).unwrap();
+
+        let replacement_ref = format!("refs/replace/{remote_commit}");
+        quiet_git(
+            &root,
+            &[
+                "update-ref",
+                replacement_ref.as_str(),
+                accepted_commit.as_str(),
+            ],
+        );
+        let state_path = format!("{CHANGES_PATH}/{}/state.json", record.id);
+        let replaced_state = Command::new("git")
+            .args(["show", &format!("refs/remotes/origin/main:{state_path}")])
+            .current_dir(&root)
+            .env_remove("GIT_NO_REPLACE_OBJECTS")
+            .output()
+            .unwrap();
+        assert!(
+            replaced_state.status.success(),
+            "replace-object control failed: {}",
+            String::from_utf8_lossy(&replaced_state.stderr)
+        );
+        let forged: ChangeRecord = serde_json::from_slice(&replaced_state.stdout).unwrap();
+        assert_eq!(forged.state, ChangeState::Accepted);
+
+        assert!(!accepted_workspace_is_integrated(&root, &record));
+        assert!(!accepted_change_is_recorded_on_remote_default(
+            &root, &record
+        ));
+        let error = authenticate_accepted_evidence(&root, &record).unwrap_err();
+        assert!(
+            error.contains("verification commit is not in current history"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn authenticate_accepted_evidence_rejects_final_window_state_restore() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::write(root.join("seed.txt"), "trusted main\n").unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "trusted main"]);
+
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "implement accepted change"]);
+        verify_change(root, &record.id).unwrap();
+        let verifying_record = load_change(root, &record.id).unwrap();
+        assert_eq!(verifying_record.state, ChangeState::Verifying);
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "record accepted change"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        quiet_git(
+            root,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+        );
+        assert!(authenticate_accepted_evidence(root, &record).is_ok());
+
+        let error = authenticate_accepted_evidence_with_terminal_hook(root, &record, || {
+            save_change(root, &verifying_record)
+        })
+        .unwrap_err();
+        assert!(
+            error.contains(
+                "terminal authentication evidence `state.json` changed before workspace inventory"
+            ),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn correction_rollback_prefix_discovery_ignores_ambient_git_repository_overrides() {
+        const CHILD_MARKER: &str = "SPECSYNC_CORRECTION_PREFIX_CHILD";
+        const CHILD_ROOT: &str = "SPECSYNC_CORRECTION_PREFIX_ROOT";
+        const CHILD_COMMIT: &str = "SPECSYNC_CORRECTION_PREFIX_COMMIT";
+        const CHANGE_ID: &str = "CHG-9999-correction-prefix-regression";
+
+        if std::env::var_os(CHILD_MARKER).is_some() {
+            let root = PathBuf::from(std::env::var_os(CHILD_ROOT).unwrap());
+            let commit = std::env::var(CHILD_COMMIT).unwrap();
+            assert_eq!(git_repo_prefix(&root).unwrap(), "packages/app/");
+            let mut budget = TrustedHistoryScanBudget::default();
+            assert_eq!(
+                historical_change_directories(&root, &commit, CHANGE_ID, &mut budget).unwrap(),
+                vec![format!("packages/app/{CHANGES_PATH}/{CHANGE_ID}")]
+            );
+            return;
+        }
+
+        let temp = TempDir::new().unwrap();
+        let repository = temp.path().join("repository");
+        let root = repository.join("packages/app");
+        fs::create_dir_all(root.join(CHANGES_PATH).join(CHANGE_ID)).unwrap();
+        quiet_git(&repository, &["init", "-b", "main"]);
+        quiet_git(&repository, &["config", "user.email", "test@example.com"]);
+        quiet_git(&repository, &["config", "user.name", "Test"]);
+        fs::write(
+            root.join(CHANGES_PATH).join(CHANGE_ID).join("state.json"),
+            "{}\n",
+        )
+        .unwrap();
+        quiet_git(&repository, &["add", "."]);
+        quiet_git(&repository, &["commit", "-m", "nested correction history"]);
+        let commit = quiet_git(&repository, &["rev-parse", "HEAD"]);
+
+        let attacker = temp.path().join("attacker");
+        fs::create_dir(&attacker).unwrap();
+        quiet_git(&attacker, &["init", "-b", "main"]);
+        let output = Command::new(std::env::current_exe().unwrap())
+            .arg("correction_rollback_prefix_discovery_ignores_ambient_git_repository_overrides")
+            .arg("--nocapture")
+            .env(CHILD_MARKER, "1")
+            .env(CHILD_ROOT, &root)
+            .env(CHILD_COMMIT, commit)
+            .env("GIT_DIR", attacker.join(".git"))
+            .env("GIT_WORK_TREE", &attacker)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "nested correction prefix child failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
     fn no_spec_change_rejects_a_declared_public_contract_change() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -21304,6 +29587,7 @@ mod tests {
                 commit: git_output(root, &["rev-parse", "HEAD"]),
                 contract_digest: definition_digest(root, record).unwrap(),
                 workspace_digest: project_input_digest(root).unwrap(),
+                reopening_audit_digest: None,
                 acceptance_input_digest: None,
                 acceptance_manifest: None,
                 semantic_succession: None,
@@ -21430,4 +29714,3787 @@ mod tests {
                 .exists()
         );
     }
+    #[test]
+    fn large_a_b_a_reopens_reuse_objects_and_bound_ledger_growth() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record.affected_paths.push("fixtures/".into());
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        fs::create_dir_all(root.join("fixtures")).unwrap();
+        for index in 0..393 {
+            fs::write(
+                root.join("fixtures").join(format!("broad-{index:03}.txt")),
+                format!("broad fixture {index}\n"),
+            )
+            .unwrap();
+        }
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept large manifest A");
+        let prior = load_verification(root, &record).unwrap();
+        let manifest = prior.acceptance_manifest.as_ref().unwrap();
+        assert!(manifest.entries.len() >= 393);
+        let manifest_bytes = json_content(manifest).unwrap().len();
+        assert!(manifest_bytes > 64 * 1024);
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let mut reopening_growth = Vec::new();
+
+        let before = fs::metadata(&approvals_path).unwrap().len();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Move large manifest A to B".into(),
+        )
+        .unwrap()
+        .change;
+        reopening_growth.push(fs::metadata(&approvals_path).unwrap().len() - before);
+
+        let approvals: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        let reopening = &approvals["reopenings"][0];
+        assert_eq!(reopening["schema_version"], 2);
+        assert!(
+            reopening["prior_verification"]
+                .get("acceptance_manifest")
+                .is_none()
+        );
+        let digest = prior.acceptance_input_digest.unwrap();
+        assert_eq!(
+            reopening["prior_acceptance_manifest"]["digest"],
+            digest.as_str()
+        );
+        let first_object = change_dir(root, &record.id)
+            .join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY)
+            .join(format!("{digest}.json"));
+        let first_bytes = fs::read(&first_object).unwrap();
+
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept large manifest B");
+        let before = fs::metadata(&approvals_path).unwrap().len();
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Move large manifest B back to A".into(),
+        )
+        .unwrap()
+        .change;
+        reopening_growth.push(fs::metadata(&approvals_path).unwrap().len() - before);
+
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept large manifest A again");
+        let before = fs::metadata(&approvals_path).unwrap().len();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Make large manifest A stale again".into(),
+        )
+        .unwrap()
+        .change;
+        reopening_growth.push(fs::metadata(&approvals_path).unwrap().len() - before);
+
+        let ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(ledger.reopenings.len(), 3);
+        assert_eq!(
+            ledger.reopenings[0].stale_acceptance_input_digest,
+            ledger.reopenings[2].stale_acceptance_input_digest
+        );
+        assert_ne!(
+            ledger.reopenings[0].stale_acceptance_input_digest,
+            ledger.reopenings[1].stale_acceptance_input_digest
+        );
+        assert_eq!(fs::read(first_object).unwrap(), first_bytes);
+        let objects: Vec<_> =
+            fs::read_dir(change_dir(root, &record.id).join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY))
+                .unwrap()
+                .flatten()
+                .filter(|entry| {
+                    entry.path().extension().and_then(|value| value.to_str()) == Some("json")
+                })
+                .collect();
+        assert_eq!(objects.len(), 2);
+        assert!(
+            reopening_growth.iter().all(|growth| *growth < 8 * 1024),
+            "{reopening_growth:?}"
+        );
+        assert!(
+            reopening_growth
+                .iter()
+                .all(|growth| (*growth as usize) * 8 < manifest_bytes),
+            "manifest={manifest_bytes}, reopenings={reopening_growth:?}"
+        );
+        let persisted = fs::read_to_string(approvals_path).unwrap();
+        assert!(!persisted.contains("\"acceptance_manifest\""));
+    }
+
+    #[test]
+    fn reopen_object_write_failure_leaves_approvals_byte_identical() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept initial evidence"]);
+        protect_current_acceptance(root);
+        let workspace = change_dir(root, &record.id);
+        let approvals_path = workspace.join("approvals.json");
+        let before = fs::read(&approvals_path).unwrap();
+        fs::create_dir_all(workspace.join("evidence")).unwrap();
+        fs::write(
+            workspace.join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY),
+            "not a directory\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+
+        let error = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Accepted delivery inputs changed".into(),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("not a directory"), "{error}");
+        assert_eq!(fs::read(approvals_path).unwrap(), before);
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Accepted
+        );
+    }
+
+    #[test]
+    fn interrupted_partial_manifest_object_leaves_approvals_byte_identical() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept initial evidence"]);
+        protect_current_acceptance(root);
+        let digest = load_verification(root, &record)
+            .unwrap()
+            .acceptance_input_digest
+            .unwrap();
+        let workspace = change_dir(root, &record.id);
+        let directory = workspace.join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY);
+        fs::create_dir_all(&directory).unwrap();
+        let object_path = directory.join(format!("{digest}.json"));
+        let partial = b"{\"schema_version\": 1";
+        fs::write(&object_path, partial).unwrap();
+        let approvals_path = workspace.join("approvals.json");
+        let before = fs::read(&approvals_path).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+
+        let error = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Accepted delivery inputs changed".into(),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("malformed JSON"), "{error}");
+        assert_eq!(fs::read(approvals_path).unwrap(), before);
+        assert_eq!(fs::read(object_path).unwrap(), partial);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_manifest_object_ancestor_is_rejected() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let reopened = compact_reopened_fixture(root);
+        let workspace = change_dir(root, &reopened.change.id);
+        let evidence = workspace.join("evidence");
+        fs::rename(&evidence, workspace.join("evidence-real")).unwrap();
+        symlink("evidence-real", &evidence).unwrap();
+
+        let error = load_approvals(root, &reopened.change).unwrap_err();
+
+        assert!(error.contains("not a real directory"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_manifest_directory_rejects_ancestor_swap_after_confined_write() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = accepted_manifest_record(root);
+        let workspace = change_dir(root, &record.id);
+        let retained = open_manifest_object_directory(root, &workspace, true).unwrap();
+        let evidence = workspace.join("evidence");
+        let detached = workspace.join("evidence-retained");
+        fs::rename(&evidence, &detached).unwrap();
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(outside.join("acceptance-manifests")).unwrap();
+        symlink(&outside, &evidence).unwrap();
+
+        let temporary = Path::new("confined.tmp");
+        let published = Path::new("confined.json");
+        let mut file = open_manifest_object_no_follow(&retained, temporary, true).unwrap();
+        file.write_all(b"confined\n").unwrap();
+        file.sync_all().unwrap();
+        retained
+            .handle
+            .hard_link(temporary, &retained.handle, published)
+            .unwrap();
+        retained.handle.remove_file(temporary).unwrap();
+
+        assert_eq!(
+            fs::read(detached.join("acceptance-manifests/confined.json")).unwrap(),
+            b"confined\n"
+        );
+        assert!(!outside.join("acceptance-manifests/confined.json").exists());
+        let error =
+            ensure_manifest_object_directory_is_bound(root, &workspace, &retained).unwrap_err();
+        assert!(error.contains("symlinked ancestor"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_manifest_object_leaf_is_rejected() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let reopened = compact_reopened_fixture(root);
+        let object_path = manifest_object_path(root, &reopened.audit);
+        let backing = change_dir(root, &reopened.change.id).join("manifest-backing.json");
+        fs::rename(&object_path, &backing).unwrap();
+        symlink(&backing, &object_path).unwrap();
+
+        let error = load_approvals(root, &reopened.change).unwrap_err();
+
+        assert!(error.contains("leaf is a symlink"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn manifest_leaf_fifo_swap_fails_without_blocking() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let reopened = compact_reopened_fixture(root);
+        let workspace = change_dir(root, &reopened.change.id);
+        let directory = open_manifest_object_directory(root, &workspace, false).unwrap();
+        let digest = reopened
+            .audit
+            .prior_verification
+            .acceptance_input_digest
+            .as_deref()
+            .unwrap();
+
+        let error = read_manifest_object_from_directory_with_hook(&directory, digest, |path| {
+            fs::remove_file(path).unwrap();
+            let status = Command::new("mkfifo").arg(path).status().unwrap();
+            assert!(status.success());
+        })
+        .unwrap_err();
+
+        assert!(error.contains("changed while opening"), "{error}");
+    }
+
+    #[test]
+    fn compact_manifest_objects_reject_invalid_storage_and_content() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let reopened = compact_reopened_fixture(root);
+        let object_path = manifest_object_path(root, &reopened.audit);
+        let original = fs::read(&object_path).unwrap();
+
+        fs::remove_file(&object_path).unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("missing or unreadable")
+        );
+        fs::write(&object_path, &original).unwrap();
+
+        fs::remove_file(&object_path).unwrap();
+        fs::create_dir(&object_path).unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("not a regular file")
+        );
+        fs::remove_dir(&object_path).unwrap();
+
+        let oversized = fs::File::create(&object_path).unwrap();
+        oversized
+            .set_len(MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES + 1)
+            .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("exceeds")
+        );
+
+        fs::write(&object_path, "{not-json\n").unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("malformed JSON")
+        );
+
+        let mut unknown: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        unknown["unexpected"] = serde_json::json!(true);
+        fs::write(
+            &object_path,
+            format!("{}\n", serde_json::to_string_pretty(&unknown).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("unknown fields")
+        );
+    }
+
+    #[test]
+    fn trusted_manifest_blob_size_is_rejected_before_content_read() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("oversized.json"), vec![b'x'; 128]).unwrap();
+        quiet_git(root, &["add", "oversized.json"]);
+        quiet_git(root, &["commit", "-m", "record oversized manifest object"]);
+
+        let error = git_bounded_entry_at_commit(root, "HEAD", "oversized.json", 16).unwrap_err();
+        assert!(error.contains("exceeds 16 bytes"), "{error}");
+        let (_, bytes) = git_bounded_entry_at_commit(root, "HEAD", "oversized.json", 128)
+            .unwrap()
+            .unwrap();
+        assert_eq!(bytes.len(), 128);
+    }
+
+    #[test]
+    fn compact_reopening_rejects_digest_disagreement_versions_and_mixed_shapes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let reopened = compact_reopened_fixture(root);
+        let approvals_path = change_dir(root, &reopened.change.id).join("approvals.json");
+        let original = fs::read(&approvals_path).unwrap();
+        let document: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        let object_path = manifest_object_path(root, &reopened.audit);
+
+        let direct_error = serde_json::from_slice::<ApprovalLedger>(&original).unwrap_err();
+        assert!(
+            direct_error
+                .to_string()
+                .contains("prior_acceptance_manifest"),
+            "{direct_error}"
+        );
+
+        let mut candidate = document.clone();
+        candidate["reopenings"][0]["prior_acceptance_manifest"] = serde_json::Value::Null;
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&candidate).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("superseded approval does not authenticate")
+        );
+
+        let mut candidate = document.clone();
+        candidate["reopenings"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("prior_acceptance_manifest");
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&candidate).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("missing field `prior_acceptance_manifest`")
+        );
+
+        let mut candidate = document.clone();
+        let wrong_digest = "0".repeat(64);
+        candidate["reopenings"][0]["prior_acceptance_manifest"]["digest"] =
+            serde_json::Value::String(wrong_digest.clone());
+        fs::write(
+            object_path
+                .parent()
+                .unwrap()
+                .join(format!("{wrong_digest}.json")),
+            fs::read(&object_path).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&candidate).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("digest disagreement")
+        );
+
+        let mut candidate = document.clone();
+        candidate["reopenings"][0]["prior_verification"]["acceptance_input_digest"] =
+            serde_json::Value::String("b".repeat(64));
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&candidate).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("reference disagrees")
+        );
+
+        let mut candidate = document.clone();
+        candidate["reopenings"][0]["schema_version"] = serde_json::json!(99);
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&candidate).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("unsupported reopening schema version")
+        );
+
+        let mut candidate = document.clone();
+        candidate["reopenings"][0]["prior_verification"]["acceptance_manifest"] =
+            serde_json::to_value(
+                reopened
+                    .audit
+                    .prior_verification
+                    .acceptance_manifest
+                    .as_ref()
+                    .unwrap(),
+            )
+            .unwrap();
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&candidate).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("compact reopening cannot embed")
+        );
+
+        let mut candidate = document.clone();
+        candidate["reopenings"][0]["prior_verification"]["acceptance_manifest"] =
+            serde_json::Value::Null;
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&candidate).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("compact reopening cannot embed")
+        );
+
+        let mut candidate = document.clone();
+        candidate["approvals"][0]["unexpected"] = serde_json::json!(true);
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&candidate).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("unknown field")
+        );
+
+        let mut candidate = document;
+        candidate["unexpected"] = serde_json::json!(true);
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&candidate).unwrap()),
+        )
+        .unwrap();
+        assert!(
+            load_approvals(root, &reopened.change)
+                .unwrap_err()
+                .contains("unknown field")
+        );
+
+        fs::write(&approvals_path, original).unwrap();
+        assert!(load_approvals(root, &reopened.change).is_ok());
+    }
+
+    #[test]
+    fn reopening_schema_history_allows_v1_to_v2_but_rejects_v2_to_v1() {
+        let temp = TempDir::new().unwrap();
+        let reopened = compact_reopened_fixture(temp.path());
+        let mut first = reopened.audit;
+        first.schema_version = 1;
+        first.prior_verification.reopening_audit_digest = None;
+        let first_approval = first.superseded_approval.clone();
+
+        let mut second_approval = first_approval.clone();
+        second_approval.timestamp += 1;
+        let mut second = first.clone();
+        second.schema_version = 2;
+        second.superseded_approval = second_approval.clone();
+        second_approval.digest =
+            closing_digest_for_change_id(&second.change_id, &second.prior_verification);
+        second.superseded_approval = second_approval.clone();
+        assert!(
+            validate_reopening_approval_chain(
+                &[first_approval.clone(), second_approval.clone()],
+                &[first.clone(), second.clone()],
+            )
+            .is_ok()
+        );
+
+        let mut compact_first = first;
+        compact_first.schema_version = 2;
+        let mut downgraded_second = second;
+        downgraded_second.schema_version = 1;
+        downgraded_second.prior_verification.reopening_audit_digest =
+            Some(reopening_audit_digest(&[compact_first.clone()]).unwrap());
+        let error = validate_reopening_approval_chain(
+            &[first_approval, second_approval],
+            &[compact_first, downgraded_second],
+        )
+        .unwrap_err();
+        assert!(error.contains("downgrades"), "{error}");
+    }
+
+    #[test]
+    fn repeated_a_b_a_reopens_reuse_two_immutable_manifest_objects() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        let mut record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept A"]);
+        protect_current_acceptance(root);
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Move from A to B".into(),
+        )
+        .unwrap()
+        .change;
+        let first = load_approvals(root, &record).unwrap().reopenings[0].clone();
+        let first_object = manifest_object_path(root, &first);
+        let first_bytes = fs::read(&first_object).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        assert!(authenticate_accepted_evidence(root, &record).is_ok());
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept B"]);
+        protect_current_acceptance(root);
+
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Move from B back to A".into(),
+        )
+        .unwrap()
+        .change;
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept A again"]);
+        protect_current_acceptance(root);
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Make A stale again".into(),
+        )
+        .unwrap()
+        .change;
+
+        let ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(ledger.reopenings.len(), 3);
+        assert_eq!(
+            ledger.reopenings[0].stale_acceptance_input_digest,
+            ledger.reopenings[2].stale_acceptance_input_digest
+        );
+        assert_ne!(
+            ledger.reopenings[0].stale_acceptance_input_digest,
+            ledger.reopenings[1].stale_acceptance_input_digest
+        );
+        assert_eq!(fs::read(first_object).unwrap(), first_bytes);
+        let objects: Vec<_> =
+            fs::read_dir(change_dir(root, &record.id).join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY))
+                .unwrap()
+                .flatten()
+                .filter(|entry| {
+                    entry.path().extension().and_then(|value| value.to_str()) == Some("json")
+                })
+                .collect();
+        assert_eq!(objects.len(), 2);
+        let persisted =
+            fs::read_to_string(change_dir(root, &record.id).join("approvals.json")).unwrap();
+        assert!(!persisted.contains("\"acceptance_manifest\""));
+    }
+
+    #[test]
+    fn manifestless_v2_reopening_round_trips_reaccepts_and_archives() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+
+        let mut record = completed_no_spec_record(root);
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Reviewer".into()),
+            definition_digest(root, &record).unwrap(),
+            None,
+        )
+        .unwrap();
+        record.state = ChangeState::Accepted;
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        let verification = VerificationRecord {
+            timestamp: now(),
+            commit: None,
+            contract_digest: definition_digest(root, &record).unwrap(),
+            workspace_digest: project_input_digest(root).unwrap(),
+            reopening_audit_digest: None,
+            acceptance_input_digest: Some(acceptance_input_digest(root, &record, &[]).unwrap()),
+            acceptance_manifest: None,
+            semantic_succession: None,
+            passed: true,
+            commands: Vec::new(),
+            requirement_ids: Vec::new(),
+        };
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &verification,
+        )
+        .unwrap();
+        append_approval(
+            root,
+            &record,
+            "acceptance",
+            Some("Closer".into()),
+            closing_digest(&record, &verification),
+            None,
+        )
+        .unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(
+            root,
+            &["commit", "-m", "accept legacy manifestless evidence"],
+        );
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Legacy accepted inputs changed".into(),
+        )
+        .unwrap()
+        .change;
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let persisted: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        assert_eq!(persisted["reopenings"][0]["schema_version"], 2);
+        assert!(persisted["reopenings"][0]["prior_acceptance_manifest"].is_null());
+        let ledger = load_approvals(root, &record).unwrap();
+        assert!(
+            ledger.reopenings[0]
+                .prior_verification
+                .acceptance_manifest
+                .is_none()
+        );
+
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(
+            root,
+            &["commit", "-m", "reaccept compact manifestless history"],
+        );
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let archived_path = archive_change(root, &record.id).unwrap();
+        let archived = load_change(root, &record.id).unwrap();
+        let ledger = load_approvals(root, &archived).unwrap();
+        assert_eq!(ledger.reopenings.len(), 1);
+        assert!(
+            ledger.reopenings[0]
+                .prior_verification
+                .acceptance_manifest
+                .is_none()
+        );
+        assert!(archived_path.is_dir());
+    }
+
+    #[test]
+    fn mixed_v1_v2_history_migrates_idempotently_and_archives_with_objects() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept A"]);
+        protect_current_acceptance(root);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let first_reopen = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Move from A to B".into(),
+        )
+        .unwrap();
+        record = first_reopen.change;
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        let mut embedded = serde_json::to_value(first_reopen.audit).unwrap();
+        embedded["schema_version"] = serde_json::json!(1);
+        document["reopenings"][0] = embedded;
+        let mut verification = load_verification(root, &record).unwrap();
+        verification.reopening_audit_digest = None;
+        write_json(
+            &change_dir(root, &record.id).join("verification.json"),
+            &verification,
+        )
+        .unwrap();
+        let closing = document["approvals"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .rev()
+            .find(|approval| approval["gate"].as_str() == Some("acceptance"))
+            .unwrap();
+        closing["digest"] = serde_json::json!(closing_digest(&record, &verification));
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+        )
+        .unwrap();
+        assert_eq!(
+            load_approvals(root, &record).unwrap().reopenings[0].schema_version,
+            1
+        );
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept B with legacy reopening"]);
+        protect_current_acceptance(root);
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Move from B back to A".into(),
+        )
+        .unwrap()
+        .change;
+        assert_eq!(
+            load_approvals(root, &record)
+                .unwrap()
+                .reopenings
+                .iter()
+                .map(|reopening| reopening.schema_version)
+                .collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept mixed reopening history"]);
+
+        let hydrated_before_migration = load_approvals(root, &record).unwrap();
+        let stale = hydrated_before_migration.reopenings[0]
+            .stale_acceptance_input_digest
+            .clone();
+        let current = hydrated_before_migration.reopenings[0]
+            .current_acceptance_input_digest
+            .clone();
+        let mut mixed_document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        mixed_document["reopenings"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("stale_acceptance_input_digest");
+        mixed_document["reopenings"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("current_acceptance_input_digest");
+        let before = format!(
+            "{}\n",
+            serde_json::to_string_pretty(&mixed_document).unwrap()
+        )
+        .into_bytes();
+        fs::write(&approvals_path, &before).unwrap();
+        let report = backfill_reopen_digests(root, false).unwrap();
+        assert_eq!(report.repaired, vec![record.id.clone()]);
+        assert!(report.failed.is_empty(), "{:?}", report.failed);
+        let after = fs::read(&approvals_path).unwrap();
+        let insertion = format!(
+            ",\"stale_acceptance_input_digest\":{},\"current_acceptance_input_digest\":{}",
+            serde_json::to_string(&stale).unwrap(),
+            serde_json::to_string(&current).unwrap()
+        );
+        let offset = after
+            .windows(insertion.len())
+            .position(|window| window == insertion.as_bytes())
+            .unwrap();
+        let mut without_repair = after.clone();
+        without_repair.drain(offset..offset + insertion.len());
+        assert_eq!(without_repair, before);
+        assert_eq!(
+            load_approvals(root, &record)
+                .unwrap()
+                .reopenings
+                .iter()
+                .map(|reopening| reopening.schema_version)
+                .collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        let report = backfill_reopen_digests(root, false).unwrap();
+        assert!(report.repaired.is_empty());
+        assert_eq!(fs::read(&approvals_path).unwrap(), after);
+
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let archived_path = archive_change(root, &record.id).unwrap();
+        let archived = load_change(root, &record.id).unwrap();
+        assert_eq!(load_approvals(root, &archived).unwrap().reopenings.len(), 2);
+        assert!(
+            archived_path
+                .join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY)
+                .is_dir()
+        );
+    }
+
+    #[test]
+    fn protected_exact_v1_ledger_preserves_squashed_legacy_reopening_history() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        commit_fixture_snapshot(root, "accept A");
+        let initial_acceptance = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+
+        for (source, reason) in [
+            ("pub fn ready() -> bool { false }\n", "Move from A to B"),
+            (
+                "pub fn ready() -> bool { true }\n// C\n",
+                "Move from B to C",
+            ),
+        ] {
+            fs::write(root.join("src/lib.rs"), source).unwrap();
+            let reopened =
+                reopen_change(root, &record.id, "Reviewer".into(), reason.into()).unwrap();
+            record = reopened.change;
+            verify_change(root, &record.id).unwrap();
+            record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+            let approvals_path = change_dir(root, &record.id).join("approvals.json");
+            let mut document: serde_json::Value =
+                serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+            let reopening_index = document["reopenings"].as_array().unwrap().len() - 1;
+            let mut embedded = serde_json::to_value(reopened.audit).unwrap();
+            embedded["schema_version"] = serde_json::json!(1);
+            document["reopenings"][reopening_index] = embedded;
+            let mut verification = load_verification(root, &record).unwrap();
+            verification.reopening_audit_digest = None;
+            write_json(
+                &change_dir(root, &record.id).join("verification.json"),
+                &verification,
+            )
+            .unwrap();
+            let closing = document["approvals"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .rev()
+                .find(|approval| approval["gate"].as_str() == Some("acceptance"))
+                .unwrap();
+            closing["digest"] = serde_json::json!(closing_digest(&record, &verification));
+            fs::write(
+                &approvals_path,
+                format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+            )
+            .unwrap();
+            commit_fixture_snapshot(root, reason);
+        }
+
+        let final_tree = git_output(root, &["rev-parse", "HEAD^{tree}"]).unwrap();
+        let squash = git_output(
+            root,
+            &[
+                "commit-tree",
+                &final_tree,
+                "-p",
+                &initial_acceptance,
+                "-m",
+                "squash legacy reopenings",
+            ],
+        )
+        .unwrap();
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", &squash]);
+
+        let ledger = load_approvals(root, &record).unwrap();
+        assert_eq!(
+            ledger
+                .reopenings
+                .iter()
+                .map(|reopening| reopening.schema_version)
+                .collect::<Vec<_>>(),
+            vec![1, 1]
+        );
+        assert!(validate_trusted_reopening_anchors(root, &record.id, &ledger).is_ok());
+
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        document["reopenings"][1]["actor"] = serde_json::json!("Forged reviewer");
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+        )
+        .unwrap();
+        let forged = load_approvals(root, &record).unwrap();
+        let error = validate_trusted_reopening_anchors(root, &record.id, &forged).unwrap_err();
+        assert!(
+            error.contains("schema-v1 reopening prefix of 2 event(s) has no protected"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn trusted_accepted_anchor_must_contain_referenced_manifest_objects() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept initial evidence"]);
+        protect_current_acceptance(root);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Accepted delivery inputs changed".into(),
+        )
+        .unwrap()
+        .change;
+        let lifecycle = format!("{CHANGES_PATH}/{}", record.id);
+        let state = format!("{lifecycle}/state.json");
+        let markdown = format!("{lifecycle}/change.md");
+        let approvals = format!("{lifecycle}/approvals.json");
+        quiet_git(root, &["add", "src/lib.rs", &state, &markdown, &approvals]);
+        quiet_git(root, &["commit", "-m", "record reopen without object"]);
+
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let verification = format!("{lifecycle}/verification.json");
+        let attempts = format!("{lifecycle}/verification-attempts.json");
+        quiet_git(
+            root,
+            &[
+                "add",
+                &state,
+                &markdown,
+                &approvals,
+                &verification,
+                &attempts,
+            ],
+        );
+        quiet_git(
+            root,
+            &["commit", "-m", "reaccept without referenced object"],
+        );
+        let current_approvals =
+            fs::read(change_dir(root, &record.id).join("approvals.json")).unwrap();
+        assert_eq!(
+            git_object_bytes(root, "HEAD", &approvals).as_deref(),
+            Some(current_approvals.as_slice())
+        );
+        let current_ledger: serde_json::Value = serde_json::from_slice(&current_approvals).unwrap();
+        let manifest_digest =
+            current_ledger["reopenings"][0]["prior_acceptance_manifest"]["digest"]
+                .as_str()
+                .unwrap();
+        let manifest_path =
+            format!("{lifecycle}/{ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY}/{manifest_digest}.json");
+        assert!(git_object_bytes(root, "HEAD", &manifest_path).is_none());
+        assert!(
+            load_approval_ledger_from_bytes(
+                &current_approvals,
+                &record.id,
+                &mut ApprovalManifestSource::Git {
+                    root,
+                    commit: "HEAD",
+                    directory: &lifecycle,
+                    budget: None,
+                },
+            )
+            .is_err()
+        );
+
+        let error = authenticate_accepted_evidence(root, &record).unwrap_err();
+
+        assert!(error.contains("not staged"), "{error}");
+    }
+
+    #[test]
+    fn staged_compact_ledger_requires_every_referenced_manifest_object_staged() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept initial evidence"]);
+        protect_current_acceptance(root);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Accepted delivery inputs changed".into(),
+        )
+        .unwrap()
+        .change;
+        let reopening = load_approvals(root, &record).unwrap().reopenings[0].clone();
+        let object = manifest_object_path(root, &reopening);
+        let object_relative = object
+            .strip_prefix(root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let workspace = strict_portable_project_path(root, &change_dir(root, &record.id)).unwrap();
+        for path in [
+            "src/lib.rs".to_string(),
+            format!("{workspace}/state.json"),
+            format!("{workspace}/verification.json"),
+            format!("{workspace}/approvals.json"),
+        ] {
+            quiet_git(root, &["add", &path]);
+        }
+
+        let error = authenticate_accepted_evidence(root, &record).unwrap_err();
+        assert!(error.contains("not staged"), "{error}");
+
+        let staged_approvals =
+            fs::read(change_dir(root, &record.id).join("approvals.json")).unwrap();
+        let mut divergent_approvals = staged_approvals.clone();
+        divergent_approvals.extend_from_slice(b" \n");
+        fs::write(
+            change_dir(root, &record.id).join("approvals.json"),
+            divergent_approvals,
+        )
+        .unwrap();
+        let error = authenticate_accepted_evidence(root, &record).unwrap_err();
+        assert!(
+            error.contains("additional unstaged worktree changes"),
+            "{error}"
+        );
+        fs::write(
+            change_dir(root, &record.id).join("approvals.json"),
+            staged_approvals,
+        )
+        .unwrap();
+        quiet_git(root, &["add", &format!("{workspace}/approvals.json")]);
+
+        quiet_git(root, &["add", &object_relative]);
+        assert!(
+            authenticate_accepted_evidence(root, &record).is_ok(),
+            "{:?}",
+            authenticate_accepted_evidence(root, &record)
+        );
+        let approvals_relative = format!("{workspace}/approvals.json");
+        quiet_git(root, &["rm", "--cached", "--", &approvals_relative]);
+        let error = authenticate_accepted_evidence(root, &record).unwrap_err();
+        assert!(error.contains("deleted from the index"), "{error}");
+        quiet_git(root, &["add", &approvals_relative]);
+        assert!(authenticate_accepted_evidence(root, &record).is_ok());
+    }
+
+    #[test]
+    fn stripped_manifest_reference_cannot_forge_a_prior_approval_prefix() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept initial evidence"]);
+        protect_current_acceptance(root);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Accepted delivery inputs changed".into(),
+        )
+        .unwrap()
+        .change;
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        let workspace = change_dir(root, &record.id);
+        let approvals_path = workspace.join("approvals.json");
+        let hydrated = load_approvals(root, &record).unwrap();
+        let reopening = &hydrated.reopenings[0];
+        let original_digest = reopening.superseded_approval.digest.clone();
+        let mut stripped_prior = reopening.prior_verification.clone();
+        stripped_prior.acceptance_manifest = None;
+        let forged_digest = closing_digest_for_change_id(&record.id, &stripped_prior);
+        let object_path = manifest_object_path(root, reopening);
+        fs::remove_file(object_path).unwrap();
+
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        document["reopenings"][0]["prior_acceptance_manifest"] = serde_json::Value::Null;
+        document["reopenings"][0]["superseded_approval"]["digest"] =
+            serde_json::Value::String(forged_digest.clone());
+        for approval in document["approvals"].as_array_mut().unwrap() {
+            if approval["digest"].as_str() == Some(&original_digest) {
+                approval["digest"] = serde_json::Value::String(forged_digest.clone());
+                break;
+            }
+        }
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+        )
+        .unwrap();
+        let forged_ledger = load_approvals(root, &record).unwrap();
+        let mut forged_verification = load_verification(root, &record).unwrap();
+        forged_verification.reopening_audit_digest =
+            Some(reopening_audit_digest(&forged_ledger.reopenings).unwrap());
+        write_json(&workspace.join("verification.json"), &forged_verification).unwrap();
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        let closing = document["approvals"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .rev()
+            .find(|approval| approval["gate"].as_str() == Some("acceptance"))
+            .unwrap();
+        closing["digest"] =
+            serde_json::Value::String(closing_digest(&record, &forged_verification));
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+        )
+        .unwrap();
+
+        quiet_git(root, &["add", "-A"]);
+        quiet_git(
+            root,
+            &["commit", "-m", "attempt to strip prior manifest evidence"],
+        );
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        let error = authenticate_accepted_evidence(root, &record).unwrap_err();
+        assert!(
+            error.contains("no protected remote-default acceptance root"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn stripped_later_manifest_reference_requires_its_exact_protected_acceptance_root() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        commit_fixture_snapshot(root, "accept initial evidence");
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Accepted delivery inputs changed to B".into(),
+        )
+        .unwrap()
+        .change;
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept B");
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { true }\n// C\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Accepted delivery inputs changed to C".into(),
+        )
+        .unwrap()
+        .change;
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        commit_fixture_snapshot(root, "accept C");
+
+        let workspace = change_dir(root, &record.id);
+        let approvals_path = workspace.join("approvals.json");
+        let state_path = workspace.join("state.json");
+        let hydrated = load_approvals(root, &record).unwrap();
+        assert_eq!(hydrated.reopenings.len(), 2);
+        let reopening = &hydrated.reopenings[1];
+        let original_digest = reopening.superseded_approval.digest.clone();
+        let mut stripped_prior = reopening.prior_verification.clone();
+        stripped_prior.acceptance_manifest = None;
+        let forged_digest = closing_digest_for_change_id(&record.id, &stripped_prior);
+        fs::remove_file(manifest_object_path(root, reopening)).unwrap();
+
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        document["reopenings"][1]["prior_acceptance_manifest"] = serde_json::Value::Null;
+        document["reopenings"][1]["superseded_approval"]["digest"] =
+            serde_json::Value::String(forged_digest.clone());
+        for approval in document["approvals"].as_array_mut().unwrap() {
+            if approval["digest"].as_str() == Some(&original_digest) {
+                approval["digest"] = serde_json::Value::String(forged_digest.clone());
+                break;
+            }
+        }
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+        )
+        .unwrap();
+        let forged_ledger = load_approvals(root, &record).unwrap();
+        let mut forged_verification = load_verification(root, &record).unwrap();
+        forged_verification.reopening_audit_digest =
+            Some(reopening_audit_digest(&forged_ledger.reopenings).unwrap());
+        write_json(&workspace.join("verification.json"), &forged_verification).unwrap();
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        let closing = document["approvals"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .rev()
+            .find(|approval| approval["gate"].as_str() == Some("acceptance"))
+            .unwrap();
+        closing["digest"] =
+            serde_json::Value::String(closing_digest(&record, &forged_verification));
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+        )
+        .unwrap();
+        quiet_git(root, &["add", "-A"]);
+        quiet_git(root, &["commit", "-m", "forge second reopening evidence"]);
+        protect_current_acceptance(root);
+
+        let error = authenticate_accepted_evidence(root, &record).unwrap_err();
+        assert!(
+            error.contains("reopening 2 has no protected remote-default acceptance root"),
+            "{error}"
+        );
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n// D\n",
+        )
+        .unwrap();
+        let before_approvals = fs::read(&approvals_path).unwrap();
+        let before_state = fs::read(&state_path).unwrap();
+        let error = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Attempt another reopen after forged history".into(),
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("reopening 2 has no protected remote-default acceptance root"),
+            "{error}"
+        );
+        assert_eq!(fs::read(approvals_path).unwrap(), before_approvals);
+        assert_eq!(fs::read(state_path).unwrap(), before_state);
+    }
+
+    #[test]
+    fn forged_reopening_prefix_blocks_reacceptance_without_mutation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept initial evidence"]);
+        protect_current_acceptance(root);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Accepted delivery inputs changed".into(),
+        )
+        .unwrap()
+        .change;
+        verify_change(root, &record.id).unwrap();
+
+        let workspace = change_dir(root, &record.id);
+        let approvals_path = workspace.join("approvals.json");
+        let state_path = workspace.join("state.json");
+        let verification_path = workspace.join("verification.json");
+        let hydrated = load_approvals(root, &record).unwrap();
+        let reopening = &hydrated.reopenings[0];
+        let original_digest = reopening.superseded_approval.digest.clone();
+        let mut stripped_prior = reopening.prior_verification.clone();
+        stripped_prior.acceptance_manifest = None;
+        let forged_digest = closing_digest_for_change_id(&record.id, &stripped_prior);
+        fs::remove_file(manifest_object_path(root, reopening)).unwrap();
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        document["reopenings"][0]["prior_acceptance_manifest"] = serde_json::Value::Null;
+        document["reopenings"][0]["superseded_approval"]["digest"] =
+            serde_json::Value::String(forged_digest.clone());
+        for approval in document["approvals"].as_array_mut().unwrap() {
+            if approval["digest"].as_str() == Some(&original_digest) {
+                approval["digest"] = serde_json::Value::String(forged_digest.clone());
+                break;
+            }
+        }
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+        )
+        .unwrap();
+        assert!(load_approvals(root, &record).is_ok());
+        let before_approvals = fs::read(&approvals_path).unwrap();
+        let before_state = fs::read(&state_path).unwrap();
+        let before_verification = fs::read(&verification_path).unwrap();
+
+        let error = accept_change(root, &record.id, Some("Closer".into()), None).unwrap_err();
+
+        assert!(
+            error.contains("no protected remote-default acceptance root"),
+            "{error}"
+        );
+        assert_eq!(fs::read(approvals_path).unwrap(), before_approvals);
+        assert_eq!(fs::read(state_path).unwrap(), before_state);
+        assert_eq!(fs::read(verification_path).unwrap(), before_verification);
+    }
+
+    #[test]
+    fn downgraded_unprotected_v1_reopening_fails_reacceptance_without_mutation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept initial evidence"]);
+        protect_current_acceptance(root);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let reopened = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Accepted delivery inputs changed".into(),
+        )
+        .unwrap();
+        record = reopened.change;
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        let mut embedded = serde_json::to_value(reopened.audit).unwrap();
+        embedded["schema_version"] = serde_json::json!(1);
+        embedded["actor"] = serde_json::json!("Forged reviewer");
+        embedded["reason"] = serde_json::json!("Downgraded unsigned audit fields");
+        document["reopenings"][0] = embedded;
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+        )
+        .unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = load_change(root, &record.id).unwrap();
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let verification_path = change_dir(root, &record.id).join("verification.json");
+        let before_approvals = fs::read(&approvals_path).unwrap();
+        let before_state = fs::read(&state_path).unwrap();
+        let before_verification = fs::read(&verification_path).unwrap();
+        let error = accept_change(root, &record.id, Some("Closer".into()), None).unwrap_err();
+        assert!(
+            error.contains("schema-v1 reopening prefix of 1 event(s) has no protected"),
+            "{error}"
+        );
+        assert_eq!(fs::read(approvals_path).unwrap(), before_approvals);
+        assert_eq!(fs::read(state_path).unwrap(), before_state);
+        assert_eq!(fs::read(verification_path).unwrap(), before_verification);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn trusted_lifecycle_git_entries_are_size_and_mode_bounded() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let path = root.join("state.json");
+        fs::write(&path, b"{\"state\":\"accepted\"}\n").unwrap();
+        quiet_git(root, &["add", "state.json"]);
+        quiet_git(root, &["commit", "-m", "regular lifecycle entry"]);
+        assert!(
+            git_bounded_regular_file_at_commit(root, "HEAD", "state.json")
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            git_bounded_entry_at_commit(root, "HEAD", "state.json", 4)
+                .unwrap_err()
+                .contains("exceeds 4 bytes")
+        );
+
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        quiet_git(root, &["add", "state.json"]);
+        quiet_git(root, &["commit", "-m", "executable lifecycle entry"]);
+        let error = git_bounded_regular_file_at_commit(root, "HEAD", "state.json").unwrap_err();
+        assert!(error.contains("expected 100644"), "{error}");
+    }
+
+    #[test]
+    fn unanchored_v1_and_v2_reopenings_fail_terminal_authentication() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let record = accepted_manifest_record(root);
+        let prior_verification = load_verification(root, &record).unwrap();
+        let mut ledger = load_approvals(root, &record).unwrap();
+        let superseded_approval = ledger.approvals.last().unwrap().clone();
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let before_approvals = fs::read(&approvals_path).unwrap();
+        let before_state = fs::read(&state_path).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let error = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Accepted delivery inputs changed".into(),
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("cannot reopen unanchored accepted evidence"),
+            "{error}"
+        );
+        assert_eq!(fs::read(&approvals_path).unwrap(), before_approvals);
+        assert_eq!(fs::read(&state_path).unwrap(), before_state);
+
+        let manifest = prior_verification.acceptance_manifest.as_ref().unwrap();
+        let stale_digest =
+            write_acceptance_manifest_object(root, &change_dir(root, &record.id), manifest)
+                .unwrap();
+        let current_manifest =
+            acceptance_manifest_with_signed_owners(root, &record, &[], manifest).unwrap();
+        let current_digest = acceptance_manifest_digest(&current_manifest).unwrap();
+        assert_ne!(stale_digest, current_digest);
+        ledger.reopenings.push(ReopenRecord {
+            schema_version: 2,
+            change_id: record.id.clone(),
+            actor: "Forger".into(),
+            reason: "Unanchored forged history".into(),
+            timestamp: now(),
+            from_state: ChangeState::Accepted,
+            to_state: ChangeState::Verifying,
+            superseded_approval,
+            prior_verification,
+            stale_acceptance_input_digest: stale_digest,
+            current_acceptance_input_digest: current_digest,
+        });
+        fs::write(
+            &approvals_path,
+            approval_ledger_content(root, &record, &ledger).unwrap(),
+        )
+        .unwrap();
+
+        assert!(authenticate_accepted_evidence(root, &record).is_err());
+
+        let hydrated = load_approvals(root, &record).unwrap();
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&fs::read(&approvals_path).unwrap()).unwrap();
+        document["reopenings"][0] = serde_json::to_value(&hydrated.reopenings[0]).unwrap();
+        document["reopenings"][0]["schema_version"] = serde_json::json!(1);
+        fs::write(
+            &approvals_path,
+            format!("{}\n", serde_json::to_string_pretty(&document).unwrap()),
+        )
+        .unwrap();
+        assert_eq!(
+            load_approvals(root, &record).unwrap().reopenings[0].schema_version,
+            1
+        );
+        assert!(authenticate_accepted_evidence(root, &record).is_err());
+    }
+
+    #[test]
+    fn reacceptance_uses_a_remote_only_prior_acceptance_anchor() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+        let base = quiet_git(root, &["rev-parse", "HEAD"]);
+
+        let mut record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept remote baseline"]);
+        let remote_anchor = quiet_git(root, &["rev-parse", "HEAD"]);
+        quiet_git(
+            root,
+            &[
+                "update-ref",
+                "refs/remotes/origin/main",
+                remote_anchor.as_str(),
+            ],
+        );
+        quiet_git(root, &["switch", "--detach", base.as_str()]);
+        quiet_git(root, &["checkout", remote_anchor.as_str(), "--", "."]);
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Remote accepted delivery inputs changed".into(),
+        )
+        .unwrap()
+        .change;
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        assert_eq!(record.state, ChangeState::Accepted);
+        assert_eq!(quiet_git(root, &["rev-parse", "HEAD"]), base);
+        let error = authenticate_accepted_evidence(root, &record).unwrap_err();
+        assert!(
+            error.contains("additional unstaged worktree changes"),
+            "{error}"
+        );
+        quiet_git(root, &["add", "."]);
+        assert!(authenticate_accepted_evidence(root, &record).is_ok());
+        quiet_git(root, &["commit", "-m", "commit remote-rooted reacceptance"]);
+        assert!(authenticate_accepted_evidence(root, &record).is_ok());
+    }
+
+    #[test]
+    fn unchanged_state_blob_still_exposes_prior_acceptance_evidence() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        let accepted_updated_at = record.updated_at;
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept A"]);
+        protect_current_acceptance(root);
+        let accepted_a = quiet_git(root, &["rev-parse", "HEAD"]);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(root, &record.id, "Reviewer".into(), "Move A to B".into())
+            .unwrap()
+            .change;
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        record.updated_at = accepted_updated_at;
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept B without changing state"]);
+        let accepted_b = quiet_git(root, &["rev-parse", "HEAD"]);
+        let state_path = format!("{CHANGES_PATH}/{}/state.json", record.id);
+        quiet_git(
+            root,
+            &[
+                "diff",
+                "--quiet",
+                accepted_a.as_str(),
+                accepted_b.as_str(),
+                "--",
+                state_path.as_str(),
+            ],
+        );
+
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let state_path_on_disk = change_dir(root, &record.id).join("state.json");
+        let original_approvals = fs::read(&approvals_path).unwrap();
+        let original_state = fs::read(&state_path_on_disk).unwrap();
+        let error = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Move B back to A".into(),
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("most recent accepted lifecycle evidence"),
+            "{error}"
+        );
+        assert_eq!(fs::read(&approvals_path).unwrap(), original_approvals);
+        assert_eq!(fs::read(&state_path_on_disk).unwrap(), original_state);
+        protect_current_acceptance(root);
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Move B back to A".into(),
+        )
+        .unwrap()
+        .change;
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+
+        assert_eq!(record.state, ChangeState::Accepted);
+        assert_eq!(load_approvals(root, &record).unwrap().reopenings.len(), 2);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept A again"]);
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let accepted_state = fs::read(&state_path).unwrap();
+        let mut transient = record.clone();
+        transient.state = ChangeState::Verifying;
+        save_change(root, &transient).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(
+            root,
+            &["commit", "-m", "record transient verification state"],
+        );
+        fs::write(&state_path, accepted_state).unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(
+            root,
+            &["commit", "-m", "restore identical accepted evidence"],
+        );
+
+        let mut history_budget = TrustedHistoryScanBudget::default();
+        assert!(
+            authenticated_accepted_transition_with_budget(root, &record, &mut history_budget)
+                .is_ok()
+        );
+        assert_eq!(history_budget.validated_reopening_roots.len(), 1);
+        assert!(
+            history_budget
+                .files
+                .keys()
+                .any(|(_, path)| path.contains(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY)),
+            "compact manifest objects must participate in the shared history cache and byte budget"
+        );
+    }
+
+    #[test]
+    fn reacceptance_binds_the_exact_newest_reopening_audit() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        quiet_git(root, &["add", "README.md"]);
+        quiet_git(root, &["commit", "-m", "base"]);
+
+        let mut record = accepted_manifest_record(root);
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "accept A"]);
+        protect_current_acceptance(root);
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        record = reopen_change(
+            root,
+            &record.id,
+            "Reviewer".into(),
+            "Move from A to B".into(),
+        )
+        .unwrap()
+        .change;
+        let verification = verify_change(root, &record.id).unwrap();
+        assert!(verification.reopening_audit_digest.is_some());
+
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let verification_path = change_dir(root, &record.id).join("verification.json");
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        let state_before = fs::read(&state_path).unwrap();
+        let verification_before = fs::read(&verification_path).unwrap();
+        let mut ledger = load_approvals(root, &record).unwrap();
+        ledger.reopenings.last_mut().unwrap().actor = "Mallory".into();
+        fs::write(
+            &approvals_path,
+            approval_ledger_content(root, &record, &ledger).unwrap(),
+        )
+        .unwrap();
+        let approvals_before = fs::read(&approvals_path).unwrap();
+        let tampered = load_approvals(root, &record).unwrap();
+        let binding_error =
+            validate_reopening_audit_binding(&verification, &tampered.reopenings).unwrap_err();
+        assert!(
+            binding_error.contains("exact event history"),
+            "{binding_error}"
+        );
+
+        let error = accept_change(root, &record.id, Some("Closer".into()), None).unwrap_err();
+        assert!(
+            error.contains("reopening audit digest")
+                || error.contains("working-tree inputs changed"),
+            "{error}"
+        );
+        assert_eq!(fs::read(&state_path).unwrap(), state_before);
+        assert_eq!(fs::read(&verification_path).unwrap(), verification_before);
+        assert_eq!(fs::read(&approvals_path).unwrap(), approvals_before);
+    }
+}
+
+enum ApprovalManifestSource<'a> {
+    Workspace {
+        root: &'a Path,
+        workspace: &'a Path,
+    },
+    RetainedWorkspace {
+        workspace: &'a ManifestObjectDirectory,
+    },
+    Captured {
+        directory: &'a str,
+        evidence: &'a GitEvidence,
+    },
+    Git {
+        root: &'a Path,
+        commit: &'a str,
+        directory: &'a str,
+        budget: Option<&'a mut TrustedHistoryScanBudget>,
+    },
+}
+
+#[derive(Default)]
+struct ManifestHydrationCache {
+    manifests: BTreeMap<String, AcceptanceManifestV1>,
+    sizes: BTreeMap<String, usize>,
+    unique_bytes: usize,
+    expanded_bytes: usize,
+}
+
+fn validate_acceptance_manifest_digest(digest: &str) -> Result<(), String> {
+    if digest.len() == 64
+        && digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        Ok(())
+    } else {
+        Err(format!(
+            "acceptance manifest object digest must be exactly 64 lowercase hexadecimal characters: `{}`",
+            digest.escape_default()
+        ))
+    }
+}
+
+#[cfg(unix)]
+type ManifestDirectoryIdentity = (u64, u64);
+
+#[cfg(windows)]
+type ManifestDirectoryIdentity = (u32, u64);
+
+#[cfg(not(any(unix, windows)))]
+type ManifestDirectoryIdentity = (u64, Option<std::time::SystemTime>);
+
+struct ManifestObjectDirectory {
+    handle: CapDir,
+    path: PathBuf,
+    identity: ManifestDirectoryIdentity,
+}
+
+#[cfg(unix)]
+fn manifest_metadata_identity(
+    metadata: &cap_std::fs::Metadata,
+) -> Result<ManifestDirectoryIdentity, String> {
+    use cap_std::fs::MetadataExt;
+
+    Ok((metadata.dev(), metadata.ino()))
+}
+
+#[cfg(windows)]
+fn manifest_metadata_identity(
+    metadata: &cap_std::fs::Metadata,
+) -> Result<ManifestDirectoryIdentity, String> {
+    use cap_primitives::fs::_WindowsByHandle;
+
+    let volume = metadata
+        .volume_serial_number()
+        .ok_or_else(|| "manifest directory metadata has no Windows volume identity".to_string())?;
+    let index = metadata
+        .file_index()
+        .ok_or_else(|| "manifest directory metadata has no Windows file identity".to_string())?;
+    Ok((volume, index))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn manifest_metadata_identity(
+    metadata: &cap_std::fs::Metadata,
+) -> Result<ManifestDirectoryIdentity, String> {
+    Ok((metadata.len(), metadata.modified().ok()))
+}
+
+#[cfg(windows)]
+fn manifest_metadata_is_link(metadata: &cap_std::fs::Metadata) -> bool {
+    use cap_std::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn manifest_metadata_is_link(metadata: &cap_std::fs::Metadata) -> bool {
+    metadata.file_type().is_symlink()
+}
+
+fn open_manifest_object_directory(
+    root: &Path,
+    workspace: &Path,
+    create: bool,
+) -> Result<ManifestObjectDirectory, String> {
+    open_retained_lifecycle_directory(
+        root,
+        workspace,
+        &workspace.join(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY),
+        create,
+        "acceptance manifest object directory",
+    )
+}
+
+fn open_retained_change_workspace(
+    root: &Path,
+    workspace: &Path,
+) -> Result<ManifestObjectDirectory, String> {
+    open_retained_lifecycle_directory(root, workspace, workspace, false, "change workspace")
+}
+
+fn open_manifest_object_directory_from_retained_workspace(
+    workspace: &ManifestObjectDirectory,
+) -> Result<ManifestObjectDirectory, String> {
+    let relative = Path::new(ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY);
+    let mut current = workspace.handle.try_clone().map_err(|error| {
+        format!(
+            "failed to clone retained change workspace {}: {error}",
+            workspace.path.display()
+        )
+    })?;
+    let mut current_path = workspace.path.clone();
+    for component in relative.components() {
+        let std::path::Component::Normal(name) = component else {
+            return Err("acceptance manifest object directory is not confined".into());
+        };
+        current_path.push(name);
+        let name = Path::new(name);
+        let metadata = current.symlink_metadata(name).map_err(|error| {
+            format!(
+                "failed to inspect retained acceptance manifest object ancestor {}: {error}",
+                current_path.display()
+            )
+        })?;
+        if manifest_metadata_is_link(&metadata) || !metadata.is_dir() {
+            return Err(format!(
+                "retained acceptance manifest object ancestor is not a real directory: {}",
+                current_path.display()
+            ));
+        }
+        let expected_identity = manifest_metadata_identity(&metadata)?;
+        let parent = current
+            .try_clone()
+            .map_err(|error| {
+                format!(
+                    "failed to retain acceptance manifest object ancestor {}: {error}",
+                    current_path.display()
+                )
+            })?
+            .into_std_file();
+        let opened = cap_primitives::fs::open_dir_nofollow(&parent, name).map_err(|error| {
+            format!(
+                "retained acceptance manifest object ancestor changed while opening {}: {error}",
+                current_path.display()
+            )
+        })?;
+        let next = CapDir::from_std_file(opened);
+        let opened_identity =
+            manifest_metadata_identity(&next.dir_metadata().map_err(|error| {
+                format!(
+                    "failed to inspect retained acceptance manifest object ancestor {}: {error}",
+                    current_path.display()
+                )
+            })?)?;
+        if opened_identity != expected_identity {
+            return Err(format!(
+                "retained acceptance manifest object ancestor changed while opening: {}",
+                current_path.display()
+            ));
+        }
+        current = next;
+    }
+    let identity = manifest_metadata_identity(
+        &current
+            .dir_metadata()
+            .map_err(|error| format!("failed to inspect {}: {error}", current_path.display()))?,
+    )?;
+    Ok(ManifestObjectDirectory {
+        handle: current,
+        path: current_path,
+        identity,
+    })
+}
+
+fn open_retained_lifecycle_directory(
+    root: &Path,
+    workspace: &Path,
+    directory: &Path,
+    create: bool,
+    description: &str,
+) -> Result<ManifestObjectDirectory, String> {
+    let active_root = root.join(CHANGES_PATH);
+    let archive_root = root.join(ARCHIVE_PATH);
+    if !workspace.starts_with(&active_root) && !workspace.starts_with(&archive_root) {
+        return Err(format!(
+            "change workspace is outside the active/archive lifecycle roots: {}",
+            workspace.display()
+        ));
+    }
+    if !directory.starts_with(workspace) {
+        return Err(format!(
+            "{description} escapes its change workspace: {}",
+            directory.display()
+        ));
+    }
+    open_retained_project_directory(root, directory, create, description)
+}
+
+fn open_retained_project_directory(
+    root: &Path,
+    directory: &Path,
+    create: bool,
+    description: &str,
+) -> Result<ManifestObjectDirectory, String> {
+    if !directory.starts_with(root) {
+        return Err(format!(
+            "{description} escapes the project root: {}",
+            directory.display()
+        ));
+    }
+    let relative = directory.strip_prefix(root).map_err(|_| {
+        format!(
+            "{description} escapes the project root: {}",
+            directory.display()
+        )
+    })?;
+    let mut current = CapDir::open_ambient_dir(root, cap_std::ambient_authority())
+        .map_err(|error| format!("failed to retain project root {}: {error}", root.display()))?;
+    let mut current_path = root.to_path_buf();
+    for component in relative.components() {
+        let std::path::Component::Normal(name) = component else {
+            return Err(format!(
+                "{description} is not confined: {}",
+                directory.display()
+            ));
+        };
+        current_path.push(name);
+        let name = Path::new(name);
+        let metadata = match current.symlink_metadata(name) {
+            Ok(metadata) if manifest_metadata_is_link(&metadata) => {
+                return Err(format!(
+                    "{description} path contains a symlinked ancestor: {}",
+                    current_path.display()
+                ));
+            }
+            Ok(metadata) if !metadata.is_dir() => {
+                return Err(format!(
+                    "{description} ancestor is not a directory: {}",
+                    current_path.display()
+                ));
+            }
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound && create => {
+                match current.create_dir(name) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(error) => {
+                        return Err(format!(
+                            "failed to create {description} {}: {error}",
+                            current_path.display()
+                        ));
+                    }
+                }
+                let metadata = current.symlink_metadata(name).map_err(|error| {
+                    format!(
+                        "failed to inspect created {description} {}: {error}",
+                        current_path.display()
+                    )
+                })?;
+                if manifest_metadata_is_link(&metadata) || !metadata.is_dir() {
+                    return Err(format!(
+                        "created {description} ancestor is not a real directory: {}",
+                        current_path.display()
+                    ));
+                }
+                metadata
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(format!(
+                    "{description} is missing: {}",
+                    current_path.display()
+                ));
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to inspect {description} ancestor {}: {error}",
+                    current_path.display()
+                ));
+            }
+        };
+        let expected_identity = manifest_metadata_identity(&metadata)?;
+        let parent = current
+            .try_clone()
+            .map_err(|error| {
+                format!(
+                    "failed to retain {description} ancestor {}: {error}",
+                    current_path.display()
+                )
+            })?
+            .into_std_file();
+        let opened = cap_primitives::fs::open_dir_nofollow(&parent, name).map_err(|error| {
+            format!(
+                "{description} ancestor changed or became unsafe while opening {}: {error}",
+                current_path.display()
+            )
+        })?;
+        let next = CapDir::from_std_file(opened);
+        let opened_identity =
+            manifest_metadata_identity(&next.dir_metadata().map_err(|error| {
+                format!(
+                    "failed to inspect retained {description} ancestor {}: {error}",
+                    current_path.display()
+                )
+            })?)?;
+        if opened_identity != expected_identity {
+            return Err(format!(
+                "{description} ancestor changed while opening: {}",
+                current_path.display()
+            ));
+        }
+        current = next;
+    }
+    let identity = manifest_metadata_identity(
+        &current
+            .dir_metadata()
+            .map_err(|error| format!("failed to inspect {}: {error}", directory.display()))?,
+    )?;
+    Ok(ManifestObjectDirectory {
+        handle: current,
+        path: directory.to_path_buf(),
+        identity,
+    })
+}
+
+fn ensure_manifest_object_directory_is_bound(
+    root: &Path,
+    workspace: &Path,
+    retained: &ManifestObjectDirectory,
+) -> Result<(), String> {
+    let current = open_manifest_object_directory(root, workspace, false)?;
+    if current.identity != retained.identity {
+        return Err(format!(
+            "acceptance manifest object directory changed during the operation: {}",
+            retained.path.display()
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_change_workspace_is_bound(
+    root: &Path,
+    workspace: &Path,
+    retained: &ManifestObjectDirectory,
+) -> Result<(), String> {
+    let current = open_retained_change_workspace(root, workspace)?;
+    if current.identity != retained.identity {
+        return Err(format!(
+            "change workspace changed during the operation: {}",
+            retained.path.display()
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_retained_project_directory_is_bound(
+    root: &Path,
+    retained: &ManifestObjectDirectory,
+) -> Result<(), String> {
+    let current =
+        open_retained_project_directory(root, &retained.path, false, "prepared file directory")?;
+    if current.identity != retained.identity {
+        return Err(format!(
+            "prepared file directory changed during the operation: {}",
+            retained.path.display()
+        ));
+    }
+    Ok(())
+}
+
+struct RetainedFileSnapshot {
+    bytes: Vec<u8>,
+    identity: ManifestDirectoryIdentity,
+    permissions: cap_std::fs::Permissions,
+}
+
+fn read_retained_workspace_file(
+    root: &Path,
+    workspace: &Path,
+    directory: &ManifestObjectDirectory,
+    name: &str,
+    max_bytes: u64,
+) -> Result<Option<RetainedFileSnapshot>, String> {
+    let snapshot = read_retained_directory_file(directory, name, max_bytes)?;
+    ensure_change_workspace_is_bound(root, workspace, directory)?;
+    Ok(snapshot)
+}
+
+fn read_retained_project_file(
+    root: &Path,
+    directory: &ManifestObjectDirectory,
+    name: &str,
+    max_bytes: u64,
+) -> Result<Option<RetainedFileSnapshot>, String> {
+    let snapshot = read_retained_directory_file(directory, name, max_bytes)?;
+    ensure_retained_project_directory_is_bound(root, directory)?;
+    Ok(snapshot)
+}
+
+fn read_retained_directory_file(
+    directory: &ManifestObjectDirectory,
+    name: &str,
+    max_bytes: u64,
+) -> Result<Option<RetainedFileSnapshot>, String> {
+    let relative = Path::new(name);
+    let metadata = match directory.handle.symlink_metadata(relative) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect retained lifecycle file {}: {error}",
+                directory.path.join(relative).display()
+            ));
+        }
+    };
+    if manifest_metadata_is_link(&metadata) || !metadata.is_file() {
+        return Err(format!(
+            "retained lifecycle file is not a real regular file: {}",
+            directory.path.join(relative).display()
+        ));
+    }
+    if metadata.len() > max_bytes {
+        return Err(format!(
+            "retained lifecycle file exceeds {max_bytes} bytes: {}",
+            directory.path.join(relative).display()
+        ));
+    }
+    let expected_identity = manifest_metadata_identity(&metadata)?;
+    let mut options = CapOpenOptions::new();
+    options.read(true);
+    configure_cap_no_follow(&mut options, true);
+    let mut file = directory
+        .handle
+        .open_with(relative, &options)
+        .map_err(|error| {
+            format!(
+                "failed to open retained lifecycle file {}: {error}",
+                directory.path.join(relative).display()
+            )
+        })?;
+    let opened = file.metadata().map_err(|error| {
+        format!(
+            "failed to inspect opened lifecycle file {}: {error}",
+            directory.path.join(relative).display()
+        )
+    })?;
+    if !opened.is_file()
+        || manifest_metadata_identity(&opened)? != expected_identity
+        || opened.len() != metadata.len()
+    {
+        return Err(format!(
+            "retained lifecycle file changed while opening: {}",
+            directory.path.join(relative).display()
+        ));
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    std::io::Read::by_ref(&mut file)
+        .take(max_bytes + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            format!(
+                "failed to read retained lifecycle file {}: {error}",
+                directory.path.join(relative).display()
+            )
+        })?;
+    if bytes.len() as u64 != metadata.len() {
+        return Err(format!(
+            "retained lifecycle file changed while reading: {}",
+            directory.path.join(relative).display()
+        ));
+    }
+    Ok(Some(RetainedFileSnapshot {
+        bytes,
+        identity: expected_identity,
+        permissions: metadata.permissions(),
+    }))
+}
+
+#[cfg(test)]
+fn atomically_replace_retained_workspace_file(
+    root: &Path,
+    workspace: &Path,
+    directory: &ManifestObjectDirectory,
+    name: &str,
+    expected: &RetainedFileSnapshot,
+    bytes: &[u8],
+) -> Result<(), String> {
+    atomically_replace_retained_workspace_file_with_hook(
+        root,
+        workspace,
+        directory,
+        name,
+        expected,
+        bytes,
+        || Ok(()),
+        || Ok(()),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn atomically_replace_retained_workspace_file_with_hook<BeforeHook, AfterHook>(
+    root: &Path,
+    workspace: &Path,
+    directory: &ManifestObjectDirectory,
+    name: &str,
+    expected: &RetainedFileSnapshot,
+    bytes: &[u8],
+    before_exchange: BeforeHook,
+    after_exchange: AfterHook,
+) -> Result<(), String>
+where
+    BeforeHook: FnOnce() -> Result<(), String>,
+    AfterHook: FnOnce() -> Result<(), String>,
+{
+    let target = Path::new(name);
+    ensure_retained_workspace_file_matches(root, workspace, directory, name, expected)?;
+    let sequence = MIGRATION_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temporary = PathBuf::from(format!(
+        ".specsync-migrate-{}-{sequence}.tmp",
+        std::process::id()
+    ));
+    let mut options = CapOpenOptions::new();
+    options.write(true).create_new(true);
+    configure_cap_no_follow(&mut options, false);
+    let mut file = directory
+        .handle
+        .open_with(&temporary, &options)
+        .map_err(|error| {
+            format!(
+                "failed to create migration temporary file in {}: {error}",
+                directory.path.display()
+            )
+        })?;
+    let mut exchange_published = false;
+    let result = (|| -> Result<(), String> {
+        file.write_all(bytes)
+            .map_err(|error| format!("failed to write migration temporary file: {error}"))?;
+        file.sync_all()
+            .map_err(|error| format!("failed to sync migration temporary file: {error}"))?;
+        directory
+            .handle
+            .set_permissions(&temporary, expected.permissions.clone())
+            .map_err(|error| format!("failed to preserve lifecycle file permissions: {error}"))?;
+        drop(file);
+        ensure_change_workspace_is_bound(root, workspace, directory)?;
+        ensure_retained_workspace_file_matches(root, workspace, directory, name, expected)?;
+        before_exchange()?;
+        let original =
+            publish_retained_workspace_replacement(directory, &temporary, target, sequence)?;
+        exchange_published = true;
+        let post_publication = (|| -> Result<(), String> {
+            sync_published_retained_file(directory, target, "migration replacement publication")?;
+            ensure_change_workspace_is_bound(root, workspace, directory)?;
+            let replaced = read_retained_directory_file(
+                directory,
+                &original.to_string_lossy(),
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+            )?
+            .ok_or_else(|| {
+                "atomic migration exchange lost the original lifecycle file".to_string()
+            })?;
+            if replaced.identity != expected.identity || replaced.bytes != expected.bytes {
+                return Err(format!(
+                    "lifecycle file changed during atomic migration exchange: {}",
+                    directory.path.join(name).display()
+                ));
+            }
+            let published = read_retained_directory_file(
+                directory,
+                name,
+                MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+            )?
+            .ok_or_else(|| "atomically replaced lifecycle file disappeared".to_string())?;
+            if published.bytes != bytes {
+                return Err(format!(
+                    "atomically replaced lifecycle file changed after publication: {}",
+                    directory.path.join(name).display()
+                ));
+            }
+            after_exchange()?;
+            sync_retained_directory(directory, "change workspace publication")
+        })();
+        if let Err(error) = post_publication {
+            rollback_retained_workspace_replacement(directory, &original, target, sequence)
+                .and_then(|()| sync_retained_directory(directory, "migration rollback"))
+                .map_err(|rollback| {
+                    format!(
+                        "atomic migration publication failed ({error}); rollback failed: {rollback}"
+                    )
+                })?;
+            exchange_published = false;
+            return Err(error);
+        }
+        if let Err(error) = directory.handle.remove_file(&original) {
+            rollback_retained_workspace_replacement(directory, &original, target, sequence)
+                .and_then(|()| sync_retained_directory(directory, "migration rollback"))
+                .map_err(|rollback| {
+                    format!(
+                        "failed to remove retained pre-migration lifecycle file ({error}); rollback failed: {rollback}"
+                    )
+                })?;
+            exchange_published = false;
+            return Err(format!(
+                "failed to remove retained pre-migration lifecycle file {}: {error}",
+                directory.path.join(&original).display()
+            ));
+        }
+        sync_retained_directory(directory, "change workspace directory")?;
+        Ok(())
+    })();
+    if result.is_err() && !exchange_published {
+        let _ = directory.handle.remove_file(&temporary);
+        let _ = sync_retained_directory(directory, "migration temporary cleanup");
+    }
+    result
+}
+
+#[cfg(unix)]
+fn publish_retained_workspace_replacement(
+    directory: &ManifestObjectDirectory,
+    temporary: &Path,
+    target: &Path,
+    _sequence: u64,
+) -> Result<PathBuf, String> {
+    exchange_retained_workspace_files(directory, temporary, target)?;
+    Ok(temporary.to_path_buf())
+}
+
+#[cfg(windows)]
+fn publish_retained_workspace_replacement(
+    directory: &ManifestObjectDirectory,
+    temporary: &Path,
+    target: &Path,
+    sequence: u64,
+) -> Result<PathBuf, String> {
+    let backup = PathBuf::from(format!(
+        ".specsync-migrate-{}-{sequence}.original",
+        std::process::id()
+    ));
+    replace_file_with_backup(directory, target, temporary, &backup)?;
+    if let Err(publication_error) =
+        sync_published_retained_file(directory, target, "lifecycle replacement publication")
+    {
+        let rejected = PathBuf::from(format!(
+            ".specsync-migrate-{}-{sequence}.rejected",
+            std::process::id()
+        ));
+        let rollback = replace_file_with_backup(directory, target, &backup, &rejected)
+            .and_then(|()| {
+                sync_published_retained_file(directory, target, "lifecycle replacement rollback")
+            })
+            .and_then(|()| {
+                directory.handle.remove_file(&rejected).map_err(|error| {
+                    format!(
+                        "failed to remove rejected lifecycle replacement {}: {error}",
+                        directory.path.join(&rejected).display()
+                    )
+                })
+            });
+        return match rollback {
+            Ok(()) => Err(publication_error),
+            Err(rollback_error) => Err(format!(
+                "{publication_error}; lifecycle replacement rollback failed: {rollback_error}"
+            )),
+        };
+    }
+    Ok(backup)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn publish_retained_workspace_replacement(
+    _directory: &ManifestObjectDirectory,
+    _temporary: &Path,
+    _target: &Path,
+    _sequence: u64,
+) -> Result<PathBuf, String> {
+    Err("atomic lifecycle file exchange is unavailable on this platform".into())
+}
+
+#[cfg(unix)]
+fn rollback_retained_workspace_replacement(
+    directory: &ManifestObjectDirectory,
+    original: &Path,
+    target: &Path,
+    _sequence: u64,
+) -> Result<(), String> {
+    exchange_retained_workspace_files(directory, original, target)?;
+    directory.handle.remove_file(original).map_err(|error| {
+        format!(
+            "failed to remove rejected migration replacement {}: {error}",
+            directory.path.join(original).display()
+        )
+    })
+}
+
+#[cfg(windows)]
+fn rollback_retained_workspace_replacement(
+    directory: &ManifestObjectDirectory,
+    original: &Path,
+    target: &Path,
+    sequence: u64,
+) -> Result<(), String> {
+    let rejected = PathBuf::from(format!(
+        ".specsync-migrate-{}-{sequence}.rejected",
+        std::process::id()
+    ));
+    replace_file_with_backup(directory, target, original, &rejected)?;
+    sync_published_retained_file(directory, target, "migration rollback publication")?;
+    directory.handle.remove_file(&rejected).map_err(|error| {
+        format!(
+            "failed to remove rejected migration replacement {}: {error}",
+            directory.path.join(&rejected).display()
+        )
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
+fn rollback_retained_workspace_replacement(
+    _directory: &ManifestObjectDirectory,
+    _original: &Path,
+    _target: &Path,
+    _sequence: u64,
+) -> Result<(), String> {
+    Err("atomic lifecycle file exchange is unavailable on this platform".into())
+}
+
+#[cfg(unix)]
+fn exchange_retained_workspace_files(
+    directory: &ManifestObjectDirectory,
+    left: &Path,
+    right: &Path,
+) -> Result<(), String> {
+    use std::ffi::CString;
+    use std::os::fd::AsRawFd;
+    use std::os::unix::ffi::OsStrExt;
+
+    let left = CString::new(left.as_os_str().as_bytes())
+        .map_err(|_| "migration exchange path contains a NUL byte".to_string())?;
+    let right = CString::new(right.as_os_str().as_bytes())
+        .map_err(|_| "migration exchange path contains a NUL byte".to_string())?;
+    let retained = directory
+        .handle
+        .try_clone()
+        .map_err(|error| format!("failed to retain migration directory for exchange: {error}"))?
+        .into_std_file();
+    let descriptor = retained.as_raw_fd();
+
+    #[cfg(target_vendor = "apple")]
+    let result = {
+        // SAFETY: both NUL-terminated paths are relative to the same retained directory
+        // descriptor, and `RENAME_SWAP` asks the kernel to exchange them atomically.
+        unsafe {
+            libc::renameatx_np(
+                descriptor,
+                left.as_ptr(),
+                descriptor,
+                right.as_ptr(),
+                libc::RENAME_SWAP,
+            )
+        }
+    };
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    let result = {
+        // SAFETY: both NUL-terminated paths are relative to the same retained directory
+        // descriptor, and `RENAME_EXCHANGE` asks the kernel to exchange them atomically.
+        unsafe {
+            libc::renameat2(
+                descriptor,
+                left.as_ptr(),
+                descriptor,
+                right.as_ptr(),
+                libc::RENAME_EXCHANGE,
+            )
+        }
+    };
+    #[cfg(not(any(target_vendor = "apple", target_os = "linux", target_os = "android")))]
+    let result = -1;
+
+    if result != 0 {
+        return Err(format!(
+            "failed to atomically exchange lifecycle file: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn replace_file_with_backup(
+    directory: &ManifestObjectDirectory,
+    target: &Path,
+    replacement: &Path,
+    backup: &Path,
+) -> Result<(), String> {
+    use std::ffi::c_void;
+    use std::os::windows::ffi::OsStrExt as _;
+    use std::os::windows::io::AsRawHandle as _;
+
+    #[link(name = "Kernel32")]
+    unsafe extern "system" {
+        fn SetFileInformationByHandle(
+            file: *mut c_void,
+            information_class: u32,
+            information: *const c_void,
+            information_size: u32,
+        ) -> i32;
+    }
+
+    #[repr(C)]
+    struct FileRenameInfoHeader {
+        replace_if_exists: u32,
+        root_directory: *mut c_void,
+        file_name_length: u32,
+        file_name: [u16; 1],
+    }
+
+    const FILE_RENAME_INFO: u32 = 3;
+    const DELETE_ACCESS: u32 = 0x0001_0000;
+    const GENERIC_READ: u32 = 0x8000_0000;
+    const GENERIC_WRITE: u32 = 0x4000_0000;
+    const SHARE_ALL: u32 = 0x0000_0007;
+
+    directory
+        .handle
+        .hard_link(target, &directory.handle, backup)
+        .map_err(|error| {
+            format!(
+                "failed to retain lifecycle replacement backup {}: {error}",
+                directory.path.join(backup).display()
+            )
+        })?;
+    if let Err(error) =
+        sync_published_retained_file(directory, backup, "lifecycle replacement backup")
+    {
+        let _ = directory.handle.remove_file(backup);
+        return Err(error);
+    }
+    let mut options = CapOpenOptions::new();
+    options
+        .read(true)
+        .write(true)
+        .access_mode(DELETE_ACCESS | GENERIC_READ | GENERIC_WRITE)
+        .share_mode(SHARE_ALL);
+    configure_cap_no_follow(&mut options, false);
+    let replacement_file = match directory.handle.open_with(replacement, &options) {
+        Ok(file) => file,
+        Err(error) => {
+            let _ = directory.handle.remove_file(backup);
+            return Err(format!(
+                "failed to retain lifecycle replacement {}: {error}",
+                directory.path.join(replacement).display()
+            ));
+        }
+    };
+    let retained_directory = directory
+        .handle
+        .try_clone()
+        .map_err(|error| format!("failed to retain lifecycle replacement directory: {error}"))?
+        .into_std_file();
+    let target_name: Vec<u16> = target.as_os_str().encode_wide().collect();
+    if target_name.is_empty() || target_name.contains(&0) || target.components().count() != 1 {
+        let _ = directory.handle.remove_file(backup);
+        return Err("lifecycle replacement target is not one portable file name".into());
+    }
+    let uninitialized = std::mem::MaybeUninit::<FileRenameInfoHeader>::uninit();
+    let base = uninitialized.as_ptr();
+    // SAFETY: no field is read. `addr_of!` computes the flexible-array offset from a
+    // correctly aligned pointer to the C representation.
+    let file_name_offset =
+        unsafe { std::ptr::addr_of!((*base).file_name) as usize - base as usize };
+    let information_size = file_name_offset
+        .checked_add(target_name.len() * std::mem::size_of::<u16>())
+        .ok_or_else(|| "lifecycle replacement information size overflowed".to_string())?;
+    let word_count = information_size.div_ceil(std::mem::size_of::<u64>());
+    let mut storage = vec![0_u64; word_count];
+    let information = storage.as_mut_ptr().cast::<FileRenameInfoHeader>();
+    // SAFETY: `storage` is aligned for the C header and large enough for the header through
+    // the exact UTF-16 filename bytes. The root and file handles remain alive for the call.
+    unsafe {
+        std::ptr::addr_of_mut!((*information).replace_if_exists).write(1);
+        std::ptr::addr_of_mut!((*information).root_directory)
+            .write(retained_directory.as_raw_handle().cast());
+        std::ptr::addr_of_mut!((*information).file_name_length)
+            .write((target_name.len() * std::mem::size_of::<u16>()) as u32);
+        std::ptr::copy_nonoverlapping(
+            target_name.as_ptr(),
+            storage
+                .as_mut_ptr()
+                .cast::<u8>()
+                .add(file_name_offset)
+                .cast::<u16>(),
+            target_name.len(),
+        );
+    }
+    // SAFETY: the replacement handle has DELETE access, the information buffer has the
+    // documented FILE_RENAME_INFO layout, and RootDirectory confines the target name to the
+    // retained directory handle rather than reconstructing an ambient path.
+    let result = unsafe {
+        SetFileInformationByHandle(
+            replacement_file.as_raw_handle().cast(),
+            FILE_RENAME_INFO,
+            information.cast(),
+            information_size as u32,
+        )
+    };
+    if result == 0 {
+        let error = std::io::Error::last_os_error();
+        let _ = directory.handle.remove_file(backup);
+        return Err(format!(
+            "failed to atomically replace lifecycle file relative to its retained directory: {error}"
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_retained_workspace_file_matches(
+    root: &Path,
+    workspace: &Path,
+    directory: &ManifestObjectDirectory,
+    name: &str,
+    expected: &RetainedFileSnapshot,
+) -> Result<(), String> {
+    let current = read_retained_workspace_file(
+        root,
+        workspace,
+        directory,
+        name,
+        MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+    )?
+    .ok_or_else(|| {
+        format!(
+            "lifecycle file disappeared before migration write: {}",
+            directory.path.join(name).display()
+        )
+    })?;
+    if current.identity != expected.identity || current.bytes != expected.bytes {
+        return Err(format!(
+            "lifecycle file changed before migration write: {}",
+            directory.path.join(name).display()
+        ));
+    }
+    Ok(())
+}
+
+fn configure_cap_no_follow(options: &mut CapOpenOptions, nonblocking: bool) {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        options.custom_flags(0x20000 | if nonblocking { 0x800 } else { 0 });
+    }
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    {
+        options.custom_flags(0x100 | if nonblocking { 0x4 } else { 0 });
+    }
+    #[cfg(windows)]
+    {
+        let _ = nonblocking;
+        options.custom_flags(0x0020_0000);
+    }
+}
+
+fn open_manifest_object_no_follow(
+    directory: &ManifestObjectDirectory,
+    name: &Path,
+    write_new: bool,
+) -> Result<cap_std::fs::File, String> {
+    let mut options = CapOpenOptions::new();
+    if write_new {
+        options.write(true).create_new(true);
+    } else {
+        options.read(true);
+    }
+    configure_cap_no_follow(&mut options, !write_new);
+    directory.handle.open_with(name, &options).map_err(|error| {
+        format!(
+            "failed to open acceptance manifest object {}: {error}",
+            directory.path.join(name).display()
+        )
+    })
+}
+
+fn sync_manifest_object_publication(
+    directory: &ManifestObjectDirectory,
+    name: &Path,
+) -> Result<(), String> {
+    let mut options = CapOpenOptions::new();
+    options.read(true).write(true);
+    configure_cap_no_follow(&mut options, false);
+    let file = directory
+        .handle
+        .open_with(name, &options)
+        .map_err(|error| {
+            format!(
+                "failed to reopen published acceptance manifest object {} for durability: {error}",
+                directory.path.join(name).display()
+            )
+        })?;
+    file.sync_all().map_err(|error| {
+        format!(
+            "failed to sync published acceptance manifest object {}: {error}",
+            directory.path.join(name).display()
+        )
+    })?;
+    #[cfg(unix)]
+    directory
+        .handle
+        .try_clone()
+        .and_then(|directory| directory.into_std_file().sync_all())
+        .map_err(|error| {
+            format!(
+                "failed to sync acceptance manifest object directory {}: {error}",
+                directory.path.display()
+            )
+        })?;
+    Ok(())
+}
+
+fn parse_acceptance_manifest_object(
+    bytes: &[u8],
+    digest: &str,
+) -> Result<AcceptanceManifestV1, String> {
+    if bytes.len() as u64 > MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES {
+        return Err(format!(
+            "acceptance manifest object exceeds {MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES} bytes"
+        ));
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|error| format!("acceptance manifest object is malformed JSON: {error}"))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| "acceptance manifest object must be a JSON object".to_string())?;
+    if object
+        .keys()
+        .any(|key| !matches!(key.as_str(), "schema_version" | "entries"))
+    {
+        return Err("acceptance manifest object contains unknown fields".into());
+    }
+    let entries = object
+        .get("entries")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "acceptance manifest object entries must be an array".to_string())?;
+    for entry in entries {
+        let entry = entry
+            .as_object()
+            .ok_or_else(|| "acceptance manifest object entry must be an object".to_string())?;
+        if entry.keys().any(|key| {
+            !matches!(
+                key.as_str(),
+                "path" | "kind" | "mode" | "payload_digest" | "entry_digest" | "owners"
+            )
+        }) {
+            return Err("acceptance manifest object entry contains unknown fields".into());
+        }
+    }
+    let manifest: AcceptanceManifestV1 = serde_json::from_value(value)
+        .map_err(|error| format!("acceptance manifest object has an invalid schema: {error}"))?;
+    validate_acceptance_manifest(&manifest)?;
+    let actual = acceptance_manifest_digest(&manifest)?;
+    if actual != digest {
+        return Err(format!(
+            "acceptance manifest object digest disagreement: reference `{digest}`, content `{actual}`"
+        ));
+    }
+    let deterministic = json_content(&manifest)?.into_bytes();
+    if deterministic != bytes {
+        return Err(
+            "acceptance manifest object bytes are not the deterministic JSON representation".into(),
+        );
+    }
+    Ok(manifest)
+}
+
+fn read_workspace_manifest_object(
+    root: &Path,
+    workspace: &Path,
+    digest: &str,
+) -> Result<AcceptanceManifestV1, String> {
+    validate_acceptance_manifest_digest(digest)?;
+    let directory = open_manifest_object_directory(root, workspace, false)?;
+    let manifest = read_manifest_object_from_directory(&directory, digest)?;
+    ensure_manifest_object_directory_is_bound(root, workspace, &directory)?;
+    Ok(manifest)
+}
+
+fn read_retained_workspace_manifest_object(
+    workspace: &ManifestObjectDirectory,
+    digest: &str,
+) -> Result<AcceptanceManifestV1, String> {
+    validate_acceptance_manifest_digest(digest)?;
+    let directory = open_manifest_object_directory_from_retained_workspace(workspace)?;
+    read_manifest_object_from_directory(&directory, digest)
+}
+
+fn read_manifest_object_from_directory(
+    directory: &ManifestObjectDirectory,
+    digest: &str,
+) -> Result<AcceptanceManifestV1, String> {
+    read_manifest_object_from_directory_with_hook(directory, digest, |_| {})
+}
+
+fn read_manifest_object_from_directory_with_hook<Hook>(
+    directory: &ManifestObjectDirectory,
+    digest: &str,
+    after_metadata: Hook,
+) -> Result<AcceptanceManifestV1, String>
+where
+    Hook: FnOnce(&Path),
+{
+    let name = PathBuf::from(format!("{digest}.json"));
+    let path = directory.path.join(&name);
+    let metadata = directory.handle.symlink_metadata(&name).map_err(|error| {
+        format!(
+            "acceptance manifest object {} is missing or unreadable: {error}",
+            path.display()
+        )
+    })?;
+    if manifest_metadata_is_link(&metadata) {
+        return Err(format!(
+            "acceptance manifest object leaf is a symlink: {}",
+            path.display()
+        ));
+    }
+    if !metadata.is_file() {
+        return Err(format!(
+            "acceptance manifest object is not a regular file: {}",
+            path.display()
+        ));
+    }
+    if metadata.len() > MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES {
+        return Err(format!(
+            "acceptance manifest object exceeds {MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES} bytes: {}",
+            path.display()
+        ));
+    }
+    after_metadata(&path);
+    let file = open_manifest_object_no_follow(directory, &name, false)?;
+    let opened = file.metadata().map_err(|error| {
+        format!(
+            "failed to inspect opened acceptance manifest object {}: {error}",
+            path.display()
+        )
+    })?;
+    if !opened.is_file() || opened.len() != metadata.len() {
+        return Err(format!(
+            "acceptance manifest object changed while opening: {}",
+            path.display()
+        ));
+    }
+    let mut bytes = Vec::with_capacity(opened.len() as usize);
+    file.take(MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            format!(
+                "failed to read acceptance manifest object {}: {error}",
+                path.display()
+            )
+        })?;
+    parse_acceptance_manifest_object(&bytes, digest)
+}
+
+fn read_git_manifest_object(
+    root: &Path,
+    commit: &str,
+    directory: &str,
+    digest: &str,
+    budget: Option<&mut TrustedHistoryScanBudget>,
+) -> Result<AcceptanceManifestV1, String> {
+    validate_acceptance_manifest_digest(digest)?;
+    let relative = format!("{directory}/{ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY}/{digest}.json");
+    let bytes = if let Some(budget) = budget {
+        trusted_history_file_at_commit(
+            root,
+            commit,
+            &relative,
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+            budget,
+        )?
+    } else {
+        git_bounded_regular_file_at_commit_with_limit(
+            root,
+            commit,
+            &relative,
+            MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES,
+        )?
+    }
+    .ok_or_else(|| {
+        format!(
+            "trusted lifecycle anchor `{commit}` is missing referenced acceptance manifest object `{relative}`"
+        )
+    })?;
+    parse_acceptance_manifest_object(&bytes, digest)
+}
+
+fn read_manifest_reference_uncached(
+    source: &mut ApprovalManifestSource<'_>,
+    reference: &AcceptanceManifestReferenceV1,
+) -> Result<AcceptanceManifestV1, String> {
+    if reference.schema_version != 1 {
+        return Err(format!(
+            "unsupported acceptance manifest reference schema version {}",
+            reference.schema_version
+        ));
+    }
+    match source {
+        ApprovalManifestSource::Workspace { root, workspace } => {
+            read_workspace_manifest_object(root, workspace, &reference.digest)
+        }
+        ApprovalManifestSource::RetainedWorkspace { workspace } => {
+            read_retained_workspace_manifest_object(workspace, &reference.digest)
+        }
+        ApprovalManifestSource::Captured {
+            directory,
+            evidence,
+        } => {
+            let path = format!(
+                "{directory}/{ACCEPTANCE_MANIFEST_OBJECT_DIRECTORY}/{}.json",
+                reference.digest
+            );
+            if !evidence.is_index_backed(&path) {
+                return Err(format!(
+                    "staged compact approval ledger references acceptance manifest object `{path}` that is not staged"
+                ));
+            }
+            let entry = evidence.entry(&path)?;
+            if entry.kind != AcceptanceInputKind::File || entry.mode != 0o100644 {
+                return Err(format!(
+                    "staged acceptance manifest object `{path}` must be a non-executable regular file"
+                ));
+            }
+            parse_acceptance_manifest_object(&entry.payload, &reference.digest)
+        }
+        ApprovalManifestSource::Git {
+            root,
+            commit,
+            directory,
+            budget,
+        } => read_git_manifest_object(
+            root,
+            commit,
+            directory,
+            &reference.digest,
+            budget.as_deref_mut(),
+        ),
+    }
+}
+
+fn read_manifest_reference(
+    source: &mut ApprovalManifestSource<'_>,
+    reference: &AcceptanceManifestReferenceV1,
+    cache: &mut ManifestHydrationCache,
+) -> Result<AcceptanceManifestV1, String> {
+    read_manifest_reference_with(reference, cache, || {
+        read_manifest_reference_uncached(source, reference)
+    })
+}
+
+fn read_manifest_reference_with<Loader>(
+    reference: &AcceptanceManifestReferenceV1,
+    cache: &mut ManifestHydrationCache,
+    loader: Loader,
+) -> Result<AcceptanceManifestV1, String>
+where
+    Loader: FnOnce() -> Result<AcceptanceManifestV1, String>,
+{
+    if reference.schema_version != 1 {
+        return Err(format!(
+            "unsupported acceptance manifest reference schema version {}",
+            reference.schema_version
+        ));
+    }
+    if !cache.manifests.contains_key(&reference.digest) {
+        let manifest = loader()?;
+        let bytes = json_content(&manifest)?.len();
+        cache.unique_bytes = cache
+            .unique_bytes
+            .checked_add(bytes)
+            .ok_or_else(|| "hydrated acceptance manifest byte budget overflowed".to_string())?;
+        if cache.unique_bytes > MAX_UNIQUE_HYDRATED_MANIFEST_BYTES {
+            return Err(format!(
+                "distinct hydrated acceptance manifests exceed {MAX_UNIQUE_HYDRATED_MANIFEST_BYTES} bytes"
+            ));
+        }
+        cache.sizes.insert(reference.digest.clone(), bytes);
+        cache.manifests.insert(reference.digest.clone(), manifest);
+    }
+    let manifest = cache
+        .manifests
+        .get(&reference.digest)
+        .ok_or_else(|| "cached acceptance manifest disappeared".to_string())?;
+    let bytes = cache
+        .sizes
+        .get(&reference.digest)
+        .copied()
+        .ok_or_else(|| "cached acceptance manifest size disappeared".to_string())?;
+    cache.expanded_bytes = cache
+        .expanded_bytes
+        .checked_add(bytes)
+        .ok_or_else(|| "expanded acceptance manifest byte budget overflowed".to_string())?;
+    if cache.expanded_bytes > MAX_EXPANDED_HYDRATED_MANIFEST_BYTES {
+        return Err(format!(
+            "expanded reopening acceptance manifests exceed {MAX_EXPANDED_HYDRATED_MANIFEST_BYTES} bytes"
+        ));
+    }
+    Ok(manifest.clone())
+}
+
+fn validate_approval_ledger_event_bounds(
+    approval_count: usize,
+    reopening_count: usize,
+) -> Result<(), String> {
+    if approval_count > MAX_APPROVAL_EVENTS {
+        return Err(format!(
+            "approval ledger exceeds {MAX_APPROVAL_EVENTS} approval events"
+        ));
+    }
+    if reopening_count > MAX_REOPENING_EVENTS {
+        return Err(format!(
+            "approval ledger exceeds {MAX_REOPENING_EVENTS} reopening events"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_hydrated_reopening(reopening: &ReopenRecord) -> Result<(), String> {
+    if !matches!(reopening.schema_version, 1 | 2) {
+        return Err(format!(
+            "unsupported reopening schema version {}",
+            reopening.schema_version
+        ));
+    }
+    if reopening.actor.trim().is_empty()
+        || reopening.actor.trim() != reopening.actor
+        || reopening.reason.trim().is_empty()
+        || reopening.reason.trim() != reopening.reason
+    {
+        return Err("reopening actor and reason must be non-empty canonical text".into());
+    }
+    if reopening.timestamp == 0 {
+        return Err("reopening timestamp must be non-zero".into());
+    }
+    if reopening.from_state != ChangeState::Accepted || reopening.to_state != ChangeState::Verifying
+    {
+        return Err("reopening must record the exact accepted-to-verifying transition".into());
+    }
+    if !reopening.prior_verification.passed {
+        return Err("reopening prior verification did not pass".into());
+    }
+    validate_sha256_digest(
+        &reopening.stale_acceptance_input_digest,
+        "reopening stale acceptance-input digest",
+    )?;
+    validate_sha256_digest(
+        &reopening.current_acceptance_input_digest,
+        "reopening current acceptance-input digest",
+    )?;
+    let signed = reopening
+        .prior_verification
+        .acceptance_input_digest
+        .as_deref()
+        .ok_or_else(|| {
+            "reopening prior verification is missing its acceptance-input digest".to_string()
+        })?;
+    if signed != reopening.stale_acceptance_input_digest {
+        return Err(
+            "reopening stale acceptance-input digest disagrees with its prior verification".into(),
+        );
+    }
+    if reopening.stale_acceptance_input_digest == reopening.current_acceptance_input_digest {
+        return Err("reopening stale and current acceptance-input digests are identical".into());
+    }
+    if reopening.superseded_approval.gate != "acceptance"
+        || reopening.superseded_approval.digest
+            != closing_digest_for_change_id(&reopening.change_id, &reopening.prior_verification)
+    {
+        return Err(
+            "reopening superseded approval does not authenticate its prior verification".into(),
+        );
+    }
+    if let Some(manifest) = &reopening.prior_verification.acceptance_manifest
+        && acceptance_manifest_digest(manifest)? != signed
+    {
+        return Err(
+            "reopening prior verification manifest disagrees with its signed acceptance-input digest"
+                .into(),
+        );
+    }
+    Ok(())
+}
+
+fn hydrate_reopen_record(
+    source: &mut ApprovalManifestSource<'_>,
+    reopening: ReopenRecordDisk,
+    cache: &mut ManifestHydrationCache,
+) -> Result<ReopenRecord, String> {
+    let hydrated = match reopening {
+        ReopenRecordDisk::V1(reopening) => {
+            if reopening.schema_version != 1 {
+                return Err(format!(
+                    "unsupported embedded reopening schema version {}",
+                    reopening.schema_version
+                ));
+            }
+            ReopenRecord {
+                schema_version: reopening.schema_version,
+                change_id: reopening.change_id,
+                actor: reopening.actor,
+                reason: reopening.reason,
+                timestamp: reopening.timestamp,
+                from_state: reopening.from_state,
+                to_state: reopening.to_state,
+                superseded_approval: reopening.superseded_approval,
+                prior_verification: reopening.prior_verification,
+                stale_acceptance_input_digest: reopening.stale_acceptance_input_digest,
+                current_acceptance_input_digest: reopening.current_acceptance_input_digest,
+            }
+        }
+        ReopenRecordDisk::V2(reopening) => {
+            if reopening.schema_version != 2 {
+                return Err(format!(
+                    "unsupported compact reopening schema version {}",
+                    reopening.schema_version
+                ));
+            }
+            let reference = reopening.prior_acceptance_manifest.0;
+            let manifest = reference
+                .as_ref()
+                .map(|reference| read_manifest_reference(source, reference, cache))
+                .transpose()?;
+            if reference.as_ref().is_some_and(|reference| {
+                reopening
+                    .prior_verification
+                    .acceptance_input_digest
+                    .as_deref()
+                    != Some(reference.digest.as_str())
+            }) {
+                return Err(
+                    "compact reopening manifest reference disagrees with its prior verification"
+                        .into(),
+                );
+            }
+            ReopenRecord {
+                schema_version: reopening.schema_version,
+                change_id: reopening.change_id,
+                actor: reopening.actor,
+                reason: reopening.reason,
+                timestamp: reopening.timestamp,
+                from_state: reopening.from_state,
+                to_state: reopening.to_state,
+                superseded_approval: reopening.superseded_approval,
+                prior_verification: reopening.prior_verification.hydrate(manifest),
+                stale_acceptance_input_digest: reopening.stale_acceptance_input_digest,
+                current_acceptance_input_digest: reopening.current_acceptance_input_digest,
+            }
+        }
+    };
+    validate_hydrated_reopening(&hydrated)?;
+    Ok(hydrated)
+}
+
+fn preflight_approval_ledger_event_bounds(bytes: &[u8]) -> Result<(), String> {
+    use serde::de::{
+        DeserializeSeed, Deserializer as _, Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor,
+    };
+
+    struct BoundedEvents {
+        maximum: usize,
+        label: &'static str,
+    }
+
+    impl<'de> DeserializeSeed<'de> for BoundedEvents {
+        type Value = ();
+
+        fn deserialize<Deserializer>(
+            self,
+            deserializer: Deserializer,
+        ) -> Result<Self::Value, Deserializer::Error>
+        where
+            Deserializer: serde::Deserializer<'de>,
+        {
+            struct EventsVisitor {
+                maximum: usize,
+                label: &'static str,
+            }
+
+            impl<'de> Visitor<'de> for EventsVisitor {
+                type Value = ();
+
+                fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    write!(formatter, "an array of {} events", self.label)
+                }
+
+                fn visit_seq<Access>(self, mut sequence: Access) -> Result<(), Access::Error>
+                where
+                    Access: SeqAccess<'de>,
+                {
+                    let mut count = 0_usize;
+                    while sequence.next_element::<IgnoredAny>()?.is_some() {
+                        count = count.checked_add(1).ok_or_else(|| {
+                            Access::Error::custom(format!(
+                                "approval ledger {} event count overflowed",
+                                self.label
+                            ))
+                        })?;
+                        if count > self.maximum {
+                            return Err(Access::Error::custom(format!(
+                                "approval ledger exceeds {} {} events",
+                                self.maximum, self.label
+                            )));
+                        }
+                    }
+                    Ok(())
+                }
+            }
+
+            deserializer.deserialize_seq(EventsVisitor {
+                maximum: self.maximum,
+                label: self.label,
+            })
+        }
+    }
+
+    struct LedgerVisitor;
+
+    impl<'de> Visitor<'de> for LedgerVisitor {
+        type Value = ();
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("an approval ledger object")
+        }
+
+        fn visit_map<Access>(self, mut map: Access) -> Result<(), Access::Error>
+        where
+            Access: MapAccess<'de>,
+        {
+            while let Some(key) = map.next_key::<String>()? {
+                match key.as_str() {
+                    "approvals" => map.next_value_seed(BoundedEvents {
+                        maximum: MAX_APPROVAL_EVENTS,
+                        label: "approval",
+                    })?,
+                    "reopenings" => map.next_value_seed(BoundedEvents {
+                        maximum: MAX_REOPENING_EVENTS,
+                        label: "reopening",
+                    })?,
+                    _ => {
+                        map.next_value::<IgnoredAny>()?;
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    deserializer
+        .deserialize_map(LedgerVisitor)
+        .map_err(|error| error.to_string())
+}
+
+fn load_approval_ledger_from_bytes(
+    bytes: &[u8],
+    expected_change_id: &str,
+    source: &mut ApprovalManifestSource<'_>,
+) -> Result<ApprovalLedger, String> {
+    if bytes.len() as u64 > MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES {
+        return Err(format!(
+            "approval ledger exceeds {MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES} bytes"
+        ));
+    }
+    preflight_approval_ledger_event_bounds(bytes)?;
+    let disk: ApprovalLedgerDisk = serde_json::from_slice(bytes).map_err(|error| {
+        let message = error.to_string();
+        if message.contains("stale_acceptance_input_digest")
+            || message.contains("current_acceptance_input_digest")
+        {
+            format!("{message}; run `specsync migrate 5.0` to backfill 5.0.1-era reopening records")
+        } else {
+            message
+        }
+    })?;
+    validate_approval_ledger_event_bounds(disk.approvals.len(), disk.reopenings.len())?;
+    let mut cache = ManifestHydrationCache::default();
+    let reopenings = disk
+        .reopenings
+        .into_iter()
+        .map(|reopening| hydrate_reopen_record(source, reopening, &mut cache))
+        .collect::<Result<Vec<_>, _>>()?;
+    if reopenings
+        .iter()
+        .any(|reopening| reopening.change_id != expected_change_id)
+    {
+        return Err(format!(
+            "approval ledger reopening identity does not match change `{expected_change_id}`"
+        ));
+    }
+    validate_reopening_approval_chain(&disk.approvals, &reopenings)?;
+    Ok(ApprovalLedger {
+        approvals: disk.approvals,
+        reopenings,
+    })
+}
+
+fn validate_reopening_approval_chain(
+    approvals: &[ApprovalRecord],
+    reopenings: &[ReopenRecord],
+) -> Result<Vec<usize>, String> {
+    let mut positions = Vec::with_capacity(reopenings.len());
+    let mut next_position = 0;
+    let mut compact_schema_seen = false;
+    for (index, reopening) in reopenings.iter().enumerate() {
+        if reopening.schema_version >= 2 {
+            compact_schema_seen = true;
+        } else if compact_schema_seen {
+            return Err(format!(
+                "reopening {} downgrades compact schema-v2 history back to schema v1",
+                index + 1
+            ));
+        }
+        validate_reopening_audit_binding(&reopening.prior_verification, &reopenings[..index])
+            .map_err(|error| {
+                format!(
+                    "reopening {} prior acceptance does not bind its exact audit prefix: {error}",
+                    index + 1
+                )
+            })?;
+        let Some(offset) = approvals[next_position..]
+            .iter()
+            .position(|approval| approval == &reopening.superseded_approval)
+        else {
+            return Err(format!(
+                "reopening {} does not reference an exact prior approval event in the append-only ledger",
+                index + 1
+            ));
+        };
+        let position = next_position + offset;
+        positions.push(position);
+        next_position = position + 1;
+    }
+    Ok(positions)
+}
+
+fn load_approval_ledger_from_workspace_bytes(
+    root: &Path,
+    workspace: &Path,
+    expected_change_id: &str,
+    bytes: &[u8],
+) -> Result<ApprovalLedger, String> {
+    load_approval_ledger_from_bytes(
+        bytes,
+        expected_change_id,
+        &mut ApprovalManifestSource::Workspace { root, workspace },
+    )
+}
+
+fn load_approval_ledger_from_retained_workspace_bytes(
+    workspace: &ManifestObjectDirectory,
+    expected_change_id: &str,
+    bytes: &[u8],
+) -> Result<ApprovalLedger, String> {
+    load_approval_ledger_from_bytes(
+        bytes,
+        expected_change_id,
+        &mut ApprovalManifestSource::RetainedWorkspace { workspace },
+    )
+}
+
+fn reopen_record_for_disk(
+    root: &Path,
+    workspace: &Path,
+    reopening: &ReopenRecord,
+) -> Result<ReopenRecordDisk, String> {
+    validate_hydrated_reopening(reopening)?;
+    match reopening.schema_version {
+        1 => Ok(ReopenRecordDisk::V1(ReopenRecordV1Disk {
+            schema_version: reopening.schema_version,
+            change_id: reopening.change_id.clone(),
+            actor: reopening.actor.clone(),
+            reason: reopening.reason.clone(),
+            timestamp: reopening.timestamp,
+            from_state: reopening.from_state,
+            to_state: reopening.to_state,
+            superseded_approval: reopening.superseded_approval.clone(),
+            prior_verification: reopening.prior_verification.clone(),
+            stale_acceptance_input_digest: reopening.stale_acceptance_input_digest.clone(),
+            current_acceptance_input_digest: reopening.current_acceptance_input_digest.clone(),
+        })),
+        2 => {
+            let prior_acceptance_manifest = match &reopening.prior_verification.acceptance_manifest
+            {
+                Some(manifest) => {
+                    let digest = reopening
+                        .prior_verification
+                        .acceptance_input_digest
+                        .clone()
+                        .ok_or_else(|| {
+                            "compact reopening manifest has no signed acceptance-input digest"
+                                .to_string()
+                        })?;
+                    let stored = read_workspace_manifest_object(root, workspace, &digest)?;
+                    if &stored != manifest {
+                        return Err(
+                                "compact reopening hydrated manifest disagrees with its immutable object"
+                                    .into(),
+                            );
+                    }
+                    Some(AcceptanceManifestReferenceV1 {
+                        schema_version: 1,
+                        digest,
+                    })
+                }
+                None => None,
+            };
+            Ok(ReopenRecordDisk::V2(ReopenRecordV2Disk {
+                schema_version: reopening.schema_version,
+                change_id: reopening.change_id.clone(),
+                actor: reopening.actor.clone(),
+                reason: reopening.reason.clone(),
+                timestamp: reopening.timestamp,
+                from_state: reopening.from_state,
+                to_state: reopening.to_state,
+                superseded_approval: reopening.superseded_approval.clone(),
+                prior_verification: CompactVerificationRecord::from_hydrated(
+                    &reopening.prior_verification,
+                ),
+                prior_acceptance_manifest: AcceptanceManifestReferenceSlot(
+                    prior_acceptance_manifest,
+                ),
+                stale_acceptance_input_digest: reopening.stale_acceptance_input_digest.clone(),
+                current_acceptance_input_digest: reopening.current_acceptance_input_digest.clone(),
+            }))
+        }
+        version => Err(format!("unsupported reopening schema version {version}")),
+    }
+}
+
+fn approval_ledger_content(
+    root: &Path,
+    record: &ChangeRecord,
+    ledger: &ApprovalLedger,
+) -> Result<String, String> {
+    let workspace = find_change_dir(root, &record.id)?;
+    let disk = ApprovalLedgerDisk {
+        approvals: ledger.approvals.clone(),
+        reopenings: ledger
+            .reopenings
+            .iter()
+            .map(|reopening| reopen_record_for_disk(root, &workspace, reopening))
+            .collect::<Result<Vec<_>, _>>()?,
+    };
+    json_content(&disk)
+}
+
+fn write_acceptance_manifest_object(
+    root: &Path,
+    workspace: &Path,
+    manifest: &AcceptanceManifestV1,
+) -> Result<String, String> {
+    validate_acceptance_manifest(manifest)?;
+    let digest = acceptance_manifest_digest(manifest)?;
+    validate_acceptance_manifest_digest(&digest)?;
+    let bytes = json_content(manifest)?.into_bytes();
+    if bytes.len() as u64 > MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES {
+        return Err(format!(
+            "acceptance manifest object exceeds {MAX_ACCEPTANCE_MANIFEST_OBJECT_BYTES} bytes"
+        ));
+    }
+    let directory = open_manifest_object_directory(root, workspace, true)?;
+    let name = PathBuf::from(format!("{digest}.json"));
+    let path = directory.path.join(&name);
+    match directory.handle.symlink_metadata(&name) {
+        Ok(metadata) => {
+            if manifest_metadata_is_link(&metadata) || !metadata.is_file() {
+                return Err(format!(
+                    "existing acceptance manifest object is not a regular file: {}",
+                    path.display()
+                ));
+            }
+            let stored = read_manifest_object_from_directory(&directory, &digest)?;
+            if stored != *manifest {
+                return Err(format!(
+                    "existing acceptance manifest object conflicts with deterministic bytes: {}",
+                    path.display()
+                ));
+            }
+            sync_manifest_object_publication(&directory, &name)?;
+            ensure_manifest_object_directory_is_bound(root, workspace, &directory)?;
+            return Ok(digest);
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect acceptance manifest object {}: {error}",
+                path.display()
+            ));
+        }
+    }
+
+    let temporary_name = format!(
+        ".manifest-{}-{}.tmp",
+        std::process::id(),
+        ACCEPTANCE_MANIFEST_OBJECT_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    );
+    let temporary = PathBuf::from(temporary_name);
+    let temporary_path = directory.path.join(&temporary);
+    let write_result: Result<(), String> = (|| {
+        let mut file = open_manifest_object_no_follow(&directory, &temporary, true)?;
+        file.write_all(&bytes).map_err(|error| {
+            format!(
+                "failed to write temporary acceptance manifest object {}: {error}",
+                temporary_path.display()
+            )
+        })?;
+        file.sync_all().map_err(|error| {
+            format!(
+                "failed to sync temporary acceptance manifest object {}: {error}",
+                temporary_path.display()
+            )
+        })?;
+        directory
+            .handle
+            .hard_link(&temporary, &directory.handle, &name)
+            .map_err(|error| {
+                format!(
+                    "failed to publish immutable acceptance manifest object {}: {error}",
+                    path.display()
+                )
+            })?;
+        file.sync_all().map_err(|error| {
+            format!(
+                "failed to sync published acceptance manifest object {}: {error}",
+                path.display()
+            )
+        })?;
+        sync_manifest_object_publication(&directory, &name)?;
+        Ok(())
+    })();
+    let _ = directory.handle.remove_file(&temporary);
+    write_result?;
+    let stored = read_manifest_object_from_directory(&directory, &digest)?;
+    if stored != *manifest {
+        return Err(format!(
+            "published acceptance manifest object failed deterministic verification: {}",
+            path.display()
+        ));
+    }
+    ensure_manifest_object_directory_is_bound(root, workspace, &directory)?;
+    Ok(digest)
 }

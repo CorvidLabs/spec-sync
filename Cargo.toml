@@ -48,6 +48,9 @@ tree-sitter-scheme = "0.24.7"
 tree-sitter-elisp = "1.6.1"
 tree-sitter-perl = "1.1.2"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"

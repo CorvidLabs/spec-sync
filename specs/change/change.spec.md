@@ -1,6 +1,6 @@
 ---
 module: change
-version: 44
+version: 45
 status: active
 files:
   - src/change.rs
@@ -296,3 +296,4 @@ Acceptance Criteria
 | 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
 | 2026-07-19 | CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa: Tolerate inert 5.0.1 registry.toml stubs so module resolution falls back to default specs layout without failing closed on empty legacy stubs |
 | 2026-07-27 | CHG-0067-fix-issue-467-by-deduplicating-identical-stage-zero-entries-from-overlapping-gi: Fix issue #467 by deduplicating identical stage-zero entries from overlapping Git pathspec batches while rejecting conflicting mode or object observations |
+| 2026-07-29 | CHG-0068-fix-issue-466-by-deduplicating-reopening-acceptance-manifests-with-authenticate: Fix issue #466 by deduplicating reopening acceptance manifests with authenticated content-addressed references |

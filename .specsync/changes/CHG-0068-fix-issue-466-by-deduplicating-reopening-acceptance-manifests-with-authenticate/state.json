@@ -5,10 +5,11 @@
   "title": "Fix issue #466 by deduplicating reopening acceptance manifests with authenticated content-addressed references",
   "description": "Fix issue #466 by deduplicating reopening acceptance manifests with authenticated content-addressed references",
   "kind": "bug_fix",
-  "state": "implementing",
+  "state": "accepted",
+  "canonical_applied": true,
   "base_commit": "fc091c88f72a6d2fb2df168f4baa4370579ff8a2",
   "created_at": 1785183560,
-  "updated_at": 1785276312,
+  "updated_at": 1785286514,
   "affected_specs": [
     "change"
   ],

@@ -15,5 +15,5 @@ artifact: tasks
 - [x] Add adversarial object-integrity and path-safety tests
 - [x] Add A/B/A growth, reacceptance, archive, and migration regressions
 - [x] Prepare the canonical `change` spec and companion update through the lifecycle delta
-- [ ] Pass targeted, full repository, strict spec, score, trust, and provenance gates
+- [x] Pass targeted, full repository, strict spec, score, trust, and provenance gates
 - [x] Resolve all independent implementation and adversarial review findings

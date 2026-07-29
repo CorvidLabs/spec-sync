@@ -1,6 +1,6 @@
 ---
 id: CHG-0068-fix-issue-466-by-deduplicating-reopening-acceptance-manifests-with-authenticate
-state: implementing
+state: accepted
 type: bug_fix
 base_commit: fc091c88f72a6d2fb2df168f4baa4370579ff8a2
 ---

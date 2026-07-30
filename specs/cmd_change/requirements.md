@@ -65,9 +65,9 @@ Acceptance Criteria
 - `status` always prints exactly one explicit next action.
 - When scope approval is missing or stale, status prints the exact current digest next to that
   approval action.
-- Status requests renewed approval only for a material stable-scope expansion and lists each added
-  criterion, affected spec/path, dependency, supersession obligation, or changed intent in plain
-  language; execution/evidence-only changes direct the user to `change check` instead.
+- Status requests renewed approval only for a material stable-scope change and lists each added or
+  removed criterion, affected spec/path, dependency, supersession obligation, or changed intent in
+  plain language; execution/evidence-only changes direct the user to `change check` instead.
 - Newcomer output teaches `new → approve → implement → check → review → finalize → GitHub merge`.
 - Agent-authored status identifies a missing scoped review and explains that opening or updating the
   PR requests the configured review check.
@@ -76,4 +76,7 @@ Acceptance Criteria
 - `finalize` reports the implementation parent, archived path, finalization digest, and readiness
   for GitHub merge; it never claims to merge or invokes a provider merge API.
 - JSON and text expose the same current gate and next action.
-
+- Review output exposes the persisted `pass` or `block` verdict; domain rejection of a scope
+  approver acting as reviewer exits non-zero without success output.
+- Review identities are stable ASCII claims, attempts are append-only, and output does not imply
+  authentication before the required GitHub check is proven.

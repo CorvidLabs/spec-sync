@@ -105,16 +105,29 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 ),
             })
         }
-        ChangeAction::Review { id, reviewer } => change::record_scoped_review(root, &id, reviewer)
-            .map(|review| match format {
-                OutputFormat::Json => print_json(&review),
-                _ => println!(
-                    "{} {} independently reviewed at {}",
-                    "✓".green(),
-                    review.change_id,
-                    review.implementation_commit
-                ),
-            }),
+        ChangeAction::Review {
+            id,
+            reviewer,
+            verdict,
+        } => change::ScopedReviewVerdict::parse(&verdict).and_then(|verdict| {
+            let result = if verdict == change::ScopedReviewVerdict::Pass {
+                change::record_scoped_review(root, &id, reviewer)
+            } else {
+                change::record_scoped_review_with_verdict(root, &id, reviewer, verdict)
+            };
+            result.map(|review| {
+                match format {
+                    OutputFormat::Json => print_json(&review),
+                    _ => println!(
+                        "{} {} independent review recorded as {} at {}",
+                        "✓".green(),
+                        review.change_id,
+                        review.verdict.as_str(),
+                        review.implementation_commit
+                    ),
+                }
+            })
+        }),
         ChangeAction::Reopen { id, actor, reason } => {
             change::reopen_change(root, &id, actor, reason).map(|result| match format {
                 OutputFormat::Json => print_json(&result),

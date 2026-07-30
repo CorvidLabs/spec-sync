@@ -1,0 +1,6 @@
+{
+  "git_max_output_bytes": 8388608,
+  "git_timeout_seconds": 30,
+  "scoped_review_max_descendants": 1000,
+  "scoped_review_max_parents": 32
+}

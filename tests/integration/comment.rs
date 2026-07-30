@@ -181,6 +181,7 @@ fn comment_suppresses_configured_command_output_but_check_streams_it() {
 
     specsync()
         .env_remove("CI")
+        .env_remove("GITHUB_ACTIONS")
         .env_remove("GITHUB_WORKSPACE")
         .args(["--root", root.to_str().unwrap(), "change", "check"])
         .assert()

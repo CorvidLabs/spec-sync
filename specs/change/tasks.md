@@ -39,3 +39,8 @@ spec: change.spec.md
 - [x] Tolerate inert 5.0.1 registry stubs during canonical module path resolution
 - [x] Deduplicate identical stage-zero entries from overlapping Git pathspec batches while rejecting conflicting mode or object pairs
 - [x] Separate stable scope approval from volatile execution/evidence binding with plain-language expansion diagnostics
+- [x] Freeze the CHG-0068 scope adoption without claiming unavailable cryptographic equivalence
+- [x] Reject scope contraction, self-review, blocking review verdicts, and change-then-revert review reuse
+- [x] Resume same-PR finalization after a crash that leaves the accepted workspace at its dated destination
+- [x] Fail closed on missing adoption anchors, preserve append-only review attempts, recover partial
+  terminal archive writes, share freshness limits, and authenticate squash-surviving v2 archives

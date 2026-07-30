@@ -8,6 +8,8 @@ Canonical module maturity remains under `specsync lifecycle`; SDD delivery uses 
 
 Numeric change allocation is additionally claimed in the committed `.specsync/change-sequence.json` ledger. The OS lock still serializes a checkout, while the ledger makes independently allocated branch claims conflict during Git integration. Lifecycle checking scans active and archived records together; the repository's immutable historical `CHG-0016` collision is acknowledged only as an exact set of full IDs.
 
+Historical acceptance reconstruction treats the committed sequence ledger as evidence, not a template. When immutable collision members signed one canonical collision-owner ledger, a bounded invocation-cached history lookup reuses those exact bytes after later claims advance the current ledger. The historical candidate must explicitly name the record in its same-sequence collision; ordinary records, unavailable history, and collision acknowledgements added after acceptance keep successor-aware synthetic reconstruction.
+
 The public lifecycle remains one module for 5.0 to avoid a late high-risk refactor. Its intended internal seams are state/transitions, approvals/evidence, semantic deltas, Git/path coverage, effective-contract validation, and adoption/import. Extract those seams after 5.0 without changing the public API. Release evidence is recorded in accepted/archived change workspaces and the PR matrix rather than frozen as a permanent claim here.
 
 `check_project_quiet` shares all fail-closed validation with `check_project` but discards configured child-command output so `specsync comment` can emit a single bounded markdown protocol. Explicit verification and ordinary checks retain streamed diagnostics.
@@ -58,6 +60,67 @@ The projection contains intent, acceptance criteria, public-contract/risk declar
 affected spec/path/dependency/supersession scope. Artifacts, semantic-delta wording, tests,
 canonical materialization, and lifecycle metadata bind a separate execution digest, so they
 automatically stale verification and scoped review without asking the human to approve again.
-Status requests renewal only when the current projection expands the approved boundary and lists
-that expansion in plain language. Historical workflow-version-1 digests retain their exact
-artifact-bound verification path.
+Status requests renewal whenever the current stable projection adds, removes, or replaces part of
+the approved boundary and lists that change in plain language. Historical workflow-version-1
+digests retain their exact artifact-bound verification path.
+
+The original CHG-0068 definition preimage was never committed, so its 6.0 stable-scope adoption
+truthfully records `source_preimage_status: unavailable` and `equivalence_claim: none`. The source
+approval event remains untouched. A CHG-0068-only compile-time allowlist freezes the exact
+historical commit/blob, source event, adopted scope digest, authorization, and classification
+digest; the independent scoped review is still mandatory before finalization. This is an explicit
+audited exception, not a reusable approval migration mechanism.
+
+Scoped review schema 2 records `pass` or `block`, rejects the scope approver as reviewer, and
+checks every descendant commit against every parent so a source change followed by a revert cannot
+reuse an earlier review. Archive recovery recognizes an accepted workspace already moved into its
+dated destination and completes or restores it there, making a crash after rename retryable.
+
+A renewed direct workflow-v2 approval supersedes and removes any one-time legacy scope adoption;
+status derives its plain-language scope delta from either the direct projection or the validated
+adopted projection. Archive retry discovers the unique existing dated package rather than
+recomputing its location from the current date, so a post-rename retry remains valid across a
+calendar rollover. Local-execution fixtures clear every hosted-CI marker recognized by lifecycle
+validation, preventing ambient runner state from changing the behavior under test.
+
+The CHG-0068 adoption is valid only with its exact allowlisted commit, base parent, and approvals
+blob available; missing history fails closed. Scoped-review identity is a bounded ASCII claim, not
+the trust root: every pass/block remains in `review-attempts.json`, while the official GitHub
+Actions check on the exact implementation parent supplies authenticated merge provenance.
+Freshness limits are loaded from `.github/scripts/lifecycle-validation-limits.json` by native and
+hosted validators.
+
+Archive terminal state and Markdown are published through the lifecycle transaction journal, which
+is recovered before finalization dispatch after interruption. Workflow-v2 historical validation
+normally resolves the implementation commit/tree; after squash or rebase discards that object, it
+requires the exact clean archive subtree to be recorded with archived state in reachable history.
+
+Every new lifecycle record persists an immutable workflow-origin version. Current and historical
+state loading checks bounded every-parent history, so omitting the current version, downgrading it,
+or reverting a downgrade cannot enter the legacy command path. Invocation-scoped caching keeps that
+proof from repeating for the same change. The path set includes every bounded reachable canonical
+dated archive state for the exact ID, preserving identity across archive, reopen, and cross-date
+rearchive moves without accepting non-canonical paths.
+
+Workflow-v2 adoption also writes one immutable project baseline whose cutoff is the stable remote
+comparison-base ancestor when available, the current pre-adoption commit otherwise, or no commit
+for an unborn repository. Its unique introduction requires the cutoff to precede the first parent,
+so the same baseline remains valid after squash/rebase collapses later branch commits. Every
+bounded touching commit and readable parent must retain the exact introduction bytes, preventing a
+rewrite from being hidden by later restoration. A
+workflow-v1 record is eligible only when the same ID/version exists at that cutoff with its origin
+omitted or explicitly anchored to version 1. This preserves genuine historical records while
+rejecting a first-reachable change that strips both version fields before its initial commit.
+Expected negative ancestry probes capture Git diagnostics internally, so unavailable historical
+objects affect evidence validity without leaking raw child-process fatal text into status output.
+
+Lifecycle transactions publish a versioned count/digest journal durably before any payload, then
+atomically replace payloads and clear the journal last. Backup reads distinguish not-found from all
+other errors; malformed canonical journals fail closed without touching targets. Archive snapshots,
+terminal restoration, and active-to-archive renames use the same durable file and directory-sync
+primitives.
+
+Squash/rebase fallback requires one non-root archive introduction whose exact path is absent from
+every resolvable parent and whose subtree still matches the current archive. External post-merge
+metadata binds that source introduction and finalization digest to the actual merge commit/tree;
+the release gate independently reconstructs the same compact event.

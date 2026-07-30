@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 9
+version: 10
 status: active
 files:
   - src/commands/change.rs
@@ -29,6 +29,8 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 7. Batch correct-owner resolves repeated paths, a manifest, or `--all-missing` into domain entries, renders the persisted record, and directs the user to definition reapproval without partial mutation on failure.
 8. Strict is an additive validator selection on the same workflow and evidence, never a second lifecycle mode.
 9. Finalize reports readiness for GitHub merge and never invokes an external merge API.
+10. Review renders the same explicit pass/block verdict and stable reviewer claim in text and JSON
+    while domain policy preserves append-only attempts and hosted policy authenticates provenance.
 
 ## Public API
 
@@ -74,6 +76,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Missing or mismatched supersede obligation | Command reports the exact predecessor/path/module/digest mismatch and exits 1 without definition mutation |
 | Invalid exact owner correction | Command reports the domain rejection and exits 1 without lifecycle mutation |
 | Invalid batch owner correction or empty discovery | Command reports the domain rejection and exits 1 without lifecycle mutation |
+| Scope approver records the scoped review, or the current verdict is blocking | Command reports the independent-review rejection and finalization remains blocked |
 
 ## Dependencies
 
@@ -100,3 +103,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |
 | 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |
 | 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
+| 2026-07-30 | CHG-0068: Render explicit pass/block scoped-review results while keeping independence policy in the change domain |
+| 2026-07-30 | CHG-0068: Render stable reviewer claims while preserving append-only attempts and externally authenticated check provenance |

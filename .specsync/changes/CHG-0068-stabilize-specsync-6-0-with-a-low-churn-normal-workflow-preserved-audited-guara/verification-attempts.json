@@ -367,6 +367,73 @@
         "REQ-schema-001",
         "REQ-validator-009"
       ]
+    },
+    {
+      "timestamp": 1785390541,
+      "commit": "1b66b8989937d7fdb2db205ccc28c96794bfd670",
+      "contract_digest": "35f68b68d4cdca134f98f514a56c1afdc4c530ef4f43461f75b7898404fae79b",
+      "execution_digest": "c328bdcf48e522997f64d24f10ca44553f14f3cb5b51dc23853642ed7c419847",
+      "workspace_digest": "7caea8d14e6deb4e041a3468fc1d5a400b2f3701a3eea0a2d9abda35e1d25d0b",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-004",
+        "REQ-change-043",
+        "REQ-change-044",
+        "REQ-change-045",
+        "REQ-change-046",
+        "REQ-cli-008",
+        "REQ-cli-args-009",
+        "REQ-cmd-change-005",
+        "REQ-cmd-check-003",
+        "REQ-commands-005",
+        "REQ-exports-006",
+        "REQ-github-005",
+        "REQ-hooks-002",
+        "REQ-ignore-001",
+        "REQ-schema-001",
+        "REQ-validator-009"
+      ]
+    },
+    {
+      "timestamp": 1785392653,
+      "commit": "1b66b8989937d7fdb2db205ccc28c96794bfd670",
+      "contract_digest": "35f68b68d4cdca134f98f514a56c1afdc4c530ef4f43461f75b7898404fae79b",
+      "execution_digest": "b3aeae9943d1f5da158f48f43f383655a28e1132f287525099e69f9727277ac6",
+      "workspace_digest": "8771f963ff695b05f33b8a1f6fa4d57c9eeb5d77841e4ddbd7f00049eaeb6466",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": null
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-004",
+        "REQ-change-029",
+        "REQ-change-043",
+        "REQ-change-044",
+        "REQ-change-045",
+        "REQ-change-046",
+        "REQ-cli-008",
+        "REQ-cli-args-009",
+        "REQ-cmd-change-005",
+        "REQ-cmd-check-003",
+        "REQ-commands-005",
+        "REQ-exports-006",
+        "REQ-github-005",
+        "REQ-hooks-002",
+        "REQ-ignore-001",
+        "REQ-schema-001",
+        "REQ-validator-009"
+      ]
     }
   ]
 }

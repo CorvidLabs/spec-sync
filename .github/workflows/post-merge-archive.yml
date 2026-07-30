@@ -1,7 +1,7 @@
 name: SpecSync post-merge archive binding
 
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
 
 permissions:
@@ -21,10 +21,45 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out the immutable base workflow revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.workflow_sha }}
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch merged identities as Git objects only
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$HEAD_SHA" =~ ^[0-9a-f]{40}$ \
+              || ! "$MERGE_SHA" =~ ^[0-9a-f]{40}$ \
+              || ! "$PR_NUMBER" =~ ^[0-9]+$ \
+              || ! "$BASE_REF" =~ ^[A-Za-z0-9._/-]+$ \
+              || "$BASE_REF" == -* \
+              || "$BASE_REF" == *..* ]]; then
+            echo "Merged pull-request payload contains an invalid immutable identity." >&2
+            exit 1
+          fi
+          git fetch --no-tags --no-recurse-submodules origin \
+            "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}" \
+            "+refs/pull/${PR_NUMBER}/head:refs/specsync/merged-head"
+          if [[ "$(git rev-parse refs/specsync/merged-head)" != "$HEAD_SHA" ]]; then
+            echo "Fetched pull-request head does not match the merged event." >&2
+            exit 1
+          fi
+          git cat-file -e "${MERGE_SHA}^{commit}"
+          if ! git merge-base --is-ancestor \
+              "$MERGE_SHA" "refs/remotes/origin/${BASE_REF}"; then
+            echo "Merged event commit is not reachable from the current base branch." >&2
+            exit 1
+          fi
 
       - name: Locate the finalized archive
         id: archive
@@ -108,11 +143,16 @@ jobs:
               exit 1
             fi
           fi
+          BASE_SHA="${{ github.event.pull_request.base.sha }}" \
+          HEAD_SHA="$HEAD_SHA" \
+          GIT_ROOT="$GITHUB_WORKSPACE" \
+            .github/scripts/verify-trusted-policy-check.py
           if ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/state.json" \
               || ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/verification.json" \
               || ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/accepted-state.json" \
               || ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/finalization.json" \
               || ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/review.json" \
+              || ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/review-attempts.json" \
               || ! git cat-file -e "${HEAD_SHA}:${ARCHIVE_PATH}"; then
             echo "Merged commit is missing required workflow-v2 archive evidence." >&2
             exit 1
@@ -131,6 +171,20 @@ jobs:
           VERIFICATION_JSON="$(git show "${MERGE_SHA}:${ARCHIVE_PATH}/verification.json")"
           FINALIZATION_JSON="$(
             git show "${MERGE_SHA}:${ARCHIVE_PATH}/finalization.json"
+          )"
+          finalization_digest="$(jq -er '.finalization_digest' <<<"$FINALIZATION_JSON")"
+          if [[ ! "$finalization_digest" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Finalization digest is not canonical SHA-256 evidence." >&2
+            exit 1
+          fi
+          introduction_json="$(
+            python3 .github/scripts/verify-archive-introduction.py \
+              --git-root "$GITHUB_WORKSPACE" \
+              --head "$HEAD_SHA" \
+              --archive-path "$ARCHIVE_PATH"
+          )"
+          archive_introduction_commit="$(
+            jq -er '.archive_introduction_commit' <<<"$introduction_json"
           )"
           python3 - <<'PY'
           import json
@@ -295,8 +349,10 @@ jobs:
             --arg implementation_head "$HEAD_SHA" \
             --arg merge_commit "$MERGE_SHA" \
             --arg merge_tree "$merge_tree" \
+            --arg archive_introduction_commit "$archive_introduction_commit" \
             --arg archive_path "$ARCHIVE_PATH" \
             --arg archive_tree "$archive_tree" \
+            --arg finalization_digest "$finalization_digest" \
             --argjson changed_components "$changed_components" \
             '{
               schema_version: 1,
@@ -306,8 +362,10 @@ jobs:
               implementation_head: $implementation_head,
               merge_commit: $merge_commit,
               merge_tree: $merge_tree,
+              archive_introduction_commit: $archive_introduction_commit,
               archive_path: $archive_path,
               archive_tree: $archive_tree,
+              finalization_digest: $finalization_digest,
               changed_components: $changed_components,
               checks: [
                 "Required CI gate",
@@ -325,8 +383,10 @@ jobs:
               "" \
               "- Merge commit: \`${MERGE_SHA}\`" \
               "- Merge tree: \`${merge_tree}\`" \
+              "- Archive introduction: \`${archive_introduction_commit}\`" \
               "- Archive: \`${ARCHIVE_PATH}/\`" \
               "- Archive tree: \`${archive_tree}\`" \
+              "- Finalization digest: \`${finalization_digest}\`" \
               "- Compact event digest: \`${event_digest}\`" \
               "- Changed components: \`$(jq -r 'join(", ")' <<<"$changed_components")\`" \
               "- Finalized-head Required CI and trust: provenance-bound and green"

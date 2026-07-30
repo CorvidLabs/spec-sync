@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "workflow_version": 2,
+  "workflow_origin_version": 2,
   "id": "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara",
   "slug": "stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara",
   "title": "Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes",
@@ -10,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "fc091c88f72a6d2fb2df168f4baa4370579ff8a2",
   "created_at": 1785367711,
-  "updated_at": 1785381524,
+  "updated_at": 1785416466,
   "affected_specs": [
     "change",
     "cmd_change",
@@ -42,6 +43,7 @@
     ".github/workflows/finalize-change.yml",
     ".github/workflows/release.yml",
     ".github/workflows/post-merge-archive.yml",
+    ".github/workflows/lifecycle-policy-guard.yml",
     ".github/workflows/trust.yml",
     ".github/scripts/",
     ".specsync/sdd.json",

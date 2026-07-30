@@ -50,13 +50,15 @@ Complete selected artifacts and semantic deltas, then obtain explicit human appr
 specsync change approve CHG-0001-add-passkeys
 ```
 
-Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Changing an approved artifact invalidates its digest and blocks progress until reapproved.
+Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Only a change to the approved stable intent, contract, acceptance criteria, or affected scope requires renewed human approval. Implementation details, tests, evidence, canonical delta materialization, and lifecycle metadata preserve that approval while automated verification and the independent scoped review are refreshed.
 
 ## 3. Check, Review, and Finalize
 
 ```bash
 specsync change check CHG-0001-add-passkeys
-# open or update the PR; ordinary review and SpecSync scoped review run once
+# open or update the PR, then complete ordinary PR review
+# after an independent scoped reviewer passes the change package, diff, spec delta, and evidence:
+specsync change review CHG-0001-add-passkeys --reviewer "Ada Reviewer"
 specsync change finalize CHG-0001-add-passkeys
 # commit the metadata/archive-only result; GitHub performs the merge
 ```
@@ -65,7 +67,13 @@ specsync change finalize CHG-0001-add-passkeys
 verification without a shell. Explicit `--strict`, project policy, and deterministic
 release/security classification add full-history, full-suite, or security validators to the same
 evidence path. Source, test, configuration, or contract edits stale verification; implementation
-edits after scoped review stale the review.
+edits after scoped review stale the review. `change status` prints the exact `change review`
+command when this independent review is the next required action; `change review` records the
+completed review and does not replace the repository's ordinary PR review.
+
+The reviewer value is a stable ASCII claim recorded with an append-only pass/block trail. It is not
+the trust root: required CI authenticates the official `SpecSync scoped review` GitHub Actions check
+on the exact implementation parent before the finalization child can merge.
 
 `change finalize` requires current verification and independent review, writes domain-separated
 finalization evidence, and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/` in one

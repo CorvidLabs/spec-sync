@@ -115,6 +115,8 @@ Acceptance Criteria
 - No lifecycle-mode, second-approval, closing-approval, `finalize-merge`, or SpecSync `merge`
   grammar is added.
 - `change finalize <id>` prepares and archives the current PR change but has no GitHub merge input.
+- `change review <id> --reviewer <identity>` accepts a stable ASCII reviewer claim and defaults to
+  `pass`; `--verdict pass|block` records an explicit conclusion without adding another lifecycle
+  mode or approval.
 - Existing historical repair commands remain available without appearing in the newcomer core path.
 - Existing change grammar remains compatible.
-

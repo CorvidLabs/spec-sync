@@ -17,10 +17,14 @@ record finalization as automated terminal evidence rather than a second approval
 - Implementation notes, task progress, test/evidence plans, semantic-delta materialization,
   canonical materialization, and lifecycle metadata preserve scope approval but invalidate
   automated execution evidence and scoped review when their bound digest changes.
-- A newly added affected spec/path, acceptance criterion, dependency, supersession obligation, or
-  changed intent/classification requires renewed scope approval and status explains the expansion
-  in plain language.
+- An added, removed, or replaced affected spec/path, acceptance criterion, dependency,
+  supersession obligation, or changed intent/classification requires renewed scope approval and
+  status explains the exact change in plain language.
 - Independent scoped review and current verification remain mandatory before same-PR finalization.
+- The historical CHG-0068 definition preimage remains explicitly unavailable and no equivalence
+  proof is claimed; one compile-time allowlist freezes its exact source approval, adoption
+  commit/blob, stable-scope digest, authorization, and non-material classifications without
+  appending a second approval.
 - Historical closing approvals remain readable and verifiable without being required for new
   workflow-version-2 changes.
 
@@ -335,6 +339,7 @@ Acceptance Criteria
 
 - Creating a later valid lifecycle record does not stale an earlier accepted record solely because the sequence ledger advanced.
 - Historical reconstruction uses the earlier owner and includes only collision acknowledgements whose sequence is not later than that owner.
+- When acknowledged legacy collision members signed one canonical committed ledger for their shared sequence, reconstruction reuses those exact historical bytes instead of substituting each member's ID.
 - The current sequence owner remains bound to the exact current ledger content.
 - Malformed claims, claims without a workspace, non-maximum claims, duplicate sequences, and invalid collision acknowledgements fail closed.
 - Every covered path other than a valid later-owned sequence ledger remains acceptance-digest input.
@@ -561,16 +566,28 @@ Acceptance Criteria
   semantic-delta materialization, canonical materialization, or lifecycle metadata.
 - Non-material execution/evidence changes preserve scope approval, invalidate their separate
   execution digest, and require fresh automated validators plus the one scoped review.
-- A demonstrable scope expansion requires renewed approval, and status explains each added
-  criterion, affected spec/path, dependency, supersession obligation, or changed intent in plain
-  language.
+- A demonstrable stable-scope change requires renewed approval, and status explains each added or
+  removed criterion, affected spec/path, dependency, supersession obligation, or changed intent in
+  plain language.
 - Checking off an already-approved task records implementation progress without changing either
   scope or execution digests; changing task text preserves scope but stales execution evidence.
 - Every status result prints exactly one explicit next action.
+- Expected missing-history ancestry probes never leak raw Git fatal diagnostics into status output.
 - Explicit `--strict`, project policy, or release/security classification adds full-history,
   full-suite, security, or release validators to the same verification evidence without changing
   the state machine, workflow, approval count, commands, finalization, archive, or layout.
 - Existing two-approval records remain readable and verifiable without reinterpretation or resigning.
+- Workflow-v2 adoption records one immutable project cutoff at the stable comparison-base ancestor
+  when available; its introduction remains valid after squash/rebase, and a workflow-v1 record
+  remains eligible only when that exact ID/version with omitted or explicit version-1 origin
+  existed at the trusted cutoff, so omitting both version fields before first reachability cannot
+  route a new change through legacy commands.
+- Every bounded workflow-v2 baseline-touching commit and readable parent retains the exact
+  introduction bytes, so rewrite→restore history cannot conceal a changed cutoff.
+- Workflow-origin history boundedly follows every reachable canonical dated archive state path for
+  the exact change ID, so archive→reopen→rearchive moves preserve the immutable creation anchor.
+- The one CHG-0068 adoption fails closed and requests full trusted history when its immutable
+  allowlisted commit/blob anchor is unavailable.
 
 ### REQ-change-044
 
@@ -584,6 +601,10 @@ Acceptance Criteria
   code, canonical spec, requirements, tests, configuration, and delivery-tree relationships.
 - Finalization applies semantic deltas, writes accepted state, validates bidirectional ownership,
   and moves the same package to `.specsync/archive/changes/YYYY-MM-DD-<id>/` transactionally.
+- A process interruption between terminal archive-file writes is recovered from the transaction
+  journal before retry, including after a calendar rollover.
+- A fresh clone after squash or rebase merge authenticates the exact surviving archived subtree
+  when the original implementation commit object is no longer reachable.
 - The lightweight archive lane validates parent checks, diff classification, unchanged tree,
   archive integrity, ownership, and finalization digest and reports success to required CI.
 - Product tests and independent scoped review are not rerun for a valid archive-only child.
@@ -612,10 +633,15 @@ Acceptance Criteria
 
 - Review input contains only the change package, implementation diff, canonical semantic delta, and
   targeted evidence.
-- The result binds the implementation parent commit and those input digests.
-- Implementation changes stale the review; the metadata/archive-only finalization commit does not
-  rerun or stale it.
+- The result binds the implementation parent commit, those input digests, an explicit pass/block
+  verdict, a stable reviewer claim distinct from the scope approver, and the exact required
+  GitHub Actions check whose authenticated result is proven again by finalization.
+- Every review attempt is append-only; `review.json` is only the latest projection and cannot erase
+  a prior blocking result.
+- Every intervening commit is inspected against every parent; any implementation change, including
+  change-then-revert history, stales the review, while the metadata/archive-only finalization commit
+  does not rerun or stale it. Native and hosted validators load the same committed descendant,
+  parent, output, and timeout limits.
 - Finalization fails when a required scoped review is missing or blocking.
 - Status states when review is needed and directs the user to open or update the PR so the configured
   scoped-review check runs.
-

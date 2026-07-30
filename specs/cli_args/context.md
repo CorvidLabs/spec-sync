@@ -24,3 +24,9 @@ spec: cli_args.spec.md
 Stable deterministic grammar for the core and agent-native integrations. Help text names the canonical `.specsync/config.toml` layout and all required `new --full` companions; accepted evidence can be reopened, supported accepted classification metadata corrected, or an exact acceptance owner repaired only with explicit audit inputs.
 `Migrate` gains an optional source-family positional restricted to `5.0` by the Clap grammar; unknown families fail validation before any mutation, and bare `migrate` keeps the v3→v4 default.
 `Mcp` carries one `allow_write` boolean; dispatch passes it directly to the stdio server without changing global `--root` behavior.
+
+The newcomer review command stays plain: `change review <id> --reviewer <identity>` records a
+passing result by default, while `--verdict block` lets an independent reviewer persist a blocking
+conclusion that finalization must reject. The identity is a bounded ASCII claim; authenticated
+independence comes from the required GitHub Actions check, and every pass/block remains in
+append-only history.

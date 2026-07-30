@@ -51,7 +51,8 @@ jobs:
           parent_sha="$(git rev-parse "$HEAD_SHA^")"
           output="$(
             git diff --name-status -z -M "$parent_sha" "$HEAD_SHA" \
-              | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE" false name-status
+              | .github/scripts/classify-ci-paths.sh \
+                  "$GITHUB_WORKSPACE" false name-status "$parent_sha"
           )"
           printf '%s\n' "$output"
 
@@ -69,6 +70,17 @@ jobs:
             printf 'parent_sha=%s\n' "$parent_sha"
             printf 'parent_tree=%s\n' "$(git rev-parse "$parent_sha^{tree}")"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Require base-trusted lifecycle policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ steps.child.outputs.parent_sha }}
+          GIT_ROOT: ${{ github.workspace }}
+        run: .github/scripts/verify-trusted-policy-check.py
 
       - name: Require green checks on the implementation parent
         env:
@@ -247,7 +259,9 @@ jobs:
           import json
           import os
           import re
+          import selectors
           import subprocess
+          import time
 
           head = os.environ["HEAD_SHA"]
           parent = os.environ["PARENT_SHA"]
@@ -256,24 +270,112 @@ jobs:
           archive_dir = os.environ["ARCHIVE_DIR"]
           active = f".specsync/changes/{change_id}"
           archive = f".specsync/archive/changes/{archive_dir}"
-
-          def git(*args: str) -> str:
-              return subprocess.check_output(["git", *args], text=True).strip()
+          with open(
+              ".github/scripts/lifecycle-validation-limits.json",
+              encoding="utf-8",
+          ) as handle:
+              limits = json.load(handle)
+          max_git_output_bytes = int(limits["git_max_output_bytes"])
+          git_timeout_seconds = int(limits["git_timeout_seconds"])
+          max_review_descendants = int(limits["scoped_review_max_descendants"])
+          max_review_parents = int(limits["scoped_review_max_parents"])
+          if min(
+              max_git_output_bytes,
+              git_timeout_seconds,
+              max_review_descendants,
+              max_review_parents,
+          ) <= 0:
+              raise SystemExit("lifecycle validation limits must be positive")
 
           def git_bytes(*args: str) -> bytes:
-              return subprocess.check_output(["git", *args])
+              process = subprocess.Popen(
+                  ["git", *args],
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+              )
+              if process.stdout is None or process.stderr is None:
+                  process.kill()
+                  raise SystemExit("failed to capture bounded git query")
+              selector = selectors.DefaultSelector()
+              selector.register(process.stdout, selectors.EVENT_READ, "stdout")
+              selector.register(process.stderr, selectors.EVENT_READ, "stderr")
+              stdout = bytearray()
+              stderr = bytearray()
+              total_output = 0
+              deadline = time.monotonic() + git_timeout_seconds
+              try:
+                  while selector.get_map():
+                      remaining = deadline - time.monotonic()
+                      if remaining <= 0:
+                          process.kill()
+                          process.wait()
+                          raise SystemExit(
+                              f"bounded git query timed out: {' '.join(args)}"
+                          )
+                      events = selector.select(timeout=remaining)
+                      if not events:
+                          continue
+                      for key, _ in events:
+                          chunk = os.read(key.fileobj.fileno(), 64 * 1024)
+                          if not chunk:
+                              selector.unregister(key.fileobj)
+                              continue
+                          total_output += len(chunk)
+                          if total_output > max_git_output_bytes:
+                              process.kill()
+                              process.wait()
+                              raise SystemExit(
+                                  "bounded git query exceeded "
+                                  f"{max_git_output_bytes} bytes: {' '.join(args)}"
+                              )
+                          if key.data == "stdout":
+                              stdout.extend(chunk)
+                          elif len(stderr) < 4096:
+                              stderr.extend(chunk[:4096 - len(stderr)])
+                  returncode = process.wait(timeout=5)
+              finally:
+                  selector.close()
+                  if process.poll() is None:
+                      process.kill()
+                      process.wait()
+              if returncode != 0:
+                  detail = bytes(stderr).decode(errors="replace").strip()
+                  raise SystemExit(
+                      f"git {' '.join(args)} failed ({returncode}): {detail}"
+                  )
+              return bytes(stdout)
+
+          def git_status(*args: str) -> int:
+              try:
+                  return subprocess.run(
+                      ["git", *args],
+                      stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL,
+                      check=False,
+                      timeout=git_timeout_seconds,
+                  ).returncode
+              except subprocess.TimeoutExpired as error:
+                  raise SystemExit(
+                      f"bounded git status query timed out: {' '.join(args)}"
+                  ) from error
+
+          def git(*args: str) -> str:
+              return git_bytes(*args).decode().strip()
 
           def exists(commit: str, path: str) -> bool:
-              return subprocess.run(
-                  ["git", "cat-file", "-e", f"{commit}:{path}"],
-                  stdout=subprocess.DEVNULL,
-                  stderr=subprocess.DEVNULL,
-                  check=False,
-              ).returncode == 0
+              return git_status("cat-file", "-e", f"{commit}:{path}") == 0
 
           def files(commit: str, prefix: str) -> list[str]:
               output = git("ls-tree", "-r", "--name-only", commit, "--", prefix)
               return [line for line in output.splitlines() if line]
+
+          def valid_reviewer_claim(value: object) -> bool:
+              return (
+                  isinstance(value, str)
+                  and 1 <= len(value) <= 128
+                  and value.isascii()
+                  and re.fullmatch(r"[A-Za-z0-9 ._:@/-]+", value) is not None
+              )
 
           if not exists(parent, active):
               raise SystemExit("implementation parent does not contain the active change")
@@ -298,6 +400,12 @@ jobs:
               )
 
           expected_extras = {"accepted-state.json", "finalization.json"}
+          if "review.json" not in active_rel:
+              # The plain newcomer path records review and immediately
+              # finalizes. Repositories may still persist review.json in its
+              # own metadata-only child before finalization.
+              expected_extras.add("review.json")
+              expected_extras.add("review-attempts.json")
           actual_extras = archive_rel - active_rel
           if actual_extras != expected_extras:
               raise SystemExit(
@@ -325,6 +433,7 @@ jobs:
               "change.md",
               "finalization.json",
               "review.json",
+              "review-attempts.json",
               "state.json",
               "verification-attempts.json",
               "verification.json",
@@ -433,22 +542,16 @@ jobs:
                   raise SystemExit(
                       "parent verification has no canonical implementation commit"
                   )
-              if subprocess.run(
-                  [
-                      "git",
-                      "merge-base",
-                      "--is-ancestor",
-                      prior_verification_commit,
-                      parent,
-                  ],
-                  stdout=subprocess.DEVNULL,
-                  stderr=subprocess.DEVNULL,
-                  check=False,
-              ).returncode != 0:
+              if git_status(
+                  "merge-base",
+                  "--is-ancestor",
+                  prior_verification_commit,
+                  parent,
+              ) != 0:
                   raise SystemExit(
                       "parent verification commit is outside implementation history"
                   )
-          for field in ("contract_digest", "workspace_digest"):
+          for field in ("contract_digest", "execution_digest", "workspace_digest"):
               if re.fullmatch(
                   r"[0-9a-f]{64}",
                   str(verification.get(field) or ""),
@@ -501,40 +604,136 @@ jobs:
               raise SystemExit("finalization evidence has an invalid timestamp")
 
           review_path = f"{archive}/review.json"
+          review_attempts_path = f"{archive}/review-attempts.json"
           if not exists(head, review_path):
               raise SystemExit("archive is missing independent scoped review evidence")
+          if not exists(head, review_attempts_path):
+              raise SystemExit("archive is missing append-only scoped review history")
           review = json.loads(git("show", f"{head}:{review_path}"))
-          if review.get("schema_version") != 1 or review.get("change_id") != change_id:
+          review_attempts = json.loads(git("show", f"{head}:{review_attempts_path}"))
+          if review.get("schema_version") != 2 or review.get("change_id") != change_id:
               raise SystemExit("scoped review has the wrong schema or change")
-          if not str(review.get("reviewer") or "").strip():
-              raise SystemExit("scoped review has no independent reviewer")
+          if (
+              review_attempts.get("schema_version") != 1
+              or not review_attempts.get("reviews")
+              or review_attempts["reviews"][-1] != review
+          ):
+              raise SystemExit(
+                  "scoped-review projection does not match append-only attempt history"
+              )
+          for attempt in review_attempts["reviews"]:
+              if (
+                  attempt.get("schema_version") != 2
+                  or attempt.get("change_id") != change_id
+                  or not valid_reviewer_claim(attempt.get("reviewer"))
+                  or attempt.get("provenance") != {
+                      "schema_version": 1,
+                      "provider": "github_actions_check",
+                      "required_check": "SpecSync scoped review",
+                  }
+              ):
+                  raise SystemExit("scoped-review attempt history contains invalid evidence")
+          parent_review_attempts_path = f"{active}/review-attempts.json"
+          if exists(parent, parent_review_attempts_path):
+              parent_review_attempts = json.loads(
+                  git("show", f"{parent}:{parent_review_attempts_path}")
+              )
+              if (
+                  parent_review_attempts.get("schema_version") != 1
+                  or parent_review_attempts.get("reviews")
+                  != review_attempts["reviews"]
+              ):
+                  raise SystemExit(
+                      "finalization removed or rewrote committed scoped-review attempts"
+                  )
+          if review.get("provenance") != {
+              "schema_version": 1,
+              "provider": "github_actions_check",
+              "required_check": "SpecSync scoped review",
+          }:
+              raise SystemExit("scoped review has invalid required-check provenance")
+          if not valid_reviewer_claim(review.get("reviewer")):
+              raise SystemExit("scoped review has an invalid stable reviewer claim")
+          if review.get("verdict") != "pass":
+              raise SystemExit("scoped review does not record a passing verdict")
+          approvals = json.loads(git("show", f"{head}:{archive}/approvals.json"))
+          definition_approvals = [
+              approval for approval in approvals.get("approvals", [])
+              if approval.get("gate") == "definition"
+          ]
+          if not definition_approvals:
+              raise SystemExit("scope approval evidence is missing")
+          scope_approver = str(definition_approvals[-1].get("actor") or "").strip()
+          if review["reviewer"].strip().casefold() == scope_approver.casefold():
+              raise SystemExit("scoped reviewer is not independent from the scope approver")
           reviewed_commit = review.get("implementation_commit")
           if not isinstance(reviewed_commit, str) or not reviewed_commit:
               raise SystemExit("scoped review does not bind an implementation commit")
-          if subprocess.run(
-              ["git", "merge-base", "--is-ancestor", reviewed_commit, parent],
-              stdout=subprocess.DEVNULL,
-              stderr=subprocess.DEVNULL,
-              check=False,
-          ).returncode != 0:
+          if git_status(
+              "merge-base",
+              "--is-ancestor",
+              reviewed_commit,
+              parent,
+          ) != 0:
               raise SystemExit("scoped review commit is outside the implementation history")
-          allowed_review_descendants = {f"{active}/review.json"}
-          review_descendant_paths = set(
-              git("diff", "--name-only", f"{reviewed_commit}..{parent}").splitlines()
-          )
-          unexpected_review_descendants = sorted(
-              path for path in review_descendant_paths
-              if path and path not in allowed_review_descendants
-          )
-          if unexpected_review_descendants:
+          allowed_review_descendants = {
+              f"{active}/review.json",
+              f"{active}/review-attempts.json",
+              f"{active}/state.json",
+              f"{active}/verification.json",
+              f"{active}/verification-attempts.json",
+          }
+          descendants = git(
+              "rev-list",
+              "--reverse",
+              f"--max-count={max_review_descendants + 1}",
+              f"{reviewed_commit}..{parent}",
+          ).splitlines()
+          if len(descendants) > max_review_descendants:
               raise SystemExit(
-                  "implementation changed after scoped review: "
-                  + ", ".join(unexpected_review_descendants)
+                  "scoped-review descendant history exceeds the bounded validation limit"
               )
+          for descendant in descendants:
+              fields = git(
+                  "rev-list",
+                  "--parents",
+                  "-n",
+                  "1",
+                  descendant,
+              ).split()
+              if not fields or fields[0] != descendant or len(fields) < 2:
+                  raise SystemExit(
+                      f"scoped-review descendant {descendant} has ambiguous parents"
+                  )
+              if len(fields) - 1 > max_review_parents:
+                  raise SystemExit(
+                      f"scoped-review descendant {descendant} exceeds the parent limit"
+                  )
+              for ancestor in fields[1:]:
+                  paths = git_bytes(
+                      "diff-tree",
+                      "--no-commit-id",
+                      "--name-only",
+                      "--no-renames",
+                      "-z",
+                      "-r",
+                      ancestor,
+                      descendant,
+                  ).decode().split("\0")
+                  unexpected = sorted(
+                      path for path in paths
+                      if path and path not in allowed_review_descendants
+                  )
+                  if unexpected:
+                      raise SystemExit(
+                          "implementation changed after scoped review: "
+                          + ", ".join(unexpected)
+                      )
 
           for field in ("contract_digest", "workspace_digest"):
               if finalization.get(field) != verification.get(field):
                   raise SystemExit(f"finalization {field} does not match verification")
+          for field in ("contract_digest", "execution_digest", "workspace_digest"):
               if review.get(field) != verification.get(field):
                   raise SystemExit(f"scoped review {field} does not match verification")
 
@@ -542,8 +741,11 @@ jobs:
               "schema_version": review["schema_version"],
               "change_id": review["change_id"],
               "reviewer": review["reviewer"],
+              "provenance": review["provenance"],
+              "verdict": review["verdict"],
               "implementation_commit": review["implementation_commit"],
               "contract_digest": review["contract_digest"],
+              "execution_digest": review["execution_digest"],
               "workspace_digest": review["workspace_digest"],
               "timestamp": review["timestamp"],
           }
@@ -605,6 +807,7 @@ jobs:
           frame(closing, "domain", "specsync.closing-digest.v2")
           frame(closing, "record-id", change_id)
           frame(closing, "contract", verification["contract_digest"])
+          frame(closing, "execution", verification["execution_digest"])
           frame(closing, "workspace", verification["workspace_digest"])
           frame(closing, "commit", verification.get("commit") or "")
           acceptance_digest = verification.get("acceptance_input_digest")

@@ -54,8 +54,40 @@ spec: github.spec.md
   Cargo metadata is read without Python 3.11-only `tomllib`, lifecycle verification declares the
   Ruby preflight explicitly, and hosted CI provisions a pinned Ruby runtime, so Python 3.10+
   verification depends on neither ambient PyYAML nor an undeclared hosted runtime.
-- **Fork-safe CI decoration**: required CI runs for fork pull requests, while the optional corvid-pet
-  approval review is limited to same-repository pull requests whose token can write PR reviews.
+- **Fork-safe scoped review**: qualifying fork pull requests run the same read-only analysis with no
+  repository secrets; only PR comments/review writes are disabled when the token cannot decorate
+  the source PR.
+- **Lifecycle routing**: workflow-v2 same-PR archives use the lightweight execution-bound lane;
+  workflow-v1 archives stay on the historical full matrix, and parent-state authentication prevents
+  a v2 archive from downgrading itself. Review reuse requires schema 2, a passing verdict, an
+  independent reviewer, contract/execution/workspace digest parity, and bounded every-parent
+  freshness from the reviewed implementation commit. Hosted finalization caps Git command time,
+  output bytes, descendant count, and parent count from the same committed limits document used by
+  native validation; exceeding any bound fails closed. Review evidence carries the required check
+  name and append-only attempts, while the finalizer authenticates the official Actions app, exact
+  PR/run/head, and check success. Post-merge validation compares exact archive subtree identity, so
+  squash/rebase integration remains verifiable after discarded implementation objects disappear.
+- **Base-trusted policy boundary**: optimized lifecycle reuse is guarded by a SHA-pinned
+  `pull_request_target` workflow with read-only inspection and a separate check publisher. It fetches
+  the exact candidate as Git objects without checking out or executing candidate content, blocks
+  changes to every workflow/local-Action definition—including root `action.yml`/`action.yaml`—plus
+  lifecycle classifiers/limits and the workflow-v2 baseline. The path scan disables rename
+  detection and matches local-Action descendants, so add, modify, delete, and move operations all
+  expose protected paths. It preserves Git's NUL filename boundaries and full-matches raw bytes, so
+  embedded newlines cannot split one protected workflow path into unprotected text lines. It
+  publishes an external ID bound to the
+  trusted workflow revision and PR head. Review reuse, finalization, and post-merge binding verify
+  the exact event, repository, PR, head, workflow path, and revision. The initial guard introduction
+  is frozen to CorvidLabs/spec-sync PR #480, its exact base and branch identity, and a required set
+  of newly added policy files; it still requires full CI and independent review. Later policy edits
+  require a newly pinned GitHub required-workflow revision and cannot use the optimized path.
+- **Fork-safe archive publication**: merged archive publication runs from the immutable base
+  workflow on `pull_request_target: closed`; PR head and merge identities are fetched only as Git
+  objects, never checked out or executed, and the checkout Action itself is pinned to a full commit
+  SHA. Archive-introduction and release reconstruction share a
+  protected verifier that caps commit history, parents, time, and streamed output and rejects
+  post-introduction archive rewrites. It inspects every bounded archive-path-touching commit and
+  readable parent, so rewrite→restore history is not reduced to a clean final tree.
 
 ## Key Files
 

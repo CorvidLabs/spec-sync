@@ -5,7 +5,14 @@
       "actor": "0xLeif",
       "timestamp": 1785369606,
       "digest": "20527b1e1f7f7fd2b310aab328ca865759de081624c519cb56184e3e4f816560",
-      "note": null,
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785416466,
+      "digest": "11c15df046c648e5ef58337edc3108f12de911170452587edd4187243c831366",
+      "note": "Renewed scope approval for .github/workflows/lifecycle-policy-guard.yml; user-approved digest 11c15df046c648e5ef58337edc3108f12de911170452587edd4187243c831366.",
       "approved_scope": {
         "schema_version": 1,
         "change_id": "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara",
@@ -32,6 +39,7 @@
           ".github/scripts/",
           ".github/workflows/ci.yml",
           ".github/workflows/finalize-change.yml",
+          ".github/workflows/lifecycle-policy-guard.yml",
           ".github/workflows/post-merge-archive.yml",
           ".github/workflows/release.yml",
           ".github/workflows/trust.yml",
@@ -77,63 +85,6 @@
           "architecture_risk": "yes",
           "public_contract": "yes"
         }
-      },
-      "scope_migration": {
-        "schema_version": 1,
-        "source_definition_digest": "20527b1e1f7f7fd2b310aab328ca865759de081624c519cb56184e3e4f816560",
-        "scope_digest": "35f68b68d4cdca134f98f514a56c1afdc4c530ef4f43461f75b7898404fae79b",
-        "changes": [
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/state.json",
-            "category": "lifecycle_metadata",
-            "summary": "Recorded workflow-version and implementation-state metadata."
-          },
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/change.md",
-            "category": "canonical_materialization",
-            "summary": "Regenerated the human-readable change projection from the already-approved intent and scope."
-          },
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/change.md",
-            "category": "canonical_materialization",
-            "summary": "Materialized the approved one-workflow, finalization, bounded-validation, and scoped-review contract."
-          },
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/cli.md",
-            "category": "canonical_materialization",
-            "summary": "Materialized the approved strict-validator and no-external-merge CLI behavior."
-          },
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/cmd_change.md",
-            "category": "canonical_materialization",
-            "summary": "Materialized the approved guided status and finalize command behavior."
-          },
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/cmd_check.md",
-            "category": "canonical_materialization",
-            "summary": "Materialized the approved schema and warning-reporting reliability behavior."
-          },
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/github.md",
-            "category": "canonical_materialization",
-            "summary": "Materialized the approved same-PR archive and lightweight required-CI behavior."
-          },
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/validator.md",
-            "category": "canonical_materialization",
-            "summary": "Materialized the approved non-vacuous schema validation behavior."
-          },
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/testing.md",
-            "category": "test_evidence",
-            "summary": "Expanded targeted regression and final-gate evidence for the approved contract."
-          },
-          {
-            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/tasks.md",
-            "category": "implementation",
-            "summary": "Recorded implementation progress without changing task scope."
-          }
-        ]
       }
     }
   ],

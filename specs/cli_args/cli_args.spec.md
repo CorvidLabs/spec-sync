@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 15
+version: 16
 status: stable
 files:
   - src/cli.rs
@@ -32,7 +32,7 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
 | `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
-| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, Supersede, List, Show, Status, Approve, Check, Review, Finalize, plus compatible historical repair/transition commands |
+| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, Supersede, List, Show, Status, Approve, Check, Review with explicit pass/block verdict, Finalize, plus compatible historical repair/transition commands |
 
 ## Invariants
 
@@ -42,6 +42,7 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 4. Existing deterministic generation and verified SDD command grammar remains available.
 5. `change finalize` prepares the current PR and has no merge/provider arguments.
 6. Global `--strict` adds validators to the same change workflow rather than selecting another state machine.
+7. `change review` accepts a stable ASCII reviewer claim, defaults to a passing verdict, and accepts explicit `--verdict pass|block`.
 
 ## Behavioral Examples
 
@@ -93,6 +94,7 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | `change reopen` without `--actor` or `--reason` | Clap names the missing required argument and exits non-zero |
 | `change correct-owner` without actor, reason, or any batch selection | Clap names the missing required argument and exits non-zero |
 | `change correct-owner` with conflicting `--all-missing`, `--manifest`, and `--path` modes | Clap rejects the conflicting selection before domain mutation |
+| `change review` with an unknown verdict | Clap lists `pass` and `block` and exits before evidence mutation |
 
 ## Dependencies
 
@@ -132,3 +134,5 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-07-21 | CHG-0062: Add explicit `mcp --allow-write` authorization while preserving a read-only default |
 | 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |
 | 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
+| 2026-07-30 | CHG-0068: Add a discoverable optional `change review --verdict pass|block` conclusion |
+| 2026-07-30 | CHG-0068: Clarify reviewer text as a stable claim while hosted check provenance authenticates the append-only review trail |

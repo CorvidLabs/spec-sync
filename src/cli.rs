@@ -403,9 +403,12 @@ pub enum ChangeAction {
     Review {
         /// Change ID
         id: String,
-        /// Independent human or agent reviewer identity
+        /// Stable ASCII reviewer claim (the required GitHub check authenticates the review)
         #[arg(long)]
         reviewer: String,
+        /// Scoped review verdict
+        #[arg(long, value_parser = ["pass", "block"], default_value = "pass")]
+        verdict: String,
     },
     /// Reopen stale accepted evidence for a fresh verification and closing approval
     Reopen {
@@ -785,8 +788,32 @@ mod tests {
         assert!(matches!(
             review.command,
             Some(Command::Change {
-                action: ChangeAction::Review { id, reviewer }
-            }) if id == "CHG-0001-passkeys" && reviewer == "Independent agent"
+                action: ChangeAction::Review {
+                    id,
+                    reviewer,
+                    verdict
+                }
+            }) if id == "CHG-0001-passkeys"
+                && reviewer == "Independent agent"
+                && verdict == "pass"
+        ));
+
+        let blocked = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "review",
+            "CHG-0001-passkeys",
+            "--reviewer",
+            "Independent agent",
+            "--verdict",
+            "block",
+        ])
+        .unwrap();
+        assert!(matches!(
+            blocked.command,
+            Some(Command::Change {
+                action: ChangeAction::Review { verdict, .. }
+            }) if verdict == "block"
         ));
 
         let finalize =

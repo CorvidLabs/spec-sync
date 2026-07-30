@@ -2,7 +2,8 @@ use super::helpers::specsync;
 use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
-use std::process::Command;
+use std::io::Write;
+use std::process::{Command, Stdio};
 use tempfile::TempDir;
 
 #[test]
@@ -441,8 +442,334 @@ fn init_enables_sdd_for_new_projects() {
     assert!(temp.path().join(".specsync/archive/changes").is_dir());
 }
 
+// Regression for the doubled review/CI cost demonstrated by CorvidLabs/rune PR #23.
 #[test]
-fn no_spec_change_completes_full_cli_lifecycle() {
+fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate_product_ci() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join(".github/scripts")).unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::copy(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".github/scripts/lifecycle-validation-limits.json"),
+        root.join(".github/scripts/lifecycle-validation-limits.json"),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+    let classifier = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(".github/scripts/classify-ci-paths.sh");
+    let mut archived_ids = Vec::new();
+
+    for index in 1..=8 {
+        let branch = format!("rune-originating-pr-{index}");
+        git(&["switch", "-c", &branch]);
+        let affected_path = format!("docs/rune-change-{index}.md");
+        let description = format!("Finalize Rune change {index}");
+        let created = specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "--json",
+                "change",
+                "new",
+                &description,
+                "--kind",
+                "documentation",
+                "--path",
+                &affected_path,
+                "--no-spec-change",
+                "--rationale",
+                "Documentation-only behavior does not alter a technical contract",
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let created: Value = serde_json::from_slice(&created).unwrap();
+        let id = created["change"]["id"].as_str().unwrap().to_string();
+        archived_ids.push(id.clone());
+
+        for (question, answer) in [
+            (
+                "acceptance_criteria",
+                "The originating PR contains its own compact archive finalization",
+            ),
+            ("public_contract", "no"),
+            ("architecture_risk", "no"),
+        ] {
+            specsync()
+                .args([
+                    "--root",
+                    root.to_str().unwrap(),
+                    "change",
+                    "answer",
+                    &id,
+                    question,
+                    answer,
+                ])
+                .assert()
+                .success();
+        }
+
+        let active_dir = root.join(".specsync/changes").join(&id);
+        let state: Value =
+            serde_json::from_str(&fs::read_to_string(active_dir.join("state.json")).unwrap())
+                .unwrap();
+        assert_eq!(state["workflow_version"], 2);
+        for artifact in state["selected_artifacts"].as_array().unwrap() {
+            let artifact = artifact.as_str().unwrap();
+            let content = if artifact == "tasks" {
+                "# Tasks\n\n- [x] Complete the originating PR.\n".to_string()
+            } else {
+                format!(
+                    "# {}\n\nComplete evidence for the originating PR.\n",
+                    artifact.replace('-', " ")
+                )
+            };
+            fs::write(active_dir.join(format!("{artifact}.md")), content).unwrap();
+        }
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "approve",
+                &id,
+                "--actor",
+                "Scope owner",
+            ])
+            .assert()
+            .success();
+
+        fs::write(
+            root.join(&affected_path),
+            format!("# Rune change {index}\n\nDelivered in its originating PR.\n"),
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", &format!("implement Rune change {index}")]);
+        let implementation_commit = git(&["rev-parse", "HEAD"]);
+        let implementation_tree = git(&["rev-parse", "HEAD^{tree}"]);
+        specsync()
+            .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+            .assert()
+            .success();
+
+        let status = specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "--json",
+                "change",
+                "status",
+                &id,
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let status: Value = serde_json::from_slice(&status).unwrap();
+        assert_eq!(
+            status["summary"]["next_action"],
+            format!(
+                "run `specsync change review {id} --reviewer <independent-reviewer>` after the PR's scoped review passes"
+            )
+        );
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "review",
+                &id,
+                "--reviewer",
+                "Independent reviewer",
+            ])
+            .assert()
+            .success();
+        let finalized = specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "--json",
+                "change",
+                "finalize",
+                &id,
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let finalized: Value = serde_json::from_slice(&finalized).unwrap();
+        assert_eq!(finalized["ready_for_github_merge"], true);
+        assert_eq!(finalized["next_action"], "merge the PR on GitHub");
+        assert_eq!(finalized["implementation_commit"], implementation_commit);
+        assert_eq!(finalized["implementation_tree"], implementation_tree);
+
+        let archive_dir = std::path::PathBuf::from(finalized["archived"].as_str().unwrap());
+        assert!(!active_dir.exists());
+        assert!(archive_dir.is_dir());
+        let archived_state: Value =
+            serde_json::from_str(&fs::read_to_string(archive_dir.join("state.json")).unwrap())
+                .unwrap();
+        let accepted_state: Value = serde_json::from_str(
+            &fs::read_to_string(archive_dir.join("accepted-state.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(archived_state["workflow_version"], 2);
+        assert_eq!(archived_state["state"], "archived");
+        assert_eq!(accepted_state["state"], "accepted");
+
+        let verification: Value = serde_json::from_str(
+            &fs::read_to_string(archive_dir.join("verification.json")).unwrap(),
+        )
+        .unwrap();
+        let review: Value =
+            serde_json::from_str(&fs::read_to_string(archive_dir.join("review.json")).unwrap())
+                .unwrap();
+        let finalization: Value = serde_json::from_str(
+            &fs::read_to_string(archive_dir.join("finalization.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(review["schema_version"], 2);
+        assert_eq!(review["verdict"], "pass");
+        assert_eq!(review["execution_digest"], verification["execution_digest"]);
+        assert_eq!(
+            finalization["contract_digest"],
+            verification["contract_digest"]
+        );
+        assert_eq!(
+            finalization["workspace_digest"],
+            verification["workspace_digest"]
+        );
+        assert_eq!(finalization["implementation_commit"], implementation_commit);
+        assert_eq!(finalization["implementation_tree"], implementation_tree);
+        for field in ["closing_digest", "review_digest", "finalization_digest"] {
+            assert_eq!(finalization[field].as_str().unwrap().len(), 64);
+        }
+        let approvals: Value =
+            serde_json::from_str(&fs::read_to_string(archive_dir.join("approvals.json")).unwrap())
+                .unwrap();
+        let approvals = approvals["approvals"].as_array().unwrap();
+        assert_eq!(approvals.len(), 1);
+        assert_eq!(approvals[0]["gate"], "definition");
+
+        git(&["add", ".specsync"]);
+        let archive_diff = Command::new("git")
+            .args([
+                "diff",
+                "--cached",
+                "--name-status",
+                "-z",
+                "--find-renames",
+                "HEAD",
+                "--",
+                ".specsync",
+            ])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(archive_diff.status.success());
+        let mut classifier_child = Command::new(&classifier)
+            .arg(root)
+            .arg("false")
+            .arg("name-status")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        classifier_child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(&archive_diff.stdout)
+            .unwrap();
+        let classification = classifier_child.wait_with_output().unwrap();
+        assert!(
+            classification.status.success(),
+            "classifier failed: {}",
+            String::from_utf8_lossy(&classification.stderr)
+        );
+        let classification = String::from_utf8(classification.stdout).unwrap();
+        assert!(
+            classification.contains("archive_only=true\n"),
+            "{classification}"
+        );
+        assert!(classification.contains("full=false\n"), "{classification}");
+        assert!(classification.contains("site=false\n"), "{classification}");
+        assert!(
+            classification.contains("vscode=false\n"),
+            "{classification}"
+        );
+
+        git(&["add", "."]);
+        git(&["commit", "-m", &format!("finalize Rune change {index}")]);
+        assert_eq!(git(&["rev-parse", "HEAD^"]), implementation_commit);
+        git(&["switch", "main"]);
+        git(&["merge", "--ff-only", &branch]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&["branch", "-d", &branch]);
+    }
+
+    let archived = root
+        .join(".specsync/archive/changes")
+        .read_dir()
+        .unwrap()
+        .filter_map(Result::ok)
+        .count();
+    assert_eq!(archived, archived_ids.len());
+    let active = root
+        .join(".specsync/changes")
+        .read_dir()
+        .unwrap()
+        .filter_map(Result::ok)
+        .count();
+    assert_eq!(active, 0);
+    assert_eq!(git(&["branch", "--format=%(refname:short)"]), "main");
+}
+
+#[test]
+fn workflow_v2_cannot_downgrade_by_omitting_workflow_version() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let git = |args: &[&str]| {
@@ -494,73 +821,94 @@ fn no_spec_change_completes_full_cli_lifecycle() {
         format!("{}\n", serde_json::to_string_pretty(&legacy_state).unwrap()),
     )
     .unwrap();
-    fs::write(
-        root.join(".specsync/sdd.json"),
-        r#"{
-  "version": 1,
-  "enabled": true,
-  "require_change_for_meaningful_files": false,
-  "meaningful_paths": [],
-  "ignored_paths": [],
-  "verification_commands": ["true"],
-  "custom_artifacts": {},
-  "principles_file": null
-}
-"#,
-    )
-    .unwrap();
-    for (question, answer) in [
-        (
-            "acceptance_criteria",
-            "Contributors can follow the updated workflow",
-        ),
-        ("public_contract", "no"),
-        ("architecture_risk", "no"),
-    ] {
-        specsync()
-            .args([
-                "--root",
-                root.to_str().unwrap(),
-                "change",
-                "answer",
-                id,
-                question,
-                answer,
-            ])
-            .assert()
-            .success();
-    }
-    let dir = root.join(".specsync/changes").join(id);
-    fs::write(
-        dir.join("context.md"),
-        "# Context\n\nDocumentation update.\n",
-    )
-    .unwrap();
-    fs::write(
-        dir.join("docs.md"),
-        "# Docs\n\nReviewed contributor copy.\n",
-    )
-    .unwrap();
-    for command in ["approve", "start", "verify", "accept"] {
+    for command in ["status", "approve", "start", "finalize"] {
         specsync()
             .args(["--root", root.to_str().unwrap(), "change", command, id])
             .assert()
-            .success();
+            .failure()
+            .stderr(predicate::str::contains(
+                "workflow version 1 conflicts with immutable origin 2",
+            ));
     }
-    git(&["add", "."]);
-    git(&["commit", "-m", "record accepted lifecycle evidence"]);
-    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
     specsync()
-        .args(["--root", root.to_str().unwrap(), "change", "archive", id])
+        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "workflow version 1 conflicts with immutable origin 2",
+        ));
+}
+
+#[test]
+fn first_reachable_workflow_v1_state_requires_the_trusted_pre_v2_cutoff() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["commit", "--allow-empty", "-m", "trusted pre-v2 cutoff"]);
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Update contributor documentation",
+            "--kind",
+            "documentation",
+            "--path",
+            "README.md",
+            "--no-spec-change",
+            "--rationale",
+            "Documentation-only wording does not alter a technical contract",
+        ])
         .assert()
         .success();
-    assert!(!dir.exists());
-    assert!(
-        root.join(".specsync/archive/changes")
-            .read_dir()
-            .unwrap()
-            .any(|entry| entry.unwrap().file_name().to_string_lossy().ends_with(id))
-    );
+    let id = "CHG-0001-update-contributor-documentation";
+    let state_path = root.join(".specsync/changes").join(id).join("state.json");
+    let mut legacy_state: Value =
+        serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    let object = legacy_state.as_object_mut().unwrap();
+    object.remove("workflow_version");
+    object.remove("workflow_origin_version");
+    fs::write(
+        &state_path,
+        format!("{}\n", serde_json::to_string_pretty(&legacy_state).unwrap()),
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&[
+        "commit",
+        "-m",
+        "attempt first-reachable workflow-v1 downgrade",
+    ]);
+
+    for command in ["status", "accept", "archive"] {
+        specsync()
+            .args(["--root", root.to_str().unwrap(), "change", command, id])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains(
+                "was not present at the trusted pre-v2 cutoff",
+            ));
+    }
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "was not present at the trusted pre-v2 cutoff",
+        ));
 }
 
 #[test]

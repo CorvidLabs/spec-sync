@@ -1,15 +1,95 @@
 {
-  "timestamp": 1785416786,
-  "commit": "7f2681cf6a6981c7a0558b8e83ea2aa7de5e2edd",
+  "timestamp": 1785418224,
+  "commit": "8102eccaceed53a3ffac5e4f59f1ed442266601d",
   "contract_digest": "11c15df046c648e5ef58337edc3108f12de911170452587edd4187243c831366",
-  "execution_digest": "52378d11a41325f81c4d1b412a7d968252d12624adc0e8fe737ca401395e013e",
-  "workspace_digest": "9565117c2f6489e2b3b67a68a9bc7e32fe382c889b6184442d32a61698b1e322",
-  "passed": false,
+  "execution_digest": "9e7147b8cb4539ce8c4393c89978b675df45d01f7a9b15379f9fb95fe09563ef",
+  "workspace_digest": "74a908122128bd601910fa47f45cbe6e98bd95c4039ad6977f32981c7192873a",
+  "passed": true,
   "commands": [
     {
       "command": "cargo test change::",
-      "success": false,
-      "exit_code": 101
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test commands::change::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test cli::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "bash .github/scripts/test-classify-ci-paths.sh",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test schema::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test ignore::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test commands::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test exports::typescript::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test exports::erlang::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test exports::ast::erlang::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test hooks::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test agents::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test commands::check::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test validator::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
     }
   ],
   "requirement_ids": [

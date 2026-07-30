@@ -1,5 +1,9 @@
 use colored::Colorize;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 // ─── Shared instruction body ─────────────────────────────────────────────────
@@ -12,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 const SKILL_BODY: &str = r#"## Companion files
 
-## Verified SDD change lifecycle (5.0)
+## Verified change lifecycle (6.0)
 
 For every meaningful source, test, public documentation, schema, or configuration change:
 
@@ -20,15 +24,20 @@ For every meaningful source, test, public documentation, schema, or configuratio
 2. Use `specsync change answer <id> <question-id> "<answer>" --json` until no questions remain.
 3. Complete the adaptively selected artifacts and semantic deltas. Requirements use stable
    `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
-4. Ask the user for the definition approval, then run `specsync change approve <id>`.
-5. Run `specsync change start <id>` before editing implementation code.
-6. Keep tasks and artifacts current, then run `specsync change verify <id>`.
-7. Present verification evidence and ask for closing approval. Only after explicit approval,
-   run `specsync change accept <id>`; archive separately with `specsync change archive <id>`.
+4. Ask the user for the single scope approval, then run `specsync change approve <id>`.
+5. Implement code, canonical specs, and tests on the same branch. Run `specsync change check [<id>]`
+   for targeted affected-component verification; strict policy adds validators without changing
+   the workflow.
+6. Complete ordinary pull-request review. For agent-authored work, have an independent reviewer
+   inspect the change package, implementation diff, canonical spec delta, and targeted evidence
+   once, then record it with `specsync change review <id> --reviewer "<identity>"`.
+7. Run `specsync change finalize <id>` to create the same-PR metadata/archive-only commit, then
+   merge through GitHub. SpecSync does not merge the pull request.
 
-Never invent or self-grant either human approval. If an approved definition changes, its digest
-becomes stale and must be approved again. `specsync check` validates canonical specs plus approved
-active deltas, requirement-to-test evidence, change coverage, and CI gates.
+Never invent or self-grant the scope approval or independent review. If an approved definition
+changes, its digest becomes stale and must be approved again. `specsync change status` always
+prints one explicit next action. Historical repair commands remain available for older evidence,
+but new changes use this single workflow.
 
 Each canonical spec may have policy-selected companion files. Read and update the ones present; do not create empty companions only for ceremony:
 
@@ -166,6 +175,41 @@ const CREATE_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change new "$ARGUMENTS"
 5. Do not approve, implement, verify, accept, or archive until the corresponding human gate or work stage is reached."#;
 
 const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<module>/ synchronized with source code using spec-sync. Use this whenever creating, editing, or reviewing code in a module that has (or should have) a spec, or whenever the user mentions specs, spec-sync, companion files (tasks.md/requirements.md/context.md/testing.md/design.md), or asks to add/update a module's documentation.";
+const AGENT_ARTIFACT_MANIFEST_VERSION: u32 = 1;
+const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 2;
+const AGENT_ARTIFACT_MANIFEST_PATH: &str = ".specsync/agent-artifacts.json";
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AgentArtifactRecord {
+    tool: String,
+    template_version: u32,
+    digest: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AgentArtifactManifest {
+    version: u32,
+    artifacts: BTreeMap<String, AgentArtifactRecord>,
+}
+
+impl Default for AgentArtifactManifest {
+    fn default() -> Self {
+        Self {
+            version: AGENT_ARTIFACT_MANIFEST_VERSION,
+            artifacts: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct GeneratedAgentArtifact {
+    manifest_key: String,
+    tool: AgentTool,
+    path: PathBuf,
+    content: Vec<u8>,
+}
 
 /// AI coding tools that receive native skill/command file installation, as
 /// opposed to the prose-instruction-file hooks in `hooks.rs`.
@@ -291,97 +335,323 @@ pub fn is_installed(root: &Path, tool: AgentTool) -> bool {
     skill_ok && command_ok
 }
 
-/// Install skill + command files for one tool. Returns Ok(true) if anything
-/// was written, Ok(false) if everything was already present and up to date.
-///
-/// Re-running on an already-installed project upgrades stale content: if a
-/// newer spec-sync ships revised skill/command text, the existing file is
-/// overwritten to match rather than being silently left outdated because it
-/// already exists. Safe because these files are fully spec-sync-owned (see
-/// `uninstall_agent`'s doc comment) — there's no user content to preserve.
-pub fn install_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
-    let mut changed = false;
+fn agent_artifact_manifest_path(root: &Path) -> PathBuf {
+    root.join(AGENT_ARTIFACT_MANIFEST_PATH)
+}
+
+fn load_agent_artifact_manifest(root: &Path) -> Result<AgentArtifactManifest, String> {
+    let path = agent_artifact_manifest_path(root);
+    let content = match fs::read(&path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            return Ok(AgentArtifactManifest::default());
+        }
+        Err(error) => {
+            return Err(format!("Failed to read {}: {error}", path.display()));
+        }
+    };
+    let manifest: AgentArtifactManifest = serde_json::from_slice(&content)
+        .map_err(|error| format!("Failed to parse {}: {error}", path.display()))?;
+    if manifest.version != AGENT_ARTIFACT_MANIFEST_VERSION {
+        return Err(format!(
+            "Unsupported agent artifact manifest version {} in {}; expected {}",
+            manifest.version,
+            path.display(),
+            AGENT_ARTIFACT_MANIFEST_VERSION
+        ));
+    }
+    for (artifact, record) in &manifest.artifacts {
+        if !AgentTool::all()
+            .iter()
+            .any(|tool| tool.name() == record.tool)
+        {
+            return Err(format!(
+                "Unknown agent tool `{}` for {artifact} in {}",
+                record.tool,
+                path.display()
+            ));
+        }
+        if record.template_version == 0 {
+            return Err(format!(
+                "Invalid template version for {artifact} in {}",
+                path.display()
+            ));
+        }
+        if record.digest.len() != 64 || !record.digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(format!(
+                "Invalid SHA-256 digest for {artifact} in {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(manifest)
+}
+
+fn write_agent_artifact_manifest(
+    root: &Path,
+    manifest: &AgentArtifactManifest,
+) -> Result<(), String> {
+    let path = agent_artifact_manifest_path(root);
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("Invalid agent artifact manifest path: {}", path.display()))?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("Failed to create {}: {error}", parent.display()))?;
+    let mut content = serde_json::to_vec_pretty(manifest)
+        .map_err(|error| format!("Failed to serialize {}: {error}", path.display()))?;
+    content.push(b'\n');
+    fs::write(&path, content)
+        .map_err(|error| format!("Failed to write {}: {error}", path.display()))
+}
+
+fn artifact_manifest_key(root: &Path, path: &Path) -> Result<String, String> {
+    let relative = path.strip_prefix(root).map_err(|error| {
+        format!(
+            "Generated agent artifact {} is outside project root {}: {error}",
+            path.display(),
+            root.display()
+        )
+    })?;
+    relative
+        .iter()
+        .map(|component| {
+            component.to_str().ok_or_else(|| {
+                format!(
+                    "Generated agent artifact path is not valid UTF-8: {}",
+                    path.display()
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|components| components.join("/"))
+}
+
+fn generated_agent_artifacts(
+    root: &Path,
+    tool: AgentTool,
+) -> Result<Vec<GeneratedAgentArtifact>, String> {
+    let mut artifacts = Vec::new();
 
     if let Some(dir) = tool.skill_dir(root) {
-        let skill_path = dir.join("SKILL.md");
-        let skill_content = skill_md_content(tool);
-        let needs_write = fs::read_to_string(&skill_path)
-            .map(|existing| existing != skill_content)
-            .unwrap_or(true);
-        if needs_write {
-            fs::create_dir_all(&dir)
-                .map_err(|e| format!("Failed to create {}: {e}", dir.display()))?;
-            fs::write(&skill_path, skill_content)
-                .map_err(|e| format!("Failed to write {}: {e}", skill_path.display()))?;
-            changed = true;
-        }
+        let path = dir.join("SKILL.md");
+        artifacts.push(GeneratedAgentArtifact {
+            manifest_key: artifact_manifest_key(root, &path)?,
+            tool,
+            path,
+            content: skill_md_content(tool).into_bytes(),
+        });
     }
 
     if let Some(path) = tool.command_path(root) {
-        let command_content = create_spec_command_content(tool);
-        let needs_write = fs::read_to_string(&path)
-            .map(|existing| existing != command_content)
-            .unwrap_or(true);
-        if needs_write {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
-            }
-            fs::write(&path, command_content)
-                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
-            changed = true;
-        }
+        artifacts.push(GeneratedAgentArtifact {
+            manifest_key: artifact_manifest_key(root, &path)?,
+            tool,
+            path,
+            content: create_spec_command_content(tool).into_bytes(),
+        });
     }
 
     if let Some(path) = tool.change_command_path(root) {
-        let command_content = create_change_command_content(tool);
-        let needs_write = fs::read_to_string(&path)
-            .map(|existing| existing != command_content)
-            .unwrap_or(true);
-        if needs_write {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
-            }
-            fs::write(&path, command_content)
-                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
-            changed = true;
-        }
+        artifacts.push(GeneratedAgentArtifact {
+            manifest_key: artifact_manifest_key(root, &path)?,
+            tool,
+            path,
+            content: create_change_command_content(tool).into_bytes(),
+        });
     }
 
-    Ok(changed)
+    Ok(artifacts)
 }
 
-/// Uninstall a tool's skill dir and/or command file. Returns Ok(true) if
-/// anything was removed, Ok(false) if nothing was present.
+fn content_digest(content: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(content);
+    format!("{:x}", hasher.finalize())
+}
+
+fn generated_artifact_record(
+    artifact: &GeneratedAgentArtifact,
+    digest: String,
+) -> AgentArtifactRecord {
+    AgentArtifactRecord {
+        tool: artifact.tool.name().to_string(),
+        template_version: AGENT_ARTIFACT_TEMPLATE_VERSION,
+        digest,
+    }
+}
+
+fn recorded_artifact_matches(
+    record: &AgentArtifactRecord,
+    artifact: &GeneratedAgentArtifact,
+    digest: &str,
+) -> bool {
+    record.tool == artifact.tool.name() && record.digest.eq_ignore_ascii_case(digest)
+}
+
+fn write_generated_agent_artifact(artifact: &GeneratedAgentArtifact) -> Result<(), String> {
+    let parent = artifact.path.parent().ok_or_else(|| {
+        format!(
+            "Invalid generated agent artifact path: {}",
+            artifact.path.display()
+        )
+    })?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("Failed to create {}: {error}", parent.display()))?;
+    fs::write(&artifact.path, &artifact.content)
+        .map_err(|error| format!("Failed to write {}: {error}", artifact.path.display()))
+}
+
+/// Install skill + command files for one tool. Returns Ok(true) if any agent
+/// artifact was written, Ok(false) if every artifact was already current.
 ///
-/// Safe by construction: these paths are dedicated files/directories that
-/// spec-sync fully owns (a `spec-sync/`-named skill folder, a
-/// `specsync`-namespaced command file), so removal never risks clobbering
-/// unrelated user content the way editing a shared file like CLAUDE.md would.
-pub fn uninstall_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
-    let mut removed = false;
+/// A versioned SHA-256 manifest records the exact bytes last generated by
+/// spec-sync. Re-running after an upgrade replaces stale content only when its
+/// current digest still matches that record. Differing or untracked content is
+/// reported as a conflict and left untouched, including non-UTF-8 content.
+pub fn install_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
+    let manifest = load_agent_artifact_manifest(root)?;
+    let mut updated_manifest = manifest.clone();
+    let artifacts = generated_agent_artifacts(root, tool)?;
+    let mut pending_writes = Vec::new();
+    let mut conflicts = Vec::new();
 
-    if let Some(dir) = tool.skill_dir(root)
-        && dir.exists()
-    {
-        fs::remove_dir_all(&dir).map_err(|e| format!("Failed to remove {}: {e}", dir.display()))?;
-        removed = true;
-    }
-
-    for path in [tool.command_path(root), tool.change_command_path(root)]
-        .into_iter()
-        .flatten()
-    {
-        if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|e| format!("Failed to remove {}: {e}", path.display()))?;
-            removed = true;
+    for artifact in &artifacts {
+        let desired_digest = content_digest(&artifact.content);
+        match fs::read(&artifact.path) {
+            Ok(existing) if existing == artifact.content => {
+                updated_manifest.artifacts.insert(
+                    artifact.manifest_key.clone(),
+                    generated_artifact_record(artifact, desired_digest),
+                );
+            }
+            Ok(existing) => {
+                let existing_digest = content_digest(&existing);
+                match manifest.artifacts.get(&artifact.manifest_key) {
+                    Some(recorded)
+                        if recorded_artifact_matches(recorded, artifact, &existing_digest) =>
+                    {
+                        pending_writes.push(artifact);
+                        updated_manifest.artifacts.insert(
+                            artifact.manifest_key.clone(),
+                            generated_artifact_record(artifact, desired_digest),
+                        );
+                    }
+                    Some(_) => conflicts.push(format!(
+                        "{} (content differs from the recorded generated digest)",
+                        artifact.path.display()
+                    )),
+                    None => conflicts.push(format!(
+                        "{} (no trusted generated digest is recorded)",
+                        artifact.path.display()
+                    )),
+                }
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                pending_writes.push(artifact);
+                updated_manifest.artifacts.insert(
+                    artifact.manifest_key.clone(),
+                    generated_artifact_record(artifact, desired_digest),
+                );
+            }
+            Err(error) => {
+                return Err(format!(
+                    "Failed to inspect generated agent artifact {}: {error}",
+                    artifact.path.display()
+                ));
+            }
         }
-        cleanup_command_namespace(&path);
     }
 
-    Ok(removed)
+    if !conflicts.is_empty() {
+        return Err(format!(
+            "Refusing to overwrite customized generated agent artifact(s):\n  - {}\n\
+             Existing files were left unchanged; reconcile or remove the conflicts and retry.",
+            conflicts.join("\n  - ")
+        ));
+    }
+
+    for artifact in &pending_writes {
+        write_generated_agent_artifact(artifact)?;
+    }
+
+    let manifest_changed = updated_manifest != manifest;
+    if manifest_changed {
+        write_agent_artifact_manifest(root, &updated_manifest)?;
+    }
+
+    Ok(!pending_writes.is_empty())
+}
+
+/// Uninstall a tool's generated artifacts. Returns Ok(true) if anything was
+/// removed, Ok(false) if nothing was present.
+///
+/// Every existing artifact must still match its recorded generated digest.
+/// Customized or untracked files are reported together and left untouched.
+pub fn uninstall_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
+    let manifest = load_agent_artifact_manifest(root)?;
+    let mut updated_manifest = manifest.clone();
+    let artifacts = generated_agent_artifacts(root, tool)?;
+    let mut pending_removals = Vec::new();
+    let mut conflicts = Vec::new();
+
+    for artifact in &artifacts {
+        match fs::read(&artifact.path) {
+            Ok(existing) => {
+                let existing_digest = content_digest(&existing);
+                match manifest.artifacts.get(&artifact.manifest_key) {
+                    Some(recorded)
+                        if recorded_artifact_matches(recorded, artifact, &existing_digest) =>
+                    {
+                        pending_removals.push(artifact);
+                    }
+                    Some(_) => conflicts.push(format!(
+                        "{} (content differs from the recorded generated digest)",
+                        artifact.path.display()
+                    )),
+                    None => conflicts.push(format!(
+                        "{} (no trusted generated digest is recorded)",
+                        artifact.path.display()
+                    )),
+                }
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Failed to inspect generated agent artifact {}: {error}",
+                    artifact.path.display()
+                ));
+            }
+        }
+    }
+
+    if !conflicts.is_empty() {
+        return Err(format!(
+            "Refusing to remove customized generated agent artifact(s):\n  - {}\n\
+             Existing files were left unchanged; reconcile or remove the conflicts and retry.",
+            conflicts.join("\n  - ")
+        ));
+    }
+
+    for artifact in &pending_removals {
+        fs::remove_file(&artifact.path)
+            .map_err(|error| format!("Failed to remove {}: {error}", artifact.path.display()))?;
+        updated_manifest.artifacts.remove(&artifact.manifest_key);
+        cleanup_generated_namespace(&artifact.path);
+    }
+
+    // Missing files no longer need stale ownership entries.
+    for artifact in &artifacts {
+        if !artifact.path.exists() {
+            updated_manifest.artifacts.remove(&artifact.manifest_key);
+        }
+    }
+
+    if updated_manifest != manifest {
+        write_agent_artifact_manifest(root, &updated_manifest)?;
+    }
+
+    Ok(!pending_removals.is_empty())
 }
 
 // ─── Content builders ─────────────────────────────────────────────────────
@@ -426,6 +696,20 @@ fn cleanup_command_namespace(path: &Path) {
         let is_our_namespace_dir =
             parent.file_name().and_then(|name| name.to_str()) == Some("specsync");
         if is_our_namespace_dir
+            && fs::read_dir(parent)
+                .map(|mut entries| entries.next().is_none())
+                .unwrap_or(false)
+        {
+            let _ = fs::remove_dir(parent);
+        }
+    }
+}
+
+fn cleanup_generated_namespace(path: &Path) {
+    cleanup_command_namespace(path);
+    if let Some(parent) = path.parent() {
+        let is_skill_dir = parent.file_name().and_then(|name| name.to_str()) == Some("spec-sync");
+        if is_skill_dir
             && fs::read_dir(parent)
                 .map(|mut entries| entries.next().is_none())
                 .unwrap_or(false)
@@ -889,31 +1173,143 @@ mod tests {
     }
 
     #[test]
-    fn install_overwrites_stale_skill_content() {
+    fn install_records_versioned_digests_for_generated_artifacts() {
         let tmp = setup();
-        let skill_path = tmp.path().join(".claude/skills/spec-sync/SKILL.md");
-        fs::create_dir_all(skill_path.parent().unwrap()).unwrap();
-        fs::write(&skill_path, "stale content from an older spec-sync version").unwrap();
-
         assert!(install_agent(tmp.path(), AgentTool::Claude).unwrap());
 
-        let content = fs::read_to_string(&skill_path).unwrap();
-        assert!(content.starts_with("---\nname: spec-sync"));
-        assert!(!content.contains("stale content"));
+        let manifest_path = agent_artifact_manifest_path(tmp.path());
+        assert!(manifest_path.exists());
+        let manifest = load_agent_artifact_manifest(tmp.path()).unwrap();
+        assert_eq!(manifest.version, AGENT_ARTIFACT_MANIFEST_VERSION);
+
+        let artifacts = generated_agent_artifacts(tmp.path(), AgentTool::Claude).unwrap();
+        assert_eq!(manifest.artifacts.len(), artifacts.len());
+        for artifact in artifacts {
+            let record = manifest.artifacts.get(&artifact.manifest_key).unwrap();
+            assert_eq!(record.tool, AgentTool::Claude.name());
+            assert_eq!(record.template_version, AGENT_ARTIFACT_TEMPLATE_VERSION);
+            assert_eq!(record.digest, content_digest(&artifact.content));
+        }
     }
 
     #[test]
-    fn install_overwrites_stale_command_content() {
+    fn install_preserves_untracked_stale_skill_as_conflict() {
+        let tmp = setup();
+        let skill_path = tmp.path().join(".claude/skills/spec-sync/SKILL.md");
+        fs::create_dir_all(skill_path.parent().unwrap()).unwrap();
+        let stale = b"stale or customized skill without trusted ownership metadata";
+        fs::write(&skill_path, stale).unwrap();
+
+        let error = install_agent(tmp.path(), AgentTool::Claude).unwrap_err();
+
+        assert!(error.contains("Refusing to overwrite customized"));
+        assert!(error.contains(&skill_path.display().to_string()));
+        assert!(error.contains("no trusted generated digest"));
+        assert_eq!(fs::read(&skill_path).unwrap(), stale);
+        assert!(!tmp.path().join(".claude/commands").exists());
+        assert!(!agent_artifact_manifest_path(tmp.path()).exists());
+    }
+
+    #[test]
+    fn install_preserves_untracked_stale_command_as_conflict() {
         let tmp = setup();
         let command_path = tmp.path().join(".claude/commands/specsync/create-spec.md");
         fs::create_dir_all(command_path.parent().unwrap()).unwrap();
-        fs::write(&command_path, "stale command body").unwrap();
+        let stale = b"stale or customized command without trusted ownership metadata";
+        fs::write(&command_path, stale).unwrap();
+
+        let error = install_agent(tmp.path(), AgentTool::Claude).unwrap_err();
+
+        assert!(error.contains(&command_path.display().to_string()));
+        assert_eq!(fs::read(&command_path).unwrap(), stale);
+        assert!(!tmp.path().join(".claude/skills/spec-sync").exists());
+    }
+
+    #[test]
+    fn manifest_allows_unmodified_generated_artifact_upgrade() {
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Claude).unwrap();
+        let skill_path = tmp.path().join(".claude/skills/spec-sync/SKILL.md");
+        let old_generated_content = b"older generated skill content";
+        fs::write(&skill_path, old_generated_content).unwrap();
+
+        let mut manifest = load_agent_artifact_manifest(tmp.path()).unwrap();
+        let manifest_key = artifact_manifest_key(tmp.path(), &skill_path).unwrap();
+        manifest.artifacts.insert(
+            manifest_key.clone(),
+            AgentArtifactRecord {
+                tool: AgentTool::Claude.name().to_string(),
+                template_version: AGENT_ARTIFACT_TEMPLATE_VERSION - 1,
+                digest: content_digest(old_generated_content),
+            },
+        );
+        write_agent_artifact_manifest(tmp.path(), &manifest).unwrap();
 
         assert!(install_agent(tmp.path(), AgentTool::Claude).unwrap());
+        let expected = skill_md_content(AgentTool::Claude).into_bytes();
+        assert_eq!(fs::read(&skill_path).unwrap(), expected);
 
-        let content = fs::read_to_string(&command_path).unwrap();
-        assert!(content.contains("$ARGUMENTS"));
-        assert!(!content.contains("stale command body"));
+        let upgraded_manifest = load_agent_artifact_manifest(tmp.path()).unwrap();
+        let upgraded = upgraded_manifest.artifacts.get(&manifest_key).unwrap();
+        assert_eq!(upgraded.tool, AgentTool::Claude.name());
+        assert_eq!(upgraded.template_version, AGENT_ARTIFACT_TEMPLATE_VERSION);
+        assert_eq!(upgraded.digest, content_digest(&expected));
+    }
+
+    #[test]
+    fn install_reports_and_preserves_all_customized_artifacts() {
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Claude).unwrap();
+        let skill_path = tmp.path().join(".claude/skills/spec-sync/SKILL.md");
+        let command_path = tmp.path().join(".claude/commands/specsync/create-spec.md");
+        let customized_skill = b"customized skill";
+        let customized_command = b"customized command";
+        fs::write(&skill_path, customized_skill).unwrap();
+        fs::write(&command_path, customized_command).unwrap();
+        let manifest_before = fs::read(agent_artifact_manifest_path(tmp.path())).unwrap();
+
+        let error = install_agent(tmp.path(), AgentTool::Claude).unwrap_err();
+
+        assert!(error.contains(&skill_path.display().to_string()));
+        assert!(error.contains(&command_path.display().to_string()));
+        assert!(error.contains("content differs from the recorded generated digest"));
+        assert_eq!(fs::read(&skill_path).unwrap(), customized_skill);
+        assert_eq!(fs::read(&command_path).unwrap(), customized_command);
+        assert_eq!(
+            fs::read(agent_artifact_manifest_path(tmp.path())).unwrap(),
+            manifest_before
+        );
+    }
+
+    #[test]
+    fn install_preserves_and_reports_non_utf8_customization() {
+        let tmp = setup();
+        let command_path = tmp.path().join(".cursor/commands/specsync-create-spec.md");
+        fs::create_dir_all(command_path.parent().unwrap()).unwrap();
+        let customized = [0xff, 0xfe, 0x00, b'C', b'U', b'S', b'T', b'O', b'M'];
+        fs::write(&command_path, customized).unwrap();
+
+        let error = install_agent(tmp.path(), AgentTool::Cursor).unwrap_err();
+
+        assert!(error.contains(&command_path.display().to_string()));
+        assert!(error.contains("no trusted generated digest"));
+        assert_eq!(fs::read(&command_path).unwrap(), customized);
+        assert!(!tmp.path().join(".cursor/skills/spec-sync").exists());
+        assert!(!agent_artifact_manifest_path(tmp.path()).exists());
+    }
+
+    #[test]
+    fn install_adopts_matching_legacy_artifacts_without_rewriting_them() {
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Cursor).unwrap();
+        let command_path = tmp.path().join(".cursor/commands/specsync-create-spec.md");
+        let command_before = fs::read(&command_path).unwrap();
+        fs::remove_file(agent_artifact_manifest_path(tmp.path())).unwrap();
+
+        assert!(!install_agent(tmp.path(), AgentTool::Cursor).unwrap());
+        assert_eq!(fs::read(&command_path).unwrap(), command_before);
+        assert!(agent_artifact_manifest_path(tmp.path()).exists());
+        assert!(!install_agent(tmp.path(), AgentTool::Cursor).unwrap());
     }
 
     #[test]
@@ -942,6 +1338,12 @@ mod tests {
         assert!(!tmp.path().join(".claude/skills/spec-sync").exists());
         assert!(!tmp.path().join(".claude/commands/specsync").exists());
         assert!(!is_installed(tmp.path(), AgentTool::Claude));
+        assert!(
+            load_agent_artifact_manifest(tmp.path())
+                .unwrap()
+                .artifacts
+                .is_empty()
+        );
     }
 
     #[test]
@@ -986,5 +1388,65 @@ mod tests {
         install_agent(tmp.path(), AgentTool::Codex).unwrap();
         assert!(uninstall_agent(tmp.path(), AgentTool::Codex).unwrap());
         assert!(!tmp.path().join(".codex/skills/spec-sync").exists());
+    }
+
+    #[test]
+    fn uninstall_preserves_all_customized_artifacts_without_partial_removal() {
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Claude).unwrap();
+        let skill_path = tmp.path().join(".claude/skills/spec-sync/SKILL.md");
+        let command_path = tmp.path().join(".claude/commands/specsync/create-spec.md");
+        let change_path = tmp
+            .path()
+            .join(".claude/commands/specsync/create-change.md");
+        let customized = b"customized generated skill";
+        fs::write(&skill_path, customized).unwrap();
+        let command_before = fs::read(&command_path).unwrap();
+        let change_before = fs::read(&change_path).unwrap();
+        let manifest_before = fs::read(agent_artifact_manifest_path(tmp.path())).unwrap();
+
+        let error = uninstall_agent(tmp.path(), AgentTool::Claude).unwrap_err();
+
+        assert!(error.contains("Refusing to remove customized"));
+        assert!(error.contains(&skill_path.display().to_string()));
+        assert_eq!(fs::read(&skill_path).unwrap(), customized);
+        assert_eq!(fs::read(&command_path).unwrap(), command_before);
+        assert_eq!(fs::read(&change_path).unwrap(), change_before);
+        assert_eq!(
+            fs::read(agent_artifact_manifest_path(tmp.path())).unwrap(),
+            manifest_before
+        );
+    }
+
+    #[test]
+    fn uninstall_preserves_untracked_artifact_and_user_skill_sibling() {
+        let tmp = setup();
+        let skill_dir = tmp.path().join(".codex/skills/spec-sync");
+        let skill_path = skill_dir.join("SKILL.md");
+        let sibling = skill_dir.join("notes.md");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(&skill_path, "untracked skill").unwrap();
+        fs::write(&sibling, "user notes").unwrap();
+
+        let error = uninstall_agent(tmp.path(), AgentTool::Codex).unwrap_err();
+
+        assert!(error.contains("no trusted generated digest"));
+        assert!(skill_path.exists());
+        assert_eq!(fs::read_to_string(&sibling).unwrap(), "user notes");
+    }
+
+    #[test]
+    fn uninstall_preserves_user_files_inside_generated_skill_directory() {
+        let tmp = setup();
+        install_agent(tmp.path(), AgentTool::Codex).unwrap();
+        let skill_dir = tmp.path().join(".codex/skills/spec-sync");
+        let sibling = skill_dir.join("notes.md");
+        fs::write(&sibling, "user notes").unwrap();
+
+        assert!(uninstall_agent(tmp.path(), AgentTool::Codex).unwrap());
+
+        assert!(!skill_dir.join("SKILL.md").exists());
+        assert_eq!(fs::read_to_string(&sibling).unwrap(), "user notes");
+        assert!(skill_dir.exists());
     }
 }

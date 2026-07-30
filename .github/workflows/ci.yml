@@ -2,6 +2,7 @@ name: CI
 
 permissions:
   contents: read
+  actions: read
   pull-requests: write
   checks: write
 
@@ -24,6 +25,8 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/ci.yml'
       - '.github/workflows/pages.yml'
+      - '.github/workflows/finalize-change.yml'
+      - '.github/workflows/post-merge-archive.yml'
       - '.github/workflows/release.yml'
       - '.github/workflows/trust.yml'
       - 'CHANGELOG.md'
@@ -47,6 +50,8 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/ci.yml'
       - '.github/workflows/pages.yml'
+      - '.github/workflows/finalize-change.yml'
+      - '.github/workflows/post-merge-archive.yml'
       - '.github/workflows/release.yml'
       - '.github/workflows/trust.yml'
       - 'CHANGELOG.md'
@@ -67,13 +72,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      archive-only: ${{ steps.paths.outputs.archive_only }}
+      archive_only: ${{ steps.paths.outputs.archive_only }}
+      archive_change_id: ${{ steps.paths.outputs.archive_change_id }}
+      archive_dir: ${{ steps.paths.outputs.archive_dir }}
+      review_only: ${{ steps.paths.outputs.review_only }}
+      review_change_id: ${{ steps.paths.outputs.review_change_id }}
+      review_required: ${{ steps.paths.outputs.review_required }}
+      review_required_change_id: ${{ steps.paths.outputs.review_required_change_id }}
       full: ${{ steps.paths.outputs.full }}
       site: ${{ steps.paths.outputs.site }}
       vscode: ${{ steps.paths.outputs.vscode }}
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Classify changed paths
         id: paths
@@ -81,6 +93,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -89,6 +102,17 @@ jobs:
           case "$EVENT_NAME" in
             pull_request)
               base="origin/$BASE_REF"
+              parent_line="$(git rev-list --parents -n 1 "$HEAD_SHA")"
+              if [[ "$(wc -w <<<"$parent_line" | tr -d ' ')" == "2" ]]; then
+                parent="$(git rev-parse "$HEAD_SHA^")"
+                child_output="$(
+                  git diff --name-status -z -M "$parent" "$HEAD_SHA" \
+                    | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE" false name-status
+                )"
+                if grep -Eq '^(archive_only|review_only)=true$' <<<"$child_output"; then
+                  output="$child_output"
+                fi
+              fi
               ;;
             push)
               base="$BEFORE_SHA"
@@ -101,15 +125,30 @@ jobs:
               ;;
           esac
 
-          if [[ "$force_full" == "true" ]]; then
+          if [[ -n "${output:-}" ]]; then
+            :
+          elif [[ "$force_full" == "true" ]]; then
             output="$(printf '' | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE" true)"
           else
-            output="$(git diff --name-only -z "$base" "$GITHUB_SHA" | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE")"
+            output="$(git diff --name-only -z "$base" "$HEAD_SHA" | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE")"
           fi
 
           printf '%s\n' "$output" | tee -a "$GITHUB_OUTPUT"
       - name: Test classifier
         run: .github/scripts/test-classify-ci-paths.sh
+
+  archive-integrity:
+    needs: classify
+    if: needs.classify.outputs.archive_only == 'true'
+    uses: ./.github/workflows/finalize-change.yml
+    with:
+      head_sha: ${{ github.event.pull_request.head.sha }}
+      change_id: ${{ needs.classify.outputs.archive_change_id }}
+      archive_dir: ${{ needs.classify.outputs.archive_dir }}
+    permissions:
+      contents: read
+      actions: read
+      checks: read
 
   test:
     needs: classify
@@ -222,6 +261,7 @@ jobs:
 
   validate-action:
     needs: classify
+    if: needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -332,7 +372,7 @@ jobs:
       - name: Run the packaged action in the clean consumer
         uses: ./
         with:
-          version: '5.2.0'
+          version: '6.0.0'
           download-base-url: 'http://127.0.0.1:8765'
           root: ${{ runner.temp }}/consumer
           strict: 'true'
@@ -341,6 +381,7 @@ jobs:
 
   spec-check:
     needs: classify
+    if: needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -381,12 +422,237 @@ jobs:
           # Fail the step if check fails
           cargo run -- check --strict --require-coverage 100 --force
 
-  ci-gate:
-    name: Required CI gate
+  scoped-review-reuse:
+    name: SpecSync scoped review
+    needs: classify
+    if: needs.classify.outputs.review_only == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Reuse the implementation parent's scoped review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CHANGE_ID: ${{ needs.classify.outputs.review_change_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          parent_line="$(git rev-list --parents -n 1 "$HEAD_SHA")"
+          if [[ "$(wc -w <<<"$parent_line" | tr -d ' ')" != "2" ]]; then
+            echo "Review metadata must be a single-parent child commit." >&2
+            exit 1
+          fi
+          parent_sha="$(git rev-parse "$HEAD_SHA^")"
+          output="$(
+            git diff --name-status -z "$parent_sha" "$HEAD_SHA" \
+              | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE" false name-status
+          )"
+          if ! grep -Fxq 'review_only=true' <<<"$output" \
+              || ! grep -Fxq "review_change_id=${CHANGE_ID}" <<<"$output"; then
+            echo "The child commit is not one exact scoped-review record." >&2
+            exit 1
+          fi
+
+          active=".specsync/changes/${CHANGE_ID}"
+          export REVIEW_JSON
+          export STATE_JSON
+          export PARENT_VERIFICATION_JSON
+          export PARENT_SHA="$parent_sha"
+          REVIEW_JSON="$(git show "${HEAD_SHA}:${active}/review.json")"
+          STATE_JSON="$(git show "${HEAD_SHA}:${active}/state.json")"
+          PARENT_VERIFICATION_JSON="$(
+            git show "${parent_sha}:${active}/verification.json"
+          )"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          review = json.loads(os.environ["REVIEW_JSON"])
+          state = json.loads(os.environ["STATE_JSON"])
+          verification = json.loads(os.environ["PARENT_VERIFICATION_JSON"])
+          change_id = os.environ["CHANGE_ID"]
+          parent = os.environ["PARENT_SHA"]
+
+          if state.get("id") != change_id or state.get("state") != "verifying":
+              raise SystemExit("scoped-review child does not retain the verifying change")
+          if state.get("workflow_version") != 2:
+              raise SystemExit("scoped-review child is not a workflow_version=2 change")
+          if review.get("schema_version") != 1 or review.get("change_id") != change_id:
+              raise SystemExit("scoped-review evidence has the wrong schema or change")
+          if not str(review.get("reviewer") or "").strip():
+              raise SystemExit("scoped-review evidence has no independent reviewer")
+          if review.get("implementation_commit") != parent:
+              raise SystemExit("scoped-review evidence is not bound to its implementation parent")
+          for field in ("contract_digest", "workspace_digest"):
+              if not re.fullmatch(r"[0-9a-f]{64}", str(review.get(field) or "")):
+                  raise SystemExit(f"scoped-review evidence has an invalid {field}")
+              if review.get(field) != verification.get(field):
+                  raise SystemExit(
+                      f"scoped-review {field} does not match parent verification.json"
+                  )
+          if verification.get("passed") is not True:
+              raise SystemExit("implementation parent verification.json is not passing")
+          PY
+
+          checks_file="${RUNNER_TEMP}/specsync-review-parent-checks.json"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${REPOSITORY}/commits/${parent_sha}/check-runs?per_page=100" \
+            > "$checks_file"
+          export CHECKS_FILE="$checks_file"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          parent = os.environ["PARENT_SHA"]
+          repository = os.environ["REPOSITORY"]
+          server_url = os.environ["SERVER_URL"].rstrip("/")
+          pull_request = int(os.environ["PR_NUMBER"])
+          with open(os.environ["CHECKS_FILE"], encoding="utf-8") as handle:
+              checks = json.load(handle).get("check_runs", [])
+
+          def api(endpoint: str) -> dict:
+              output = subprocess.check_output(
+                  [
+                      "gh",
+                      "api",
+                      "-H",
+                      "Accept: application/vnd.github+json",
+                      "-H",
+                      "X-GitHub-Api-Version: 2022-11-28",
+                      endpoint,
+                  ],
+                  text=True,
+              )
+              return json.loads(output)
+
+          github_actions_app = api("apps/github-actions")
+          if (
+              github_actions_app.get("slug") != "github-actions"
+              or github_actions_app.get("name") != "GitHub Actions"
+              or (github_actions_app.get("owner") or {}).get("login") != "github"
+          ):
+              raise SystemExit("could not resolve the official GitHub Actions app")
+
+          def proven_check(
+              name: str,
+              workflow_path: str,
+              require_run_success: bool,
+          ) -> int:
+              errors = []
+              candidates = sorted(
+                  (check for check in checks if check.get("name") == name),
+                  key=lambda check: int(check.get("id", 0)),
+                  reverse=True,
+              )
+              for check in candidates:
+                  try:
+                      if check.get("head_sha") != parent:
+                          raise ValueError("wrong head SHA")
+                      if (
+                          check.get("status") != "completed"
+                          or check.get("conclusion") != "success"
+                      ):
+                          raise ValueError("check is not successful")
+                      app = check.get("app") or {}
+                      if (
+                          app.get("id") != github_actions_app.get("id")
+                          or app.get("slug") != github_actions_app.get("slug")
+                      ):
+                          raise ValueError("check is not from GitHub Actions")
+                      details_url = str(check.get("details_url") or "")
+                      match = re.fullmatch(
+                          (
+                              rf"{re.escape(server_url)}/{re.escape(repository)}"
+                              r"/actions/runs/([0-9]+)/job/[0-9]+"
+                          ),
+                          details_url,
+                      )
+                      if match is None:
+                          raise ValueError("invalid GitHub Actions details URL")
+                      run_id = int(match.group(1))
+                      workflow_run = api(
+                          f"repos/{repository}/actions/runs/{run_id}"
+                      )
+                      if workflow_run.get("id") != run_id:
+                          raise ValueError("wrong workflow run ID")
+                      if workflow_run.get("head_sha") != parent:
+                          raise ValueError("workflow run has the wrong head SHA")
+                      if workflow_run.get("event") != "pull_request":
+                          raise ValueError("workflow run is not for a pull request")
+                      if workflow_run.get("status") != "completed":
+                          raise ValueError("workflow run is not completed")
+                      if require_run_success and workflow_run.get("conclusion") != "success":
+                          raise ValueError("workflow run is not successful")
+                      if (
+                          str(workflow_run.get("path") or "").split("@", 1)[0]
+                          != workflow_path
+                      ):
+                          raise ValueError("workflow run has the wrong path")
+                      if (workflow_run.get("repository") or {}).get(
+                          "full_name"
+                      ) != repository:
+                          raise ValueError("workflow run belongs to another repository")
+                      if not any(
+                          item.get("number") == pull_request
+                          for item in workflow_run.get("pull_requests") or []
+                      ):
+                          raise ValueError("workflow run is not bound to this PR")
+                      return run_id
+                  except (
+                      json.JSONDecodeError,
+                      subprocess.CalledProcessError,
+                      TypeError,
+                      ValueError,
+                  ) as error:
+                      errors.append(f"check {check.get('id')}: {error}")
+              detail = "; ".join(errors) if errors else "no matching checks"
+              raise SystemExit(f"{name} has no proven parent result: {detail}")
+
+          implementation_run = proven_check(
+              "SpecSync implementation ready",
+              ".github/workflows/ci.yml",
+              False,
+          )
+          review_run = proven_check(
+              "SpecSync scoped review",
+              ".github/workflows/ci.yml",
+              False,
+          )
+          if implementation_run != review_run:
+              raise SystemExit(
+                  "implementation and scoped-review checks came from different CI runs"
+              )
+          proven_check("trust", ".github/workflows/trust.yml", True)
+          print(
+              "Reused proven implementation, scoped-review, and trust checks "
+              f"from parent {parent} for PR #{pull_request}."
+          )
+          PY
+
+  implementation-gate:
+    name: SpecSync implementation ready
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: always()
-    needs: [classify, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
+    if: ${{ always() && needs.classify.outputs.archive_only != 'true' }}
+    needs: [classify, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, scoped-review-reuse, corvid-pet]
     steps:
       - name: Require every selected gate
         env:
@@ -400,13 +666,45 @@ jobs:
             esac
           done
 
+  ci-gate:
+    name: Required CI gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs: [classify, archive-integrity, implementation-gate]
+    steps:
+      - name: Require finalization before GitHub merge
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ARCHIVE_ONLY: ${{ needs.classify.outputs.archive_only }}
+          ARCHIVE_RESULT: ${{ needs.archive-integrity.result }}
+          IMPLEMENTATION_RESULT: ${{ needs.implementation-gate.result }}
+        run: |
+          if [[ "$ARCHIVE_ONLY" == "true" ]]; then
+            if [[ "$ARCHIVE_RESULT" != "success" ]]; then
+              echo "Archive integrity gate ended with: $ARCHIVE_RESULT" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+          if [[ "$IMPLEMENTATION_RESULT" != "success" ]]; then
+            echo "Implementation gate ended with: $IMPLEMENTATION_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            echo "Implementation is green. Run specsync change finalize, commit the exact archive move, and push it before GitHub merge." >&2
+            exit 1
+          fi
+
   corvid-pet:
+    name: SpecSync scoped review
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Fork pull requests receive a read-only token, so the mascot cannot post
-    # its approval review there. The required CI gate remains authoritative.
-    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-    needs: [test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
+    # This is the one independent, implementation-scoped review. A proven
+    # archive-only child reuses the green result on its parent and never runs
+    # the reviewer a second time.
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.classify.outputs.review_required == 'true' }}
+    needs: [classify, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
     steps:
       - uses: actions/checkout@v5
 

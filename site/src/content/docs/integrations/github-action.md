@@ -11,7 +11,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 ## Basic Usage
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5.2.0
+- uses: CorvidLabs/spec-sync@v6.0.0
   with:
     strict: 'true'
     require-coverage: '100'
@@ -23,7 +23,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 
 | Input | Default | Description |
 |:------|:--------|:------------|
-| `version` | `5.2.0` | Release version to download; set `latest` to follow the newest release |
+| `version` | `6.0.0` | Release version to download; set `latest` to follow the newest release |
 | `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v5.2.0
+      - uses: CorvidLabs/spec-sync@v6.0.0
         with:
           strict: 'true'
           require-coverage: '100'
@@ -60,9 +60,9 @@ Use the immutable release ref until compatible-channel promotion is complete, an
 Action ref and its binary version:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5.2.0
+- uses: CorvidLabs/spec-sync@v6.0.0
   with:
-    version: '5.2.0'
+    version: '6.0.0'
     strict: 'true'
 ```
 
@@ -90,7 +90,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v5.2.0
+      - uses: CorvidLabs/spec-sync@v6.0.0
         with:
           strict: 'true'
           comment: 'true'
@@ -105,7 +105,7 @@ jobs:
 **Custom token (e.g., for private registries or cross-repo refs):**
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5.2.0
+- uses: CorvidLabs/spec-sync@v6.0.0
   with:
     comment: 'true'
     token: ${{ secrets.MY_PAT }}
@@ -126,7 +126,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v5.2.0
+      - uses: CorvidLabs/spec-sync@v6.0.0
         with:
           strict: 'true'
 ```
@@ -136,7 +136,7 @@ jobs:
 ## Monorepo
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5.2.0
+- uses: CorvidLabs/spec-sync@v6.0.0
   with:
     root: './packages/backend'
     strict: 'true'

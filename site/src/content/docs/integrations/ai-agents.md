@@ -30,10 +30,10 @@ Claude Code, Cursor, Codex, and Gemini receive a native project skill. Claude, C
 
 - create meaningful work through `specsync change new --json`;
 - present deterministic interview questions to the user;
-- never invent or self-grant either human approval;
-- implement only after definition approval;
-- show fresh verification evidence before closing approval;
-- apply semantic deltas and archive through deterministic CLI operations.
+- never invent or self-grant the one human scope approval;
+- implement only after scope approval;
+- run targeted `change check` evidence and request one independent scoped PR review;
+- finalize the dated archive in the same PR without invoking an external merge.
 
 Changing agents does not change lifecycle state or artifact semantics because the CLI remains the shared workflow engine.
 
@@ -86,7 +86,10 @@ specsync check --json                          # structured feedback
 specsync check --strict --require-coverage 100 # deterministic release gate
 ```
 
-For contract-changing delivery, start with `specsync change new`, complete the selected artifacts and semantic deltas, obtain definition approval, then verify and obtain closing approval. Agents and humans use the same state machine.
+For contract-changing delivery, start with `specsync change new`, complete the selected artifacts
+and semantic deltas, obtain the one scope approval, implement, run `change check`, request the
+independent scoped PR review, and run `change finalize`. Agents and humans use the same workflow;
+GitHub owns merge protections.
 
 ## Why It Works for Agents
 

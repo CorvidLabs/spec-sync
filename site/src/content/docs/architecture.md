@@ -47,7 +47,9 @@ The CLI is the source of truth. Editor extensions, GitHub Actions, MCP clients, 
 
 **Hybrid extraction.** Regex extraction is portable and remains the default. Tree-sitter AST extraction is available for supported languages when `parse_mode = "ast"` is configured. Per-language reference pages document the exact behavior and caveats.
 
-**Fail-closed evidence.** Definition approvals, verification, and closing approvals are digest-bound. Changes to scoped code, tests, configuration, file kind, executable mode, or contract inputs invalidate stale evidence.
+**Fail-closed evidence.** Scope approval, verification, scoped review, and finalization are
+digest-bound. Changes to scoped code, tests, configuration, file kind, executable mode, or
+contract inputs invalidate stale evidence. Strict policy adds validators to the same evidence path.
 
 **Git-native history.** Canonical specs, semantic deltas, requirements, decisions, and evidence remain reviewable as ordinary files. Accepted changes archive only after delivery integration.
 

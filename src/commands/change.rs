@@ -9,7 +9,7 @@ use crate::change::{
 use crate::cli::ChangeAction;
 use crate::types::OutputFormat;
 
-pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
+pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, strict: bool) {
     let result = match action {
         ChangeAction::New {
             description,
@@ -37,15 +37,15 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                     },
                 )
             })
-            .and_then(|record| print_record(root, &record, format, true)),
+            .and_then(|record| print_record(root, &record, format, true, strict)),
         ChangeAction::Answer {
             id,
             question,
             answer,
         } => change::answer_question(root, &id, &question, &answer)
-            .and_then(|record| print_record(root, &record, format, true)),
+            .and_then(|record| print_record(root, &record, format, true, strict)),
         ChangeAction::Depend { id, on } => change::add_dependency(root, &id, &on)
-            .and_then(|record| print_record(root, &record, format, false)),
+            .and_then(|record| print_record(root, &record, format, false, strict)),
         ChangeAction::Supersede {
             id,
             predecessor,
@@ -53,19 +53,24 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
             module,
             digest,
         } => change::add_supersedes_obligation(root, &id, &predecessor, &path, &module, &digest)
-            .and_then(|record| print_record(root, &record, format, false)),
+            .and_then(|record| print_record(root, &record, format, false, strict)),
         ChangeAction::List => {
-            print_records(root, &change::list_changes(root), format);
+            let _scope = change::begin_change_read_scope(root);
+            print_records(root, &change::list_changes(root), format, strict);
             Ok(())
         }
-        ChangeAction::Show { id } => change::load_change(root, &id)
-            .and_then(|record| print_record(root, &record, format, true)),
+        ChangeAction::Show { id } => {
+            let _scope = change::begin_change_read_scope(root);
+            change::load_change(root, &id)
+                .and_then(|record| print_record(root, &record, format, true, strict))
+        }
         ChangeAction::Status { id } => {
+            let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
                 change::load_change(root, &id)
-                    .and_then(|record| print_record(root, &record, format, false))
+                    .and_then(|record| print_record(root, &record, format, false, strict))
             } else {
-                print_records(root, &change::list_changes(root), format);
+                print_records(root, &change::list_changes(root), format, strict);
                 Ok(())
             }
         }
@@ -85,7 +90,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
         ChangeAction::Start { id } => change::start_implementation(root, &id)
             .map(|record| print_transition(&record, format, "implementation started")),
         ChangeAction::Verify { id } => {
-            change::verify_change(root, &id).map(|verification| match format {
+            let result = if strict {
+                change::verify_change_with_strict(root, &id, true)
+            } else {
+                change::verify_change(root, &id)
+            };
+            result.map(|verification| match format {
                 OutputFormat::Json => print_json(&verification),
                 _ => println!(
                     "{} verification passed ({} command(s), {} requirement(s))",
@@ -95,6 +105,16 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 ),
             })
         }
+        ChangeAction::Review { id, reviewer } => change::record_scoped_review(root, &id, reviewer)
+            .map(|review| match format {
+                OutputFormat::Json => print_json(&review),
+                _ => println!(
+                    "{} {} independently reviewed at {}",
+                    "✓".green(),
+                    review.change_id,
+                    review.implementation_commit
+                ),
+            }),
         ChangeAction::Reopen { id, actor, reason } => {
             change::reopen_change(root, &id, actor, reason).map(|result| match format {
                 OutputFormat::Json => print_json(&result),
@@ -217,7 +237,16 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 }
             })
         }
-        ChangeAction::Accept { id, actor, note } => change::accept_change(root, &id, actor, note)
+        ChangeAction::Accept { id, actor, note } => change::load_change(root, &id)
+            .and_then(|record| {
+                if record.workflow_version >= 2 {
+                    return Err(format!(
+                        "{} uses the single 6.0 workflow; record scoped review and run `specsync change finalize {}`",
+                        record.id, record.id
+                    ));
+                }
+                change::accept_change(root, &id, actor, note)
+            })
             .map(|record| {
                 print_transition(
                     &record,
@@ -226,17 +255,71 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 )
             }),
         ChangeAction::Archive { id } => {
-            change::archive_change(root, &id).map(|path| match format {
+            change::load_change(root, &id).and_then(|record| {
+                if record.workflow_version >= 2 {
+                    return Err(format!(
+                        "{} uses same-PR finalization; run `specsync change finalize {}`",
+                        record.id, record.id
+                    ));
+                }
+                change::archive_change(root, &id)
+            }).map(|path| match format {
                 OutputFormat::Json => print_json(&serde_json::json!({ "archived": path })),
                 _ => println!("{} Archived to {}", "✓".green(), path.display()),
             })
         }
-        ChangeAction::Check => {
-            let report = change::check_project(root);
-            let passed = report.errors.is_empty();
+        ChangeAction::Finalize { id } => change::finalize_change(root, &id).and_then(|path| {
+            let finalization_path = path.join("finalization.json");
+            let content = fs::read_to_string(&finalization_path).map_err(|error| {
+                format!("failed to read {}: {error}", finalization_path.display())
+            })?;
+            let finalization: change::FinalizationRecord =
+                serde_json::from_str(&content).map_err(|error| {
+                    format!(
+                        "invalid finalization {}: {error}",
+                        finalization_path.display()
+                    )
+                })?;
             match format {
-                OutputFormat::Json => print_json(&report),
+                OutputFormat::Json => print_json(&serde_json::json!({
+                    "id": id,
+                    "archived": path,
+                    "implementation_commit": finalization.implementation_commit,
+                    "implementation_tree": finalization.implementation_tree,
+                    "contract_digest": finalization.contract_digest,
+                    "workspace_digest": finalization.workspace_digest,
+                    "review_digest": finalization.review_digest,
+                    "finalization_digest": finalization.finalization_digest,
+                    "ready_for_github_merge": true,
+                    "next_action": "merge the PR on GitHub",
+                })),
                 _ => {
+                    println!("{} {} finalized on this PR", "✓".green(), id);
+                    println!("  Archive: {}", path.display());
+                    println!("  Implementation: {}", finalization.implementation_commit);
+                    println!("  Finalization: {}", finalization.finalization_digest);
+                    println!("  Next: merge the PR on GitHub");
+                }
+            }
+            Ok(())
+        }),
+        ChangeAction::Check { id } => {
+            let verification = if strict {
+                change::check_change_with_strict(root, id.as_deref(), true)
+            } else {
+                change::check_change(root, id.as_deref())
+            };
+            let report = change::check_project(root);
+            let passed = verification.is_ok() && report.errors.is_empty();
+            match format {
+                OutputFormat::Json => print_json(&serde_json::json!({
+                    "verification": verification.as_ref().ok(),
+                    "report": report,
+                })),
+                _ => {
+                    if let Err(error) = &verification {
+                        eprintln!("{} {error}", "error:".red().bold());
+                    }
                     for result in &report.terminal_evidence {
                         println!(
                             "{} evidence: {}",
@@ -255,7 +338,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                     }
                     if passed {
                         println!(
-                            "{} {} active change(s) valid",
+                            "{} {} active change(s) checked",
                             "✓".green(),
                             report.checked_changes
                         );
@@ -295,8 +378,9 @@ fn print_record(
     record: &ChangeRecord,
     format: OutputFormat,
     include_questions: bool,
+    strict: bool,
 ) -> Result<(), String> {
-    let summary = change::summarize_change(root, record);
+    let summary = change::summarize_change_with_strict(root, record, strict);
     let effective_definition = change::effective_change_definition(root, record)?;
     let corrections = change::correction_history(root, record)?;
     let questions = if include_questions {
@@ -315,6 +399,28 @@ fn print_record(
         _ => {
             println!("{} {}", record.id.bold(), record.title);
             println!("  State: {}", record.state.as_str());
+            if !summary.approval_valid
+                && let Some(digest) = &summary.definition_digest
+            {
+                println!("  Scope digest: {digest}");
+            }
+            if !summary.scope_expansion.is_empty() {
+                println!("  Scope expansion:");
+                for change in &summary.scope_expansion {
+                    println!("    - {change}");
+                }
+            }
+            if !summary.verification_commands.is_empty() {
+                let kind = if summary.strict_validation_required {
+                    "targeted + strict"
+                } else {
+                    "targeted"
+                };
+                println!(
+                    "  Validators ({kind}): {}",
+                    summary.verification_commands.join(", ")
+                );
+            }
             println!("  Next: {}", summary.next_action);
             if !corrections.is_empty() {
                 println!("  Corrections:");
@@ -377,10 +483,10 @@ fn print_record(
     Ok(())
 }
 
-fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat) {
+fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, strict: bool) {
     let summaries: Vec<_> = records
         .iter()
-        .map(|record| change::summarize_change(root, record))
+        .map(|record| change::summarize_change_with_strict(root, record, strict))
         .collect();
     match format {
         OutputFormat::Json => print_json(&summaries),
@@ -393,10 +499,15 @@ fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat) {
                     .map(|evidence| format!("  evidence: {}", evidence.validity.as_str()))
                     .unwrap_or_default();
                 println!(
-                    "{}  {:<13}  {}  next: {}{}",
+                    "{}  {:<13}  {}  validators: {}  next: {}{}",
                     summary.id.bold(),
                     summary.state.as_str(),
                     summary.title,
+                    if summary.strict_validation_required {
+                        "targeted + strict"
+                    } else {
+                        "targeted"
+                    },
                     summary.next_action,
                     evidence
                 );

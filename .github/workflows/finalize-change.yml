@@ -1,0 +1,707 @@
+name: Archive-only finalization guard
+
+on:
+  workflow_call:
+    inputs:
+      head_sha:
+        description: Finalization child commit to validate
+        required: true
+        type: string
+      change_id:
+        description: Exact active change ID moved by the child commit
+        required: true
+        type: string
+      archive_dir:
+        description: Exact dated archive directory created by the child commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+jobs:
+  validate:
+    name: Validate archive-only finalization
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Prove the finalization child shape
+        id: child
+        env:
+          HEAD_SHA: ${{ inputs.head_sha }}
+          EXPECTED_CHANGE_ID: ${{ inputs.change_id }}
+          EXPECTED_ARCHIVE_DIR: ${{ inputs.archive_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          parent_line="$(git rev-list --parents -n 1 "$HEAD_SHA")"
+          if [[ "$(wc -w <<<"$parent_line" | tr -d ' ')" != "2" ]]; then
+            echo "Archive-only finalization must be a single-parent child commit." >&2
+            exit 1
+          fi
+
+          parent_sha="$(git rev-parse "$HEAD_SHA^")"
+          output="$(
+            git diff --name-status -z -M "$parent_sha" "$HEAD_SHA" \
+              | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE" false name-status
+          )"
+          printf '%s\n' "$output"
+
+          archive_only="$(sed -n 's/^archive_only=//p' <<<"$output")"
+          change_id="$(sed -n 's/^archive_change_id=//p' <<<"$output")"
+          archive_dir="$(sed -n 's/^archive_dir=//p' <<<"$output")"
+          if [[ "$archive_only" != "true" \
+              || "$change_id" != "$EXPECTED_CHANGE_ID" \
+              || "$archive_dir" != "$EXPECTED_ARCHIVE_DIR" ]]; then
+            echo "The child commit is not the exact approved change-to-archive move." >&2
+            exit 1
+          fi
+
+          {
+            printf 'parent_sha=%s\n' "$parent_sha"
+            printf 'parent_tree=%s\n' "$(git rev-parse "$parent_sha^{tree}")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Require green checks on the implementation parent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PARENT_SHA: ${{ steps.child.outputs.parent_sha }}
+          CHANGE_ID: ${{ inputs.change_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          checks_file="${RUNNER_TEMP}/specsync-parent-checks.json"
+          fetched=false
+          for attempt in 1 2 3; do
+            if gh api \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "repos/${REPOSITORY}/commits/${PARENT_SHA}/check-runs?per_page=100" \
+                > "$checks_file"; then
+              fetched=true
+              break
+            fi
+            echo "Parent check lookup failed (attempt ${attempt}/3)." >&2
+            sleep "$attempt"
+          done
+          if [[ "$fetched" != "true" ]]; then
+            echo "Unable to read parent check results after three attempts." >&2
+            exit 1
+          fi
+
+          export CHECKS_FILE="$checks_file"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          parent = os.environ["PARENT_SHA"]
+          repository = os.environ["REPOSITORY"]
+          server_url = os.environ["SERVER_URL"].rstrip("/")
+          pull_request = int(os.environ["PR_NUMBER"])
+
+          with open(os.environ["CHECKS_FILE"], encoding="utf-8") as handle:
+              runs = json.load(handle).get("check_runs", [])
+
+          def api(endpoint: str) -> dict:
+              output = subprocess.check_output(
+                  [
+                      "gh",
+                      "api",
+                      "-H",
+                      "Accept: application/vnd.github+json",
+                      "-H",
+                      "X-GitHub-Api-Version: 2022-11-28",
+                      endpoint,
+                  ],
+                  text=True,
+              )
+              return json.loads(output)
+
+          github_actions_app = api("apps/github-actions")
+          if (
+              github_actions_app.get("slug") != "github-actions"
+              or github_actions_app.get("name") != "GitHub Actions"
+              or (github_actions_app.get("owner") or {}).get("login") != "github"
+          ):
+              raise SystemExit("could not resolve the official GitHub Actions app")
+
+          def proven_check(
+              name: str,
+              workflow_path: str,
+              require_run_success: bool,
+          ) -> int:
+              errors = []
+              matches = sorted(
+                  (run for run in runs if run.get("name") == name),
+                  key=lambda run: int(run.get("id", 0)),
+                  reverse=True,
+              )
+              for check in matches:
+                  try:
+                      if check.get("head_sha") != parent:
+                          raise ValueError("check head SHA does not match the parent")
+                      if (
+                          check.get("status") != "completed"
+                          or check.get("conclusion") != "success"
+                      ):
+                          raise ValueError(
+                              "check is not successful: "
+                              f"{check.get('status')}/{check.get('conclusion')}"
+                          )
+                      app = check.get("app") or {}
+                      if (
+                          app.get("id") != github_actions_app.get("id")
+                          or app.get("slug") != github_actions_app.get("slug")
+                      ):
+                          raise ValueError("check was not created by GitHub Actions")
+                      details_url = str(check.get("details_url") or "")
+                      pattern = (
+                          rf"^{re.escape(server_url)}/{re.escape(repository)}"
+                          r"/actions/runs/([0-9]+)/job/[0-9]+$"
+                      )
+                      match = re.fullmatch(pattern, details_url)
+                      if match is None:
+                          raise ValueError("check details URL is not a GitHub Actions job")
+                      run_id = int(match.group(1))
+                      workflow_run = api(
+                          f"repos/{repository}/actions/runs/{run_id}"
+                      )
+                      if workflow_run.get("id") != run_id:
+                          raise ValueError("resolved workflow run has the wrong ID")
+                      if workflow_run.get("head_sha") != parent:
+                          raise ValueError("resolved workflow run has the wrong head SHA")
+                      if workflow_run.get("event") != "pull_request":
+                          raise ValueError("resolved workflow run is not a pull-request run")
+                      if workflow_run.get("status") != "completed":
+                          raise ValueError("resolved workflow run is not completed")
+                      if require_run_success and workflow_run.get("conclusion") != "success":
+                          raise ValueError("resolved workflow run is not successful")
+                      if str(workflow_run.get("path") or "").split("@", 1)[0] != workflow_path:
+                          raise ValueError("resolved workflow run has the wrong workflow path")
+                      if (workflow_run.get("repository") or {}).get("full_name") != repository:
+                          raise ValueError("resolved workflow run belongs to another repository")
+                      if not any(
+                          item.get("number") == pull_request
+                          for item in workflow_run.get("pull_requests") or []
+                      ):
+                          raise ValueError("resolved workflow run is not bound to this PR")
+                      return run_id
+                  except (
+                      json.JSONDecodeError,
+                      subprocess.CalledProcessError,
+                      TypeError,
+                      ValueError,
+                  ) as error:
+                      errors.append(f"check {check.get('id')}: {error}")
+              detail = "; ".join(errors) if errors else "no matching check runs"
+              raise SystemExit(f"{name} has no proven result: {detail}")
+
+          implementation_run = proven_check(
+              "SpecSync implementation ready",
+              ".github/workflows/ci.yml",
+              False,
+          )
+          review_run = proven_check(
+              "SpecSync scoped review",
+              ".github/workflows/ci.yml",
+              False,
+          )
+          if implementation_run != review_run:
+              raise SystemExit(
+                  "implementation and scoped-review checks came from different CI runs"
+              )
+          proven_check("trust", ".github/workflows/trust.yml", True)
+          print(
+              "Implementation parent checks are green and provenance-bound to "
+              f"PR #{pull_request}, parent {parent}, and their exact Actions runs."
+          )
+          PY
+
+      - name: Validate archive integrity and parent binding
+        env:
+          HEAD_SHA: ${{ inputs.head_sha }}
+          PARENT_SHA: ${{ steps.child.outputs.parent_sha }}
+          PARENT_TREE: ${{ steps.child.outputs.parent_tree }}
+          CHANGE_ID: ${{ inputs.change_id }}
+          ARCHIVE_DIR: ${{ inputs.archive_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+
+          head = os.environ["HEAD_SHA"]
+          parent = os.environ["PARENT_SHA"]
+          parent_tree = os.environ["PARENT_TREE"]
+          change_id = os.environ["CHANGE_ID"]
+          archive_dir = os.environ["ARCHIVE_DIR"]
+          active = f".specsync/changes/{change_id}"
+          archive = f".specsync/archive/changes/{archive_dir}"
+
+          def git(*args: str) -> str:
+              return subprocess.check_output(["git", *args], text=True).strip()
+
+          def git_bytes(*args: str) -> bytes:
+              return subprocess.check_output(["git", *args])
+
+          def exists(commit: str, path: str) -> bool:
+              return subprocess.run(
+                  ["git", "cat-file", "-e", f"{commit}:{path}"],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+                  check=False,
+              ).returncode == 0
+
+          def files(commit: str, prefix: str) -> list[str]:
+              output = git("ls-tree", "-r", "--name-only", commit, "--", prefix)
+              return [line for line in output.splitlines() if line]
+
+          if not exists(parent, active):
+              raise SystemExit("implementation parent does not contain the active change")
+          if exists(head, active):
+              raise SystemExit("finalization child still contains the active change")
+          if exists(parent, archive):
+              raise SystemExit("dated archive already existed on the implementation parent")
+          if not exists(head, archive):
+              raise SystemExit("finalization child does not contain the dated archive")
+
+          active_files = files(parent, active)
+          archive_files = files(head, archive)
+          if not active_files or not archive_files:
+              raise SystemExit("active or archived change package is empty")
+
+          active_rel = {path.removeprefix(active + "/") for path in active_files}
+          archive_rel = {path.removeprefix(archive + "/") for path in archive_files}
+          missing = sorted(active_rel - archive_rel)
+          if missing:
+              raise SystemExit(
+                  "archive dropped active change files: " + ", ".join(missing)
+              )
+
+          expected_extras = {"accepted-state.json", "finalization.json"}
+          actual_extras = archive_rel - active_rel
+          if actual_extras != expected_extras:
+              raise SystemExit(
+                  "archive terminal files do not match the generated set: "
+                  f"expected {sorted(expected_extras)}, got {sorted(actual_extras)}"
+              )
+
+          terminal_mutations = {
+              "change.md",
+              "state.json",
+              "verification-attempts.json",
+              "verification.json",
+          }
+          for relative in sorted(active_rel - terminal_mutations):
+              before = git("rev-parse", f"{parent}:{active}/{relative}")
+              after = git("rev-parse", f"{head}:{archive}/{relative}")
+              if before != after:
+                  raise SystemExit(
+                      f"archive-only child rewrote immutable change evidence: {relative}"
+                  )
+
+          required_files = {
+              "accepted-state.json",
+              "approvals.json",
+              "change.md",
+              "finalization.json",
+              "review.json",
+              "state.json",
+              "verification-attempts.json",
+              "verification.json",
+          }
+          absent = sorted(required_files - archive_rel)
+          if absent:
+              raise SystemExit(
+                  "archive is missing required evidence: " + ", ".join(absent)
+              )
+
+          parent_state = json.loads(git("show", f"{parent}:{active}/state.json"))
+          accepted_state = json.loads(
+              git("show", f"{head}:{archive}/accepted-state.json")
+          )
+          state = json.loads(git("show", f"{head}:{archive}/state.json"))
+          for label, value, expected_state in (
+              ("parent", parent_state, "verifying"),
+              ("accepted snapshot", accepted_state, "accepted"),
+              ("archive", state, "archived"),
+          ):
+              if value.get("id") != change_id or value.get("state") != expected_state:
+                  raise SystemExit(
+                      f"{label} state does not identify {expected_state} {change_id}"
+                  )
+              if value.get("workflow_version") != 2:
+                  raise SystemExit(
+                      f"{label} state is not a workflow_version=2 change"
+                  )
+
+          def equal_except(
+              left: dict,
+              right: dict,
+              exceptions: set[str],
+          ) -> bool:
+              return {
+                  key: value for key, value in left.items() if key not in exceptions
+              } == {
+                  key: value for key, value in right.items() if key not in exceptions
+              } and (set(left) - exceptions) == (set(right) - exceptions)
+
+          if not equal_except(parent_state, accepted_state, {"state", "updated_at"}):
+              raise SystemExit(
+                  "accepted-state.json is not the exact accepted projection of the "
+                  "verifying parent state"
+              )
+          if not equal_except(accepted_state, state, {"state", "updated_at"}):
+              raise SystemExit(
+                  "archived state.json differs from accepted-state.json beyond "
+                  "state and updated_at"
+              )
+
+          parent_markdown = git_bytes("show", f"{parent}:{active}/change.md")
+          archived_markdown = git_bytes("show", f"{head}:{archive}/change.md")
+          marker = b"\n---\n"
+          if not parent_markdown.startswith(b"---\n") or marker not in parent_markdown:
+              raise SystemExit("parent change.md has no generated YAML frontmatter")
+          frontmatter_end = parent_markdown.index(marker)
+          frontmatter = parent_markdown[:frontmatter_end]
+          state_line = b"\nstate: verifying\n"
+          if frontmatter.count(state_line) != 1:
+              raise SystemExit(
+                  "parent change.md does not have one generated verifying state line"
+              )
+          expected_markdown = parent_markdown.replace(
+              state_line,
+              b"\nstate: archived\n",
+              1,
+          )
+          if archived_markdown != expected_markdown:
+              raise SystemExit(
+                  "change.md changed beyond the exact generated "
+                  "verifying-to-archived frontmatter transition"
+              )
+
+          parent_verification = json.loads(
+              git("show", f"{parent}:{active}/verification.json")
+          )
+          verification = json.loads(git("show", f"{head}:{archive}/verification.json"))
+          if verification.get("passed") is not True:
+              raise SystemExit("archived verification evidence is not passing")
+          mutable_verification_fields = {
+              "acceptance_input_digest",
+              "acceptance_manifest",
+              "commit",
+              "semantic_succession",
+          }
+          if not equal_except(
+              parent_verification,
+              verification,
+              mutable_verification_fields,
+          ):
+              raise SystemExit(
+                  "finalization rewrote immutable verification fields"
+              )
+          verification_commit = verification.get("commit")
+          if verification_commit != parent:
+              raise SystemExit(
+                  "finalized verification is not adopted to the exact implementation parent"
+              )
+          prior_verification_commit = parent_verification.get("commit")
+          if prior_verification_commit != parent:
+              if re.fullmatch(
+                  r"[0-9a-f]{40}",
+                  str(prior_verification_commit or ""),
+              ) is None:
+                  raise SystemExit(
+                      "parent verification has no canonical implementation commit"
+                  )
+              if subprocess.run(
+                  [
+                      "git",
+                      "merge-base",
+                      "--is-ancestor",
+                      prior_verification_commit,
+                      parent,
+                  ],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+                  check=False,
+              ).returncode != 0:
+                  raise SystemExit(
+                      "parent verification commit is outside implementation history"
+                  )
+          for field in ("contract_digest", "workspace_digest"):
+              if re.fullmatch(
+                  r"[0-9a-f]{64}",
+                  str(verification.get(field) or ""),
+              ) is None:
+                  raise SystemExit(f"verification has an invalid {field}")
+
+          parent_attempts = json.loads(
+              git("show", f"{parent}:{active}/verification-attempts.json")
+          )
+          attempts = json.loads(
+              git("show", f"{head}:{archive}/verification-attempts.json")
+          )
+          if (
+              parent_attempts.get("schema_version") != 1
+              or attempts.get("schema_version") != 1
+              or not isinstance(parent_attempts.get("attempts"), list)
+              or not isinstance(attempts.get("attempts"), list)
+          ):
+              raise SystemExit("verification attempt history has an invalid schema")
+          prior_attempts = parent_attempts["attempts"]
+          current_attempts = attempts["attempts"]
+          if parent_verification.get("commit") == parent:
+              if attempts != parent_attempts:
+                  raise SystemExit(
+                      "finalization rewrote verification attempts without adoption"
+                  )
+          elif (
+              len(current_attempts) != len(prior_attempts) + 1
+              or current_attempts[:-1] != prior_attempts
+              or current_attempts[-1] != verification
+          ):
+              raise SystemExit(
+                  "finalization did not preserve verification attempts and append "
+                  "the exact adopted verification"
+              )
+
+          finalization_path = f"{archive}/finalization.json"
+          if not exists(head, finalization_path):
+              raise SystemExit("archive is missing finalization.json")
+          finalization = json.loads(git("show", f"{head}:{finalization_path}"))
+          if finalization.get("schema_version") != 2:
+              raise SystemExit("finalization evidence has an unsupported schema")
+          if finalization.get("change_id") != change_id:
+              raise SystemExit("finalization evidence names a different change")
+          if finalization.get("implementation_commit") != parent:
+              raise SystemExit("finalization evidence is not bound to the exact parent")
+          if finalization.get("implementation_tree") != parent_tree:
+              raise SystemExit("finalization evidence records the wrong implementation tree")
+          if not isinstance(finalization.get("timestamp"), int):
+              raise SystemExit("finalization evidence has an invalid timestamp")
+
+          review_path = f"{archive}/review.json"
+          if not exists(head, review_path):
+              raise SystemExit("archive is missing independent scoped review evidence")
+          review = json.loads(git("show", f"{head}:{review_path}"))
+          if review.get("schema_version") != 1 or review.get("change_id") != change_id:
+              raise SystemExit("scoped review has the wrong schema or change")
+          if not str(review.get("reviewer") or "").strip():
+              raise SystemExit("scoped review has no independent reviewer")
+          reviewed_commit = review.get("implementation_commit")
+          if not isinstance(reviewed_commit, str) or not reviewed_commit:
+              raise SystemExit("scoped review does not bind an implementation commit")
+          if subprocess.run(
+              ["git", "merge-base", "--is-ancestor", reviewed_commit, parent],
+              stdout=subprocess.DEVNULL,
+              stderr=subprocess.DEVNULL,
+              check=False,
+          ).returncode != 0:
+              raise SystemExit("scoped review commit is outside the implementation history")
+          allowed_review_descendants = {f"{active}/review.json"}
+          review_descendant_paths = set(
+              git("diff", "--name-only", f"{reviewed_commit}..{parent}").splitlines()
+          )
+          unexpected_review_descendants = sorted(
+              path for path in review_descendant_paths
+              if path and path not in allowed_review_descendants
+          )
+          if unexpected_review_descendants:
+              raise SystemExit(
+                  "implementation changed after scoped review: "
+                  + ", ".join(unexpected_review_descendants)
+              )
+
+          for field in ("contract_digest", "workspace_digest"):
+              if finalization.get(field) != verification.get(field):
+                  raise SystemExit(f"finalization {field} does not match verification")
+              if review.get(field) != verification.get(field):
+                  raise SystemExit(f"scoped review {field} does not match verification")
+
+          canonical_review = {
+              "schema_version": review["schema_version"],
+              "change_id": review["change_id"],
+              "reviewer": review["reviewer"],
+              "implementation_commit": review["implementation_commit"],
+              "contract_digest": review["contract_digest"],
+              "workspace_digest": review["workspace_digest"],
+              "timestamp": review["timestamp"],
+          }
+          review_bytes = json.dumps(
+              canonical_review,
+              ensure_ascii=False,
+              separators=(",", ":"),
+          ).encode()
+          review_digest = hashlib.sha256(review_bytes).hexdigest()
+          if finalization.get("review_digest") != review_digest:
+              raise SystemExit("finalization review digest does not match review.json")
+
+          def frame(hasher, tag: str, value) -> None:
+              tag_bytes = tag.encode()
+              value_bytes = value if isinstance(value, bytes) else value.encode()
+              hasher.update(len(tag_bytes).to_bytes(8, "big"))
+              hasher.update(tag_bytes)
+              hasher.update(len(value_bytes).to_bytes(8, "big"))
+              hasher.update(value_bytes)
+
+          def succession_digest(evidence: dict) -> str:
+              succession = hashlib.sha256()
+              frame(
+                  succession,
+                  "domain",
+                  "specsync.semantic-succession.v1",
+              )
+              schema_version = evidence.get("schema_version")
+              if not isinstance(schema_version, int):
+                  raise SystemExit(
+                      "semantic succession evidence has no schema version"
+                  )
+              frame(
+                  succession,
+                  "schema-version",
+                  schema_version.to_bytes(4, "big"),
+              )
+              tuples = evidence.get("tuples")
+              if not isinstance(tuples, list):
+                  raise SystemExit("semantic succession evidence has no tuples")
+              for item in tuples:
+                  frame(succession, "tuple", b"")
+                  for tag, field in (
+                      ("predecessor-id", "predecessor_id"),
+                      ("path", "path"),
+                      ("module", "module"),
+                      ("predecessor-entry-digest", "predecessor_entry_digest"),
+                      ("successor-entry-digest", "successor_entry_digest"),
+                  ):
+                      value = item.get(field)
+                      if not isinstance(value, str):
+                          raise SystemExit(
+                              f"semantic succession tuple has no {field}"
+                          )
+                      frame(succession, tag, value)
+              return succession.hexdigest()
+
+          closing = hashlib.sha256()
+          frame(closing, "domain", "specsync.closing-digest.v2")
+          frame(closing, "record-id", change_id)
+          frame(closing, "contract", verification["contract_digest"])
+          frame(closing, "workspace", verification["workspace_digest"])
+          frame(closing, "commit", verification.get("commit") or "")
+          acceptance_digest = verification.get("acceptance_input_digest")
+          if acceptance_digest is None:
+              frame(closing, "acceptance", b"\x00")
+          elif isinstance(acceptance_digest, str):
+              frame(
+                  closing,
+                  "acceptance",
+                  b"\x01" + acceptance_digest.encode(),
+              )
+          else:
+              raise SystemExit("verification has an invalid acceptance input digest")
+          manifest = verification.get("acceptance_manifest")
+          if manifest is not None:
+              entries = manifest.get("entries")
+              if not isinstance(entries, list):
+                  raise SystemExit("verification has an invalid acceptance manifest")
+              canonical_manifest = {
+                  "schema_version": manifest.get("schema_version"),
+                  "entries": [
+                      {
+                          "path": entry.get("path"),
+                          "kind": entry.get("kind"),
+                          "mode": entry.get("mode"),
+                          "payload_digest": entry.get("payload_digest"),
+                          "entry_digest": entry.get("entry_digest"),
+                          "owners": entry.get("owners"),
+                      }
+                      for entry in entries
+                  ],
+              }
+              manifest_bytes = json.dumps(
+                  canonical_manifest,
+                  ensure_ascii=False,
+                  separators=(",", ":"),
+              ).encode()
+              frame(
+                  closing,
+                  "acceptance-input-manifest-v1",
+                  manifest_bytes,
+              )
+          succession = verification.get("semantic_succession")
+          if succession is not None:
+              frame(
+                  closing,
+                  "semantic-succession-v1",
+                  succession_digest(succession),
+              )
+          closing_digest = closing.hexdigest()
+          if finalization.get("closing_digest") != closing_digest:
+              raise SystemExit(
+                  "finalization closing digest does not match verification evidence"
+              )
+
+          digest = hashlib.sha256()
+          frame(digest, "domain", "specsync.finalization-digest.v2")
+          frame(digest, "change-id", finalization["change_id"])
+          frame(
+              digest,
+              "implementation-commit",
+              finalization["implementation_commit"],
+          )
+          frame(
+              digest,
+              "implementation-tree",
+              finalization["implementation_tree"],
+          )
+          frame(digest, "contract", finalization["contract_digest"])
+          frame(digest, "workspace", finalization["workspace_digest"])
+          frame(digest, "closing", finalization["closing_digest"])
+          frame(digest, "review", finalization["review_digest"])
+          if finalization.get("finalization_digest") != digest.hexdigest():
+              raise SystemExit("finalization digest does not match its bound evidence")
+
+          print(
+              f"Validated {change_id}: parent {parent} -> archive {archive_dir}; "
+              "verification history is append-only and non-terminal evidence is unchanged."
+          )
+          PY
+
+          {
+            echo "### Archive-only finalization"
+            echo
+            echo "- Change: \`${CHANGE_ID}\`"
+            echo "- Implementation parent: \`${PARENT_SHA}\`"
+            echo "- Implementation tree: \`${PARENT_TREE}\`"
+            echo "- Archive: \`.specsync/archive/changes/${ARCHIVE_DIR}/\`"
+            echo "- Result: parent checks green; exact archive move and integrity verified"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: dtolnay/rust-toolchain@1.89.0
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run native archived-evidence validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run --locked -- check --strict --require-coverage 100 --force

@@ -7,9 +7,9 @@ use crate::comment;
 use crate::github;
 use crate::ignore::IgnoreRules;
 use crate::types;
-use crate::validator::{compute_coverage_checked, get_schema_table_names};
+use crate::validator::compute_coverage_checked;
 
-use super::{build_schema_columns, compute_exit_code, load_and_discover, run_validation};
+use super::{compute_exit_code, load_and_discover, run_validation};
 
 pub fn cmd_comment(
     root: &Path,
@@ -21,8 +21,6 @@ pub fn cmd_comment(
 ) {
     let (config, spec_files) = load_and_discover(root, true);
 
-    let schema_tables = get_schema_table_names(root, &config);
-    let schema_columns = build_schema_columns(root, &config);
     let ignore_rules = IgnoreRules::load(root);
 
     // CLI --enforcement flag overrides config; --strict implies strict enforcement.
@@ -45,8 +43,6 @@ pub fn cmd_comment(
         root,
         &spec_files,
         &spec_files,
-        &schema_tables,
-        &schema_columns,
         &config,
         true, // collect mode
         false,

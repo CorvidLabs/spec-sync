@@ -39,7 +39,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
             "require_change_for_meaningful_files": false,
             "meaningful_paths": ["src/", ".specsync/sdd.json"],
             "ignored_paths": [".specsync/"],
-            "verification_commands": [],
+            "verification_commands": ["true"],
             "custom_artifacts": {},
             "principles_file": null
         }))
@@ -146,55 +146,62 @@ fn verification_freshness_status_and_check_are_environment_independent() {
     }
     git(&["commit", "-m", "persist verification"]);
 
-    let assert_surfaces = |expected_action: &str, check_succeeds: bool, environment: &str| {
-        let configure = |command: &mut assert_cmd::Command| {
-            command
-                .env_remove("CI")
-                .env_remove("GITHUB_ACTIONS")
-                .env_remove("GITHUB_WORKSPACE");
-            match environment {
-                "ci" => {
-                    command.env("CI", "true");
+    let assert_surfaces =
+        |expected_action: &str, check_succeeds: Option<bool>, environment: &str| {
+            let configure = |command: &mut assert_cmd::Command| {
+                command
+                    .env_remove("CI")
+                    .env_remove("GITHUB_ACTIONS")
+                    .env_remove("GITHUB_WORKSPACE");
+                match environment {
+                    "ci" => {
+                        command.env("CI", "true");
+                    }
+                    "github" => {
+                        command
+                            .env("GITHUB_ACTIONS", "true")
+                            .env("GITHUB_WORKSPACE", root);
+                    }
+                    _ => {}
                 }
-                "github" => {
-                    command
-                        .env("GITHUB_ACTIONS", "true")
-                        .env("GITHUB_WORKSPACE", root);
+            };
+            let mut status = specsync();
+            configure(&mut status);
+            let output = status
+                .args([
+                    "--root",
+                    root.to_str().unwrap(),
+                    "--json",
+                    "change",
+                    "status",
+                    id,
+                ])
+                .assert()
+                .success()
+                .get_output()
+                .stdout
+                .clone();
+            let value: Value = serde_json::from_slice(&output).unwrap();
+            assert_eq!(value["summary"]["next_action"], expected_action);
+            if let Some(check_succeeds) = check_succeeds {
+                let mut check = specsync();
+                configure(&mut check);
+                let assertion = check
+                    .args(["--root", root.to_str().unwrap(), "change", "check"])
+                    .assert();
+                if check_succeeds {
+                    assertion.success();
+                } else {
+                    assertion.failure();
                 }
-                _ => {}
             }
         };
-        let mut status = specsync();
-        configure(&mut status);
-        let output = status
-            .args([
-                "--root",
-                root.to_str().unwrap(),
-                "--json",
-                "change",
-                "status",
-                id,
-            ])
-            .assert()
-            .success()
-            .get_output()
-            .stdout
-            .clone();
-        let value: Value = serde_json::from_slice(&output).unwrap();
-        assert_eq!(value["summary"]["next_action"], expected_action);
-        let mut check = specsync();
-        configure(&mut check);
-        let assertion = check
-            .args(["--root", root.to_str().unwrap(), "change", "check"])
-            .assert();
-        if check_succeeds {
-            assertion.success();
-        } else {
-            assertion.failure();
-        }
-    };
     for environment in ["local", "ci", "github"] {
-        assert_surfaces("accept", true, environment);
+        assert_surfaces(
+            "run `specsync change review CHG-0001-harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
+            Some(true),
+            environment,
+        );
     }
     fs::write(
         root.join("src/lib.rs"),
@@ -204,7 +211,22 @@ fn verification_freshness_status_and_check_are_environment_independent() {
     git(&["add", "src/lib.rs"]);
     git(&["commit", "-m", "change governed input"]);
     for environment in ["local", "ci", "github"] {
-        assert_surfaces("verify", false, environment);
+        assert_surfaces(
+            "run `specsync change check CHG-0001-harden-verification-freshness`",
+            None,
+            environment,
+        );
+    }
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .assert()
+        .success();
+    for environment in ["local", "ci", "github"] {
+        assert_surfaces(
+            "run `specsync change review CHG-0001-harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
+            None,
+            environment,
+        );
     }
 }
 
@@ -414,6 +436,7 @@ fn init_enables_sdd_for_new_projects() {
     let policy: Value =
         serde_json::from_str(&fs::read_to_string(temp.path().join(".specsync/sdd.json")).unwrap())
             .unwrap();
+    assert_eq!(policy["version"], 2);
     assert_eq!(policy["enabled"], true);
     assert!(temp.path().join(".specsync/archive/changes").is_dir());
 }
@@ -454,6 +477,38 @@ fn no_spec_change_completes_full_cli_lifecycle() {
         .assert()
         .success();
     let id = "CHG-0001-update-contributor-documentation";
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "accept", id])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("uses the single 6.0 workflow"));
+    let state_path = root.join(".specsync/changes").join(id).join("state.json");
+    let mut legacy_state: Value =
+        serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    legacy_state
+        .as_object_mut()
+        .unwrap()
+        .remove("workflow_version");
+    fs::write(
+        &state_path,
+        format!("{}\n", serde_json::to_string_pretty(&legacy_state).unwrap()),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 1,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
     for (question, answer) in [
         (
             "acceptance_criteria",
@@ -495,46 +550,6 @@ fn no_spec_change_completes_full_cli_lifecycle() {
     git(&["add", "."]);
     git(&["commit", "-m", "record accepted lifecycle evidence"]);
     git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
-    fs::write(
-        root.join(".specsync/sdd.json"),
-        r#"{
-  "version": 1,
-  "enabled": true,
-  "require_change_for_meaningful_files": false,
-  "meaningful_paths": [],
-  "ignored_paths": [],
-  "verification_commands": ["cargo metadata --manifest-path definitely-missing/Cargo.toml"],
-  "custom_artifacts": {},
-  "principles_file": null
-}
-
-"#,
-    )
-    .unwrap();
-    specsync()
-        .env("CI", "true")
-        .env_remove("GITHUB_WORKSPACE")
-        .args(["--root", root.to_str().unwrap(), "change", "check"])
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "CI verification command `cargo metadata --manifest-path definitely-missing/Cargo.toml` failed",
-        ));
-    fs::write(
-        root.join(".specsync/sdd.json"),
-        r#"{
-  "version": 1,
-  "enabled": true,
-  "require_change_for_meaningful_files": false,
-  "meaningful_paths": [],
-  "ignored_paths": [],
-  "verification_commands": [],
-  "custom_artifacts": {},
-  "principles_file": null
-}
-"#,
-    )
-    .unwrap();
     specsync()
         .args(["--root", root.to_str().unwrap(), "change", "archive", id])
         .assert()
@@ -576,7 +591,7 @@ fn change_supersede_persists_an_exact_predecessor_obligation_through_the_cli() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": [],
   "ignored_paths": [],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -753,7 +768,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": [],
   "ignored_paths": [],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -883,8 +898,8 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
     specsync()
         .args(["--root", root.to_str().unwrap(), "change", "check"])
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("verification evidence is stale"));
+        .success()
+        .stdout(predicate::str::contains("active change(s) checked"));
 
     let docs_path = dir.join("docs.md");
     let accepted_docs = fs::read_to_string(&docs_path).unwrap();
@@ -985,7 +1000,7 @@ fn reopened_owner_correction_is_deterministic_through_json_cli() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": ["src/"],
   "ignored_paths": [".specsync/", "specs/"],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -1140,7 +1155,7 @@ fn batch_correct_owner_through_cli_is_transactional() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": ["src/"],
   "ignored_paths": [".specsync/", "specs/"],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -1309,7 +1324,7 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": [],
   "ignored_paths": [],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -1413,7 +1428,10 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
         value["effective_definition"]["answers"]["architecture_risk"],
         "yes"
     );
-    assert_eq!(value["summary"]["next_action"], "complete artifacts");
+    let next_action = value["summary"]["next_action"].as_str().unwrap();
+    for artifact in ["research.md", "design.md", "plan.md"] {
+        assert!(next_action.contains(artifact));
+    }
     assert_eq!(value["corrections"].as_array().unwrap().len(), 1);
 
     for artifact in ["research.md", "design.md", "plan.md"] {
@@ -1446,7 +1464,10 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
         show["corrections"][0]["reason"],
         "The lifecycle implementation affects persisted architecture"
     );
-    assert_eq!(show["summary"]["next_action"], "approve");
+    assert_eq!(
+        show["summary"]["next_action"],
+        "run `specsync change approve CHG-0001-correct-lifecycle-classification --actor <name>`"
+    );
 
     specsync()
         .args([
@@ -1470,7 +1491,7 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
     let status = String::from_utf8(status).unwrap();
     assert!(status.contains("architecture_risk: no → yes by Release reviewer"));
     assert!(status.contains("architecture_risk=yes"));
-    assert!(status.contains("Next: verify"));
+    assert!(status.contains(&format!("Next: run `specsync change check {id}`")));
 
     specsync()
         .args(["--root", root.to_str().unwrap(), "change", "verify", id])
@@ -1517,7 +1538,7 @@ fn indirect_recursive_lifecycle_check_fails_once_with_context() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": [],
   "ignored_paths": [],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }

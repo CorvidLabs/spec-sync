@@ -52,3 +52,12 @@ accumulated as one `(mode, normalized object ID)` pair per path: exact repeats a
 while either field changing produces a deterministic conflicting-duplicate error without
 replacing the first pair. Output bounds and all other index, path, and working-tree checks remain
 unchanged.
+
+Workflow-version-2 approval uses a stable scope projection rather than the mutable change package.
+The projection contains intent, acceptance criteria, public-contract/risk declarations, and
+affected spec/path/dependency/supersession scope. Artifacts, semantic-delta wording, tests,
+canonical materialization, and lifecycle metadata bind a separate execution digest, so they
+automatically stale verification and scoped review without asking the human to approve again.
+Status requests renewal only when the current projection expands the approved boundary and lists
+that expansion in plain language. Historical workflow-version-1 digests retain their exact
+artifact-bound verification path.

@@ -76,46 +76,166 @@ pub fn parse_cross_project_ref(dep: &str) -> Option<(&str, &str)> {
 
 // ─── Schema Table Discovery ──────────────────────────────────────────────
 
-/// Extract table names from SQL schema files.
+/// Extract canonical table names from the ordered schema replay. An explicit
+/// schema pattern may supplement replayed names, but cannot restore a table
+/// identity retired by DROP TABLE or ALTER TABLE RENAME.
 pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<String> {
-    let mut tables = HashSet::new();
+    // Replay is authoritative; retain the public default-pattern contract as a
+    // compile-checked compatibility value without re-scanning CREATE statements.
+    debug_assert!(safe_regex(default_schema_pattern()).is_some());
+
     let schema_dir = match &config.schema_dir {
         Some(d) => root.join(d),
-        None => return tables,
+        None => return HashSet::new(),
     };
 
-    if !schema_dir.exists() {
-        return tables;
+    let snapshot = match schema::build_schema_snapshot(&schema_dir) {
+        Ok(snapshot) => snapshot,
+        Err(_) => return HashSet::new(),
+    };
+    schema_table_names_from_snapshot(&snapshot, config).unwrap_or_default()
+}
+
+pub(crate) fn schema_table_names_from_snapshot(
+    snapshot: &schema::SchemaSnapshot,
+    config: &SpecSyncConfig,
+) -> Result<HashSet<String>, String> {
+    let mut tables: HashSet<String> = snapshot.tables.keys().cloned().collect();
+    if let Some(pattern) = config.schema_pattern.as_deref() {
+        let regex = safe_regex(pattern).ok_or_else(|| {
+            "Invalid `schema_pattern`: the regex could not be compiled within safety limits"
+                .to_string()
+        })?;
+        if regex.captures_len() < 2 {
+            return Err(
+                "Invalid `schema_pattern`: it must contain a capture group for the table name"
+                    .to_string(),
+            );
+        }
+        tables.extend(
+            snapshot
+                .pattern_table_names(&regex)
+                .map_err(|error| format!("Invalid `schema_pattern` result: {error}"))?,
+        );
+    }
+    Ok(tables)
+}
+
+pub(crate) fn schema_config_problems_for_snapshot(
+    config: &SpecSyncConfig,
+    snapshot: Option<&schema::SchemaSnapshot>,
+) -> Vec<String> {
+    let Some(pattern) = config.schema_pattern.as_deref() else {
+        return Vec::new();
+    };
+
+    let mut problems = Vec::new();
+    let regex = match safe_regex(pattern) {
+        Some(regex) if regex.captures_len() >= 2 => Some(regex),
+        Some(_) => {
+            problems.push(
+                "Invalid `schema_pattern`: it must contain a capture group for the table name"
+                    .to_string(),
+            );
+            None
+        }
+        None => {
+            problems.push(
+                "Invalid `schema_pattern`: the regex could not be compiled within safety limits"
+                    .to_string(),
+            );
+            None
+        }
+    };
+
+    let has_schema_dir = match &config.schema_dir {
+        Some(_) => true,
+        None => {
+            problems.push(
+                "`schema_pattern` is configured but `schema_dir` is not configured; DB schema validation cannot scan for tables"
+                    .to_string(),
+            );
+            false
+        }
+    };
+
+    if has_schema_dir
+        && let (Some(regex), Some(snapshot)) = (regex, snapshot)
+        && let Err(error) = snapshot.pattern_table_names(&regex)
+    {
+        problems.push(format!("Invalid `schema_pattern` result: {error}"));
     }
 
-    let pattern_str = config
-        .schema_pattern
-        .as_deref()
-        .unwrap_or_else(|| default_schema_pattern());
+    problems
+}
 
-    let re = match safe_regex(pattern_str) {
-        Some(r) => r,
-        None => return tables,
-    };
+fn schema_table_exists(declaration: &str, schema_tables: &HashSet<String>) -> Result<bool, String> {
+    for discovered in schema_tables {
+        if schema::table_reference_matches(declaration, discovered)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
 
-    if let Ok(entries) = fs::read_dir(&schema_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            if ext != "ts" && ext != "sql" {
-                continue;
-            }
-            if let Ok(content) = fs::read_to_string(&path) {
-                for caps in re.captures_iter(&content) {
-                    if let Some(name) = caps.get(1) {
-                        tables.insert(name.as_str().to_string());
-                    }
-                }
-            }
+fn resolve_schema_value<'a, Value>(
+    declaration: &str,
+    values: &'a HashMap<String, Value>,
+) -> Result<Option<(&'a str, &'a Value)>, String> {
+    let canonical_declaration = schema::canonicalize_table_name(declaration)?;
+    let mut exact = Vec::new();
+    let mut compatible = Vec::new();
+
+    for (name, value) in values {
+        let canonical_name = schema::canonicalize_table_name(name)?;
+        if canonical_name == canonical_declaration {
+            exact.push((name.as_str(), value));
+        } else if schema::table_reference_matches(&canonical_declaration, &canonical_name)? {
+            compatible.push((name.as_str(), value));
         }
     }
 
-    tables
+    let candidates = if exact.is_empty() { compatible } else { exact };
+    if candidates.len() > 1 {
+        let mut names: Vec<&str> = candidates.iter().map(|(name, _)| *name).collect();
+        names.sort_unstable();
+        return Err(format!(
+            "DB table reference `{declaration}` is ambiguous across schema tables: {}",
+            names.join(", ")
+        ));
+    }
+
+    Ok(candidates.into_iter().next())
+}
+
+fn validate_db_table_identifier(table: &str, result: &mut ValidationResult) -> Result<(), String> {
+    match schema::canonicalize_table_name(table) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            result
+                .errors
+                .push(format!("Invalid DB table identifier `{table}`: {error}"));
+            result.fixes.push(format!(
+                "Use a bare, quoted, or schema-qualified SQL identifier instead of `{table}`"
+            ));
+            Err(error)
+        }
+    }
+}
+
+fn add_missing_db_table_error(table: &str, result: &mut ValidationResult) {
+    result
+        .errors
+        .push(format!("DB table not found in schema: {table}"));
+    result.fixes.push(format!(
+        "Remove `{table}` from db_tables or add a CREATE TABLE migration"
+    ));
+}
+
+fn add_schema_resolution_error(error: String, result: &mut ValidationResult) {
+    if !result.errors.contains(&error) {
+        result.errors.push(error);
+    }
 }
 
 // ─── File Discovery ──────────────────────────────────────────────────────
@@ -2027,15 +2147,32 @@ fn validate_spec_content_internal(
         }
     }
 
-    // Check db_tables exist in schema
+    // Check db_tables exist in the canonical replayed schema. An omitted
+    // schema_dir is visible instead of silently disabling every declaration.
+    if !fm.db_tables.is_empty() && config.schema_dir.is_none() {
+        result.warnings.push(
+            "DB table validation skipped: `db_tables` is declared but `schema_dir` is not configured"
+                .to_string(),
+        );
+        result.fixes.push(
+            "Configure `schema_dir` to validate declared database tables against migrations"
+                .to_string(),
+        );
+    }
+
     for table in &fm.db_tables {
-        if !schema_tables.is_empty() && !schema_tables.contains(table) {
-            result
-                .errors
-                .push(format!("DB table not found in schema: {table}"));
-            result.fixes.push(format!(
-                "Remove `{table}` from db_tables or add a CREATE TABLE migration"
-            ));
+        if validate_db_table_identifier(table, &mut result).is_err() {
+            continue;
+        }
+        if config.schema_dir.is_some() {
+            match schema_table_exists(table, schema_tables) {
+                Ok(true) => {}
+                Ok(false) => add_missing_db_table_error(table, &mut result),
+                Err(error) => add_schema_resolution_error(
+                    format!("Invalid DB table identifier `{table}`: {error}"),
+                    &mut result,
+                ),
+            }
         }
     }
 
@@ -2043,52 +2180,65 @@ fn validate_spec_content_internal(
     if !schema_columns.is_empty() {
         let spec_schema = schema::parse_spec_schema(body);
         for table_name in &fm.db_tables {
-            if let Some(actual_table) = schema_columns.get(table_name)
-                && let Some(spec_cols) = spec_schema.get(table_name)
-            {
-                let actual_names: HashSet<&str> = actual_table
-                    .columns
-                    .iter()
-                    .map(|c| c.name.as_str())
-                    .collect();
-                let spec_names: HashSet<&str> = spec_cols.iter().map(|c| c.name.as_str()).collect();
-
-                // Spec documents a column that doesn't exist = ERROR
-                for sc in spec_cols {
-                    if !actual_names.contains(sc.name.as_str()) {
-                        result.errors.push(format!(
-                            "Schema column `{}.{}` documented in spec but not found in migrations",
-                            table_name, sc.name
-                        ));
-                        result.fixes.push(format!(
-                            "Remove `{}` from the ### Schema section or add it via ALTER TABLE",
-                            sc.name
-                        ));
-                    }
+            let actual_table = match resolve_schema_value(table_name, schema_columns) {
+                Ok(Some((_, table))) => table,
+                Ok(None) => continue,
+                Err(error) => {
+                    add_schema_resolution_error(error, &mut result);
+                    continue;
                 }
+            };
+            let spec_cols = match resolve_schema_value(table_name, &spec_schema) {
+                Ok(Some((_, columns))) => columns,
+                Ok(None) => continue,
+                Err(error) => {
+                    add_schema_resolution_error(error, &mut result);
+                    continue;
+                }
+            };
 
-                // Column exists in schema but not in spec = WARNING
-                for ac in &actual_table.columns {
-                    if !spec_names.contains(ac.name.as_str()) {
+            let actual_names: HashSet<&str> = actual_table
+                .columns
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect();
+            let spec_names: HashSet<&str> = spec_cols.iter().map(|c| c.name.as_str()).collect();
+
+            // Spec documents a column that doesn't exist = ERROR
+            for sc in spec_cols {
+                if !actual_names.contains(sc.name.as_str()) {
+                    result.errors.push(format!(
+                        "Schema column `{}.{}` documented in spec but not found in migrations",
+                        table_name, sc.name
+                    ));
+                    result.fixes.push(format!(
+                        "Remove `{}` from the ### Schema section or add it via ALTER TABLE",
+                        sc.name
+                    ));
+                }
+            }
+
+            // Column exists in schema but not in spec = WARNING
+            for ac in &actual_table.columns {
+                if !spec_names.contains(ac.name.as_str()) {
+                    result.warnings.push(format!(
+                        "Schema column `{}.{}` exists in migrations but not documented in spec",
+                        table_name, ac.name
+                    ));
+                }
+            }
+
+            // Type mismatch = WARNING
+            for sc in spec_cols {
+                if let Some(ac) = actual_table.columns.iter().find(|c| c.name == sc.name) {
+                    // Normalise both to uppercase for comparison
+                    let spec_type = sc.col_type.to_uppercase();
+                    let actual_type = ac.col_type.to_uppercase();
+                    if spec_type != actual_type {
                         result.warnings.push(format!(
-                            "Schema column `{}.{}` exists in migrations but not documented in spec",
-                            table_name, ac.name
-                        ));
-                    }
-                }
-
-                // Type mismatch = WARNING
-                for sc in spec_cols {
-                    if let Some(ac) = actual_table.columns.iter().find(|c| c.name == sc.name) {
-                        // Normalise both to uppercase for comparison
-                        let spec_type = sc.col_type.to_uppercase();
-                        let actual_type = ac.col_type.to_uppercase();
-                        if spec_type != actual_type {
-                            result.warnings.push(format!(
                                 "Schema column `{}.{}` type mismatch: spec says {} but migrations say {}",
                                 table_name, sc.name, spec_type, actual_type
                             ));
-                        }
                     }
                 }
             }

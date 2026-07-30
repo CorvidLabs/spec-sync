@@ -1,0 +1,452 @@
+name: SpecSync post-merge archive binding
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: specsync-archive-binding-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  bind:
+    name: Bind archive to merge commit
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Locate the finalized archive
+        id: archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          files="${RUNNER_TEMP}/specsync-pr-files.txt"
+          fetched=false
+          for attempt in 1 2 3; do
+            if gh api --paginate \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+                --jq '.[].filename' > "$files"; then
+              fetched=true
+              break
+            fi
+            echo "PR file lookup failed (attempt ${attempt}/3)." >&2
+            sleep "$attempt"
+          done
+          if [[ "$fetched" != "true" ]]; then
+            echo "Unable to read merged PR files after three attempts." >&2
+            exit 1
+          fi
+
+          mapfile -t archive_dirs < <(
+            sed -nE \
+              's#^(\.specsync/archive/changes/[0-9]{4}-[0-9]{2}-[0-9]{2}-CHG-[0-9]{4,}-.+)/.*#\1#p' \
+              "$files" \
+              | sort -u
+          )
+
+          if [[ "${#archive_dirs[@]}" == "0" ]]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "Merged PR has no finalized SpecSync archive; no binding event is needed."
+            exit 0
+          fi
+          if [[ "${#archive_dirs[@]}" != "1" ]]; then
+            echo "Expected one finalized archive, found ${#archive_dirs[@]}." >&2
+            printf '  %s\n' "${archive_dirs[@]}" >&2
+            exit 1
+          fi
+
+          archive_path="${archive_dirs[0]}"
+          archive_dir="${archive_path##*/}"
+          change_id="${archive_dir:11}"
+          {
+            printf 'found=true\n'
+            printf 'path=%s\n' "$archive_path"
+            printf 'dir=%s\n' "$archive_dir"
+            printf 'change_id=%s\n' "$change_id"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify merged archive and create compact binding
+        if: steps.archive.outputs.found == 'true'
+        id: binding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          ARCHIVE_PATH: ${{ steps.archive.outputs.path }}
+          CHANGE_ID: ${{ steps.archive.outputs.change_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head"
+            if [[ "$(git rev-parse FETCH_HEAD)" != "$HEAD_SHA" ]]; then
+              echo "Fetched PR head does not match the merged event head." >&2
+              exit 1
+            fi
+          fi
+          if ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/state.json" \
+              || ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/verification.json" \
+              || ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/accepted-state.json" \
+              || ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/finalization.json" \
+              || ! git cat-file -e "${MERGE_SHA}:${ARCHIVE_PATH}/review.json" \
+              || ! git cat-file -e "${HEAD_SHA}:${ARCHIVE_PATH}"; then
+            echo "Merged commit is missing required workflow-v2 archive evidence." >&2
+            exit 1
+          fi
+          head_archive_tree="$(git rev-parse "${HEAD_SHA}:${ARCHIVE_PATH}")"
+          merged_archive_tree="$(git rev-parse "${MERGE_SHA}:${ARCHIVE_PATH}")"
+          if [[ "$merged_archive_tree" != "$head_archive_tree" ]]; then
+            echo "Merged archive subtree differs from the validated finalized PR head." >&2
+            exit 1
+          fi
+
+          export STATE_JSON
+          export VERIFICATION_JSON
+          export FINALIZATION_JSON
+          STATE_JSON="$(git show "${MERGE_SHA}:${ARCHIVE_PATH}/state.json")"
+          VERIFICATION_JSON="$(git show "${MERGE_SHA}:${ARCHIVE_PATH}/verification.json")"
+          FINALIZATION_JSON="$(
+            git show "${MERGE_SHA}:${ARCHIVE_PATH}/finalization.json"
+          )"
+          python3 - <<'PY'
+          import json
+          import os
+
+          state = json.loads(os.environ["STATE_JSON"])
+          verification = json.loads(os.environ["VERIFICATION_JSON"])
+          finalization = json.loads(os.environ["FINALIZATION_JSON"])
+          if state.get("id") != os.environ["CHANGE_ID"] or state.get("state") != "archived":
+              raise SystemExit("merged archive state does not match the finalized change")
+          if state.get("workflow_version") != 2:
+              raise SystemExit("merged archive is not workflow_version=2")
+          if verification.get("passed") is not True:
+              raise SystemExit("merged archive contains non-passing verification evidence")
+          if (
+              finalization.get("schema_version") != 2
+              or finalization.get("change_id") != os.environ["CHANGE_ID"]
+          ):
+              raise SystemExit("merged archive has invalid finalization evidence")
+          PY
+
+          checks_file="${RUNNER_TEMP}/specsync-head-checks.json"
+          fetched=false
+          for attempt in 1 2 3; do
+            if gh api \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "repos/${REPOSITORY}/commits/${HEAD_SHA}/check-runs?per_page=100" \
+                > "$checks_file"; then
+              fetched=true
+              break
+            fi
+            echo "Merged head check lookup failed (attempt ${attempt}/3)." >&2
+            sleep "$attempt"
+          done
+          if [[ "$fetched" != "true" ]]; then
+            echo "Unable to read merged head checks after three attempts." >&2
+            exit 1
+          fi
+
+          export CHECKS_FILE="$checks_file"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          head = os.environ["HEAD_SHA"]
+          repository = os.environ["REPOSITORY"]
+          server_url = os.environ["SERVER_URL"].rstrip("/")
+          pull_request = int(os.environ["PR_NUMBER"])
+          with open(os.environ["CHECKS_FILE"], encoding="utf-8") as handle:
+              runs = json.load(handle).get("check_runs", [])
+
+          def api(endpoint: str) -> dict:
+              output = subprocess.check_output(
+                  [
+                      "gh",
+                      "api",
+                      "-H",
+                      "Accept: application/vnd.github+json",
+                      "-H",
+                      "X-GitHub-Api-Version: 2022-11-28",
+                      endpoint,
+                  ],
+                  text=True,
+              )
+              return json.loads(output)
+
+          github_actions_app = api("apps/github-actions")
+          if (
+              github_actions_app.get("slug") != "github-actions"
+              or github_actions_app.get("name") != "GitHub Actions"
+              or (github_actions_app.get("owner") or {}).get("login") != "github"
+          ):
+              raise SystemExit("could not resolve the official GitHub Actions app")
+
+          def proven_check(name: str, workflow_path: str) -> int:
+              errors = []
+              candidates = sorted(
+                  (run for run in runs if run.get("name") == name),
+                  key=lambda run: int(run.get("id", 0)),
+                  reverse=True,
+              )
+              for check in candidates:
+                  try:
+                      if check.get("head_sha") != head:
+                          raise ValueError("wrong head SHA")
+                      if (
+                          check.get("status") != "completed"
+                          or check.get("conclusion") != "success"
+                      ):
+                          raise ValueError("check is not successful")
+                      app = check.get("app") or {}
+                      if (
+                          app.get("id") != github_actions_app.get("id")
+                          or app.get("slug") != github_actions_app.get("slug")
+                      ):
+                          raise ValueError("check is not from GitHub Actions")
+                      details_url = str(check.get("details_url") or "")
+                      match = re.fullmatch(
+                          (
+                              rf"{re.escape(server_url)}/{re.escape(repository)}"
+                              r"/actions/runs/([0-9]+)/job/[0-9]+"
+                          ),
+                          details_url,
+                      )
+                      if match is None:
+                          raise ValueError("invalid GitHub Actions details URL")
+                      run_id = int(match.group(1))
+                      workflow_run = api(
+                          f"repos/{repository}/actions/runs/{run_id}"
+                      )
+                      if workflow_run.get("id") != run_id:
+                          raise ValueError("wrong workflow run ID")
+                      if workflow_run.get("head_sha") != head:
+                          raise ValueError("workflow run has the wrong head SHA")
+                      if workflow_run.get("event") != "pull_request":
+                          raise ValueError("workflow run is not for a pull request")
+                      if (
+                          workflow_run.get("status") != "completed"
+                          or workflow_run.get("conclusion") != "success"
+                      ):
+                          raise ValueError("workflow run is not successful")
+                      if (
+                          str(workflow_run.get("path") or "").split("@", 1)[0]
+                          != workflow_path
+                      ):
+                          raise ValueError("workflow run has the wrong path")
+                      if (workflow_run.get("repository") or {}).get(
+                          "full_name"
+                      ) != repository:
+                          raise ValueError("workflow run belongs to another repository")
+                      if not any(
+                          item.get("number") == pull_request
+                          for item in workflow_run.get("pull_requests") or []
+                      ):
+                          raise ValueError("workflow run is not bound to the merged PR")
+                      return run_id
+                  except (
+                      json.JSONDecodeError,
+                      subprocess.CalledProcessError,
+                      TypeError,
+                      ValueError,
+                  ) as error:
+                      errors.append(f"check {check.get('id')}: {error}")
+              detail = "; ".join(errors) if errors else "no matching checks"
+              raise SystemExit(f"{name} has no proven merged-head result: {detail}")
+
+          proven_check("Required CI gate", ".github/workflows/ci.yml")
+          proven_check("trust", ".github/workflows/trust.yml")
+          PY
+
+          merge_tree="$(git rev-parse "${MERGE_SHA}^{tree}")"
+          archive_tree="$merged_archive_tree"
+          changed_components="$(jq -c '.affected_specs // [] | sort | unique' <<<"$STATE_JSON")"
+          event_file="${RUNNER_TEMP}/specsync-archive-event.json"
+          jq -n -S \
+            --arg change_id "$CHANGE_ID" \
+            --argjson pull_request "$PR_NUMBER" \
+            --arg pull_request_url "$PR_URL" \
+            --arg implementation_head "$HEAD_SHA" \
+            --arg merge_commit "$MERGE_SHA" \
+            --arg merge_tree "$merge_tree" \
+            --arg archive_path "$ARCHIVE_PATH" \
+            --arg archive_tree "$archive_tree" \
+            --argjson changed_components "$changed_components" \
+            '{
+              schema_version: 1,
+              change_id: $change_id,
+              pull_request: $pull_request,
+              pull_request_url: $pull_request_url,
+              implementation_head: $implementation_head,
+              merge_commit: $merge_commit,
+              merge_tree: $merge_tree,
+              archive_path: $archive_path,
+              archive_tree: $archive_tree,
+              changed_components: $changed_components,
+              checks: [
+                "Required CI gate",
+                "trust",
+                "SpecSync scoped review",
+                "Validate archive-only finalization"
+              ],
+              outcome: "merged"
+            }' > "$event_file"
+          event_digest="$(shasum -a 256 "$event_file" | awk '{print $1}')"
+
+          summary="$(
+            printf '%s\n' \
+              "SpecSync finalized **${CHANGE_ID}** in PR #${PR_NUMBER}." \
+              "" \
+              "- Merge commit: \`${MERGE_SHA}\`" \
+              "- Merge tree: \`${merge_tree}\`" \
+              "- Archive: \`${ARCHIVE_PATH}/\`" \
+              "- Archive tree: \`${archive_tree}\`" \
+              "- Compact event digest: \`${event_digest}\`" \
+              "- Changed components: \`$(jq -r 'join(", ")' <<<"$changed_components")\`" \
+              "- Finalized-head Required CI and trust: provenance-bound and green"
+          )"
+          payload="${RUNNER_TEMP}/specsync-check-payload.json"
+          jq -n \
+            --arg name "SpecSync archive binding" \
+            --arg head_sha "$MERGE_SHA" \
+            --arg external_id "specsync-archive:${CHANGE_ID}:${event_digest}" \
+            --arg details_url "$RUN_URL" \
+            --arg title "Archive bound to merged commit" \
+            --arg summary "$summary" \
+            '{
+              name: $name,
+              head_sha: $head_sha,
+              status: "completed",
+              conclusion: "success",
+              external_id: $external_id,
+              details_url: $details_url,
+              output: {title: $title, summary: $summary}
+            }' > "$payload"
+
+          response="${RUNNER_TEMP}/specsync-check-response.json"
+          created=false
+          for attempt in 1 2 3; do
+            if gh api --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "repos/${REPOSITORY}/check-runs" \
+                --input "$payload" > "$response"; then
+              created=true
+              break
+            fi
+            echo "Archive binding check creation failed (attempt ${attempt}/3)." >&2
+            sleep "$attempt"
+          done
+          if [[ "$created" != "true" ]]; then
+            echo "Unable to record archive binding after three attempts." >&2
+            exit 1
+          fi
+
+          check_url="$(jq -r '.html_url' "$response")"
+          {
+            printf 'event_digest=%s\n' "$event_digest"
+            printf 'check_url=%s\n' "$check_url"
+          } >> "$GITHUB_OUTPUT"
+          cat "$event_file"
+
+      - name: Link the archive binding from the merged PR
+        if: steps.archive.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CHANGE_ID: ${{ steps.archive.outputs.change_id }}
+          ARCHIVE_PATH: ${{ steps.archive.outputs.path }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          EVENT_DIGEST: ${{ steps.binding.outputs.event_digest }}
+          CHECK_URL: ${{ steps.binding.outputs.check_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          marker="<!-- specsync-archive-binding:${CHANGE_ID} -->"
+          body="$(
+            printf '%s\n' \
+              "$marker" \
+              "✅ SpecSync archive finalized and bound to merge commit \`${MERGE_SHA}\`." \
+              "" \
+              "- Archive: \`${ARCHIVE_PATH}/\`" \
+              "- Compact event digest: \`${EVENT_DIGEST}\`" \
+              "- Integrity check: ${CHECK_URL}"
+          )"
+
+          comments="${RUNNER_TEMP}/specsync-pr-comments.json"
+          gh api --paginate --slurp \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100" \
+            > "$comments"
+          export COMMENTS_FILE="$comments"
+          export MARKER="$marker"
+          comment_id="$(
+            python3 - <<'PY'
+          import json
+          import os
+
+          with open(os.environ["COMMENTS_FILE"], encoding="utf-8") as handle:
+              pages = json.load(handle)
+          for page in pages:
+              for comment in page:
+                  if os.environ["MARKER"] in (comment.get("body") or ""):
+                      print(comment["id"])
+                      raise SystemExit
+          PY
+          )"
+
+          payload="${RUNNER_TEMP}/specsync-comment-payload.json"
+          jq -n --arg body "$body" '{body: $body}' > "$payload"
+          if [[ -n "$comment_id" ]]; then
+            endpoint="repos/${REPOSITORY}/issues/comments/${comment_id}"
+            method=PATCH
+          else
+            endpoint="repos/${REPOSITORY}/issues/${PR_NUMBER}/comments"
+            method=POST
+          fi
+
+          posted=false
+          for attempt in 1 2 3; do
+            if gh api --method "$method" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "$endpoint" --input "$payload" >/dev/null; then
+              posted=true
+              break
+            fi
+            echo "PR archive status update failed (attempt ${attempt}/3)." >&2
+            sleep "$attempt"
+          done
+          if [[ "$posted" != "true" ]]; then
+            echo "Unable to publish merged PR archive status after three attempts." >&2
+            exit 1
+          fi

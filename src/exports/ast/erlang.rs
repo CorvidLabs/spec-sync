@@ -1,4 +1,9 @@
+use regex::Regex;
+use std::sync::LazyLock;
 use tree_sitter::{Node, Parser, Tree};
+
+static STATIC_EXPORT_IDENTITY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:'((?:\\.|[^'])+)'|([[:word:]]+))/([0-9]+)").unwrap());
 
 /// Parse Erlang source into a tree-sitter AST.
 fn parse_erlang(content: &str) -> Option<Tree> {
@@ -48,7 +53,7 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         let mut cursor = root.walk();
         for child in root.children(&mut cursor) {
             if child.kind() == "fun_decl" {
-                collect_fun_decl_name(&child, src, &mut symbols);
+                collect_fun_decl_identity(&child, src, &mut symbols);
             }
         }
     }
@@ -56,8 +61,8 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     symbols
 }
 
-/// Collect exported function names from an `export_attribute` node's `fa`
-/// (function/arity) children.
+/// Collect static exported function identities from an `export_attribute`
+/// node's `fa` (function/arity) children.
 ///
 /// A `?MACRO` placeholder used as an export-list entry (e.g.
 /// `-export([add/2, ?SOME_MACRO, sub/2]).`) cannot be statically resolved to
@@ -70,50 +75,31 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 /// (observed: `sub/2` following `?SOME_MACRO` gets folded into
 /// `fa fun: (macro_call_expr) (ERROR (atom))`), which would otherwise silently
 /// drop a legitimate, real export. To recover it without over-trusting
-/// `ERROR` node internals, any `atom` node found nested inside such an
-/// `ERROR` child is treated as an additional recovered name -- mirroring the
-/// regex reference, which token-matches `name/arity` shapes and is
-/// unaffected by this parse corruption.
+/// `ERROR` node internals, only complete static `name/arity` shapes in the
+/// affected `fa` text are recovered. Macro names remain excluded.
 fn collect_export_funs(export_attr: &Node, src: &[u8], symbols: &mut Vec<String>) {
     let mut cursor = export_attr.walk();
     for fa in export_attr.children_by_field_name("funs", &mut cursor) {
-        match fa.child_by_field_name("fun") {
-            Some(fun) if fun.kind() == "atom" => {
-                let text = fun.utf8_text(src).unwrap_or_default();
-                let name = text.trim_matches('\'').to_string();
-                if !symbols.contains(&name) {
-                    symbols.push(name);
-                }
-            }
-            _ => {
-                // Not a plain atom (e.g. a `?MACRO` placeholder) -- don't
-                // emit its raw text as a name, but recover any real atom
-                // that got swallowed into a sibling ERROR node.
-                let mut inner = fa.walk();
-                for descendant in fa.children(&mut inner) {
-                    if descendant.kind() == "ERROR" {
-                        collect_error_atoms(&descendant, src, symbols);
-                    }
-                }
-            }
-        }
+        collect_static_identities(fa.utf8_text(src).unwrap_or_default(), symbols);
     }
 }
 
-/// Recover plain `atom` names nested inside an `ERROR` node (see
-/// `collect_export_funs` for why this happens).
-fn collect_error_atoms(node: &Node, src: &[u8], symbols: &mut Vec<String>) {
-    if node.kind() == "atom" {
-        let text = node.utf8_text(src).unwrap_or_default();
-        let name = text.trim_matches('\'').to_string();
-        if !name.is_empty() && !symbols.contains(&name) {
-            symbols.push(name);
+fn collect_static_identities(text: &str, symbols: &mut Vec<String>) {
+    for captures in STATIC_EXPORT_IDENTITY.captures_iter(text) {
+        let Some(full_match) = captures.get(0) else {
+            continue;
+        };
+        if full_match.start() > 0 && text.as_bytes()[full_match.start() - 1] == b'?' {
+            continue;
         }
-        return;
-    }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        collect_error_atoms(&child, src, symbols);
+        if let (Some(name), Some(arity)) =
+            (captures.get(1).or_else(|| captures.get(2)), captures.get(3))
+        {
+            let identity = format!("{}/{}", name.as_str(), arity.as_str());
+            if !symbols.contains(&identity) {
+                symbols.push(identity);
+            }
+        }
     }
 }
 
@@ -142,7 +128,7 @@ fn is_export_all_atom(node: &Node, src: &[u8]) -> bool {
 /// `function_clause` (skipping macro-call clauses, which have no `name`
 /// field). Used only when `-compile(export_all)` is in effect, since it
 /// exports every function defined in the module.
-fn collect_fun_decl_name(fun_decl: &Node, src: &[u8], symbols: &mut Vec<String>) {
+fn collect_fun_decl_identity(fun_decl: &Node, src: &[u8], symbols: &mut Vec<String>) {
     let Some(clause) = fun_decl.child_by_field_name("clause") else {
         return;
     };
@@ -150,9 +136,15 @@ fn collect_fun_decl_name(fun_decl: &Node, src: &[u8], symbols: &mut Vec<String>)
         return;
     };
     let text = name_node.utf8_text(src).unwrap_or_default();
-    let name = text.trim_matches('\'').to_string();
-    if !name.is_empty() && !symbols.contains(&name) {
-        symbols.push(name);
+    let name = text.trim_matches('\'');
+    let Some(args) = clause.child_by_field_name("args") else {
+        return;
+    };
+    let mut cursor = args.walk();
+    let arity = args.children_by_field_name("args", &mut cursor).count();
+    let identity = format!("{name}/{arity}");
+    if !name.is_empty() && !symbols.contains(&identity) {
+        symbols.push(identity);
     }
 }
 
@@ -176,10 +168,10 @@ mul(A, B) -> A * B.
 helper() -> ok.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"add".to_string()));
-        assert!(symbols.contains(&"sub".to_string()));
-        assert!(symbols.contains(&"mul".to_string()));
-        assert!(symbols.contains(&"DummyClass".to_string()));
+        assert!(symbols.contains(&"add/2".to_string()));
+        assert!(symbols.contains(&"sub/2".to_string()));
+        assert!(symbols.contains(&"mul/2".to_string()));
+        assert!(symbols.contains(&"DummyClass/0".to_string()));
         assert!(!symbols.contains(&"helper".to_string()));
     }
 
@@ -198,8 +190,8 @@ real() -> ok.
 fake() -> ok.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"real".to_string()));
-        assert!(!symbols.contains(&"fake".to_string()));
+        assert!(symbols.contains(&"real/0".to_string()));
+        assert!(!symbols.contains(&"fake/0".to_string()));
     }
 
     #[test]
@@ -230,9 +222,9 @@ sub(A, B) -> A - B.
 mul(A, B) -> A * B.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"add".to_string()));
-        assert!(symbols.contains(&"sub".to_string()));
-        assert!(symbols.contains(&"mul".to_string()));
+        assert!(symbols.contains(&"add/2".to_string()));
+        assert!(symbols.contains(&"sub/2".to_string()));
+        assert!(symbols.contains(&"mul/2".to_string()));
     }
 
     #[test]
@@ -248,8 +240,8 @@ double(X) -> X * 2.
 triple(X) -> X * 3.
 "#;
         let symbols = extract_exports(src_list_form);
-        assert!(symbols.contains(&"double".to_string()));
-        assert!(symbols.contains(&"triple".to_string()));
+        assert!(symbols.contains(&"double/1".to_string()));
+        assert!(symbols.contains(&"triple/1".to_string()));
 
         let src_no_export_all = r#"
 -module(m).
@@ -284,12 +276,12 @@ handle_call(_, _, State) -> {reply, ok, State}.
 describe_internal() -> ok.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"start_link".to_string()));
-        assert!(symbols.contains(&"validate".to_string()));
-        assert!(symbols.contains(&"init".to_string()));
-        assert!(symbols.contains(&"handle_call".to_string()));
-        assert!(!symbols.contains(&"describe".to_string()));
-        assert!(!symbols.contains(&"describe_internal".to_string()));
+        assert!(symbols.contains(&"start_link/0".to_string()));
+        assert!(symbols.contains(&"validate/1".to_string()));
+        assert!(symbols.contains(&"init/1".to_string()));
+        assert!(symbols.contains(&"handle_call/3".to_string()));
+        assert!(!symbols.contains(&"describe/0".to_string()));
+        assert!(!symbols.contains(&"describe_internal/0".to_string()));
     }
 
     #[test]
@@ -310,8 +302,8 @@ describe_internal() -> ok.
     fn test_export_list_with_comment_between_entries() {
         let src = "-module(m).\n-export([\n    add/2,\n    %% sub is deprecated\n    sub/2\n]).\nadd(A,B)->A+B.\nsub(A,B)->A-B.\n";
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"add".to_string()));
-        assert!(symbols.contains(&"sub".to_string()));
+        assert!(symbols.contains(&"add/2".to_string()));
+        assert!(symbols.contains(&"sub/2".to_string()));
     }
 
     #[test]
@@ -322,14 +314,14 @@ describe_internal() -> ok.
         // `-compile(export_all)` is reported exactly once.
         let src = "-module(m).\n-compile(export_all).\nfoo(0) -> zero;\nfoo(N) -> N.\n";
         let symbols = extract_exports(src);
-        assert_eq!(symbols.iter().filter(|s| *s == "foo").count(), 1);
+        assert_eq!(symbols.iter().filter(|s| *s == "foo/1").count(), 1);
     }
 
     #[test]
     fn test_record_and_define_are_not_exports() {
         let src = "-module(m).\n-compile(export_all).\n-record(foo, {a,b}).\n-define(BAR, 1).\nreal() -> ok.\n";
         let symbols = extract_exports(src);
-        assert_eq!(symbols, vec!["real".to_string()]);
+        assert_eq!(symbols, vec!["real/0".to_string()]);
     }
 
     #[test]
@@ -341,7 +333,7 @@ describe_internal() -> ok.
         let src = "-module(m).\n-ifdef(TEST).\n-export([test_helper/0]).\n-endif.\ntest_helper() -> ok.\n";
         let symbols = extract_exports(src);
         assert!(
-            symbols.contains(&"test_helper".to_string()),
+            symbols.contains(&"test_helper/0".to_string()),
             "got {symbols:?}"
         );
     }
@@ -362,8 +354,8 @@ describe_internal() -> ok.
         // node are recovered as real names.
         let src = "-module(m).\n-export([add/2, ?SOME_MACRO, sub/2]).\nadd(A,B) -> A+B.\nsub(A,B) -> A-B.\n";
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"add".to_string()), "got {symbols:?}");
-        assert!(symbols.contains(&"sub".to_string()), "got {symbols:?}");
+        assert!(symbols.contains(&"add/2".to_string()), "got {symbols:?}");
+        assert!(symbols.contains(&"sub/2".to_string()), "got {symbols:?}");
         assert!(
             !symbols.iter().any(|s| s.contains("SOME_MACRO")),
             "must not leak the raw macro placeholder as a name: {symbols:?}"
@@ -377,7 +369,7 @@ describe_internal() -> ok.
         // in the module body, matching the regex reference's behavior.
         let src = "-module(m).\n-export([foo/1]).\nfoo(A, B) -> A + B.\n";
         let symbols = extract_exports(src);
-        assert_eq!(symbols, vec!["foo".to_string()]);
+        assert_eq!(symbols, vec!["foo/1".to_string()]);
     }
 
     #[test]
@@ -388,6 +380,25 @@ describe_internal() -> ok.
 -export([baz/3]).
 baz(A, B, C) -> ok.
 "#;
-        assert_eq!(extract_exports(src), vec!["baz"]);
+        assert_eq!(extract_exports(src), vec!["baz/3"]);
+    }
+
+    #[test]
+    fn test_name_arity_identity_and_export_all_match_regex_backend() {
+        let src = r#"
+-module(shapes).
+-export([area/1, area/2, 'quoted name'/0]).
+-compile(export_all).
+
+area(Circle) -> Circle.
+area(Width, Height) -> Width * Height.
+'quoted name'() -> ok.
+nested({A, B}, [C, D], call(E, F)) -> ok.
+"#;
+
+        assert_eq!(
+            extract_exports(src),
+            super::super::super::erlang::extract_exports(src)
+        );
     }
 }

@@ -1,6 +1,6 @@
 ---
 module: schema
-version: 3
+version: 4
 status: stable
 files:
   - src/schema.rs
@@ -13,7 +13,9 @@ depends_on: []
 
 ## Purpose
 
-Parses SQL schema files (migrations) and spec markdown to build table/column maps for bidirectional validation. Replays CREATE TABLE, ALTER TABLE, DROP TABLE, and RENAME statements in file-sorted order to produce the current schema state. Also extracts column definitions from spec `### Schema` sections for comparison.
+Parses SQL migrations and spec Markdown into canonical table/column identities for bidirectional
+validation. One fallible snapshot replays supported DDL in exact statement order across
+filename-sorted inputs; compatibility wrappers remain available for older callers.
 
 ## Public API
 
@@ -24,6 +26,9 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 | `SchemaColumn` | A column extracted from SQL schema files — name, col_type (uppercase), nullable, has_default, is_primary_key |
 | `SchemaTable` | All columns for a single table, built by replaying migrations in order |
 | `SpecColumn` | A column documented in a spec's `### Schema` section — name and raw col_type |
+| `SchemaSnapshot` | Crate-private checked tables, retired canonical identities, and replay sources |
+| `SchemaErrorKind` | Crate-private typed read, parse, missing-object, duplicate, and collision failures |
+| `SchemaError` | Crate-private path-aware failure with one-based source coordinates |
 
 ### Exported SchemaTable Functions
 
@@ -35,25 +40,31 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `build_schema` | `schema_dir: &Path` | `HashMap<String, SchemaTable>` | Build a complete schema map from SQL/migration files in the given directory, sorted by filename |
-| `schema_read_errors` | `schema_dir: &Path` | `Vec<String>` | Error message for each schema/migration file that exists but cannot be read as UTF-8, plus one for a `schema_dir` that exists but cannot be enumerated (unreadable, or a file rather than a directory), so the validation gate can fail loud instead of silently under-validating (`build_schema` skips such files / returns empty) |
+| `build_schema` | `schema_dir: &Path` | `HashMap<String, SchemaTable>` | Compatibility wrapper over ordered replay; returns an empty map when the checked snapshot fails |
+| `build_schema_snapshot` | `schema_dir: &Path` | `Result<SchemaSnapshot, SchemaError>` | Build the single deterministic fallible replay snapshot used by validation |
+| `canonicalize_table_name` | `raw: &str` | `Result<String, String>` | Normalize a quoted or qualified table identity |
+| `canonical_table_leaf` | `raw: &str` | `Result<String, String>` | Return the canonical final segment of a table identity |
+| `table_reference_matches` | `declaration, discovered` | `Result<bool, String>` | Match full qualified declarations or unqualified canonical leaves |
+| `pattern_table_names` | Alias for `SchemaSnapshot::pattern_table_names` | `Result<HashSet<String>, String>` | Supplement replay with configured captures without resurrecting retired names |
+| `schema_read_errors` | `schema_dir: &Path` | `Vec<String>` | Return the checked snapshot's path-aware replay/read error for validation callers |
 | `parse_spec_schema` | `body: &str` | `HashMap<String, Vec<SpecColumn>>` | Extract column definitions from a spec's `### Schema` section(s) |
 
 ## Invariants
 
-1. `build_schema` replays migrations in filename-sorted order for deterministic results
-2. `build_schema` returns an empty map if the directory does not exist
-2a. A schema/migration file that exists but cannot be read as UTF-8 is silently skipped by `build_schema` (its tables/columns vanish); `schema_read_errors` reports each such file so the validation gate surfaces it as a hard error rather than letting an all-unreadable schema silently disable `db_tables`/column checks
-2b. A `schema_dir` that exists but cannot be enumerated by `read_dir` — because it is unreadable or is a file rather than a directory — is itself a hard error from `schema_read_errors` (not a silent empty result): the same fail-open would otherwise leave schema discovery empty and skip `db_tables`/column checks with no signal
+1. Checked replay processes filename-sorted migrations and preserves statement order within a file.
+2. Missing, unreadable, non-UTF-8, malformed, or semantically invalid configured input returns one
+   path-aware error with a one-based line/column and bounded statement preview.
 3. Column types are normalized to uppercase (e.g. "integer" becomes "INTEGER")
-4. ALTER TABLE ADD COLUMN is idempotent — duplicate column names are skipped
+4. Plain duplicate CREATE/ADD operations fail; `IF NOT EXISTS` preserves existing state and
+   `OR REPLACE` explicitly replaces a table definition.
 5. DROP TABLE removes the table and all its columns from the map
 6. ALTER TABLE RENAME TO moves all columns to the new table name
 7. ALTER TABLE RENAME COLUMN preserves all column attributes except the name
-8. CREATE TABLE replaces any prior definition of the same table (handles CREATE OR REPLACE semantics)
+8. ANSI, backtick, bracket, mixed-case, quoted-dot, and qualified table names share one canonical
+   identity; canonical table/column collisions fail before replacement unless explicitly allowed.
 9. Table-level constraints (PRIMARY KEY, UNIQUE, CHECK, FOREIGN KEY, CONSTRAINT) are skipped during column parsing
-10. String literals with escaped quotes are handled correctly during parenthesis matching
-11. SQL line comments (`--`) are skipped during parenthesis matching
+10. String literals with escaped quotes cannot terminate statements or introduce phantom DDL.
+11. SQL line/block comments and quoted content cannot introduce false operations or boundaries.
 12. `parse_spec_schema` supports two formats: inline (`### Schema: table_name`) and multi-table (`### Schema` with `#### table_name` sub-headers)
 13. `parse_spec_schema` skips markdown table header rows (column named "column")
 14. Only files with recognized SQL extensions are processed (sql, ts, js, mjs, cjs, swift, kt, kts, java, py, rb, go, rs, cs, dart, php)
@@ -130,3 +141,4 @@ Parses SQL schema files (migrations) and spec markdown to build table/column map
 | 2026-07-06 | `schema_read_errors` now also fails loud when `schema_dir` exists but cannot be enumerated by `read_dir` (unreadable, or a file not a directory) — closing the same fail-open; added invariant 2b, updated the API row and Error Cases table |
 | 2026-03-29 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |

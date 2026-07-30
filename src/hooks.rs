@@ -1,6 +1,8 @@
 use colored::Colorize;
+use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 // ─── Agent instruction templates ─────────────────────────────────────────────
 
@@ -158,7 +160,7 @@ const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 
 if command -v specsync >/dev/null 2>&1; then
     echo "specsync: checking specs..."
-    if ! specsync check; then
+    if ! specsync check --strict; then
         echo ""
         echo "specsync: specs have errors — fix them before committing."
         echo "  Run 'specsync check' to see details."
@@ -169,6 +171,117 @@ else
     echo "specsync: not installed, skipping spec check"
 fi
 "#;
+
+const PRE_COMMIT_BEGIN_PREFIX: &str = "# >>> specsync:pre-commit:";
+const PRE_COMMIT_END_PREFIX: &str = "# <<< specsync:pre-commit:";
+const LEGACY_PRE_COMMIT_MARKER: &str = "# --- spec-sync pre-commit hook ---";
+
+fn git_hooks_dir(root: &Path, create: bool) -> Result<PathBuf, String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--git-path", "hooks"])
+        .output()
+        .map_err(|error| format!("failed to resolve Git hooks path: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "{} is not inside a Git repository; run `git init` before installing a pre-commit hook",
+            root.display()
+        ));
+    }
+    let raw = String::from_utf8(output.stdout)
+        .map_err(|_| "Git hooks path is not valid UTF-8".to_string())?;
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err("Git returned an empty hooks path".into());
+    }
+    let path = PathBuf::from(raw);
+    let path = if path.is_absolute() {
+        path
+    } else {
+        root.join(path)
+    };
+    if create {
+        fs::create_dir_all(&path)
+            .map_err(|error| format!("failed to create Git hooks directory: {error}"))?;
+    } else if !path.is_dir() {
+        return Err("configured Git hooks directory does not exist".into());
+    }
+    if fs::symlink_metadata(&path)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(format!(
+            "configured Git hooks directory is a symlink and is unsafe to manage: {}",
+            path.display()
+        ));
+    }
+    Ok(path)
+}
+
+fn hook_project_identity(root: &Path) -> Result<(String, String, String), String> {
+    let project_root = root
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve project root: {error}"))?;
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .map_err(|error| format!("failed to resolve Git worktree root: {error}"))?;
+    if !output.status.success() {
+        return Err("failed to resolve Git worktree root".into());
+    }
+    let repository_root = String::from_utf8(output.stdout)
+        .map_err(|_| "Git worktree root is not valid UTF-8".to_string())?
+        .trim()
+        .to_string();
+    let project_root = project_root.to_string_lossy().to_string();
+    let mut digest = Sha256::new();
+    digest.update(repository_root.as_bytes());
+    digest.update([0]);
+    digest.update(project_root.as_bytes());
+    let key = format!("{:x}", digest.finalize());
+    Ok((key[..16].to_string(), repository_root, project_root))
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn pre_commit_markers(root: &Path) -> Result<(String, String), String> {
+    let (key, _, _) = hook_project_identity(root)?;
+    Ok((
+        format!("{PRE_COMMIT_BEGIN_PREFIX}{key} >>>"),
+        format!("{PRE_COMMIT_END_PREFIX}{key} <<<"),
+    ))
+}
+
+fn pre_commit_block(root: &Path) -> Result<String, String> {
+    let (key, repository_root, project_root) = hook_project_identity(root)?;
+    let begin = format!("{PRE_COMMIT_BEGIN_PREFIX}{key} >>>");
+    let end = format!("{PRE_COMMIT_END_PREFIX}{key} <<<");
+    let body = PRE_COMMIT_HOOK
+        .lines()
+        .skip(1)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .replace(
+            "specsync check --strict",
+            &format!(
+                "specsync --root {} check --strict",
+                shell_single_quote(&project_root)
+            ),
+        );
+    Ok(format!(
+        "{begin}\nif [ \"$(git rev-parse --show-toplevel 2>/dev/null)\" = {} ]; then\n{}\nfi\n{end}",
+        shell_single_quote(&repository_root),
+        body.lines()
+            .map(|line| format!("    {line}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    ))
+}
 
 const CLAUDE_CODE_HOOK_SETTINGS: &str = r#"{
   "hooks": {
@@ -285,11 +398,19 @@ pub fn is_installed(root: &Path, target: HookTarget) -> bool {
                     .unwrap_or(false)
         }
         HookTarget::Precommit => {
-            let path = root.join(".git").join("hooks").join("pre-commit");
-            path.exists()
-                && fs::read_to_string(&path)
-                    .map(|c| c.contains("spec-sync pre-commit hook"))
-                    .unwrap_or(false)
+            let Ok(hooks_dir) = git_hooks_dir(root, false) else {
+                return false;
+            };
+            let Ok((begin, end)) = pre_commit_markers(root) else {
+                return false;
+            };
+            let path = hooks_dir.join("pre-commit");
+            if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+                return false;
+            }
+            fs::read_to_string(path)
+                .map(|content| content.contains(&begin) && content.contains(&end))
+                .unwrap_or(false)
         }
         HookTarget::ClaudeCodeHook => {
             let path = root.join(".claude").join("settings.json");
@@ -319,6 +440,13 @@ pub fn install_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
 
 /// Uninstall a single hook target. Returns Ok(true) if removed, Ok(false) if not found.
 pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
+    if target == HookTarget::Precommit {
+        let hooks_dir = match git_hooks_dir(root, false) {
+            Ok(path) => path,
+            Err(_) => return Ok(false),
+        };
+        return uninstall_precommit(root, &hooks_dir.join("pre-commit"));
+    }
     if !is_installed(root, target) {
         return Ok(false);
     }
@@ -345,25 +473,7 @@ pub fn uninstall_hook(root: &Path, target: HookTarget) -> Result<bool, String> {
             let path = root.join("AGENTS.md");
             remove_section_from_file(&path, "# Spec-Sync Integration", AGENTS_MD_SNIPPET)
         }
-        HookTarget::Precommit => {
-            let path = root.join(".git").join("hooks").join("pre-commit");
-            if path.exists() {
-                let content = fs::read_to_string(&path)
-                    .map_err(|e| format!("Failed to read pre-commit hook: {e}"))?;
-                if content.contains("spec-sync pre-commit hook") {
-                    // If the entire file is our hook, remove it
-                    if content.trim().starts_with("#!/bin/sh")
-                        && content.contains("specsync check")
-                        && content.lines().count() < 35
-                    {
-                        fs::remove_file(&path)
-                            .map_err(|e| format!("Failed to remove pre-commit hook: {e}"))?;
-                        return Ok(true);
-                    }
-                }
-            }
-            Ok(false)
-        }
+        HookTarget::Precommit => unreachable!("pre-commit uninstall handled above"),
         HookTarget::ClaudeCodeHook => {
             // Don't auto-remove Claude Code settings — too risky
             Err(
@@ -437,35 +547,51 @@ fn install_agents_md(root: &Path) -> Result<bool, String> {
 }
 
 fn install_precommit(root: &Path) -> Result<bool, String> {
-    let hooks_dir = root.join(".git").join("hooks");
-    if !hooks_dir.exists() {
-        fs::create_dir_all(&hooks_dir).map_err(|e| format!("Failed to create .git/hooks/: {e}"))?;
-    }
-
+    let hooks_dir = git_hooks_dir(root, true)?;
     let path = hooks_dir.join("pre-commit");
+    let (begin, end) = pre_commit_markers(root)?;
+    let block = pre_commit_block(root)?;
 
     if path.exists() {
+        if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+            return Err(format!(
+                "refusing to replace symlinked pre-commit hook: {}",
+                path.display()
+            ));
+        }
         let existing = fs::read_to_string(&path)
             .map_err(|e| format!("Failed to read pre-commit hook: {e}"))?;
-
-        if existing.contains("specsync") {
+        let has_begin = existing.contains(&begin);
+        let has_end = existing.contains(&end);
+        if has_begin != has_end {
+            return Err(format!(
+                "{} contains a partial SpecSync managed block; repair its matching markers before reinstalling",
+                path.display()
+            ));
+        }
+        if has_begin {
             return Ok(false);
         }
-
-        // Append to existing pre-commit hook
-        let new_content = format!(
-            "{}\n\n# --- spec-sync pre-commit hook ---\n{}",
-            existing.trim_end(),
-            PRE_COMMIT_HOOK
-                .lines()
-                .skip(1) // Skip the shebang since the existing file has one
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
+        let mut lines: Vec<&str> = existing.trim_end().lines().collect();
+        let insert_at = lines
+            .iter()
+            .rposition(|line| !line.trim().is_empty())
+            .filter(|index| lines[*index].trim() == "exit 0")
+            .unwrap_or(lines.len());
+        let tail = lines.split_off(insert_at);
+        let mut new_content = lines.join("\n");
+        new_content.push_str("\n\n");
+        new_content.push_str(&block);
+        new_content.push('\n');
+        if !tail.is_empty() {
+            new_content.push('\n');
+            new_content.push_str(&tail.join("\n"));
+            new_content.push('\n');
+        }
         fs::write(&path, new_content)
             .map_err(|e| format!("Failed to write pre-commit hook: {e}"))?;
     } else {
-        fs::write(&path, PRE_COMMIT_HOOK)
+        fs::write(&path, format!("#!/bin/sh\n{block}\n"))
             .map_err(|e| format!("Failed to create pre-commit hook: {e}"))?;
     }
 
@@ -478,6 +604,77 @@ fn install_precommit(root: &Path) -> Result<bool, String> {
             .map_err(|e| format!("Failed to set pre-commit hook permissions: {e}"))?;
     }
 
+    Ok(true)
+}
+
+fn uninstall_precommit(root: &Path, path: &Path) -> Result<bool, String> {
+    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        return Err(format!(
+            "refusing to modify symlinked pre-commit hook: {}",
+            path.display()
+        ));
+    }
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(format!("Failed to read pre-commit hook: {error}")),
+    };
+    let (begin_marker, end_marker) = pre_commit_markers(root)?;
+    let begin = content
+        .lines()
+        .position(|line| line.contains(&begin_marker));
+    let end = content.lines().position(|line| line.contains(&end_marker));
+    if begin.is_some() != end.is_some() {
+        return Err(format!(
+            "{} contains a partial SpecSync managed block; remove it manually",
+            path.display()
+        ));
+    }
+    let mut lines: Vec<&str> = content.lines().collect();
+    if let (Some(begin), Some(end)) = (begin, end) {
+        if end < begin {
+            return Err(format!(
+                "{} contains reversed SpecSync managed markers",
+                path.display()
+            ));
+        }
+        lines.drain(begin..=end);
+        if begin > 0
+            && begin < lines.len()
+            && lines[begin - 1].trim().is_empty()
+            && lines[begin].trim().is_empty()
+        {
+            lines.remove(begin);
+        }
+    } else if let Some(marker) = lines
+        .iter()
+        .position(|line| line.contains(LEGACY_PRE_COMMIT_MARKER))
+    {
+        let expected = PRE_COMMIT_HOOK.lines().skip(1).collect::<Vec<_>>();
+        if lines.get(marker + 1..) != Some(expected.as_slice()) {
+            return Err(format!(
+                "{} contains an ambiguous legacy SpecSync block followed by user content; remove only the legacy block manually",
+                path.display()
+            ));
+        }
+        lines.truncate(marker);
+    } else if content.trim() == PRE_COMMIT_HOOK.trim() {
+        fs::remove_file(path)
+            .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))?;
+        return Ok(true);
+    } else {
+        return Ok(false);
+    }
+    while lines.last().is_some_and(|line| line.trim().is_empty()) {
+        lines.pop();
+    }
+    if lines.is_empty() || lines == ["#!/bin/sh"] {
+        fs::remove_file(path)
+            .map_err(|error| format!("Failed to remove pre-commit hook: {error}"))?;
+    } else {
+        fs::write(path, format!("{}\n", lines.join("\n")))
+            .map_err(|error| format!("Failed to write pre-commit hook: {error}"))?;
+    }
     Ok(true)
 }
 
@@ -788,6 +985,17 @@ mod tests {
         tempfile::tempdir().unwrap()
     }
 
+    fn setup_git() -> TempDir {
+        let tmp = setup();
+        let status = Command::new("git")
+            .args(["init", "--quiet"])
+            .arg(tmp.path())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        tmp
+    }
+
     // ── HookTarget::all ────────────────────────────────────────────
 
     #[test]
@@ -945,14 +1153,8 @@ mod tests {
 
     #[test]
     fn is_installed_precommit_detects_marker() {
-        let tmp = setup();
-        let hooks_dir = tmp.path().join(".git").join("hooks");
-        fs::create_dir_all(&hooks_dir).unwrap();
-        fs::write(
-            hooks_dir.join("pre-commit"),
-            "#!/bin/sh\n# spec-sync pre-commit hook\nspecsync check",
-        )
-        .unwrap();
+        let tmp = setup_git();
+        assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
         assert!(is_installed(tmp.path(), HookTarget::Precommit));
     }
 
@@ -1040,22 +1242,19 @@ mod tests {
 
     #[test]
     fn install_precommit_creates_hook_file() {
-        let tmp = setup();
-        // Need .git/hooks directory structure
-        fs::create_dir_all(tmp.path().join(".git").join("hooks")).unwrap();
+        let tmp = setup_git();
         assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
         let path = tmp.path().join(".git").join("hooks").join("pre-commit");
         assert!(path.exists());
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("spec-sync pre-commit hook"));
-        assert!(content.contains("specsync check"));
+        assert!(content.contains("check --strict"));
     }
 
     #[test]
     fn install_precommit_appends_to_existing_hook() {
-        let tmp = setup();
+        let tmp = setup_git();
         let hooks_dir = tmp.path().join(".git").join("hooks");
-        fs::create_dir_all(&hooks_dir).unwrap();
         fs::write(
             hooks_dir.join("pre-commit"),
             "#!/bin/sh\necho 'existing hook'",
@@ -1069,8 +1268,8 @@ mod tests {
 
     #[test]
     fn install_precommit_creates_hooks_dir_if_missing() {
-        let tmp = setup();
-        // Don't create .git/hooks — let install do it
+        let tmp = setup_git();
+        fs::remove_dir_all(tmp.path().join(".git").join("hooks")).unwrap();
         assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
         assert!(
             tmp.path()
@@ -1085,11 +1284,69 @@ mod tests {
     #[test]
     fn install_precommit_sets_executable_permission() {
         use std::os::unix::fs::PermissionsExt;
-        let tmp = setup();
+        let tmp = setup_git();
         install_hook(tmp.path(), HookTarget::Precommit).unwrap();
         let path = tmp.path().join(".git").join("hooks").join("pre-commit");
         let perms = fs::metadata(&path).unwrap().permissions();
         assert_eq!(perms.mode() & 0o755, 0o755);
+    }
+
+    #[test]
+    fn install_precommit_uses_configured_hooks_path_and_preserves_exit_zero() {
+        let tmp = setup_git();
+        let configured = tmp.path().join("shared-hooks");
+        fs::create_dir_all(&configured).unwrap();
+        let status = Command::new("git")
+            .arg("-C")
+            .arg(tmp.path())
+            .args(["config", "core.hooksPath", "shared-hooks"])
+            .status()
+            .unwrap();
+        assert!(status.success());
+        fs::write(
+            configured.join("pre-commit"),
+            "#!/bin/sh\necho existing\nexit 0\n",
+        )
+        .unwrap();
+
+        assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        let content = fs::read_to_string(configured.join("pre-commit")).unwrap();
+        let managed = content.find(PRE_COMMIT_BEGIN_PREFIX).unwrap();
+        let exit = content.rfind("exit 0").unwrap();
+        assert!(managed < exit);
+        assert!(content.contains("check --strict"));
+    }
+
+    #[test]
+    fn install_precommit_rejects_partial_managed_block() {
+        let tmp = setup_git();
+        let path = tmp.path().join(".git").join("hooks").join("pre-commit");
+        let (begin, _) = pre_commit_markers(tmp.path()).unwrap();
+        fs::write(&path, format!("#!/bin/sh\n{begin}\n")).unwrap();
+
+        let error = install_hook(tmp.path(), HookTarget::Precommit).unwrap_err();
+        assert!(error.contains("partial SpecSync managed block"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn install_and_uninstall_precommit_refuse_symlinked_hook() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = setup_git();
+        let target = tmp.path().join("user-hook");
+        let hook = tmp.path().join(".git").join("hooks").join("pre-commit");
+        fs::write(&target, "#!/bin/sh\necho user\n").unwrap();
+        symlink(&target, &hook).unwrap();
+
+        let install_error = install_hook(tmp.path(), HookTarget::Precommit).unwrap_err();
+        assert!(install_error.contains("symlinked pre-commit hook"));
+        let uninstall_error = uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap_err();
+        assert!(uninstall_error.contains("symlinked pre-commit hook"));
+        assert_eq!(
+            fs::read_to_string(&target).unwrap(),
+            "#!/bin/sh\necho user\n"
+        );
     }
 
     #[test]
@@ -1241,7 +1498,7 @@ mod tests {
 
     #[test]
     fn uninstall_precommit_removes_hook_file() {
-        let tmp = setup();
+        let tmp = setup_git();
         install_hook(tmp.path(), HookTarget::Precommit).unwrap();
         let result = uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap();
         assert!(result);
@@ -1251,6 +1508,20 @@ mod tests {
                 .join("hooks")
                 .join("pre-commit")
                 .exists()
+        );
+    }
+
+    #[test]
+    fn uninstall_precommit_preserves_user_hook_content() {
+        let tmp = setup_git();
+        let path = tmp.path().join(".git").join("hooks").join("pre-commit");
+        fs::write(&path, "#!/bin/sh\necho before\nexit 0\n").unwrap();
+        install_hook(tmp.path(), HookTarget::Precommit).unwrap();
+
+        assert!(uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "#!/bin/sh\necho before\n\nexit 0\n"
         );
     }
 

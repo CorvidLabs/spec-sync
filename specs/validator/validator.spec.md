@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 23
+version: 24
 status: stable
 files:
   - src/validator.rs
@@ -19,7 +19,10 @@ depends_on:
 
 ## Purpose
 
-Core validation engine for spec-sync. Validates individual specs and selected companion artifacts against source code, discovers configured and zero-config source files including static HTML, HTM, and CSS content, rejects every known generated companion marker outside fenced examples, extracts schema table names from SQL migrations, computes non-vacuous file and LOC coverage metrics through a retained, bounded, no-follow `compute_coverage_checked` snapshot, preserves malformed or unconstrained manifest discovery as an inconclusive checked error for gates, and resolves cross-project dependency references.
+Core validation engine for spec-sync. It validates specs and companions bidirectionally against
+source, compares schema declarations through canonical checked-snapshot identities, computes
+non-vacuous retained-capability coverage, and preserves malformed discovery as an inconclusive gate
+instead of a false success.
 
 ## Public API
 
@@ -34,6 +37,8 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 | `compute_coverage` | `root, spec_files, config` | `CoverageReport` | Compatibility file and LOC coverage computation |
 | `compute_coverage_checked` | `root, spec_files, config` | `Result<CoverageReport, String>` | Checked coverage that surfaces malformed/unreadable manifest discovery |
 | `get_schema_table_names` | `root, config` | `HashSet<String>` | Extract schema table names through the configured pattern |
+| `schema_table_names_from_snapshot` | `snapshot, config` | `Result<HashSet<String>, String>` | Derive canonical replay/pattern identities from the invocation snapshot |
+| `schema_config_problems_for_snapshot` | `config, optional snapshot` | `Vec<String>` | Surface invalid patterns and vacuous requested schema validation |
 | `is_cross_project_ref` | `dep: &str` | `bool` | Return whether a dependency is `owner/repo@module` |
 | `parse_cross_project_ref` | `dep: &str` | `Option<(&str, &str)>` | Parse a cross-project reference into repository and module |
 | `normalize_source_mapping` | `file: &str` | `Option<String>` | Normalize a safe portable project-relative source mapping |
@@ -68,6 +73,9 @@ Core validation engine for spec-sync. Validates individual specs and selected co
 14. `validate_spec_content` validates caller-provided bytes without reopening `spec_path` or
     adjacent companions; the path remains logical diagnostic/source context and mapped sources
     retain normal path behavior.
+15. Schema-aware validation compares quoted, qualified, and mixed-case declarations canonically;
+    invalid patterns, missing configured snapshots, and declared tables without schema evidence
+    remain visible findings rather than vacuous success.
 15. `validate_spec` reads a path once and delegates the exact bytes to the shared content validator.
 16. `validate_spec_content_with_sources` treats its supplied `SourceSnapshot` map as authoritative
     and does not reopen mapped sources or resolve supplied-content TypeScript wildcards through
@@ -255,3 +263,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-14 | CHG-0035-count-mjs-and-cjs-files-as-default-typescript-sources-so-mapped-and-uncovered-mo: Count mjs and cjs files as default TypeScript sources so mapped and uncovered module files contribute to strict file and LOC coverage denominators |
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |

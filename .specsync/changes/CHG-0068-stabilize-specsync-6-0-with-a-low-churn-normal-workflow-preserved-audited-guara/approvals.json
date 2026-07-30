@@ -1,0 +1,141 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785369606,
+      "digest": "20527b1e1f7f7fd2b310aab328ca865759de081624c519cb56184e3e4f816560",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara",
+        "title": "Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes",
+        "description": "Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, bounded lifecycle validation, and selected high-confidence UX fixes",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cli",
+          "cli_args",
+          "cmd_change",
+          "cmd_check",
+          "commands",
+          "exports",
+          "github",
+          "hooks",
+          "ignore",
+          "schema",
+          "validator"
+        ],
+        "affected_paths": [
+          ".codex/skills/spec-sync/SKILL.md",
+          ".github/scripts/",
+          ".github/workflows/ci.yml",
+          ".github/workflows/finalize-change.yml",
+          ".github/workflows/post-merge-archive.yml",
+          ".github/workflows/release.yml",
+          ".github/workflows/trust.yml",
+          ".specsync/change-sequence.json",
+          ".specsync/sdd.json",
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "site/",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/cli.rs",
+          "src/commands/",
+          "src/exports/",
+          "src/hooks.rs",
+          "src/ignore.rs",
+          "src/main.rs",
+          "src/schema.rs",
+          "src/validator.rs",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Agent-authored changes receive one independent scoped review of the change package, implementation diff, canonical spec delta, and targeted evidence before finalization; the review is not repeated continuously or for the archive-only commit, and status explains how to request it.",
+          "Every `specsync change status` result prints exactly one explicit next action and teaches the core path `change new` → `change approve` → implement → `change check` → ordinary PR review → `change finalize` → GitHub merge.",
+          "Every change follows one file layout and one workflow: create a change package, receive one human scope approval, implement code/specs/tests, pass bidirectional checks and ordinary PR review, finalize into the same PR archive, then merge through GitHub protections.",
+          "Lifecycle validation reuses one invocation snapshot, bounds Git/evidence queries, orders graphs deterministically, and validates owner batches in one pass without weakening bidirectional or historical integrity.",
+          "No user-facing lifecycle mode, second SpecSync approval, alternate archive layout, or SpecSync merge command exists; explicit `--strict`, project policy, and release or security classification add powerful full-history, full-suite, security, or release validators to the same evidence only.",
+          "One final release validation passes repository lanes, strict 100 percent spec coverage, score at least 80, trust verification, and the private CorvidLabs spec-sync-sandbox workflow before the 6.0 PR is ready.",
+          "Rune PR 23 is the regression proving eight accepted changes finalize in their originating PRs without a 103-file follow-up cleanup PR or a duplicate full CI cycle.",
+          "Same-PR finalization produces a metadata/archive-only commit in the existing dated archive layout and never requires a follow-up archive PR.",
+          "Schema replay, ignore suppression, TypeScript and Erlang export discovery, and hook or agent installation fixes are selectively carried forward with focused regression coverage.",
+          "The archive-only CI lane does not rerun the product test matrix; it proves the parent implementation commit has required green checks, permits only approved lifecycle/archive path changes, confirms code/spec/tree relationships are unchanged, validates archive integrity and bidirectional ownership, and reports to the required CI gate."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "scope_migration": {
+        "schema_version": 1,
+        "source_definition_digest": "20527b1e1f7f7fd2b310aab328ca865759de081624c519cb56184e3e4f816560",
+        "scope_digest": "35f68b68d4cdca134f98f514a56c1afdc4c530ef4f43461f75b7898404fae79b",
+        "changes": [
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/state.json",
+            "category": "lifecycle_metadata",
+            "summary": "Recorded workflow-version and implementation-state metadata."
+          },
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/change.md",
+            "category": "canonical_materialization",
+            "summary": "Regenerated the human-readable change projection from the already-approved intent and scope."
+          },
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/change.md",
+            "category": "canonical_materialization",
+            "summary": "Materialized the approved one-workflow, finalization, bounded-validation, and scoped-review contract."
+          },
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/cli.md",
+            "category": "canonical_materialization",
+            "summary": "Materialized the approved strict-validator and no-external-merge CLI behavior."
+          },
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/cmd_change.md",
+            "category": "canonical_materialization",
+            "summary": "Materialized the approved guided status and finalize command behavior."
+          },
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/cmd_check.md",
+            "category": "canonical_materialization",
+            "summary": "Materialized the approved schema and warning-reporting reliability behavior."
+          },
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/github.md",
+            "category": "canonical_materialization",
+            "summary": "Materialized the approved same-PR archive and lightweight required-CI behavior."
+          },
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/deltas/validator.md",
+            "category": "canonical_materialization",
+            "summary": "Materialized the approved non-vacuous schema validation behavior."
+          },
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/testing.md",
+            "category": "test_evidence",
+            "summary": "Expanded targeted regression and final-gate evidence for the approved contract."
+          },
+          {
+            "path": ".specsync/changes/CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/tasks.md",
+            "category": "implementation",
+            "summary": "Recorded implementation progress without changing task scope."
+          }
+        ]
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -29,10 +29,11 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync archive-tasks` | Move completed task items to archive section |
 | `specsync merge` | Auto-resolve git merge conflicts in spec files |
 | `specsync change new <desc>` | Create a draft SDD change with the deterministic interview |
-| `specsync change approve/start/verify/accept <id>` | Drive the verified lifecycle: approve the definition, start implementation, verify, accept with closing approval |
+| `specsync change approve/check/finalize <id>` | Drive the single workflow: one scope approval, targeted verification, scoped PR review, and same-PR finalization |
+| `specsync change status [id]` | Show current gates and exactly one explicit next action |
 | `specsync change reopen <id>` | Re-verify stale accepted evidence (audited, append-only) |
 | `specsync change correct-owner <id>` | Append audited exact owner corrections (single `--path/--spec`, or batch: repeated flags, `--manifest`, `--all-missing`) |
-| `specsync change archive <id>` | Move an accepted change into the dated archive (after the delivery branch merges; squash merges supported) |
+| `specsync change finalize <id>` | Validate current review/evidence and move the package into the dated archive in the same PR; GitHub performs the merge |
 | `specsync change check` | Validate all active/archived change workspaces and terminal evidence |
 | `specsync migrate 5.0` | Backfill 5.0.1-era reopening digest fields idempotently (the remediation `check` prints for missing-field ledgers) |
 

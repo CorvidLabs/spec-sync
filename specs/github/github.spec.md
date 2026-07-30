@@ -1,6 +1,6 @@
 ---
 module: github
-version: 12
+version: 13
 status: stable
 files:
   - src/github.rs
@@ -63,6 +63,8 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
    links to the requested repository issues endpoint and query semantics, and rejects malformed
    links and cap truncation.
 7. Direct issue details are issue-only and reject pull-request markers.
+8. A positive archive-only CI classification requires one single-parent exact active-to-dated-archive move; name-only or malformed archive diffs select the full lane.
+9. Archive-only validation reuses successful required checks and scoped review from the implementation parent, while release validation requires a successful merge-bound archive check.
 
 ## Behavioral Examples
 
@@ -90,6 +92,12 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 - **When** `fetch_issue(repo, 42)` is called
 - **Then** returns a token-required error without launching `gh issue view`
 
+### Scenario: Same-PR archive child
+
+- **Given** an implementation parent has green required CI and scoped review
+- **When** its only child moves the matching active package into the dated archive with valid finalization evidence
+- **Then** required CI runs the lightweight archive-integrity lane without repeating product tests or scoped review
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -110,6 +118,8 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | Duplicate raw item identity within or across list pages, including pull requests | Entire listing fails; filtered pull requests cannot hide duplicates |
 | Issue-list page contains 101 or more provider entries | Entire listing fails before parsing any entry, even if overflow entries are pull requests or malformed |
 | Issue listing still has a next page after 100 pages | Entire listing fails instead of truncating |
+| Archive child changes code/spec/tests or rewrites immutable package evidence | Archive-only validation fails; it never skips the product matrix on an unproven diff |
+| Release commit lacks a successful merge-bound archive check | Release validation fails before building artifacts |
 
 ## Dependencies
 
@@ -144,3 +154,4 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Validate every raw issue/pull-request item as open with exact URL identity and canonical decimal number spelling, and reject raw duplicates before PR filtering |
 | 2026-07-22 | CHG-0063 final agent review: reject pull-request payloads from direct issue-detail reads |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |

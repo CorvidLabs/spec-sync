@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 15
+version: 16
 status: stable
 files:
   - src/main.rs
@@ -63,7 +63,7 @@ Clap derive types define the root `Cli`, the `Command` namespace, and focused ac
 | coverage | Show file and module coverage report | --strict, --require-coverage N, --json |
 | generate | Deterministically scaffold spec files for unspecced modules | --uncovered, --batch MODULE... |
 | init | Create the 5.0 `.specsync/` layout, TOML config, SDD policy, and version stamp | — |
-| change | Manage the verified SDD lifecycle, interviews, approvals, verification, acceptance, adoption, and archive | new, answer, approve, start, verify, accept, archive, adopt |
+| change | Manage the single verified workflow; strict adds validators on the same path and GitHub owns merge | new, answer, approve, check, status, review, finalize; historical repair commands remain compatible |
 | score | Score spec quality (0–100) with letter grades and suggestions | --json, --explain, [SPEC...] |
 | watch | Watch spec and source files, re-running check on changes | --strict, --require-coverage N |
 | mcp | Run as an MCP (Model Context Protocol) server over stdio | — |
@@ -373,3 +373,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-07-26 | v12 / CHG-0063 Windows root-retention remediation: Preserve the requested root spelling for MCP and coverage-gating commands so junction/symlink replacement remains observable after capability retention, including through generation publication |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-07-27 | CHG-0065-make-issue-417-changelog-compaction-idempotent-and-provide-truthful-portable-str: Make issue 417 changelog compaction idempotent and provide truthful portable structured maintenance output |
+| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |

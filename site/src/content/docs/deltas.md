@@ -108,21 +108,26 @@ Fix classification edits to accepted metadata with `change correct` rather than 
 
 ---
 
-## Acceptance: Atomic Application
+## Check and Finalization: Atomic Application
 
-At closing approval, `specsync change accept` applies the delta to the canonical spec **atomically** — no partial writes — and stamps provenance:
+`specsync change check` applies the approved delta to the canonical spec **atomically** before
+targeted verification. After ordinary and scoped PR review, `specsync change finalize` binds that
+implementation and moves the package into the dated archive in the same PR:
 
 - the canonical spec's `version` increments,
 - the Change Log records the acceptance,
 - requirement blocks land in the canonical `requirements.md`.
 
-Application is protected against double-apply: if a block already exists in the canonical spec (for example because it was hand-applied outside the lifecycle), acceptance fails rather than duplicating it:
+Application is protected against double-apply: if a block already exists in the canonical spec
+(for example because it was hand-applied outside the lifecycle), checking fails rather than
+duplicating it:
 
 ```text
 cannot add existing block REQ-sessions-001
 ```
 
-Neither `change reopen` nor `change correct` reapplies an already-canonical delta.
+Historical `change reopen` and `change correct` repair paths never reapply an already-canonical
+delta.
 
 ---
 

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "enabled": true,
   "require_change_for_meaningful_files": true,
   "meaningful_paths": [
@@ -36,6 +36,40 @@
     "cargo test",
     "python3 -S .github/scripts/validate-release-version.py",
     "python3 -S .github/scripts/validate-workflow-runtime-pins.py"
+  ],
+  "component_verification_commands": {
+    "agents": ["cargo test agents::"],
+    "change": ["cargo test change::"],
+    "cli": ["cargo test cli::tests::"],
+    "cli_args": ["cargo test cli::tests::"],
+    "cmd_check": ["cargo test commands::check::tests::"],
+    "cmd_change": ["cargo test commands::change::"],
+    "commands": ["cargo test commands::tests::"],
+    "exports": [
+      "cargo test exports::typescript::",
+      "cargo test exports::erlang::",
+      "cargo test exports::ast::erlang::"
+    ],
+    "github": [
+      "bash .github/scripts/test-classify-ci-paths.sh",
+      "python3 -S .github/scripts/validate-workflow-runtime-pins.py"
+    ],
+    "hooks": ["cargo test hooks::tests::"],
+    "ignore": ["cargo test ignore::tests::"],
+    "schema": ["cargo test schema::tests::"],
+    "validator": ["cargo test validator::tests::"]
+  },
+  "strict_verification_commands": [
+    "cargo test",
+    "python3 -S .github/scripts/validate-release-version.py",
+    "python3 -S .github/scripts/validate-workflow-runtime-pins.py"
+  ],
+  "strict_paths": [
+    "src/change.rs",
+    "src/mcp.rs",
+    "src/github.rs",
+    ".github/workflows/",
+    ".specsync/sdd.json"
   ],
   "custom_artifacts": {},
   "principles_file": null

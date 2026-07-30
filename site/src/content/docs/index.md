@@ -36,10 +36,12 @@ cargo install specsync          # or use the GitHub Action, or download a binary
 specsync init                   # create .specsync/config.toml
 specsync change new "Add auth"  # start the deterministic SDD interview
 specsync change answer CHG-... acceptance_criteria "Auth succeeds" --json
-specsync change approve CHG-... # human definition approval
-specsync change start CHG-...   # begin implementation
-specsync change verify CHG-...  # run tests and requirement traceability gate
-specsync change accept CHG-...  # human closing approval; merge before archive
+specsync change approve CHG-... # one human scope approval
+# implement code, specs, and tests
+specsync change check CHG-...   # apply deltas and run affected-component verification
+# open/update the PR for ordinary + scoped review
+specsync change finalize CHG-... # same-PR metadata/archive-only finalization
+# GitHub performs the merge
 specsync check                  # validate specs against code
 specsync coverage               # see what's covered
 specsync generate               # scaffold specs for unspecced modules

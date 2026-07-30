@@ -9,7 +9,7 @@ This project uses [spec-sync](https://github.com/CorvidLabs/spec-sync) for bidir
 
 ## Companion files
 
-## Verified SDD change lifecycle (5.0)
+## Verified change workflow
 
 For every meaningful source, test, public documentation, schema, or configuration change:
 
@@ -17,15 +17,21 @@ For every meaningful source, test, public documentation, schema, or configuratio
 2. Use `specsync change answer <id> <question-id> <answer> --json` until no questions remain.
 3. Complete the adaptively selected artifacts and semantic deltas. Requirements use stable
    `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
-4. Ask the user for the definition approval, then run `specsync change approve <id>`.
-5. Run `specsync change start <id>` before editing implementation code.
-6. Keep tasks and artifacts current, then run `specsync change verify <id>`.
-7. Present verification evidence and ask for closing approval. Only after explicit approval,
-   run `specsync change accept <id>`; archive separately with `specsync change archive <id>`.
+4. Ask the user for the one scope approval, then run `specsync change approve <id>`.
+5. Implement code, canonical specs, and tests; keep the selected artifacts current.
+6. Run `specsync change check <id>`. Add global `--strict` only when requested or required by
+   project policy/release/security classification; it adds validators to this same evidence path.
+7. Open or update the PR and wait for the independent `SpecSync scoped review` check. Do not
+   self-record an independent review.
+8. After ordinary PR review and all implementation checks pass, run
+   `specsync change finalize <id>`. Commit the resulting metadata/archive-only change in the same
+   PR. GitHub—not SpecSync—performs the merge.
 
-Never invent or self-grant either human approval. If an approved definition changes, its digest
-becomes stale and must be approved again. `specsync check` validates canonical specs plus approved
-active deltas, requirement-to-test evidence, change coverage, and CI gates.
+Never invent or self-grant the human scope approval or independent review. If an approved
+definition or reviewed implementation changes, the corresponding digest becomes stale and must
+be refreshed. `specsync change status <id>` always reports exactly one next action. Historical
+repair commands remain available for older two-approval evidence but are not part of the normal
+workflow.
 
 Each canonical spec may have policy-selected companion files. Read and update the ones present; do not create empty companions only for ceremony:
 
@@ -51,7 +57,8 @@ Each canonical spec may have policy-selected companion files. Read and update th
 
 ## Before creating a PR
 
-Run `specsync check --strict` — all specs must pass with zero warnings.
+Run `specsync change check <id>` for the active change and ensure the PR's required checks pass.
+The release workflow performs the final strict/full-suite validation.
 
 ## When adding new modules
 
@@ -68,6 +75,9 @@ the description to draft the spec's Purpose and Requirements.
 
 - `specsync check` — validate all specs against source code
 - `specsync check --json` — machine-readable validation output
+- `specsync change status [id]` — show current gates and one explicit next action
+- `specsync change check <id>` — materialize approved deltas and run affected-component verification
+- `specsync change finalize <id>` — create the same-PR archive-only finalization; never merges externally
 - `specsync coverage` — show which modules lack specs
 - `specsync score` — quality score for each spec (0-100)
 - `specsync scaffold <name>` — full scaffold: spec + companions + registry entry + source detection

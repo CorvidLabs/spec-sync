@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 14
+version: 15
 status: stable
 files:
   - src/cli.rs
@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Defines the complete CLI argument grammar, including stale-only accepted-change reopen with required human actor and reason.
+Defines the complete CLI argument grammar, including the discoverable one-approval change path and compatible historical repair commands.
 
 ## Public API
 
@@ -32,7 +32,7 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
 | `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
-| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, Supersede, List, Show, Status, Approve, Start, Verify, Reopen, Correct, CorrectOwner, Accept, Archive, Check, Adopt |
+| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, Supersede, List, Show, Status, Approve, Check, Review, Finalize, plus compatible historical repair/transition commands |
 
 ## Invariants
 
@@ -40,6 +40,8 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 2. `--json` remains an alias for JSON output.
 3. MCP is read-only unless the `Mcp` command's `--allow-write` flag is present.
 4. Existing deterministic generation and verified SDD command grammar remains available.
+5. `change finalize` prepares the current PR and has no merge/provider arguments.
+6. Global `--strict` adds validators to the same change workflow rather than selecting another state machine.
 
 ## Behavioral Examples
 
@@ -72,6 +74,12 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 - **Given** user runs `specsync mcp --allow-write`
 - **When** Clap parses arguments
 - **Then** `Command::Mcp { allow_write: true }` is dispatched; omitting the flag yields `false`
+
+### Scenario: Single change workflow
+
+- **Given** a newcomer follows command help
+- **When** they inspect `specsync change --help`
+- **Then** `new`, `approve`, `check`, `status`, and `finalize` are plain discoverable commands and no SpecSync merge command is offered
 
 ## Error Cases
 
@@ -123,3 +131,4 @@ Defines the complete CLI argument grammar, including stale-only accepted-change 
 | 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
 | 2026-07-21 | CHG-0062: Add explicit `mcp --allow-write` authorization while preserving a read-only default |
 | 2026-07-22 | CHG-0062-harden-mcp-root-confinement-write-authorization-argument-validation-and-notif: Harden MCP root confinement, write authorization, argument validation, and notification semantics for issue 414 |
+| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |

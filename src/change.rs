@@ -48,6 +48,12 @@ const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
 static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
+#[cfg(test)]
+thread_local! {
+    static TRANSACTION_WRITE_FAILURE_INDEX: RefCell<Option<usize>> = const { RefCell::new(None) };
+    static TRANSACTION_AFTER_JOURNAL_HOOK: RefCell<Option<Box<dyn FnOnce()>>> =
+        RefCell::new(None);
+}
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct GitEvidenceCacheKey {
@@ -398,9 +404,17 @@ impl Drop for ProjectLock {
 
 fn acquire_project_lock(root: &Path) -> Result<ProjectLock, String> {
     let path = root.join(LOCK_PATH);
+    // Capability no-follow opens are not race-safe for concurrent first-time creators of the
+    // metadata directory on all platforms. Use the race-safe std directory/file open path while
+    // still rejecting symlink components before and after directory creation so a symlinked
+    // `.specsync` root cannot host the lifecycle lock (see
+    // `change_adopt_rejects_symlinked_metadata_root_before_lock_write`).
+    reject_symlink_components_for(root, &path, "lifecycle lock path")?;
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("failed to create lifecycle metadata directory: {error}"))?;
     }
+    reject_symlink_components_for(root, &path, "lifecycle lock path")?;
     let file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -469,6 +483,7 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
         } else if path.exists() {
             remove_file_durable(&path)
                 .map_err(|error| format!("failed to remove {}: {error}", path.display()))?;
+            remove_empty_transaction_directories(root, path.parent());
         }
     }
     remove_file_durable(&journal_path)
@@ -700,6 +715,20 @@ struct WorkflowV2Baseline {
     schema_version: u32,
     domain: String,
     cutoff_commit: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorkflowV2AdoptionGitSnapshot {
+    head: Option<String>,
+    comparison_reference: Option<String>,
+    comparison_tip: Option<String>,
+    cutoff_commit: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct WorkflowV2AdoptionCandidate {
+    baseline: WorkflowV2Baseline,
+    git_snapshot: WorkflowV2AdoptionGitSnapshot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1330,6 +1359,11 @@ pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> 
     if path.exists() {
         return Ok(());
     }
+    let policy = default_policy(root, verification_commands);
+    write_json(&path, &policy)
+}
+
+fn default_policy(root: &Path, verification_commands: Vec<String>) -> SddPolicy {
     let mut policy = SddPolicy {
         verification_commands,
         ..SddPolicy::default()
@@ -1347,7 +1381,7 @@ pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> 
             policy.meaningful_paths.push(scope);
         }
     }
-    write_json(&path, &policy)
+    policy
 }
 
 pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<ChangeRecord, String> {
@@ -1393,9 +1427,13 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
             artifacts.push(artifact);
         }
     }
-    let workflow_version = load_policy(root)
-        .map(|policy| if policy.version >= 2 { 2 } else { 1 })
-        .unwrap_or(2);
+    let workflow_version = if read_workflow_v2_baseline(root)?.is_some() {
+        2
+    } else {
+        load_policy(root)
+            .map(|policy| if policy.version >= 2 { 2 } else { 1 })
+            .unwrap_or(2)
+    };
     if workflow_version >= 2 {
         ensure_workflow_v2_baseline(root)?;
     }
@@ -6053,6 +6091,10 @@ fn check_project_with_command_output(
 pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<String>, String> {
     let mut actions = Vec::new();
     actions.push(format!("enable SDD policy at {POLICY_PATH}"));
+    actions.push(
+        "adopt the workflow-v2 baseline for new changes while preserving workflow-v1 evidence"
+            .into(),
+    );
     let requirement_proposals = requirement_id_proposals(root);
     let detected = source
         .map(str::to_string)
@@ -6070,42 +6112,75 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
     if dry_run {
         return Ok(actions);
     }
+    let _lock = acquire_project_lock(root)?;
+    validate_change_sequences(root)?;
     if let Some(source) = detected.as_deref() {
         validate_foreign_import(root, source)?;
     }
+    let baseline_candidate = prepare_workflow_v2_adoption_candidate(root)?;
     let policy_existed = root.join(POLICY_PATH).exists();
     let existing_bootstrap = fs::read_to_string(root.join(".specsync/adoption-report.json"))
         .ok()
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|value| value.get("bootstrap_policy").cloned());
-    write_default_policy(root, detect_verification_commands(root))?;
+    let policy_content = if policy_existed {
+        None
+    } else {
+        Some(json_content(&default_policy(
+            root,
+            detect_verification_commands(root),
+        ))?)
+    };
     let bootstrap_policy = if policy_existed {
         existing_bootstrap
     } else {
-        adoption_bootstrap_record(root)?
+        policy_content
+            .as_deref()
+            .map(|content| adoption_bootstrap_record_for_content(root, content.as_bytes()))
+            .transpose()?
+            .flatten()
     };
-    write_json(
-        &root.join(".specsync/adoption-report.json"),
-        &serde_json::json!({
+    let baseline_content = baseline_candidate
+        .as_ref()
+        .map(|candidate| json_content(&candidate.baseline))
+        .transpose()?;
+    let mut prepared = Vec::new();
+    if let Some(policy_content) = policy_content {
+        prepared.push((root.join(POLICY_PATH), policy_content));
+    }
+    if let Some(source) = detected.as_deref() {
+        prepared.extend(prepare_foreign_import(root, source)?);
+    }
+    prepared.push((
+        root.join(".specsync/adoption-report.json"),
+        json_content(&serde_json::json!({
             "requirements_needing_ids": requirement_proposals,
             "generated_at": now(),
             "bootstrap_policy": bootstrap_policy,
-        }),
-    )?;
-    if let Some(source) = detected.as_deref() {
-        import_foreign(root, source)?;
+        }))?,
+    ));
+    if let Some(baseline_content) = baseline_content {
+        prepared.push((root.join(WORKFLOW_V2_BASELINE_PATH), baseline_content));
+    }
+    if let Some(candidate) = baseline_candidate {
+        write_prepared_files_checked(root, &prepared, || {
+            validate_workflow_v2_adoption_git_snapshot(root, &candidate.git_snapshot)
+        })?;
+    } else {
+        write_prepared_files(root, &prepared)?;
     }
     Ok(actions)
 }
 
-fn adoption_bootstrap_record(root: &Path) -> Result<Option<serde_json::Value>, String> {
+fn adoption_bootstrap_record_for_content(
+    root: &Path,
+    content: &[u8],
+) -> Result<Option<serde_json::Value>, String> {
     let Some(base_commit) = git_output(root, &["rev-parse", "--verify", "HEAD"]) else {
         return Ok(None);
     };
-    let content = fs::read(root.join(POLICY_PATH))
-        .map_err(|error| format!("failed to read adopted SDD policy: {error}"))?;
     let mut hasher = Sha256::new();
-    hasher.update(&content);
+    hasher.update(content);
     Ok(Some(serde_json::json!({
         "path": POLICY_PATH,
         "digest": format!("{:x}", hasher.finalize()),
@@ -7392,9 +7467,25 @@ fn changelog_table_row(section: &str, spec: &str, description: &str) -> Option<S
 }
 
 fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(), String> {
+    write_prepared_files_checked(root, prepared, || Ok(()))
+}
+
+fn write_prepared_files_checked<Validate>(
+    root: &Path,
+    prepared: &[(PathBuf, String)],
+    mut validate: Validate,
+) -> Result<(), String>
+where
+    Validate: FnMut() -> Result<(), String>,
+{
+    let mut targets = BTreeSet::new();
     for (path, _) in prepared {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        validate_prepared_transaction_target(root, path)?;
+        if !targets.insert(path) {
+            return Err(format!(
+                "transaction contains duplicate target {}",
+                path.display()
+            ));
         }
     }
     let backups: Vec<(PathBuf, Option<String>)> = prepared
@@ -7417,11 +7508,7 @@ fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(
         .iter()
         .map(|(path, original)| {
             Ok(TransactionEntry {
-                path: path
-                    .strip_prefix(root)
-                    .map_err(|_| format!("transaction path escapes project: {}", path.display()))?
-                    .to_string_lossy()
-                    .replace('\\', "/"),
+                path: transaction_relative_path(root, path)?,
                 original: original.clone(),
             })
         })
@@ -7432,10 +7519,33 @@ fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(
         entries_digest: transaction_entries_digest(&journal)?,
         entries: journal,
     };
+    validate_prepared_transaction_targets(root, prepared)?;
+    validate()?;
     let journal_path = root.join(TRANSACTION_PATH);
     atomic_write_durable(&journal_path, json_content(&journal)?.as_bytes())
         .map_err(|error| format!("failed to publish transaction journal: {error}"))?;
-    for (path, content) in prepared {
+    #[cfg(test)]
+    run_transaction_after_journal_hook();
+    if let Err(error) =
+        validate_prepared_transaction_targets(root, prepared).and_then(|()| validate())
+    {
+        recover_pending_transaction(root)?;
+        return Err(error);
+    }
+    for (index, (path, content)) in prepared.iter().enumerate() {
+        let _ = index;
+        #[cfg(test)]
+        if transaction_write_failure_is_due(index) {
+            recover_pending_transaction(root)?;
+            return Err(format!(
+                "injected atomic publication failure at {}",
+                path.display()
+            ));
+        }
+        if let Err(error) = validate_prepared_transaction_target(root, path) {
+            recover_pending_transaction(root)?;
+            return Err(error);
+        }
         if let Err(error) = atomic_write_durable(path, content.as_bytes()) {
             recover_pending_transaction(root)?;
             return Err(format!(
@@ -7444,9 +7554,113 @@ fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(
             ));
         }
     }
+    if let Err(error) =
+        validate_prepared_transaction_targets(root, prepared).and_then(|()| validate())
+    {
+        recover_pending_transaction(root)?;
+        return Err(error);
+    }
     remove_file_durable(&journal_path)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))?;
     Ok(())
+}
+
+fn validate_prepared_transaction_targets(
+    root: &Path,
+    prepared: &[(PathBuf, String)],
+) -> Result<(), String> {
+    for (path, _) in prepared {
+        validate_prepared_transaction_target(root, path)?;
+    }
+    Ok(())
+}
+
+fn validate_prepared_transaction_target(root: &Path, path: &Path) -> Result<(), String> {
+    transaction_relative_path(root, path)?;
+    reject_symlink_components_for(root, path, "transaction target")
+}
+
+fn transaction_relative_path(root: &Path, path: &Path) -> Result<String, String> {
+    let relative = path.strip_prefix(root).map_err(|_| {
+        format!(
+            "transaction target escapes project root: {}",
+            path.display()
+        )
+    })?;
+    let relative = relative.to_str().ok_or_else(|| {
+        format!(
+            "transaction target is not valid UTF-8 and cannot be journaled losslessly: {}",
+            path.display()
+        )
+    })?;
+    #[cfg(unix)]
+    if relative.contains('\\') {
+        return Err(format!(
+            "transaction target contains a Unix filename component with `\\` and cannot be journaled losslessly: {}",
+            path.display()
+        ));
+    }
+    let relative = relative.replace('\\', "/");
+    if normalize_project_path(&relative)? != relative {
+        return Err(format!(
+            "transaction target is not a canonical project path: {}",
+            path.display()
+        ));
+    }
+    if relative == TRANSACTION_PATH {
+        return Err("transaction payload cannot overwrite its own journal".into());
+    }
+    Ok(relative)
+}
+
+#[cfg(test)]
+fn inject_transaction_write_failure(index: usize) {
+    TRANSACTION_WRITE_FAILURE_INDEX.with(|target| {
+        *target.borrow_mut() = Some(index);
+    });
+}
+
+#[cfg(test)]
+fn inject_transaction_after_journal_hook(hook: impl FnOnce() + 'static) {
+    TRANSACTION_AFTER_JOURNAL_HOOK.with(|target| {
+        *target.borrow_mut() = Some(Box::new(hook));
+    });
+}
+
+#[cfg(test)]
+fn run_transaction_after_journal_hook() {
+    TRANSACTION_AFTER_JOURNAL_HOOK.with(|target| {
+        if let Some(hook) = target.borrow_mut().take() {
+            hook();
+        }
+    });
+}
+
+#[cfg(test)]
+fn transaction_write_failure_is_due(index: usize) -> bool {
+    TRANSACTION_WRITE_FAILURE_INDEX.with(|target| {
+        let mut target = target.borrow_mut();
+        if *target == Some(index) {
+            *target = None;
+            true
+        } else {
+            false
+        }
+    })
+}
+
+fn remove_empty_transaction_directories(root: &Path, start: Option<&Path>) {
+    let mut current = start.map(Path::to_path_buf);
+    while let Some(directory) = current {
+        if directory == root || !directory.starts_with(root) {
+            break;
+        }
+        let parent = directory.parent().map(Path::to_path_buf);
+        if fs::remove_dir(&directory).is_err() {
+            break;
+        }
+        current = parent;
+    }
 }
 
 fn transaction_entries_digest(entries: &[TransactionEntry]) -> Result<String, String> {
@@ -14051,7 +14265,8 @@ fn detect_foreign_source(root: &Path) -> Option<String> {
     None
 }
 
-fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
+fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, String)>, String> {
+    let mut prepared = Vec::new();
     let provenance = root.join(".specsync/import-provenance.json");
     let value = serde_json::json!({
         "source": source,
@@ -14059,7 +14274,7 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
         "scope": "active_plus_canonical",
         "archives": "preserved_in_place"
     });
-    write_json(&provenance, &value)?;
+    prepared.push((provenance, json_content(&value)?));
     let import_root = root.join(".specsync/imports").join(source);
     match source {
         "openspec" => {
@@ -14073,7 +14288,12 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
                     ));
                 }
                 Ok(metadata) if metadata.is_dir() => {
-                    copy_markdown_files(root, &canonical, &import_root.join("canonical"))?;
+                    prepare_markdown_files(
+                        root,
+                        &canonical,
+                        &import_root.join("canonical"),
+                        &mut prepared,
+                    )?;
                 }
                 Ok(_) => {
                     return Err(format!(
@@ -14096,9 +14316,9 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
                     ));
                 }
                 Ok(metadata) if metadata.is_file() => {
-                    fs::create_dir_all(&import_root).map_err(|error| error.to_string())?;
-                    fs::copy(&constitution, import_root.join("constitution.md"))
-                        .map_err(|error| error.to_string())?;
+                    let content = fs::read_to_string(&constitution)
+                        .map_err(|error| format!("failed to read foreign constitution: {error}"))?;
+                    prepared.push((import_root.join("constitution.md"), content));
                 }
                 Ok(_) => {
                     return Err(format!(
@@ -14132,11 +14352,22 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
                 source_changes.display()
             ));
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(prepared),
         Err(error) => return Err(error.to_string()),
     }
-    for entry in fs::read_dir(source_changes).map_err(|error| error.to_string())? {
-        let entry = entry.map_err(|error| error.to_string())?;
+    let mut entries = fs::read_dir(source_changes)
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    entries.sort_by_key(|entry| entry.file_name());
+    let mut known_descriptions: BTreeSet<String> = list_changes_checked(root)?
+        .into_iter()
+        .map(|record| record.description)
+        .collect();
+    let mut next_sequence = change_sequence(&next_change_id(root, "import")?)
+        .ok_or_else(|| "failed to allocate imported change sequence".to_string())?;
+    let mut last_imported_id = None;
+    for entry in entries {
         let entry_path = entry.path();
         reject_symlink_components(root, &entry_path)?;
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
@@ -14164,34 +14395,101 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
         }
         let name = entry.file_name().to_string_lossy().to_string();
         let description = format!("Imported {source} change {name}");
-        if list_changes_checked(root)?
-            .iter()
-            .any(|record| record.description == description)
-        {
+        if known_descriptions.contains(&description) {
             continue;
         }
-        let record = create_change(
-            root,
-            CreateChangeRequest {
-                description,
-                kind: ChangeKind::Feature,
-                affected_specs: Vec::new(),
-                affected_paths: vec![portable_project_path(root, &entry_path)],
-                requested_artifacts: vec![
-                    ArtifactKind::Requirements,
-                    ArtifactKind::Design,
-                    ArtifactKind::Tasks,
-                ],
-                no_spec_change: true,
-                rationale: Some(format!(
-                    "Imported from {source}; canonical reconciliation is pending"
-                )),
-            },
-        )?;
+        let slug = slugify(&description);
+        let id = if next_sequence < 10_000 {
+            format!("CHG-{next_sequence:04}-{slug}")
+        } else {
+            format!("CHG-{next_sequence}-{slug}")
+        };
+        next_sequence += 1;
+        let mut affected_paths = vec![portable_project_path(root, &entry_path)];
+        if !affected_paths
+            .iter()
+            .any(|scope| path_matches_scope(SEQUENCE_PATH, scope))
+        {
+            affected_paths.push(SEQUENCE_PATH.into());
+        }
+        let mut selected_artifacts = adaptive_artifacts(ChangeKind::Feature, &[], &affected_paths);
+        for artifact in [
+            ArtifactKind::Requirements,
+            ArtifactKind::Design,
+            ArtifactKind::Tasks,
+        ] {
+            if !selected_artifacts.contains(&artifact) {
+                selected_artifacts.push(artifact);
+            }
+        }
+        let timestamp = now();
+        let record = ChangeRecord {
+            schema_version: 1,
+            workflow_version: 2,
+            workflow_origin_version: Some(2),
+            id: id.clone(),
+            slug,
+            title: title_from_description(&description),
+            description: description.clone(),
+            kind: ChangeKind::Feature,
+            state: ChangeState::Draft,
+            canonical_applied: false,
+            correction_count: 0,
+            base_commit: git_output(root, &["rev-parse", "HEAD"]),
+            created_at: timestamp,
+            updated_at: timestamp,
+            affected_specs: Vec::new(),
+            affected_paths,
+            no_spec_change: true,
+            no_spec_change_rationale: Some(format!(
+                "Imported from {source}; canonical reconciliation is pending"
+            )),
+            acceptance_criteria: Vec::new(),
+            selected_artifacts,
+            dependencies: Vec::new(),
+            supersedes: Vec::new(),
+            acceptance_owner_corrections: Vec::new(),
+            legacy_archive_baseline_digest: None,
+            answers: BTreeMap::new(),
+        };
+        let record_dir = change_dir(root, &record.id);
+        prepared.push((record_dir.join("state.json"), json_content(&record)?));
+        prepared.push((
+            record_dir.join("change.md"),
+            change_markdown_content(&record),
+        ));
+        prepared.push((
+            record_dir.join("approvals.json"),
+            json_content(&ApprovalLedger::default())?,
+        ));
+        for artifact in &record.selected_artifacts {
+            prepared.push((
+                record_dir.join(artifact.file_name()),
+                artifact_template(root, artifact, &record),
+            ));
+        }
         let destination = change_dir(root, &record.id).join("imported");
-        copy_markdown_files(root, &entry_path, &destination)?;
+        prepare_markdown_files(root, &entry_path, &destination, &mut prepared)?;
+        known_descriptions.insert(description);
+        last_imported_id = Some(record.id);
     }
-    Ok(())
+    if let Some(id) = last_imported_id {
+        let sequence =
+            change_sequence(&id).ok_or_else(|| format!("invalid imported change ID `{id}`"))?;
+        let acknowledged_collisions = load_change_sequence_ledger(root)?
+            .map(|ledger| ledger.acknowledged_collisions)
+            .unwrap_or_default();
+        prepared.push((
+            root.join(SEQUENCE_PATH),
+            json_content(&ChangeSequenceLedger {
+                schema_version: 1,
+                sequence,
+                id,
+                acknowledged_collisions,
+            })?,
+        ));
+    }
+    Ok(prepared)
 }
 
 fn validate_foreign_import(root: &Path, source: &str) -> Result<(), String> {
@@ -14230,10 +14528,11 @@ fn validate_foreign_import(root: &Path, source: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn copy_markdown_files(
+fn prepare_markdown_files(
     project_root: &Path,
     source: &Path,
     destination: &Path,
+    prepared: &mut Vec<(PathBuf, String)>,
 ) -> Result<(), String> {
     reject_symlink_components(project_root, source)?;
     let metadata = fs::symlink_metadata(source).map_err(|error| error.to_string())?;
@@ -14243,9 +14542,12 @@ fn copy_markdown_files(
             source.display()
         ));
     }
-    fs::create_dir_all(destination).map_err(|error| error.to_string())?;
-    for entry in fs::read_dir(source).map_err(|error| error.to_string())? {
-        let entry = entry.map_err(|error| error.to_string())?;
+    let mut entries = fs::read_dir(source)
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
         let path = entry.path();
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
         if file_type.is_symlink() {
@@ -14255,33 +14557,41 @@ fn copy_markdown_files(
             ));
         }
         if file_type.is_dir() {
-            copy_markdown_files(project_root, &path, &destination.join(entry.file_name()))?;
+            prepare_markdown_files(
+                project_root,
+                &path,
+                &destination.join(entry.file_name()),
+                prepared,
+            )?;
         } else if file_type.is_file()
             && path.extension().and_then(|value| value.to_str()) == Some("md")
         {
-            fs::copy(&path, destination.join(entry.file_name()))
-                .map_err(|error| error.to_string())?;
+            let content = fs::read_to_string(&path)
+                .map_err(|error| format!("failed to read foreign Markdown: {error}"))?;
+            prepared.push((destination.join(entry.file_name()), content));
         }
     }
     Ok(())
 }
 
 fn reject_symlink_components(project_root: &Path, candidate: &Path) -> Result<(), String> {
-    let relative = candidate.strip_prefix(project_root).map_err(|_| {
-        format!(
-            "foreign import path escapes project root: {}",
-            candidate.display()
-        )
-    })?;
+    reject_symlink_components_for(project_root, candidate, "foreign import path")
+}
+
+fn reject_symlink_components_for(
+    project_root: &Path,
+    candidate: &Path,
+    label: &str,
+) -> Result<(), String> {
+    let relative = candidate
+        .strip_prefix(project_root)
+        .map_err(|_| format!("{label} escapes project root: {}", candidate.display()))?;
     let mut current = project_root.to_path_buf();
     for component in relative.components() {
         current.push(component.as_os_str());
         match fs::symlink_metadata(&current) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err(format!(
-                    "refusing symlinked foreign import path: {}",
-                    current.display()
-                ));
+                return Err(format!("refusing symlinked {label}: {}", current.display()));
             }
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
@@ -14534,32 +14844,175 @@ fn validate_historical_workflow_version_anchor(record: &ChangeRecord) -> Result<
 }
 
 fn ensure_workflow_v2_baseline(root: &Path) -> Result<(), String> {
-    let path = root.join(WORKFLOW_V2_BASELINE_PATH);
-    if path.exists() {
-        read_workflow_v2_baseline(root)?;
+    let Some(candidate) = prepare_workflow_v2_adoption_candidate(root)? else {
         return Ok(());
-    }
-    let baseline = WorkflowV2Baseline {
-        schema_version: 1,
-        domain: "specsync.workflow-v2-baseline.v1".into(),
-        cutoff_commit: workflow_v2_baseline_cutoff(root),
     };
-    write_json(&path, &baseline)
+    let expected_snapshot = candidate.git_snapshot.clone();
+    write_prepared_files_checked(
+        root,
+        &[(
+            root.join(WORKFLOW_V2_BASELINE_PATH),
+            json_content(&candidate.baseline)?,
+        )],
+        || validate_workflow_v2_adoption_git_snapshot(root, &expected_snapshot),
+    )
 }
 
+fn prepare_workflow_v2_adoption_candidate(
+    root: &Path,
+) -> Result<Option<WorkflowV2AdoptionCandidate>, String> {
+    if read_workflow_v2_baseline(root)?.is_some() {
+        return Ok(None);
+    }
+    let git_snapshot = workflow_v2_adoption_git_snapshot(root)?;
+    validate_workflow_v1_records_at_adoption_cutoff(root, git_snapshot.cutoff_commit.as_deref())?;
+    Ok(Some(WorkflowV2AdoptionCandidate {
+        baseline: WorkflowV2Baseline {
+            schema_version: 1,
+            domain: "specsync.workflow-v2-baseline.v1".into(),
+            cutoff_commit: git_snapshot.cutoff_commit.clone(),
+        },
+        git_snapshot,
+    }))
+}
+
+fn validate_workflow_v1_records_at_adoption_cutoff(
+    root: &Path,
+    cutoff: Option<&str>,
+) -> Result<(), String> {
+    let records = list_all_changes_checked(root)?;
+    let workflow_v1_records: Vec<&ChangeRecord> = records
+        .values()
+        .filter(|record| record.workflow_version == 1)
+        .collect();
+    if workflow_v1_records.is_empty() {
+        return Ok(());
+    }
+    let Some(cutoff) = cutoff else {
+        let ids = workflow_v1_records
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(format!(
+            "cannot adopt workflow v2 because workflow-v1 change(s) {ids} have no trusted Git cutoff; commit and integrate or archive them in comparison-base history, then rerun `specsync change adopt`"
+        ));
+    };
+    let mut missing = Vec::new();
+    for record in workflow_v1_records {
+        if !workflow_v1_record_exists_at_cutoff(root, record, cutoff)? {
+            missing.push(record.id.as_str());
+        }
+    }
+    if missing.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "cannot adopt workflow v2 because workflow-v1 change(s) {} are absent from trusted cutoff {cutoff}; commit and integrate or archive them in comparison-base history, then rerun `specsync change adopt`",
+        missing.join(", ")
+    ))
+}
+
+#[cfg(test)]
 fn workflow_v2_baseline_cutoff(root: &Path) -> Option<String> {
-    let head = git_output(root, &["rev-parse", "--verify", "HEAD"])?;
-    remote_default_ref(root)
-        .and_then(|reference| git_output(root, &["merge-base", reference.as_str(), "HEAD"]))
-        .filter(|cutoff| is_canonical_commit_id(cutoff))
-        .or(Some(head))
+    workflow_v2_adoption_git_snapshot(root).ok()?.cutoff_commit
+}
+
+fn workflow_v2_adoption_git_snapshot(root: &Path) -> Result<WorkflowV2AdoptionGitSnapshot, String> {
+    if !git_repository_present_uncached(root)? {
+        return Ok(WorkflowV2AdoptionGitSnapshot {
+            head: None,
+            comparison_reference: None,
+            comparison_tip: None,
+            cutoff_commit: None,
+        });
+    }
+    let head = uncached_optional_git_text(root, &["rev-parse", "--verify", "HEAD^{commit}"])?;
+    let comparison_reference = uncached_optional_git_text(
+        root,
+        &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    )?
+    .or_else(|| {
+        ["origin/main", "origin/master"]
+            .into_iter()
+            .find_map(|candidate| {
+                uncached_optional_git_text(
+                    root,
+                    &["rev-parse", "--verify", &format!("{candidate}^{{commit}}")],
+                )
+                .ok()
+                .flatten()
+                .map(|_| candidate.to_string())
+            })
+    });
+    let comparison_tip = comparison_reference
+        .as_deref()
+        .map(|reference| {
+            uncached_optional_git_text(
+                root,
+                &["rev-parse", "--verify", &format!("{reference}^{{commit}}")],
+            )
+        })
+        .transpose()?
+        .flatten();
+    let cutoff_commit = match (comparison_reference.as_deref(), head.as_deref()) {
+        (Some(reference), Some(_)) => {
+            uncached_optional_git_text(root, &["merge-base", reference, "HEAD"])?
+                .filter(|cutoff| is_canonical_commit_id(cutoff))
+                .or_else(|| head.clone())
+        }
+        _ => head.clone(),
+    };
+    Ok(WorkflowV2AdoptionGitSnapshot {
+        head,
+        comparison_reference,
+        comparison_tip,
+        cutoff_commit,
+    })
+}
+
+fn uncached_optional_git_text(root: &Path, args: &[&str]) -> Result<Option<String>, String> {
+    let output = run_git_bounded(root, args, None, MAX_GIT_DIAGNOSTIC_BYTES)?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let value = String::from_utf8(output.stdout).map_err(|_| {
+        format!(
+            "Git query returned non-UTF-8 output: git {}",
+            args.join(" ")
+        )
+    })?;
+    let value = value.trim();
+    Ok((!value.is_empty()).then(|| value.to_string()))
+}
+
+fn validate_workflow_v2_adoption_git_snapshot(
+    root: &Path,
+    expected: &WorkflowV2AdoptionGitSnapshot,
+) -> Result<(), String> {
+    let current = workflow_v2_adoption_git_snapshot(root)?;
+    if &current == expected {
+        return Ok(());
+    }
+    Err(
+        "Git HEAD or remote-default comparison reference changed during workflow-v2 adoption; no migration was published, so retry `specsync change adopt` from a stable checkout"
+            .into(),
+    )
 }
 
 fn read_workflow_v2_baseline(root: &Path) -> Result<Option<(WorkflowV2Baseline, Vec<u8>)>, String> {
     let path = root.join(WORKFLOW_V2_BASELINE_PATH);
     let metadata = match fs::symlink_metadata(&path) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if workflow_v2_baseline_exists_in_reachable_history(root)? {
+                return Err(format!(
+                    "committed workflow-v2 baseline was deleted; restore the exact reachable {} bytes before continuing",
+                    WORKFLOW_V2_BASELINE_PATH
+                ));
+            }
+            return Ok(None);
+        }
         Err(error) => {
             return Err(format!(
                 "failed to inspect workflow-v2 baseline {}: {error}",
@@ -14595,6 +15048,28 @@ fn read_workflow_v2_baseline(root: &Path) -> Result<Option<(WorkflowV2Baseline, 
         return Err("workflow-v2 baseline cutoff must be a canonical commit ID".into());
     }
     Ok(Some((baseline, bytes)))
+}
+
+fn workflow_v2_baseline_exists_in_reachable_history(root: &Path) -> Result<bool, String> {
+    if !git_repository_present(root)?
+        || git_output(root, &["rev-parse", "--verify", "HEAD"]).is_none()
+    {
+        return Ok(false);
+    }
+    let baseline_path = git_repo_relative_path(root, WORKFLOW_V2_BASELINE_PATH)?;
+    let history = scoped_review_git_text(
+        root,
+        &[
+            "rev-list",
+            "--full-history",
+            "--max-count=1",
+            "HEAD",
+            "--",
+            baseline_path.as_str(),
+        ],
+    )
+    .map_err(|_| "failed to inspect reachable workflow-v2 baseline history".to_string())?;
+    Ok(history.lines().any(|line| !line.trim().is_empty()))
 }
 
 fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -14764,21 +15239,28 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
     let cutoff = baseline.cutoff_commit.as_deref().ok_or_else(|| {
         "workflow-v1 state is not eligible after root workflow-v2 adoption".to_string()
     })?;
-    let candidate_paths = workflow_version_state_paths(root, record)?;
-    let eligible = candidate_paths.iter().any(|path| {
-        git_change_record_at(root, cutoff, path).is_some_and(|historical| {
-            historical.id == record.id
-                && historical.workflow_version == 1
-                && matches!(historical.workflow_origin_version, None | Some(1))
-        })
-    });
-    if !eligible {
+    if !workflow_v1_record_exists_at_cutoff(root, record, cutoff)? {
         return Err(format!(
             "workflow-v1 change {} was not present at the trusted pre-v2 cutoff {}",
             record.id, cutoff
         ));
     }
     Ok(())
+}
+
+fn workflow_v1_record_exists_at_cutoff(
+    root: &Path,
+    record: &ChangeRecord,
+    cutoff: &str,
+) -> Result<bool, String> {
+    let candidate_paths = workflow_version_state_paths(root, record)?;
+    Ok(candidate_paths.iter().any(|path| {
+        git_change_record_at(root, cutoff, path).is_some_and(|historical| {
+            historical.id == record.id
+                && historical.workflow_version == 1
+                && matches!(historical.workflow_origin_version, None | Some(1))
+        })
+    }))
 }
 
 fn validate_workflow_version_history(root: &Path, record: &ChangeRecord) -> Result<(), String> {
@@ -15911,6 +16393,14 @@ mod tests {
     }
 
     fn completed_record(root: &Path) -> ChangeRecord {
+        completed_record_with_workflow(root, true)
+    }
+
+    fn completed_current_record(root: &Path) -> ChangeRecord {
+        completed_record_with_workflow(root, false)
+    }
+
+    fn completed_record_with_workflow(root: &Path, legacy: bool) -> ChangeRecord {
         ensure_test_verification_policy(root);
         let mut record = create_change(
             root,
@@ -15932,12 +16422,24 @@ mod tests {
         record
             .answers
             .insert("architecture_risk".into(), "no".into());
-        persist_legacy_test_record(root, &mut record);
+        if legacy {
+            persist_legacy_test_record(root, &mut record);
+        } else {
+            save_change(root, &record).unwrap();
+        }
         write_change_markdown(root, &record).unwrap();
         record
     }
 
     fn completed_no_spec_record(root: &Path) -> ChangeRecord {
+        completed_no_spec_record_with_workflow(root, true)
+    }
+
+    fn completed_no_spec_current_record(root: &Path) -> ChangeRecord {
+        completed_no_spec_record_with_workflow(root, false)
+    }
+
+    fn completed_no_spec_record_with_workflow(root: &Path, legacy: bool) -> ChangeRecord {
         ensure_test_verification_policy(root);
         fs::create_dir_all(root.join("src")).unwrap();
         fs::create_dir_all(root.join("specs/change")).unwrap();
@@ -15965,7 +16467,11 @@ mod tests {
         record
             .answers
             .insert("architecture_risk".into(), "no".into());
-        persist_legacy_test_record(root, &mut record);
+        if legacy {
+            persist_legacy_test_record(root, &mut record);
+        } else {
+            save_change(root, &record).unwrap();
+        }
         write_change_markdown(root, &record).unwrap();
         for artifact in &record.selected_artifacts {
             let content = if *artifact == ArtifactKind::Tasks {
@@ -15983,6 +16489,18 @@ mod tests {
     }
 
     fn completed_section_only_record(root: &Path, delta: &str) -> ChangeRecord {
+        completed_section_only_record_with_workflow(root, delta, true)
+    }
+
+    fn completed_section_only_current_record(root: &Path, delta: &str) -> ChangeRecord {
+        completed_section_only_record_with_workflow(root, delta, false)
+    }
+
+    fn completed_section_only_record_with_workflow(
+        root: &Path,
+        delta: &str,
+        legacy: bool,
+    ) -> ChangeRecord {
         fs::create_dir_all(root.join("src")).unwrap();
         fs::create_dir_all(root.join("specs/auth")).unwrap();
         fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
@@ -15991,7 +16509,11 @@ mod tests {
             "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nRetained for compatibility.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
         )
         .unwrap();
-        let record = completed_record(root);
+        let record = if legacy {
+            completed_record(root)
+        } else {
+            completed_current_record(root)
+        };
         for artifact in &record.selected_artifacts {
             let content = if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Complete the documentation change.\n"
@@ -16017,7 +16539,18 @@ mod tests {
     }
 
     fn current_workflow_record(root: &Path, mut record: ChangeRecord) -> ChangeRecord {
-        ensure_workflow_v2_baseline(root).unwrap();
+        let baseline_path = root.join(WORKFLOW_V2_BASELINE_PATH);
+        if !baseline_path.exists() {
+            write_json(
+                &baseline_path,
+                &WorkflowV2Baseline {
+                    schema_version: 1,
+                    domain: "specsync.workflow-v2-baseline.v1".into(),
+                    cutoff_commit: workflow_v2_baseline_cutoff(root),
+                },
+            )
+            .unwrap();
+        }
         record.workflow_version = 2;
         record.workflow_origin_version = Some(2);
         save_change(root, &record).unwrap();
@@ -16131,6 +16664,435 @@ mod tests {
     }
 
     #[test]
+    fn change_adopt_moves_only_new_changes_to_v2_without_rewriting_v1_policy() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let legacy = create_change(
+            root,
+            CreateChangeRequest {
+                description: "preserve legacy workflow evidence".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/legacy/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Upgrade compatibility fixture".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(legacy.workflow_version, 1);
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "trusted workflow-v1 cutoff"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+
+        adopt(root, false, None).unwrap();
+
+        assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+        let baseline = read_workflow_v2_baseline(root).unwrap().unwrap().0;
+        assert_eq!(baseline.cutoff_commit.as_deref(), Some(cutoff.as_str()));
+        assert_eq!(load_change(root, &legacy.id).unwrap(), legacy);
+        let current = create_change(
+            root,
+            CreateChangeRequest {
+                description: "use the single current workflow".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/current/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Workflow migration regression".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(current.workflow_version, 2);
+        assert_eq!(current.workflow_origin_version, Some(2));
+    }
+
+    #[test]
+    fn change_adopt_rejects_uncommitted_workflow_v1_records_without_writes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "trusted base"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let legacy = create_change(
+            root,
+            CreateChangeRequest {
+                description: "leave workflow-v1 evidence uncommitted".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/uncommitted/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Upgrade compatibility fixture".into()),
+            },
+        )
+        .unwrap();
+        let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains(&legacy.id));
+        assert!(error.contains("absent from trusted cutoff"));
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+    }
+
+    #[test]
+    fn change_adopt_rejects_branch_only_workflow_v1_records_without_writes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "trusted base"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let trusted_cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let legacy = create_change(
+            root,
+            CreateChangeRequest {
+                description: "leave workflow-v1 evidence on a branch".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/branch-only/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Upgrade compatibility fixture".into()),
+            },
+        )
+        .unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "branch-only workflow-v1 change"]);
+        let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains(&legacy.id));
+        assert!(error.contains(&trusted_cutoff));
+        assert!(error.contains("absent from trusted cutoff"));
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+    }
+
+    #[test]
+    fn change_adopt_rolls_back_when_comparison_ref_moves_during_publication() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "seed"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let legacy = create_change(
+            root,
+            CreateChangeRequest {
+                description: "anchor workflow-v1 evidence before adoption".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/legacy/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Adoption race fixture".into()),
+            },
+        )
+        .unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "trusted workflow-v1 record"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let trusted_head = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+        let hook_root = root.to_path_buf();
+        inject_transaction_after_journal_hook(move || {
+            quiet_git(
+                &hook_root,
+                &["update-ref", "refs/remotes/origin/main", "HEAD^"],
+            );
+        });
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains("comparison reference changed"));
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+        assert_eq!(load_change(root, &legacy.id).unwrap(), legacy);
+
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        adopt(root, false, None).unwrap();
+        let baseline = read_workflow_v2_baseline(root).unwrap().unwrap().0;
+        assert_eq!(
+            baseline.cutoff_commit.as_deref(),
+            Some(trusted_head.as_str())
+        );
+    }
+
+    #[test]
+    fn change_adopt_rejects_workflow_v1_records_without_git_history() {
+        for initialize_git in [false, true] {
+            let temp = TempDir::new().unwrap();
+            let root = temp.path();
+            if initialize_git {
+                quiet_git(root, &["init", "-b", "main"]);
+            }
+            write_default_policy(root, Vec::new()).unwrap();
+            let mut policy = load_policy(root).unwrap();
+            policy.version = 1;
+            write_json(&root.join(POLICY_PATH), &policy).unwrap();
+            let legacy = create_change(
+                root,
+                CreateChangeRequest {
+                    description: "preserve workflow-v1 evidence without history".into(),
+                    kind: ChangeKind::Operations,
+                    affected_specs: Vec::new(),
+                    affected_paths: vec!["ops/no-history/".into()],
+                    requested_artifacts: Vec::new(),
+                    no_spec_change: true,
+                    rationale: Some("Upgrade compatibility fixture".into()),
+                },
+            )
+            .unwrap();
+            let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+
+            let error = adopt(root, false, None).unwrap_err();
+
+            assert!(error.contains(&legacy.id));
+            assert!(error.contains("no trusted Git cutoff"));
+            assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+            assert!(!root.join(".specsync/adoption-report.json").exists());
+            assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+        }
+    }
+
+    #[test]
+    fn change_adopt_rolls_back_injected_publication_failure_and_retries_cleanly() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        inject_transaction_write_failure(1);
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains("injected atomic publication failure"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+
+        adopt(root, false, None).unwrap();
+        assert!(root.join(POLICY_PATH).is_file());
+        assert!(root.join(".specsync/adoption-report.json").is_file());
+        assert!(root.join(WORKFLOW_V2_BASELINE_PATH).is_file());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+    }
+
+    #[test]
+    fn change_adopt_recovers_interrupted_publication_before_idempotent_retry() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let original_policy = fs::read_to_string(root.join(POLICY_PATH)).unwrap();
+        let entries = vec![
+            TransactionEntry {
+                path: POLICY_PATH.into(),
+                original: Some(original_policy.clone()),
+            },
+            TransactionEntry {
+                path: ".specsync/adoption-report.json".into(),
+                original: None,
+            },
+            TransactionEntry {
+                path: WORKFLOW_V2_BASELINE_PATH.into(),
+                original: None,
+            },
+        ];
+        let journal = TransactionJournal {
+            schema_version: 1,
+            entry_count: entries.len(),
+            entries_digest: transaction_entries_digest(&entries).unwrap(),
+            entries,
+        };
+        write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
+        write_json(&root.join(POLICY_PATH), &default_policy(root, Vec::new())).unwrap();
+        fs::write(
+            root.join(".specsync/adoption-report.json"),
+            "{\"partial\":true}\n",
+        )
+        .unwrap();
+        write_json(
+            &root.join(WORKFLOW_V2_BASELINE_PATH),
+            &WorkflowV2Baseline {
+                schema_version: 1,
+                domain: "specsync.workflow-v2-baseline.v1".into(),
+                cutoff_commit: None,
+            },
+        )
+        .unwrap();
+
+        adopt(root, false, None).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(root.join(POLICY_PATH)).unwrap(),
+            original_policy
+        );
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert!(root.join(".specsync/adoption-report.json").is_file());
+        assert!(root.join(WORKFLOW_V2_BASELINE_PATH).is_file());
+        adopt(root, false, None).unwrap();
+        assert_eq!(
+            fs::read_to_string(root.join(POLICY_PATH)).unwrap(),
+            original_policy
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn change_adopt_rejects_symlinked_import_destination_without_writes() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let external = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("openspec/specs/auth")).unwrap();
+        fs::create_dir_all(root.join("openspec/changes/add-passkeys")).unwrap();
+        fs::write(
+            root.join("openspec/specs/auth/spec.md"),
+            "# Authentication\n\nCanonical contract.\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("openspec/changes/add-passkeys/proposal.md"),
+            "# Add passkeys\n\nActive proposal.\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        symlink(external.path(), root.join(".specsync/imports")).unwrap();
+
+        let error = adopt(root, false, Some("openspec")).unwrap_err();
+
+        assert!(error.contains("symlinked transaction target"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert_eq!(external.path().read_dir().unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn change_adopt_rejects_symlinked_metadata_root_before_lock_write() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let external = TempDir::new().unwrap();
+        let root = temp.path();
+        symlink(external.path(), root.join(".specsync")).unwrap();
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains("symlinked lifecycle lock path"));
+        assert_eq!(external.path().read_dir().unwrap().count(), 0);
+        assert!(!external.path().join("change.lock").exists());
+        assert!(!external.path().join("sdd.json").exists());
+        assert!(!external.path().join("adoption-report.json").exists());
+        assert!(!external.path().join("workflow-v2-baseline.json").exists());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn change_adopt_rejects_non_utf8_import_target_before_transaction() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let canonical = root.join("openspec/specs/auth");
+        fs::create_dir_all(&canonical).unwrap();
+        let invalid_name = OsString::from_vec(b"contract-\xff.md".to_vec());
+        fs::write(canonical.join(invalid_name), "# Contract\n").unwrap();
+
+        let error = adopt(root, false, Some("openspec")).unwrap_err();
+
+        assert!(error.contains("not valid UTF-8"));
+        assert!(error.contains("cannot be journaled losslessly"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert!(!root.join(".specsync/imports").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_transaction_target_is_rejected_before_filesystem_lookup() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let temp = TempDir::new().unwrap();
+        let target = temp
+            .path()
+            .join(OsString::from_vec(b"transaction-\xff.json".to_vec()));
+
+        let error = validate_prepared_transaction_target(temp.path(), &target).unwrap_err();
+
+        assert!(error.contains("not valid UTF-8"));
+        assert!(error.contains("cannot be journaled losslessly"));
+        assert!(!temp.path().join(TRANSACTION_PATH).exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn change_adopt_rejects_backslash_import_target_before_transaction() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let canonical = root.join("openspec/specs/auth");
+        fs::create_dir_all(&canonical).unwrap();
+        fs::write(canonical.join("contract\\part.md"), "# Contract\n").unwrap();
+
+        let error = adopt(root, false, Some("openspec")).unwrap_err();
+
+        assert!(error.contains("Unix filename component with `\\`"));
+        assert!(error.contains("cannot be journaled losslessly"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert!(!root.join(".specsync/imports").exists());
+    }
+
+    #[test]
     fn workflow_v2_baseline_rewrite_then_restore_remains_invalid() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -16158,6 +17120,124 @@ mod tests {
 
         let error = load_change(root, &record.id).unwrap_err();
         assert!(error.contains("workflow-v2 baseline changed after its introduction"));
+    }
+
+    #[test]
+    fn deleted_workflow_v2_baseline_cannot_reenable_workflow_v1_creation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let first = create_change(
+            root,
+            CreateChangeRequest {
+                description: "introduce the current workflow".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/current/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Workflow baseline fixture".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(first.workflow_version, 2);
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "introduce workflow-v2 baseline"]);
+        fs::remove_file(root.join(WORKFLOW_V2_BASELINE_PATH)).unwrap();
+
+        for commit_deletion in [false, true] {
+            if commit_deletion {
+                quiet_git(root, &["add", "--update"]);
+                quiet_git(root, &["commit", "-m", "delete workflow-v2 baseline"]);
+            }
+            let error = create_change(
+                root,
+                CreateChangeRequest {
+                    description: "must not fall back to workflow v1".into(),
+                    kind: ChangeKind::Operations,
+                    affected_specs: Vec::new(),
+                    affected_paths: vec!["ops/fallback/".into()],
+                    requested_artifacts: Vec::new(),
+                    no_spec_change: true,
+                    rationale: Some("Workflow deletion regression".into()),
+                },
+            )
+            .unwrap_err();
+            assert!(error.contains("committed workflow-v2 baseline was deleted"));
+            assert!(
+                !root
+                    .join(CHANGES_PATH)
+                    .join("CHG-0002-must-not-fall-back-to-workflow-v1")
+                    .exists()
+            );
+        }
+    }
+
+    #[test]
+    fn merged_second_parent_baseline_cannot_reenable_workflow_v1_creation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "workflow-v1 base"]);
+        let cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        quiet_git(root, &["switch", "-c", "baseline-parent"]);
+        write_json(
+            &root.join(WORKFLOW_V2_BASELINE_PATH),
+            &WorkflowV2Baseline {
+                schema_version: 1,
+                domain: "specsync.workflow-v2-baseline.v1".into(),
+                cutoff_commit: Some(cutoff),
+            },
+        )
+        .unwrap();
+        quiet_git(root, &["add", WORKFLOW_V2_BASELINE_PATH]);
+        quiet_git(root, &["commit", "-m", "introduce workflow-v2 baseline"]);
+        quiet_git(root, &["switch", "main"]);
+        quiet_git(
+            root,
+            &[
+                "merge",
+                "--no-ff",
+                "-s",
+                "ours",
+                "baseline-parent",
+                "-m",
+                "retain v1 tree while merging baseline parent",
+            ],
+        );
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+
+        let error = create_change(
+            root,
+            CreateChangeRequest {
+                description: "must not ignore a merged baseline parent".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/merge-topology/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Every-parent baseline regression".into()),
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("committed workflow-v2 baseline was deleted"));
+        assert!(
+            !root
+                .join(CHANGES_PATH)
+                .join("CHG-0001-must-not-ignore-a-merged-baseline-parent")
+                .exists()
+        );
     }
 
     #[test]
@@ -18240,9 +19320,12 @@ mod tests {
     fn invalid_supersedes_mutation_is_transactional() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let predecessor = completed_section_only_record(
+        let predecessor = current_workflow_record(
             root,
-            "## MODIFIED\n### SPEC SECTION Invariants\n\nPredecessor.\n",
+            completed_section_only_record(
+                root,
+                "## MODIFIED\n### SPEC SECTION Invariants\n\nPredecessor.\n",
+            ),
         );
         let successor = create_change(
             root,
@@ -20274,8 +21357,9 @@ mod tests {
         git(&["merge", "--squash", "feature"]);
         git(&["commit", "-m", "squash original"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        adopt(root, false, None).unwrap();
 
-        let mut no_spec_successor = completed_no_spec_record(root);
+        let mut no_spec_successor = completed_no_spec_current_record(root);
         no_spec_successor.affected_specs = original.affected_specs.clone();
         no_spec_successor.affected_paths = original.affected_paths.clone();
         save_change(root, &no_spec_successor).unwrap();
@@ -20296,8 +21380,8 @@ mod tests {
             root, &original
         ));
 
-        let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nA later semantic change governs authentication.\n";
-        let mut successor = completed_section_only_record(root, delta);
+        let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nA later semantic change governs authentication.\n\nAcceptance Criteria\n- Authentication remains governed by the successor.\n";
+        let mut successor = completed_section_only_current_record(root, delta);
         successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
         successor = start_implementation(root, &successor.id).unwrap();
         git(&["add", "."]);
@@ -25067,7 +26151,7 @@ mod tests {
     fn later_collision_acknowledgements_do_not_stale_earlier_sequence_evidence() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let mut predecessor = completed_no_spec_record(root);
+        let mut predecessor = completed_no_spec_current_record(root);
         predecessor.state = ChangeState::Implementing;
         predecessor.affected_paths = vec![SEQUENCE_PATH.into()];
         save_change(root, &predecessor).unwrap();
@@ -25136,6 +26220,9 @@ mod tests {
         git(&["config", "user.email", "test@example.com"]);
         git(&["config", "user.name", "Test"]);
         write_default_policy(root, Vec::new()).unwrap();
+        let mut legacy_policy = load_policy(root).unwrap();
+        legacy_policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &legacy_policy).unwrap();
 
         let mut predecessor = completed_no_spec_record(root);
         git(&["add", "."]);
@@ -25448,9 +26535,9 @@ mod tests {
     fn transitive_dependencies_order_overlapping_deltas() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let mut prerequisite = completed_record(root);
-        let mut middle = completed_record(root);
-        let mut dependent = completed_record(root);
+        let mut prerequisite = completed_current_record(root);
+        let mut middle = completed_current_record(root);
+        let mut dependent = completed_current_record(root);
         prerequisite.state = ChangeState::Implementing;
         middle.state = ChangeState::Implementing;
         dependent.state = ChangeState::Implementing;
@@ -26651,6 +27738,9 @@ mod tests {
         git(&["commit", "-m", "base"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         write_default_policy(root, Vec::new()).unwrap();
+        let mut legacy_policy = load_policy(root).unwrap();
+        legacy_policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &legacy_policy).unwrap();
 
         let mut records = vec![
             completed_no_spec_record(root),

@@ -195,7 +195,12 @@ Scans `source_dirs` for files matching the module name to auto-populate the `fil
 
 ### `migrate`
 
-Upgrade a legacy 3.x project to the current layout. Moves config into `.specsync/`, converts it to TOML, extracts lifecycle history, and stamps the project version. Existing 4.x projects can then enable the verified 5.0 lifecycle with `specsync change adopt`.
+Upgrade a legacy 3.x project to the current layout. Moves config into `.specsync/`, converts it to
+TOML, extracts lifecycle history, and stamps the project version. Existing projects can then adopt
+the current verified lifecycle with `specsync change adopt`; existing policy and lifecycle evidence
+remain byte-identical while subsequent changes use the 6.0 single workflow. Adoption fails before
+writing when an uncommitted or branch-only legacy change is absent from the trusted comparison
+cutoff, and publishes its report, imports, and baseline atomically.
 
 ```bash
 specsync migrate                           # run full migration

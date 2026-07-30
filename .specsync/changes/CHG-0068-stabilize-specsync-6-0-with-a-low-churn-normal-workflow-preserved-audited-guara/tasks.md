@@ -28,6 +28,9 @@ artifact: tasks
 - [x] Freeze the one-time guard bootstrap and protect the complete workflow/Action surface
 - [x] Bind first-reachable workflow-v1 eligibility to an immutable pre-v2 cutoff
 - [x] Make merged-fork archive publication base-controlled and bound release history scans
+- [x] Make `change adopt` move subsequent changes to workflow v2 without rewriting legacy policy
+- [x] Fail adoption before mutation for cutoff-ineligible v1 records and publish migration outputs atomically
+- [x] Reject committed workflow-v2 baseline deletion before any legacy fallback
 
 Independent scoped review, final release validation, and sandbox verification are
 first-class lifecycle evidence gates. They are tracked by `change status` and

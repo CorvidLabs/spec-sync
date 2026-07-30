@@ -28,12 +28,20 @@ Acceptance Criteria
   the state machine, workflow, approval count, commands, finalization, archive, or layout.
 - Existing two-approval records remain readable and verifiable without reinterpretation or resigning.
 - Workflow-v2 adoption records one immutable project cutoff at the stable comparison-base ancestor
-  when available; its introduction remains valid after squash/rebase, and a workflow-v1 record
-  remains eligible only when that exact ID/version with omitted or explicit version-1 origin
-  existed at the trusted cutoff, so omitting both version fields before first reachability cannot
-  route a new change through legacy commands.
+  when available; `change adopt` activates that baseline without rewriting an existing version-1
+  policy, refuses before mutation when any existing workflow-v1 record is absent from the proposed
+  cutoff, and atomically publishes policy, imports, report, and baseline so interruption or failure
+  cannot partially activate workflow v2; every transaction target has a lossless UTF-8,
+  platform-separator-safe journal identity and is confined beneath the project with symlink
+  components rejected before and during publication. The lifecycle lock is likewise opened through
+  a no-follow project capability before any metadata write. All subsequent changes use workflow
+  v2, its introduction remains valid after squash/rebase, and a workflow-v1 record remains eligible
+  only when that exact ID/version with omitted or explicit version-1 origin existed at the trusted
+  cutoff.
 - Every bounded workflow-v2 baseline-touching commit and readable parent retains the exact
-  introduction bytes, so rewrite→restore history cannot conceal a changed cutoff.
+  introduction bytes, so rewrite→restore history cannot conceal a changed cutoff and deleting a
+  committed baseline—including one introduced only on a merged parent—cannot silently reactivate
+  workflow v1.
 - Workflow-origin history boundedly follows every reachable canonical dated archive state path for
   the exact change ID, so archive→reopen→rearchive moves preserve the immutable creation anchor.
 - The historical CHG-0068 source-definition preimage remains explicitly unavailable and no

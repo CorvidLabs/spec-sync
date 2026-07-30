@@ -108,8 +108,31 @@ artifact: testing
 - Private sandbox compatibility: the three colliding accepted legacy CHG-0001 workspaces remain
   readable with exact evidence and one explicit archive action each; discarded historical base
   objects do not leak raw Git fatal diagnostics into status output. After local workflow-v2
-  adoption and a new sequence claim, bounded historical-ledger reconstruction keeps all three
-  collision members exact while the draft reports one explicit next action.
+  adoption, the existing version-1 policy remains byte-identical, the next change is workflow v2,
+  and a new sequence claim keeps all three collision members exact while the draft reports one
+  explicit next action. The focused regression is
+  `change_adopt_moves_only_new_changes_to_v2_without_rewriting_v1_policy`.
+- Adoption compatibility and atomicity: uncommitted, branch-only, non-Git, and unborn v1 records
+  fail before policy/report/baseline mutation; injected mid-publication failure rolls back, an
+  interrupted durable journal recovers before an idempotent retry, and baseline deletion cannot
+  re-enable v1 creation. Regressions:
+  `change_adopt_rejects_uncommitted_workflow_v1_records_without_writes`,
+  `change_adopt_rejects_branch_only_workflow_v1_records_without_writes`,
+  `change_adopt_rejects_workflow_v1_records_without_git_history`,
+  `change_adopt_rolls_back_when_comparison_ref_moves_during_publication`,
+  `change_adopt_rolls_back_injected_publication_failure_and_retries_cleanly`,
+  `change_adopt_recovers_interrupted_publication_before_idempotent_retry`, and
+  `deleted_workflow_v2_baseline_cannot_reenable_workflow_v1_creation`.
+- Adversarial topology/path confinement:
+  `merged_second_parent_baseline_cannot_reenable_workflow_v1_creation` proves full-history
+  every-parent deletion detection; `change_adopt_rejects_symlinked_import_destination_without_writes`
+  proves a redirected `.specsync/imports` target cannot write externally or partially publish
+  policy, report, baseline, or transaction state; and
+  `change_adopt_rejects_non_utf8_import_target_before_transaction` proves crash journals never
+  receive a lossy target identity. `change_adopt_rejects_backslash_import_target_before_transaction`
+  covers Unix filenames that would otherwise normalize into a different recovery path.
+- `change_adopt_rejects_symlinked_metadata_root_before_lock_write` proves a top-level `.specsync`
+  symlink cannot create even `change.lock` outside the governed project.
 - `REQ-agents-004`, `REQ-hooks-002`: manifest/digest conflict aggregation, exact uninstall,
   worktree/submodule/core.hooksPath, symlink, idempotence, and project-keyed block tests.
 - `REQ-schema-001`, `REQ-validator-009`, `REQ-commands-005`, `REQ-cmd-check-003`: ordered checked

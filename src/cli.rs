@@ -489,7 +489,7 @@ pub enum ChangeAction {
         /// Optional change ID; inferred when exactly one change is being implemented
         id: Option<String>,
     },
-    /// Adopt the 5.0 SDD lifecycle in an existing project
+    /// Adopt the current verified lifecycle in an existing project
     Adopt {
         /// Preview adoption without writing files
         #[arg(long)]

@@ -158,3 +158,21 @@ claim green parent checks or expand the archive-only allowlist.
 - `change/workflow-baseline/rewrite-restore`: the project adoption baseline had the same net-diff
   gap. Native validation now checks exact introduction bytes at every bounded touching commit and
   readable parent, so a restored HEAD cannot conceal a temporary cutoff rewrite.
+- `change/adopt/v1-policy-sticky`: installing 6.0 over the private 5.x sandbox and running
+  `change adopt` preserved policy version 1, so `change new` still selected the legacy workflow.
+  Adoption now introduces the immutable workflow-v2 baseline without rewriting the existing policy;
+  baseline presence selects workflow v2 for every subsequent change while cutoff v1 evidence stays
+  byte-compatible.
+- Reviewer follow-up exposed three migration invariants: every v1 workspace must exist at the
+  proposed cutoff before publication, all adoption outputs must commit through one recoverable
+  transaction, and a baseline proven by reachable history can never be interpreted as
+  pre-adoption merely because its working-tree file was deleted.
+- Adversarial merge and filesystem review tightened those invariants: baseline-existence detection
+  must traverse every reachable parent with full path history, and prepared transaction targets
+  must reject destination symlinks before journaling and immediately around durable publication.
+- Crash recovery also requires path identity to be lossless. Unix import names that cannot be
+  represented as UTF-8 are now rejected before the journal exists rather than serialized with
+  replacement characters; Unix filename components containing `\` are likewise rejected rather
+  than normalized into a different recovery path.
+- Lock acquisition is part of the same safety boundary: a top-level `.specsync` symlink must be
+  rejected before creating `change.lock`, so validation cannot itself write outside the project.

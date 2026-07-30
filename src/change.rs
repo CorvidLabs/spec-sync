@@ -4904,8 +4904,22 @@ fn validate_verification_for_commit_binding(
     record: &ChangeRecord,
     verification: &VerificationRecord,
     current_commit: Option<&str>,
+    require_full_history: bool,
 ) -> Result<(), String> {
-    verification_is_current_checked(root, record, verification)?;
+    if require_full_history {
+        verification_is_current_checked(root, record, verification)?;
+    } else {
+        if !verification.passed {
+            return Err("latest verification evidence failed".into());
+        }
+        if !definition_digest_matches(root, record, &verification.contract_digest)? {
+            return Err("verification contract digest is stale".into());
+        }
+        validate_verification_execution_digest(root, record, verification)?;
+        if verification.workspace_digest != project_input_digest(root)? {
+            return Err("verification project-input digest is stale".into());
+        }
+    }
     match (verification.commit.as_deref(), current_commit) {
         (None, None) => Ok(()),
         (Some(stored), Some(current)) if stored == current => Ok(()),
@@ -5000,6 +5014,7 @@ pub fn record_scoped_review_with_verdict(
         &record,
         &verification,
         Some(&current_commit),
+        true,
     )
     .map_err(|error| {
         format!("scoped review cannot bind stale verification ({error}); run `specsync change check` first")
@@ -5091,6 +5106,7 @@ fn accept_change_with_gate(
         &record,
         &verification,
         current_commit.as_deref(),
+        require_scoped_review,
     )
     .map_err(|error| format!("cannot accept stale verification: {error}"))?;
     let mut verification_adopted = false;

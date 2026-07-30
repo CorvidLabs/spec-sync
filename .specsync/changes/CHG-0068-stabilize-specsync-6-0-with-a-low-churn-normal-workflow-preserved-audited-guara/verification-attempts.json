@@ -582,6 +582,42 @@
         "REQ-schema-001",
         "REQ-validator-009"
       ]
+    },
+    {
+      "timestamp": 1785421106,
+      "commit": "f70e959f3fa93985766619a3436f84e4a3657385",
+      "contract_digest": "11c15df046c648e5ef58337edc3108f12de911170452587edd4187243c831366",
+      "execution_digest": "ce9bc7550f1a6c0c53fee9e5c7546f782e8119a868daeaeed1eee07303849872",
+      "workspace_digest": "ce2e83a17ebde6bebe44c0755d823ea727a8daef8ac181cc90a034d4be0881f0",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-004",
+        "REQ-change-013",
+        "REQ-change-016",
+        "REQ-change-029",
+        "REQ-change-043",
+        "REQ-change-044",
+        "REQ-change-045",
+        "REQ-change-046",
+        "REQ-cli-008",
+        "REQ-cli-args-009",
+        "REQ-cmd-change-005",
+        "REQ-cmd-check-003",
+        "REQ-commands-005",
+        "REQ-exports-006",
+        "REQ-github-005",
+        "REQ-hooks-002",
+        "REQ-ignore-001",
+        "REQ-schema-001",
+        "REQ-validator-009"
+      ]
     }
   ]
 }

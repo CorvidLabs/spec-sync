@@ -50,6 +50,9 @@ artifact: testing
 
 - `REQ-change-043`, `REQ-cli-008`, `REQ-cli-args-009`, `REQ-cmd-change-005`: one-workflow grammar,
   task-progress digest stability, strict-validator status, and next-action tests.
+- `REQ-change-013`, `REQ-change-016`: exact five-file post-verification persistence allowlist,
+  every-parent review/finalization freshness, mixed-delivery rejection, change→revert rejection,
+  and persisted reviewer-independence tests.
 - `REQ-change-044`, `REQ-github-005`: exact finalization classifier, parent-check reuse,
   finalization-digest, archive integrity, post-merge binding, and release-wait tests.
 - `REQ-change-045`: bounded snapshot query-count, deterministic graph, warm/cold parity, and

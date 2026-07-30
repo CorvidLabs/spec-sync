@@ -69,7 +69,10 @@ artifact: testing
   change fails closed.
 - Adversarial regressions: missing adoption anchors fail closed; review blocks remain in an
   append-only trail, deleting and committing away a prior block still fails, and non-ASCII identity
-  confusables are rejected; both initial-add and later-append review children use the hosted
+  confusables are rejected; persisted attempts revalidate reviewer independence against the scope
+  approval bound to their contract; native review/finalize mutations use the full every-parent
+  verification validator so source change→revert history cannot regain fresh evidence; both
+  initial-add and later-append review children use the hosted
   strict-prefix validator; unchanged block→pass recovery preserves the reviewed implementation
   ancestor, reuses only that ancestor’s implementation/trust checks, and makes the pass child the
   new successful review check; a fresh clone validates a terminal v2 archive after squash removes

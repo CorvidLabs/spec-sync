@@ -644,6 +644,9 @@ Acceptance Criteria
   GitHub Actions check whose authenticated result is proven again by finalization.
 - Every review attempt is append-only; `review.json` is only the latest projection and cannot erase
   a prior blocking result.
+- Native review recording and finalization run the same every-parent verification-freshness
+  validator as project checking, and every persisted review attempt revalidates that its reviewer
+  is distinct from the scope approver bound to that attempt's contract digest.
 - Every intervening commit is inspected against every parent; any implementation change, including
   change-then-revert history, stales the review, while the metadata/archive-only finalization commit
   does not rerun or stale it. Native and hosted validators load the same committed descendant,

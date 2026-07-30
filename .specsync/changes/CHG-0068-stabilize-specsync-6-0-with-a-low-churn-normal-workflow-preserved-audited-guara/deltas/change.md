@@ -86,6 +86,9 @@ Acceptance Criteria
 - The result binds the implementation parent commit, those input digests, an explicit pass/block
   verdict, a stable reviewer claim distinct from the scope approver, append-only attempt history,
   and required GitHub Actions check provenance.
+- Native review recording and finalization run the same every-parent verification-freshness
+  validator as project checking, and every persisted review attempt revalidates that its reviewer
+  is distinct from the scope approver bound to that attempt's contract digest.
 - Every intervening commit is inspected against every parent; implementation changes, including
   change-then-revert history, stale the review, while the metadata/archive-only finalization commit
   does not rerun or stale it; native and hosted validation share one committed limits document.

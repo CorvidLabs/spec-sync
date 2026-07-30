@@ -4293,7 +4293,7 @@ fn validate_scoped_review_attempts(
     attempts: &ScopedReviewAttemptLedger,
     review: &ScopedReviewRecord,
 ) -> Result<(), String> {
-    validate_scoped_review_ledger_contents(record, attempts, review)?;
+    validate_scoped_review_ledger_contents(root, record, attempts, review)?;
     validate_committed_scoped_review_history(root, record)?;
     let workspace = find_change_dir(root, &record.id)?;
     let mut historical_paths = vec![portable_project_path(
@@ -4327,6 +4327,7 @@ fn validate_scoped_review_attempts(
 }
 
 fn validate_scoped_review_ledger_contents(
+    root: &Path,
     record: &ChangeRecord,
     attempts: &ScopedReviewAttemptLedger,
     review: &ScopedReviewRecord,
@@ -4339,6 +4340,7 @@ fn validate_scoped_review_ledger_contents(
             "scoped review projection does not match its append-only attempt history".into(),
         );
     }
+    let approvals = load_approvals(root, record)?;
     for attempt in &attempts.reviews {
         if attempt.schema_version != 2
             || attempt.change_id != record.id
@@ -4347,8 +4349,45 @@ fn validate_scoped_review_ledger_contents(
         {
             return Err("scoped review attempt history contains invalid evidence".into());
         }
+        let scope_approver = definition_approver_for_review_contract(&approvals, attempt)?;
+        if attempt.reviewer.eq_ignore_ascii_case(scope_approver) {
+            return Err(
+                "scoped review attempt history contains a reviewer who is also the scope approver"
+                    .into(),
+            );
+        }
     }
     Ok(())
+}
+
+fn definition_approver_for_review_contract<'a>(
+    approvals: &'a ApprovalLedger,
+    review: &ScopedReviewRecord,
+) -> Result<&'a str, String> {
+    if let Some(approval) = approvals.approvals.iter().rev().find(|approval| {
+        approval.gate == "definition"
+            && (approval.digest == review.contract_digest
+                || approval.definition_pair.as_ref().is_some_and(|pair| {
+                    pair.current_digest == review.contract_digest
+                        || pair.legacy_digest == review.contract_digest
+                }))
+    }) {
+        return Ok(approval.actor.trim());
+    }
+    for adoption in approvals.scope_adoptions.iter().rev() {
+        if adoption.adopted_scope_digest != review.contract_digest {
+            continue;
+        }
+        let approval = approvals
+            .approvals
+            .get(adoption.source_approval_index as usize)
+            .filter(|approval| approval.gate == "definition")
+            .ok_or_else(|| {
+                "scoped review scope-adoption approval identity is missing".to_string()
+            })?;
+        return Ok(approval.actor.trim());
+    }
+    Err("scoped review does not bind a recorded definition approval".into())
 }
 
 fn validate_committed_scoped_review_history(
@@ -4480,7 +4519,7 @@ fn scoped_review_location_at_commit(
             .ok_or_else(|| format!("scoped-review history is missing review.json at {commit}"))?;
         let review: ScopedReviewRecord = serde_json::from_slice(&review_bytes)
             .map_err(|error| format!("invalid committed scoped review evidence: {error}"))?;
-        validate_scoped_review_ledger_contents(record, &attempts, &review)?;
+        validate_scoped_review_ledger_contents(root, record, &attempts, &review)?;
         found = Some((ledger_path.clone(), attempts));
     }
     Ok(found)
@@ -4866,16 +4905,7 @@ fn validate_verification_for_commit_binding(
     verification: &VerificationRecord,
     current_commit: Option<&str>,
 ) -> Result<(), String> {
-    if !verification.passed {
-        return Err("latest verification evidence failed".into());
-    }
-    if !definition_digest_matches(root, record, &verification.contract_digest)? {
-        return Err("verification contract digest is stale".into());
-    }
-    validate_verification_execution_digest(root, record, verification)?;
-    if verification.workspace_digest != project_input_digest(root)? {
-        return Err("verification project-input digest is stale".into());
-    }
+    verification_is_current_checked(root, record, verification)?;
     match (verification.commit.as_deref(), current_commit) {
         (None, None) => Ok(()),
         (Some(stored), Some(current)) if stored == current => Ok(()),
@@ -16231,6 +16261,8 @@ mod tests {
         assert!(verification.passed);
         git(&["add", "."]);
         git(&["commit", "-m", "Implement approved change"]);
+        let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+        assert!(verification.passed);
 
         let review = record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
         assert_eq!(
@@ -16288,6 +16320,7 @@ mod tests {
         check_change(root, Some(&record.id)).unwrap();
         git(&["add", "."]);
         git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
         record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
         accept_change_with_gate(root, &record.id, None, None, "finalization", true, true).unwrap();
 
@@ -16340,6 +16373,7 @@ mod tests {
         check_change(root, Some(&record.id)).unwrap();
         git(&["add", "."]);
         git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
         record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
         accept_change_with_gate(root, &record.id, None, None, "finalization", true, true).unwrap();
 
@@ -16425,6 +16459,7 @@ mod tests {
         check_change(&root, Some(&record.id)).unwrap();
         git(&root, &["add", "."]);
         git(&root, &["commit", "-m", "Implement approved change"]);
+        check_change(&root, Some(&record.id)).unwrap();
         record_scoped_review_with_verdict(
             &root,
             &record.id,
@@ -16519,9 +16554,9 @@ mod tests {
 
         let record = current_workflow_record(root, completed_no_spec_record(root));
         approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
-        check_change(root, Some(&record.id)).unwrap();
         git(&["add", "."]);
         git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
 
         let error = record_scoped_review(root, &record.id, "scope OWNER".into()).unwrap_err();
         assert!(
@@ -16581,9 +16616,12 @@ mod tests {
 
         let record = current_workflow_record(root, completed_no_spec_record(root));
         approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
-        check_change(root, Some(&record.id)).unwrap();
         git(&["add", "."]);
         git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Materialize checked implementation"]);
+        check_change(root, Some(&record.id)).unwrap();
         record_scoped_review_with_verdict(
             root,
             &record.id,
@@ -16649,9 +16687,12 @@ mod tests {
 
         let record = current_workflow_record(root, completed_no_spec_record(root));
         approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
-        check_change(root, Some(&record.id)).unwrap();
         git(&["add", "."]);
         git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Materialize checked implementation"]);
+        check_change(root, Some(&record.id)).unwrap();
         record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
         git(&["add", "."]);
         git(&["commit", "-m", "Record scoped review"]);
@@ -16667,7 +16708,8 @@ mod tests {
 
         let error = finalize_change(root, &record.id).unwrap_err();
         assert!(
-            error.contains("independent scoped review is stale"),
+            error.contains("cannot accept stale verification")
+                && error.contains("disallowed path `src/lib.rs`"),
             "{error}"
         );
     }
@@ -26126,6 +26168,63 @@ mod tests {
         commit_paths(root, &committed, "mix scoped review and source");
         let record = load_change(root, &id).unwrap();
         assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013, REQ-change-016, and REQ-change-046.
+    #[test]
+    fn scoped_review_recording_rejects_verification_change_then_revert_history() {
+        let (temp, id, _) = verification_history_fixture();
+        let root = temp.path();
+        let verification_paths = verification_persistence_paths(&id);
+        let verification_path_refs: Vec<&str> =
+            verification_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &verification_path_refs, "persist verification");
+        let source = root.join("src/lib.rs");
+        let original = fs::read(&source).unwrap();
+        fs::write(&source, "pub fn ready() -> bool { false }\n").unwrap();
+        commit_paths(root, &["src/lib.rs"], "change verified implementation");
+        fs::write(&source, original).unwrap();
+        commit_paths(root, &["src/lib.rs"], "revert verified implementation");
+
+        let error = record_scoped_review(root, &id, "Independent Reviewer".into()).unwrap_err();
+        assert!(
+            error.contains("verification descendant changed disallowed path `src/lib.rs`"),
+            "{error}"
+        );
+    }
+
+    // Verifies REQ-change-046.
+    #[test]
+    fn persisted_scoped_review_rejects_scope_approver_as_reviewer() {
+        let (temp, id, _) = verification_history_fixture();
+        let root = temp.path();
+        let verification_paths = verification_persistence_paths(&id);
+        let verification_path_refs: Vec<&str> =
+            verification_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &verification_path_refs, "persist verification");
+        let mut review = record_scoped_review(root, &id, "Independent Reviewer".into()).unwrap();
+        review.reviewer = "reviewer".into();
+        let attempts = ScopedReviewAttemptLedger {
+            schema_version: 1,
+            reviews: vec![review.clone()],
+        };
+        let record = load_change(root, &id).unwrap();
+        fs::write(
+            scoped_review_path(root, &record),
+            json_content(&review).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            scoped_review_attempts_path(root, &record),
+            json_content(&attempts).unwrap(),
+        )
+        .unwrap();
+
+        let error = load_scoped_review(root, &record).unwrap_err();
+        assert!(error.contains("also the scope approver"), "{error}");
+        let error =
+            accept_change_with_gate(root, &id, None, None, "finalization", true, true).unwrap_err();
+        assert!(error.contains("also the scope approver"), "{error}");
     }
 
     // Verifies REQ-change-013 and REQ-change-016.

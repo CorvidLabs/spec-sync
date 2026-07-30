@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 
@@ -37,7 +38,7 @@ def run_verifier(root: Path, base: str, head: str, fixture: dict) -> subprocess.
         }
     )
     return subprocess.run(
-        [str(VERIFIER)],
+        [sys.executable, str(VERIFIER)],
         env=environment,
         capture_output=True,
         text=True,

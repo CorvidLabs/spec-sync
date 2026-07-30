@@ -3,8 +3,31 @@ use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
 use std::io::Write;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use tempfile::TempDir;
+
+/// Convert a host path into a form Git Bash accepts on Windows (`/c/Users/...`).
+fn path_for_bash(path: &Path) -> String {
+    let raw = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let displayed = raw.to_string_lossy();
+    let stripped = displayed
+        .strip_prefix(r"\\?\")
+        .or_else(|| displayed.strip_prefix("//?/"))
+        .unwrap_or(&displayed);
+    let forward = stripped.replace('\\', "/");
+    if let Some((drive, rest)) = forward.split_once(':') {
+        if drive.len() == 1
+            && drive
+                .chars()
+                .next()
+                .is_some_and(|character| character.is_ascii_alphabetic())
+        {
+            return format!("/{}{}", drive.to_ascii_lowercase(), rest);
+        }
+    }
+    forward
+}
 
 #[test]
 fn verification_freshness_status_and_check_are_environment_independent() {
@@ -711,9 +734,12 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
         assert!(archive_diff.status.success());
         // Always invoke through bash: the classifier is a shell script, and Windows cannot
         // execute #! scripts directly (Win32 error 193). GitHub Actions Windows runners ship bash.
+        // Pass bash-native absolute paths so Git Bash does not mis-parse `C:\...` roots.
+        let classifier_bash = path_for_bash(Path::new(&classifier));
+        let root_bash = path_for_bash(root);
         let mut classifier_child = Command::new("bash")
-            .arg(&classifier)
-            .arg(root)
+            .arg(&classifier_bash)
+            .arg(&root_bash)
             .arg("false")
             .arg("name-status")
             .stdin(Stdio::piped())
@@ -728,20 +754,30 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
             .write_all(&archive_diff.stdout)
             .unwrap();
         let classification = classifier_child.wait_with_output().unwrap();
+        let classifier_stdout = String::from_utf8_lossy(&classification.stdout);
+        let classifier_stderr = String::from_utf8_lossy(&classification.stderr);
         assert!(
             classification.status.success(),
-            "classifier failed: {}",
-            String::from_utf8_lossy(&classification.stderr)
+            "classifier failed (status={:?})\nstdout:\n{classifier_stdout}\nstderr:\n{classifier_stderr}",
+            classification.status.code()
         );
-        let classification = String::from_utf8(classification.stdout).unwrap();
+        let classification = classifier_stdout.into_owned();
         assert!(
-            classification.contains("archive_only=true\n"),
+            classification.contains("archive_only=true\n")
+                || classification.contains("archive_only=true\r\n"),
             "{classification}"
         );
-        assert!(classification.contains("full=false\n"), "{classification}");
-        assert!(classification.contains("site=false\n"), "{classification}");
         assert!(
-            classification.contains("vscode=false\n"),
+            classification.contains("full=false\n") || classification.contains("full=false\r\n"),
+            "{classification}"
+        );
+        assert!(
+            classification.contains("site=false\n") || classification.contains("site=false\r\n"),
+            "{classification}"
+        );
+        assert!(
+            classification.contains("vscode=false\n")
+                || classification.contains("vscode=false\r\n"),
             "{classification}"
         );
 

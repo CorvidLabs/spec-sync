@@ -709,7 +709,10 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
             .output()
             .unwrap();
         assert!(archive_diff.status.success());
-        let mut classifier_child = Command::new(&classifier)
+        // Always invoke through bash: the classifier is a shell script, and Windows cannot
+        // execute #! scripts directly (Win32 error 193). GitHub Actions Windows runners ship bash.
+        let mut classifier_child = Command::new("bash")
+            .arg(&classifier)
             .arg(root)
             .arg("false")
             .arg("name-status")

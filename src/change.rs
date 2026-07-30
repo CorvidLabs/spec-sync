@@ -17547,8 +17547,13 @@ mod tests {
         // Windows CI defaults can enable core.autocrlf and rewrite committed digests on clone.
         git(&root, &["config", "core.autocrlf", "false"]);
         git(&root, &["config", "core.eol", "lf"]);
+        fs::write(
+            root.join(".gitattributes"),
+            "*.json text eol=lf\n*.md text eol=lf\n",
+        )
+        .unwrap();
         fs::write(root.join("README.md"), "base\n").unwrap();
-        git(&root, &["add", "README.md"]);
+        git(&root, &["add", "README.md", ".gitattributes"]);
         git(&root, &["commit", "-m", "base"]);
         git(&root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
         git(
@@ -17600,9 +17605,15 @@ mod tests {
         let fresh = temp.path().join("fresh");
         let root_text = root.to_string_lossy().to_string();
         let fresh_text = fresh.to_string_lossy().to_string();
+        // Apply LF identity at clone time. Setting core.autocrlf after checkout is too late:
+        // Windows CI with a system autocrlf=true would already rewrite lifecycle JSON digests.
         git(
             temp.path(),
             &[
+                "-c",
+                "core.autocrlf=false",
+                "-c",
+                "core.eol=lf",
                 "clone",
                 "--no-local",
                 "--single-branch",

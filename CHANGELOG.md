@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Notes
+
+- Private CorvidLabs/spec-sync-sandbox dogfood for workflow-v2 adopt is recorded in sandbox scenario 019; tagging 6.0.0 remains gated on this PR.
+
 ## [6.0.0] - 2026-07-29
 
 ### Added

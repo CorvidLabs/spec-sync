@@ -16,6 +16,22 @@
       "execution_digest": "9e7147b8cb4539ce8c4393c89978b675df45d01f7a9b15379f9fb95fe09563ef",
       "workspace_digest": "74a908122128bd601910fa47f45cbe6e98bd95c4039ad6977f32981c7192873a",
       "timestamp": 1785418342
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara",
+      "reviewer": "codex-agent-aristotle",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "801f5a8ce501892413b98077eae9c67c8acfdbda",
+      "contract_digest": "11c15df046c648e5ef58337edc3108f12de911170452587edd4187243c831366",
+      "execution_digest": "d7086d90e9a57f83a2f81f76e2aed866296e43450c4851a6ce3bb6429f3db314",
+      "workspace_digest": "90a0b63de1f7113b29999df5f977ac08fe4b0020dc2527093ffd6e8a179b8302",
+      "timestamp": 1785424675
     }
   ]
 }

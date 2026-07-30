@@ -62,7 +62,9 @@ artifact: testing
   finalization selects `archive_only=true`/`full=false`, and no active cleanup package remains.
 - Incident regressions: direct renewal clears one-time adoption, adopted scope remains visible in
   status, cross-date post-move retries resume the unique archive, and local nested commands clear
-  both `CI` and `GITHUB_ACTIONS`.
+  both `CI` and `GITHUB_ACTIONS`. The adoption-anchor regression uses a stable historical scope
+  fixture rather than mutable active lifecycle files, so renewal and same-PR archival cannot
+  silently change or remove its compile-time input.
 - Adversarial regressions: missing adoption anchors fail closed; review blocks remain in an
   append-only trail, deleting and committing away a prior block still fails, and non-ASCII identity
   confusables are rejected; both initial-add and later-append review children use the hosted

@@ -1,15 +1,15 @@
 {
-  "timestamp": 1785392653,
-  "commit": "1b66b8989937d7fdb2db205ccc28c96794bfd670",
-  "contract_digest": "35f68b68d4cdca134f98f514a56c1afdc4c530ef4f43461f75b7898404fae79b",
-  "execution_digest": "b3aeae9943d1f5da158f48f43f383655a28e1132f287525099e69f9727277ac6",
-  "workspace_digest": "8771f963ff695b05f33b8a1f6fa4d57c9eeb5d77841e4ddbd7f00049eaeb6466",
+  "timestamp": 1785416786,
+  "commit": "7f2681cf6a6981c7a0558b8e83ea2aa7de5e2edd",
+  "contract_digest": "11c15df046c648e5ef58337edc3108f12de911170452587edd4187243c831366",
+  "execution_digest": "52378d11a41325f81c4d1b412a7d968252d12624adc0e8fe737ca401395e013e",
+  "workspace_digest": "9565117c2f6489e2b3b67a68a9bc7e32fe382c889b6184442d32a61698b1e322",
   "passed": false,
   "commands": [
     {
       "command": "cargo test change::",
       "success": false,
-      "exit_code": null
+      "exit_code": 101
     }
   ],
   "requirement_ids": [

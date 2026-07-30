@@ -20698,18 +20698,111 @@ mod tests {
                 .unwrap()
                 .success()
         );
-        let record: ChangeRecord = serde_json::from_str(include_str!(concat!(
-            "../.specsync/changes/",
-            "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/",
-            "state.json"
+        let mut record = current_workflow_record(root, completed_no_spec_record(root));
+        record.id = CHG_0068_ID.into();
+        let adopted_scope: ApprovedScopeV1 = serde_json::from_str(include_str!(concat!(
+            "../tests/fixtures/chg-0068-adopted-scope.json"
         )))
         .unwrap();
-        let ledger: ApprovalLedger = serde_json::from_str(include_str!(concat!(
-            "../.specsync/changes/",
-            "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara/",
-            "approvals.json"
-        )))
-        .unwrap();
+        assert_eq!(
+            scope_digest_from_approved(&adopted_scope).unwrap(),
+            CHG_0068_ADOPTED_SCOPE_DIGEST
+        );
+        let change_root = format!("{CHANGES_PATH}/{CHG_0068_ID}");
+        let changes = [
+            (
+                "state.json",
+                NonMaterialScopeChangeCategory::LifecycleMetadata,
+                "Recorded workflow-version and implementation-state metadata.",
+            ),
+            (
+                "change.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Regenerated the human-readable change projection from the already-approved intent and scope.",
+            ),
+            (
+                "deltas/change.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved one-workflow, finalization, bounded-validation, and scoped-review contract.",
+            ),
+            (
+                "deltas/cli.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved strict-validator and no-external-merge CLI behavior.",
+            ),
+            (
+                "deltas/cmd_change.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved guided status and finalize command behavior.",
+            ),
+            (
+                "deltas/cmd_check.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved schema and warning-reporting reliability behavior.",
+            ),
+            (
+                "deltas/github.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved same-PR archive and lightweight required-CI behavior.",
+            ),
+            (
+                "deltas/validator.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved non-vacuous schema validation behavior.",
+            ),
+            (
+                "testing.md",
+                NonMaterialScopeChangeCategory::TestEvidence,
+                "Expanded targeted regression and final-gate evidence for the approved contract.",
+            ),
+            (
+                "tasks.md",
+                NonMaterialScopeChangeCategory::Implementation,
+                "Recorded implementation progress without changing task scope.",
+            ),
+        ]
+        .into_iter()
+        .map(|(path, category, summary)| NonMaterialScopeChangeV1 {
+            path: format!("{change_root}/{path}"),
+            category,
+            summary: summary.into(),
+        })
+        .collect::<Vec<_>>();
+        let ledger = ApprovalLedger {
+            approvals: vec![ApprovalRecord {
+                gate: "definition".into(),
+                actor: "0xLeif".into(),
+                timestamp: 1_785_369_606,
+                digest: CHG_0068_LEGACY_APPROVAL_DIGEST.into(),
+                note: None,
+                definition_pair: None,
+                approved_scope: None,
+                scope_migration: None,
+            }],
+            scope_adoptions: vec![ScopeAdoptionV1 {
+                schema_version: 1,
+                change_id: CHG_0068_ID.into(),
+                source_approval_index: 0,
+                legacy_approval_digest: CHG_0068_LEGACY_APPROVAL_DIGEST.into(),
+                source_preimage_status: ScopeAdoptionSourcePreimageStatus::Unavailable,
+                equivalence_claim: ScopeAdoptionEquivalenceClaim::None,
+                adopted_scope,
+                adopted_scope_digest: CHG_0068_ADOPTED_SCOPE_DIGEST.into(),
+                anchor: ScopeAdoptionAnchorV1 {
+                    base_commit: CHG_0068_ADOPTION_BASE_COMMIT.into(),
+                    commit: CHG_0068_ADOPTION_ANCHOR_COMMIT.into(),
+                    approval_index: 0,
+                    approvals_blob_sha256: CHG_0068_ADOPTION_ANCHOR_BLOB.into(),
+                },
+                authorization: ScopeAdoptionAuthorizationV1 {
+                    actor: "0xLeif".into(),
+                    recorded_at: 1_785_381_022,
+                    reason: CHG_0068_ADOPTION_REASON.into(),
+                },
+                changes,
+            }],
+            reopenings: Vec::new(),
+        };
         let error =
             validate_scope_adoption(root, &record, &ledger, 0, &ledger.approvals[0]).unwrap_err();
         assert!(error.contains("anchor is unavailable"), "{error}");

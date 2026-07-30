@@ -436,6 +436,9 @@ fn print_record(
             }
             println!("  Next: {}", summary.next_action);
             if !corrections.is_empty() {
+                // Text mode prints a human audit summary only. Cryptographic view
+                // digests stay in --json so cleartext logs never emit hash material
+                // that static analysis treats as sensitive secrets.
                 println!("  Corrections:");
                 for correction in &corrections {
                     println!(
@@ -446,10 +449,6 @@ fn print_record(
                         correction.actor,
                         correction.timestamp,
                         correction.reason
-                    );
-                    println!(
-                        "      digests: {} → {}",
-                        correction.prior_view_digest, correction.corrected_view_digest
                     );
                 }
                 println!(

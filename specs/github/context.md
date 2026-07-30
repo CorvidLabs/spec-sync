@@ -81,13 +81,15 @@ spec: github.spec.md
   is frozen to CorvidLabs/spec-sync PR #480, its exact base and branch identity, and a required set
   of newly added policy files; it still requires full CI and independent review. Later policy edits
   require a newly pinned GitHub required-workflow revision and cannot use the optimized path.
-- **Fork-safe archive publication**: merged archive publication runs from the immutable base
-  workflow on `pull_request_target: closed`; PR head and merge identities are fetched only as Git
-  objects, never checked out or executed, and the checkout Action itself is pinned to a full commit
-  SHA. Archive-introduction and release reconstruction share a
-  protected verifier that caps commit history, parents, time, and streamed output and rejects
-  post-introduction archive rewrites. It inspects every bounded archive-path-touching commit and
-  readable parent, so rewrite→restore history is not reduced to a clean final tree.
+- **Post-merge archive publication**: merged archive publication runs on `pull_request: closed` with
+  `merged == true`, checking out only the merge commit (already on the base repository) with a
+  SHA-pinned checkout Action and `persist-credentials: false`. Live PR heads are never checked out;
+  head identity is fetched only as an isolated ref and compared to the event SHA. This avoids the
+  privileged `pull_request_target` untrusted-checkout surface while keeping object-only verification
+  of finalized archives. Archive-introduction and release reconstruction share a protected verifier
+  that caps commit history, parents, time, and streamed output and rejects post-introduction archive
+  rewrites. It inspects every bounded archive-path-touching commit and readable parent, so
+  rewrite→restore history is not reduced to a clean final tree.
 
 ## Key Files
 

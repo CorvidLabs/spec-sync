@@ -1,7 +1,13 @@
 name: SpecSync post-merge archive binding
 
+# SECURITY / CodeQL:
+# Run on pull_request (closed+merged) rather than pull_request_target so this is
+# not a privileged untrusted-checkout surface. After merge the merge commit is
+# already on the base repository; we check that commit out (trusted, reviewed
+# code) and never check out a live PR head. Object fetches below only verify
+# SHAs that already appear in the merged event payload.
 on:
-  pull_request_target:
+  pull_request:
     types: [closed]
 
 permissions:
@@ -21,14 +27,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out the immutable base workflow revision
+      - name: Check out the merged commit only
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.workflow_sha }}
+          # Merged PR commit on the base repository — not a live PR head checkout.
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch merged identities as Git objects only
+      - name: Verify merged identities as Git objects only
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -45,6 +52,10 @@ jobs:
               || "$BASE_REF" == -* \
               || "$BASE_REF" == *..* ]]; then
             echo "Merged pull-request payload contains an invalid immutable identity." >&2
+            exit 1
+          fi
+          if [[ "$(git rev-parse HEAD)" != "$MERGE_SHA" ]]; then
+            echo "Checked-out commit does not match the merged event." >&2
             exit 1
           fi
           git fetch --no-tags --no-recurse-submodules origin \

@@ -267,20 +267,28 @@ require(
     "archive finalization must verify the parent's trusted policy result",
 )
 require(
-    r"pull_request_target:.*?types: \[closed\].*?"
+    # After merge, check out the merge commit (already on the base repository) via
+    # pull_request closed — not pull_request_target — so CodeQL does not treat this as
+    # privileged untrusted-checkout. PR head is still only fetched as an isolated ref.
+    r"pull_request:.*?types: \[closed\].*?"
     r"actions/checkout@[0-9a-f]{40}.*?"
-    r"ref: \$\{\{ github\.workflow_sha \}\}.*?"
+    r"ref: \$\{\{ github\.event\.pull_request\.merge_commit_sha \}\}.*?"
     r"persist-credentials: false.*?"
     r"refs/pull/\$\{PR_NUMBER\}/head:refs/specsync/merged-head.*?"
     r"verify-trusted-policy-check\.py",
     post_merge,
-    "post-merge publication must be base-controlled and inspect the finalized head as Git objects",
+    "post-merge publication must check out the merge commit and inspect the finalized head as Git objects",
 )
 if re.search(
-    r"ref:\s*\$\{\{\s*github\.event\.pull_request\.(head\.sha|merge_commit_sha)",
+    r"ref:\s*\$\{\{\s*github\.event\.pull_request\.head\.sha",
     post_merge,
 ):
-    raise SystemExit("post-merge publication must never check out pull-request content")
+    raise SystemExit("post-merge publication must never check out a live pull-request head")
+if re.search(r"pull_request_target:", post_merge):
+    raise SystemExit(
+        "post-merge publication must not use pull_request_target after merge "
+        "(merged commit checkout is already base-repository code)"
+    )
 require(
     r"verify-archive-introduction\.py.*?archive_introduction_commit.*?"
     r"finalization_digest.*?"

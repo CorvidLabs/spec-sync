@@ -17593,6 +17593,10 @@ mod tests {
                 &fresh_text,
             ],
         );
+        // Clones do not inherit the source repo's local identity. CI runners often have no
+        // global user.name/email, so set them explicitly before any fresh-tree commits.
+        git(&fresh, &["config", "user.email", "test@example.com"]);
+        git(&fresh, &["config", "user.name", "Test"]);
         assert!(
             git_output(
                 &fresh,

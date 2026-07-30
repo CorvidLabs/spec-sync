@@ -7726,15 +7726,30 @@ fn sync_parent_directory(directory: &Path) -> Result<(), String> {
 
 #[cfg(windows)]
 fn sync_parent_directory(directory: &Path) -> Result<(), String> {
+    use std::io::ErrorKind;
     use std::os::windows::fs::OpenOptionsExt;
 
     const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
-    OpenOptions::new()
+    // Directory FlushFileBuffers can fail with ERROR_ACCESS_DENIED while a
+    // sibling handle (lifecycle lock, staged temp file) remains open. File bytes
+    // are already synced; treat metadata durability as best-effort in that case.
+    match OpenOptions::new()
         .read(true)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
         .open(directory)
         .and_then(|file| file.sync_all())
-        .map_err(|error| format!("failed to sync directory {}: {error}", directory.display()))
+    {
+        Ok(()) => Ok(()),
+        Err(error)
+            if error.raw_os_error() == Some(5) || error.kind() == ErrorKind::PermissionDenied =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(format!(
+            "failed to sync directory {}: {error}",
+            directory.display()
+        )),
+    }
 }
 
 #[cfg(not(any(unix, windows)))]

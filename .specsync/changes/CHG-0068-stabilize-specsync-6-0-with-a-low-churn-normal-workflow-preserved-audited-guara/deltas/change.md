@@ -97,6 +97,51 @@ Acceptance Criteria
 
 ## MODIFIED
 
+### REQUIREMENT REQ-change-013
+
+The lifecycle SHALL reject untrusted or corrupt persisted workspace identity, scope, approval,
+history, verification, and scoped-review evidence before using it, with one
+environment-independent verification-freshness decision.
+
+Acceptance Criteria
+
+- Loaded change IDs match their requested workspace and remain a single validated component.
+- Persisted affected spec names are validated before delta paths are constructed.
+- Unreadable or malformed historical tombstone deltas and approval ledgers fail closed.
+- Verifying workspaces require passed evidence, matching effective contract/project-input digests,
+  and a current independent scoped review when finalization is next.
+- A descendant verification commit remains current only when every intervening commit and every
+  parent edge changes exactly `state.json`, `verification.json`, `verification-attempts.json`,
+  `review.json`, or `review-attempts.json` under a canonical active-change ID and the persisted
+  state, verification, latest-attempt, and scoped-review evidence remains consistent.
+- Source-change-then-revert history, a review file mixed with a delivery change, ambiguous merges,
+  nonancestor history, malformed paths, and any broader volatile or lifecycle path fail closed.
+
+### REQUIREMENT REQ-change-016
+
+The lifecycle SHALL preserve accepted closing evidence and supported verifying and scoped-review
+evidence across repository-integrated commits without accepting unintegrated, altered, or
+historically tainted evidence.
+
+Acceptance Criteria
+
+- Normal verification-commit ancestry remains mandatory proof and uses identical local and CI
+  semantics.
+- Every intervening commit is inspected against every parent with NUL-delimited portable paths; a
+  net tree diff cannot hide a governed change and later revert.
+- Only `state.json`, `verification.json`, `verification-attempts.json`, `review.json`, and
+  `review-attempts.json` beneath canonical active-change IDs may follow verification without
+  invalidating it; archive, approvals, tasks, definitions, sequence, hashes, locks, configuration,
+  policy, specs, source, tests, build, and cache paths are rejected.
+- Matching effective contract and project-input digests plus consistent state, verification,
+  latest-attempt, and scoped-review evidence remain mandatory.
+- A squash fallback for accepted closing evidence still requires matching scoped inputs and an
+  unchanged accepted workspace integrated on the remote default branch.
+- Unintegrated heads, changed scoped inputs, stale contracts, mismatched closing approvals,
+  nonancestor evidence, and ambiguous merges fail closed.
+- Digest fields remain versioned, domain-separated, and length-framed; binary bytes, topology, and
+  executable modes remain exact.
+
 ### REQUIREMENT REQ-change-029
 
 Acceptance evidence SHALL preserve historical validity across valid later sequence claims without

@@ -15178,7 +15178,11 @@ fn supported_verification_persistence_id(path: &str) -> Result<String, String> {
     }
     if !matches!(
         parts[3],
-        "state.json" | "verification.json" | "verification-attempts.json"
+        "state.json"
+            | "verification.json"
+            | "verification-attempts.json"
+            | SCOPED_REVIEW_FILE
+            | SCOPED_REVIEW_ATTEMPTS_FILE
     ) {
         return Err(format!(
             "verification descendant changed disallowed path `{path}`"
@@ -26011,6 +26015,8 @@ mod tests {
             "state.json",
             "verification.json",
             "verification-attempts.json",
+            SCOPED_REVIEW_FILE,
+            SCOPED_REVIEW_ATTEMPTS_FILE,
         ] {
             assert_eq!(
                 supported_verification_persistence_id(&format!(".specsync/changes/{id}/{name}"))
@@ -26066,6 +26072,60 @@ mod tests {
         assert!(!check_project(root).errors.iter().any(|error| {
             error.contains(&id) && error.contains("verification evidence is stale")
         }));
+    }
+
+    // Verifies REQ-change-013, REQ-change-016, and REQ-change-046.
+    #[test]
+    fn scoped_review_persistence_commit_keeps_verification_current() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let verification_paths = verification_persistence_paths(&id);
+        let verification_path_refs: Vec<&str> =
+            verification_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &verification_path_refs, "persist verification");
+        let review = record_scoped_review(root, &id, "Independent Reviewer".into()).unwrap();
+        let review_paths = [
+            format!(".specsync/changes/{id}/{SCOPED_REVIEW_FILE}"),
+            format!(".specsync/changes/{id}/{SCOPED_REVIEW_ATTEMPTS_FILE}"),
+        ];
+        let review_path_refs: Vec<&str> = review_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &review_path_refs, "persist scoped review");
+        let record = load_change(root, &id).unwrap();
+        assert!(verification_is_current(root, &record, &evidence));
+        assert!(scoped_review_is_current(root, &record, &review));
+        assert_eq!(
+            summarize_change(root, &record).next_action,
+            format!("run `specsync change finalize {id}`")
+        );
+        assert!(!check_project(root).errors.iter().any(|error| {
+            error.contains(&id) && error.contains("verification evidence is stale")
+        }));
+    }
+
+    // Verifies REQ-change-013, REQ-change-016, and REQ-change-046.
+    #[test]
+    fn scoped_review_persistence_mixed_with_source_change_is_stale() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let verification_paths = verification_persistence_paths(&id);
+        let verification_path_refs: Vec<&str> =
+            verification_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &verification_path_refs, "persist verification");
+        record_scoped_review(root, &id, "Independent Reviewer".into()).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let review_paths = [
+            format!(".specsync/changes/{id}/{SCOPED_REVIEW_FILE}"),
+            format!(".specsync/changes/{id}/{SCOPED_REVIEW_ATTEMPTS_FILE}"),
+        ];
+        let mut committed: Vec<&str> = review_paths.iter().map(String::as_str).collect();
+        committed.push("src/lib.rs");
+        commit_paths(root, &committed, "mix scoped review and source");
+        let record = load_change(root, &id).unwrap();
+        assert!(!verification_is_current(root, &record, &evidence));
     }
 
     // Verifies REQ-change-013 and REQ-change-016.

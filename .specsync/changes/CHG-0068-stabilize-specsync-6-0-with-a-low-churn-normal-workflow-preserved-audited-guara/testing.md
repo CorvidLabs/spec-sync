@@ -64,7 +64,9 @@ artifact: testing
   status, cross-date post-move retries resume the unique archive, and local nested commands clear
   both `CI` and `GITHUB_ACTIONS`. The adoption-anchor regression uses a stable historical scope
   fixture rather than mutable active lifecycle files, so renewal and same-PR archival cannot
-  silently change or remove its compile-time input.
+  silently change or remove its compile-time input. Committing the exact scoped-review artifacts
+  after verification preserves current evidence, while mixing either review artifact with a source
+  change fails closed.
 - Adversarial regressions: missing adoption anchors fail closed; review blocks remain in an
   append-only trail, deleting and committing away a prior block still fails, and non-ASCII identity
   confusables are rejected; both initial-add and later-append review children use the hosted

@@ -1140,6 +1140,20 @@ mod tests {
         }
     }
 
+    fn error_mentions_path(error: &str, path: &Path) -> bool {
+        let native = path.display().to_string();
+        let forward = native.replace('\\', "/");
+        let back = native.replace('/', "\\");
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        error.contains(&native)
+            || error.contains(&forward)
+            || error.contains(&back)
+            || (!file_name.is_empty() && error.contains(file_name))
+    }
+
     #[test]
     fn reinstall_keeps_all_generated_artifacts_byte_identical() {
         let tmp = setup();
@@ -1203,7 +1217,10 @@ mod tests {
         let error = install_agent(tmp.path(), AgentTool::Claude).unwrap_err();
 
         assert!(error.contains("Refusing to overwrite customized"));
-        assert!(error.contains(&skill_path.display().to_string()));
+        assert!(
+            error_mentions_path(&error, &skill_path),
+            "error should mention skill path: {error}"
+        );
         assert!(error.contains("no trusted generated digest"));
         assert_eq!(fs::read(&skill_path).unwrap(), stale);
         assert!(!tmp.path().join(".claude/commands").exists());
@@ -1220,7 +1237,10 @@ mod tests {
 
         let error = install_agent(tmp.path(), AgentTool::Claude).unwrap_err();
 
-        assert!(error.contains(&command_path.display().to_string()));
+        assert!(
+            error_mentions_path(&error, &command_path),
+            "error should mention command path: {error}"
+        );
         assert_eq!(fs::read(&command_path).unwrap(), stale);
         assert!(!tmp.path().join(".claude/skills/spec-sync").exists());
     }
@@ -1270,8 +1290,14 @@ mod tests {
 
         let error = install_agent(tmp.path(), AgentTool::Claude).unwrap_err();
 
-        assert!(error.contains(&skill_path.display().to_string()));
-        assert!(error.contains(&command_path.display().to_string()));
+        assert!(
+            error_mentions_path(&error, &skill_path),
+            "error should mention skill path: {error}"
+        );
+        assert!(
+            error_mentions_path(&error, &command_path),
+            "error should mention command path: {error}"
+        );
         assert!(error.contains("content differs from the recorded generated digest"));
         assert_eq!(fs::read(&skill_path).unwrap(), customized_skill);
         assert_eq!(fs::read(&command_path).unwrap(), customized_command);
@@ -1291,7 +1317,10 @@ mod tests {
 
         let error = install_agent(tmp.path(), AgentTool::Cursor).unwrap_err();
 
-        assert!(error.contains(&command_path.display().to_string()));
+        assert!(
+            error_mentions_path(&error, &command_path),
+            "error should mention command path: {error}"
+        );
         assert!(error.contains("no trusted generated digest"));
         assert_eq!(fs::read(&command_path).unwrap(), customized);
         assert!(!tmp.path().join(".cursor/skills/spec-sync").exists());
@@ -1408,7 +1437,10 @@ mod tests {
         let error = uninstall_agent(tmp.path(), AgentTool::Claude).unwrap_err();
 
         assert!(error.contains("Refusing to remove customized"));
-        assert!(error.contains(&skill_path.display().to_string()));
+        assert!(
+            error_mentions_path(&error, &skill_path),
+            "error should mention skill path: {error}"
+        );
         assert_eq!(fs::read(&skill_path).unwrap(), customized);
         assert_eq!(fs::read(&command_path).unwrap(), command_before);
         assert_eq!(fs::read(&change_path).unwrap(), change_before);

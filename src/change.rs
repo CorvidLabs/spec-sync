@@ -17543,6 +17543,10 @@ mod tests {
         git(&root, &["init", "-b", "main"]);
         git(&root, &["config", "user.email", "test@example.com"]);
         git(&root, &["config", "user.name", "Test"]);
+        // Keep workflow-v2 baseline and lifecycle JSON byte-identical across platforms.
+        // Windows CI defaults can enable core.autocrlf and rewrite committed digests on clone.
+        git(&root, &["config", "core.autocrlf", "false"]);
+        git(&root, &["config", "core.eol", "lf"]);
         fs::write(root.join("README.md"), "base\n").unwrap();
         git(&root, &["add", "README.md"]);
         git(&root, &["commit", "-m", "base"]);
@@ -17612,6 +17616,8 @@ mod tests {
         // global user.name/email, so set them explicitly before any fresh-tree commits.
         git(&fresh, &["config", "user.email", "test@example.com"]);
         git(&fresh, &["config", "user.name", "Test"]);
+        git(&fresh, &["config", "core.autocrlf", "false"]);
+        git(&fresh, &["config", "core.eol", "lf"]);
         assert!(
             git_output(
                 &fresh,

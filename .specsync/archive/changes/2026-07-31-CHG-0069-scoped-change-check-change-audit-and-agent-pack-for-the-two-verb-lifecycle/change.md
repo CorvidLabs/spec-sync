@@ -1,6 +1,6 @@
 ---
 id: CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle
-state: verifying
+state: archived
 type: feature
 base_commit: 4c32e08e3bfaffb1ab121c85069c3638e842e544
 ---

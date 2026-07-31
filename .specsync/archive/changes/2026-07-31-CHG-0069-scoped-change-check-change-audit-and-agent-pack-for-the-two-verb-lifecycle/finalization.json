@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
+  "implementation_commit": "07ebca7b4b5e5066e8049f1689cec43ac8278390",
+  "implementation_tree": "18da86e0063062741ab15ad5a9c413dc2f95fba9",
+  "contract_digest": "b25bc074f03a4352d71eee64fa54ca4afe633b79726c3ec8ef4a61f4c44583b9",
+  "workspace_digest": "89b8bf58ea4b718ad871817b593731ffc746734677ebe3bd565a3cd9dda80ea0",
+  "closing_digest": "d01d98add667db062612b642f493fac1694f860d077adf10e1782e0fcab11a25",
+  "review_digest": "1fda45b87a5a166e3f6d4a16cc4c44efb01fb096876e4be65925608064780f18",
+  "finalization_digest": "18579e333f1df0a4563f282406697857f705930af41f1b803a1a677a759f353c",
+  "timestamp": 1785538408
+}

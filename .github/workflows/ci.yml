@@ -177,8 +177,13 @@ jobs:
         run: |
           set -euo pipefail
           echo "C:/Program Files/Git/bin" >> "$GITHUB_PATH"
-          echo "SPECSYNC_BASH=C:/Program Files/Git/bin/bash.exe" >> "$GITHUB_ENV"
-          "C:/Program Files/Git/bin/bash.exe" --version | head -1
+          # Use 8.3-style path without spaces so GITHUB_ENV and Command::new are reliable.
+          bash_path="C:/Progra~1/Git/bin/bash.exe"
+          if [[ ! -x "$bash_path" ]]; then
+            bash_path="C:/Program Files/Git/bin/bash.exe"
+          fi
+          echo "SPECSYNC_BASH=${bash_path}" >> "$GITHUB_ENV"
+          "$bash_path" --version | head -1
       - name: Install jq (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash
@@ -188,7 +193,11 @@ jobs:
             https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-windows-amd64.exe
           jq --version
       - run: cargo build --verbose
-      - run: cargo test --verbose
+      - name: Run tests
+        env:
+          # Belt-and-suspenders for the classifier shell used by integration tests.
+          SPECSYNC_BASH: ${{ matrix.os == 'windows-latest' && 'C:\Progra~1\Git\bin\bash.exe' || '' }}
+        run: cargo test --verbose
       - run: cargo clippy -- -D warnings
 
   fmt:

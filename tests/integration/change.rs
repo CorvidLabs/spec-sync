@@ -554,6 +554,10 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
+    // Workflow-v2 baseline is byte-compared. Disable autocrlf so Windows runners
+    // do not rewrite committed LF JSON into CRLF working-tree bytes.
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::create_dir_all(root.join(".github/scripts")).unwrap();
     fs::create_dir_all(root.join("docs")).unwrap();
@@ -1950,9 +1954,35 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
         .stdout
         .clone();
     let status = String::from_utf8(status).unwrap();
-    assert!(status.contains("architecture_risk: no → yes by Release reviewer"));
-    assert!(status.contains("architecture_risk=yes"));
+    // Text mode summarizes corrections without printing digest-bearing audit lines;
+    // effective answers stay in --json (asserted above via change show).
+    assert!(
+        status.contains("Corrections: 1 recorded"),
+        "expected correction count summary in text status, got:\n{status}"
+    );
     assert!(status.contains(&format!("Next: run `specsync change check {id}`")));
+    let status_json = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "status",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let status_json: Value = serde_json::from_slice(&status_json).unwrap();
+    // Original interview answer remains no; effective definition is yes after correction.
+    assert_eq!(status_json["change"]["answers"]["architecture_risk"], "no");
+    assert_eq!(
+        status_json["effective_definition"]["answers"]["architecture_risk"],
+        "yes"
+    );
+    assert_eq!(status_json["corrections"].as_array().unwrap().len(), 1);
 
     specsync()
         .args(["--root", root.to_str().unwrap(), "change", "verify", id])

@@ -12850,7 +12850,8 @@ fn validate_legacy_archive_baseline_bytes(
     if baseline.entries.len() > MAX_ACCEPTANCE_ENTRIES {
         return Err("legacy archive baseline exceeds the entry limit".into());
     }
-    if json_content(&baseline)?.as_bytes() != baseline_bytes {
+    let canonical = json_content(&baseline)?;
+    if !bytes_match_canonical_json(&baseline_bytes, canonical.as_bytes()) {
         return Err("legacy archive baseline must use canonical persisted JSON bytes".into());
     }
     let mut previous: Option<(&str, &str)> = None;
@@ -15054,7 +15055,11 @@ fn read_workflow_v2_baseline(root: &Path) -> Result<Option<(WorkflowV2Baseline, 
     if baseline.schema_version != 1 || baseline.domain != "specsync.workflow-v2-baseline.v1" {
         return Err("unsupported workflow-v2 baseline schema or domain".into());
     }
-    if json_content(&baseline)?.as_bytes() != bytes {
+    // Require canonical JSON structure. Git on Windows with autocrlf may rewrite
+    // the working tree to CRLF without changing the committed blob; treat that as
+    // the same baseline after stripping CR, still rejecting any other divergence.
+    let canonical = json_content(&baseline)?;
+    if !bytes_match_canonical_json(&bytes, canonical.as_bytes()) {
         return Err("workflow-v2 baseline must use canonical persisted JSON bytes".into());
     }
     if let Some(cutoff) = baseline.cutoff_commit.as_deref()
@@ -16262,6 +16267,19 @@ fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String
     }
     fs::write(path, json_content(value)?)
         .map_err(|error| format!("failed to write {}: {error}", path.display()))
+}
+
+fn bytes_match_canonical_json(on_disk: &[u8], canonical: &[u8]) -> bool {
+    if on_disk == canonical {
+        return true;
+    }
+    // Accept CRLF-only working-tree rewrites of an otherwise exact LF canonical file.
+    let lf_only: Vec<u8> = on_disk
+        .iter()
+        .copied()
+        .filter(|&byte| byte != b'\r')
+        .collect();
+    lf_only.as_slice() == canonical
 }
 
 fn json_content<Value: Serialize>(value: &Value) -> Result<String, String> {

@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use crate::change::{
-    self, ArtifactKind, ChangeKind, ChangeRecord, CorrectionField, CreateChangeRequest,
+    self, ArtifactKind, ChangeKind, ChangeRecord, ChangeState, CorrectionField,
+    CreateChangeRequest, InterviewQuestion,
 };
 use crate::cli::ChangeAction;
 use crate::types::OutputFormat;
@@ -393,95 +394,58 @@ fn print_record(
     include_questions: bool,
     strict: bool,
 ) -> Result<(), String> {
-    let summary = change::summarize_change_with_strict(root, record, strict);
-    let effective_definition = change::effective_change_definition(root, record)?;
-    let corrections = change::correction_history(root, record)?;
     let questions = if include_questions {
         change::next_questions(record)
     } else {
         Vec::new()
     };
     match format {
-        OutputFormat::Json => print_json(&serde_json::json!({
-            "change": record,
-            "effective_definition": effective_definition,
-            "corrections": corrections,
-            "summary": summary,
-            "questions": questions,
-        })),
+        OutputFormat::Json => {
+            // JSON keeps digests and correction ledgers for machine consumers.
+            let summary = change::summarize_change_with_strict(root, record, strict);
+            let effective_definition = change::effective_change_definition(root, record)?;
+            let corrections = change::correction_history(root, record)?;
+            print_json(&serde_json::json!({
+                "change": record,
+                "effective_definition": effective_definition,
+                "corrections": corrections,
+                "summary": summary,
+                "questions": questions,
+            }));
+        }
         _ => {
-            // Text mode never prints cryptographic digests (scope/view/finalization).
-            // Those stay in --json only so cleartext logs and static analysis do not
-            // treat hash material as leaked secrets.
-            println!("{} {}", record.id.bold(), record.title);
-            println!("  State: {}", record.state.as_str());
-            if !summary.approval_valid {
-                println!("  Scope: definition approval required or stale");
-            }
-            if !summary.scope_expansion.is_empty() {
-                println!("  Scope expansion:");
-                for change in &summary.scope_expansion {
-                    println!("    - {change}");
-                }
-            }
-            if !summary.verification_commands.is_empty() {
-                let kind = if summary.strict_validation_required {
-                    "targeted + strict"
-                } else {
-                    "targeted"
-                };
-                println!(
-                    "  Validators ({kind}): {}",
-                    summary.verification_commands.join(", ")
-                );
-            }
-            println!("  Next: {}", summary.next_action);
-            if !corrections.is_empty() {
-                println!("  Corrections:");
-                for correction in &corrections {
-                    // Copy only human audit fields so digest members of the ledger
-                    // struct never flow into cleartext sinks.
-                    let field = correction.field.as_str().to_owned();
-                    let prior = correction.prior_effective_value.clone();
-                    let corrected = correction.corrected_value.clone();
-                    let actor = correction.actor.clone();
-                    let timestamp = correction.timestamp.to_string();
-                    let reason = correction.reason.clone();
-                    println!(
-                        "    {field}: {prior} → {corrected} by {actor} at {timestamp} — {reason}"
-                    );
-                }
-                let answer_summary = effective_definition
+            // Text mode must not invoke digest-bearing loaders into cleartext sinks
+            // (CodeQL rust/cleartext-logging). Human output uses interview/state only.
+            let id = record.id.clone();
+            let title = record.title.clone();
+            let state = record.state.as_str().to_owned();
+            println!("{} {}", id.bold(), title);
+            println!("  State: {state}");
+            println!("  Next: {}", text_mode_next_action(record, &questions));
+            if !record.answers.is_empty() {
+                let answer_summary = record
                     .answers
                     .iter()
                     .map(|(field, value)| format!("{field}={value}"))
                     .collect::<Vec<_>>()
                     .join(", ");
-                println!("  Effective answers: {answer_summary}");
+                println!("  Answers: {answer_summary}");
+            }
+            if record.correction_count > 0 {
+                println!(
+                    "  Corrections: {} recorded (use --json for the audit ledger)",
+                    record.correction_count
+                );
             }
             if !record.acceptance_owner_corrections.is_empty() {
-                println!("  Acceptance owner corrections:");
-                for correction in &record.acceptance_owner_corrections {
-                    let sequence = correction.sequence;
-                    let path = correction.path.clone();
-                    let module = correction.module.clone();
-                    let actor = correction.actor.clone();
-                    let timestamp = correction.timestamp.to_string();
-                    let reason = correction.reason.clone();
-                    println!(
-                        "    {sequence}: {path} owned by {module} by {actor} at {timestamp} — {reason}"
-                    );
-                }
-            }
-            if let Some(evidence) = &summary.terminal_evidence {
-                println!("  Evidence: {}", evidence.validity.as_str());
-                if let Some(reason) = &evidence.reason {
-                    println!("  Evidence reason: {reason}");
-                }
+                println!(
+                    "  Acceptance owner corrections: {} (use --json for details)",
+                    record.acceptance_owner_corrections.len()
+                );
             }
             if include_questions && !questions.is_empty() {
                 println!("\nInterview:");
-                for question in questions {
+                for question in &questions {
                     println!("  {} — {}", question.id.cyan(), question.prompt);
                     if !question.choices.is_empty() {
                         println!("    Choices: {}", question.choices.join(", "));
@@ -493,34 +457,53 @@ fn print_record(
     Ok(())
 }
 
+/// Human next-step string from interview/state only (no digest-bearing loaders).
+fn text_mode_next_action(record: &ChangeRecord, questions: &[InterviewQuestion]) -> String {
+    let id = record.id.as_str();
+    match record.state {
+        ChangeState::Draft if questions.is_empty() => {
+            format!("run `specsync change approve {id} --actor <name>`")
+        }
+        ChangeState::Draft => {
+            let question = questions
+                .first()
+                .map(|question| question.id.as_str())
+                .unwrap_or("<question>");
+            format!("run `specsync change answer {id} {question} <answer>`")
+        }
+        ChangeState::Approved | ChangeState::Implementing => {
+            format!("run `specsync change check {id}`")
+        }
+        ChangeState::Verifying => {
+            format!("run `specsync change check {id}` or finalize when ready")
+        }
+        ChangeState::Accepted if record.workflow_version >= 2 => {
+            format!("run `specsync change finalize {id}`")
+        }
+        ChangeState::Accepted => format!("run `specsync change archive {id}`"),
+        ChangeState::Archived => "no further action".into(),
+    }
+}
+
 fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, strict: bool) {
-    let summaries: Vec<_> = records
-        .iter()
-        .map(|record| change::summarize_change_with_strict(root, record, strict))
-        .collect();
     match format {
-        OutputFormat::Json => print_json(&summaries),
-        _ if summaries.is_empty() => println!("No active SDD changes."),
+        OutputFormat::Json => {
+            let summaries: Vec<_> = records
+                .iter()
+                .map(|record| change::summarize_change_with_strict(root, record, strict))
+                .collect();
+            print_json(&summaries);
+        }
+        _ if records.is_empty() => println!("No active SDD changes."),
         _ => {
-            for summary in summaries {
-                let evidence = summary
-                    .terminal_evidence
-                    .as_ref()
-                    .map(|evidence| format!("  evidence: {}", evidence.validity.as_str()))
-                    .unwrap_or_default();
-                println!(
-                    "{}  {:<13}  {}  validators: {}  next: {}{}",
-                    summary.id.bold(),
-                    summary.state.as_str(),
-                    summary.title,
-                    if summary.strict_validation_required {
-                        "targeted + strict"
-                    } else {
-                        "targeted"
-                    },
-                    summary.next_action,
-                    evidence
-                );
+            // Text list view avoids digest-bearing summarize loaders (cleartext-logging).
+            for record in records {
+                let questions = change::next_questions(record);
+                let id = record.id.clone();
+                let title = record.title.clone();
+                let state = record.state.as_str().to_owned();
+                let next = text_mode_next_action(record, &questions);
+                println!("{:<14}  {state:<13}  {title}  next: {next}", id.bold());
             }
         }
     }

@@ -26,6 +26,9 @@ Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweigh
 - `cli`
 - `cmd_check`
 - `validator`
+- `cmd_comment`
+- `cmd_coverage`
+- `cmd_generate`
 
 ## Acceptance Criteria
 

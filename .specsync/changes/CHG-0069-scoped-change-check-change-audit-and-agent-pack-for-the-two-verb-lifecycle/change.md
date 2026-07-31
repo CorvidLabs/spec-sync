@@ -19,6 +19,8 @@ Scoped change check, change audit, and agent pack for the two-verb lifecycle
 - `agents`
 - `hooks`
 - `commands`
+- `cmd_agents`
+- `cli_args`
 
 ## Acceptance Criteria
 

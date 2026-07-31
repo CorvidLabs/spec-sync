@@ -22,3 +22,7 @@ artifact: testing
 
 - `specsync change audit` on a large-archive repo finishes in seconds.
 - `specsync change check <id>` does not print archive evidence dumps.
+
+## Requirement evidence
+
+- `REQ-cmd-agents-0069-001`, `REQ-cli-args-0069-001`: finalization acceptance-manifest construction assigns deterministic owners for `src/commands/agents.rs` (`cmd_agents`) and `src/cli.rs` (`cli_args`) while the check/audit agent pack remains installable.

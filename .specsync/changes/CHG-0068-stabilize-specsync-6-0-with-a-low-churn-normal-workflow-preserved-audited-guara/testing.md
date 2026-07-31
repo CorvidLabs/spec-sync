@@ -149,3 +149,5 @@ Run `fledge lanes run verify`, the full repository lane, strict 100% spec covera
 `fledge trust verify`, release validators, and the private sandbox workflow once after focused
 iteration is green. Separately prove that a pure finalization child selects only the lightweight
 archive lane.
+
+- `REQ-cmd-comment-0068-001`, `REQ-cmd-coverage-0068-001`, `REQ-cmd-generate-0068-001`: exact path ownership for the touched command sources is retained; finalization acceptance-manifest construction includes deterministic canonical owners for `comment.rs`, `coverage.rs`, and `generate.rs` without unowned production-source failure.

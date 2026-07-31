@@ -79,10 +79,42 @@ impl SpecCache {
     }
 }
 
-pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
+/// Verdict for a single local dependency entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LocalVerdict {
+    /// The path exists and is confined to the project root.
+    Ok,
+    /// The path does not exist.
+    NotFound,
+    /// The path escapes the project root (absolute or `..` traversal).
+    OutsideRoot,
+}
+
+impl LocalVerdict {
+    fn as_str(self) -> &'static str {
+        match self {
+            LocalVerdict::Ok => "ok",
+            LocalVerdict::NotFound => "not-found",
+            LocalVerdict::OutsideRoot => "outside-root",
+        }
+    }
+}
+
+pub fn cmd_resolve(
+    root: &Path,
+    remote: bool,
+    verify: bool,
+    cache_ttl: u64,
+    format: crate::types::OutputFormat,
+    strict: bool,
+) {
+    let json = matches!(format, crate::types::OutputFormat::Json);
     let (_config, spec_files) = load_and_discover(root, false);
     let mut cross_refs: Vec<(String, String, String)> = Vec::new();
-    let mut local_refs: Vec<(String, String, bool)> = Vec::new();
+    let mut local_refs: Vec<(String, String, LocalVerdict)> = Vec::new();
+    // depends_on entries that look like refs but don't parse (e.g. `owner/repo@`
+    // with no module) — previously these vanished silently (#444).
+    let mut malformed_refs: Vec<(String, String)> = Vec::new();
 
     // Track local spec exports for bidirectional checking
     let mut local_exports: HashMap<String, Vec<String>> = HashMap::new();
@@ -114,43 +146,93 @@ pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
 
         for dep in &parsed.frontmatter.depends_on {
             if validator::is_cross_project_ref(dep) {
-                if let Some((repo, module)) = validator::parse_cross_project_ref(dep) {
-                    cross_refs.push((spec_path.clone(), repo.to_string(), module.to_string()));
+                match validator::parse_cross_project_ref(dep) {
+                    Some((repo, module)) => {
+                        cross_refs.push((spec_path.clone(), repo.to_string(), module.to_string()))
+                    }
+                    // Looks cross-project (`owner/repo@…`) but doesn't parse —
+                    // surface it instead of dropping it silently.
+                    None => malformed_refs.push((spec_path.clone(), dep.clone())),
                 }
+            } else if dep.contains('@') {
+                // `repo@` / `@module` shapes: not local paths, not valid refs.
+                malformed_refs.push((spec_path.clone(), dep.clone()));
             } else {
-                let exists = root.join(dep).exists();
-                local_refs.push((spec_path.clone(), dep.clone(), exists));
+                // Confine to the project root: absolute paths and `..`
+                // traversal entries must never validate (#444).
+                let verdict = match crate::util::confine_path_to_root(root, dep) {
+                    Some(path) if path.exists() => LocalVerdict::Ok,
+                    Some(_) => LocalVerdict::NotFound,
+                    None => LocalVerdict::OutsideRoot,
+                };
+                local_refs.push((spec_path.clone(), dep.clone(), verdict));
             }
         }
     }
 
-    println!(
-        "\n--- {} ------------------------------------------------",
-        "Dependency Resolution".bold()
-    );
+    if !json {
+        println!(
+            "\n--- {} ------------------------------------------------",
+            "Dependency Resolution".bold()
+        );
+    }
 
-    if local_refs.is_empty() && cross_refs.is_empty() {
-        println!("\n  No dependencies declared in any spec.");
+    if local_refs.is_empty() && cross_refs.is_empty() && malformed_refs.is_empty() {
+        if json {
+            println!("{}", r#"{"dependencies":[],"passed":true}"#);
+        } else {
+            println!("\n  No dependencies declared in any spec.");
+        }
         return;
     }
 
-    if !local_refs.is_empty() {
-        println!("\n  {} Local dependencies:", "Local".bold());
-        for (spec, dep, exists) in &local_refs {
-            if *exists {
-                println!("    {} {spec} -> {dep}", "✓".green());
-            } else {
-                println!("    {} {spec} -> {dep} (not found)", "✗".red());
+    if !json && !local_refs.is_empty() {
+        println!("\n  {}", "Local dependencies:".bold());
+        for (spec, dep, verdict) in &local_refs {
+            match verdict {
+                LocalVerdict::Ok => println!("    {} {spec} -> {dep}", "✓".green()),
+                LocalVerdict::NotFound => {
+                    println!("    {} {spec} -> {dep} (not found)", "✗".red())
+                }
+                LocalVerdict::OutsideRoot => println!(
+                    "    {} {spec} -> {dep} (path escapes the project root)",
+                    "✗".red()
+                ),
             }
         }
     }
 
+    if !json && !malformed_refs.is_empty() {
+        for (spec, dep) in &malformed_refs {
+            println!(
+                "    {} {spec} -> {dep} (malformed reference — expected `owner/repo@module` or a project-relative path)",
+                "✗".red()
+            );
+        }
+    }
+
+    // Local verdicts are computed up-front so both the text and JSON paths —
+    // and the final exit code — share one source of truth (#444: unresolved
+    // local deps must fail the process even without --strict).
+    let unresolved_local = local_refs
+        .iter()
+        .filter(|(_, _, v)| *v != LocalVerdict::Ok)
+        .count()
+        + malformed_refs.len();
+
+    // Remote verification state — shared by the text report, the JSON report,
+    // and the final exit code so there is exactly one verdict (#422).
+    let mut remote_errors = 0usize;
+    let mut fetch_failures: Vec<String> = Vec::new();
+    let mut drift_issues: Vec<VerifyResult> = Vec::new();
+
     if !cross_refs.is_empty() {
-        println!("\n  {} Cross-project references:", "Remote".bold());
+        if !json {
+            println!("\n  {} Cross-project references:", "Remote".bold());
+        }
 
         if remote {
             // Fetch remote registries to verify cross-project refs
-            let mut remote_errors = 0;
             // Group refs by repo to avoid duplicate fetches
             let mut repos: HashMap<String, Option<registry::RemoteRegistry>> = HashMap::new();
 
@@ -160,10 +242,16 @@ pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
                     .or_insert_with(|| match registry::fetch_remote_registry(repo) {
                         Ok(reg) => Some(reg),
                         Err(e) => {
-                            eprintln!(
-                                "    {} Failed to fetch registry for {repo}: {e}",
-                                "!".yellow()
-                            );
+                            // A failed fetch is a failed verification, not a
+                            // neutral "?" — the ref cannot be confirmed, so the
+                            // run must not pass (#422).
+                            fetch_failures.push(repo.clone());
+                            if !json {
+                                eprintln!(
+                                    "    {} Failed to fetch registry for {repo}: {e}",
+                                    "!".yellow()
+                                );
+                            }
                             None
                         }
                     });
@@ -174,40 +262,48 @@ pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
                 match repos.get(repo) {
                     Some(Some(reg)) => {
                         if reg.has_spec(module) {
-                            println!("    {} {spec} -> {repo}@{module}", "✓".green());
+                            if !json {
+                                println!("    {} {spec} -> {repo}@{module}", "✓".green());
+                            }
                         } else {
-                            println!(
-                                "    {} {spec} -> {repo}@{module} (module not in registry)",
-                                "✗".red()
-                            );
+                            if !json {
+                                println!(
+                                    "    {} {spec} -> {repo}@{module} (module not in registry)",
+                                    "✗".red()
+                                );
+                            }
                             remote_errors += 1;
                         }
                     }
                     Some(None) => {
-                        println!(
-                            "    {} {spec} -> {repo}@{module} (registry fetch failed)",
-                            "?".yellow()
-                        );
+                        if !json {
+                            println!(
+                                "    {} {spec} -> {repo}@{module} (registry fetch failed)",
+                                "✗".red()
+                            );
+                        }
                     }
                     None => {
-                        println!(
-                            "    {} {spec} -> {repo}@{module} (no registry)",
-                            "?".yellow()
-                        );
+                        if !json {
+                            println!(
+                                "    {} {spec} -> {repo}@{module} (no registry)",
+                                "?".yellow()
+                            );
+                        }
                     }
                 }
             }
 
-            if remote_errors > 0 {
+            if remote_errors > 0 && !json {
                 println!(
                     "\n  {} {remote_errors} cross-project ref(s) could not be verified",
-                    "Warning:".yellow()
+                    "Error:".red().bold()
                 );
             }
 
             // Phase 2: Deep content verification (--verify)
             if verify {
-                let drift_issues = verify_remote_specs(
+                let drift_issues_found = verify_remote_specs(
                     &cross_refs,
                     &repos,
                     &local_exports,
@@ -215,14 +311,13 @@ pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
                     root,
                     cache_ttl,
                 );
+                drift_issues = drift_issues_found;
 
-                if !drift_issues.is_empty() {
+                if !drift_issues.is_empty() && !json {
                     println!("\n  {} Content verification:", "Verify".bold());
 
-                    let mut drift_count = 0;
                     for result in &drift_issues {
                         for issue in &result.issues {
-                            drift_count += 1;
                             match issue {
                                 DriftIssue::Deprecated { status } => {
                                     println!(
@@ -270,7 +365,7 @@ pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
                         }
                     }
 
-                    let drift_errors: usize = drift_issues
+                    let drift_error_count: usize = drift_issues
                         .iter()
                         .flat_map(|r| &r.issues)
                         .filter(|i| {
@@ -281,26 +376,37 @@ pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
                         })
                         .count();
 
-                    if drift_errors > 0 {
+                    if drift_error_count > 0 {
                         println!(
-                            "\n  {} {drift_errors} drift issue(s) detected — specs have diverged from remote",
+                            "\n  {} {drift_error_count} drift issue(s) detected — specs have diverged from remote",
                             "Error:".red().bold()
                         );
-                        std::process::exit(1);
                     } else {
                         println!(
-                            "\n  {} {drift_count} warning(s), no breaking drift",
-                            "Info:".cyan()
+                            "\n  {} {} warning(s), no breaking drift",
+                            "Info:".cyan(),
+                            drift_issues.iter().flat_map(|r| &r.issues).count()
                         );
                     }
-                } else {
-                    println!(
-                        "\n  {} All cross-project references verified — no drift detected",
-                        "✓".green()
-                    );
+                } else if !json {
+                    // Never print this when zero registries were actually
+                    // fetched — "verified" over zero successful fetches is a
+                    // false green (#422).
+                    if fetch_failures.is_empty() {
+                        println!(
+                            "\n  {} All cross-project references verified — no drift detected",
+                            "✓".green()
+                        );
+                    } else {
+                        println!(
+                            "\n  {} could not verify {} repo(s) — registry fetch failed",
+                            "✗".red(),
+                            fetch_failures.len()
+                        );
+                    }
                 }
             }
-        } else {
+        } else if !json {
             for (spec, repo, module) in &cross_refs {
                 println!("    {} {spec} -> {repo}@{module}", "→".cyan());
             }
@@ -311,6 +417,89 @@ pub fn cmd_resolve(root: &Path, remote: bool, verify: bool, cache_ttl: u64) {
             println!("  Use --remote to fetch registries and verify they exist.");
             println!("  Use --verify for deep content verification and drift detection.");
         }
+    }
+
+    // ─── One verdict, one exit code (#422/#444) ────────────────────────
+    let drift_errors: usize = drift_issues
+        .iter()
+        .flat_map(|r| &r.issues)
+        .filter(|i| {
+            matches!(
+                i,
+                DriftIssue::Deprecated { .. } | DriftIssue::MissingExport { .. }
+            )
+        })
+        .count();
+    let drift_warnings: usize = drift_issues.iter().flat_map(|r| &r.issues).count() - drift_errors;
+
+    let mut failure_reasons: Vec<String> = Vec::new();
+    if unresolved_local > 0 {
+        failure_reasons.push(format!(
+            "{unresolved_local} unresolved local dependency(ies)"
+        ));
+    }
+    if remote_errors > 0 {
+        failure_reasons.push(format!(
+            "{remote_errors} cross-project ref(s) not found in remote registry"
+        ));
+    }
+    if !fetch_failures.is_empty() {
+        failure_reasons.push(format!(
+            "registry fetch failed for {} repo(s): {}",
+            fetch_failures.len(),
+            fetch_failures.join(", ")
+        ));
+    }
+    if drift_errors > 0 {
+        failure_reasons.push(format!("{drift_errors} drift issue(s) detected"));
+    }
+    // --strict makes verification warnings (non-bidirectional, unparsable or
+    // unfetchable remote spec content) fatal, matching `check --strict`.
+    if strict && drift_warnings > 0 {
+        failure_reasons.push(format!(
+            "{drift_warnings} verification warning(s) treated as errors (--strict)"
+        ));
+    }
+    let passed = failure_reasons.is_empty();
+
+    if json {
+        let local_json: Vec<serde_json::Value> = local_refs
+            .iter()
+            .map(|(spec, dep, verdict)| {
+                serde_json::json!({"spec": spec, "dep": dep, "status": verdict.as_str()})
+            })
+            .collect();
+        let cross_json: Vec<serde_json::Value> = cross_refs
+            .iter()
+            .map(|(spec, repo, module)| {
+                serde_json::json!({"spec": spec, "repo": repo, "module": module})
+            })
+            .collect();
+        let malformed_json: Vec<serde_json::Value> = malformed_refs
+            .iter()
+            .map(|(spec, dep)| serde_json::json!({"spec": spec, "dep": dep}))
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "passed": passed,
+                "local": local_json,
+                "cross_project": cross_json,
+                "malformed": malformed_json,
+                "fetch_failures": fetch_failures,
+                "failures": failure_reasons,
+            }))
+            .unwrap()
+        );
+    } else if !passed {
+        eprintln!("\n{}", "Dependency resolution FAILED:".red().bold());
+        for reason in &failure_reasons {
+            eprintln!("  {} {reason}", "✗".red());
+        }
+    }
+
+    if !passed {
+        std::process::exit(1);
     }
 }
 

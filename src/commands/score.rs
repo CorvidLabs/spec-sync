@@ -6,7 +6,8 @@ use crate::types;
 use crate::validator::compute_coverage_checked;
 
 use super::{
-    compute_exit_code, exit_with_status, filter_by_status, filter_specs, load_and_discover,
+    compute_exit_code, default_enforcement, exit_with_status, filter_by_status, filter_specs,
+    load_and_discover,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -15,6 +16,7 @@ pub fn cmd_score(
     strict: bool,
     enforcement: Option<types::EnforcementMode>,
     require_coverage: Option<usize>,
+    min_score: Option<u32>,
     format: types::OutputFormat,
     explain: bool,
     all: bool,
@@ -23,6 +25,13 @@ pub fn cmd_score(
     only_status: &[String],
 ) {
     let json = matches!(format, types::OutputFormat::Json);
+    let machine_output = json || matches!(format, types::OutputFormat::Csv);
+    let minimum_score = match (min_score, strict) {
+        (Some(value), true) => Some(value.max(80)),
+        (Some(value), false) => Some(value),
+        (None, true) => Some(80),
+        (None, false) => None,
+    };
     // The global `--strict` / `--enforcement` / `--require-coverage` flags are
     // gates, and so is a project's configured `enforcement`. `score` must honor
     // all of them: when a gate could fire, don't take load_and_discover's no-spec
@@ -34,12 +43,15 @@ pub fn cmd_score(
         if strict {
             types::EnforcementMode::Strict
         } else {
-            crate::config::load_config(root).enforcement
+            default_enforcement(&crate::config::load_config(root))
         }
     });
     let gate_requested =
         require_coverage.is_some() || !matches!(enforcement, types::EnforcementMode::Warn);
-    let (config, all_spec_files) = load_and_discover(root, gate_requested);
+    // JSON mode must ALSO bypass the no-spec early-exit: that path prints plain
+    // human text ("No spec files found…"), breaking CI parsers exactly in the
+    // bootstrap case (#441). The JSON below already handles zero specs.
+    let (config, all_spec_files) = load_and_discover(root, gate_requested || json);
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
     let coverage = compute_coverage_checked(root, &spec_files, &config).unwrap_or_else(|error| {
@@ -65,6 +77,17 @@ pub fn cmd_score(
         .map(|f| scoring::score_spec(f, root, &config))
         .collect();
     let project = scoring::compute_project_score(scores);
+    let failing_scores: Vec<&scoring::SpecScore> = minimum_score
+        .map(|minimum| {
+            project
+                .spec_scores
+                .iter()
+                .filter(|score| score.total < minimum)
+                .collect()
+        })
+        .unwrap_or_default();
+    let score_gate_passed =
+        minimum_score.is_none() || (project.total_specs > 0 && failing_scores.is_empty());
 
     // Show progress header for batch/--all mode
     let batch_mode = all || spec_filters.is_empty();
@@ -103,6 +126,8 @@ pub fn cmd_score(
                 "average_score": (project.average_score * 10.0).round() / 10.0,
                 "grade": project.grade,
                 "total_specs": project.total_specs,
+                "minimum_score": minimum_score,
+                "gate_passed": score_gate_passed,
                 "distribution": {
                     "A": project.grade_distribution[0],
                     "B": project.grade_distribution[1],
@@ -125,6 +150,31 @@ pub fn cmd_score(
         }
     }
 
+    // --strict quality gate (#441): F-grade specs — or nothing scored at all,
+    // where the bar is unenforceable — must fail the process. JSON/CSV gate
+    // silently via the exit code to keep stdout machine-parseable.
+    if strict {
+        let f_grades = project
+            .spec_scores
+            .iter()
+            .filter(|s| s.grade == "F")
+            .count();
+        if project.total_specs == 0 || f_grades > 0 {
+            if !json && !matches!(format, types::OutputFormat::Csv) {
+                eprintln!(
+                    "{}: {} — failing the quality gate",
+                    "--strict mode".red(),
+                    if project.total_specs == 0 {
+                        "no specs were scored".to_string()
+                    } else {
+                        format!("{f_grades} spec(s) scored F")
+                    }
+                );
+            }
+            std::process::exit(1);
+        }
+    }
+
     // Honor the global gate flags. `score` is advisory by default (Warn config →
     // exit 0), but `--require-coverage`, `--enforcement enforce-new`, and a strict
     // config now gate the exit code — previously they were silent no-ops here.
@@ -134,15 +184,17 @@ pub fn cmd_score(
     // JSON and CSV are machine formats: their body is already printed, so gate
     // SILENTLY via the exit code — appending exit_with_status's human message
     // would corrupt the parseable output. Other formats get the explanation.
-    if json || matches!(format, types::OutputFormat::Csv) {
-        std::process::exit(compute_exit_code(
-            0,
-            0,
-            strict,
-            enforcement,
-            &coverage,
-            require_coverage,
-        ));
+    if machine_output {
+        let validation_exit =
+            compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
+        std::process::exit(if score_gate_passed {
+            validation_exit
+        } else {
+            1
+        });
+    }
+    if !score_gate_passed {
+        std::process::exit(1);
     }
     exit_with_status(0, 0, strict, enforcement, &coverage, require_coverage);
 }

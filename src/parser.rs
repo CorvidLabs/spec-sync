@@ -11,6 +11,11 @@ use std::sync::LazyLock;
 pub struct ParsedSpec {
     pub frontmatter: Frontmatter,
     pub body: String,
+    /// Hard frontmatter problems (duplicate keys, wrong shapes, unclosed
+    /// brackets/quotes). The offending text is included in each message.
+    pub errors: Vec<String>,
+    /// Soft frontmatter problems (non-numeric versions, ignored garbage lines).
+    pub warnings: Vec<String>,
 }
 
 static FRONTMATTER_RE: LazyLock<Regex> =
@@ -293,8 +298,11 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     let body = caps.get(2)?.as_str().to_string();
 
     let mut fm = Frontmatter::default();
+    let mut errors: Vec<String> = Vec::new();
+    let mut warnings: Vec<String> = Vec::new();
     let mut current_key: Option<String> = None;
     let mut current_list: Vec<String> = Vec::new();
+    let mut seen_keys: HashSet<String> = HashSet::new();
 
     for line in yaml_block.lines() {
         // List item: "  - value" (supports spaces or tabs for indentation)
@@ -318,24 +326,48 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
                 current_list.clear();
             }
 
+            // Duplicate keys are a validation bypass (a hidden second
+            // `status: draft` silently disables all section/export checks).
+            // Reject loudly with the offending line.
+            if !seen_keys.insert(key.to_string()) {
+                errors.push(format!(
+                    "Frontmatter duplicate key `{key}` (offending line: `{}`) — remove the duplicate; the last value would silently win",
+                    line.trim()
+                ));
+            }
+
             let value = strip_yaml_comment(line[colon_pos + 1..].trim());
 
             if value.is_empty() || value == "[]" {
                 current_key = Some(key.to_string());
                 current_list.clear();
             } else {
-                set_scalar(&mut fm, key, &value);
+                set_scalar(
+                    &mut fm,
+                    key,
+                    &value,
+                    line.trim(),
+                    &mut errors,
+                    &mut warnings,
+                );
             }
             continue;
         }
 
         // Blank or comment line: flush
         let trimmed = line.trim();
-        if (trimmed.is_empty() || trimmed.starts_with('#'))
-            && let Some(prev_key) = current_key.take()
-        {
-            set_field(&mut fm, &prev_key, &current_list);
-            current_list.clear();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            if let Some(prev_key) = current_key.take() {
+                set_field(&mut fm, &prev_key, &current_list);
+                current_list.clear();
+            }
+        } else {
+            // A non-empty, non-comment line that is neither `key: value` nor a
+            // list item under an active key cannot be parsed — surface it
+            // instead of silently dropping it.
+            warnings.push(format!(
+                "Ignoring malformed frontmatter line (expected `key: value`): `{trimmed}`"
+            ));
         }
     }
 
@@ -347,6 +379,8 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     Some(ParsedSpec {
         frontmatter: fm,
         body,
+        errors,
+        warnings,
     })
 }
 
@@ -369,17 +403,132 @@ fn strip_yaml_comment(value: &str) -> String {
     value.to_string()
 }
 
-fn set_scalar(fm: &mut Frontmatter, key: &str, value: &str) {
+/// Fields that must hold a YAML list of strings.
+const LIST_FIELDS: &[&str] = &["files", "db_tables", "depends_on"];
+
+fn set_scalar(
+    fm: &mut Frontmatter,
+    key: &str,
+    value: &str,
+    offending_line: &str,
+    errors: &mut Vec<String>,
+    warnings: &mut Vec<String>,
+) {
+    // List fields given a non-list shape: a mapping (`depends_on: {a: b}`)
+    // would otherwise parse to an empty list and silently validate nothing.
+    if LIST_FIELDS.contains(&key) {
+        if value.starts_with('{') {
+            errors.push(format!(
+                "Frontmatter field `{key}` must be a YAML list, got a mapping (offending line: `{offending_line}`)"
+            ));
+            return;
+        }
+        if value.starts_with('[') {
+            // Flow-style list (`depends_on: [a, b]`) — the form `specsync new`
+            // scaffolds. Parse it; an unclosed bracket is a hard error.
+            match parse_flow_string_list(value) {
+                Ok(items) => set_field(fm, key, &items),
+                Err(message) => errors.push(message),
+            }
+            return;
+        }
+        // A bare scalar (`depends_on: auth`) is treated as a one-item list,
+        // matching YAML's leniency, but flagged so typos are visible.
+        warnings.push(format!(
+            "Frontmatter field `{key}` should be a YAML list, got scalar `{value}` — treating it as a one-item list"
+        ));
+        set_field(fm, key, std::slice::from_ref(&value.to_string()));
+        return;
+    }
     match key {
         "module" => fm.module = Some(value.to_string()),
-        "version" => fm.version = Some(value.to_string()),
+        "version" => {
+            if !is_version_shaped(value) {
+                warnings.push(format!(
+                    "Frontmatter `version` should be a plain number, got `{value}`"
+                ));
+            }
+            fm.version = Some(value.to_string());
+        }
         "status" => fm.status = Some(value.to_string()),
         "agent_policy" => fm.agent_policy = Some(value.to_string()),
         // Handle inline bracket arrays like `implements: [42, 57]`
         "implements" => fm.implements = parse_inline_issue_numbers(value),
         "tracks" => fm.tracks = parse_inline_issue_numbers(value),
+        // A scalar `depends_on: alpha` (or inline `depends_on: [a, b]`) used to
+        // be silently DROPPED — the dependency edge vanished from validation
+        // and graphing with no diagnostic. Normalize it into the list so the
+        // edge is enforced, and warn so the typo is visible.
+        "depends_on" => {
+            fm.depends_on = parse_inline_string_list(value);
+            if !value.trim_start().starts_with('[') {
+                eprintln!(
+                    "warning: scalar `depends_on: {value}` should be a YAML list (`depends_on: [{value}]`); treating it as a single dependency"
+                );
+            }
+        }
         _ => {}
     }
+}
+
+/// Parse an inline bracket array of strings (`[a, b]` → vec!["a", "b"]) or a
+/// bare scalar (`a` → vec!["a"]). Quotes are stripped from each element.
+
+fn is_version_shaped(value: &str) -> bool {
+    let unquoted = value
+        .strip_prefix('"')
+        .and_then(|v| v.strip_suffix('"'))
+        .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
+        .unwrap_or(value);
+    !unquoted.is_empty()
+        && unquoted
+            .split('.')
+            .all(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// Parse a flow-style YAML string list: `[a, b, "c"]` → `vec![a, b, c]`.
+/// Rejects unclosed brackets and unterminated quotes loudly.
+fn parse_flow_string_list(value: &str) -> Result<Vec<String>, String> {
+    let inner = value
+        .strip_prefix('[')
+        .and_then(|v| v.strip_suffix(']'))
+        .ok_or_else(|| {
+            format!("Frontmatter flow-style list is missing a closing `]`: `{value}`")
+        })?;
+    let mut items = Vec::new();
+    for raw in inner.split(',') {
+        let item = raw.trim();
+        if item.is_empty() {
+            continue;
+        }
+        let unquoted = if let Some(rest) = item.strip_prefix('"') {
+            rest.strip_suffix('"').ok_or_else(|| {
+                format!("Frontmatter list has an unterminated quoted string: `{item}`")
+            })?
+        } else if let Some(rest) = item.strip_prefix('\'') {
+            rest.strip_suffix('\'').ok_or_else(|| {
+                format!("Frontmatter list has an unterminated quoted string: `{item}`")
+            })?
+        } else {
+            item
+        };
+        items.push(unquoted.to_string());
+    }
+    Ok(items)
+}
+
+fn parse_inline_string_list(value: &str) -> Vec<String> {
+    let s = value.trim();
+    let inner = if s.starts_with('[') && s.ends_with(']') {
+        &s[1..s.len() - 1]
+    } else {
+        s
+    };
+    inner
+        .split(',')
+        .map(|v| v.trim().trim_matches('"').trim_matches('\'').to_string())
+        .filter(|v| !v.is_empty())
+        .collect()
 }
 
 /// Parse an inline bracket array of issue numbers: `[42, 57]` → vec![42, 57].
@@ -408,7 +557,16 @@ fn set_field(fm: &mut Frontmatter, key: &str, values: &[String]) {
     match key {
         "files" => fm.files = values.to_vec(),
         "db_tables" => fm.db_tables = values.to_vec(),
-        "depends_on" => fm.depends_on = values.to_vec(),
+        // Dedupe at parse time (order-preserving): duplicate `depends_on`
+        // entries used to inflate edge counts and emit doubled mermaid edges.
+        "depends_on" => {
+            let mut seen = std::collections::HashSet::new();
+            fm.depends_on = values
+                .iter()
+                .filter(|v| seen.insert((*v).clone()))
+                .cloned()
+                .collect();
+        }
         "implements" => fm.implements = parse_issue_numbers(values),
         "tracks" => fm.tracks = parse_issue_numbers(values),
         "lifecycle_log" => fm.lifecycle_log = values.to_vec(),
@@ -439,7 +597,7 @@ static EXPORT_HEADER_RE: LazyLock<Regex> =
 /// an identifier character allowlist. Requiring the closing backtick and cell
 /// delimiter prevents prose and later-column code spans from becoming exports.
 static TABLE_ROW_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\|\s*`([^`\r\n]+)`\s*\|").unwrap());
+    LazyLock::new(|| Regex::new(r"^[ \t]{0,3}\|\s*`([^`\r\n]+)`\s*\|").unwrap());
 
 static METHOD_HEADER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^####\s+.*(?:Methods|Constructor|Properties)").unwrap());
@@ -448,6 +606,29 @@ static METHOD_HEADER_RE: LazyLock<Regex> =
 /// Only extracts the FIRST nonempty backtick-quoted symbol in each table row.
 /// Skips class method sub-tables.
 pub fn get_spec_symbols(body: &str) -> Vec<String> {
+    let mut symbols = collect_spec_symbols(body);
+    // Deduplicate while preserving order
+    let mut seen = HashSet::new();
+    symbols.retain(|s| seen.insert(s.clone()));
+    symbols
+}
+
+/// Symbols listed more than once in the Public API tables — duplicate rows
+/// are almost always a paste error and were previously deduplicated silently.
+pub fn get_duplicate_spec_symbols(body: &str) -> Vec<String> {
+    let symbols = collect_spec_symbols(body);
+    let mut seen = HashSet::new();
+    let mut reported = HashSet::new();
+    let mut duplicates = Vec::new();
+    for symbol in symbols {
+        if !seen.insert(symbol.clone()) && reported.insert(symbol.clone()) {
+            duplicates.push(symbol);
+        }
+    }
+    duplicates
+}
+
+fn collect_spec_symbols(body: &str) -> Vec<String> {
     let mut symbols = Vec::new();
 
     // Find the Public API section manually (no lookahead in Rust regex).
@@ -530,9 +711,6 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
         }
     }
 
-    // Deduplicate while preserving order
-    let mut seen = HashSet::new();
-    symbols.retain(|s| seen.insert(s.clone()));
     symbols
 }
 
@@ -641,17 +819,62 @@ const STUB_PHRASES: &[&str] = &[
     "write here",
     "...",
     "\u{2026}", // ellipsis character
+    // Generator scaffold placeholder text (emitted by `new`/`generate`/`scaffold`/
+    // `add-spec`/`import`). A section containing only these lines is unfinished
+    // draft content, not real documentation — treat it as a stub so scoring and
+    // validation don't grade the tool's own placeholders as complete.
+    "document this module's responsibility, inputs, outputs, and ownership boundaries.",
+    "document this package's responsibility, inputs, outputs, and ownership boundaries.",
+    "define an invariant that must remain true for supported inputs.",
+    "1. define an invariant that must remain true for supported inputs.",
+    "### scenario: core behavior",
+    "### scenario: imported behavior",
+    "**given** precondition",
+    "**when** action",
+    "**then** result",
+    "list runtime dependencies and the specific symbols, services, or data they provide.",
 ];
+
+/// Stock sentences emitted verbatim by `specsync new` / `generate` scaffolds.
+/// They read like prose but are pure template — a spec consisting of them is
+/// an untouched scaffold, not documentation (#441).
+const SCAFFOLD_BOILERPLATE_PREFIXES: &[&str] = &[
+    "document this module's responsibility",
+    "list runtime dependencies and the specific symbols",
+    "define an invariant that must remain true",
+    "**given** precondition",
+    "**when** action",
+    "**then** result",
+];
+
+/// Strip list markers (`- `, `* `, `> `, `1. `) from the start of a line.
+fn strip_list_marker(mut s: &str) -> &str {
+    s = s.trim();
+    for marker in ["- ", "* ", "> "] {
+        if let Some(rest) = s.strip_prefix(marker) {
+            s = rest.trim_start();
+        }
+    }
+    let digits = s.len() - s.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    if digits > 0 && s[digits..].starts_with(". ") {
+        s = s[digits + 2..].trim_start();
+    }
+    s
+}
+
+/// Check if a line is verbatim scaffold boilerplate (case-insensitive).
+pub fn is_boilerplate_line(line: &str) -> bool {
+    let lower = strip_list_marker(line).to_ascii_lowercase();
+    SCAFFOLD_BOILERPLATE_PREFIXES
+        .iter()
+        .any(|p| lower.starts_with(p))
+}
 
 /// Check if a line is a stub/placeholder (case-insensitive).
 fn is_stub_line(line: &str) -> bool {
-    let t = line
-        .trim()
-        .trim_start_matches("- ")
-        .trim_start_matches("* ")
-        .trim_start_matches("> ");
+    let t = strip_list_marker(line);
     let lower = t.to_ascii_lowercase();
-    STUB_PHRASES.contains(&lower.as_str())
+    STUB_PHRASES.contains(&lower.as_str()) || is_boilerplate_line(line)
 }
 
 /// Find the byte offset of an exact `## Section` heading line.
@@ -754,6 +977,45 @@ mod tests {
         assert_eq!(parsed.frontmatter.status.as_deref(), Some("active"));
         assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts"]);
         assert!(parsed.frontmatter.db_tables.is_empty());
+    }
+
+    #[test]
+    fn test_scalar_depends_on_normalized_to_list() {
+        // Regression (#419): a scalar `depends_on: alpha` was silently dropped,
+        // disabling the dependency edge with no diagnostic.
+        let content = "---\nmodule: beta\nversion: 1\nstatus: active\nfiles: []\ndepends_on: alpha\n---\n\n# Beta\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.depends_on, vec!["alpha"]);
+    }
+
+    #[test]
+    fn test_inline_bracket_depends_on_parsed() {
+        let content = "---\nmodule: beta\ndepends_on: [alpha, gamma]\n---\n\n# Beta\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.depends_on, vec!["alpha", "gamma"]);
+    }
+
+    #[test]
+    fn test_duplicate_depends_on_deduped() {
+        // Regression (#419): duplicate entries inflated edge counts and doubled
+        // mermaid edges.
+        let content = "---\nmodule: beta\ndepends_on:\n  - alpha\n  - alpha\n  - gamma\n  - alpha\n---\n\n# Beta\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert_eq!(parsed.frontmatter.depends_on, vec!["alpha", "gamma"]);
+    }
+
+    #[test]
+    fn test_scaffold_boilerplate_detected() {
+        // Regression (#441): an untouched `specsync new` scaffold must not
+        // count as placeholder-free, meaningful content.
+        assert!(is_boilerplate_line(
+            "Document this module's responsibility, inputs, outputs, and ownership boundaries."
+        ));
+        assert!(is_boilerplate_line("- **Given** precondition"));
+        assert!(is_boilerplate_line(
+            "1. Define an invariant that must remain true for supported inputs."
+        ));
+        assert!(!is_boilerplate_line("Handles authentication tokens."));
     }
 
     #[test]
@@ -1441,5 +1703,21 @@ private_extension:
         let required = vec!["Purpose".to_string(), "Public API".to_string()];
         let stubs = find_stub_sections(body, &required);
         assert!(stubs.is_empty());
+    }
+
+    #[test]
+    fn generator_placeholder_text_counts_as_stub() {
+        // #421: the generators' own scaffold sentences are draft markers, not
+        // real content — a section filled only with them is a stub.
+        let body = "## Purpose\n\nDocument this module's responsibility, inputs, outputs, and ownership boundaries.\n\n## Invariants\n\n1. Define an invariant that must remain true for supported inputs.\n";
+        assert!(!section_has_content(body, "Purpose"));
+        assert!(!section_has_content(body, "Invariants"));
+
+        let behavioral = "## Behavioral Examples\n\n### Scenario: Core behavior\n\n- **Given** precondition\n- **When** action\n- **Then** result\n";
+        assert!(!section_has_content(behavioral, "Behavioral Examples"));
+
+        // ...but real content is still real content.
+        let real = "## Purpose\n\nAuthenticates users via OAuth2 and session tokens.\n";
+        assert!(section_has_content(real, "Purpose"));
     }
 }

@@ -144,7 +144,13 @@ impl IgnoreRules {
     /// requirements-companion           # suppress globally
     /// stub-section:specs/auth/         # suppress for specs under this path
     /// undocumented-export:specs/api.spec.md  # suppress for specific spec
+    /// specs/api.spec.md:undocumented-export  # path:first order also accepted
     /// ```
+    ///
+    /// A leading UTF-8 BOM is tolerated. One invalid-UTF-8 line is skipped
+    /// with a warning rather than poisoning the whole file. Lines that match
+    /// no known category produce a warning — a suppression that can never
+    /// fire must be visible.
     pub fn load(root: &Path) -> Self {
         let mut rules = Self::default();
         let ignore_path = root.join(".specsyncignore");

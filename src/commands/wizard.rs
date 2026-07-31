@@ -29,7 +29,7 @@ pub fn cmd_wizard(root: &Path) {
         .unwrap_or_else(|_| process::exit(0));
     let module_name = module_name.trim().to_string();
 
-    if let Err(e) = super::validate_module_name(&module_name) {
+    if let Err(e) = super::validate_scaffold_module_name(&module_name) {
         eprintln!("{} {e}", "Error:".red());
         process::exit(1);
     }

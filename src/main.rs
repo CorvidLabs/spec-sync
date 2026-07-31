@@ -117,7 +117,7 @@ fn run() {
     }
 
     match command {
-        Command::Init => commands::init::cmd_init(&root),
+        Command::Init { repair } => commands::init::cmd_init(&root, repair, format),
         Command::Check {
             fix,
             dry_run,
@@ -162,6 +162,7 @@ fn run() {
         ),
         Command::Score {
             explain,
+            min_score,
             all,
             specs,
         } => commands::score::cmd_score(
@@ -169,6 +170,7 @@ fn run() {
             cli.strict,
             cli.enforcement,
             cli.require_coverage,
+            min_score,
             format,
             explain,
             all,
@@ -189,13 +191,24 @@ fn run() {
             dir,
             template,
         } => commands::scaffold::cmd_scaffold(&root, &name, dir, template),
-        Command::InitRegistry { name } => commands::init_registry::cmd_init_registry(&root, name),
+        Command::InitRegistry { name } => {
+            commands::init_registry::cmd_init_registry(&root, name, format)
+        }
         Command::Resolve {
             remote,
             verify,
             cache_ttl,
-        } => commands::resolve::cmd_resolve(&root, remote || verify, verify, cache_ttl),
-        Command::Diff { base } => commands::diff::cmd_diff(&root, &base, format),
+        } => commands::resolve::cmd_resolve(
+            &root,
+            remote || verify,
+            verify,
+            cache_ttl,
+            format,
+            cli.strict,
+        ),
+        Command::Diff { base } => {
+            commands::diff::cmd_diff(&root, base.as_deref(), format, cli.strict)
+        }
         Command::Hooks { action } => commands::hooks::cmd_hooks(&root, action),
         Command::Agents { action } => commands::agents::cmd_agents(&root, action),
         Command::Compact { keep, dry_run } => {
@@ -209,9 +222,15 @@ fn run() {
         Command::Issues { create } => commands::issues::cmd_issues(&root, format, create),
         Command::New { name, full } => commands::new::cmd_new(&root, &name, full),
         Command::Wizard => commands::wizard::cmd_wizard(&root),
-        Command::Deps { mermaid, dot } => {
-            commands::deps::cmd_deps(&root, cli.strict, format, mermaid, dot)
-        }
+        Command::Deps { mermaid, dot } => commands::deps::cmd_deps(
+            &root,
+            cli.strict,
+            cli.enforcement,
+            cli.require_coverage,
+            format,
+            mermaid,
+            dot,
+        ),
         Command::Import {
             source,
             id,
@@ -234,6 +253,7 @@ fn run() {
             threshold,
             &cli.exclude_status,
             &cli.only_status,
+            cli.enforcement,
         ),
         Command::Report { stale_threshold } => commands::report::cmd_report(
             &root,
@@ -241,6 +261,9 @@ fn run() {
             stale_threshold,
             &cli.exclude_status,
             &cli.only_status,
+            cli.strict,
+            cli.enforcement,
+            cli.require_coverage,
         ),
         Command::Comment { pr, base } => commands::comment::cmd_comment(
             &root,
@@ -340,6 +363,7 @@ mod tests {
             specced_loc: 0,
             loc_coverage_percent: 100,
             unspecced_file_loc: vec![],
+            missing_files: vec![],
         }
     }
 
@@ -367,6 +391,7 @@ mod tests {
             specced_loc: 0,
             loc_coverage_percent: 0,
             unspecced_file_loc: vec![],
+            missing_files: vec![],
         }
     }
 

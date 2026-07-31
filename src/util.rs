@@ -35,6 +35,27 @@ pub fn safe_regex(pattern: &str) -> Option<regex::Regex> {
         .ok()
 }
 
+/// Confine a user-supplied path (e.g. a `depends_on` entry) to the project
+/// root. Returns the joined path when `rel` is a relative path with no `..`
+/// escape and no absolute/prefix component; `None` otherwise. Use this to
+/// keep dependency declarations from validating (or reading) files outside
+/// the project — `/etc/passwd` must never pass as a spec dependency.
+pub fn confine_path_to_root(root: &std::path::Path, rel: &str) -> Option<std::path::PathBuf> {
+    use std::path::Component;
+    let path = std::path::Path::new(rel);
+    if rel.is_empty() || path.is_absolute() {
+        return None;
+    }
+    for component in path.components() {
+        match component {
+            Component::Normal(_) | Component::CurDir => {}
+            // ParentDir could escape the root; RootDir/Prefix are absolute.
+            _ => return None,
+        }
+    }
+    Some(root.join(path))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -57,5 +78,28 @@ mod tests {
     #[test]
     fn test_safe_regex_invalid() {
         assert!(safe_regex(r"[invalid").is_none());
+    }
+
+    #[test]
+    fn test_confine_path_to_root_accepts_relative() {
+        let root = std::path::Path::new("/proj");
+        assert_eq!(
+            confine_path_to_root(root, "specs/a/a.spec.md"),
+            Some(root.join("specs/a/a.spec.md"))
+        );
+        assert_eq!(
+            confine_path_to_root(root, "./specs/a.spec.md"),
+            Some(root.join("./specs/a.spec.md"))
+        );
+    }
+
+    #[test]
+    fn test_confine_path_to_root_rejects_escapes() {
+        let root = std::path::Path::new("/proj");
+        // Absolute paths and `..` traversal must never validate (#444).
+        assert_eq!(confine_path_to_root(root, "/etc/passwd"), None);
+        assert_eq!(confine_path_to_root(root, "../outside.spec.md"), None);
+        assert_eq!(confine_path_to_root(root, "specs/../../etc/passwd"), None);
+        assert_eq!(confine_path_to_root(root, ""), None);
     }
 }

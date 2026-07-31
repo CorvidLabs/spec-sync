@@ -1420,7 +1420,6 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         affected_paths.push(SEQUENCE_PATH.into());
     }
     let slug = slugify(&description);
-    let id = next_change_id(root, &slug)?;
     let now = now();
     let mut artifacts = adaptive_artifacts(kind, &affected_specs, &affected_paths);
     for artifact in requested_artifacts {
@@ -1438,6 +1437,10 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
     if workflow_version >= 2 {
         ensure_workflow_v2_baseline(root)?;
     }
+    // Allocate id + exclusive directory (retries on shared-FS races). Multi-clone
+    // still needs SPECSYNC_SEQUENCE_BASE or post-merge renumber — exclusive create
+    // only serializes agents that share a working tree / volume.
+    let (id, dir) = allocate_change_workspace(root, &slug)?;
     let record = ChangeRecord {
         schema_version: 1,
         workflow_version,
@@ -1465,7 +1468,6 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         legacy_archive_baseline_digest: None,
         answers: BTreeMap::new(),
     };
-    let dir = change_dir(root, &record.id);
     fs::create_dir_all(dir.join("deltas")).map_err(|error| error.to_string())?;
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
@@ -1818,13 +1820,21 @@ fn validate_change_sequences(root: &Path) -> Result<(), String> {
             .map(|change| change.sequence)
             .max()
             .unwrap_or(0);
-        if maximum != ledger.sequence {
+        // Disk must never run ahead of the ledger high-water mark.
+        if maximum > ledger.sequence {
             return Err(format!(
                 "change sequence ledger claims CHG-{:04} but the highest recorded sequence is CHG-{maximum:04}",
                 ledger.sequence
             ));
         }
-        if !located.iter().any(|change| change.id == ledger.id) {
+        let claim_present = located.iter().any(|change| change.id == ledger.id);
+        if !claim_present {
+            // Allow high-water claims after an abandoned draft (workspace removed
+            // but sequence not rolled back). Multi-agent cleanup and aborted
+            // `change new` paths hit this case.
+            if ledger.sequence > maximum {
+                return Ok(());
+            }
             return Err(format!(
                 "change sequence ledger claim `{}` has no active or archived workspace",
                 ledger.id
@@ -16147,19 +16157,12 @@ fn accepted_change_has_current_canonical_successors(root: &Path, record: &Change
     specs_governed && paths_governed
 }
 
-fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
+fn maximum_observed_sequence(root: &Path) -> Result<u64, String> {
     let mut maximum = 0_u64;
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
         if let Ok(entries) = fs::read_dir(base) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                for part in name.split('-') {
-                    if let Some(number) = part.strip_prefix("CHG")
-                        && let Ok(value) = number.parse::<u64>()
-                    {
-                        maximum = maximum.max(value);
-                    }
-                }
                 if let Some(index) = name.find("CHG-") {
                     let digits: String = name[index + 4..]
                         .chars()
@@ -16172,7 +16175,68 @@ fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
             }
         }
     }
+    if let Some(ledger) = load_change_sequence_ledger(root)? {
+        maximum = maximum.max(ledger.sequence);
+    }
+    // Multi-agent / multi-clone: set SPECSYNC_SEQUENCE_BASE to a disjoint high-water
+    // (e.g. agent A=100, agent B=200) so parallel clones do not mint the same CHG-NNNN.
+    if let Ok(base) = std::env::var("SPECSYNC_SEQUENCE_BASE") {
+        let base = base.trim();
+        if !base.is_empty() {
+            let value: u64 = base.parse().map_err(|_| {
+                format!(
+                    "SPECSYNC_SEQUENCE_BASE must be a positive integer, got `{}`",
+                    base.escape_default()
+                )
+            })?;
+            if value == 0 {
+                return Err("SPECSYNC_SEQUENCE_BASE must be >= 1".into());
+            }
+            // Treat BASE as the next sequence this agent may mint (high-water exclusive).
+            maximum = maximum.max(value.saturating_sub(1));
+        }
+    }
+    Ok(maximum)
+}
+
+fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
+    let maximum = maximum_observed_sequence(root)?;
     Ok(format!("CHG-{:04}-{slug}", maximum + 1))
+}
+
+/// Pick the next CHG id and create its workspace directory exclusively.
+///
+/// Retries when the directory already exists (shared-filesystem multi-process races).
+/// Separate git clones still need `SPECSYNC_SEQUENCE_BASE` (or post-merge renumber)
+/// because they cannot see each other's uncommitted workspaces.
+fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf), String> {
+    let changes = root.join(CHANGES_PATH);
+    fs::create_dir_all(&changes).map_err(|error| {
+        format!(
+            "failed to create active changes directory {}: {error}",
+            changes.display()
+        )
+    })?;
+    let mut maximum = maximum_observed_sequence(root)?;
+    for _ in 0..10_000u32 {
+        let sequence = maximum + 1;
+        let id = format!("CHG-{:04}-{slug}", sequence);
+        let dir = change_dir(root, &id);
+        match fs::create_dir(&dir) {
+            Ok(()) => return Ok((id, dir)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                maximum = maximum.max(sequence);
+                continue;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to create change workspace {}: {error}",
+                    dir.display()
+                ));
+            }
+        }
+    }
+    Err("exhausted change sequence allocation retries".into())
 }
 
 fn slugify(value: &str) -> String {
@@ -26478,12 +26542,17 @@ mod tests {
         record.state = ChangeState::Implementing;
         record.affected_paths = vec![".specsync".into()];
         save_change(root, &record).unwrap();
+        // Disk may not run ahead of the ledger high-water mark.
+        let mut later = record.clone();
+        later.id = "CHG-0002-later-owner".into();
+        later.slug = "later-owner".into();
+        save_change(root, &later).unwrap();
         write_json(
             &root.join(SEQUENCE_PATH),
             &ChangeSequenceLedger {
                 schema_version: 1,
-                sequence: 2,
-                id: "CHG-0002-missing-owner".into(),
+                sequence: 1,
+                id: record.id.clone(),
                 acknowledged_collisions: Vec::new(),
             },
         )
@@ -26491,6 +26560,25 @@ mod tests {
 
         let error = acceptance_input_digest(root, &record, &[]).unwrap_err();
         assert!(error.contains("highest recorded sequence"));
+    }
+
+    #[test]
+    fn abandoned_draft_may_leave_sequence_high_water_without_workspace() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        save_change(root, &record).unwrap();
+        write_json(
+            &root.join(SEQUENCE_PATH),
+            &ChangeSequenceLedger {
+                schema_version: 1,
+                sequence: 2,
+                id: "CHG-0002-abandoned-draft".into(),
+                acknowledged_collisions: Vec::new(),
+            },
+        )
+        .unwrap();
+        assert!(validate_change_sequences(root).is_ok());
     }
 
     #[test]

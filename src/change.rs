@@ -7774,7 +7774,12 @@ fn default_transaction_permissions(temporary: &Path) -> Result<fs::Permissions, 
     let mut permissions = fs::metadata(temporary)
         .map(|metadata| metadata.permissions())
         .map_err(|error| format!("failed to read staged file permissions: {error}"))?;
-    permissions.set_readonly(false);
+    // Clear the Windows read-only bit after staging. This is not the Unix
+    // 0o666 world-writable case that clippy::permissions_set_readonly_false warns about.
+    #[allow(clippy::permissions_set_readonly_false)]
+    {
+        permissions.set_readonly(false);
+    }
     Ok(permissions)
 }
 

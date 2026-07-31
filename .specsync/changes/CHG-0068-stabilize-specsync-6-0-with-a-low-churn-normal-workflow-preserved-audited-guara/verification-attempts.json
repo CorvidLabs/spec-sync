@@ -3286,6 +3286,244 @@
         "REQ-schema-001",
         "REQ-validator-009"
       ]
+    },
+    {
+      "timestamp": 1785517614,
+      "commit": "80d316e4de9cb09760c3e6f905e1a2cd329177eb",
+      "contract_digest": "1d235173cc5b7951f7ba130646f31f24659c2c9238e3d009b5a08916a1705699",
+      "execution_digest": "d35ebf62b11c3f44aa413c7ac02787f5cf9ae6966d1686617e20502cda0bb16c",
+      "workspace_digest": "e3cffeb3a0bcfd4346d281c5f876eca58cd092deb8efdfc59e9779a4568d4cb4",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test schema::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test ignore::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test exports::typescript::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test exports::erlang::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test exports::ast::erlang::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::check::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-004",
+        "REQ-change-013",
+        "REQ-change-016",
+        "REQ-change-029",
+        "REQ-change-043",
+        "REQ-change-044",
+        "REQ-change-045",
+        "REQ-change-046",
+        "REQ-cli-008",
+        "REQ-cli-args-009",
+        "REQ-cmd-change-005",
+        "REQ-cmd-check-003",
+        "REQ-cmd-comment-0068-001",
+        "REQ-cmd-coverage-0068-001",
+        "REQ-cmd-generate-0068-001",
+        "REQ-commands-005",
+        "REQ-exports-006",
+        "REQ-github-005",
+        "REQ-hooks-002",
+        "REQ-ignore-001",
+        "REQ-schema-001",
+        "REQ-validator-009"
+      ]
+    },
+    {
+      "timestamp": 1785518901,
+      "commit": "1e9bad6841878d66abf441c57584944bc7177896",
+      "contract_digest": "1d235173cc5b7951f7ba130646f31f24659c2c9238e3d009b5a08916a1705699",
+      "execution_digest": "52792a3ff4ff9c224ba1ddb34436002c827e3180b7163b67788734e59eca5fd3",
+      "workspace_digest": "e3cffeb3a0bcfd4346d281c5f876eca58cd092deb8efdfc59e9779a4568d4cb4",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test schema::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test ignore::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test exports::typescript::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test exports::erlang::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test exports::ast::erlang::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::check::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-004",
+        "REQ-change-013",
+        "REQ-change-016",
+        "REQ-change-029",
+        "REQ-change-043",
+        "REQ-change-044",
+        "REQ-change-045",
+        "REQ-change-046",
+        "REQ-cli-008",
+        "REQ-cli-args-009",
+        "REQ-cmd-change-005",
+        "REQ-cmd-check-003",
+        "REQ-cmd-comment-0068-001",
+        "REQ-cmd-coverage-0068-001",
+        "REQ-cmd-generate-0068-001",
+        "REQ-commands-005",
+        "REQ-exports-006",
+        "REQ-github-005",
+        "REQ-hooks-002",
+        "REQ-ignore-001",
+        "REQ-schema-001",
+        "REQ-validator-009"
+      ]
     }
   ]
 }

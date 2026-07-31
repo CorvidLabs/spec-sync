@@ -817,9 +817,9 @@ fn audit_change_command_content(tool: AgentTool) -> String {
         AgentTool::Claude => format!(
             "---\ndescription: {AUDIT_CHANGE_DESCRIPTION}\n---\n\nAudit active SpecSync change workspaces and living specs.\n\n{steps}\n"
         ),
-        AgentTool::Cursor => format!(
-            "Audit active SpecSync change workspaces and living specs.\n\n{steps}\n"
-        ),
+        AgentTool::Cursor => {
+            format!("Audit active SpecSync change workspaces and living specs.\n\n{steps}\n")
+        }
         AgentTool::Gemini => format!(
             "description = \"{AUDIT_CHANGE_DESCRIPTION}\"\n\nprompt = \"\"\"\nAudit active SpecSync change workspaces and living specs.\n\n{steps}\n\"\"\"\n"
         ),
@@ -1151,8 +1151,16 @@ mod tests {
                 .join(".cursor/commands/specsync-create-change.md")
                 .exists()
         );
-        assert!(tmp.path().join(".cursor/commands/specsync-check.md").exists());
-        assert!(tmp.path().join(".cursor/commands/specsync-audit.md").exists());
+        assert!(
+            tmp.path()
+                .join(".cursor/commands/specsync-check.md")
+                .exists()
+        );
+        assert!(
+            tmp.path()
+                .join(".cursor/commands/specsync-audit.md")
+                .exists()
+        );
     }
 
     #[test]

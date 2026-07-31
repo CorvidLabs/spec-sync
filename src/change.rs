@@ -5886,12 +5886,7 @@ fn check_project_with_command_output(
         // Only evaluate terminal evidence for active accepted/archived-in-flight records.
         let active_terminal: BTreeMap<_, _> = records
             .iter()
-            .filter(|record| {
-                matches!(
-                    record.state,
-                    ChangeState::Accepted | ChangeState::Archived
-                )
-            })
+            .filter(|record| matches!(record.state, ChangeState::Accepted | ChangeState::Archived))
             .cloned()
             .map(|record| (record.id.clone(), record))
             .collect();

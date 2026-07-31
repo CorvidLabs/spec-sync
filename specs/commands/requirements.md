@@ -54,11 +54,11 @@ spec: commands.spec.md
 
 ### REQ-commands-001
 
-The system SHALL describe registered command modules using their current persisted layout and behavior.
+The `commands` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
 
 Acceptance Criteria
-- The init registry entry names the `.specsync/` 5.0 layout rather than the removed root JSON layout.
-- Command documentation remains consistent with the dispatched modules.
+- Related `cargo test` coverage for `commands` remains green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-commands-002
 

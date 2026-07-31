@@ -50,22 +50,9 @@ spec: parser.spec.md
 
 ### REQ-parser-001
 
-The parser SHALL deterministically parse the supported frontmatter and Public API Markdown subset,
-SHALL identify required and stub sections, and SHALL provide fail-closed real-YAML parsing for
-security-sensitive GitHub issue references.
+The `parser` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
 
 Acceptance Criteria
-
-- `parse_frontmatter` retains its established supported-subset compatibility behavior.
-- `parse_checked_issue_references` parses the complete frontmatter document with maintained
-  `serde-saphyr` real-YAML semantics and duplicate-key rejection.
-- LF and CRLF frontmatter delimiters are accepted equivalently.
-- YAML comments and valid trailing commas are accepted.
-- Duplicate `implements`/`tracks` keys, duplicate keys elsewhere in the YAML mapping tree, and
-  malformed YAML anywhere in frontmatter reject the complete checked parse.
-- Top-level `implements` and `tracks` accept only sequences of positive unsigned issue numbers;
-  blank, null, scalar, mapping, mixed, zero, negative, and overflowing values are rejected.
-- Nested extension mappings/sequences and block-scalar text containing issue-like keys do not
-  contribute issue references.
-- Checked parse errors are stable and content-free.
+- Related `cargo test` coverage for `parser` remains green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 

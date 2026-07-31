@@ -1,6 +1,6 @@
 ---
 module: hash_cache
-version: 3
+version: 4
 status: stable
 files:
   - src/hash_cache.rs
@@ -42,6 +42,11 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | `filter_unchanged` | `root: &Path, spec_files: &[PathBuf], cache: &HashCache` | `Vec<PathBuf>` | Return only specs with detected changes |
 | `update_cache` | `root: &Path, spec_files: &[PathBuf], cache: &mut HashCache` | `()` | Post-validation: update hashes for all specs, companions, and source files; prune deleted entries |
 | `extract_frontmatter_files` | `content: &str` | `Vec<String>` | Quick extraction of `files:` list from YAML frontmatter without full parser |
+| `CachedValidationSnapshot` | Cached validation outcome bound to digests |
+| `ValidationDiagnostics` | Cached errors/warnings/notices |
+| `record_validation_snapshot` | Record warm-cache validation snapshot |
+| `current_validation_input_digest` | Current validation input digest |
+| `replayable_validation_snapshot` | Load replayable snapshot when still valid |
 
 ## Invariants
 
@@ -118,3 +123,4 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | 2026-04-06 | Initial spec for v3.3.0 |
 | 2026-04-13 | Document design.md and testing.md in companion file detection list |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |

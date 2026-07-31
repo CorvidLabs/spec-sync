@@ -193,7 +193,7 @@ pub fn validate_module_name(module_name: &str) -> Result<(), String> {
 /// pre-existing module names use [`validate_module_name`] so older repos with
 /// legacy names keep working.
 /// Maximum module-name length.
-pub const MAX_MODULE_NAME_LEN: usize = 64;
+pub(crate) const MAX_MODULE_NAME_LEN: usize = 64;
 
 fn is_reserved_module_name(lower: &str) -> bool {
     const RESERVED: &[&str] = &[
@@ -205,9 +205,9 @@ fn is_reserved_module_name(lower: &str) -> bool {
 }
 
 /// Documented naming rules for scaffold errors.
-pub const MODULE_NAME_RULES: &str = "1-64 chars: letters, digits, `-`, `_`, `.`; must start with a letter or digit; no spaces, path separators, or reserved names";
+pub(crate) const MODULE_NAME_RULES: &str = "1-64 chars: letters, digits, `-`, `_`, `.`; must start with a letter or digit; no spaces, path separators, or reserved names";
 
-pub fn validate_scaffold_module_name(module_name: &str) -> Result<(), String> {
+pub(crate) fn validate_scaffold_module_name(module_name: &str) -> Result<(), String> {
     validate_module_name(module_name)?;
 
     // Length limit (character count, not bytes).
@@ -247,7 +247,7 @@ pub fn validate_scaffold_module_name(module_name: &str) -> Result<(), String> {
 /// Reject a module name that would collide with an existing spec directory
 /// under a case-folding filesystem (e.g. `Lib` vs existing `lib`). Linux
 /// allows both, but the repo then breaks on macOS/Windows checkouts.
-pub fn check_case_collision(specs_dir: &Path, module_name: &str) -> Result<(), String> {
+pub(crate) fn check_case_collision(specs_dir: &Path, module_name: &str) -> Result<(), String> {
     let entries = match std::fs::read_dir(specs_dir) {
         Ok(e) => e,
         Err(_) => return Ok(()), // no specs dir yet — nothing to collide with
@@ -1073,7 +1073,7 @@ fn colorize_subscore(score: u32) -> String {
 ///   ERRORS (`Strict`-like): validation errors exit 1. Warnings remain
 ///   non-blocking unless `--strict` is also passed. This is the only safe
 ///   default for CI — a command that prints "1 failed" must not exit 0.
-pub fn default_enforcement(config: &types::SpecSyncConfig) -> types::EnforcementMode {
+pub(crate) fn default_enforcement(config: &types::SpecSyncConfig) -> types::EnforcementMode {
     if config.enforcement_set {
         config.enforcement
     } else {

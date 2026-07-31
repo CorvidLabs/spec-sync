@@ -1,6 +1,6 @@
 ---
 module: config
-version: 14
+version: 15
 status: stable
 files:
   - src/config.rs
@@ -41,6 +41,8 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | Constant | Type | Description |
 |----------|------|-------------|
 | `CONFIG_PATH_CANDIDATES` | `&[&str]` | Crate-private canonical-to-legacy configuration precedence shared by retained CLI discovery |
+| `detect_source_dirs_with_confidence` | Detect source dirs with confidence flag |
+| `validate_config_file` | Validate config file honestly |
 
 ## Invariants
 
@@ -150,6 +152,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-07-22 | CHG-0063 capability-source follow-up: Let exact-byte config callers supply retained-capability source discovery so omitted source dirs cannot consult a replaced ambient root |
 | 2026-07-24 | v13 / CHG-0063 exact-head remediation: expose shared config precedence and lexical source classification to retained CLI discovery while preserving explicit-source and malformed-config compatibility |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 
 ## Config File Structure
 

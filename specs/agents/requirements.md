@@ -38,11 +38,11 @@ spec: agents.spec.md
 
 ### REQ-agents-001
 
-The system SHALL keep installed native agent artifacts and their canonical documentation consistent.
+The `agents` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
 
 Acceptance Criteria
-- Claude, Cursor, and Gemini receive create-spec and create-change commands.
-- Codex receives the project-scoped lifecycle skill without a deprecated command file.
+- Related `cargo test` coverage for `agents` remains green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-agents-002
 

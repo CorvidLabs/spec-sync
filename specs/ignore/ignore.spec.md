@@ -1,6 +1,6 @@
 ---
 module: ignore
-version: 6
+version: 7
 status: stable
 files:
   - src/ignore.rs
@@ -119,3 +119,4 @@ Provides a warning suppression system for spec-sync validation. Supports three l
 | 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Move associated methods under the informational method subsection so exact symbol parsing validates only real module exports |
 | 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve punctuated Public API symbols across all export extractors |
 | 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
+| 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |

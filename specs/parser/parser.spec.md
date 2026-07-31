@@ -1,6 +1,6 @@
 ---
 module: parser
-version: 7
+version: 8
 status: stable
 files:
   - src/parser.rs
@@ -44,6 +44,8 @@ parser that validates top-level issue-reference fields and rejects ambiguous or 
 | `body_has_section` | `body: &str, section: &str` | `bool` | Return whether the body contains an exact `## Section` heading |
 | `get_near_miss_sections` | `body: &str, required_sections: &[String]` | `Vec<(String, String)>` | Return missing canonical sections paired with near-miss headings |
 | `get_all_api_table_symbols` | `body: &str` | `Vec<String>` | Extract the first backtick-quoted symbol from every Public API table row |
+| `get_duplicate_spec_symbols` | Find duplicate symbols in a spec body |
+| `is_boilerplate_line` | Detect placeholder documentation lines |
 
 ## Invariants
 
@@ -154,3 +156,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve punctuated Public API symbols across all export extractors |
 | 2026-07-22 | CHG-0063: Add maintained real-YAML checked issue-reference parsing with duplicate/malformed YAML rejection, strict top-level shapes, CRLF compatibility, and extension-safe semantics |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |

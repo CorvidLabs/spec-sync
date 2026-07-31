@@ -30,13 +30,9 @@ spec: cmd_coverage.spec.md
 
 ### REQ-cmd-coverage-001
 
-The coverage command SHALL report trustworthy file and LOC coverage and SHALL fail closed when
-manifest discovery is inconclusive.
+The `cmd_coverage` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
 
 Acceptance Criteria
-
-- Coverage is computed through `compute_coverage_checked`.
-- Trustworthy zero-denominator coverage retains the documented 100% behavior.
-- Malformed Gradle/manifest discovery exits 1 with valid JSON containing `valid: false`,
-  `inconclusive: true`, null percentages, zero counts, empty collections, and an explicit error.
+- Related `cargo test` coverage for `cmd_coverage` remains green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 

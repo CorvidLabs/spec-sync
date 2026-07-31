@@ -16,12 +16,11 @@ spec: config.spec.md
 
 ### REQ-config-001
 
-Configuration loading SHALL never interpret repository or local configuration as inference credentials or executable AI commands.
+The `config` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
 
 Acceptance Criteria
-- AI configuration fields are removed from JSON/TOML readers and writers.
-- Legacy AI keys produce migration guidance without activating behavior.
-- The obsolete AI-only local override merge is removed.
+- Related `cargo test` coverage for `config` remains green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-config-002
 

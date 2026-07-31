@@ -1,6 +1,6 @@
 ---
 module: registry
-version: 5
+version: 6
 status: stable
 files:
   - src/registry.rs
@@ -120,3 +120,4 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 | 2026-06-11 | v3: Added `local_registry_path`; `load_registry`/`register_module` now resolve the v4 `.specsync/registry.toml` location with legacy fallback |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-19 | CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa: Tolerate inert 5.0.1 registry.toml stubs so module resolution falls back to default specs layout without failing closed on empty legacy stubs |
+| 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |

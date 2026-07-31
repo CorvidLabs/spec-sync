@@ -49,37 +49,11 @@ spec: validator.spec.md
 
 ### REQ-validator-001
 
-The validator SHALL enforce bidirectional code-contract, metadata, dependency, schema, and coverage
-rules while accumulating actionable findings, and SHALL support exact pre-read spec snapshots
-without reopening their logical paths.
+The `validator` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
 
 Acceptance Criteria
-
-- Bidirectional validation reports a documented-but-missing export as an error and an undocumented
-  code export as a warning.
-- Missing required frontmatter fields (`module`, `version`, `status`, `files`) are errors.
-- Cross-project references are recognized and skipped during local validation.
-- Coverage excludes test files and configured exclude patterns.
-- `find_spec_files` returns sorted results.
-- Schema validation uses the configured `schema_pattern`.
-- Missing source suggestions use Levenshtein distance with a maximum distance of three.
-- Flat source files are detected as modules while common entry points are excluded.
-- Source discovery respects configured `source_extensions`.
-- Requirements companions are validated when present and remain optional for technical/internal
-  modules under adaptive artifact policy.
-- `validate_spec_content` applies normal single-spec validation to caller-provided spec bytes.
-- `spec_path` remains the logical location for diagnostics and mapped-source resolution, but is not
-  reopened to obtain spec content; adjacent companion reads are deliberately skipped for the
-  pre-read spec-content API, while mapped sources retain normal path-based behavior.
-- CRLF normalization and spec-size policy are computed from the supplied content.
-- `validate_spec` preserves path-based compatibility by reading once and delegating the exact bytes
-  to `validate_spec_content`.
-- `SourceSnapshot` represents `Present`, `Missing`, `Rejected`, and `Unreadable` mapped-source
-  observations.
-- `validate_spec_content_with_sources` validates supplied spec bytes and supplied mapped-source
-  observations without reopening either through ambient project paths.
-- Supplied-content export extraction uses retained source bytes and does not resolve TypeScript
-  wildcard imports through ambient paths.
+- Related `cargo test` coverage for `validator` remains green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-validator-002
 

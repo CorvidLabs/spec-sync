@@ -1,6 +1,6 @@
 ---
 module: cmd_score
-version: 4
+version: 5
 status: stable
 files:
   - src/commands/score.rs
@@ -76,3 +76,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |

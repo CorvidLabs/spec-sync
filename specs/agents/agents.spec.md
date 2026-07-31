@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 8
+version: 9
 status: stable
 files:
   - src/agents.rs
@@ -127,3 +127,4 @@ distinguish exact managed bytes from user customization.
 | 2026-07-15 | SpecSync | CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa: Synchronize generated create-spec agent commands with the corrected free-text parser guidance and prevent checked-in asset drift |
 | 2026-07-30 | SpecSync | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
 | 2026-07-31 | SpecSync | CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle: Scoped change check, change audit, and agent pack for the two-verb lifecycle |
+| 2026-07-31 | SpecSync | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |

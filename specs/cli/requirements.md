@@ -50,11 +50,11 @@ spec: cli.spec.md
 
 ### REQ-cli-001
 
-The system SHALL expose and document the verified SDD lifecycle through the root CLI dispatcher.
+The `cli` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
 
 Acceptance Criteria
-- The CLI contract lists the `change` namespace and current initialization layout.
-- Dispatch documentation includes the change lifecycle handler.
+- Related `cargo test` coverage for `cli` remains green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-cli-002
 

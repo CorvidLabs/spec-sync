@@ -24,7 +24,7 @@ fn normalize_rel(path: &Path) -> String {
 /// Complete validation result bound to the exact inputs that produced it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CachedValidationSnapshot {
+pub(crate) struct CachedValidationSnapshot {
     /// Snapshot schema version.
     pub snapshot_version: u32,
     /// Platform-native project-relative path used by cold validation output.
@@ -43,7 +43,7 @@ pub struct CachedValidationSnapshot {
 
 /// User-visible diagnostics captured for one spec validation.
 #[derive(Debug, Clone)]
-pub struct ValidationDiagnostics {
+pub(crate) struct ValidationDiagnostics {
     /// Validation errors without a duplicated spec-path prefix.
     pub errors: Vec<String>,
     /// Unsuppressed validation warnings without a spec-path prefix.
@@ -145,7 +145,7 @@ impl HashCache {
     }
 
     /// Record one complete validation snapshot against the current inputs.
-    pub fn record_validation_snapshot(
+    pub(crate) fn record_validation_snapshot(
         &mut self,
         root: &Path,
         spec_path: &Path,
@@ -179,7 +179,7 @@ impl HashCache {
     }
 
     /// Compute the exact current input digest used to guard a validation run.
-    pub fn current_validation_input_digest(
+    pub(crate) fn current_validation_input_digest(
         root: &Path,
         spec_path: &Path,
         global_inputs: &[String],
@@ -190,7 +190,7 @@ impl HashCache {
 
     /// Return a snapshot only when its schema, integrity digest, and every
     /// validation input still match the current workspace.
-    pub fn replayable_validation_snapshot(
+    pub(crate) fn replayable_validation_snapshot(
         &self,
         root: &Path,
         spec_path: &Path,

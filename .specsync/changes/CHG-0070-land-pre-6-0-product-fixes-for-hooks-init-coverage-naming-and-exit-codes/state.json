@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes",
+  "slug": "land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes",
+  "title": "Land pre-6.0 product fixes for hooks init coverage naming and exit codes",
+  "description": "land pre-6.0 product fixes for hooks init coverage naming and exit codes",
+  "kind": "feature",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "ce2ef091e74f379f96fee201b7cad4a721c57de1",
+  "created_at": 1785540886,
+  "updated_at": 1785542348,
+  "affected_specs": [
+    "hooks",
+    "commands",
+    "validator",
+    "parser",
+    "registry",
+    "config",
+    "ignore",
+    "exports",
+    "scoring",
+    "hash_cache",
+    "cli",
+    "cmd_check",
+    "cmd_coverage",
+    "cmd_score",
+    "agents"
+  ],
+  "affected_paths": [
+    "src/",
+    "tests/",
+    "Cargo.toml",
+    "Cargo.lock",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Pre-6.0 product fixes land on main: hooks managed-block safety, init honesty, draft-planned coverage correctness, module naming, exit-code/CI helpers; cargo test green."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

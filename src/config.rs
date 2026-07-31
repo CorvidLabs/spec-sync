@@ -109,7 +109,7 @@ fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
 /// Like [`detect_source_dirs`], but also reports whether any source
 /// directories were actually detected. `false` means the `["src"]` fallback
 /// was used — callers (e.g. `init`) must not present it as "detected".
-pub fn detect_source_dirs_with_confidence(root: &Path) -> (Vec<String>, bool) {
+pub(crate) fn detect_source_dirs_with_confidence(root: &Path) -> (Vec<String>, bool) {
     // Manifest-aware detection first
     let manifest_discovery = manifest::discover_from_manifests(root);
     if !manifest_discovery.source_dirs.is_empty() {
@@ -225,7 +225,7 @@ pub fn read_config_file(path: &Path) -> Option<String> {
 /// This intentionally does not reject unknown extension keys. It only prevents
 /// `init --repair` from claiming success while a malformed or wrongly typed
 /// canonical config remains unusable.
-pub fn validate_config_file(path: &Path) -> Result<(), String> {
+pub(crate) fn validate_config_file(path: &Path) -> Result<(), String> {
     let content = fs::read_to_string(path)
         .map_err(|error| format!("failed to read config {}: {error}", path.display()))?;
     let is_json = path.extension().and_then(|extension| extension.to_str()) == Some("json");

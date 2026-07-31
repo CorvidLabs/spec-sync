@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 69,
-  "id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
+  "sequence": 70,
+  "id": "CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes",
   "acknowledged_collisions": [
     {
       "sequence": 16,

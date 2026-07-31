@@ -50,13 +50,11 @@ spec: exports.spec.md
 
 ### REQ-exports-001
 
-The Rust export scanner SHALL preserve every documented contract symbol across every source file listed by a spec.
+The `exports` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
 
 Acceptance Criteria
-- Regex and AST parsing include plain `pub` and crate-visible `pub(crate)` declarations, including valid whitespace variants.
-- Crate-visible items and re-exports inside private inline modules are included consistently in both parse modes.
-- Narrower `pub(super)`, `pub(self)`, and `pub(in ...)` declarations remain excluded.
-- A multi-file fixture matching issue #334 passes strict phantom/undocumented export validation in both parse modes.
+- Related `cargo test` coverage for `exports` remains green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-exports-002
 

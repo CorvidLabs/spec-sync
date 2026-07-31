@@ -44,15 +44,11 @@ spec: cmd_check.spec.md
 
 ### REQ-cmd-check-001
 
-Unified JSON checking SHALL preserve the documented top-level check schema when SDD validation or
-coverage discovery fails.
+The `cmd_check` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
 
 Acceptance Criteria
-
-- Failed SDD JSON output includes `passed`, `errors`, `warnings`, `stale`, and `specs_checked`.
-- Structured SDD detail remains available as an additive field.
-- Malformed manifest discovery exits nonzero and emits valid JSON with `passed: false`,
-  `valid: false`, `inconclusive: true`, and an explicit error.
+- Related `cargo test` coverage for `cmd_check` remains green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-cmd-check-002
 

@@ -5007,7 +5007,7 @@ pub fn compute_coverage_checked(
     })
 }
 
-pub fn validate_local_dependency(
+pub(crate) fn validate_local_dependency(
     dep: &str,
     root: &Path,
     specs_dir: &str,

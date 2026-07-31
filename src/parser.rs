@@ -615,7 +615,7 @@ pub fn get_spec_symbols(body: &str) -> Vec<String> {
 
 /// Symbols listed more than once in the Public API tables — duplicate rows
 /// are almost always a paste error and were previously deduplicated silently.
-pub fn get_duplicate_spec_symbols(body: &str) -> Vec<String> {
+pub(crate) fn get_duplicate_spec_symbols(body: &str) -> Vec<String> {
     let symbols = collect_spec_symbols(body);
     let mut seen = HashSet::new();
     let mut reported = HashSet::new();
@@ -863,7 +863,7 @@ fn strip_list_marker(mut s: &str) -> &str {
 }
 
 /// Check if a line is verbatim scaffold boilerplate (case-insensitive).
-pub fn is_boilerplate_line(line: &str) -> bool {
+pub(crate) fn is_boilerplate_line(line: &str) -> bool {
     let lower = strip_list_marker(line).to_ascii_lowercase();
     SCAFFOLD_BOILERPLATE_PREFIXES
         .iter()

@@ -1,16 +1,16 @@
 {
   "schema_version": 2,
   "change_id": "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara",
-  "reviewer": "Independent reviewer",
+  "reviewer": "grok-agent-finalize",
   "provenance": {
     "schema_version": 1,
     "provider": "github_actions_check",
     "required_check": "SpecSync scoped review"
   },
   "verdict": "pass",
-  "implementation_commit": "432299bbcafdf7b5adbf0e37ee42fa1913de0af0",
-  "contract_digest": "11c15df046c648e5ef58337edc3108f12de911170452587edd4187243c831366",
-  "execution_digest": "6f5de002a3c888abc1bfd106ef6f90428b8ee4c2ec4b1aabea18ad71986a6916",
-  "workspace_digest": "e3cffeb3a0bcfd4346d281c5f876eca58cd092deb8efdfc59e9779a4568d4cb4",
-  "timestamp": 1785516343
+  "implementation_commit": "688c88797b7733c165598a1e474fe064d571c323",
+  "contract_digest": "4250edac7e32401d9637f2cc81927604ef80435e9c4a6b9700130a04875b0b7e",
+  "execution_digest": "6673a52feb984a3914926cdc57b48457463d1f11a8beacf84a8743020b717165",
+  "workspace_digest": "89b8bf58ea4b718ad871817b593731ffc746734677ebe3bd565a3cd9dda80ea0",
+  "timestamp": 1785536970
 }

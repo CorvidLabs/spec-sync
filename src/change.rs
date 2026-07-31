@@ -4615,7 +4615,10 @@ fn validate_scoped_review_history_transition(
         return Err("scoped review history deleted committed evidence".into());
     };
     let Some((previous_path, previous_ledger)) = previous else {
-        if current_ledger.reviews.len() == 1 || allow_collapsed_archive {
+        // First appearance may include multiple reviews when a squash/rebase
+        // introduced the ledger in one commit (e.g. post-merge history on main).
+        // Append-only transitions still hold from this point forward.
+        if !current_ledger.reviews.is_empty() || allow_collapsed_archive {
             return Ok(());
         }
         return Err("scoped review history did not begin with one append".into());

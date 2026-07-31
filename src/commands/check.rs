@@ -160,7 +160,10 @@ pub fn cmd_check(
     // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
     // message under --format json). Default warn mode still exits 0 there.
     let (config, all_spec_files) = load_and_discover(root, true);
-    let sdd_report = crate::change::check_project(root);
+    // Active workspaces + living specs only. Archives are history; full archive
+    // integrity is not part of `specsync check` (use `change audit` / internal
+    // check_project when a full historical walk is intentionally required).
+    let sdd_report = crate::change::audit_project(root);
     if sdd_report.enabled {
         for warning in &sdd_report.warnings {
             if matches!(format, Text) {

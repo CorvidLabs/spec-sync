@@ -5782,6 +5782,12 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
         .map_err(|error| format!("invalid trusted SDD policy `{object}`: {error}"))
 }
 
+/// Full lifecycle integrity including archived terminal evidence.
+///
+/// Product defaults (`change check`, `change audit`, `specsync check`) use
+/// [`audit_project`] instead. This remains for unit/integration tests and any
+/// intentional full historical walk.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn check_project(root: &Path) -> SddCheckReport {
     let _scope = ensure_change_read_scope(root);
     // Full integrity including archive terminal evidence — tests / rare callers.

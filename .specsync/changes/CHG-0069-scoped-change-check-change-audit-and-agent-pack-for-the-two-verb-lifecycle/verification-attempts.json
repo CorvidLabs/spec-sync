@@ -580,6 +580,71 @@
         "REQ-commands-change-audit-dispatch-001",
         "REQ-hooks-two-verb-001"
       ]
+    },
+    {
+      "timestamp": 1785511446,
+      "commit": "09a9fa2a4be9c74ae337d83f2ca4dfff299f402a",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "10f4b9d0ed3a3885b08284a3a975c1111cda9c2d7e50a530d3c6770164edca3b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
     }
   ]
 }

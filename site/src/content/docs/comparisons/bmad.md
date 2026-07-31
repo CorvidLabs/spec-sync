@@ -12,14 +12,14 @@ and evidence engine that checks durable module truth against the repository.
 
 ## Practical boundary
 
-| Question | SpecSync 5.1 | BMAD 6.10 core |
+| Question | SpecSync 6.0 | BMAD 6.10 core |
 |---|---|---|
 | Fast path for a small change | Adaptive change interview and lifecycle | Quick Dev clarifies, plans, implements, reviews, and presents |
 | Full product planning | Focused change artifacts and module requirements | Analysis, PRD, UX, architecture, epics, and stories |
 | Specialized agent roles | Uses the developer's existing agent | Analyst, PM, architect, developer, UX, and technical-writer agents |
 | Contextual next-step guidance | Deterministic status and next action | `bmad-help` inspects available artifacts and recommends workflows |
-| Human review | Two mandatory digest-bound approvals | Workflow checkpoints and review decisions |
-| Requirements and test governance | Stable IDs plus required acceptance evidence | Process traceability; stronger optional TEA workflows |
+| Human review | One digest-bound scope approval plus independent scoped PR review | Workflow checkpoints and review decisions |
+| Requirements and test governance | Stable IDs plus required verification evidence | Process traceability; stronger optional TEA workflows |
 | Real export/schema parsing | Built into the deterministic core | Not a core BMAD responsibility |
 | Stale tested-input invalidation | Deterministic blocking gate | Agent/workflow dependent |
 

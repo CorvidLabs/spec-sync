@@ -150,7 +150,7 @@ specsync agents status                     # show installation status
 specsync agents uninstall                  # remove generated integrations
 ```
 
-Supports Claude Code, Cursor, Codex, and Gemini CLI. The installed skills use the deterministic SpecSync lifecycle and never grant human approvals on an agent's behalf.
+Supports Claude Code, Cursor, Codex, and Gemini CLI. Claude, Cursor, and Gemini also receive slash commands for `create-spec`, `create-change`, **`check`**, and **`audit`** (`/specsync:check`, `/specsync:audit`). Codex is skill-only. The installed skills use the deterministic SpecSync 6.0 lifecycle (`change check` for one change; `change audit` for active workspaces and living specs) and never grant human approvals on an agent's behalf.
 
 ### `compact`
 

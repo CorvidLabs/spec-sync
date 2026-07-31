@@ -4,7 +4,7 @@ section: "Integrations"
 order: 2
 ---
 
-SpecSync 5.0 is agent-native without embedding an inference client. The core is deterministic: it scaffolds markdown, validates contracts, records approvals and evidence, and never stores model credentials or sends source to a provider.
+SpecSync 6.0 is agent-native without embedding an inference client. The core is deterministic: it scaffolds markdown, validates contracts, records approvals and evidence, and never stores model credentials or sends source to a provider.
 
 ## Trust Boundary
 

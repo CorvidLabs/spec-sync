@@ -45,16 +45,16 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 
 [Spec Kit](https://github.github.com/spec-kit/) provides guided SDD plus configurable, resumable workflows and human gates. [OpenSpec](https://github.com/Fission-AI/OpenSpec) provides a lightweight action graph, semantic deltas, synchronization, and archival. [BMAD Method](https://docs.bmad-method.org/) provides a broader agent-led product workflow spanning discovery through implementation and review. The comparison below was verified against Spec Kit 0.12.15 and OpenSpec 1.6.0 on 2026-07-14 and distinguishes deterministic blocking enforcement from configurable or agentic workflows:
 
-| SDD capability | SpecSync 5.1 | Spec Kit core | OpenSpec core |
+| SDD capability | SpecSync 6.0 | Spec Kit core | OpenSpec core |
 |:---------------|:-------------:|:-------------:|:-------------:|
 | Deterministic adaptive interview | **Yes** | Template/workflow driven | Schema/instruction driven |
 | Optional artifacts selected by risk | **Yes** | Presets/workflows | Configurable schemas |
 | Semantic deltas and canonical merge | **Yes** | No | **Yes** |
 | Bidirectional spec ↔ real code exports | **Yes** | Extension/agent analysis | No |
 | Stable requirement → test evidence | **Required** | Artifact-level by default | Artifact-level by default |
-| Digest-bound human approvals | **Two required gates** | Workflow gates | Confirmation at archive |
+| Digest-bound human approvals | **One scope approval** plus independent scoped PR review | Workflow gates | Confirmation at archive |
 | Active code checked against future contract | **Deterministic blocking gate** | Agent/workflow analysis | Agentic `/opsx:verify`; non-blocking by default |
-| Concurrent semantic conflict detection | **Deterministic pre-implementation/acceptance gate** | Workflow/extension dependent | Sync/archive-time agentic handling |
+| Concurrent semantic conflict detection | **Deterministic pre-check / finalize gate** | Workflow/extension dependent | Sync/archive-time agentic handling |
 | Configured tests executed by CI gate | **Yes** | Configurable workflow shell steps | Agentic verification |
 | Verification command shell isolation | **No shell** | Workflow shell supported | Agent/tool dependent |
 | Import existing Spec Kit/OpenSpec work | **Yes** | N/A | N/A |

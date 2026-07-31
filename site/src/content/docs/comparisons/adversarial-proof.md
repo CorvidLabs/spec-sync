@@ -11,7 +11,7 @@ An SDD tool can preserve excellent knowledge without deterministically proving t
 
 ## Knowledge preservation
 
-| Adversarial question | SpecSync 5.1 | Spec Kit core | OpenSpec core |
+| Adversarial question | SpecSync 6.0 | Spec Kit core | OpenSpec core |
 |---|---|---|---|
 | Why was the behavior requested? | **Record** — requirements/change artifacts | **Record** — `spec.md` | **Record** — proposal and delta requirements |
 | What architecture was chosen and why? | **Record** — context/design | **Record** — plan/research/data model | **Record** — design/proposal |
@@ -22,7 +22,7 @@ An SDD tool can preserve excellent knowledge without deterministically proving t
 
 ## Implementation drift
 
-| Mutation introduced after the spec is written | SpecSync 5.1 | Spec Kit core | OpenSpec core |
+| Mutation introduced after the spec is written | SpecSync 6.0 | Spec Kit core | OpenSpec core |
 |---|---|---|---|
 | Add an undocumented public export | **Block** in strict mode | **Agent** / extension | **Agent** |
 | Delete or rename a documented export | **Block** | **Agent** / extension | **Agent** |
@@ -30,7 +30,7 @@ An SDD tool can preserve excellent knowledge without deterministically proving t
 | Remove a documented database table or column | **Block** | **Agent** / extension | **Agent** |
 | Change a database column type without updating the spec | **Block** in strict mode | **Agent** / extension | **Agent** |
 | Break a declared cross-module spec dependency | **Block** | **Agent** / extension | **Agent** |
-| Leave a requirement without required test/API evidence | **Block** at acceptance | Analyze/checklist/workflow dependent | Validate/verify workflow dependent |
+| Leave a requirement without required test/API evidence | **Block** at check / finalize | Analyze/checklist/workflow dependent | Validate/verify workflow dependent |
 | Make tests fail | **Block** when configured for verification/CI | Configurable workflow command | Agent/tool execution |
 | Corrupt or stale approval/verification evidence | **Block** | Workflow implementation dependent | Workflow implementation dependent |
 

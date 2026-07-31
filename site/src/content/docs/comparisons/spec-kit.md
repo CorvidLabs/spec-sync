@@ -11,16 +11,16 @@ Spec Kit is an extensible, agent-led development toolkit. Its core path is **Spe
 
 ## The practical difference
 
-| Question | SpecSync 5.1 | Spec Kit core |
+| Question | SpecSync 6.0 | Spec Kit core |
 |---|---|---|
 | What is the durable truth? | Canonical module requirements and `*.spec.md` contracts | Team-selected persistence model for feature artifacts |
 | How is work shaped? | Deterministic interview selects risk-appropriate artifacts | Templates, commands, presets, extensions, and workflows |
 | What implements the plan? | Any human or coding agent; SpecSync stays deterministic | The selected coding-agent integration |
-| Are human gates available? | Two mandatory digest-bound approvals | Configurable workflow gate steps |
+| Are human gates available? | One digest-bound scope approval plus independent scoped PR review | Configurable workflow gate steps |
 | Are public exports parsed from code? | Yes, for 33 languages | Not by the core workflow |
 | Does CI fail on a phantom or undocumented export? | Yes, deterministically | Only through an added extension or custom check |
 | Are database tables/columns/types compared with specs? | Yes | Not by the core workflow |
-| How do requirements evolve? | Semantic deltas merge atomically into canonical truth | Flow-back, flow-forward, or living-spec conventions chosen by the team |
+| How do requirements evolve? | Semantic deltas merge atomically into canonical truth at check/finalize | Flow-back, flow-forward, or living-spec conventions chosen by the team |
 
 ## Where Spec Kit is stronger
 

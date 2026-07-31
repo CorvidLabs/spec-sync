@@ -17,9 +17,9 @@ Different filenames do not mean missing capability. The tools package related kn
 | Architecture | Context/design | Plan/research/contracts | Design/proposal | Architecture workflow |
 | Work breakdown | Tasks | Tasks | Tasks | Epics and stories |
 | Quality/evidence | Testing plus verification record | Checklists/analyze/workflow logs | Validate/verify results | Readiness, review, optional TEA |
-| Definition review | Mandatory digest-bound gate | Optional workflow gate | Review convention | Workflow checkpoint |
-| Closing review | Mandatory evidence-bound gate | Optional workflow/team review | Archive workflow | Code/release review workflows |
-| History | Accepted then immutable archive | Chosen persistence model | Change archive | Planning and implementation artifacts |
+| Definition review | Mandatory digest-bound scope approval | Optional workflow gate | Review convention | Workflow checkpoint |
+| Closing review | Independent scoped PR review plus same-PR finalize | Optional workflow/team review | Archive workflow | Code/release review workflows |
+| History | Same-PR finalize into immutable dated archive | Chosen persistence model | Change archive | Planning and implementation artifacts |
 
 The rows are equivalent by **purpose**, not identical guarantees. For example, Spec Kit's `analyze` and OpenSpec's verification can reason across artifacts through an agent, while SpecSync's `verification.json` and source validators are deterministic records consumed by CI.
 
@@ -29,7 +29,7 @@ The rows are equivalent by **purpose**, not identical guarantees. For example, S
 2. Translate stable product requirements into module-scoped SpecSync requirement IDs.
 3. Put enforceable exports, dependencies, invariants, and schema expectations in `*.spec.md`.
 4. Implement with the same coding agent.
-5. Require `specsync check --strict` and the SpecSync acceptance gate in CI.
+5. Require `specsync check --strict` plus the SpecSync scoped-review / finalize CI gates.
 
 This keeps Spec Kit's rich planning ecosystem without making generated feature artifacts the only long-term source of truth.
 

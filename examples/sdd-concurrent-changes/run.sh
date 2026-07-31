@@ -11,6 +11,17 @@ git config user.email example@specsync.dev
 git config user.name "SpecSync Example"
 printf '# Ordered changes\n' > README.md
 "$bin" init >/dev/null
+# Operations-only projects need a bounded fallback so scoped check can record evidence.
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+path = Path(".specsync/sdd.json")
+policy = json.loads(path.read_text())
+if not policy.get("verification_commands"):
+    policy["verification_commands"] = ["true"]
+    path.write_text(json.dumps(policy, indent=2) + "\n")
+PY
 git add .
 git commit -m "Initialize example" >/dev/null
 
@@ -34,22 +45,22 @@ second="CHG-0002-provision-prerequisite"
 create_change "Deploy dependent service" "ops/service/" "$first"
 create_change "Provision prerequisite" "ops/platform/" "$second"
 "$bin" change depend "$first" "$second" >/dev/null
-"$bin" change approve "$first" --actor "Example Reviewer" >/dev/null
-"$bin" change approve "$second" --actor "Example Reviewer" >/dev/null
+"$bin" change approve "$first" --actor "Example Scope Owner" >/dev/null
+"$bin" change approve "$second" --actor "Example Scope Owner" >/dev/null
 
-if "$bin" change start "$first" >/dev/null 2>&1; then
-  echo "dependent change started before prerequisite" >&2
+if "$bin" change check "$first" >/dev/null 2>&1; then
+  echo "dependent change verified before prerequisite" >&2
   exit 1
 fi
 
-"$bin" change start "$second" >/dev/null
-"$bin" change verify "$second" >/dev/null
-"$bin" change accept "$second" --actor "Example Reviewer" >/dev/null
-"$bin" change start "$first" >/dev/null
-"$bin" change verify "$first" >/dev/null
-"$bin" change accept "$first" --actor "Example Reviewer" >/dev/null
+"$bin" change check "$second" >/dev/null
+"$bin" change review "$second" --reviewer "Example Independent Reviewer" >/dev/null
+"$bin" change finalize "$second" >/dev/null
+"$bin" change check "$first" >/dev/null
+"$bin" change review "$first" --reviewer "Example Independent Reviewer" >/dev/null
+"$bin" change finalize "$first" >/dev/null
 git add .
 git commit -m "Complete ordered changes" >/dev/null
-"$bin" change check
+"$bin" change audit
 
 printf '\nConcurrent-change example passed in %s\n' "$root"

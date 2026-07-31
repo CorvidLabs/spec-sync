@@ -4,7 +4,7 @@ section: "Reference"
 order: 1
 ---
 
-SpecSync 5.0 separates canonical validation settings from the verified SDD policy:
+SpecSync 6.0 separates canonical validation settings from the verified SDD policy:
 
 - `.specsync/config.toml` configures specs, source discovery, rules, maturity guards, and integrations.
 - `.specsync/sdd.json` enables and protects the change lifecycle, meaningful paths, verification commands, and custom artifacts.

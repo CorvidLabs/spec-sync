@@ -238,7 +238,8 @@ require(
     r'BOOTSTRAP_BASE_SHA = "fc091c88f72a6d2fb2df168f4baa4370579ff8a2".*?'
     r"pull\.get\(\"number\"\) != pull_request.*?"
     r'\(pull\.get\("base"\) or \{\}\)\.get\("sha"\) != base.*?'
-    r'\(pull\.get\("head"\) or \{\}\)\.get\("sha"\) != candidate.*?'
+    r"pull_head.*?"
+    r"merge-base.*?--is-ancestor.*?candidate.*?pull_head.*?"
     r"--diff-filter=A.*?"
     r"WORKFLOW_V2_BASELINE_PATH.*?"
     r"cutoff_commit.*?BOOTSTRAP_BASE_SHA.*?"

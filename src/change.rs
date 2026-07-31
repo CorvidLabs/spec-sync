@@ -5686,6 +5686,19 @@ pub fn summarize_change_with_strict(
             )
         }
         ChangeState::Accepted
+            if terminal_evidence.as_ref().is_some_and(|evidence| {
+                evidence.validity == TerminalEvidenceValidity::Stale
+                    && evidence.reason.as_deref().is_some_and(|reason| {
+                        reason.contains("includes a mutable change")
+                            || reason.contains("only immutable accepted or archived")
+                    })
+            }) =>
+        {
+            // Premature multi-id sequence acknowledgements freeze the ledger until every
+            // collision member is accepted/archived (or the acknowledgement is corrected).
+            "accept or archive every member of the acknowledged sequence collision (or remove the premature acknowledgement from `.specsync/change-sequence.json`), then re-run `specsync change status`".into()
+        }
+        ChangeState::Accepted
             if terminal_evidence
                 .as_ref()
                 .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale) =>

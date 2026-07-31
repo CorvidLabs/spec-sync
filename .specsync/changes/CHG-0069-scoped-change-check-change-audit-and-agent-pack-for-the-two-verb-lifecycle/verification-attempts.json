@@ -450,6 +450,136 @@
         "REQ-commands-change-audit-dispatch-001",
         "REQ-hooks-two-verb-001"
       ]
+    },
+    {
+      "timestamp": 1785506566,
+      "commit": "718d21688b06815b0cf514e3a67eade8b5420d9a",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "6c39d156c00c856446557a2cef6e6b9fc5cd982ab1a72c6f5225b52c833ab9d7",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785508931,
+      "commit": "200b4c757a00d678497fb1a379fa02c76d0f94e9",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "bf3e2db53e4f0b4706651915475882229225fd30d877367aac84a6ffb5fe4538",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
     }
   ]
 }

@@ -87,7 +87,8 @@ Continue through the single workflow after the definition is complete:
 ```bash
 specsync change approve CHG-...   # one explicit human scope approval
 # implement the approved contract and keep module specs synchronized
-specsync change check CHG-...     # apply deltas and run affected-component verification
+specsync change check CHG-...     # scoped verify: apply deltas + targeted tests for this change
+specsync change audit             # active workspaces + living specs (archives are history)
 # open/update the PR; ordinary review + SpecSync scoped review run once
 specsync change finalize CHG-...  # create the same-PR metadata/archive-only commit
 # GitHub merge protections perform the merge

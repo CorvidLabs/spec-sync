@@ -38,7 +38,8 @@ specsync change new "Add auth"  # start the deterministic SDD interview
 specsync change answer CHG-... acceptance_criteria "Auth succeeds" --json
 specsync change approve CHG-... # one human scope approval
 # implement code, specs, and tests
-specsync change check CHG-...   # apply deltas and run affected-component verification
+specsync change check CHG-...   # scoped verify for this change (not archive history)
+specsync change audit           # active workspaces + living specs
 # open/update the PR for ordinary + scoped review
 specsync change finalize CHG-... # same-PR metadata/archive-only finalization
 # GitHub performs the merge

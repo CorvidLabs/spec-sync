@@ -18,7 +18,7 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync scaffold <name>` | Full scaffold: spec + companions + registry entry + source detection |
 | `specsync add-spec <name>` | Scaffold a spec with companion files (tasks.md, context.md) |
 | `specsync hooks install` | Install git pre-commit hooks and IDE agent snippets |
-| `specsync agents install` | Install native Claude/Cursor/Codex/Gemini skills and `/specsync:create-spec` slash commands (Claude/Cursor/Gemini) |
+| `specsync agents install` | Install skills plus `/specsync:create-spec`, `create-change`, `check`, and `audit` (Claude/Cursor/Gemini) |
 | `specsync resolve --remote` | Resolve cross-project spec references |
 | `specsync diff --base <ref>` | Show export changes since a git ref (useful for CI/PR reviews) |
 | `specsync report` | Per-module coverage report with stale/incomplete detection |
@@ -34,7 +34,8 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync change reopen <id>` | Re-verify stale accepted evidence (audited, append-only) |
 | `specsync change correct-owner <id>` | Append audited exact owner corrections (single `--path/--spec`, or batch: repeated flags, `--manifest`, `--all-missing`) |
 | `specsync change finalize <id>` | Validate current review/evidence and move the package into the dated archive in the same PR; GitHub performs the merge |
-| `specsync change check` | Validate all active/archived change workspaces and terminal evidence |
+| `specsync change check [id]` | Scoped verification for one change (materialize + targeted tests); not archive history |
+| `specsync change audit` | Project health over active workspaces and living specs (archives are history) |
 | `specsync migrate 5.0` | Backfill 5.0.1-era reopening digest fields idempotently (the remediation `check` prints for missing-field ledgers) |
 
 ## Spec Lifecycle

@@ -357,6 +357,7 @@ specsync change show CHG-0001-add-passkeys
 specsync change status CHG-0001-add-passkeys
 specsync change approve CHG-0001-add-passkeys
 specsync change check CHG-0001-add-passkeys
+specsync change audit
 specsync change review CHG-0001-add-passkeys --reviewer "Independent reviewer"
 specsync change finalize CHG-0001-add-passkeys
 # GitHub branch protection or merge queue performs the merge
@@ -375,7 +376,8 @@ specsync change adopt --dry-run
 `acceptance_criteria` preserves scalar prose exactly; use a JSON array of strings to provide multiple criteria. `affected_specs` and `affected_paths` retain comma- and newline-separated list input.
 
 New changes require one digest-bound human scope approval. `change status` always names one next
-action; `change check` applies approved deltas and records targeted evidence; independent scoped
+action; `change check` applies approved deltas and records targeted evidence for **one change**
+(not archive history); `change audit` checks active workspaces and living specs; independent scoped
 review binds the implementation commit; and `change finalize` creates the dated archive in the same
 PR without merging externally. Global `--strict`, project policy, and release/security
 classification add validators to this same path. Existing `start`, `verify`, `accept`, `archive`,

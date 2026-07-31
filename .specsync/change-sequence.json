@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 68,
-  "id": "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara",
+  "sequence": 69,
+  "id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
   "acknowledged_collisions": [
     {
       "sequence": 16,

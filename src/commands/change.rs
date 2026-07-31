@@ -318,31 +318,109 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             Ok(())
         }),
         ChangeAction::Check { id } => {
+            // Scoped verification only — project integrity is `change audit`.
+            let display_id = id.clone().unwrap_or_else(|| "open change".into());
+            if !matches!(format, OutputFormat::Json) {
+                println!("Checking {display_id}…");
+            }
             let verification = if strict {
                 change::check_change_with_strict(root, id.as_deref(), true)
             } else {
                 change::check_change(root, id.as_deref())
             };
-            let report = change::check_project(root);
-            let passed = verification.is_ok() && report.errors.is_empty();
             match format {
-                OutputFormat::Json => print_json(&serde_json::json!({
-                    "verification": verification.as_ref().ok(),
-                    "report": report,
-                })),
-                _ => {
-                    if let Err(error) = &verification {
-                        eprintln!("{} {error}", "error:".red().bold());
-                    }
-                    for result in &report.terminal_evidence {
-                        println!(
-                            "{} evidence: {}",
-                            result.id,
-                            result.evidence.validity.as_str()
-                        );
-                        if let Some(reason) = &result.evidence.reason {
-                            println!("  reason: {reason}");
+                OutputFormat::Json => match &verification {
+                    Ok(Some(record)) => {
+                        print_json(&serde_json::json!({ "verification": record }));
+                        if !record.passed {
+                            process::exit(1);
                         }
+                    }
+                    Ok(None) => {
+                        print_json(&serde_json::json!({
+                            "verification": null,
+                            "message": "nothing to check",
+                        }));
+                    }
+                    Err(error) => {
+                        print_json(&serde_json::json!({ "error": error }));
+                        process::exit(1);
+                    }
+                },
+                _ => match &verification {
+                    Ok(Some(record)) => {
+                        // Prefer the ID from the change workspace after verify.
+                        let verified_id = id.clone().or_else(|| {
+                            change::list_changes(root)
+                                .into_iter()
+                                .find(|record| {
+                                    matches!(
+                                        record.state,
+                                        ChangeState::Implementing | ChangeState::Verifying
+                                    )
+                                })
+                                .map(|record| record.id)
+                        });
+                        let label = verified_id.as_deref().unwrap_or(display_id.as_str());
+                        if record.passed {
+                            println!("{} {} verified", "✓".green(), label);
+                            if let Some(change_id) = &verified_id
+                                && let Ok(change_record) = change::load_change(root, change_id)
+                            {
+                                let questions = change::next_questions(&change_record);
+                                println!(
+                                    "  Next: {}",
+                                    text_mode_next_action(&change_record, &questions)
+                                );
+                            }
+                        } else {
+                            eprintln!(
+                                "{} {} verification failed",
+                                "error:".red().bold(),
+                                label
+                            );
+                            for command in &record.commands {
+                                if !command.success {
+                                    eprintln!(
+                                        "  failed: {} (exit {:?})",
+                                        command.command, command.exit_code
+                                    );
+                                }
+                            }
+                            println!(
+                                "  Next: fix verification failures and re-run `specsync change check{}`",
+                                verified_id
+                                    .as_ref()
+                                    .map(|value| format!(" {value}"))
+                                    .unwrap_or_default()
+                            );
+                            process::exit(1);
+                        }
+                    }
+                    Ok(None) => {
+                        println!("Nothing to check (no approved/implementing/verifying change).");
+                    }
+                    Err(error) => {
+                        eprintln!("{} {error}", "error:".red().bold());
+                        process::exit(1);
+                    }
+                },
+            }
+            Ok(())
+        }
+        ChangeAction::Audit => {
+            let report = change::audit_project(root);
+            let passed = report.errors.is_empty();
+            match format {
+                OutputFormat::Json => {
+                    print_json(&serde_json::json!({ "report": report }));
+                }
+                _ => {
+                    if report.enabled {
+                        println!(
+                            "Auditing active changes ({})…",
+                            report.checked_changes
+                        );
                     }
                     for warning in &report.warnings {
                         println!("{} {warning}", "warning:".yellow().bold());
@@ -352,10 +430,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     }
                     if passed {
                         println!(
-                            "{} {} active change(s) checked",
+                            "{} audit passed ({} active)",
                             "✓".green(),
                             report.checked_changes
                         );
+                    } else {
+                        println!("  Next: fix active workspace / living-spec issues above");
                     }
                 }
             }

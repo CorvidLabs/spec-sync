@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 10
+version: 12
 status: active
 files:
   - src/commands/change.rs
@@ -42,8 +42,9 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 
 1. JSON output contains no terminal coloring.
 2. Domain errors always produce exit code 1.
-3. `change check` fails on any lifecycle error.
-4. `change finalize` requires current verification and scoped-review evidence and performs no provider merge.
+3. `change check` runs scoped verification for one change only and fails when that verification fails; it does not rewalk archived terminal evidence.
+4. `change audit` reports active-workspace and living-spec integrity only and exits non-zero on report errors.
+5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge.
 
 ## Behavioral Examples
 
@@ -92,6 +93,8 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 ## Change Log
 
+| 2026-07-30 | Scoped `change check`; add `change audit` two-verb UX |
+
 | Date | Change |
 |------|--------|
 | 2026-07-10 | Initial 5.0 change command |
@@ -105,3 +108,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
 | 2026-07-30 | CHG-0068: Render explicit pass/block scoped-review results while keeping independence policy in the change domain |
 | 2026-07-30 | CHG-0068: Render stable reviewer claims while preserving append-only attempts and externally authenticated check provenance |
+| 2026-07-31 | CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle: Scoped change check, change audit, and agent pack for the two-verb lifecycle |

@@ -662,3 +662,21 @@ Acceptance Criteria
 - Finalization fails when a required scoped review is missing or blocking.
 - Status states when review is needed and directs the user to open or update the PR so the configured
   scoped-review check runs.
+
+### REQ-change-audit-project-001
+
+The change module SHALL expose `audit_project` that validates active change workspaces and living SDD policy/spec coherence without rewalking archived terminal evidence by default.
+
+Acceptance Criteria
+- `audit_project` does not load or re-authenticate every archived change's terminal evidence.
+- `check_project` remains available for full integrity including archives (tests / rare callers).
+- CLI project-health surface uses the active-only path.
+
+### REQ-change-check-scoped-002
+
+`check_change` SHALL continue to materialize approved deltas and run verification for one selected change only; project-wide archive integrity is not part of that function.
+
+Acceptance Criteria
+- Selecting zero, one, or many open changes behaves as before (nothing / that id / error listing ids).
+- Archive terminal evidence is not required for a successful scoped check.
+

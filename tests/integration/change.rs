@@ -947,8 +947,9 @@ fn workflow_v2_cannot_downgrade_by_omitting_workflow_version() {
                 "workflow version 1 conflicts with immutable origin 2",
             ));
     }
+    // Project integrity surfaces workflow conflicts; scoped check only verifies one open change.
     specsync()
-        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(
@@ -1019,8 +1020,9 @@ fn first_reachable_workflow_v1_state_requires_the_trusted_pre_v2_cutoff() {
                 "was not present at the trusted pre-v2 cutoff",
             ));
     }
+    // Project integrity surfaces cutoff violations; scoped check only verifies one open change.
     specsync()
-        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(
@@ -1315,8 +1317,9 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         .success();
 
     fs::write(root.join("README.md"), "Final review instructions.\n").unwrap();
+    // Stale accepted evidence is project health (`change audit`), not scoped `change check`.
     specsync()
-        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(
@@ -1364,7 +1367,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         .args(["--root", root.to_str().unwrap(), "change", "check"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("active change(s) checked"));
+        .stdout(predicate::str::contains("verified"));
 
     let docs_path = dir.join("docs.md");
     let accepted_docs = fs::read_to_string(&docs_path).unwrap();

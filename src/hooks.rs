@@ -46,6 +46,8 @@ Run `specsync add-spec <module-name>` to scaffold the spec and companion files, 
 
 - `specsync check` — validate all specs against source code
 - `specsync check --json` — machine-readable validation output
+- `specsync change check [id]` — scoped verification for one SDD change (not archive history)
+- `specsync change audit` — active workspaces + living specs project health
 - `specsync coverage` — show which modules lack specs
 - `specsync score` — quality score for each spec (0-100)
 - `specsync add-spec <name>` — scaffold a new spec with companion files
@@ -75,6 +77,7 @@ Each spec directory has companion files — read before working, update after:
 - When creating new modules, run `specsync add-spec <module-name>` first
 - Keep specs in sync: if you change exports, parameters, or types, update the spec's Public API table
 - Run `specsync check --strict` before committing
+- For SDD changes: `specsync change check [id]` is scoped verify; `specsync change audit` is actives+specs only (archives are history)
 "#;
 
 const COPILOT_INSTRUCTIONS_SNIPPET: &str = r#"# Spec-Sync Integration
@@ -99,6 +102,7 @@ Each spec directory has companion files — read before working, update after:
 - After completing work, update `tasks.md` (mark done items) and `context.md` (record decisions, update status)
 - New modules need specs: run `specsync add-spec <module-name>`
 - Keep the Public API table in each spec up to date with actual exports
+- SDD: `specsync change check` = one change; `specsync change audit` = active workspaces + living specs (not archives)
 "#;
 
 const AGENTS_MD_SNIPPET: &str = r#"# Spec-Sync Integration
@@ -141,6 +145,8 @@ Run `specsync add-spec <module-name>` to scaffold the spec and companion files, 
 
 - `specsync check` — validate all specs against source code
 - `specsync check --json` — machine-readable validation output
+- `specsync change check [id]` — scoped verification for one SDD change (not archive history)
+- `specsync change audit` — active workspaces + living specs project health
 - `specsync coverage` — show which modules lack specs
 - `specsync score` — quality score for each spec (0-100)
 - `specsync add-spec <name>` — scaffold a new spec with companion files

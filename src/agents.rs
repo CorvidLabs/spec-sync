@@ -26,13 +26,21 @@ For every meaningful source, test, public documentation, schema, or configuratio
    `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
 4. Ask the user for the single scope approval, then run `specsync change approve <id>`.
 5. Implement code, canonical specs, and tests on the same branch. Run `specsync change check [<id>]`
-   for targeted affected-component verification; strict policy adds validators without changing
-   the workflow.
+   for **scoped** verification of this change only (materialize deltas + targeted tests). Do **not**
+   treat check as a full archive integrity walk. Use `specsync change audit` when you need project
+   health over **active** workspaces and living specs. Archives are history.
 6. Complete ordinary pull-request review. For agent-authored work, have an independent reviewer
    inspect the change package, implementation diff, canonical spec delta, and targeted evidence
    once, then record it with `specsync change review <id> --reviewer "<identity>"`.
 7. Run `specsync change finalize <id>` to create the same-PR metadata/archive-only commit, then
    merge through GitHub. SpecSync does not merge the pull request.
+
+## Lifecycle verbs
+
+- `specsync change check [id]` — verify **this** change (materialize + targeted tests). Default daily path.
+- `specsync change audit` — project health over **active** workspaces and living specs. Not archive history.
+- Archives are history; do not re-validate terminal evidence for every archived CHG on each check.
+- Slash commands: `/specsync:check`, `/specsync:audit` (Claude/Cursor/Gemini via `specsync agents install`).
 
 Never invent or self-grant the scope approval or independent review. If an approved definition
 changes, its digest becomes stale and must be approved again. `specsync change status` always
@@ -80,6 +88,8 @@ the description to draft the spec's Purpose and Requirements.
 
 - `specsync check` — validate all specs against source code
 - `specsync check --json` — machine-readable validation output
+- `specsync change check [id]` — scoped verification for one SDD change
+- `specsync change audit` — active workspaces + living specs (not archive history)
 - `specsync coverage` — show which modules lack specs
 - `specsync score` — quality score for each spec (0-100)
 - `specsync scaffold <name>` — full scaffold: spec + companions + registry entry + source detection
@@ -172,11 +182,27 @@ const CREATE_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change new "$ARGUMENTS"
 2. Read the returned `questions` array and interview the user one question at a time.
 3. Record each answer with `specsync change answer <id> <question-id> "<answer>" --json`.
 4. Continue until the question list is empty, then show the selected artifacts and next action.
-5. Do not approve, implement, verify, accept, or archive until the corresponding human gate or work stage is reached."#;
+5. Do not approve, implement, verify, accept, or archive until the corresponding human gate or work stage is reached.
+6. After implementation, run scoped verification with `specsync change check <id>` (or `/specsync:check`). Use `specsync change audit` only for active-workspace project health — never expect check to rewalk archived terminal evidence."#;
+
+const CHECK_CHANGE_DESCRIPTION: &str =
+    "Run scoped SpecSync change verification for one change (materialize deltas + targeted tests)";
+
+const CHECK_CHANGE_STEPS_MD: &str = r#"1. Prefer `specsync change check $ARGUMENTS` when an id or partial id is provided; otherwise run `specsync change check`.
+2. Expect **scoped** verification only — this change's materialization and verification commands. Do not run a full archive integrity walk.
+3. Stream/wait for exit. On success, follow the printed **Next:** action (review, PR, or finalize path).
+4. Do **not** run `specsync change audit` unless the user asked for project health over active workspaces and living specs."#;
+
+const AUDIT_CHANGE_DESCRIPTION: &str =
+    "Audit active SpecSync change workspaces and living specs (not archive history)";
+
+const AUDIT_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change audit`.
+2. Report active-workspace and living-spec issues only. Archives are history — do not re-validate every archived CHG's terminal evidence.
+3. Use this for "is the SDD workspace healthy?" not "did my feature tests pass?" (that is `change check` / `/specsync:check`)."#;
 
 const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<module>/ synchronized with source code using spec-sync. Use this whenever creating, editing, or reviewing code in a module that has (or should have) a spec, or whenever the user mentions specs, spec-sync, companion files (tasks.md/requirements.md/context.md/testing.md/design.md), or asks to add/update a module's documentation.";
 const AGENT_ARTIFACT_MANIFEST_VERSION: u32 = 1;
-const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 2;
+const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 3;
 const AGENT_ARTIFACT_MANIFEST_PATH: &str = ".specsync/agent-artifacts.json";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -319,6 +345,64 @@ impl AgentTool {
             AgentTool::Codex => None,
         }
     }
+
+    fn check_command_path(&self, root: &Path) -> Option<PathBuf> {
+        match self {
+            AgentTool::Claude => Some(
+                root.join(".claude")
+                    .join("commands")
+                    .join("specsync")
+                    .join("check.md"),
+            ),
+            AgentTool::Cursor => Some(
+                root.join(".cursor")
+                    .join("commands")
+                    .join("specsync-check.md"),
+            ),
+            AgentTool::Gemini => Some(
+                root.join(".gemini")
+                    .join("commands")
+                    .join("specsync")
+                    .join("check.toml"),
+            ),
+            AgentTool::Codex => None,
+        }
+    }
+
+    fn audit_command_path(&self, root: &Path) -> Option<PathBuf> {
+        match self {
+            AgentTool::Claude => Some(
+                root.join(".claude")
+                    .join("commands")
+                    .join("specsync")
+                    .join("audit.md"),
+            ),
+            AgentTool::Cursor => Some(
+                root.join(".cursor")
+                    .join("commands")
+                    .join("specsync-audit.md"),
+            ),
+            AgentTool::Gemini => Some(
+                root.join(".gemini")
+                    .join("commands")
+                    .join("specsync")
+                    .join("audit.toml"),
+            ),
+            AgentTool::Codex => None,
+        }
+    }
+
+    fn command_paths(&self, root: &Path) -> Vec<PathBuf> {
+        [
+            self.command_path(root),
+            self.change_command_path(root),
+            self.check_command_path(root),
+            self.audit_command_path(root),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
 }
 
 /// True if every artifact this tool should have (skill dir and/or command
@@ -328,10 +412,7 @@ pub fn is_installed(root: &Path, tool: AgentTool) -> bool {
         Some(dir) => dir.join("SKILL.md").exists(),
         None => true,
     };
-    let command_ok = [tool.command_path(root), tool.change_command_path(root)]
-        .into_iter()
-        .flatten()
-        .all(|path| path.exists());
+    let command_ok = tool.command_paths(root).iter().all(|path| path.exists());
     skill_ok && command_ok
 }
 
@@ -458,6 +539,24 @@ fn generated_agent_artifacts(
             tool,
             path,
             content: create_change_command_content(tool).into_bytes(),
+        });
+    }
+
+    if let Some(path) = tool.check_command_path(root) {
+        artifacts.push(GeneratedAgentArtifact {
+            manifest_key: artifact_manifest_key(root, &path)?,
+            tool,
+            path,
+            content: check_change_command_content(tool).into_bytes(),
+        });
+    }
+
+    if let Some(path) = tool.audit_command_path(root) {
+        artifacts.push(GeneratedAgentArtifact {
+            manifest_key: artifact_manifest_key(root, &path)?,
+            tool,
+            path,
+            content: audit_change_command_content(tool).into_bytes(),
         });
     }
 
@@ -686,6 +785,43 @@ fn create_change_command_content(tool: AgentTool) -> String {
         }
         AgentTool::Gemini => format!(
             "description = \"{CREATE_CHANGE_DESCRIPTION}\"\n\nprompt = \"\"\"\nArguments: {{{{args}}}}\n\n{steps}\n\"\"\"\n"
+        ),
+        AgentTool::Codex => unreachable!("Codex has no command file"),
+    }
+}
+
+fn check_change_command_content(tool: AgentTool) -> String {
+    let steps = match tool {
+        AgentTool::Gemini => CHECK_CHANGE_STEPS_MD.replace("$ARGUMENTS", "{{args}}"),
+        _ => CHECK_CHANGE_STEPS_MD.to_string(),
+    };
+
+    match tool {
+        AgentTool::Claude => format!(
+            "---\ndescription: {CHECK_CHANGE_DESCRIPTION}\nargument-hint: [change-id]\n---\n\nRun scoped SpecSync change verification.\n\nArguments: `$ARGUMENTS`\n\n{steps}\n"
+        ),
+        AgentTool::Cursor => format!(
+            "Run scoped SpecSync change verification.\n\nArguments: $ARGUMENTS\n\n{steps}\n"
+        ),
+        AgentTool::Gemini => format!(
+            "description = \"{CHECK_CHANGE_DESCRIPTION}\"\n\nprompt = \"\"\"\nRun scoped SpecSync change verification.\n\nArguments: {{{{args}}}}\n\n{steps}\n\"\"\"\n"
+        ),
+        AgentTool::Codex => unreachable!("Codex has no command file"),
+    }
+}
+
+fn audit_change_command_content(tool: AgentTool) -> String {
+    let steps = AUDIT_CHANGE_STEPS_MD;
+
+    match tool {
+        AgentTool::Claude => format!(
+            "---\ndescription: {AUDIT_CHANGE_DESCRIPTION}\n---\n\nAudit active SpecSync change workspaces and living specs.\n\n{steps}\n"
+        ),
+        AgentTool::Cursor => format!(
+            "Audit active SpecSync change workspaces and living specs.\n\n{steps}\n"
+        ),
+        AgentTool::Gemini => format!(
+            "description = \"{AUDIT_CHANGE_DESCRIPTION}\"\n\nprompt = \"\"\"\nAudit active SpecSync change workspaces and living specs.\n\n{steps}\n\"\"\"\n"
         ),
         AgentTool::Codex => unreachable!("Codex has no command file"),
     }
@@ -984,6 +1120,19 @@ mod tests {
         )
         .unwrap();
         assert!(change_command.contains("specsync change new"));
+        assert!(skill.contains("specsync change check"));
+        assert!(skill.contains("specsync change audit"));
+        assert!(skill.contains("Lifecycle verbs"));
+
+        let check_command =
+            fs::read_to_string(tmp.path().join(".claude/commands/specsync/check.md")).unwrap();
+        assert!(check_command.contains("specsync change check"));
+        assert!(check_command.contains("scoped"));
+
+        let audit_command =
+            fs::read_to_string(tmp.path().join(".claude/commands/specsync/audit.md")).unwrap();
+        assert!(audit_command.contains("specsync change audit"));
+        assert!(audit_command.contains("active"));
 
         assert!(is_installed(tmp.path(), AgentTool::Claude));
     }
@@ -1002,6 +1151,8 @@ mod tests {
                 .join(".cursor/commands/specsync-create-change.md")
                 .exists()
         );
+        assert!(tmp.path().join(".cursor/commands/specsync-check.md").exists());
+        assert!(tmp.path().join(".cursor/commands/specsync-audit.md").exists());
     }
 
     #[test]

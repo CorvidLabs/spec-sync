@@ -1287,6 +1287,7 @@ pub enum TerminalEvidenceValidity {
 }
 
 impl TerminalEvidenceValidity {
+    #[allow(dead_code)]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Exact => "exact",
@@ -5783,19 +5784,32 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
 
 pub fn check_project(root: &Path) -> SddCheckReport {
     let _scope = ensure_change_read_scope(root);
-    check_project_with_command_output(root, ConfiguredCommandOutput::Inherit)
+    // Full integrity including archive terminal evidence — tests / rare callers.
+    check_project_with_command_output(root, ConfiguredCommandOutput::Inherit, true)
+}
+
+/// Audit active change workspaces and living SDD policy/spec coherence.
+///
+/// Does **not** re-validate archived terminal evidence. Archives are history;
+/// living truth is active workspaces plus specs/policy.
+pub fn audit_project(root: &Path) -> SddCheckReport {
+    let _scope = ensure_change_read_scope(root);
+    check_project_with_command_output(root, ConfiguredCommandOutput::Inherit, false)
 }
 
 /// Check SDD lifecycle state without allowing configured verification commands
 /// to write into a machine-consumed report stream.
+///
+/// Uses the active-only audit scope so PR comments and agents stay fast.
 pub(crate) fn check_project_quiet(root: &Path) -> SddCheckReport {
     let _scope = ensure_change_read_scope(root);
-    check_project_with_command_output(root, ConfiguredCommandOutput::Suppress)
+    check_project_with_command_output(root, ConfiguredCommandOutput::Suppress, false)
 }
 
 fn check_project_with_command_output(
     root: &Path,
     command_output: ConfiguredCommandOutput,
+    include_archive_integrity: bool,
 ) -> SddCheckReport {
     if let Some(error) = crate::verification_recursion_error() {
         return SddCheckReport {
@@ -5827,6 +5841,9 @@ fn check_project_with_command_output(
     let is_versioned_sdd = current_policy.is_some()
         || base_policy.is_some()
         || root.join(".specsync/version").exists()
+        || root.join(WORKFLOW_V2_BASELINE_PATH).exists()
+        || root.join(CHANGES_PATH).is_dir()
+        || root.join(ARCHIVE_PATH).is_dir()
         || git_repo_relative_path(root, POLICY_PATH)
             .ok()
             .and_then(|path| git_output(root, &["ls-tree", "--name-only", "HEAD", path.as_str()]))
@@ -5844,21 +5861,54 @@ fn check_project_with_command_output(
             };
         }
     };
-    let all_records = match list_all_changes_checked(root) {
-        Ok(records) => records,
-        Err(error) => {
-            return SddCheckReport {
-                enabled: true,
-                errors: vec![error],
-                ..SddCheckReport::default()
-            };
+    let all_records = if include_archive_integrity {
+        match list_all_changes_checked(root) {
+            Ok(records) => records,
+            Err(error) => {
+                return SddCheckReport {
+                    enabled: true,
+                    errors: vec![error],
+                    ..SddCheckReport::default()
+                };
+            }
+        }
+    } else {
+        // Active-only audit: skip loading archives entirely.
+        records
+            .iter()
+            .cloned()
+            .map(|record| (record.id.clone(), record))
+            .collect()
+    };
+    let (terminal_evidence, mut archived_integrity_cache) = if include_archive_integrity {
+        terminal_evidence_results_with_records(root, &all_records)
+    } else {
+        // Only evaluate terminal evidence for active accepted/archived-in-flight records.
+        let active_terminal: BTreeMap<_, _> = records
+            .iter()
+            .filter(|record| {
+                matches!(
+                    record.state,
+                    ChangeState::Accepted | ChangeState::Archived
+                )
+            })
+            .cloned()
+            .map(|record| (record.id.clone(), record))
+            .collect();
+        if active_terminal.is_empty() {
+            (Vec::new(), Default::default())
+        } else {
+            terminal_evidence_results_with_records(root, &active_terminal)
         }
     };
-    let (terminal_evidence, mut archived_integrity_cache) =
-        terminal_evidence_results_with_records(root, &all_records);
     let mut report = SddCheckReport {
         enabled: true,
-        checked_changes: all_records.len(),
+        // User-facing counts reflect the scope actually audited.
+        checked_changes: if include_archive_integrity {
+            all_records.len()
+        } else {
+            records.len()
+        },
         terminal_evidence,
         ..SddCheckReport::default()
     };
@@ -5877,9 +5927,12 @@ fn check_project_with_command_output(
         base
     } else {
         let Some(policy) = current_policy else {
-            return SddCheckReport::default();
+            // Active workspaces exist without a policy file: keep list-load results
+            // (corrupt/ineligible changes already failed above) and skip policy-gated checks.
+            return report;
         };
         if !policy.enabled {
+            // Explicitly disabled policy: do not treat SDD as enabled.
             return SddCheckReport::default();
         }
         policy
@@ -5954,31 +6007,33 @@ fn check_project_with_command_output(
             }
         }
     }
-    let mut shared_legacy_error_reported = false;
-    for record in all_records
-        .values()
-        .filter(|record| record.state == ChangeState::Archived)
-    {
-        if let Err(error) =
-            validate_archived_integrity_with_cache(root, record, &mut archived_integrity_cache)
+    if include_archive_integrity {
+        let mut shared_legacy_error_reported = false;
+        for record in all_records
+            .values()
+            .filter(|record| record.state == ChangeState::Archived)
         {
-            let is_shared_legacy_error = archived_integrity_cache
-                .legacy
-                .as_ref()
-                .and_then(|result| result.as_ref().err())
-                == Some(&error);
-            if is_shared_legacy_error {
-                if !shared_legacy_error_reported {
+            if let Err(error) =
+                validate_archived_integrity_with_cache(root, record, &mut archived_integrity_cache)
+            {
+                let is_shared_legacy_error = archived_integrity_cache
+                    .legacy
+                    .as_ref()
+                    .and_then(|result| result.as_ref().err())
+                    == Some(&error);
+                if is_shared_legacy_error {
+                    if !shared_legacy_error_reported {
+                        report.errors.push(format!(
+                            "legacy archive baseline historical integrity is invalid: {error}"
+                        ));
+                        shared_legacy_error_reported = true;
+                    }
+                } else {
                     report.errors.push(format!(
-                        "legacy archive baseline historical integrity is invalid: {error}"
+                        "{}: archived change historical integrity is invalid: {error}",
+                        record.id
                     ));
-                    shared_legacy_error_reported = true;
                 }
-            } else {
-                report.errors.push(format!(
-                    "{}: archived change historical integrity is invalid: {error}",
-                    record.id
-                ));
             }
         }
     }
@@ -12864,7 +12919,7 @@ fn validate_legacy_archive_baseline_bytes(
         return Err("legacy archive baseline exceeds the entry limit".into());
     }
     let canonical = json_content(&baseline)?;
-    if !bytes_match_canonical_json(&baseline_bytes, canonical.as_bytes()) {
+    if !bytes_match_canonical_json(baseline_bytes, canonical.as_bytes()) {
         return Err("legacy archive baseline must use canonical persisted JSON bytes".into());
     }
     let mut previous: Option<(&str, &str)> = None;
@@ -15072,7 +15127,7 @@ fn read_workflow_v2_baseline(root: &Path) -> Result<Option<(WorkflowV2Baseline, 
     // the working tree to CRLF without changing the committed blob; treat that as
     // the same baseline after stripping CR, still rejecting any other divergence.
     let canonical = json_content(&baseline)?;
-    if !bytes_match_canonical_json(&bytes, canonical.as_bytes()) {
+    if !bytes_match_canonical_json(bytes.as_slice(), canonical.as_bytes()) {
         return Err("workflow-v2 baseline must use canonical persisted JSON bytes".into());
     }
     if let Some(cutoff) = baseline.cutoff_commit.as_deref()
@@ -18672,7 +18727,7 @@ mod tests {
 
     #[test]
     fn attribute_output_requires_the_exact_requested_cartesian_set() {
-        let paths = vec!["tracked.txt".to_string()];
+        let paths = ["tracked.txt".to_string()];
         let refs = paths.iter().collect::<Vec<_>>();
         let valid = b"tracked.txt\0filter\0unspecified\0tracked.txt\0working-tree-encoding\0unset\0tracked.txt\0ident\0unspecified\0";
         validate_git_attribute_output(&refs, valid).unwrap();

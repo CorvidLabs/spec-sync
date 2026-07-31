@@ -26,13 +26,14 @@ SpecSync deterministic check + SDD evidence
 specsync agents install
 ```
 
-Claude Code, Cursor, Codex, and Gemini receive a native project skill. Claude, Cursor, and Gemini also receive create-spec and create-change commands. The lifecycle skill requires agents to:
+Claude Code, Cursor, Codex, and Gemini receive a native project skill. Claude, Cursor, and Gemini also receive create-spec, create-change, **check**, and **audit** commands (`/specsync:check`, `/specsync:audit`). The lifecycle skill requires agents to:
 
 - create meaningful work through `specsync change new --json`;
 - present deterministic interview questions to the user;
 - never invent or self-grant the one human scope approval;
 - implement only after scope approval;
-- run targeted `change check` evidence and request one independent scoped PR review;
+- run **scoped** `change check` evidence (one change; not archive rewalk) and request one independent scoped PR review;
+- use `change audit` only for active-workspace / living-spec project health;
 - finalize the dated archive in the same PR without invoking an external merge.
 
 Changing agents does not change lifecycle state or artifact semantics because the CLI remains the shared workflow engine.

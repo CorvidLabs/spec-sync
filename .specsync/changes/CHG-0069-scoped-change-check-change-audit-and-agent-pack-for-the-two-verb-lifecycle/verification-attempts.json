@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1785471556,
+      "commit": "4c32e08e3bfaffb1ab121c85069c3638e842e544",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "f124fd4cf8fb9dad10afd1ca2cf69bdbb670e887eb84e34f8406202078e68be0",
+      "workspace_digest": "28e416c8a6d65a70383f846fec8868ea933877968ef82976d8b1f7e5cea761c3",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785472045,
+      "commit": "4c32e08e3bfaffb1ab121c85069c3638e842e544",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "f124fd4cf8fb9dad10afd1ca2cf69bdbb670e887eb84e34f8406202078e68be0",
+      "workspace_digest": "a7d1192127035a5c6f64fbfdaa51c04a82ecb126ffaadfbc8a328454b0844423",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785473109,
+      "commit": "4c32e08e3bfaffb1ab121c85069c3638e842e544",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "f124fd4cf8fb9dad10afd1ca2cf69bdbb670e887eb84e34f8406202078e68be0",
+      "workspace_digest": "5d3746055d862ada69be56a34fea4131598d3bf5c6753d8049986b58e43ef3f2",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785474830,
+      "commit": "4c32e08e3bfaffb1ab121c85069c3638e842e544",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "113d3fb4b28ce1694ecb92298e57da7ab339a67e74ffa7434078dadfd014377b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    }
+  ]
+}

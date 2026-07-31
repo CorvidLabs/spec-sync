@@ -484,11 +484,13 @@ pub enum ChangeAction {
         /// Change ID
         id: String,
     },
-    /// Materialize approved deltas, run targeted verification, and validate lifecycle coverage
+    /// Materialize approved deltas and run targeted verification for one change
     Check {
         /// Optional change ID; inferred when exactly one change is being implemented
         id: Option<String>,
     },
+    /// Audit active change workspaces and living SDD policy/spec coherence
+    Audit,
     /// Adopt the current verified lifecycle in an existing project
     Adopt {
         /// Preview adoption without writing files

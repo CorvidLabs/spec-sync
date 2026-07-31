@@ -135,3 +135,11 @@ Acceptance Criteria
 - Historical repair commands remain dispatchable for existing evidence without appearing in the
   newcomer core path.
 
+### REQ-cli-change-audit-001
+
+The CLI SHALL expose `specsync change audit` as a first-class `ChangeAction` alongside `change check`.
+
+Acceptance Criteria
+- Help text distinguishes scoped check from active-only audit.
+- Parsing accepts `change audit` with no change id.
+

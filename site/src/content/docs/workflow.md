@@ -64,12 +64,13 @@ specsync change finalize CHG-0001-add-passkeys
 ```
 
 `change check` applies approved semantic deltas and runs the affected component's configured
-verification without a shell. Explicit `--strict`, project policy, and deterministic
-release/security classification add full-history, full-suite, or security validators to the same
-evidence path. Source, test, configuration, or contract edits stale verification; implementation
-edits after scoped review stale the review. `change status` prints the exact `change review`
-command when this independent review is the next required action; `change review` records the
-completed review and does not replace the repository's ordinary PR review.
+verification for **this change only**. It does not re-validate archived terminal evidence —
+archives are history. Use `change audit` for project health over **active** workspaces and living
+specs. Explicit `--strict`, project policy, and deterministic release/security classification add
+validators to the same scoped evidence path. Source, test, configuration, or contract edits stale
+verification; implementation edits after scoped review stale the review. `change status` prints the
+exact `change review` command when this independent review is the next required action; `change
+review` records the completed review and does not replace the repository's ordinary PR review.
 
 The reviewer value is a stable ASCII claim recorded with an append-only pass/block trail. It is not
 the trust root: required CI authenticates the official `SpecSync scoped review` GitHub Actions check

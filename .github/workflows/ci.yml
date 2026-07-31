@@ -161,7 +161,8 @@ jobs:
     needs: classify
     if: needs.classify.outputs.full == 'true'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # Windows integration (multi-change finalize fixtures) regularly exceeds 30m.
+    timeout-minutes: 45
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]

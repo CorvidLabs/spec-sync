@@ -47,7 +47,7 @@ The import preserves canonical and active OpenSpec material for migration. After
 1. Use BMAD's appropriate planning track to shape intent, architecture, and stories.
 2. Translate durable technical boundaries into SpecSync requirements and module contracts.
 3. Let BMAD agents implement and review while SpecSync checks the resulting repository.
-4. Require SpecSync verification and closing approval before the delivery is accepted.
+4. Require SpecSync targeted verification, scoped review, and same-PR finalization before GitHub merge.
 
 ## Pattern 4: Split ownership by boundary
 

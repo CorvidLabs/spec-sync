@@ -48,6 +48,6 @@ SpecSync is a local CLI tool and GitHub Action. The primary security concerns ar
 
 ## Security Best Practices for Users
 
-- Pin SpecSync to the current major version in CI (`uses: CorvidLabs/spec-sync@v5`), or to a full release tag/commit for stronger reproducibility
+- Pin SpecSync to the current major version in CI (`uses: CorvidLabs/spec-sync@v6`), or to a full release tag/commit for stronger reproducibility
 - Review spec files from untrusted sources before running validation
 - Remote cross-project validation is opt-in; only pass `resolve --remote` or `resolve --verify` when network-backed reference checks are required

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Validate deterministic runtime pins in maintained GitHub workflows."""
 
 import json

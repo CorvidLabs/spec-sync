@@ -55,3 +55,46 @@ Acceptance Criteria
   and the next definition-approval gate.
 - Domain rejection exits non-zero without success output or partial lifecycle mutation.
 
+### REQ-cmd-change-005
+
+The change command adapter SHALL guide every user through the single one-approval workflow and
+same-PR finalization without performing an external merge.
+
+Acceptance Criteria
+
+- `status` always prints exactly one explicit next action.
+- When scope approval is missing or stale, status prints the exact current digest next to that
+  approval action.
+- Status requests renewed approval only for a material stable-scope change and lists each added or
+  removed criterion, affected spec/path, dependency, supersession obligation, or changed intent in
+  plain language; execution/evidence-only changes direct the user to `change check` instead.
+- Newcomer output teaches `new → approve → implement → check → review → finalize → GitHub merge`.
+- Agent-authored status identifies a missing scoped review and explains that opening or updating the
+  PR requests the configured review check.
+- Status names any strict validators required by `--strict`, project policy, or release/security
+  classification without presenting a different lifecycle.
+- `finalize` reports the implementation parent, archived path, finalization digest, and readiness
+  for GitHub merge; it never claims to merge or invokes a provider merge API.
+- JSON and text expose the same current gate and next action.
+- Review output exposes the persisted `pass` or `block` verdict; domain rejection of a scope
+  approver acting as reviewer exits non-zero without success output.
+- Review identities are stable ASCII claims, attempts are append-only, and output does not imply
+  authentication before the required GitHub check is proven.
+
+### REQ-cmd-change-check-scoped-001
+
+`specsync change check` SHALL run scoped verification for one change and SHALL NOT invoke full archive terminal-evidence revalidation.
+
+Acceptance Criteria
+- Text success ends with a verified marker and a Next action when possible.
+- JSON emits verification only (not a full project archive evidence dump).
+- Failure exits non-zero with actionable Next guidance.
+
+### REQ-cmd-change-audit-001
+
+`specsync change audit` SHALL report active-workspace and living-spec integrity and exit non-zero when the report contains errors.
+
+Acceptance Criteria
+- Output does not dump authenticated-history lines for archived changes.
+- Checked count reflects active changes in scope.
+

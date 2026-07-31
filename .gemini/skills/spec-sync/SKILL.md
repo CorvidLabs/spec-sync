@@ -9,23 +9,36 @@ This project uses [spec-sync](https://github.com/CorvidLabs/spec-sync) for bidir
 
 ## Companion files
 
-## Verified SDD change lifecycle (5.0)
+## Verified change lifecycle (6.0)
 
 For every meaningful source, test, public documentation, schema, or configuration change:
 
 1. Run `specsync change new "<intent>" --json` and conduct the returned interview with the user.
-2. Use `specsync change answer <id> <question-id> <answer> --json` until no questions remain.
+2. Use `specsync change answer <id> <question-id> "<answer>" --json` until no questions remain.
 3. Complete the adaptively selected artifacts and semantic deltas. Requirements use stable
    `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
-4. Ask the user for the definition approval, then run `specsync change approve <id>`.
-5. Run `specsync change start <id>` before editing implementation code.
-6. Keep tasks and artifacts current, then run `specsync change verify <id>`.
-7. Present verification evidence and ask for closing approval. Only after explicit approval,
-   run `specsync change accept <id>`; archive separately with `specsync change archive <id>`.
+4. Ask the user for the single scope approval, then run `specsync change approve <id>`.
+5. Implement code, canonical specs, and tests on the same branch. Run `specsync change check [<id>]`
+   for **scoped** verification of this change only (materialize deltas + targeted tests). Do **not**
+   treat check as a full archive integrity walk. Use `specsync change audit` when you need project
+   health over **active** workspaces and living specs. Archives are history.
+6. Complete ordinary pull-request review. For agent-authored work, have an independent reviewer
+   inspect the change package, implementation diff, canonical spec delta, and targeted evidence
+   once, then record it with `specsync change review <id> --reviewer "<identity>"`.
+7. Run `specsync change finalize <id>` to create the same-PR metadata/archive-only commit, then
+   merge through GitHub. SpecSync does not merge the pull request.
 
-Never invent or self-grant either human approval. If an approved definition changes, its digest
-becomes stale and must be approved again. `specsync check` validates canonical specs plus approved
-active deltas, requirement-to-test evidence, change coverage, and CI gates.
+## Lifecycle verbs
+
+- `specsync change check [id]` — verify **this** change (materialize + targeted tests). Default daily path.
+- `specsync change audit` — project health over **active** workspaces and living specs. Not archive history.
+- Archives are history; do not re-validate terminal evidence for every archived CHG on each check.
+- Slash commands: `/specsync:check`, `/specsync:audit` (Claude/Cursor/Gemini via `specsync agents install`).
+
+Never invent or self-grant the scope approval or independent review. If an approved definition
+changes, its digest becomes stale and must be approved again. `specsync change status` always
+prints one explicit next action. Historical repair commands remain available for older evidence,
+but new changes use this single workflow.
 
 Each canonical spec may have policy-selected companion files. Read and update the ones present; do not create empty companions only for ceremony:
 
@@ -68,6 +81,8 @@ the description to draft the spec's Purpose and Requirements.
 
 - `specsync check` — validate all specs against source code
 - `specsync check --json` — machine-readable validation output
+- `specsync change check [id]` — scoped verification for one SDD change
+- `specsync change audit` — active workspaces + living specs (not archive history)
 - `specsync coverage` — show which modules lack specs
 - `specsync score` — quality score for each spec (0-100)
 - `specsync scaffold <name>` — full scaffold: spec + companions + registry entry + source detection

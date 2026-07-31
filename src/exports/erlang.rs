@@ -11,8 +11,9 @@ static COMMENT_SINGLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)%.*$"
 static ERL_EXPORT_ATTR: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)-export\s*\(\s*\[\s*([^]]*)\s*\]\s*\)").unwrap());
 
-/// Function name within export list: name/arity
-static ERL_FUN_ARITY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"'?\b(\w+)'?/\d+").unwrap());
+/// Static function identity within an export list: name/arity.
+static ERL_FUN_ARITY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:'((?:\\.|[^'])+)'|([[:word:]]+))/([0-9]+)").unwrap());
 
 /// `-compile(export_all).` or `-compile([export_all, ...]).`: a compiler
 /// directive that exports every top-level function in the module, regardless
@@ -26,8 +27,9 @@ static ERL_COMPILE_EXPORT_ALL: LazyLock<Regex> = LazyLock::new(|| {
 /// macros, etc. all start with `-` or `?` and are never matched. Only used
 /// to enumerate every defined function when `-compile(export_all)` is
 /// present, since export_all makes every top-level function public.
-static ERL_FUN_DEF: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_@]*))\s*\(").unwrap());
+static ERL_FUN_DEF: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^[ \t]*(?:'((?:\\.|[^'])+)'|([A-Za-z_][A-Za-z0-9_@]*))\s*\(").unwrap()
+});
 
 /// Extract public symbols from Erlang source code.
 pub fn extract_exports(content: &str) -> Vec<String> {
@@ -39,10 +41,12 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         if let Some(list_match) = caps.get(1) {
             let list_str = list_match.as_str();
             for f_caps in ERL_FUN_ARITY.captures_iter(list_str) {
-                if let Some(name) = f_caps.get(1) {
-                    let n = name.as_str().to_string();
-                    if !symbols.contains(&n) {
-                        symbols.push(n);
+                if let (Some(name), Some(arity)) =
+                    (f_caps.get(1).or_else(|| f_caps.get(2)), f_caps.get(3))
+                {
+                    let identity = format!("{}/{}", name.as_str(), arity.as_str());
+                    if !symbols.contains(&identity) {
+                        symbols.push(identity);
                     }
                 }
             }
@@ -51,19 +55,100 @@ pub fn extract_exports(content: &str) -> Vec<String> {
 
     if ERL_COMPILE_EXPORT_ALL.is_match(&stripped) {
         for caps in ERL_FUN_DEF.captures_iter(&stripped) {
-            let name = caps
-                .get(1)
-                .or_else(|| caps.get(2))
-                .map(|m| m.as_str().to_string());
-            if let Some(n) = name
-                && !symbols.contains(&n)
-            {
-                symbols.push(n);
+            let Some(name) = caps.get(1).or_else(|| caps.get(2)) else {
+                continue;
+            };
+            let Some(full_match) = caps.get(0) else {
+                continue;
+            };
+            let Some(arity) = function_head_arity(&stripped[full_match.end()..]) else {
+                continue;
+            };
+            let identity = format!("{}/{arity}", name.as_str());
+            if !symbols.contains(&identity) {
+                symbols.push(identity);
             }
         }
     }
 
     symbols
+}
+
+/// Count top-level arguments after a matched function-head opening `(`.
+fn function_head_arity(after_open: &str) -> Option<usize> {
+    let mut parens = 0_u32;
+    let mut brackets = 0_u32;
+    let mut braces = 0_u32;
+    let mut binaries = 0_u32;
+    let mut quote = None;
+    let mut escaped = false;
+    let mut saw_argument = false;
+    let mut commas = 0_usize;
+    let mut characters = after_open.char_indices().peekable();
+
+    while let Some((_, character)) = characters.next() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == active_quote {
+                quote = None;
+            }
+            saw_argument = true;
+            continue;
+        }
+
+        match character {
+            '\'' | '"' => {
+                quote = Some(character);
+                saw_argument = true;
+            }
+            '$' => {
+                // Character literals consume the following character,
+                // including escaped forms such as `$\n`.
+                if matches!(characters.peek(), Some((_, '\\'))) {
+                    characters.next();
+                }
+                characters.next();
+                saw_argument = true;
+            }
+            '<' if matches!(characters.peek(), Some((_, '<'))) => {
+                characters.next();
+                binaries += 1;
+                saw_argument = true;
+            }
+            '>' if binaries > 0 && matches!(characters.peek(), Some((_, '>'))) => {
+                characters.next();
+                binaries -= 1;
+            }
+            '(' => {
+                parens += 1;
+                saw_argument = true;
+            }
+            ')' if parens > 0 => parens -= 1,
+            ')' if brackets == 0 && braces == 0 && binaries == 0 => {
+                return Some(if saw_argument { commas + 1 } else { 0 });
+            }
+            '[' => {
+                brackets += 1;
+                saw_argument = true;
+            }
+            ']' if brackets > 0 => brackets -= 1,
+            '{' => {
+                braces += 1;
+                saw_argument = true;
+            }
+            '}' if braces > 0 => braces -= 1,
+            ',' if parens == 0 && brackets == 0 && braces == 0 && binaries == 0 => {
+                commas += 1;
+            }
+            non_whitespace if !non_whitespace.is_whitespace() => saw_argument = true,
+            _ => {}
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -86,10 +171,10 @@ mul(A, B) -> A * B.
 helper() -> ok.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"add".to_string()));
-        assert!(symbols.contains(&"sub".to_string()));
-        assert!(symbols.contains(&"mul".to_string()));
-        assert!(symbols.contains(&"DummyClass".to_string()));
+        assert!(symbols.contains(&"add/2".to_string()));
+        assert!(symbols.contains(&"sub/2".to_string()));
+        assert!(symbols.contains(&"mul/2".to_string()));
+        assert!(symbols.contains(&"DummyClass/0".to_string()));
         assert!(!symbols.contains(&"helper".to_string()));
     }
 
@@ -109,8 +194,8 @@ real_fn(X) -> X.
 fake_fn(X) -> X.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"real_fn".to_string()));
-        assert!(!symbols.contains(&"fake_fn".to_string()));
+        assert!(symbols.contains(&"real_fn/1".to_string()));
+        assert!(!symbols.contains(&"fake_fn/1".to_string()));
     }
 
     #[test]
@@ -127,9 +212,9 @@ sub(A, B) -> A - B.
 mul(A, B) -> A * B.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"add".to_string()));
-        assert!(symbols.contains(&"sub".to_string()));
-        assert!(symbols.contains(&"mul".to_string()));
+        assert!(symbols.contains(&"add/2".to_string()));
+        assert!(symbols.contains(&"sub/2".to_string()));
+        assert!(symbols.contains(&"mul/2".to_string()));
     }
 
     #[test]
@@ -144,8 +229,8 @@ double(X) -> X * 2.
 triple(X) -> X * 3.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"double".to_string()));
-        assert!(symbols.contains(&"triple".to_string()));
+        assert!(symbols.contains(&"double/1".to_string()));
+        assert!(symbols.contains(&"triple/1".to_string()));
     }
 
     #[test]
@@ -180,9 +265,9 @@ real_fn2(A, B) -> A + B.
 fake_fn(X) -> X.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"real_fn".to_string()));
-        assert!(symbols.contains(&"real_fn2".to_string()));
-        assert!(!symbols.contains(&"fake_fn".to_string()));
+        assert!(symbols.contains(&"real_fn/1".to_string()));
+        assert!(symbols.contains(&"real_fn2/2".to_string()));
+        assert!(!symbols.contains(&"fake_fn/1".to_string()));
     }
 
     #[test]
@@ -203,8 +288,8 @@ add(A, B) -> A + B.
 sub(A, B) -> A - B.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"add".to_string()));
-        assert!(symbols.contains(&"sub".to_string()));
+        assert!(symbols.contains(&"add/2".to_string()));
+        assert!(symbols.contains(&"sub/2".to_string()));
     }
 
     #[test]
@@ -223,10 +308,10 @@ normal_fn(X) -> X * 2.
 "#;
         let symbols = extract_exports(src);
         assert!(
-            symbols.contains(&"_private_looking".to_string()),
+            symbols.contains(&"_private_looking/1".to_string()),
             "{symbols:?}"
         );
-        assert!(symbols.contains(&"normal_fn".to_string()));
+        assert!(symbols.contains(&"normal_fn/1".to_string()));
     }
 
     #[test]
@@ -251,11 +336,43 @@ handle_call(_, _, State) -> {reply, ok, State}.
 describe_internal() -> ok.
 "#;
         let symbols = extract_exports(src);
-        assert!(symbols.contains(&"start_link".to_string()));
-        assert!(symbols.contains(&"validate".to_string()));
-        assert!(symbols.contains(&"init".to_string()));
-        assert!(symbols.contains(&"handle_call".to_string()));
-        assert!(!symbols.contains(&"describe".to_string()));
-        assert!(!symbols.contains(&"describe_internal".to_string()));
+        assert!(symbols.contains(&"start_link/0".to_string()));
+        assert!(symbols.contains(&"validate/1".to_string()));
+        assert!(symbols.contains(&"init/1".to_string()));
+        assert!(symbols.contains(&"handle_call/3".to_string()));
+        assert!(!symbols.contains(&"describe/0".to_string()));
+        assert!(!symbols.contains(&"describe_internal/0".to_string()));
+    }
+
+    #[test]
+    fn test_erlang_name_and_arity_are_distinct_export_identities() {
+        let src = r#"
+-module(shapes).
+-export([area/1, area/2, 'quoted name'/0]).
+
+area(Circle) -> Circle.
+area(Width, Height) -> Width * Height.
+'quoted name'() -> ok.
+"#;
+
+        assert_eq!(
+            extract_exports(src),
+            vec!["area/1", "area/2", "quoted name/0"]
+        );
+    }
+
+    #[test]
+    fn test_export_all_counts_nested_and_comma_containing_arguments() {
+        let src = r#"
+-module(shapes).
+-compile(export_all).
+
+zero() -> ok.
+complex({A, B}, [C, D], call(E, F), <<"a,b">>, "x,y", $, ) -> ok.
+"#;
+
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"zero/0".to_string()), "{symbols:?}");
+        assert!(symbols.contains(&"complex/6".to_string()), "{symbols:?}");
     }
 }

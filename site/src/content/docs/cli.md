@@ -195,7 +195,12 @@ Scans `source_dirs` for files matching the module name to auto-populate the `fil
 
 ### `migrate`
 
-Upgrade a legacy 3.x project to the current layout. Moves config into `.specsync/`, converts it to TOML, extracts lifecycle history, and stamps the project version. Existing 4.x projects can then enable the verified 5.0 lifecycle with `specsync change adopt`.
+Upgrade a legacy 3.x project to the current layout. Moves config into `.specsync/`, converts it to
+TOML, extracts lifecycle history, and stamps the project version. Existing projects can then adopt
+the current verified lifecycle with `specsync change adopt`; existing policy and lifecycle evidence
+remain byte-identical while subsequent changes use the 6.0 single workflow. Adoption fails before
+writing when an uncommitted or branch-only legacy change is absent from the trusted comparison
+cutoff, and publishes its report, imports, and baseline atomically.
 
 ```bash
 specsync migrate                           # run full migration
@@ -341,7 +346,7 @@ specsync rules                             # show all rules and their configurat
 
 ### `change`
 
-Manage the complete verified SDD delivery lifecycle. Every command supports global `--json` output for agent clients.
+Manage the single verified change workflow. Every command supports global `--json` output for agent clients.
 
 ```bash
 specsync change new "Add passkeys" --kind feature --spec auth --path src/auth.rs
@@ -349,10 +354,14 @@ specsync change answer CHG-0001-add-passkeys acceptance_criteria "Passkey login 
 specsync change depend CHG-0002-update-ui CHG-0001-add-passkeys
 specsync change list
 specsync change show CHG-0001-add-passkeys
+specsync change status CHG-0001-add-passkeys
 specsync change approve CHG-0001-add-passkeys
-specsync change start CHG-0001-add-passkeys
-specsync change verify CHG-0001-add-passkeys
-specsync change accept CHG-0001-add-passkeys
+specsync change check CHG-0001-add-passkeys
+specsync change audit
+specsync change review CHG-0001-add-passkeys --reviewer "Independent reviewer"
+specsync change finalize CHG-0001-add-passkeys
+# GitHub branch protection or merge queue performs the merge
+# Historical repair commands remain available:
 specsync change reopen CHG-0001-add-passkeys --actor "Ada" --reason "Review fixes changed governed inputs"
 specsync change correct CHG-0001-add-passkeys architecture_risk yes --actor "Ada" --reason "Review found architectural impact"
 specsync change correct-owner CHG-0001-add-passkeys --path src/auth.rs --spec auth --actor "Ada" --reason "Owner omitted from the accepted affected-spec list"
@@ -361,13 +370,20 @@ specsync change correct-owner CHG-0001-add-passkeys --manifest owners.json --act
 specsync change correct-owner CHG-0001-add-passkeys --all-missing --spec auth --actor "Ada" --reason "Assign every omitted owner"
 specsync change supersede CHG-0002-update-ui CHG-0001-add-passkeys --path specs/auth/auth.spec.md --module auth
 specsync change archive CHG-0001-add-passkeys
-specsync change check
 specsync change adopt --dry-run
 ```
 
 `acceptance_criteria` preserves scalar prose exactly; use a JSON array of strings to provide multiple criteria. `affected_specs` and `affected_paths` retain comma- and newline-separated list input.
 
-Definition and closing approvals are mandatory and digest-bound. Use `change reopen` when accepted delivery inputs became stale but the approved definition is unchanged. Use `change correct` when review proves an accepted `public_contract` or `architecture_risk` answer was wrong. Correction requires an explicit actor and reason, preserves the original answer and prior evidence in an append-only ledger, can only add newly required artifacts, returns to `verifying`, and requires fresh definition approval, verification, and closing approval. Correct/show/status expose both original and effective values in text and global `--json` output. Unsupported fields, values other than `yes`/`no`, no-op corrections, incomplete audit inputs, and non-accepted workspaces fail without mutation. Neither recovery path reapplies an already-canonical semantic delta. `change adopt` enables SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
+New changes require one digest-bound human scope approval. `change status` always names one next
+action; `change check` applies approved deltas and records targeted evidence for **one change**
+(not archive history); `change audit` checks active workspaces and living specs; independent scoped
+review binds the implementation commit; and `change finalize` creates the dated archive in the same
+PR without merging externally. Global `--strict`, project policy, and release/security
+classification add validators to this same path. Existing `start`, `verify`, `accept`, `archive`,
+`reopen`, `correct`, and `correct-owner` commands remain compatible with historical two-approval
+evidence. Neither repair path reapplies an already-canonical semantic delta. `change adopt` enables
+SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
 
 Use `change correct-owner` to append audited exact canonical owner corrections for reopened acceptance evidence — for example owners omitted from a historical affected-spec list. The single form takes one `--path`/`--spec` pair; the batch form accepts repeated `--path` flags (one shared `--spec` or paired lists), a `--manifest` file (JSON `[{path, module}]` or TSV), or `--all-missing --spec <module>` to discover every production-source affected path that lacks canonical ownership. Every entry validates independently against the single-correction rules, and the batch is transactional: if any entry is invalid, no corrections from the batch are persisted. Use `change supersede` before definition approval when a later change adopts an exact predecessor path/module obligation, so the predecessor's accepted evidence remains successor-covered instead of going stale.
 

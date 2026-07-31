@@ -295,7 +295,9 @@ fn run() {
                 allowed || all,
             ),
         },
-        Command::Change { action } => commands::change::cmd_change(&root, action, format),
+        Command::Change { action } => {
+            commands::change::cmd_change(&root, action, format, cli.strict)
+        }
     }
 }
 

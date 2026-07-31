@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 67,
-  "id": "CHG-0067-fix-issue-467-by-deduplicating-identical-stage-zero-entries-from-overlapping-gi",
+  "sequence": 69,
+  "id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
   "acknowledged_collisions": [
     {
       "sequence": 16,

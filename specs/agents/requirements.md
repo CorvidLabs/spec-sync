@@ -71,3 +71,26 @@ Acceptance Criteria
 - Guidance demonstrates `--minimal` before and after both a bare module and a free-text description.
 - Tests byte-compare freshly installed commands with checked-in assets and prove a second install is
   idempotent.
+
+### REQ-agents-004
+
+Generated agent artifacts SHALL be tracked by a versioned digest manifest so upgrades preserve
+customized files and report conflicts.
+
+Acceptance Criteria
+
+- Installation records artifact path, tool, template version, and digest in a project-local manifest.
+- Unchanged generated artifacts update idempotently.
+- Customized artifacts are never overwritten or deleted and produce an actionable conflict.
+- Uninstall removes only digest-matching managed artifacts and preserves shared directories.
+- Legacy installations are adopted only when their bytes match a known generated template.
+
+### REQ-agents-check-audit-commands-001
+
+`specsync agents install` SHALL generate `/specsync:check` and `/specsync:audit` command files for tools that support project-local commands, and skill prose SHALL teach the two-verb lifecycle model.
+
+Acceptance Criteria
+- Claude, Cursor, and Gemini receive check and audit command files.
+- Skill content distinguishes `change check` (scoped) from `change audit` (actives + living specs).
+- Template version advances so upgrades refresh generated artifacts.
+

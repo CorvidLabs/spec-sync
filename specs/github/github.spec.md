@@ -1,6 +1,6 @@
 ---
 module: github
-version: 12
+version: 14
 status: stable
 files:
   - src/github.rs
@@ -63,6 +63,16 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
    links to the requested repository issues endpoint and query semantics, and rejects malformed
    links and cap truncation.
 7. Direct issue details are issue-only and reject pull-request markers.
+8. A positive archive-only CI classification requires one single-parent exact active-to-dated-archive move; name-only or malformed archive diffs select the full lane.
+9. Archive-only validation reuses successful required checks and one schema-v2 passing independent review with append-only attempts and authenticated GitHub Actions provenance from the implementation parent, while release validation requires a successful merge-bound archive check.
+10. Legacy workflow-v1 archive moves stay on the historical full-validation path, and fork PRs run the same read-only scoped review while suppressing only write decorations.
+11. Post-merge publication runs from immutable base-controlled code for forks, and the trusted
+    policy guard rejects every changed workflow, root or nested local Action definition, or
+    workflow-v2 baseline with rename-safe, NUL-record-safe path discovery rather than an enumerated
+    subset; privileged executable Actions use full commit SHAs.
+12. Archive introduction verification checks every bounded path-touching commit and readable parent
+    against the exact introduction tree, rejecting deletion or rewrite even when final bytes are
+    restored.
 
 ## Behavioral Examples
 
@@ -90,6 +100,12 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 - **When** `fetch_issue(repo, 42)` is called
 - **Then** returns a token-required error without launching `gh issue view`
 
+### Scenario: Same-PR archive child
+
+- **Given** an implementation parent has green required CI and scoped review
+- **When** its only child moves the matching active package into the dated archive with valid finalization evidence
+- **Then** required CI runs the lightweight archive-integrity lane without repeating product tests or scoped review
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -110,6 +126,8 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | Duplicate raw item identity within or across list pages, including pull requests | Entire listing fails; filtered pull requests cannot hide duplicates |
 | Issue-list page contains 101 or more provider entries | Entire listing fails before parsing any entry, even if overflow entries are pull requests or malformed |
 | Issue listing still has a next page after 100 pages | Entire listing fails instead of truncating |
+| Archive child changes code/spec/tests or rewrites immutable package evidence | Archive-only validation fails; it never skips the product matrix on an unproven diff |
+| Release commit lacks a successful merge-bound archive check | Release validation fails before building artifacts |
 
 ## Dependencies
 
@@ -144,3 +162,11 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-07-22 | CHG-0063 final adversarial follow-up: Validate every raw issue/pull-request item as open with exact URL identity and canonical decimal number spelling, and reject raw duplicates before PR filtering |
 | 2026-07-22 | CHG-0063 final agent review: reject pull-request payloads from direct issue-detail reads |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
+| 2026-07-30 | CHG-0068: Bind archive digests to v2 execution/review evidence, preserve v1 full validation, and make scoped review fork-safe |
+| 2026-07-30 | CHG-0068: Share native/hosted review bounds, authenticate review check provenance and append-only attempts, and preserve v2 archive validation across squash/rebase integration |
+| 2026-07-30 | CHG-0068: Make merged-fork archive publication base-controlled, bound archive reconstruction, and protect the complete workflow/local-Action check-production surface |
+| 2026-07-30 | CHG-0068 review hardening: Pin privileged archive checkout and make trust-policy protection descendant- and rename-safe |
+| 2026-07-30 | CHG-0068 adversarial hardening: Protect root Action manifests from optimized trust reuse |
+| 2026-07-30 | CHG-0068 adversarial hardening: Preserve NUL filename boundaries in trusted-policy matching |
+| 2026-07-30 | CHG-0068 review hardening: Reject archive rewrite-then-restore history |

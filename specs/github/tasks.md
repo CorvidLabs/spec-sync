@@ -48,3 +48,6 @@ spec: github.spec.md
 
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
 - [x] Prepare the 5.2.0 release: synchronized version surfaces and the Action promotion contract (REQ-github-004)
+- [x] Bind v2 finalization to execution/review verdict evidence and preserve v1/fork-safe CI routes
+- [x] Authenticate review check provenance and append-only attempts, share CI limits, and preserve
+  exact archive-tree binding across squash/rebase integration

@@ -1,6 +1,7 @@
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
@@ -15,10 +16,14 @@ const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
 const LEGACY_BASELINE_PATH: &str = ".specsync/archive/legacy-baseline.json";
+const WORKFLOW_V2_BASELINE_PATH: &str = ".specsync/workflow-v2-baseline.json";
 const LOCK_PATH: &str = ".specsync/change.lock";
 const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
 const CORRECTIONS_FILE: &str = "corrections.json";
+const SCOPED_REVIEW_FILE: &str = "review.json";
+const SCOPED_REVIEW_ATTEMPTS_FILE: &str = "review-attempts.json";
+const SCOPED_REVIEW_REQUIRED_CHECK: &str = "SpecSync scoped review";
 const PORTABLE_DEFINITION_PROJECTION_V501: &str = "specsync-5.0.1";
 const DEFINITION_APPROVAL_PAIR_DOMAIN: &[u8] = b"specsync.definition-approval-pair.v1";
 const CORRECTION_PREFIX_DOMAIN: &[u8] = b"specsync.correction-prefix.v1";
@@ -31,6 +36,7 @@ const MAX_GIT_COMMAND_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 const MAX_GIT_DIAGNOSTIC_BYTES: usize = 64 * 1024;
 const MAX_GIT_INDEX_BYTES: usize = 256 * 1024 * 1024;
 const MAX_GIT_EVIDENCE_PAYLOAD_BYTES: usize = 256 * 1024 * 1024;
+const MAX_CHANGE_READ_CACHE_ENTRIES: usize = 100_000;
 const GIT_COMMAND_DEADLINE: Duration = Duration::from_secs(120);
 const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
     "requirements.md",
@@ -42,6 +48,180 @@ const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
 static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
+#[cfg(test)]
+thread_local! {
+    static TRANSACTION_WRITE_FAILURE_INDEX: RefCell<Option<usize>> = const { RefCell::new(None) };
+    static TRANSACTION_AFTER_JOURNAL_HOOK: RefCell<Option<Box<dyn FnOnce()>>> =
+        RefCell::new(None);
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct GitEvidenceCacheKey {
+    regular_files_only: bool,
+    candidates: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct DiscoveredEvidenceCacheKey {
+    scopes: Option<Vec<String>>,
+    extra_candidates: Vec<String>,
+    regular_files_only: bool,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct GitTextQueryCacheKey {
+    allow_empty: bool,
+    arguments: Vec<String>,
+}
+
+#[derive(Debug)]
+struct ChangeReadSnapshot {
+    root: PathBuf,
+    active_records: Option<Result<Vec<ChangeRecord>, String>>,
+    all_records: Option<Result<BTreeMap<String, ChangeRecord>, String>>,
+    repository_present: Option<Result<bool, String>>,
+    repository_context: Option<Result<RepositoryContext, String>>,
+    checkout_overrides: Option<Result<Vec<String>, String>>,
+    project_input_digest: Option<Result<String, String>>,
+    git_evidence: BTreeMap<GitEvidenceCacheKey, Result<GitEvidence, String>>,
+    discovered_evidence:
+        BTreeMap<DiscoveredEvidenceCacheKey, Result<(Vec<String>, GitEvidence), String>>,
+    git_text_queries: BTreeMap<GitTextQueryCacheKey, Option<String>>,
+    git_status_queries: BTreeMap<Vec<String>, Result<bool, String>>,
+    workflow_version_history: BTreeMap<String, Result<(), String>>,
+    historical_sequence_ledgers: BTreeMap<u64, Result<Vec<Vec<u8>>, String>>,
+    terminal_evidence: Option<Result<BTreeMap<String, TerminalEvidenceSummary>, String>>,
+}
+
+impl ChangeReadSnapshot {
+    fn new(root: &Path) -> Self {
+        Self {
+            root: root.to_path_buf(),
+            active_records: None,
+            all_records: None,
+            repository_present: None,
+            repository_context: None,
+            checkout_overrides: None,
+            project_input_digest: None,
+            git_evidence: BTreeMap::new(),
+            discovered_evidence: BTreeMap::new(),
+            git_text_queries: BTreeMap::new(),
+            git_status_queries: BTreeMap::new(),
+            workflow_version_history: BTreeMap::new(),
+            historical_sequence_ledgers: BTreeMap::new(),
+            terminal_evidence: None,
+        }
+    }
+}
+
+thread_local! {
+    static CHANGE_READ_SCOPES: RefCell<Vec<ChangeReadSnapshot>> = const {
+        RefCell::new(Vec::new())
+    };
+    #[cfg(test)]
+    static TEST_GIT_PROCESS_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
+    #[cfg(test)]
+    static TEST_CANONICAL_MODULE_QUERY_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
+}
+
+/// Invocation-scoped snapshot for read-only lifecycle commands.
+///
+/// List, show, status, and read-only project reports install this scope. Mutating lifecycle APIs
+/// do not create one, so their repository and evidence validation remains live. The first evidence
+/// collection for each candidate set still performs the complete before/after Git race check.
+pub(crate) struct ChangeReadScope {
+    root: PathBuf,
+}
+
+impl Drop for ChangeReadScope {
+    fn drop(&mut self) {
+        CHANGE_READ_SCOPES.with(|scopes| {
+            let mut scopes = scopes.borrow_mut();
+            let removed = scopes.pop();
+            debug_assert_eq!(
+                removed.as_ref().map(|scope| scope.root.as_path()),
+                Some(self.root.as_path())
+            );
+        });
+    }
+}
+
+pub(crate) fn begin_change_read_scope(root: &Path) -> ChangeReadScope {
+    CHANGE_READ_SCOPES.with(|scopes| {
+        scopes.borrow_mut().push(ChangeReadSnapshot::new(root));
+    });
+    ChangeReadScope {
+        root: root.to_path_buf(),
+    }
+}
+
+fn ensure_change_read_scope(root: &Path) -> Option<ChangeReadScope> {
+    read_scope_value(root, |_| Some(()))
+        .is_none()
+        .then(|| begin_change_read_scope(root))
+}
+
+fn read_scope_value<Value: Clone>(
+    root: &Path,
+    read: impl FnOnce(&ChangeReadSnapshot) -> Option<Value>,
+) -> Option<Value> {
+    CHANGE_READ_SCOPES.with(|scopes| {
+        let scopes = scopes.borrow();
+        let scope = scopes.last()?;
+        (scope.root == root).then(|| read(scope)).flatten()
+    })
+}
+
+fn update_read_scope(root: &Path, update: impl FnOnce(&mut ChangeReadSnapshot)) -> bool {
+    CHANGE_READ_SCOPES.with(|scopes| {
+        let mut scopes = scopes.borrow_mut();
+        let Some(scope) = scopes.last_mut().filter(|scope| scope.root == root) else {
+            return false;
+        };
+        update(scope);
+        true
+    })
+}
+
+#[cfg(test)]
+fn record_test_git_process() {
+    TEST_GIT_PROCESS_COUNT.with(|count| count.set(count.get() + 1));
+}
+
+#[cfg(not(test))]
+fn record_test_git_process() {}
+
+#[cfg(test)]
+fn reset_test_git_process_count() {
+    TEST_GIT_PROCESS_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+fn test_git_process_count() -> usize {
+    TEST_GIT_PROCESS_COUNT.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+fn record_test_canonical_module_query() {
+    TEST_CANONICAL_MODULE_QUERY_COUNT.with(|count| count.set(count.get() + 1));
+}
+
+#[cfg(not(test))]
+fn record_test_canonical_module_query() {}
+
+#[cfg(test)]
+fn reset_test_canonical_module_query_count() {
+    TEST_CANONICAL_MODULE_QUERY_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+fn test_canonical_module_query_count() -> usize {
+    TEST_CANONICAL_MODULE_QUERY_COUNT.with(std::cell::Cell::get)
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct GitWorktreeState {
@@ -96,6 +276,7 @@ impl GitEvidence {
 }
 
 const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
+const SCOPE_DIGEST_DOMAIN: &[u8] = b"specsync.scope-digest.v1";
 const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v2";
 const ACCEPTANCE_DIGEST_DOMAIN: &[u8] = b"specsync.acceptance-input-digest.v2";
 const ACCEPTANCE_ENTRY_DOMAIN: &[u8] = b"specsync.acceptance-entry.v1";
@@ -104,6 +285,7 @@ const SEMANTIC_SUCCESSION_DOMAIN: &[u8] = b"specsync.semantic-succession.v1";
 const LEGACY_BASELINE_DOMAIN: &[u8] = b"specsync.legacy-archive-baseline.v1";
 const LEGACY_SUBTREE_DOMAIN: &[u8] = b"specsync.legacy-archive-subtree.v1";
 const CLOSING_DIGEST_DOMAIN: &[u8] = b"specsync.closing-digest.v2";
+const FINALIZATION_DIGEST_DOMAIN: &[u8] = b"specsync.finalization-digest.v2";
 const CORRECTION_VIEW_DIGEST_DOMAIN: &[u8] = b"specsync.correction-view-digest.v1";
 const EXACT_TEST_OWNER: &str = "@exact:test";
 const EXACT_DELIVERY_OWNER: &str = "@exact:delivery";
@@ -111,9 +293,48 @@ const MAX_ACCEPTANCE_ENTRIES: usize = 100_000;
 const MAX_ACCEPTANCE_PATH_BYTES: usize = 4_096;
 const MAX_ACCEPTANCE_OWNERS: usize = 1_024;
 const MAX_ACCEPTANCE_OWNER_BYTES: usize = 256;
+const MAX_TRUSTED_HISTORY_COMMITS: usize = 10_000;
+const CHG_0068_ID: &str =
+    "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara";
+const CHG_0068_LEGACY_APPROVAL_DIGEST: &str =
+    "20527b1e1f7f7fd2b310aab328ca865759de081624c519cb56184e3e4f816560";
+const CHG_0068_ADOPTED_SCOPE_DIGEST: &str =
+    "35f68b68d4cdca134f98f514a56c1afdc4c530ef4f43461f75b7898404fae79b";
+const CHG_0068_ADOPTION_ANCHOR_COMMIT: &str = "5e58be031875d89d7d45bf0a5effaf0d9e855ad1";
+const CHG_0068_ADOPTION_BASE_COMMIT: &str = "fc091c88f72a6d2fb2df168f4baa4370579ff8a2";
+const CHG_0068_ADOPTION_ANCHOR_BLOB: &str =
+    "a127ce2a5d51059633d79058bbba65eefc820ea8e4d48ecaddf0941bc92c002d";
+const CHG_0068_ADOPTION_CHANGES_DIGEST: &str =
+    "0927c338d83284ca99244c58e47659f1a9668e8d3756ffa956855267111e5c40";
+const CHG_0068_ADOPTION_REASON: &str =
+    "Preserve the already-approved stable scope; the legacy definition preimage is unavailable.";
 
 struct FramedDigest {
     hasher: Sha256,
+}
+
+#[derive(Debug, Deserialize)]
+struct LifecycleValidationLimits {
+    git_max_output_bytes: usize,
+    git_timeout_seconds: u64,
+    scoped_review_max_descendants: usize,
+    scoped_review_max_parents: usize,
+}
+
+fn lifecycle_validation_limits() -> &'static LifecycleValidationLimits {
+    static LIMITS: OnceLock<LifecycleValidationLimits> = OnceLock::new();
+    LIMITS.get_or_init(|| {
+        let limits: LifecycleValidationLimits = serde_json::from_str(include_str!(concat!(
+            "../.github/scripts/",
+            "lifecycle-validation-limits.json"
+        )))
+        .expect("bundled lifecycle validation limits must be valid JSON");
+        assert!(limits.git_max_output_bytes > 0);
+        assert!(limits.git_timeout_seconds > 0);
+        assert!(limits.scoped_review_max_descendants > 0);
+        assert!(limits.scoped_review_max_parents > 0);
+        limits
+    })
 }
 
 impl FramedDigest {
@@ -183,9 +404,17 @@ impl Drop for ProjectLock {
 
 fn acquire_project_lock(root: &Path) -> Result<ProjectLock, String> {
     let path = root.join(LOCK_PATH);
+    // Capability no-follow opens are not race-safe for concurrent first-time creators of the
+    // metadata directory on all platforms. Use the race-safe std directory/file open path while
+    // still rejecting symlink components before and after directory creation so a symlinked
+    // `.specsync` root cannot host the lifecycle lock (see
+    // `change_adopt_rejects_symlinked_metadata_root_before_lock_write`).
+    reject_symlink_components_for(root, &path, "lifecycle lock path")?;
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("failed to create lifecycle metadata directory: {error}"))?;
     }
+    reject_symlink_components_for(root, &path, "lifecycle lock path")?;
     let file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -204,35 +433,60 @@ fn acquire_project_lock(root: &Path) -> Result<ProjectLock, String> {
     Ok(lock)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct TransactionEntry {
     path: String,
     original: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct TransactionJournal {
+    schema_version: u32,
+    entry_count: usize,
+    entries_digest: String,
+    entries: Vec<TransactionEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum TransactionJournalRead {
+    Durable(TransactionJournal),
+    Legacy(Vec<TransactionEntry>),
+}
+
 fn recover_pending_transaction(root: &Path) -> Result<(), String> {
-    let journal = root.join(TRANSACTION_PATH);
-    if !journal.exists() {
+    let journal_path = root.join(TRANSACTION_PATH);
+    if !journal_path.exists() {
         return Ok(());
     }
-    let content = fs::read_to_string(&journal)
+    let content = fs::read_to_string(&journal_path)
         .map_err(|error| format!("failed to read transaction journal: {error}"))?;
-    let entries: Vec<TransactionEntry> = serde_json::from_str(&content)
+    let journal: TransactionJournalRead = serde_json::from_str(&content)
         .map_err(|error| format!("invalid transaction journal: {error}"))?;
+    let entries = match journal {
+        TransactionJournalRead::Legacy(entries) => entries,
+        TransactionJournalRead::Durable(journal) => {
+            if journal.schema_version != 1
+                || journal.entry_count != journal.entries.len()
+                || journal.entries_digest != transaction_entries_digest(&journal.entries)?
+            {
+                return Err("invalid transaction journal integrity envelope".into());
+            }
+            journal.entries
+        }
+    };
     for entry in entries {
         let path = safe_project_path(root, &entry.path)?;
         if let Some(original) = entry.original {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-            }
-            fs::write(&path, original)
+            atomic_write_durable(&path, original.as_bytes())
                 .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
         } else if path.exists() {
-            fs::remove_file(&path)
+            remove_file_durable(&path)
                 .map_err(|error| format!("failed to remove {}: {error}", path.display()))?;
+            remove_empty_transaction_directories(root, path.parent());
         }
     }
-    fs::remove_file(&journal)
+    remove_file_durable(&journal_path)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))
 }
 
@@ -357,7 +611,7 @@ pub struct SddPolicy {
 impl Default for SddPolicy {
     fn default() -> Self {
         Self {
-            version: 1,
+            version: 2,
             enabled: true,
             require_change_for_meaningful_files: true,
             meaningful_paths: vec![
@@ -397,6 +651,13 @@ impl Default for SddPolicy {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChangeRecord {
     pub schema_version: u32,
+    #[serde(
+        default = "legacy_workflow_version",
+        skip_serializing_if = "is_legacy_workflow_version"
+    )]
+    pub workflow_version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflow_origin_version: Option<u32>,
     pub id: String,
     pub slug: String,
     pub title: String,
@@ -450,6 +711,28 @@ pub struct LegacyArchiveBaselineV1 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct WorkflowV2Baseline {
+    schema_version: u32,
+    domain: String,
+    cutoff_commit: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorkflowV2AdoptionGitSnapshot {
+    head: Option<String>,
+    comparison_reference: Option<String>,
+    comparison_tip: Option<String>,
+    cutoff_commit: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct WorkflowV2AdoptionCandidate {
+    baseline: WorkflowV2Baseline,
+    git_snapshot: WorkflowV2AdoptionGitSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LegacyArchiveBaselineEntryV1 {
     pub id: String,
     pub archive_path: String,
@@ -481,6 +764,95 @@ pub struct CreateChangeRequest {
     pub rationale: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovedScopeV1 {
+    pub schema_version: u32,
+    pub change_id: String,
+    pub title: String,
+    pub description: String,
+    pub kind: ChangeKind,
+    pub affected_specs: Vec<String>,
+    pub affected_paths: Vec<String>,
+    pub no_spec_change: bool,
+    pub no_spec_change_rationale: Option<String>,
+    pub acceptance_criteria: Vec<String>,
+    pub dependencies: Vec<String>,
+    pub supersedes: Vec<SupersedesEdge>,
+    pub answers: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NonMaterialScopeChangeCategory {
+    Implementation,
+    TestEvidence,
+    CanonicalMaterialization,
+    LifecycleMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NonMaterialScopeChangeV1 {
+    pub path: String,
+    pub category: NonMaterialScopeChangeCategory,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScopeApprovalMigrationV1 {
+    pub schema_version: u32,
+    pub source_definition_digest: String,
+    pub scope_digest: String,
+    pub changes: Vec<NonMaterialScopeChangeV1>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopeAdoptionSourcePreimageStatus {
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopeAdoptionEquivalenceClaim {
+    None,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScopeAdoptionAnchorV1 {
+    pub base_commit: String,
+    pub commit: String,
+    pub approval_index: u64,
+    pub approvals_blob_sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScopeAdoptionAuthorizationV1 {
+    pub actor: String,
+    pub recorded_at: u64,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScopeAdoptionV1 {
+    pub schema_version: u32,
+    pub change_id: String,
+    pub source_approval_index: u64,
+    pub legacy_approval_digest: String,
+    pub source_preimage_status: ScopeAdoptionSourcePreimageStatus,
+    pub equivalence_claim: ScopeAdoptionEquivalenceClaim,
+    pub adopted_scope: ApprovedScopeV1,
+    pub adopted_scope_digest: String,
+    pub anchor: ScopeAdoptionAnchorV1,
+    pub authorization: ScopeAdoptionAuthorizationV1,
+    pub changes: Vec<NonMaterialScopeChangeV1>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovalRecord {
     pub gate: String,
@@ -490,6 +862,10 @@ pub struct ApprovalRecord {
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub definition_pair: Option<DefinitionApprovalPairV1>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved_scope: Option<ApprovedScopeV1>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_migration: Option<ScopeApprovalMigrationV1>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -632,6 +1008,8 @@ impl Default for CorrectionLedger {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ApprovalLedger {
     pub approvals: Vec<ApprovalRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scope_adoptions: Vec<ScopeAdoptionV1>,
     #[serde(default)]
     pub reopenings: Vec<ReopenRecord>,
 }
@@ -648,6 +1026,8 @@ pub struct VerificationRecord {
     pub timestamp: u64,
     pub commit: Option<String>,
     pub contract_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_digest: Option<String>,
     #[serde(default)]
     pub workspace_digest: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -659,6 +1039,118 @@ pub struct VerificationRecord {
     pub passed: bool,
     pub commands: Vec<CommandEvidence>,
     pub requirement_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScopedReviewRecord {
+    pub schema_version: u32,
+    pub change_id: String,
+    pub reviewer: String,
+    pub provenance: ScopedReviewProvenanceV1,
+    pub verdict: ScopedReviewVerdict,
+    pub implementation_commit: String,
+    pub contract_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_digest: Option<String>,
+    pub workspace_digest: String,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopedReviewProvenanceProvider {
+    GithubActionsCheck,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScopedReviewProvenanceV1 {
+    pub schema_version: u32,
+    pub provider: ScopedReviewProvenanceProvider,
+    pub required_check: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ScopedReviewAttemptLedger {
+    schema_version: u32,
+    reviews: Vec<ScopedReviewRecord>,
+}
+
+impl Default for ScopedReviewAttemptLedger {
+    fn default() -> Self {
+        Self {
+            schema_version: 1,
+            reviews: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopedReviewVerdict {
+    Pass,
+    Block,
+}
+
+impl ScopedReviewVerdict {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pass => "pass",
+            Self::Block => "block",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "pass" => Ok(Self::Pass),
+            "block" => Ok(Self::Block),
+            _ => Err(format!(
+                "invalid scoped review verdict `{value}`; expected `pass` or `block`"
+            )),
+        }
+    }
+}
+
+fn scoped_review_provenance_valid(review: &ScopedReviewRecord) -> bool {
+    review.provenance.schema_version == 1
+        && review.provenance.provider == ScopedReviewProvenanceProvider::GithubActionsCheck
+        && review.provenance.required_check == SCOPED_REVIEW_REQUIRED_CHECK
+}
+
+fn validate_scoped_reviewer_claim(reviewer: &str) -> Result<&str, String> {
+    let reviewer = reviewer.trim();
+    if reviewer.is_empty() || reviewer.len() > 128 {
+        return Err("scoped reviewer claim must contain between 1 and 128 ASCII characters".into());
+    }
+    if !reviewer.is_ascii()
+        || !reviewer.chars().all(|character| {
+            character.is_ascii_alphanumeric()
+                || matches!(character, ' ' | '.' | '_' | ':' | '@' | '/' | '-')
+        })
+    {
+        return Err(
+            "scoped reviewer claim contains unsupported characters; use a stable ASCII identity"
+                .into(),
+        );
+    }
+    Ok(reviewer)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FinalizationRecord {
+    pub schema_version: u32,
+    pub change_id: String,
+    pub implementation_commit: String,
+    pub implementation_tree: String,
+    pub contract_digest: String,
+    pub workspace_digest: String,
+    pub closing_digest: String,
+    pub review_digest: String,
+    pub finalization_digest: String,
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -731,6 +1223,16 @@ struct LocatedChangeSequence {
     historical: bool,
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+struct VerificationRouting {
+    #[serde(default)]
+    component_verification_commands: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    strict_verification_commands: Vec<String>,
+    #[serde(default)]
+    strict_paths: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InterviewQuestion {
     pub id: String,
@@ -745,6 +1247,10 @@ pub struct ChangeSummary {
     pub title: String,
     pub state: ChangeState,
     pub approval_valid: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definition_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scope_expansion: Vec<String>,
     pub artifacts_complete: bool,
     #[serde(default)]
     pub correction_valid: bool,
@@ -752,6 +1258,12 @@ pub struct ChangeSummary {
     pub correction_count: usize,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub corrected_fields: BTreeMap<String, String>,
+    #[serde(default)]
+    pub scoped_review_current: bool,
+    #[serde(default)]
+    pub strict_validation_required: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub verification_commands: Vec<String>,
     pub next_action: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terminal_evidence: Option<TerminalEvidenceSummary>,
@@ -775,6 +1287,7 @@ pub enum TerminalEvidenceValidity {
 }
 
 impl TerminalEvidenceValidity {
+    #[allow(dead_code)]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Exact => "exact",
@@ -847,6 +1360,11 @@ pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> 
     if path.exists() {
         return Ok(());
     }
+    let policy = default_policy(root, verification_commands);
+    write_json(&path, &policy)
+}
+
+fn default_policy(root: &Path, verification_commands: Vec<String>) -> SddPolicy {
     let mut policy = SddPolicy {
         verification_commands,
         ..SddPolicy::default()
@@ -864,7 +1382,7 @@ pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> 
             policy.meaningful_paths.push(scope);
         }
     }
-    write_json(&path, &policy)
+    policy
 }
 
 pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<ChangeRecord, String> {
@@ -902,7 +1420,6 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         affected_paths.push(SEQUENCE_PATH.into());
     }
     let slug = slugify(&description);
-    let id = next_change_id(root, &slug)?;
     let now = now();
     let mut artifacts = adaptive_artifacts(kind, &affected_specs, &affected_paths);
     for artifact in requested_artifacts {
@@ -910,8 +1427,24 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
             artifacts.push(artifact);
         }
     }
+    let workflow_version = if read_workflow_v2_baseline(root)?.is_some() {
+        2
+    } else {
+        load_policy(root)
+            .map(|policy| if policy.version >= 2 { 2 } else { 1 })
+            .unwrap_or(2)
+    };
+    if workflow_version >= 2 {
+        ensure_workflow_v2_baseline(root)?;
+    }
+    // Allocate id + exclusive directory (retries on shared-FS races). Multi-clone
+    // still needs SPECSYNC_SEQUENCE_BASE or post-merge renumber — exclusive create
+    // only serializes agents that share a working tree / volume.
+    let (id, dir) = allocate_change_workspace(root, &slug)?;
     let record = ChangeRecord {
         schema_version: 1,
+        workflow_version,
+        workflow_origin_version: Some(workflow_version),
         id: id.clone(),
         slug,
         title: title_from_description(&description),
@@ -935,7 +1468,6 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         legacy_archive_baseline_digest: None,
         answers: BTreeMap::new(),
     };
-    let dir = change_dir(root, &record.id);
     fs::create_dir_all(dir.join("deltas")).map_err(|error| error.to_string())?;
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
@@ -958,6 +1490,7 @@ pub fn load_change(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     let record = serde_json::from_str(&content)
         .map_err(|error| format!("invalid change state {}: {error}", path.display()))?;
     validate_loaded_change(&record, id, &path)?;
+    validate_workflow_version_history(root, &record)?;
     Ok(record)
 }
 
@@ -966,6 +1499,17 @@ pub fn list_changes(root: &Path) -> Vec<ChangeRecord> {
 }
 
 fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
+    if let Some(records) = read_scope_value(root, |scope| scope.active_records.clone()) {
+        return records;
+    }
+    let result = list_changes_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.active_records = Some(result.clone());
+    });
+    result
+}
+
+fn list_changes_uncached(root: &Path) -> Result<Vec<ChangeRecord>, String> {
     let mut records = Vec::new();
     let dir = root.join(CHANGES_PATH);
     let entries = match fs::read_dir(dir) {
@@ -999,6 +1543,7 @@ fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
         let record = serde_json::from_str(&content)
             .map_err(|error| format!("invalid active change state {}: {error}", path.display()))?;
         validate_loaded_change(&record, &expected_id, &path)?;
+        validate_workflow_version_history(root, &record)?;
         records.push(record);
     }
     records.sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));
@@ -1170,7 +1715,9 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
             != Some(reopening.stale_acceptance_input_digest.as_str())
         || !definition_digest_matches(root, record, &reopening.prior_verification.contract_digest)
             .unwrap_or(false)
-        || reopening.superseded_approval.gate != "acceptance"
+        || validate_verification_execution_digest(root, record, &reopening.prior_verification)
+            .is_err()
+        || !is_terminal_approval(&reopening.superseded_approval)
         || reopening.superseded_approval.digest
             != closing_digest(record, &reopening.prior_verification)
     {
@@ -1189,6 +1736,38 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
             && approval.digest == reopening.superseded_approval.digest
             && approval.note == reopening.superseded_approval.note
     })
+}
+
+/// Project-wide next_action when the sequence ledger is frozen (invalid acknowledgements,
+/// mutable multi-id acks, or unacknowledged duplicates). Returns `None` when the ledger is healthy.
+fn sequence_ledger_freeze_next_action(root: &Path) -> Option<String> {
+    match validate_change_sequences(root) {
+        Ok(()) => None,
+        Err(reason)
+            if reason.contains("includes a mutable change")
+                || reason.contains("only immutable accepted or archived") =>
+        {
+            // Premature multi-id sequence acknowledgements freeze change new/adopt until every
+            // collision member is accepted/archived (or the acknowledgement is corrected).
+            Some(
+                "accept or archive every member of the acknowledged sequence collision (or remove the premature acknowledgement from `.specsync/change-sequence.json`), then re-run `specsync change status`"
+                    .into(),
+            )
+        }
+        Err(reason)
+            if reason.contains("no longer matches the exact historical ID set")
+                || reason.contains("must contain at least two unique IDs")
+                || reason.contains("duplicate acknowledgements for") =>
+        {
+            Some(format!(
+                "fix or remove the invalid acknowledgement in `.specsync/change-sequence.json` ({reason}), then re-run `specsync change status`"
+            ))
+        }
+        Err(reason) if reason.contains("duplicate numeric change sequence") => Some(format!(
+            "{reason}; update from the default branch (or set SPECSYNC_SEQUENCE_BASE for multi-clone fleets), then create a new change"
+        )),
+        Err(_) => None,
+    }
 }
 
 fn validate_change_sequences(root: &Path) -> Result<(), String> {
@@ -1273,13 +1852,21 @@ fn validate_change_sequences(root: &Path) -> Result<(), String> {
             .map(|change| change.sequence)
             .max()
             .unwrap_or(0);
-        if maximum != ledger.sequence {
+        // Disk must never run ahead of the ledger high-water mark.
+        if maximum > ledger.sequence {
             return Err(format!(
                 "change sequence ledger claims CHG-{:04} but the highest recorded sequence is CHG-{maximum:04}",
                 ledger.sequence
             ));
         }
-        if !located.iter().any(|change| change.id == ledger.id) {
+        let claim_present = located.iter().any(|change| change.id == ledger.id);
+        if !claim_present {
+            // Allow high-water claims after an abandoned draft (workspace removed
+            // but sequence not rolled back). Multi-agent cleanup and aborted
+            // `change new` paths hit this case.
+            if ledger.sequence > maximum {
+                return Ok(());
+            }
             return Err(format!(
                 "change sequence ledger claim `{}` has no active or archived workspace",
                 ledger.id
@@ -1651,10 +2238,17 @@ fn validate_legacy_baseline_authority_cutoff(
 pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
-    require_state(&record, &[ChangeState::Approved], "start implementation")?;
+    require_state(
+        &record,
+        &[ChangeState::Approved, ChangeState::Implementing],
+        "start implementation",
+    )?;
     ensure_definition_approval_valid(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
+    if record.state == ChangeState::Implementing {
+        return Ok(record);
+    }
     record.state = ChangeState::Implementing;
     record.updated_at = now();
     save_change(root, &record)?;
@@ -1662,7 +2256,98 @@ pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, Strin
     Ok(record)
 }
 
+fn materialize_change_deltas(root: &Path, id: &str) -> Result<ChangeRecord, String> {
+    let _lock = acquire_project_lock(root)?;
+    let mut record = load_change(root, id)?;
+    require_state(
+        &record,
+        &[
+            ChangeState::Approved,
+            ChangeState::Implementing,
+            ChangeState::Verifying,
+        ],
+        "check the change",
+    )?;
+    ensure_definition_approval_valid(root, &record)?;
+    validate_definition(root, &record)?;
+    validate_delta_files(root, &record)?;
+    ensure_dependencies_satisfied(root, &record)?;
+    ensure_no_delta_conflicts(root, &record)?;
+    ensure_tasks_complete(root, &record)?;
+    if record.canonical_applied {
+        return Ok(record);
+    }
+    if is_ci_project(root) {
+        return Err(
+            "approved canonical deltas are not materialized; run `specsync change check` locally and commit the implementation before CI"
+                .into(),
+        );
+    }
+    let mut prepared = prepare_delta_application(root, &record)?;
+    record.canonical_applied = true;
+    record.state = ChangeState::Implementing;
+    record.updated_at = now();
+    prepared.push((
+        change_dir(root, &record.id).join("state.json"),
+        json_content(&record)?,
+    ));
+    prepared.push((
+        change_dir(root, &record.id).join("change.md"),
+        change_markdown_content(&record),
+    ));
+    write_prepared_files(root, &prepared)?;
+    Ok(record)
+}
+
+pub fn check_change(root: &Path, id: Option<&str>) -> Result<Option<VerificationRecord>, String> {
+    check_change_with_strict(root, id, false)
+}
+
+pub fn check_change_with_strict(
+    root: &Path,
+    id: Option<&str>,
+    strict: bool,
+) -> Result<Option<VerificationRecord>, String> {
+    let selected = if let Some(id) = id {
+        Some(id.to_string())
+    } else {
+        let candidates: Vec<String> = list_changes_checked(root)?
+            .into_iter()
+            .filter(|record| {
+                matches!(
+                    record.state,
+                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+                )
+            })
+            .map(|record| record.id)
+            .collect();
+        match candidates.as_slice() {
+            [] => None,
+            [id] => Some(id.clone()),
+            _ => {
+                return Err(format!(
+                    "multiple changes need checking; pass one ID: {}",
+                    candidates.join(", ")
+                ));
+            }
+        }
+    };
+    let Some(id) = selected else {
+        return Ok(None);
+    };
+    materialize_change_deltas(root, &id)?;
+    verify_change_with_strict(root, &id, strict).map(Some)
+}
+
 pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String> {
+    verify_change_with_strict(root, id, false)
+}
+
+pub fn verify_change_with_strict(
+    root: &Path,
+    id: &str,
+    strict: bool,
+) -> Result<VerificationRecord, String> {
     if let Some(error) = crate::verification_recursion_error() {
         return Err(error);
     }
@@ -1682,11 +2367,12 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
     validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
     ensure_tasks_complete(root, &record)?;
     let policy = load_policy_checked(root)?.unwrap_or_default();
-    for configured in &policy.verification_commands {
+    let verification_commands = verification_commands_for_change(root, &policy, &record, strict)?;
+    for configured in &verification_commands {
         reject_direct_lifecycle_verification(root, configured)?;
     }
     let mut commands = Vec::new();
-    for configured in policy.verification_commands {
+    for configured in verification_commands {
         let status = run_configured_command(root, &configured, ConfiguredCommandOutput::Inherit)?;
         commands.push(CommandEvidence {
             command: configured,
@@ -1708,6 +2394,9 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         timestamp: now(),
         commit: git_output(root, &["rev-parse", "HEAD"]),
         contract_digest: definition_digest(root, &record)?,
+        execution_digest: (record.workflow_version >= 2)
+            .then(|| execution_digest(root, &record))
+            .transpose()?,
         workspace_digest: project_input_digest(root)?,
         acceptance_input_digest: None,
         acceptance_manifest: None,
@@ -1736,6 +2425,77 @@ pub fn verify_change(root: &Path, id: &str) -> Result<VerificationRecord, String
         ));
     }
     Ok(verification)
+}
+
+fn verification_commands_for_change(
+    root: &Path,
+    policy: &SddPolicy,
+    record: &ChangeRecord,
+    explicit_strict: bool,
+) -> Result<Vec<String>, String> {
+    let routing = load_verification_routing(root)?;
+    let mut commands = Vec::new();
+    for module in &record.affected_specs {
+        if let Some(component) = routing.component_verification_commands.get(module) {
+            commands.extend(component.iter().cloned());
+        }
+    }
+    if commands.is_empty() {
+        commands.extend(policy.verification_commands.iter().cloned());
+    }
+    let strict_required = explicit_strict || change_requires_strict_validation(record, &routing);
+    if strict_required {
+        if routing.strict_verification_commands.is_empty() {
+            commands.extend(policy.verification_commands.iter().cloned());
+        } else {
+            commands.extend(routing.strict_verification_commands);
+        }
+    }
+    let mut seen = BTreeSet::new();
+    commands.retain(|command| seen.insert(command.clone()));
+    if commands.is_empty() {
+        return Err(
+            "no verification commands are configured for this change; add a component command or a bounded project fallback in .specsync/sdd.json"
+                .into(),
+        );
+    }
+    Ok(commands)
+}
+
+fn load_verification_routing(root: &Path) -> Result<VerificationRouting, String> {
+    let path = root.join(POLICY_PATH);
+    let content = match fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(VerificationRouting::default());
+        }
+        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+    };
+    serde_json::from_str(&content)
+        .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))
+}
+
+fn change_requires_strict_validation(record: &ChangeRecord, routing: &VerificationRouting) -> bool {
+    let default_strict_paths = [
+        "src/change.rs",
+        "src/mcp.rs",
+        "src/github.rs",
+        ".github/workflows/release.yml",
+        ".github/workflows/post-merge-archive.yml",
+    ];
+    record.affected_specs.iter().any(|module| {
+        matches!(
+            module.as_str(),
+            "change" | "mcp" | "github" | "authentication" | "security"
+        )
+    }) || record.affected_paths.iter().any(|path| {
+        default_strict_paths
+            .into_iter()
+            .chain(routing.strict_paths.iter().map(String::as_str))
+            .any(|strict_path| {
+                path_matches_scope(path, strict_path) || path_matches_scope(strict_path, path)
+            })
+    })
 }
 
 pub fn reopen_change(
@@ -1767,17 +2527,14 @@ pub fn reopen_change(
     if !definition_digest_matches(root, &record, &prior_verification.contract_digest)? {
         return Err("accepted change verification contract is stale; restore the accepted definition before reopening delivery evidence".into());
     }
+    validate_verification_execution_digest(root, &record, &prior_verification)?;
     let stale_acceptance_input_digest = prior_verification
         .acceptance_input_digest
         .clone()
         .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
     let expected_closing_digest = closing_digest(&record, &prior_verification);
     let mut ledger = load_approvals(root, &record)?;
-    let superseded_approval = ledger
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "acceptance")
+    let superseded_approval = latest_terminal_approval(&ledger)
         .cloned()
         .ok_or_else(|| "accepted change is missing closing approval".to_string())?;
     if superseded_approval.digest != expected_closing_digest {
@@ -2053,76 +2810,112 @@ fn validate_acceptance_owner_correction_records(record: &ChangeRecord) -> Result
     }
     let mut exact_pairs = BTreeSet::new();
     for (index, correction) in record.acceptance_owner_corrections.iter().enumerate() {
-        let expected_sequence = index as u64 + 1;
-        if correction.schema_version != 1 {
-            return Err(format!(
-                "unsupported acceptance owner correction schema {} at sequence {expected_sequence}",
-                correction.schema_version
-            ));
-        }
-        if correction.sequence != expected_sequence {
-            return Err(format!(
-                "acceptance owner correction sequence is not contiguous: expected {expected_sequence}, found {}",
-                correction.sequence
-            ));
-        }
-        if correction.path.len() > MAX_ACCEPTANCE_PATH_BYTES
-            || strict_portable_relative_path(&correction.path)? != correction.path
-        {
-            return Err(format!(
-                "invalid acceptance owner correction path `{}`",
-                correction.path
-            ));
-        }
-        if correction.module.len() > MAX_ACCEPTANCE_OWNER_BYTES
-            || correction.module.starts_with("@exact:")
-        {
-            return Err(format!(
-                "invalid acceptance owner correction module `{}`",
-                correction.module
-            ));
-        }
-        crate::commands::validate_module_name(&correction.module)
-            .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
-        if correction.actor.trim().is_empty()
-            || correction.actor.trim() != correction.actor
-            || correction.reason.trim().is_empty()
-            || correction.reason.trim() != correction.reason
-        {
-            return Err(format!(
-                "acceptance owner correction sequence {expected_sequence} has a missing or non-canonical actor/reason"
-            ));
-        }
-        if !record
-            .affected_paths
-            .iter()
-            .any(|scope| path_matches_scope(&correction.path, scope))
-        {
-            return Err(format!(
-                "acceptance owner correction path `{}` is outside the original affected path scope",
-                correction.path
-            ));
-        }
-        if record.affected_specs.contains(&correction.module) {
-            return Err(format!(
-                "acceptance owner `{}` is already represented by the original affected specs",
-                correction.module
-            ));
-        }
-        if !exact_pairs.insert((correction.path.as_str(), correction.module.as_str())) {
-            return Err(format!(
-                "duplicate acceptance owner correction `{}` for `{}`",
-                correction.module, correction.path
-            ));
-        }
+        validate_acceptance_owner_correction_record(
+            record,
+            correction,
+            index as u64 + 1,
+            &mut exact_pairs,
+        )?;
     }
     Ok(())
 }
 
-fn canonical_module_owns_exact_source_path(
+fn validate_acceptance_owner_correction_record(
+    record: &ChangeRecord,
+    correction: &AcceptanceOwnerCorrection,
+    expected_sequence: u64,
+    exact_pairs: &mut BTreeSet<(String, String)>,
+) -> Result<(), String> {
+    if correction.schema_version != 1 {
+        return Err(format!(
+            "unsupported acceptance owner correction schema {} at sequence {expected_sequence}",
+            correction.schema_version
+        ));
+    }
+    if correction.sequence != expected_sequence {
+        return Err(format!(
+            "acceptance owner correction sequence is not contiguous: expected {expected_sequence}, found {}",
+            correction.sequence
+        ));
+    }
+    if correction.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+        || strict_portable_relative_path(&correction.path)? != correction.path
+    {
+        return Err(format!(
+            "invalid acceptance owner correction path `{}`",
+            correction.path
+        ));
+    }
+    if correction.module.len() > MAX_ACCEPTANCE_OWNER_BYTES
+        || correction.module.starts_with("@exact:")
+    {
+        return Err(format!(
+            "invalid acceptance owner correction module `{}`",
+            correction.module
+        ));
+    }
+    crate::commands::validate_module_name(&correction.module)
+        .map_err(|error| format!("invalid acceptance owner correction module: {error}"))?;
+    if correction.actor.trim().is_empty()
+        || correction.actor.trim() != correction.actor
+        || correction.reason.trim().is_empty()
+        || correction.reason.trim() != correction.reason
+    {
+        return Err(format!(
+            "acceptance owner correction sequence {expected_sequence} has a missing or non-canonical actor/reason"
+        ));
+    }
+    if !record
+        .affected_paths
+        .iter()
+        .any(|scope| path_matches_scope(&correction.path, scope))
+    {
+        return Err(format!(
+            "acceptance owner correction path `{}` is outside the original affected path scope",
+            correction.path
+        ));
+    }
+    if record.affected_specs.contains(&correction.module) {
+        return Err(format!(
+            "acceptance owner `{}` is already represented by the original affected specs",
+            correction.module
+        ));
+    }
+    if !exact_pairs.insert((correction.path.clone(), correction.module.clone())) {
+        return Err(format!(
+            "duplicate acceptance owner correction `{}` for `{}`",
+            correction.module, correction.path
+        ));
+    }
+    Ok(())
+}
+
+fn canonical_module_source_paths(root: &Path, module: &str) -> Result<BTreeSet<String>, String> {
+    record_test_canonical_module_query();
+    let config = crate::config::load_config(root);
+    let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)?;
+    let spec_relative = strict_portable_project_path(root, &spec_path)?;
+    let candidates = BTreeSet::from([spec_relative.clone()]);
+    let evidence = git_regular_file_evidence(root, &candidates)?;
+    let entry = evidence.entry(&spec_relative)?;
+    let content = String::from_utf8(entry.payload.clone()).map_err(|_| {
+        format!("canonical spec for `{module}` is not valid UTF-8: {spec_relative}")
+    })?;
+    let parsed = crate::parser::parse_frontmatter(&content)
+        .ok_or_else(|| format!("canonical spec for `{module}` has invalid frontmatter"))?;
+    Ok(parsed
+        .frontmatter
+        .files
+        .iter()
+        .filter_map(|path| normalize_project_path(path).ok())
+        .collect())
+}
+
+fn canonical_module_owns_cached_source_path(
     root: &Path,
     module: &str,
     relative: &str,
+    owned_paths: &BTreeSet<String>,
 ) -> Result<(), String> {
     if !path_is_production_source(root, relative) {
         return Err(format!(
@@ -2137,22 +2930,7 @@ fn canonical_module_owns_exact_source_path(
             "acceptance owner correction path `{relative}` must be a regular file"
         ));
     }
-    let config = crate::config::load_config(root);
-    let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)?;
-    let spec_relative = strict_portable_project_path(root, &spec_path)?;
-    let candidates = BTreeSet::from([spec_relative.clone()]);
-    let evidence = git_regular_file_evidence(root, &candidates)?;
-    let entry = evidence.entry(&spec_relative)?;
-    let content = String::from_utf8(entry.payload.clone()).map_err(|_| {
-        format!("canonical spec for `{module}` is not valid UTF-8: {spec_relative}")
-    })?;
-    let parsed = crate::parser::parse_frontmatter(&content)
-        .ok_or_else(|| format!("canonical spec for `{module}` has invalid frontmatter"))?;
-    let owns =
-        parsed.frontmatter.files.iter().any(|path| {
-            normalize_project_path(path).is_ok_and(|normalized| normalized == relative)
-        });
-    if !owns {
+    if !owned_paths.contains(relative) {
         return Err(format!(
             "canonical module `{module}` does not own exact source path `{relative}`"
         ));
@@ -2164,9 +2942,28 @@ fn validate_acceptance_owner_corrections_current(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<(), String> {
+    validate_acceptance_owner_corrections_current_with_cache(root, record, &mut BTreeMap::new())
+}
+
+fn validate_acceptance_owner_corrections_current_with_cache(
+    root: &Path,
+    record: &ChangeRecord,
+    owned_by_module: &mut BTreeMap<String, BTreeSet<String>>,
+) -> Result<(), String> {
     validate_acceptance_owner_correction_records(record)?;
     for correction in &record.acceptance_owner_corrections {
-        canonical_module_owns_exact_source_path(root, &correction.module, &correction.path)?;
+        if !owned_by_module.contains_key(&correction.module) {
+            owned_by_module.insert(
+                correction.module.clone(),
+                canonical_module_source_paths(root, &correction.module)?,
+            );
+        }
+        canonical_module_owns_cached_source_path(
+            root,
+            &correction.module,
+            &correction.path,
+            &owned_by_module[&correction.module],
+        )?;
     }
     Ok(())
 }
@@ -2262,7 +3059,8 @@ pub fn add_acceptance_owner_corrections(
         );
     }
 
-    validate_acceptance_owner_correction_records(&record)?;
+    let mut owned_by_module = BTreeMap::new();
+    validate_acceptance_owner_corrections_current_with_cache(root, &record, &mut owned_by_module)?;
     let approvals = load_approvals(root, &record)?;
     let metadata_corrections = load_correction_ledger(root, &record)?;
     let reopening = latest_reopen_for_owner_correction(&record, &approvals, &metadata_corrections)?;
@@ -2281,6 +3079,11 @@ pub fn add_acceptance_owner_corrections(
 
     let timestamp = now();
     let mut provisional = record.clone();
+    let mut exact_pairs = provisional
+        .acceptance_owner_corrections
+        .iter()
+        .map(|correction| (correction.path.clone(), correction.module.clone()))
+        .collect();
     for (index, (path, module)) in entries.iter().enumerate() {
         let path = path.trim();
         let module = module.trim();
@@ -2300,25 +3103,44 @@ pub fn add_acceptance_owner_corrections(
         if module.starts_with("@exact:") {
             return Err("reserved exact owners cannot be added through correct-owner".into());
         }
-        provisional
-            .acceptance_owner_corrections
-            .push(AcceptanceOwnerCorrection {
-                schema_version: 1,
-                sequence: provisional.acceptance_owner_corrections.len() as u64 + 1,
-                path: path.to_string(),
-                module: module.to_string(),
-                actor: actor.to_string(),
-                reason: reason.to_string(),
-                timestamp,
-            });
-        // Validate after each append so batch-internal duplicates and scope errors name the
-        // failing entry while leaving the on-disk record untouched.
-        validate_acceptance_owner_corrections_current(root, &provisional).map_err(|error| {
+        let correction = AcceptanceOwnerCorrection {
+            schema_version: 1,
+            sequence: provisional.acceptance_owner_corrections.len() as u64 + 1,
+            path: path.to_string(),
+            module: module.to_string(),
+            actor: actor.to_string(),
+            reason: reason.to_string(),
+            timestamp,
+        };
+        validate_acceptance_owner_correction_record(
+            &provisional,
+            &correction,
+            correction.sequence,
+            &mut exact_pairs,
+        )
+        .map_err(|error| {
             format!(
                 "acceptance owner correction batch entry {} failed: {error}",
                 index + 1
             )
         })?;
+        if !owned_by_module.contains_key(module) {
+            let owned = canonical_module_source_paths(root, module).map_err(|error| {
+                format!(
+                    "acceptance owner correction batch entry {} failed: {error}",
+                    index + 1
+                )
+            })?;
+            owned_by_module.insert(module.to_string(), owned);
+        }
+        canonical_module_owns_cached_source_path(root, module, path, &owned_by_module[module])
+            .map_err(|error| {
+                format!(
+                    "acceptance owner correction batch entry {} failed: {error}",
+                    index + 1
+                )
+            })?;
+        provisional.acceptance_owner_corrections.push(correction);
     }
 
     record.acceptance_owner_corrections = provisional.acceptance_owner_corrections;
@@ -2376,18 +3198,32 @@ fn missing_acceptance_owner_paths(
     if module.starts_with("@exact:") {
         return Err("reserved exact owners cannot be discovered through correct-owner".into());
     }
+    let candidate_paths = record
+        .affected_paths
+        .iter()
+        .filter_map(|path| strict_portable_relative_path(path).ok())
+        .filter(|path| path_is_production_source(root, path))
+        .collect::<Vec<_>>();
+    if candidate_paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let owner_evidence = acceptance_owner_spec_evidence(root, &record)?;
+    // Preserve the established `--all-missing` behavior: an unavailable requested owner simply
+    // discovers no matching paths and the caller emits the existing empty-discovery diagnostic.
+    let requested_owner_paths = canonical_module_source_paths(root, module).ok();
     let mut missing = Vec::new();
-    for path in &record.affected_paths {
-        let Ok(path) = strict_portable_relative_path(path) else {
-            continue;
-        };
-        if !path_is_production_source(root, &path) {
+    for path in candidate_paths {
+        if !production_source_lacks_canonical_owner_with_evidence(
+            root,
+            &record,
+            &path,
+            &owner_evidence,
+        )? {
             continue;
         }
-        if !production_source_lacks_canonical_owner(root, &record, &path)? {
-            continue;
-        }
-        if canonical_module_owns_exact_source_path(root, module, &path).is_ok() {
+        if requested_owner_paths.as_ref().is_some_and(|owned_paths| {
+            canonical_module_owns_cached_source_path(root, module, &path, owned_paths).is_ok()
+        }) {
             missing.push(path);
         }
     }
@@ -2396,34 +3232,41 @@ fn missing_acceptance_owner_paths(
     Ok(missing)
 }
 
-fn production_source_lacks_canonical_owner(
+fn acceptance_owner_spec_evidence(
     root: &Path,
     record: &ChangeRecord,
-    relative: &str,
-) -> Result<bool, String> {
-    if !path_is_production_source(root, relative) {
-        return Ok(false);
-    }
+) -> Result<GitEvidence, String> {
     let config = crate::config::load_config(root);
     let mut candidates = BTreeSet::new();
     for module in &record.affected_specs {
         let (spec_path, _) = canonical_module_paths(root, &config.specs_dir, module)?;
         candidates.insert(strict_portable_project_path(root, &spec_path)?);
     }
-    let evidence = if candidates.is_empty() {
-        GitEvidence {
+    if candidates.is_empty() {
+        Ok(GitEvidence {
             modes: BTreeMap::new(),
             entries: BTreeMap::new(),
-        }
+        })
     } else {
-        git_regular_file_evidence(root, &candidates)?
-    };
+        git_regular_file_evidence(root, &candidates)
+    }
+}
+
+fn production_source_lacks_canonical_owner_with_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+    relative: &str,
+    evidence: &GitEvidence,
+) -> Result<bool, String> {
+    if !path_is_production_source(root, relative) {
+        return Ok(false);
+    }
     let owners = acceptance_input_owners(
         root,
         record,
         relative,
         &[],
-        &evidence,
+        evidence,
         UnownedProductionSource::Reject,
     );
     match owners {
@@ -2550,7 +3393,7 @@ fn validate_correction_records(
             ));
         }
         if correction.superseded_definition_approval.gate != "definition"
-            || correction.superseded_closing_approval.gate != "acceptance"
+            || !is_terminal_approval(&correction.superseded_closing_approval)
             || !correction.prior_verification.passed
             || correction.superseded_definition_approval.digest
                 != correction.prior_verification.contract_digest
@@ -2743,7 +3586,6 @@ fn validate_trusted_correction_history(
         archive_root.trim_end_matches('/'),
         record.id
     );
-    let reference_args: Vec<&str> = references.iter().map(String::as_str).collect();
     let active_corrections = format!("{active_directory}/{CORRECTIONS_FILE}");
     let archive_corrections_glob = format!(
         ":(glob,top){}/**/*-{}/{}",
@@ -2754,19 +3596,22 @@ fn validate_trusted_correction_history(
     let history_exclusion = shallow
         .then(|| record.base_commit.as_ref().map(|base| format!("^{base}")))
         .flatten();
-    let mut correction_probe = Command::new("git");
-    correction_probe
-        .args(["rev-list", "--full-history", "--max-count=1"])
-        .args(&reference_args);
+    let mut probe_args = vec![
+        "rev-list".to_string(),
+        "--full-history".to_string(),
+        "--max-count=1".to_string(),
+    ];
+    probe_args.extend(references.iter().cloned());
     if let Some(exclusion) = &history_exclusion {
-        correction_probe.arg(exclusion);
+        probe_args.push(exclusion.clone());
     }
-    let correction_probe = correction_probe
-        .arg("--")
-        .arg(&active_corrections)
-        .arg(&archive_corrections_glob)
-        .current_dir(root)
-        .output()
+    probe_args.extend([
+        "--".to_string(),
+        active_corrections.clone(),
+        archive_corrections_glob.clone(),
+    ]);
+    let probe_refs: Vec<&str> = probe_args.iter().map(String::as_str).collect();
+    let correction_probe = run_git_bounded(root, &probe_refs, None, 1024)
         .map_err(|error| format!("failed to probe trusted correction history: {error}"))?;
     if !correction_probe.status.success() {
         return Err("failed to probe trusted correction history".into());
@@ -2781,15 +3626,22 @@ fn validate_trusted_correction_history(
         cache.insert(cache_key);
         return Ok(());
     }
-    let output = Command::new("git")
-        .args(["rev-list", "--full-history"])
-        .args(&reference_args)
-        .args(history_exclusion)
-        .arg("--")
-        .arg(&active_directory)
-        .arg(&archive_glob)
-        .current_dir(root)
-        .output()
+    let mut history_args = vec![
+        "rev-list".to_string(),
+        "--full-history".to_string(),
+        format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1),
+    ];
+    history_args.extend(references.iter().cloned());
+    if let Some(exclusion) = &history_exclusion {
+        history_args.push(exclusion.clone());
+    }
+    history_args.extend([
+        "--".to_string(),
+        active_directory.clone(),
+        archive_glob.clone(),
+    ]);
+    let history_refs: Vec<&str> = history_args.iter().map(String::as_str).collect();
+    let output = run_git_bounded(root, &history_refs, None, MAX_GIT_COMMAND_OUTPUT_BYTES)
         .map_err(|error| format!("failed to inspect trusted correction history: {error}"))?;
     if !output.status.success() {
         return Err("failed to enumerate trusted correction history".into());
@@ -2799,6 +3651,12 @@ fn validate_trusted_correction_history(
         .filter(|commit| !commit.is_empty())
         .map(str::to_string)
         .collect();
+    if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+        return Err(format!(
+            "trusted correction history exceeds the deterministic {}-commit bound",
+            MAX_TRUSTED_HISTORY_COMMITS
+        ));
+    }
     for commit in commits {
         for directory in historical_change_directories(root, &commit, &record.id)? {
             let Some(anchor) =
@@ -2868,6 +3726,7 @@ fn shallow_history_is_complete_for_change(
         Command::new("git")
             .args(["merge-base", "--is-ancestor", base, reference])
             .current_dir(root)
+            .stderr(Stdio::null())
             .status()
             .is_ok_and(|status| status.success())
     }) {
@@ -2893,6 +3752,7 @@ fn shallow_history_is_complete_for_change(
             Command::new("git")
                 .args(["merge-base", "--is-ancestor", boundary, reference])
                 .current_dir(root)
+                .stderr(Stdio::null())
                 .status()
                 .is_ok_and(|status| status.success())
         });
@@ -2900,6 +3760,7 @@ fn shallow_history_is_complete_for_change(
             && !Command::new("git")
                 .args(["merge-base", "--is-ancestor", boundary, base])
                 .current_dir(root)
+                .stderr(Stdio::null())
                 .status()
                 .is_ok_and(|status| status.success())
         {
@@ -3020,11 +3881,7 @@ fn closing_authenticated_correction_anchor(
         &correction_prefix,
     )
     .is_ok();
-    let closing_matches = approvals
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "acceptance")
+    let closing_matches = latest_terminal_approval(&approvals)
         .is_some_and(|approval| approval.digest == closing_digest(&state, &verification));
     let contract_matches = historical_definition_digest_matches(
         root,
@@ -3121,8 +3978,10 @@ fn historical_definition_digest_matches(
         files.sort_by(|left, right| left.1.cmp(&right.1));
         files.dedup_by(|left, right| left.1 == right.1);
 
-        let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
-        digest.frame(b"record", &record_bytes);
+        let mut current_digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
+        current_digest.frame(b"record", &record_bytes);
+        let mut legacy_digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
+        legacy_digest.frame(b"record", &record_bytes);
         let mut complete = true;
         for (repo_path, local_path) in files {
             let Some((mode, content)) = git_entry_at_commit(root, commit, &repo_path)? else {
@@ -3134,7 +3993,9 @@ fn historical_definition_digest_matches(
                 0o160000 => b"gitlink",
                 _ => b"file",
             };
-            digest.entry(&local_path, kind, mode, &content);
+            let canonical = canonical_definition_artifact_payload(&local_path, &content);
+            current_digest.entry(&local_path, kind, mode, &canonical);
+            legacy_digest.entry(&local_path, kind, mode, &content);
         }
         if !complete {
             continue;
@@ -3145,14 +4006,20 @@ fn historical_definition_digest_matches(
             let Some((mode, _)) = git_entry_at_commit(root, commit, &repo_path)? else {
                 continue;
             };
-            digest.entry(
+            current_digest.entry(
+                &local_path,
+                b"file",
+                mode,
+                json_content(corrections)?.as_bytes(),
+            );
+            legacy_digest.entry(
                 &local_path,
                 b"file",
                 mode,
                 json_content(corrections)?.as_bytes(),
             );
         }
-        if digest.finish() == expected {
+        if current_digest.finish() == expected || legacy_digest.finish() == expected {
             return Ok(true);
         }
     }
@@ -3228,11 +4095,13 @@ fn nul_terminated_git_paths(output: &[u8], context: &str) -> Result<Vec<String>,
 
 fn git_file_at_commit(root: &Path, commit: &str, path: &str) -> Result<Option<Vec<u8>>, String> {
     let object = format!("{commit}:{path}");
-    let output = Command::new("git")
-        .args(["show", object.as_str()])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to read trusted correction history: {error}"))?;
+    let output = run_git_bounded(
+        root,
+        &["show", object.as_str()],
+        None,
+        MAX_CHANGE_ARTIFACT_BYTES as usize,
+    )
+    .map_err(|error| format!("failed to read trusted correction history: {error}"))?;
     if output.status.success() {
         Ok(Some(output.stdout))
     } else {
@@ -3292,11 +4161,7 @@ pub fn correct_interview_metadata(
     let approvals = load_approvals(root, &record)?;
     let superseded_definition_approval =
         effective_definition_approval(root, &record, &approvals)?.clone();
-    let superseded_closing_approval = approvals
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "acceptance")
+    let superseded_closing_approval = latest_terminal_approval(&approvals)
         .cloned()
         .ok_or_else(|| "accepted change is missing closing approval".to_string())?;
 
@@ -3388,6 +4253,15 @@ fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> R
     let approval_ledger = load_approvals(root, record)?;
     let correction_ledger = load_correction_ledger(root, record)?;
     validate_correction_records(record, &correction_ledger.corrections)?;
+    if matches!(
+        record.state,
+        ChangeState::Implementing | ChangeState::Verifying
+    ) && approval_ledger.reopenings.is_empty()
+        && correction_ledger.corrections.is_empty()
+        && latest_terminal_approval(&approval_ledger).is_none()
+    {
+        return Ok(());
+    }
 
     let approval_position = |target: &ApprovalRecord| {
         approval_ledger.approvals.iter().rposition(|approval| {
@@ -3457,34 +4331,885 @@ fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> R
     )
 }
 
+fn is_terminal_approval(approval: &ApprovalRecord) -> bool {
+    approval.gate == "acceptance"
+}
+
+fn latest_terminal_approval(ledger: &ApprovalLedger) -> Option<&ApprovalRecord> {
+    ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| is_terminal_approval(approval))
+}
+
+fn scoped_review_path(root: &Path, record: &ChangeRecord) -> PathBuf {
+    change_dir(root, &record.id).join(SCOPED_REVIEW_FILE)
+}
+
+fn scoped_review_attempts_path(root: &Path, record: &ChangeRecord) -> PathBuf {
+    change_dir(root, &record.id).join(SCOPED_REVIEW_ATTEMPTS_FILE)
+}
+
+fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReviewRecord, String> {
+    let workspace = find_change_dir(root, &record.id)?;
+    let path = workspace.join(SCOPED_REVIEW_FILE);
+    let content = fs::read_to_string(&path)
+        .map_err(|_| "independent scoped review evidence is missing".to_string())?;
+    let review: ScopedReviewRecord = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid independent scoped review evidence: {error}"))?;
+    let attempts_path = workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE);
+    let attempts: ScopedReviewAttemptLedger = serde_json::from_str(
+        &fs::read_to_string(&attempts_path)
+            .map_err(|_| "append-only scoped review history is missing".to_string())?,
+    )
+    .map_err(|error| format!("invalid scoped review attempt history: {error}"))?;
+    validate_scoped_review_attempts(root, record, &attempts, &review)?;
+    Ok(review)
+}
+
+fn validate_scoped_review_attempts(
+    root: &Path,
+    record: &ChangeRecord,
+    attempts: &ScopedReviewAttemptLedger,
+    review: &ScopedReviewRecord,
+) -> Result<(), String> {
+    validate_scoped_review_ledger_contents(root, record, attempts, review)?;
+    validate_committed_scoped_review_history(root, record)?;
+    let workspace = find_change_dir(root, &record.id)?;
+    let mut historical_paths = vec![portable_project_path(
+        root,
+        &workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE),
+    )];
+    if record.state == ChangeState::Archived {
+        historical_paths.push(format!(
+            "{CHANGES_PATH}/{}/{}",
+            record.id, SCOPED_REVIEW_ATTEMPTS_FILE
+        ));
+    }
+    for path in historical_paths {
+        let repository_path = git_repo_relative_path(root, &path)?;
+        let Some(bytes) = git_file_at_commit(root, "HEAD", &repository_path)? else {
+            continue;
+        };
+        let committed: ScopedReviewAttemptLedger = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("invalid committed scoped review history: {error}"))?;
+        if committed.schema_version != 1
+            || attempts.reviews.len() < committed.reviews.len()
+            || attempts.reviews[..committed.reviews.len()] != committed.reviews
+        {
+            return Err(
+                "scoped review attempt history removed or rewrote committed evidence".into(),
+            );
+        }
+        break;
+    }
+    Ok(())
+}
+
+fn validate_scoped_review_ledger_contents(
+    root: &Path,
+    record: &ChangeRecord,
+    attempts: &ScopedReviewAttemptLedger,
+    review: &ScopedReviewRecord,
+) -> Result<(), String> {
+    if attempts.schema_version != 1
+        || attempts.reviews.is_empty()
+        || attempts.reviews.last() != Some(review)
+    {
+        return Err(
+            "scoped review projection does not match its append-only attempt history".into(),
+        );
+    }
+    let approvals = load_approvals(root, record)?;
+    for attempt in &attempts.reviews {
+        if attempt.schema_version != 2
+            || attempt.change_id != record.id
+            || validate_scoped_reviewer_claim(&attempt.reviewer).is_err()
+            || !scoped_review_provenance_valid(attempt)
+        {
+            return Err("scoped review attempt history contains invalid evidence".into());
+        }
+        let scope_approver = definition_approver_for_review_contract(&approvals, attempt)?;
+        if attempt.reviewer.eq_ignore_ascii_case(scope_approver) {
+            return Err(
+                "scoped review attempt history contains a reviewer who is also the scope approver"
+                    .into(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn definition_approver_for_review_contract<'a>(
+    approvals: &'a ApprovalLedger,
+    review: &ScopedReviewRecord,
+) -> Result<&'a str, String> {
+    if let Some(approval) = approvals.approvals.iter().rev().find(|approval| {
+        approval.gate == "definition"
+            && (approval.digest == review.contract_digest
+                || approval.definition_pair.as_ref().is_some_and(|pair| {
+                    pair.current_digest == review.contract_digest
+                        || pair.legacy_digest == review.contract_digest
+                }))
+    }) {
+        return Ok(approval.actor.trim());
+    }
+    for adoption in approvals.scope_adoptions.iter().rev() {
+        if adoption.adopted_scope_digest != review.contract_digest {
+            continue;
+        }
+        let approval = approvals
+            .approvals
+            .get(adoption.source_approval_index as usize)
+            .filter(|approval| approval.gate == "definition")
+            .ok_or_else(|| {
+                "scoped review scope-adoption approval identity is missing".to_string()
+            })?;
+        return Ok(approval.actor.trim());
+    }
+    Err("scoped review does not bind a recorded definition approval".into())
+}
+
+fn validate_committed_scoped_review_history(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    let active_attempts = git_repo_relative_path(
+        root,
+        &format!(
+            "{CHANGES_PATH}/{}/{}",
+            record.id, SCOPED_REVIEW_ATTEMPTS_FILE
+        ),
+    )?;
+    let mut ledger_paths = vec![active_attempts];
+    if record.state == ChangeState::Archived {
+        let workspace = find_change_dir(root, &record.id)?;
+        let archive_attempts = git_repo_relative_path(
+            root,
+            &portable_project_path(root, &workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE)),
+        )?;
+        if !ledger_paths.contains(&archive_attempts) {
+            ledger_paths.push(archive_attempts);
+        }
+    }
+    let mut history_paths = Vec::with_capacity(ledger_paths.len() * 2);
+    for ledger_path in &ledger_paths {
+        history_paths.push(ledger_path.clone());
+        history_paths.push(
+            ledger_path
+                .strip_suffix(SCOPED_REVIEW_ATTEMPTS_FILE)
+                .map(|prefix| format!("{prefix}{SCOPED_REVIEW_FILE}"))
+                .ok_or_else(|| "invalid scoped review history path".to_string())?,
+        );
+    }
+
+    let limits = lifecycle_validation_limits();
+    let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
+    let mut arguments = vec![
+        "rev-list",
+        "--reverse",
+        "--full-history",
+        max_count.as_str(),
+        "HEAD",
+        "--",
+    ];
+    arguments.extend(history_paths.iter().map(String::as_str));
+    let commits = scoped_review_git_text(root, &arguments)
+        .map_err(|_| "failed to enumerate committed scoped-review history".to_string())?;
+    let commits: Vec<&str> = commits.lines().filter(|line| !line.is_empty()).collect();
+    if commits.len() > limits.scoped_review_max_descendants {
+        return Err(format!(
+            "scoped-review history exceeds the deterministic {}-commit bound",
+            limits.scoped_review_max_descendants
+        ));
+    }
+
+    for commit in commits {
+        let current = scoped_review_location_at_commit(root, record, commit, &ledger_paths)?;
+        let parents = scoped_review_git_text(root, &["rev-list", "--parents", "-n", "1", commit])
+            .map_err(|_| format!("failed to load parents for review commit {commit}"))?;
+        let fields: Vec<&str> = parents.split_whitespace().collect();
+        if fields.first().copied() != Some(commit) {
+            return Err(format!(
+                "scoped-review history commit {commit} has ambiguous identity"
+            ));
+        }
+        if fields.len().saturating_sub(1) > limits.scoped_review_max_parents {
+            return Err(format!(
+                "scoped-review history commit {commit} exceeds the deterministic {}-parent bound",
+                limits.scoped_review_max_parents
+            ));
+        }
+        if fields.len() == 1 {
+            let allow_collapsed_archive = collapsed_scoped_review_archive_is_terminal(
+                root,
+                record,
+                commit,
+                current.as_ref(),
+            )?;
+            validate_scoped_review_history_transition(
+                None,
+                current.as_ref(),
+                allow_collapsed_archive,
+            )?;
+            continue;
+        }
+        for parent in &fields[1..] {
+            let previous = scoped_review_location_at_commit(root, record, parent, &ledger_paths)?;
+            let allow_collapsed_archive = previous.is_none()
+                && collapsed_scoped_review_archive_is_terminal(
+                    root,
+                    record,
+                    commit,
+                    current.as_ref(),
+                )?;
+            validate_scoped_review_history_transition(
+                previous.as_ref(),
+                current.as_ref(),
+                allow_collapsed_archive,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn scoped_review_location_at_commit(
+    root: &Path,
+    record: &ChangeRecord,
+    commit: &str,
+    ledger_paths: &[String],
+) -> Result<Option<(String, ScopedReviewAttemptLedger)>, String> {
+    let mut found = None;
+    for ledger_path in ledger_paths {
+        let Some(bytes) = scoped_review_file_at_commit(root, commit, ledger_path)? else {
+            continue;
+        };
+        if found.is_some() {
+            return Err(format!(
+                "scoped-review history duplicates its ledger at commit {commit}"
+            ));
+        }
+        let attempts: ScopedReviewAttemptLedger = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("invalid committed scoped review history: {error}"))?;
+        let review_path = ledger_path
+            .strip_suffix(SCOPED_REVIEW_ATTEMPTS_FILE)
+            .map(|prefix| format!("{prefix}{SCOPED_REVIEW_FILE}"))
+            .ok_or_else(|| "invalid scoped review history path".to_string())?;
+        let review_bytes = scoped_review_file_at_commit(root, commit, &review_path)?
+            .ok_or_else(|| format!("scoped-review history is missing review.json at {commit}"))?;
+        let review: ScopedReviewRecord = serde_json::from_slice(&review_bytes)
+            .map_err(|error| format!("invalid committed scoped review evidence: {error}"))?;
+        validate_scoped_review_ledger_contents(root, record, &attempts, &review)?;
+        found = Some((ledger_path.clone(), attempts));
+    }
+    Ok(found)
+}
+
+fn validate_scoped_review_history_transition(
+    previous: Option<&(String, ScopedReviewAttemptLedger)>,
+    current: Option<&(String, ScopedReviewAttemptLedger)>,
+    allow_collapsed_archive: bool,
+) -> Result<(), String> {
+    let Some((current_path, current_ledger)) = current else {
+        return Err("scoped review history deleted committed evidence".into());
+    };
+    let Some((previous_path, previous_ledger)) = previous else {
+        if current_ledger.reviews.len() == 1 || allow_collapsed_archive {
+            return Ok(());
+        }
+        return Err("scoped review history did not begin with one append".into());
+    };
+    if current_ledger == previous_ledger {
+        if current_path == previous_path
+            || (previous_path.contains(".specsync/changes/")
+                && current_path.contains(".specsync/archive/changes/"))
+        {
+            return Ok(());
+        }
+        return Err("scoped review history moved evidence outside finalization".into());
+    }
+    if current_path == previous_path
+        && current_ledger.reviews.len() == previous_ledger.reviews.len() + 1
+        && current_ledger.reviews[..previous_ledger.reviews.len()] == previous_ledger.reviews
+    {
+        return Ok(());
+    }
+    Err("scoped review history removed or rewrote committed evidence".into())
+}
+
+fn collapsed_scoped_review_archive_is_terminal(
+    root: &Path,
+    record: &ChangeRecord,
+    commit: &str,
+    current: Option<&(String, ScopedReviewAttemptLedger)>,
+) -> Result<bool, String> {
+    let Some((ledger_path, ledger)) = current else {
+        return Ok(false);
+    };
+    if ledger.reviews.len() < 2 || !ledger_path.contains(".specsync/archive/changes/") {
+        return Ok(false);
+    }
+    let Some(directory) = ledger_path.strip_suffix(SCOPED_REVIEW_ATTEMPTS_FILE) else {
+        return Ok(false);
+    };
+    let read =
+        |name: &str| scoped_review_file_at_commit(root, commit, &format!("{directory}{name}"));
+    let Some(state_bytes) = read("state.json")? else {
+        return Ok(false);
+    };
+    let Some(accepted_bytes) = read("accepted-state.json")? else {
+        return Ok(false);
+    };
+    let Some(finalization_bytes) = read("finalization.json")? else {
+        return Ok(false);
+    };
+    let Some(review_bytes) = read(SCOPED_REVIEW_FILE)? else {
+        return Ok(false);
+    };
+    let Ok(state) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
+        return Ok(false);
+    };
+    let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&accepted_bytes) else {
+        return Ok(false);
+    };
+    let Ok(finalization) = serde_json::from_slice::<FinalizationRecord>(&finalization_bytes) else {
+        return Ok(false);
+    };
+    let Ok(review) = serde_json::from_slice::<ScopedReviewRecord>(&review_bytes) else {
+        return Ok(false);
+    };
+    let review_digest = serde_json::to_vec(&review)
+        .map(|bytes| sha256_hex(&bytes))
+        .map_err(|error| format!("failed to hash collapsed scoped review: {error}"))?;
+    Ok(state.id == record.id
+        && state.state == ChangeState::Archived
+        && state.workflow_version == 2
+        && accepted.id == record.id
+        && accepted.state == ChangeState::Accepted
+        && accepted.workflow_version == 2
+        && finalization.schema_version == 2
+        && finalization.change_id == record.id
+        && finalization.contract_digest == review.contract_digest
+        && finalization.workspace_digest == review.workspace_digest
+        && finalization.review_digest == review_digest
+        && ledger.reviews.last() == Some(&review))
+}
+
+fn load_finalization(root: &Path, record: &ChangeRecord) -> Result<FinalizationRecord, String> {
+    let path = find_change_dir(root, &record.id)?.join("finalization.json");
+    let content = fs::read_to_string(&path)
+        .map_err(|_| "same-PR finalization evidence is missing".to_string())?;
+    serde_json::from_str(&content)
+        .map_err(|error| format!("invalid same-PR finalization evidence: {error}"))
+}
+
+fn finalization_digest(finalization: &FinalizationRecord) -> String {
+    let mut digest = FramedDigest::new(FINALIZATION_DIGEST_DOMAIN);
+    digest.frame(b"change-id", finalization.change_id.as_bytes());
+    digest.frame(
+        b"implementation-commit",
+        finalization.implementation_commit.as_bytes(),
+    );
+    digest.frame(
+        b"implementation-tree",
+        finalization.implementation_tree.as_bytes(),
+    );
+    digest.frame(b"contract", finalization.contract_digest.as_bytes());
+    digest.frame(b"workspace", finalization.workspace_digest.as_bytes());
+    digest.frame(b"closing", finalization.closing_digest.as_bytes());
+    digest.frame(b"review", finalization.review_digest.as_bytes());
+    digest.finish()
+}
+
+fn validate_finalization_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+) -> Result<FinalizationRecord, String> {
+    let finalization = load_finalization(root, record)?;
+    if finalization.schema_version != 2 || finalization.change_id != record.id {
+        return Err("same-PR finalization has the wrong schema or change identity".into());
+    }
+    if finalization.contract_digest != verification.contract_digest
+        || finalization.workspace_digest != verification.workspace_digest
+        || finalization.closing_digest != closing_digest(record, verification)
+    {
+        return Err("same-PR finalization does not bind the accepted verification evidence".into());
+    }
+    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
+    let resolved = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &implementation_expression,
+        ],
+    );
+    let implementation_commit_available = if let Some(resolved) = resolved {
+        if resolved != finalization.implementation_commit {
+            return Err("finalization implementation commit is not canonical".into());
+        }
+        let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
+        let tree = git_output(
+            root,
+            &[
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                &tree_expression,
+            ],
+        )
+        .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
+        if tree != finalization.implementation_tree {
+            return Err("finalization implementation tree does not match its commit".into());
+        }
+        true
+    } else if record.state == ChangeState::Archived
+        && archived_finalization_tree_is_recorded(root, record)?
+    {
+        false
+    } else {
+        return Err(
+            "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it"
+                .into(),
+        );
+    };
+    let review = load_scoped_review(root, record)?;
+    if review.schema_version != 2
+        || review.change_id != record.id
+        || validate_scoped_reviewer_claim(&review.reviewer).is_err()
+        || !scoped_review_provenance_valid(&review)
+        || review.verdict != ScopedReviewVerdict::Pass
+        || review.contract_digest != verification.contract_digest
+        || review.execution_digest != verification.execution_digest
+        || review.workspace_digest != verification.workspace_digest
+    {
+        return Err("finalization scoped review does not bind the accepted verification".into());
+    }
+    if implementation_commit_available {
+        let review_ancestor = run_git_bounded(
+            root,
+            &[
+                "merge-base",
+                "--is-ancestor",
+                &review.implementation_commit,
+                &finalization.implementation_commit,
+            ],
+            None,
+            1024,
+        )?;
+        if !review_ancestor.status.success() {
+            return Err("finalization implementation is outside the scoped-review history".into());
+        }
+    }
+    let review_bytes = serde_json::to_vec(&review)
+        .map_err(|error| format!("failed to hash scoped review: {error}"))?;
+    if sha256_hex(&review_bytes) != finalization.review_digest {
+        return Err("finalization scoped-review digest does not match review.json".into());
+    }
+    if finalization_digest(&finalization) != finalization.finalization_digest {
+        return Err("same-PR finalization digest is invalid".into());
+    }
+    Ok(finalization)
+}
+
+fn scoped_review_is_current(
+    root: &Path,
+    record: &ChangeRecord,
+    review: &ScopedReviewRecord,
+) -> bool {
+    review.schema_version == 2
+        && review.change_id == record.id
+        && validate_scoped_reviewer_claim(&review.reviewer).is_ok()
+        && scoped_review_provenance_valid(review)
+        && review.verdict == ScopedReviewVerdict::Pass
+        && review_commit_is_current(root, record, review)
+        && definition_digest_matches(root, record, &review.contract_digest).unwrap_or(false)
+        && (record.workflow_version < 2
+            || review.execution_digest.as_deref() == execution_digest(root, record).ok().as_deref())
+        && project_input_digest(root).as_deref() == Ok(review.workspace_digest.as_str())
+}
+
+fn review_commit_is_current(
+    root: &Path,
+    record: &ChangeRecord,
+    review: &ScopedReviewRecord,
+) -> bool {
+    review_commit_is_current_checked(root, record, review).is_ok()
+}
+
+fn run_scoped_review_git(root: &Path, args: &[&str]) -> Result<BoundedCommandOutput, String> {
+    let limits = lifecycle_validation_limits();
+    let mut command = configured_git_command(root);
+    run_git_command_bounded_with_deadline(
+        &mut command,
+        args,
+        None,
+        limits.git_max_output_bytes,
+        Duration::from_secs(limits.git_timeout_seconds),
+    )
+}
+
+fn scoped_review_file_at_commit(
+    root: &Path,
+    commit: &str,
+    path: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    let object = format!("{commit}:{path}");
+    let output = run_scoped_review_git(root, &["show", object.as_str()])?;
+    if output.status.success() {
+        Ok(Some(output.stdout))
+    } else {
+        Ok(None)
+    }
+}
+
+fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> {
+    let output = run_scoped_review_git(root, args)?;
+    if !output.status.success() {
+        return Err(format!(
+            "scoped-review Git query failed: git {}",
+            args.join(" ")
+        ));
+    }
+    String::from_utf8(output.stdout)
+        .map(|value| value.trim().to_string())
+        .map_err(|_| "scoped-review Git query returned non-UTF-8 output".to_string())
+}
+
+fn review_commit_is_current_checked(
+    root: &Path,
+    record: &ChangeRecord,
+    review: &ScopedReviewRecord,
+) -> Result<(), String> {
+    let head = scoped_review_git_text(root, &["rev-parse", "--verify", "HEAD^{commit}"])
+        .map_err(|_| "HEAD does not resolve to a commit".to_string())?;
+    if review.implementation_commit == head {
+        return Ok(());
+    }
+    let ancestor = run_scoped_review_git(
+        root,
+        &[
+            "merge-base",
+            "--is-ancestor",
+            &review.implementation_commit,
+            &head,
+        ],
+    )?;
+    if !ancestor.status.success() {
+        return Err("scoped-review commit is not an ancestor of HEAD".into());
+    }
+    let range = format!("{}..{head}", review.implementation_commit);
+    let limits = lifecycle_validation_limits();
+    let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
+    let commits = scoped_review_git_text(root, &["rev-list", "--reverse", &max_count, &range])
+        .map_err(|_| "failed to enumerate scoped-review descendants".to_string())?;
+    if commits.lines().filter(|line| !line.is_empty()).count()
+        > limits.scoped_review_max_descendants
+    {
+        return Err(format!(
+            "scoped-review descendant history exceeds the deterministic {}-commit bound",
+            limits.scoped_review_max_descendants
+        ));
+    }
+    let allowed_prefix = git_repo_relative_path(root, &format!("{CHANGES_PATH}/{}/", record.id))?;
+    for descendant in commits.lines().filter(|line| !line.is_empty()) {
+        let parents =
+            scoped_review_git_text(root, &["rev-list", "--parents", "-n", "1", descendant])
+                .map_err(|_| {
+                    format!("failed to load parents for review descendant {descendant}")
+                })?;
+        let fields: Vec<&str> = parents.split_whitespace().collect();
+        if fields.first().copied() != Some(descendant) || fields.len() < 2 {
+            return Err(format!(
+                "scoped-review descendant {descendant} has ambiguous parent history"
+            ));
+        }
+        if fields.len() - 1 > limits.scoped_review_max_parents {
+            return Err(format!(
+                "scoped-review descendant {descendant} exceeds the deterministic {}-parent bound",
+                limits.scoped_review_max_parents
+            ));
+        }
+        for parent in &fields[1..] {
+            let output = run_scoped_review_git(
+                root,
+                &[
+                    "diff-tree",
+                    "--no-commit-id",
+                    "--name-only",
+                    "--no-renames",
+                    "-z",
+                    "-r",
+                    parent,
+                    descendant,
+                ],
+            )?;
+            if !output.status.success() {
+                return Err(format!(
+                    "failed to inspect scoped-review descendant {descendant}"
+                ));
+            }
+            for raw_path in output
+                .stdout
+                .split(|byte| *byte == 0)
+                .filter(|path| !path.is_empty())
+            {
+                let path = std::str::from_utf8(raw_path)
+                    .map_err(|_| "scoped-review descendant contains a non-UTF-8 path")?;
+                let relative = path.strip_prefix(&allowed_prefix).ok_or_else(|| {
+                    format!("scoped-review descendant changed disallowed path `{path}`")
+                })?;
+                if !matches!(
+                    relative,
+                    SCOPED_REVIEW_FILE
+                        | SCOPED_REVIEW_ATTEMPTS_FILE
+                        | "state.json"
+                        | "verification.json"
+                        | "verification-attempts.json"
+                ) {
+                    return Err(format!(
+                        "scoped-review descendant changed disallowed path `{path}`"
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_verification_for_commit_binding(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+    current_commit: Option<&str>,
+    require_full_history: bool,
+) -> Result<(), String> {
+    if require_full_history {
+        verification_is_current_checked(root, record, verification)?;
+    } else {
+        if !verification.passed {
+            return Err("latest verification evidence failed".into());
+        }
+        if !definition_digest_matches(root, record, &verification.contract_digest)? {
+            return Err("verification contract digest is stale".into());
+        }
+        validate_verification_execution_digest(root, record, verification)?;
+        if verification.workspace_digest != project_input_digest(root)? {
+            return Err("verification project-input digest is stale".into());
+        }
+    }
+    match (verification.commit.as_deref(), current_commit) {
+        (None, None) => Ok(()),
+        (Some(stored), Some(current)) if stored == current => Ok(()),
+        (Some(stored), Some(current)) => {
+            for (label, commit) in [("verification", stored), ("implementation", current)] {
+                if commit.len() != 40
+                    || !commit
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                {
+                    return Err(format!("{label} commit is not a canonical full object ID"));
+                }
+            }
+            let stored_expression = format!("{stored}^{{commit}}");
+            let resolved = git_output(
+                root,
+                &[
+                    "rev-parse",
+                    "--verify",
+                    "--end-of-options",
+                    &stored_expression,
+                ],
+            )
+            .ok_or_else(|| "verification commit does not resolve to a commit".to_string())?;
+            if resolved != stored {
+                return Err("verification commit is not canonical".into());
+            }
+            let status = run_git_bounded(
+                root,
+                &["merge-base", "--is-ancestor", stored, current],
+                None,
+                1024,
+            )?;
+            if !status.status.success() {
+                return Err("verification commit is not an ancestor of the implementation".into());
+            }
+            Ok(())
+        }
+        _ => Err("verification and implementation Git identities do not match".into()),
+    }
+}
+
+fn validate_verification_execution_digest(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+) -> Result<(), String> {
+    if record.workflow_version < 2 {
+        return Ok(());
+    }
+    let expected = execution_digest(root, record)?;
+    match verification.execution_digest.as_deref() {
+        Some(actual) if actual == expected => Ok(()),
+        Some(_) => Err("verification execution/evidence digest is stale".into()),
+        None => Err("verification execution/evidence digest is missing".into()),
+    }
+}
+
+pub fn record_scoped_review(
+    root: &Path,
+    id: &str,
+    reviewer: String,
+) -> Result<ScopedReviewRecord, String> {
+    record_scoped_review_with_verdict(root, id, reviewer, ScopedReviewVerdict::Pass)
+}
+
+pub fn record_scoped_review_with_verdict(
+    root: &Path,
+    id: &str,
+    reviewer: String,
+    verdict: ScopedReviewVerdict,
+) -> Result<ScopedReviewRecord, String> {
+    let _lock = acquire_project_lock(root)?;
+    let record = load_change(root, id)?;
+    require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
+    ensure_definition_approval_valid(root, &record)?;
+    let verification = load_verification(root, &record)?;
+    let reviewer = validate_scoped_reviewer_claim(&reviewer)?;
+    let approvals = load_approvals(root, &record)?;
+    let scope_approver = effective_definition_approval(root, &record, &approvals)?
+        .actor
+        .trim();
+    if reviewer.eq_ignore_ascii_case(scope_approver) {
+        return Err(
+            "scoped review must be recorded by someone other than the scope approver".into(),
+        );
+    }
+    let current_commit = git_output(root, &["rev-parse", "HEAD"])
+        .ok_or_else(|| "scoped review requires a committed implementation".to_string())?;
+    validate_verification_for_commit_binding(
+        root,
+        &record,
+        &verification,
+        Some(&current_commit),
+        true,
+    )
+    .map_err(|error| {
+        format!("scoped review cannot bind stale verification ({error}); run `specsync change check` first")
+    })?;
+    let attempts_path = scoped_review_attempts_path(root, &record);
+    let previous_review = attempts_path
+        .exists()
+        .then(|| load_scoped_review(root, &record))
+        .transpose()?;
+    let mut attempts = if attempts_path.exists() {
+        serde_json::from_str::<ScopedReviewAttemptLedger>(
+            &fs::read_to_string(&attempts_path)
+                .map_err(|error| format!("failed to read scoped review history: {error}"))?,
+        )
+        .map_err(|error| format!("invalid scoped review attempt history: {error}"))?
+    } else {
+        ScopedReviewAttemptLedger::default()
+    };
+    if attempts.schema_version != 1 {
+        return Err("scoped review attempt history has an unsupported schema".into());
+    }
+    let contract_digest = definition_digest(root, &record)?;
+    let execution_digest = execution_digest(root, &record)?;
+    let workspace_digest = verification.workspace_digest.clone();
+    let implementation_commit = previous_review
+        .filter(|previous| {
+            previous.schema_version == 2
+                && previous.change_id == record.id
+                && previous.contract_digest == contract_digest
+                && previous.execution_digest.as_deref() == Some(execution_digest.as_str())
+                && previous.workspace_digest == workspace_digest
+                && review_commit_is_current_checked(root, &record, previous).is_ok()
+        })
+        .map(|previous| previous.implementation_commit)
+        .unwrap_or(current_commit);
+    let review = ScopedReviewRecord {
+        schema_version: 2,
+        change_id: record.id.clone(),
+        reviewer: reviewer.to_string(),
+        provenance: ScopedReviewProvenanceV1 {
+            schema_version: 1,
+            provider: ScopedReviewProvenanceProvider::GithubActionsCheck,
+            required_check: SCOPED_REVIEW_REQUIRED_CHECK.into(),
+        },
+        verdict,
+        implementation_commit,
+        contract_digest,
+        execution_digest: Some(execution_digest),
+        workspace_digest,
+        timestamp: now(),
+    };
+    attempts.reviews.push(review.clone());
+    write_prepared_files(
+        root,
+        &[
+            (scoped_review_path(root, &record), json_content(&review)?),
+            (attempts_path, json_content(&attempts)?),
+        ],
+    )?;
+    Ok(review)
+}
+
 pub fn accept_change(
     root: &Path,
     id: &str,
     actor: Option<String>,
     note: Option<String>,
 ) -> Result<ChangeRecord, String> {
+    accept_change_with_gate(root, id, actor, note, "acceptance", false, false)
+}
+
+fn accept_change_with_gate(
+    root: &Path,
+    id: &str,
+    actor: Option<String>,
+    note: Option<String>,
+    gate: &str,
+    allow_verified_tree_adoption: bool,
+    require_scoped_review: bool,
+) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "accept the change")?;
     ensure_definition_approval_valid(root, &record)?;
     let mut verification = load_verification(root, &record)?;
-    if !verification.passed {
-        return Err("cannot accept a change with failed verification".into());
-    }
     let current_commit = git_output(root, &["rev-parse", "HEAD"]);
+    validate_verification_for_commit_binding(
+        root,
+        &record,
+        &verification,
+        current_commit.as_deref(),
+        require_scoped_review,
+    )
+    .map_err(|error| format!("cannot accept stale verification: {error}"))?;
+    let mut verification_adopted = false;
     if verification.commit != current_commit {
-        return Err(
-            "verification is stale because HEAD changed; run `specsync change verify` again".into(),
-        );
+        if allow_verified_tree_adoption && current_commit.is_some() {
+            verification.commit = current_commit.clone();
+            verification_adopted = true;
+        } else {
+            return Err(
+                "verification is stale because HEAD changed; run `specsync change check` again"
+                    .into(),
+            );
+        }
     }
-    if !definition_digest_matches(root, &record, &verification.contract_digest)? {
-        return Err("verification is stale because the approved contract changed".into());
-    }
-    if verification.workspace_digest != project_input_digest(root)? {
-        return Err(
-            "verification is stale because tested working-tree inputs changed; run `specsync change verify` again"
-                .into(),
-        );
+    if require_scoped_review {
+        let review = load_scoped_review(root, &record)?;
+        if !scoped_review_is_current(root, &record, &review) {
+            return Err(
+                "independent scoped review is stale; open or update the PR so `SpecSync scoped review` can run"
+                    .into(),
+            );
+        }
     }
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
@@ -3504,36 +5229,98 @@ pub fn accept_change(
     verification.semantic_succession = (!succession.tuples.is_empty()).then_some(succession);
     let closing_digest = closing_digest(&record, &verification);
     let mut ledger = load_approvals(root, &record)?;
-    let actor = resolve_actor(root, actor)?;
-    let stable_definition_digest = definition_digest(root, &record)?;
-    let definition_is_stable =
-        effective_definition_approval(root, &record, &ledger)?.digest == stable_definition_digest;
-    if !definition_is_stable {
+    if gate == "finalization" {
+        if actor.is_some() || note.is_some() {
+            return Err(
+                "automatic finalization does not accept a second approval actor or note".into(),
+            );
+        }
+    } else {
+        let actor = resolve_actor(root, actor)?;
+        let stable_definition_digest = definition_digest(root, &record)?;
+        let definition_is_stable = effective_definition_approval(root, &record, &ledger)?.digest
+            == stable_definition_digest;
+        if !definition_is_stable {
+            ledger.approvals.push(ApprovalRecord {
+                gate: "definition".into(),
+                actor: actor.clone(),
+                timestamp: now(),
+                digest: stable_definition_digest,
+                note: Some(
+                    "Normalized compatible definition evidence during explicit acceptance".into(),
+                ),
+                definition_pair: None,
+                approved_scope: None,
+                scope_migration: None,
+            });
+        }
         ledger.approvals.push(ApprovalRecord {
-            gate: "definition".into(),
-            actor: actor.clone(),
+            gate: gate.into(),
+            actor,
             timestamp: now(),
-            digest: stable_definition_digest,
-            note: Some(
-                "Normalized compatible definition evidence during explicit acceptance".into(),
-            ),
+            digest: closing_digest.clone(),
+            note,
             definition_pair: None,
+            approved_scope: None,
+            scope_migration: None,
         });
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        prepared.push((approvals_path, json_content(&ledger)?));
     }
-    ledger.approvals.push(ApprovalRecord {
-        gate: "acceptance".into(),
-        actor,
-        timestamp: now(),
-        digest: closing_digest,
-        note,
-        definition_pair: None,
-    });
-    let approvals_path = change_dir(root, &record.id).join("approvals.json");
-    prepared.push((approvals_path, json_content(&ledger)?));
     prepared.push((
         change_dir(root, &record.id).join("verification.json"),
         json_content(&verification)?,
     ));
+    if verification_adopted {
+        let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
+        let mut attempts: VerificationAttemptLedger = serde_json::from_str(
+            &fs::read_to_string(&attempts_path)
+                .map_err(|error| format!("failed to read verification attempts: {error}"))?,
+        )
+        .map_err(|error| format!("invalid verification attempts: {error}"))?;
+        if attempts.schema_version != 1 || attempts.attempts.is_empty() {
+            return Err(
+                "verification attempt history cannot adopt the implementation commit".into(),
+            );
+        }
+        attempts.attempts.push(verification.clone());
+        prepared.push((attempts_path, json_content(&attempts)?));
+    }
+    if gate == "finalization" {
+        let review = load_scoped_review(root, &record)?;
+        let implementation_commit = current_commit
+            .clone()
+            .ok_or_else(|| "finalization requires a committed implementation".to_string())?;
+        let implementation_tree = git_output(
+            root,
+            &[
+                "rev-parse",
+                "--verify",
+                &format!("{implementation_commit}^{{tree}}"),
+            ],
+        )
+        .ok_or_else(|| "finalization requires a committed implementation tree".to_string())?;
+        let review_bytes = serde_json::to_vec(&review)
+            .map_err(|error| format!("failed to hash scoped review: {error}"))?;
+        let review_digest = sha256_hex(&review_bytes);
+        let mut finalization = FinalizationRecord {
+            schema_version: 2,
+            change_id: record.id.clone(),
+            implementation_commit,
+            implementation_tree,
+            contract_digest: verification.contract_digest.clone(),
+            workspace_digest: verification.workspace_digest.clone(),
+            closing_digest,
+            review_digest,
+            finalization_digest: String::new(),
+            timestamp: now(),
+        };
+        finalization.finalization_digest = finalization_digest(&finalization);
+        prepared.push((
+            change_dir(root, &record.id).join("finalization.json"),
+            json_content(&finalization)?,
+        ));
+    }
     record.state = ChangeState::Accepted;
     record.canonical_applied = true;
     record.updated_at = now();
@@ -3549,31 +5336,79 @@ pub fn accept_change(
     Ok(record)
 }
 
-pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
-    archive_change_with_finalize_failure(root, id, false)
+pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
+    // Recover a process-interrupted archive transaction before inspecting the
+    // state that determines whether finalization can resume.
+    drop(acquire_project_lock(root)?);
+    let record = load_change(root, id)?;
+    require_state(
+        &record,
+        &[ChangeState::Verifying, ChangeState::Accepted],
+        "finalize the change",
+    )?;
+    if !record.canonical_applied {
+        return Err(
+            "canonical deltas are not materialized; run `specsync change check` before review"
+                .into(),
+        );
+    }
+    if record.state == ChangeState::Verifying {
+        accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
+    } else {
+        let verification = load_verification(root, &record)?;
+        validate_finalization_evidence(root, &record, &verification)
+            .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))?;
+    }
+    archive_change_with_options(root, id, false, true)
 }
 
+pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
+    archive_change_with_options(root, id, false, false)
+}
+
+#[cfg(test)]
 fn archive_change_with_finalize_failure(
     root: &Path,
     id: &str,
     force_finalize_failure: bool,
 ) -> Result<PathBuf, String> {
+    archive_change_with_options(root, id, force_finalize_failure, false)
+}
+
+#[cfg(test)]
+fn archive_change_with_same_pr_finalize_failure(root: &Path, id: &str) -> Result<PathBuf, String> {
+    archive_change_with_options(root, id, true, true)
+}
+
+fn archive_change_with_options(
+    root: &Path,
+    id: &str,
+    force_finalize_failure: bool,
+    allow_delivery_diff: bool,
+) -> Result<PathBuf, String> {
     let _lock = acquire_project_lock(root)?;
     list_changes_checked(root)?;
+    let located = find_change_dir(root, id)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Accepted], "archive the change")?;
     validate_acceptance_owner_correction_records(&record)?;
-    let destination = root
-        .join(ARCHIVE_PATH)
-        .join(format!("{}-{}", today(), record.id));
-    if destination.exists() {
+    let source = change_dir(root, &record.id);
+    let archive_root = root.join(ARCHIVE_PATH);
+    let moved_destination =
+        (!source.exists() && located.parent() == Some(archive_root.as_path()) && located.is_dir())
+            .then_some(located);
+    let resume_post_move = moved_destination.is_some();
+    let destination = moved_destination
+        .unwrap_or_else(|| archive_root.join(format!("{}-{}", today(), record.id)));
+    if destination.exists() && !resume_post_move {
         return Err(format!(
             "archive destination already exists: {}",
             destination.display()
         ));
     }
     ensure_closing_approval_valid(root, &record)?;
-    if let Some(policy) = load_policy_checked(root)?
+    if !allow_delivery_diff
+        && let Some(policy) = load_policy_checked(root)?
         && policy.enabled
         && policy.require_change_for_meaningful_files
     {
@@ -3588,25 +5423,29 @@ fn archive_change_with_finalize_failure(
             );
         }
     }
-    let source = change_dir(root, &record.id);
-    let original_state_bytes = fs::read(source.join("state.json"))
+    let current_location = if resume_post_move {
+        destination.as_path()
+    } else {
+        source.as_path()
+    };
+    let original_state_bytes = fs::read(current_location.join("state.json"))
         .map_err(|error| format!("failed to preserve accepted state before archive: {error}"))?;
-    let original_markdown_bytes = fs::read(source.join("change.md"))
+    let original_markdown_bytes = fs::read(current_location.join("change.md"))
         .map_err(|error| format!("failed to preserve accepted change before archive: {error}"))?;
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
-    let accepted_snapshot = source.join("accepted-state.json");
+    let accepted_snapshot = current_location.join("accepted-state.json");
     let accepted_state_bytes = authenticated_accepted_transition(root, &record)
         .map(|(_, bytes, _)| bytes)
         .unwrap_or_else(|_| original_state_bytes.clone());
-    fs::write(&accepted_snapshot, &accepted_state_bytes)
+    atomic_write_durable(&accepted_snapshot, &accepted_state_bytes)
         .map_err(|error| format!("failed to stage authenticated accepted state: {error}"))?;
     let mut simulated = list_all_changes_checked(root)?;
     let mut archived_projection = record.clone();
     archived_projection.state = ChangeState::Archived;
     if let Err(error) = validate_archived_integrity(root, &archived_projection) {
-        let _ = fs::remove_file(&accepted_snapshot);
+        let _ = remove_file_durable(&accepted_snapshot);
         return Err(format!(
             "archive target historical-integrity preflight failed: {error}"
         ));
@@ -3625,15 +5464,15 @@ fn archive_change_with_finalize_failure(
             &mut visiting,
             &mut memo,
         ) {
-            let _ = fs::remove_file(&accepted_snapshot);
+            let _ = remove_file_durable(&accepted_snapshot);
             return Err(format!(
                 "archive post-move preflight would invalidate `{}`: {error}",
                 candidate.id
             ));
         }
     }
-    if let Err(error) = fs::rename(&source, &destination) {
-        let _ = fs::remove_file(&accepted_snapshot);
+    if !resume_post_move && let Err(error) = rename_durable(&source, &destination) {
+        let _ = remove_file_durable(&accepted_snapshot);
         return Err(format!(
             "failed to archive {} to {}: {error}",
             source.display(),
@@ -3646,26 +5485,44 @@ fn archive_change_with_finalize_failure(
     let finalize = if force_finalize_failure {
         Err("forced post-move archive finalization failure".to_string())
     } else {
-        write_json(&destination.join("state.json"), &archived).and_then(|()| {
-            fs::write(
-                destination.join("change.md"),
-                change_markdown_content(&archived),
+        json_content(&archived).and_then(|state| {
+            write_prepared_files(
+                root,
+                &[
+                    (destination.join("state.json"), state),
+                    (
+                        destination.join("change.md"),
+                        change_markdown_content(&archived),
+                    ),
+                ],
             )
-            .map_err(|error| error.to_string())
         })
     };
     if let Err(error) = finalize {
-        let restore = fs::write(destination.join("state.json"), &original_state_bytes)
-            .map_err(|error| error.to_string())
+        if resume_post_move {
+            let restore =
+                atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+                    .and_then(|()| {
+                        atomic_write_durable(
+                            &destination.join("change.md"),
+                            &original_markdown_bytes,
+                        )
+                    });
+            return match restore {
+                Ok(()) => Err(format!(
+                    "failed to finalize archive; post-move destination remains retryable: {error}"
+                )),
+                Err(restore_error) => Err(format!(
+                    "failed to finalize archive ({error}) and restore retryable destination ({restore_error})"
+                )),
+            };
+        }
+        let restore = atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
             .and_then(|()| {
-                fs::write(destination.join("change.md"), &original_markdown_bytes)
-                    .map_err(|error| error.to_string())
+                atomic_write_durable(&destination.join("change.md"), &original_markdown_bytes)
             })
-            .and_then(|()| {
-                fs::remove_file(destination.join("accepted-state.json"))
-                    .map_err(|error| error.to_string())
-            })
-            .and_then(|()| fs::rename(&destination, &source).map_err(|error| error.to_string()));
+            .and_then(|()| remove_file_durable(&destination.join("accepted-state.json")))
+            .and_then(|()| rename_durable(&destination, &source));
         return match restore {
             Ok(()) => Err(format!(
                 "failed to finalize archive; source restored: {error}"
@@ -3676,17 +5533,30 @@ fn archive_change_with_finalize_failure(
         };
     }
     if let Err(error) = validate_archived_integrity(root, &archived) {
-        let restore = fs::write(destination.join("state.json"), &original_state_bytes)
-            .map_err(|error| error.to_string())
+        if resume_post_move {
+            let restore =
+                atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
+                    .and_then(|()| {
+                        atomic_write_durable(
+                            &destination.join("change.md"),
+                            &original_markdown_bytes,
+                        )
+                    });
+            return match restore {
+                Ok(()) => Err(format!(
+                    "archived evidence failed validation; post-move destination remains retryable: {error}"
+                )),
+                Err(restore_error) => Err(format!(
+                    "archived evidence failed validation ({error}) and restore retryable destination ({restore_error})"
+                )),
+            };
+        }
+        let restore = atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
             .and_then(|()| {
-                fs::write(destination.join("change.md"), &original_markdown_bytes)
-                    .map_err(|error| error.to_string())
+                atomic_write_durable(&destination.join("change.md"), &original_markdown_bytes)
             })
-            .and_then(|()| {
-                fs::remove_file(destination.join("accepted-state.json"))
-                    .map_err(|error| error.to_string())
-            })
-            .and_then(|()| fs::rename(&destination, &source).map_err(|error| error.to_string()));
+            .and_then(|()| remove_file_durable(&destination.join("accepted-state.json")))
+            .and_then(|()| rename_durable(&destination, &source));
         return match restore {
             Ok(()) => Err(format!(
                 "archived evidence failed post-move validation; source restored: {error}"
@@ -3700,6 +5570,14 @@ fn archive_change_with_finalize_failure(
 }
 
 pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
+    summarize_change_with_strict(root, record, false)
+}
+
+pub fn summarize_change_with_strict(
+    root: &Path,
+    record: &ChangeRecord,
+    explicit_strict: bool,
+) -> ChangeSummary {
     let effective = effective_change_definition(root, record);
     let correction_valid = effective.is_ok();
     let corrected_fields = effective
@@ -3714,54 +5592,187 @@ pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
         })
         .unwrap_or_default();
     let approval_valid = ensure_definition_approval_valid(root, record).is_ok();
+    let current_definition_digest = definition_digest(root, record).ok();
+    let scope_expansion = if record.workflow_version >= 2 {
+        load_approvals(root, record)
+            .ok()
+            .and_then(|ledger| {
+                let (index, approval) = ledger
+                    .approvals
+                    .iter()
+                    .enumerate()
+                    .rfind(|(_, approval)| approval.gate == "definition")?;
+                approval.approved_scope.clone().or_else(|| {
+                    ledger
+                        .scope_adoptions
+                        .iter()
+                        .find(|adoption| adoption.source_approval_index == index as u64)
+                        .map(|adoption| adoption.adopted_scope.clone())
+                })
+            })
+            .and_then(|approved| {
+                approved_scope(root, record)
+                    .ok()
+                    .map(|current| scope_expansion(&approved, &current))
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
     let artifacts_complete = validate_artifacts(root, record).is_ok();
+    let incomplete_artifacts = effective
+        .as_ref()
+        .map(|definition| {
+            definition
+                .selected_artifacts
+                .iter()
+                .filter_map(|artifact| {
+                    let relative = format!("{CHANGES_PATH}/{}/{}", record.id, artifact.file_name());
+                    let path = root.join(&relative);
+                    match fs::read_to_string(path) {
+                        Ok(content)
+                            if !content.contains("<!-- TODO") && !content.trim().is_empty() =>
+                        {
+                            None
+                        }
+                        _ => Some(relative),
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     let verification_current = || {
         load_verification(root, record)
             .is_ok_and(|verification| verification_is_current(root, record, &verification))
     };
+    let scoped_review_current = load_scoped_review(root, record)
+        .is_ok_and(|review| scoped_review_is_current(root, record, &review));
+    let routing = load_verification_routing(root).unwrap_or_default();
+    let strict_validation_required =
+        explicit_strict || change_requires_strict_validation(record, &routing);
+    let verification_commands = load_policy_checked(root)
+        .ok()
+        .flatten()
+        .and_then(|policy| {
+            verification_commands_for_change(root, &policy, record, explicit_strict).ok()
+        })
+        .unwrap_or_default();
     let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
         .then(|| terminal_evidence_summary(root, record));
-    let next_action = match record.state {
-        ChangeState::Draft if next_questions(record).is_empty() => "approve".into(),
-        ChangeState::Draft => "answer interview".into(),
-        ChangeState::Approved => "start".into(),
-        ChangeState::Implementing if !artifacts_complete => "complete artifacts".into(),
-        ChangeState::Implementing if !approval_valid => "approve".into(),
-        ChangeState::Implementing => "verify".into(),
-        ChangeState::Verifying if !artifacts_complete => "complete artifacts".into(),
-        ChangeState::Verifying if !approval_valid => "approve".into(),
-        ChangeState::Verifying if !verification_current() => "verify".into(),
-        ChangeState::Verifying => "accept".into(),
-        ChangeState::Accepted if !correction_valid => "repair correction ledger".into(),
-        ChangeState::Accepted if ensure_closing_approval_valid(root, record).is_err() => {
-            "reopen".into()
+    // Sequence-ledger freezes must outrank state-local next actions (including reopen /
+    // finalize). Premature multi-id acknowledgements block change new/adopt project-wide.
+    let next_action = if let Some(remediation) = sequence_ledger_freeze_next_action(root) {
+        remediation
+    } else {
+        match record.state {
+            ChangeState::Draft if next_questions(record).is_empty() => {
+                format!("run `specsync change approve {} --actor <name>`", record.id)
+            }
+            ChangeState::Draft => {
+                let question = next_questions(record)
+                    .into_iter()
+                    .next()
+                    .map(|question| question.id)
+                    .unwrap_or_else(|| "<question>".into());
+                format!(
+                    "run `specsync change answer {} {} <answer>`",
+                    record.id, question
+                )
+            }
+            ChangeState::Approved if !approval_valid => {
+                format!("run `specsync change approve {} --actor <name>`", record.id)
+            }
+            ChangeState::Approved => {
+                format!("run `specsync change check {}`", record.id)
+            }
+            ChangeState::Implementing if !artifacts_complete => {
+                format!(
+                    "complete {}, then run `specsync change status {}`",
+                    incomplete_artifacts.join(", "),
+                    record.id
+                )
+            }
+            ChangeState::Implementing if !approval_valid => {
+                format!("run `specsync change approve {} --actor <name>`", record.id)
+            }
+            ChangeState::Implementing => {
+                format!("run `specsync change check {}`", record.id)
+            }
+            ChangeState::Verifying if !artifacts_complete => {
+                format!(
+                    "complete {}, then run `specsync change status {}`",
+                    incomplete_artifacts.join(", "),
+                    record.id
+                )
+            }
+            ChangeState::Verifying if !approval_valid => {
+                format!("run `specsync change approve {} --actor <name>`", record.id)
+            }
+            ChangeState::Verifying if !verification_current() => {
+                format!("run `specsync change check {}`", record.id)
+            }
+            ChangeState::Verifying if !scoped_review_current => {
+                format!(
+                    "run `specsync change review {} --reviewer <independent-reviewer>` after the PR's scoped review passes",
+                    record.id
+                )
+            }
+            ChangeState::Verifying => {
+                format!("run `specsync change finalize {}`", record.id)
+            }
+            ChangeState::Accepted if !correction_valid => format!(
+                "restore `.specsync/changes/{}/corrections.json` from trusted history, then run `specsync change status {}`",
+                record.id, record.id
+            ),
+            ChangeState::Accepted if record.workflow_version >= 2 => {
+                format!("run `specsync change finalize {}`", record.id)
+            }
+            ChangeState::Accepted if ensure_closing_approval_valid(root, record).is_err() => {
+                format!(
+                    "run `specsync change reopen {} --actor <name> --reason <reason>`",
+                    record.id
+                )
+            }
+            ChangeState::Accepted
+                if terminal_evidence.as_ref().is_some_and(|evidence| {
+                    evidence.validity == TerminalEvidenceValidity::Stale
+                }) =>
+            {
+                format!(
+                    "run `specsync change reopen {} --actor <name> --reason <reason>`",
+                    record.id
+                )
+            }
+            ChangeState::Accepted => {
+                format!("run `specsync change archive {}`", record.id)
+            }
+            ChangeState::Archived
+                if terminal_evidence.as_ref().is_some_and(|evidence| {
+                    evidence.validity == TerminalEvidenceValidity::CorruptHistory
+                }) =>
+            {
+                format!(
+                    "restore the archive for {} from trusted Git history, then run `specsync change check`",
+                    record.id
+                )
+            }
+            ChangeState::Archived => "merge the PR on GitHub if it is still open".into(),
         }
-        ChangeState::Accepted
-            if terminal_evidence
-                .as_ref()
-                .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale) =>
-        {
-            "reopen".into()
-        }
-        ChangeState::Accepted => "archive".into(),
-        ChangeState::Archived
-            if terminal_evidence.as_ref().is_some_and(|evidence| {
-                evidence.validity == TerminalEvidenceValidity::CorruptHistory
-            }) =>
-        {
-            "invalid archived evidence".into()
-        }
-        ChangeState::Archived => "none".into(),
     };
     ChangeSummary {
         id: record.id.clone(),
         title: record.title.clone(),
         state: record.state,
         approval_valid,
+        definition_digest: current_definition_digest,
+        scope_expansion,
         artifacts_complete,
         correction_valid,
         correction_count: record.correction_count as usize,
         corrected_fields,
+        scoped_review_current,
+        strict_validation_required,
+        verification_commands,
         next_action,
         terminal_evidence,
     }
@@ -3806,19 +5817,40 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
         .map_err(|error| format!("invalid trusted SDD policy `{object}`: {error}"))
 }
 
+/// Full lifecycle integrity including archived terminal evidence.
+///
+/// Product defaults (`change check`, `change audit`, `specsync check`) use
+/// [`audit_project`] instead. This remains for unit/integration tests and any
+/// intentional full historical walk.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn check_project(root: &Path) -> SddCheckReport {
-    check_project_with_command_output(root, ConfiguredCommandOutput::Inherit)
+    let _scope = ensure_change_read_scope(root);
+    // Full integrity including archive terminal evidence — tests / rare callers.
+    check_project_with_command_output(root, ConfiguredCommandOutput::Inherit, true)
+}
+
+/// Audit active change workspaces and living SDD policy/spec coherence.
+///
+/// Does **not** re-validate archived terminal evidence. Archives are history;
+/// living truth is active workspaces plus specs/policy.
+pub fn audit_project(root: &Path) -> SddCheckReport {
+    let _scope = ensure_change_read_scope(root);
+    check_project_with_command_output(root, ConfiguredCommandOutput::Inherit, false)
 }
 
 /// Check SDD lifecycle state without allowing configured verification commands
 /// to write into a machine-consumed report stream.
+///
+/// Uses the active-only audit scope so PR comments and agents stay fast.
 pub(crate) fn check_project_quiet(root: &Path) -> SddCheckReport {
-    check_project_with_command_output(root, ConfiguredCommandOutput::Suppress)
+    let _scope = ensure_change_read_scope(root);
+    check_project_with_command_output(root, ConfiguredCommandOutput::Suppress, false)
 }
 
 fn check_project_with_command_output(
     root: &Path,
     command_output: ConfiguredCommandOutput,
+    include_archive_integrity: bool,
 ) -> SddCheckReport {
     if let Some(error) = crate::verification_recursion_error() {
         return SddCheckReport {
@@ -3850,6 +5882,9 @@ fn check_project_with_command_output(
     let is_versioned_sdd = current_policy.is_some()
         || base_policy.is_some()
         || root.join(".specsync/version").exists()
+        || root.join(WORKFLOW_V2_BASELINE_PATH).exists()
+        || root.join(CHANGES_PATH).is_dir()
+        || root.join(ARCHIVE_PATH).is_dir()
         || git_repo_relative_path(root, POLICY_PATH)
             .ok()
             .and_then(|path| git_output(root, &["ls-tree", "--name-only", "HEAD", path.as_str()]))
@@ -3867,21 +5902,49 @@ fn check_project_with_command_output(
             };
         }
     };
-    let all_records = match list_all_changes_checked(root) {
-        Ok(records) => records,
-        Err(error) => {
-            return SddCheckReport {
-                enabled: true,
-                errors: vec![error],
-                ..SddCheckReport::default()
-            };
+    let all_records = if include_archive_integrity {
+        match list_all_changes_checked(root) {
+            Ok(records) => records,
+            Err(error) => {
+                return SddCheckReport {
+                    enabled: true,
+                    errors: vec![error],
+                    ..SddCheckReport::default()
+                };
+            }
+        }
+    } else {
+        // Active-only audit: skip loading archives entirely.
+        records
+            .iter()
+            .cloned()
+            .map(|record| (record.id.clone(), record))
+            .collect()
+    };
+    let (terminal_evidence, mut archived_integrity_cache) = if include_archive_integrity {
+        terminal_evidence_results_with_records(root, &all_records)
+    } else {
+        // Only evaluate terminal evidence for active accepted/archived-in-flight records.
+        let active_terminal: BTreeMap<_, _> = records
+            .iter()
+            .filter(|record| matches!(record.state, ChangeState::Accepted | ChangeState::Archived))
+            .cloned()
+            .map(|record| (record.id.clone(), record))
+            .collect();
+        if active_terminal.is_empty() {
+            (Vec::new(), Default::default())
+        } else {
+            terminal_evidence_results_with_records(root, &active_terminal)
         }
     };
-    let (terminal_evidence, mut archived_integrity_cache) =
-        terminal_evidence_results_with_records(root, &all_records);
     let mut report = SddCheckReport {
         enabled: true,
-        checked_changes: all_records.len(),
+        // User-facing counts reflect the scope actually audited.
+        checked_changes: if include_archive_integrity {
+            all_records.len()
+        } else {
+            records.len()
+        },
         terminal_evidence,
         ..SddCheckReport::default()
     };
@@ -3900,9 +5963,12 @@ fn check_project_with_command_output(
         base
     } else {
         let Some(policy) = current_policy else {
-            return SddCheckReport::default();
+            // Active workspaces exist without a policy file: keep list-load results
+            // (corrupt/ineligible changes already failed above) and skip policy-gated checks.
+            return report;
         };
         if !policy.enabled {
+            // Explicitly disabled policy: do not treat SDD as enabled.
             return SddCheckReport::default();
         }
         policy
@@ -3977,31 +6043,33 @@ fn check_project_with_command_output(
             }
         }
     }
-    let mut shared_legacy_error_reported = false;
-    for record in all_records
-        .values()
-        .filter(|record| record.state == ChangeState::Archived)
-    {
-        if let Err(error) =
-            validate_archived_integrity_with_cache(root, record, &mut archived_integrity_cache)
+    if include_archive_integrity {
+        let mut shared_legacy_error_reported = false;
+        for record in all_records
+            .values()
+            .filter(|record| record.state == ChangeState::Archived)
         {
-            let is_shared_legacy_error = archived_integrity_cache
-                .legacy
-                .as_ref()
-                .and_then(|result| result.as_ref().err())
-                == Some(&error);
-            if is_shared_legacy_error {
-                if !shared_legacy_error_reported {
+            if let Err(error) =
+                validate_archived_integrity_with_cache(root, record, &mut archived_integrity_cache)
+            {
+                let is_shared_legacy_error = archived_integrity_cache
+                    .legacy
+                    .as_ref()
+                    .and_then(|result| result.as_ref().err())
+                    == Some(&error);
+                if is_shared_legacy_error {
+                    if !shared_legacy_error_reported {
+                        report.errors.push(format!(
+                            "legacy archive baseline historical integrity is invalid: {error}"
+                        ));
+                        shared_legacy_error_reported = true;
+                    }
+                } else {
                     report.errors.push(format!(
-                        "legacy archive baseline historical integrity is invalid: {error}"
+                        "{}: archived change historical integrity is invalid: {error}",
+                        record.id
                     ));
-                    shared_legacy_error_reported = true;
                 }
-            } else {
-                report.errors.push(format!(
-                    "{}: archived change historical integrity is invalid: {error}",
-                    record.id
-                ));
             }
         }
     }
@@ -4083,7 +6151,21 @@ fn check_project_with_command_output(
             )
         })
     {
-        for configured in &policy.verification_commands {
+        let mut configured_commands = Vec::new();
+        for record in records.iter().filter(|record| {
+            matches!(
+                record.state,
+                ChangeState::Implementing | ChangeState::Verifying | ChangeState::Accepted
+            )
+        }) {
+            match verification_commands_for_change(root, &policy, record, false) {
+                Ok(commands) => configured_commands.extend(commands),
+                Err(error) => report.errors.push(format!("{}: {error}", record.id)),
+            }
+        }
+        let mut seen = BTreeSet::new();
+        configured_commands.retain(|command| seen.insert(command.clone()));
+        for configured in &configured_commands {
             match run_configured_command(root, configured, command_output) {
                 Ok(status) if status.success() => {}
                 Ok(status) => report.errors.push(format!(
@@ -4113,6 +6195,10 @@ fn check_project_with_command_output(
 pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<String>, String> {
     let mut actions = Vec::new();
     actions.push(format!("enable SDD policy at {POLICY_PATH}"));
+    actions.push(
+        "adopt the workflow-v2 baseline for new changes while preserving workflow-v1 evidence"
+            .into(),
+    );
     let requirement_proposals = requirement_id_proposals(root);
     let detected = source
         .map(str::to_string)
@@ -4130,42 +6216,75 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
     if dry_run {
         return Ok(actions);
     }
+    let _lock = acquire_project_lock(root)?;
+    validate_change_sequences(root)?;
     if let Some(source) = detected.as_deref() {
         validate_foreign_import(root, source)?;
     }
+    let baseline_candidate = prepare_workflow_v2_adoption_candidate(root)?;
     let policy_existed = root.join(POLICY_PATH).exists();
     let existing_bootstrap = fs::read_to_string(root.join(".specsync/adoption-report.json"))
         .ok()
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|value| value.get("bootstrap_policy").cloned());
-    write_default_policy(root, detect_verification_commands(root))?;
+    let policy_content = if policy_existed {
+        None
+    } else {
+        Some(json_content(&default_policy(
+            root,
+            detect_verification_commands(root),
+        ))?)
+    };
     let bootstrap_policy = if policy_existed {
         existing_bootstrap
     } else {
-        adoption_bootstrap_record(root)?
+        policy_content
+            .as_deref()
+            .map(|content| adoption_bootstrap_record_for_content(root, content.as_bytes()))
+            .transpose()?
+            .flatten()
     };
-    write_json(
-        &root.join(".specsync/adoption-report.json"),
-        &serde_json::json!({
+    let baseline_content = baseline_candidate
+        .as_ref()
+        .map(|candidate| json_content(&candidate.baseline))
+        .transpose()?;
+    let mut prepared = Vec::new();
+    if let Some(policy_content) = policy_content {
+        prepared.push((root.join(POLICY_PATH), policy_content));
+    }
+    if let Some(source) = detected.as_deref() {
+        prepared.extend(prepare_foreign_import(root, source)?);
+    }
+    prepared.push((
+        root.join(".specsync/adoption-report.json"),
+        json_content(&serde_json::json!({
             "requirements_needing_ids": requirement_proposals,
             "generated_at": now(),
             "bootstrap_policy": bootstrap_policy,
-        }),
-    )?;
-    if let Some(source) = detected.as_deref() {
-        import_foreign(root, source)?;
+        }))?,
+    ));
+    if let Some(baseline_content) = baseline_content {
+        prepared.push((root.join(WORKFLOW_V2_BASELINE_PATH), baseline_content));
+    }
+    if let Some(candidate) = baseline_candidate {
+        write_prepared_files_checked(root, &prepared, || {
+            validate_workflow_v2_adoption_git_snapshot(root, &candidate.git_snapshot)
+        })?;
+    } else {
+        write_prepared_files(root, &prepared)?;
     }
     Ok(actions)
 }
 
-fn adoption_bootstrap_record(root: &Path) -> Result<Option<serde_json::Value>, String> {
+fn adoption_bootstrap_record_for_content(
+    root: &Path,
+    content: &[u8],
+) -> Result<Option<serde_json::Value>, String> {
     let Some(base_commit) = git_output(root, &["rev-parse", "--verify", "HEAD"]) else {
         return Ok(None);
     };
-    let content = fs::read(root.join(POLICY_PATH))
-        .map_err(|error| format!("failed to read adopted SDD policy: {error}"))?;
     let mut hasher = Sha256::new();
-    hasher.update(&content);
+    hasher.update(content);
     Ok(Some(serde_json::json!({
         "path": POLICY_PATH,
         "digest": format!("{:x}", hasher.finalize()),
@@ -4198,6 +6317,7 @@ fn adoption_bootstrap_covers_policy(root: &Path) -> bool {
     let ancestor_status = Command::new("git")
         .args(["merge-base", "--is-ancestor", base_commit, "HEAD"])
         .current_dir(root)
+        .stderr(Stdio::null())
         .status();
     if !ancestor_status.is_ok_and(|status| status.success()) {
         return false;
@@ -4539,6 +6659,13 @@ fn validate_sha256_digest(value: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn is_canonical_commit_id(value: &str) -> bool {
+    value.len() == 40
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
 fn succession_change_key(id: &str) -> (u64, String) {
     (change_sequence(id).unwrap_or(u64::MAX), id.to_string())
 }
@@ -4585,10 +6712,10 @@ fn ensure_tasks_complete(root: &Path, record: &ChangeRecord) -> Result<(), Strin
         return Ok(());
     }
     let path = change_dir(root, &record.id).join("tasks.md");
-    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    if content
-        .lines()
-        .any(|line| line.trim_start().starts_with("- [ ]"))
+    let content = fs::read(&path).map_err(|error| error.to_string())?;
+    if markdown_task_checkbox_offsets(&content)
+        .into_iter()
+        .any(|offset| content[offset] == b' ')
     {
         return Err("tasks.md contains incomplete tasks".into());
     }
@@ -4801,21 +6928,54 @@ fn create_effective_contract_workspace() -> Result<PathBuf, String> {
 }
 
 fn dependency_ordered_changes(changes: Vec<&ChangeRecord>) -> Result<Vec<&ChangeRecord>, String> {
-    let active_ids: BTreeSet<&str> = changes.iter().map(|record| record.id.as_str()).collect();
-    let mut remaining = changes;
-    let mut emitted = BTreeSet::new();
-    let mut ordered = Vec::new();
-    while !remaining.is_empty() {
-        let Some(index) = remaining.iter().position(|record| {
-            record.dependencies.iter().all(|dependency| {
-                !active_ids.contains(dependency.as_str()) || emitted.contains(dependency.as_str())
-            })
-        }) else {
-            return Err("active change dependency cycle prevents deterministic ordering".into());
-        };
-        let record = remaining.remove(index);
-        emitted.insert(record.id.as_str());
-        ordered.push(record);
+    let mut by_id = BTreeMap::new();
+    for record in changes {
+        if by_id.insert(record.id.as_str(), record).is_some() {
+            return Err(format!(
+                "duplicate active change `{}` prevents deterministic ordering",
+                record.id
+            ));
+        }
+    }
+    let active_ids: BTreeSet<&str> = by_id.keys().copied().collect();
+    let mut indegree = by_id
+        .keys()
+        .map(|id| (*id, 0_usize))
+        .collect::<BTreeMap<_, _>>();
+    let mut dependents: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for (id, record) in &by_id {
+        let dependencies = record
+            .dependencies
+            .iter()
+            .map(String::as_str)
+            .filter(|dependency| active_ids.contains(dependency))
+            .collect::<BTreeSet<_>>();
+        indegree.insert(id, dependencies.len());
+        for dependency in dependencies {
+            dependents.entry(dependency).or_default().insert(id);
+        }
+    }
+    let mut ready = indegree
+        .iter()
+        .filter_map(|(id, count)| (*count == 0).then_some(*id))
+        .collect::<BTreeSet<_>>();
+    let mut ordered = Vec::with_capacity(by_id.len());
+    while let Some(id) = ready.pop_first() {
+        ordered.push(by_id[id]);
+        if let Some(children) = dependents.get(id) {
+            for child in children {
+                let count = indegree
+                    .get_mut(child)
+                    .expect("dependent change has an indegree");
+                *count -= 1;
+                if *count == 0 {
+                    ready.insert(child);
+                }
+            }
+        }
+    }
+    if ordered.len() != by_id.len() {
+        return Err("active change dependency cycle prevents deterministic ordering".into());
     }
     Ok(ordered)
 }
@@ -5411,31 +7571,86 @@ fn changelog_table_row(section: &str, spec: &str, description: &str) -> Option<S
 }
 
 fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(), String> {
+    write_prepared_files_checked(root, prepared, || Ok(()))
+}
+
+fn write_prepared_files_checked<Validate>(
+    root: &Path,
+    prepared: &[(PathBuf, String)],
+    mut validate: Validate,
+) -> Result<(), String>
+where
+    Validate: FnMut() -> Result<(), String>,
+{
+    let mut targets = BTreeSet::new();
     for (path, _) in prepared {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        validate_prepared_transaction_target(root, path)?;
+        if !targets.insert(path) {
+            return Err(format!(
+                "transaction contains duplicate target {}",
+                path.display()
+            ));
         }
     }
     let backups: Vec<(PathBuf, Option<String>)> = prepared
         .iter()
-        .map(|(path, _)| (path.clone(), fs::read_to_string(path).ok()))
-        .collect();
+        .map(|(path, _)| {
+            let original = match fs::read_to_string(path) {
+                Ok(content) => Some(content),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(error) => {
+                    return Err(format!(
+                        "failed to preserve transaction target {}: {error}",
+                        path.display()
+                    ));
+                }
+            };
+            Ok((path.clone(), original))
+        })
+        .collect::<Result<_, String>>()?;
     let journal: Vec<TransactionEntry> = backups
         .iter()
         .map(|(path, original)| {
             Ok(TransactionEntry {
-                path: path
-                    .strip_prefix(root)
-                    .map_err(|_| format!("transaction path escapes project: {}", path.display()))?
-                    .to_string_lossy()
-                    .replace('\\', "/"),
+                path: transaction_relative_path(root, path)?,
                 original: original.clone(),
             })
         })
         .collect::<Result<_, String>>()?;
-    write_json(&root.join(TRANSACTION_PATH), &journal)?;
-    for (path, content) in prepared {
-        if let Err(error) = fs::write(path, content) {
+    let journal = TransactionJournal {
+        schema_version: 1,
+        entry_count: journal.len(),
+        entries_digest: transaction_entries_digest(&journal)?,
+        entries: journal,
+    };
+    validate_prepared_transaction_targets(root, prepared)?;
+    validate()?;
+    let journal_path = root.join(TRANSACTION_PATH);
+    atomic_write_durable(&journal_path, json_content(&journal)?.as_bytes())
+        .map_err(|error| format!("failed to publish transaction journal: {error}"))?;
+    #[cfg(test)]
+    run_transaction_after_journal_hook();
+    if let Err(error) =
+        validate_prepared_transaction_targets(root, prepared).and_then(|()| validate())
+    {
+        recover_pending_transaction(root)?;
+        return Err(error);
+    }
+    for (index, (path, content)) in prepared.iter().enumerate() {
+        let _ = index;
+        #[cfg(test)]
+        if transaction_write_failure_is_due(index) {
+            recover_pending_transaction(root)?;
+            return Err(format!(
+                "injected atomic publication failure at {}",
+                path.display()
+            ));
+        }
+        if let Err(error) = validate_prepared_transaction_target(root, path) {
+            recover_pending_transaction(root)?;
+            return Err(error);
+        }
+        if let Err(error) = atomic_write_durable(path, content.as_bytes()) {
             recover_pending_transaction(root)?;
             return Err(format!(
                 "atomic delta application failed at {}: {error}",
@@ -5443,8 +7658,229 @@ fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(
             ));
         }
     }
-    fs::remove_file(root.join(TRANSACTION_PATH))
+    if let Err(error) =
+        validate_prepared_transaction_targets(root, prepared).and_then(|()| validate())
+    {
+        recover_pending_transaction(root)?;
+        return Err(error);
+    }
+    remove_file_durable(&journal_path)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))?;
+    Ok(())
+}
+
+fn validate_prepared_transaction_targets(
+    root: &Path,
+    prepared: &[(PathBuf, String)],
+) -> Result<(), String> {
+    for (path, _) in prepared {
+        validate_prepared_transaction_target(root, path)?;
+    }
+    Ok(())
+}
+
+fn validate_prepared_transaction_target(root: &Path, path: &Path) -> Result<(), String> {
+    transaction_relative_path(root, path)?;
+    reject_symlink_components_for(root, path, "transaction target")
+}
+
+fn transaction_relative_path(root: &Path, path: &Path) -> Result<String, String> {
+    let relative = path.strip_prefix(root).map_err(|_| {
+        format!(
+            "transaction target escapes project root: {}",
+            path.display()
+        )
+    })?;
+    let relative = relative.to_str().ok_or_else(|| {
+        format!(
+            "transaction target is not valid UTF-8 and cannot be journaled losslessly: {}",
+            path.display()
+        )
+    })?;
+    #[cfg(unix)]
+    if relative.contains('\\') {
+        return Err(format!(
+            "transaction target contains a Unix filename component with `\\` and cannot be journaled losslessly: {}",
+            path.display()
+        ));
+    }
+    let relative = relative.replace('\\', "/");
+    if normalize_project_path(&relative)? != relative {
+        return Err(format!(
+            "transaction target is not a canonical project path: {}",
+            path.display()
+        ));
+    }
+    if relative == TRANSACTION_PATH {
+        return Err("transaction payload cannot overwrite its own journal".into());
+    }
+    Ok(relative)
+}
+
+#[cfg(test)]
+fn inject_transaction_write_failure(index: usize) {
+    TRANSACTION_WRITE_FAILURE_INDEX.with(|target| {
+        *target.borrow_mut() = Some(index);
+    });
+}
+
+#[cfg(test)]
+fn inject_transaction_after_journal_hook(hook: impl FnOnce() + 'static) {
+    TRANSACTION_AFTER_JOURNAL_HOOK.with(|target| {
+        *target.borrow_mut() = Some(Box::new(hook));
+    });
+}
+
+#[cfg(test)]
+fn run_transaction_after_journal_hook() {
+    TRANSACTION_AFTER_JOURNAL_HOOK.with(|target| {
+        if let Some(hook) = target.borrow_mut().take() {
+            hook();
+        }
+    });
+}
+
+#[cfg(test)]
+fn transaction_write_failure_is_due(index: usize) -> bool {
+    TRANSACTION_WRITE_FAILURE_INDEX.with(|target| {
+        let mut target = target.borrow_mut();
+        if *target == Some(index) {
+            *target = None;
+            true
+        } else {
+            false
+        }
+    })
+}
+
+fn remove_empty_transaction_directories(root: &Path, start: Option<&Path>) {
+    let mut current = start.map(Path::to_path_buf);
+    while let Some(directory) = current {
+        if directory == root || !directory.starts_with(root) {
+            break;
+        }
+        let parent = directory.parent().map(Path::to_path_buf);
+        if fs::remove_dir(&directory).is_err() {
+            break;
+        }
+        current = parent;
+    }
+}
+
+fn transaction_entries_digest(entries: &[TransactionEntry]) -> Result<String, String> {
+    serde_json::to_vec(entries)
+        .map(|bytes| sha256_hex(&bytes))
+        .map_err(|error| format!("failed to hash transaction journal: {error}"))
+}
+
+fn atomic_write_durable(path: &Path, content: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("transaction target has no parent: {}", path.display()))?;
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    let mut temporary = tempfile::Builder::new()
+        .prefix(".specsync-transaction-")
+        .tempfile_in(parent)
+        .map_err(|error| format!("failed to stage {}: {error}", path.display()))?;
+    let permissions = fs::metadata(path)
+        .map(|metadata| metadata.permissions())
+        .unwrap_or(default_transaction_permissions(temporary.path())?);
+    fs::set_permissions(temporary.path(), permissions)
+        .map_err(|error| format!("failed to preserve {} permissions: {error}", path.display()))?;
+    temporary
+        .write_all(content)
+        .and_then(|()| temporary.flush())
+        .and_then(|()| temporary.as_file().sync_all())
+        .map_err(|error| format!("failed to durably stage {}: {error}", path.display()))?;
+    temporary
+        .persist(path)
+        .map_err(|error| format!("failed to publish {}: {}", path.display(), error.error))?;
+    sync_parent_directory(parent)
+}
+
+#[cfg(unix)]
+fn default_transaction_permissions(_temporary: &Path) -> Result<fs::Permissions, String> {
+    use std::os::unix::fs::PermissionsExt;
+    Ok(fs::Permissions::from_mode(0o644))
+}
+
+#[cfg(not(unix))]
+fn default_transaction_permissions(temporary: &Path) -> Result<fs::Permissions, String> {
+    let mut permissions = fs::metadata(temporary)
+        .map(|metadata| metadata.permissions())
+        .map_err(|error| format!("failed to read staged file permissions: {error}"))?;
+    // Clear the Windows read-only bit after staging. This is not the Unix
+    // 0o666 world-writable case that clippy::permissions_set_readonly_false warns about.
+    #[allow(clippy::permissions_set_readonly_false)]
+    {
+        permissions.set_readonly(false);
+    }
+    Ok(permissions)
+}
+
+fn remove_file_durable(path: &Path) -> Result<(), String> {
+    fs::remove_file(path).map_err(|error| error.to_string())?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("transaction target has no parent: {}", path.display()))?;
+    sync_parent_directory(parent)
+}
+
+#[cfg(unix)]
+fn sync_parent_directory(directory: &Path) -> Result<(), String> {
+    fs::File::open(directory)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| format!("failed to sync directory {}: {error}", directory.display()))
+}
+
+#[cfg(windows)]
+fn sync_parent_directory(directory: &Path) -> Result<(), String> {
+    use std::io::ErrorKind;
+    use std::os::windows::fs::OpenOptionsExt;
+
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    // Directory FlushFileBuffers can fail with ERROR_ACCESS_DENIED while a
+    // sibling handle (lifecycle lock, staged temp file) remains open. File bytes
+    // are already synced; treat metadata durability as best-effort in that case.
+    match OpenOptions::new()
+        .read(true)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(directory)
+        .and_then(|file| file.sync_all())
+    {
+        Ok(()) => Ok(()),
+        Err(error)
+            if error.raw_os_error() == Some(5) || error.kind() == ErrorKind::PermissionDenied =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(format!(
+            "failed to sync directory {}: {error}",
+            directory.display()
+        )),
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn sync_parent_directory(_directory: &Path) -> Result<(), String> {
+    Ok(())
+}
+
+fn rename_durable(source: &Path, destination: &Path) -> Result<(), String> {
+    let source_parent = source
+        .parent()
+        .ok_or_else(|| format!("rename source has no parent: {}", source.display()))?;
+    let destination_parent = destination.parent().ok_or_else(|| {
+        format!(
+            "rename destination has no parent: {}",
+            destination.display()
+        )
+    })?;
+    fs::rename(source, destination).map_err(|error| error.to_string())?;
+    sync_parent_directory(source_parent)?;
+    if destination_parent != source_parent {
+        sync_parent_directory(destination_parent)?;
+    }
     Ok(())
 }
 
@@ -5547,7 +7983,194 @@ fn delta_keys(root: &Path, record: &ChangeRecord) -> Result<BTreeSet<String>, St
 }
 
 fn definition_digest(root: &Path, record: &ChangeRecord) -> Result<String, String> {
+    if record.workflow_version >= 2 {
+        return scope_digest(root, record);
+    }
     definition_digest_for_correction_count(root, record, record.correction_count, false)
+}
+
+fn execution_digest(root: &Path, record: &ChangeRecord) -> Result<String, String> {
+    definition_digest_for_correction_count(root, record, record.correction_count, false)
+}
+
+fn approved_scope(root: &Path, record: &ChangeRecord) -> Result<ApprovedScopeV1, String> {
+    let ledger = load_correction_ledger(root, record)?;
+    validate_correction_records(record, &ledger.corrections)?;
+    if record.correction_count > ledger.corrections.len() as u64 {
+        return Err(format!(
+            "requested scope correction view {} exceeds ledger length {}",
+            record.correction_count,
+            ledger.corrections.len()
+        ));
+    }
+    let effective = validate_correction_records_for_prefix(
+        record,
+        &ledger.corrections[..record.correction_count as usize],
+    )?;
+    let mut affected_specs = record.affected_specs.clone();
+    affected_specs.sort();
+    let mut affected_paths = record.affected_paths.clone();
+    affected_paths.sort();
+    let mut acceptance_criteria = record.acceptance_criteria.clone();
+    acceptance_criteria.sort();
+    let mut dependencies = record.dependencies.clone();
+    dependencies.sort();
+    let mut supersedes = record.supersedes.clone();
+    for edge in &mut supersedes {
+        edge.obligations.sort_by(|left, right| {
+            (&left.path, &left.module, &left.predecessor_entry_digest).cmp(&(
+                &right.path,
+                &right.module,
+                &right.predecessor_entry_digest,
+            ))
+        });
+    }
+    supersedes.sort_by(|left, right| left.predecessor_id.cmp(&right.predecessor_id));
+    Ok(ApprovedScopeV1 {
+        schema_version: 1,
+        change_id: record.id.clone(),
+        title: record.title.clone(),
+        description: record.description.clone(),
+        kind: record.kind,
+        affected_specs,
+        affected_paths,
+        no_spec_change: record.no_spec_change,
+        no_spec_change_rationale: record.no_spec_change_rationale.clone(),
+        acceptance_criteria,
+        dependencies,
+        supersedes,
+        answers: effective.answers,
+    })
+}
+
+fn scope_digest_from_approved(scope: &ApprovedScopeV1) -> Result<String, String> {
+    let bytes = serde_json::to_vec(scope)
+        .map_err(|error| format!("failed to hash approved scope: {error}"))?;
+    let mut digest = FramedDigest::new(SCOPE_DIGEST_DOMAIN);
+    digest.frame(b"scope", &bytes);
+    Ok(digest.finish())
+}
+
+fn scope_digest(root: &Path, record: &ChangeRecord) -> Result<String, String> {
+    scope_digest_from_approved(&approved_scope(root, record)?)
+}
+
+fn scope_expansion(approved: &ApprovedScopeV1, current: &ApprovedScopeV1) -> Vec<String> {
+    let mut changes = Vec::new();
+    if approved.change_id != current.change_id {
+        changes.push(format!(
+            "change identity changed from `{}` to `{}`",
+            approved.change_id, current.change_id
+        ));
+    }
+    if approved.title != current.title {
+        changes.push(format!(
+            "title changed from `{}` to `{}`",
+            approved.title, current.title
+        ));
+    }
+    if approved.description != current.description {
+        changes.push(format!(
+            "intent changed from `{}` to `{}`",
+            approved.description, current.description
+        ));
+    }
+    if approved.kind != current.kind {
+        changes.push(format!(
+            "change kind changed from `{}` to `{}`",
+            approved.kind.as_str(),
+            current.kind.as_str()
+        ));
+    }
+    if approved.no_spec_change != current.no_spec_change
+        || approved.no_spec_change_rationale != current.no_spec_change_rationale
+    {
+        changes.push("spec-impact declaration changed".into());
+    }
+    if approved.answers != current.answers {
+        changes.push("public-contract or architecture-risk declaration changed".into());
+    }
+    append_scope_changes(
+        &mut changes,
+        "affected canonical specs",
+        &approved.affected_specs,
+        &current.affected_specs,
+    );
+    append_scope_changes(
+        &mut changes,
+        "affected paths",
+        &approved.affected_paths,
+        &current.affected_paths,
+    );
+    append_scope_changes(
+        &mut changes,
+        "acceptance criteria",
+        &approved.acceptance_criteria,
+        &current.acceptance_criteria,
+    );
+    append_scope_changes(
+        &mut changes,
+        "dependencies",
+        &approved.dependencies,
+        &current.dependencies,
+    );
+    let approved_supersedes: BTreeSet<String> = approved
+        .supersedes
+        .iter()
+        .filter_map(|edge| serde_json::to_string(edge).ok())
+        .collect();
+    let current_supersedes: BTreeSet<String> = current
+        .supersedes
+        .iter()
+        .filter_map(|edge| serde_json::to_string(edge).ok())
+        .collect();
+    for edge in &current.supersedes {
+        if let Ok(encoded) = serde_json::to_string(edge)
+            && !approved_supersedes.contains(&encoded)
+        {
+            changes.push(format!(
+                "semantic predecessor obligation added for `{}`",
+                edge.predecessor_id
+            ));
+        }
+    }
+    for edge in &approved.supersedes {
+        if let Ok(encoded) = serde_json::to_string(edge)
+            && !current_supersedes.contains(&encoded)
+        {
+            changes.push(format!(
+                "semantic predecessor obligation removed for `{}`",
+                edge.predecessor_id
+            ));
+        }
+    }
+    changes
+}
+
+fn append_scope_changes(
+    changes: &mut Vec<String>,
+    label: &str,
+    approved: &[String],
+    current: &[String],
+) {
+    let approved: BTreeSet<&str> = approved.iter().map(String::as_str).collect();
+    let current: BTreeSet<&str> = current.iter().map(String::as_str).collect();
+    let added: Vec<&str> = current
+        .iter()
+        .copied()
+        .filter(|value| !approved.contains(value))
+        .collect();
+    if !added.is_empty() {
+        changes.push(format!("{label} added: {}", added.join(", ")));
+    }
+    let removed: Vec<&str> = approved
+        .iter()
+        .copied()
+        .filter(|value| !current.contains(value))
+        .collect();
+    if !removed.is_empty() {
+        changes.push(format!("{label} removed: {}", removed.join(", ")));
+    }
 }
 
 fn definition_digest_for_correction_count(
@@ -5591,6 +8214,53 @@ fn definition_digest_for_correction_count(
     )
 }
 
+fn legacy_task_definition_digest_for_correction_count(
+    root: &Path,
+    record: &ChangeRecord,
+    correction_count: u64,
+    explicit_false: bool,
+) -> Result<String, String> {
+    let ledger = load_correction_ledger(root, record)?;
+    validate_correction_records(record, &ledger.corrections)?;
+    if correction_count > ledger.corrections.len() as u64 {
+        return Err(format!(
+            "requested legacy correction view {correction_count} exceeds ledger length {}",
+            ledger.corrections.len()
+        ));
+    }
+    let mut canonical_record = record.clone();
+    canonical_record.state = ChangeState::Draft;
+    canonical_record.canonical_applied = false;
+    canonical_record.correction_count = correction_count;
+    canonical_record.updated_at = 0;
+    let mut record_bytes = serde_json::to_vec(&canonical_record)
+        .map_err(|error| format!("failed to hash legacy change state: {error}"))?;
+    if explicit_false {
+        let state = b"\"state\":\"draft\"";
+        let state_start = record_bytes
+            .windows(state.len())
+            .position(|window| window == state)
+            .ok_or_else(|| "failed to locate canonical legacy change state".to_string())?;
+        let insert_at = state_start + state.len();
+        record_bytes.splice(
+            insert_at..insert_at,
+            b",\"canonical_applied\":false".iter().copied(),
+        );
+    }
+    let snapshot = definition_artifact_snapshot(
+        root,
+        record,
+        &ledger.corrections[..correction_count as usize],
+    )?;
+    definition_digest_from_snapshot_with_task_mode(
+        record,
+        &record_bytes,
+        &ledger.corrections[..correction_count as usize],
+        &snapshot,
+        false,
+    )
+}
+
 fn definition_digest_with_explicit_false(
     root: &Path,
     record: &ChangeRecord,
@@ -5606,7 +8276,24 @@ fn definition_digest_matches(
     if definition_digest(root, record)? == expected {
         return Ok(true);
     }
-    Ok(definition_digest_with_explicit_false(root, record)? == expected)
+    if record.workflow_version >= 2 {
+        return Ok(false);
+    }
+    if definition_digest_with_explicit_false(root, record)? == expected {
+        return Ok(true);
+    }
+    for explicit_false in [false, true] {
+        if legacy_task_definition_digest_for_correction_count(
+            root,
+            record,
+            record.correction_count,
+            explicit_false,
+        )? == expected
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn definition_digest_from_record_bytes(
@@ -5730,10 +8417,31 @@ fn definition_digest_from_snapshot(
     corrections: &[CorrectionRecord],
     snapshot: &DefinitionArtifactSnapshot,
 ) -> Result<String, String> {
+    definition_digest_from_snapshot_with_task_mode(
+        record,
+        record_bytes,
+        corrections,
+        snapshot,
+        true,
+    )
+}
+
+fn definition_digest_from_snapshot_with_task_mode(
+    record: &ChangeRecord,
+    record_bytes: &[u8],
+    corrections: &[CorrectionRecord],
+    snapshot: &DefinitionArtifactSnapshot,
+    normalize_task_progress: bool,
+) -> Result<String, String> {
     let mut digest = FramedDigest::new(DEFINITION_DIGEST_DOMAIN);
     digest.frame(b"record", record_bytes);
     for (relative, mode, payload, _) in &snapshot.entries {
-        digest.entry(relative, b"file", *mode, payload);
+        let canonical_payload = if normalize_task_progress {
+            canonical_definition_artifact_payload(relative, payload)
+        } else {
+            payload.clone()
+        };
+        digest.entry(relative, b"file", *mode, &canonical_payload);
     }
     if !corrections.is_empty() {
         let relative = format!("{CHANGES_PATH}/{}/{CORRECTIONS_FILE}", record.id);
@@ -5748,6 +8456,68 @@ fn definition_digest_from_snapshot(
         digest.entry(&relative, b"file", mode, content.as_bytes());
     }
     Ok(digest.finish())
+}
+
+fn canonical_definition_artifact_payload(relative: &str, payload: &[u8]) -> Vec<u8> {
+    if !relative.ends_with("/tasks.md") {
+        return payload.to_vec();
+    }
+
+    let mut canonical = payload.to_vec();
+    for offset in markdown_task_checkbox_offsets(&canonical) {
+        canonical[offset] = b' ';
+    }
+    canonical
+}
+
+fn markdown_task_checkbox_offsets(payload: &[u8]) -> Vec<usize> {
+    let mut offsets = Vec::new();
+    let mut fence: Option<(u8, usize)> = None;
+    let mut line_start = 0;
+    while line_start < payload.len() {
+        let line_end = payload[line_start..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map(|offset| line_start + offset)
+            .unwrap_or(payload.len());
+        let mut marker = line_start;
+        while marker < line_end && matches!(payload[marker], b' ' | b'\t') {
+            marker += 1;
+        }
+        if marker < line_end && matches!(payload[marker], b'`' | b'~') {
+            let fence_byte = payload[marker];
+            let fence_length = payload[marker..line_end]
+                .iter()
+                .take_while(|byte| **byte == fence_byte)
+                .count();
+            if fence_length >= 3 {
+                match fence {
+                    Some((open_byte, open_length))
+                        if open_byte == fence_byte && fence_length >= open_length =>
+                    {
+                        fence = None;
+                    }
+                    None => fence = Some((fence_byte, fence_length)),
+                    _ => {}
+                }
+                line_start = line_end.saturating_add(1);
+                continue;
+            }
+        }
+        if fence.is_none()
+            && marker + 4 < line_end
+            && matches!(payload[marker], b'-' | b'+' | b'*')
+            && payload[marker + 1] == b' '
+            && payload[marker + 2] == b'['
+            && matches!(payload[marker + 3], b' ' | b'x' | b'X')
+            && payload[marker + 4] == b']'
+            && (marker + 5 == line_end || matches!(payload[marker + 5], b' ' | b'\t' | b'\r'))
+        {
+            offsets.push(marker + 3);
+        }
+        line_start = line_end.saturating_add(1);
+    }
+    offsets
 }
 
 #[derive(Serialize)]
@@ -5776,13 +8546,22 @@ fn portable_definition_digest_pair_v501(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<(String, String, String), String> {
+    portable_definition_digest_pair_v501_with_task_mode(root, record, true)
+}
+
+fn portable_definition_digest_pair_v501_with_task_mode(
+    root: &Path,
+    record: &ChangeRecord,
+    normalize_task_progress: bool,
+) -> Result<(String, String, String), String> {
     if record.legacy_archive_baseline_digest.is_none() {
         return Err(
             "SpecSync 5.0.1 portable approval requires a versioned legacy archive baseline binding"
                 .into(),
         );
     }
-    if record.canonical_applied
+    if record.workflow_version != 1
+        || record.canonical_applied
         || record.correction_count != 0
         || !record.supersedes.is_empty()
         || !record.acceptance_owner_corrections.is_empty()
@@ -5823,8 +8602,20 @@ fn portable_definition_digest_pair_v501(
             ));
         }
     }
-    let current = definition_digest_from_snapshot(record, &current_bytes, &[], &snapshot)?;
-    let projected = definition_digest_from_snapshot(record, &legacy_bytes, &[], &snapshot)?;
+    let current = definition_digest_from_snapshot_with_task_mode(
+        record,
+        &current_bytes,
+        &[],
+        &snapshot,
+        normalize_task_progress,
+    )?;
+    let projected = definition_digest_from_snapshot_with_task_mode(
+        record,
+        &legacy_bytes,
+        &[],
+        &snapshot,
+        normalize_task_progress,
+    )?;
     if current == projected {
         return Err("portable definition pair digests must be distinct".into());
     }
@@ -5876,6 +8667,17 @@ fn correction_prefix_digest(
 }
 
 fn project_input_digest(root: &Path) -> Result<String, String> {
+    if let Some(digest) = read_scope_value(root, |scope| scope.project_input_digest.clone()) {
+        return digest;
+    }
+    let result = project_input_digest_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.project_input_digest = Some(result.clone());
+    });
+    result
+}
+
+fn project_input_digest_uncached(root: &Path) -> Result<String, String> {
     let (paths, evidence) = stable_discovered_evidence(root, None, &BTreeSet::new(), false)?;
     let mut digest = FramedDigest::new(PROJECT_DIGEST_DOMAIN);
     for relative in paths {
@@ -6159,13 +8961,29 @@ fn stable_discovered_evidence(
     extra_candidates: &BTreeSet<String>,
     regular_files_only: bool,
 ) -> Result<(Vec<String>, GitEvidence), String> {
-    stable_discovered_evidence_with_hook_internal(
+    let key = DiscoveredEvidenceCacheKey {
+        scopes: scopes.map(|values| values.iter().cloned().collect()),
+        extra_candidates: extra_candidates.iter().cloned().collect(),
+        regular_files_only,
+    };
+    if let Some(evidence) =
+        read_scope_value(root, |scope| scope.discovered_evidence.get(&key).cloned())
+    {
+        return evidence;
+    }
+    let result = stable_discovered_evidence_with_hook_internal(
         root,
         scopes,
         extra_candidates,
         regular_files_only,
         |_, _| {},
-    )
+    );
+    update_read_scope(root, |scope| {
+        if scope.discovered_evidence.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            scope.discovered_evidence.insert(key, result.clone());
+        }
+    });
+    result
 }
 
 #[cfg(test)]
@@ -6367,6 +9185,9 @@ fn closing_digest(record: &ChangeRecord, verification: &VerificationRecord) -> S
     let mut digest = FramedDigest::new(CLOSING_DIGEST_DOMAIN);
     digest.frame(b"record-id", record.id.as_bytes());
     digest.frame(b"contract", verification.contract_digest.as_bytes());
+    if let Some(execution) = &verification.execution_digest {
+        digest.frame(b"execution", execution.as_bytes());
+    }
     digest.frame(b"workspace", verification.workspace_digest.as_bytes());
     digest.frame(
         b"commit",
@@ -6723,6 +9544,7 @@ fn build_semantic_succession_evidence(
     let ancestor = Command::new("git")
         .args(["merge-base", "--is-ancestor", base, "HEAD"])
         .current_dir(root)
+        .stderr(Stdio::null())
         .status()
         .map_err(|error| format!("failed to validate succession base ancestry: {error}"))?;
     if !ancestor.success() {
@@ -7004,6 +9826,7 @@ fn semantic_tuple_transition_is_valid(
     let ancestor = Command::new("git")
         .args(["merge-base", "--is-ancestor", base, &anchor])
         .current_dir(root)
+        .stderr(Stdio::null())
         .status()
         .map_err(|error| format!("failed to validate accepted transition ancestry: {error}"))?;
     if !ancestor.success() {
@@ -7268,6 +10091,7 @@ fn run_git_command_bounded_with_deadline(
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    record_test_git_process();
     let mut child = command
         .spawn()
         .map_err(|error| format!("failed to run `git {}`: {error}", args.join(" ")))?;
@@ -7432,6 +10256,17 @@ fn checkout_autocrlf_from_command(command: &mut Command) -> Result<Option<String
 }
 
 fn effective_checkout_overrides(root: &Path) -> Result<Vec<String>, String> {
+    if let Some(overrides) = read_scope_value(root, |scope| scope.checkout_overrides.clone()) {
+        return overrides;
+    }
+    let result = effective_checkout_overrides_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.checkout_overrides = Some(result.clone());
+    });
+    result
+}
+
+fn effective_checkout_overrides_uncached(root: &Path) -> Result<Vec<String>, String> {
     let mut overrides = Vec::new();
     if let Some(value) = effective_checkout_autocrlf(root)? {
         overrides.push(format!("core.autocrlf={value}"));
@@ -7473,6 +10308,17 @@ fn effective_checkout_overrides(root: &Path) -> Result<Vec<String>, String> {
 }
 
 fn git_repository_present(root: &Path) -> Result<bool, String> {
+    if let Some(present) = read_scope_value(root, |scope| scope.repository_present.clone()) {
+        return present;
+    }
+    let result = git_repository_present_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.repository_present = Some(result.clone());
+    });
+    result
+}
+
+fn git_repository_present_uncached(root: &Path) -> Result<bool, String> {
     let output = run_git_bounded(root, &["rev-parse", "--is-inside-work-tree"], None, 32)?;
     let stdout = std::str::from_utf8(&output.stdout)
         .map_err(|_| "Git repository detection output is not UTF-8".to_string())?
@@ -7521,6 +10367,17 @@ fn git_metadata_markers_present(root: &Path) -> Result<bool, String> {
 }
 
 fn repository_context(root: &Path) -> Result<RepositoryContext, String> {
+    if let Some(context) = read_scope_value(root, |scope| scope.repository_context.clone()) {
+        return context;
+    }
+    let result = repository_context_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.repository_context = Some(result.clone());
+    });
+    result
+}
+
+fn repository_context_uncached(root: &Path) -> Result<RepositoryContext, String> {
     if !git_repository_present(root)? {
         let canonical = root
             .canonicalize()
@@ -7546,14 +10403,35 @@ fn repository_context(root: &Path) -> Result<RepositoryContext, String> {
 }
 
 fn git_evidence(root: &Path, candidates: &BTreeSet<String>) -> Result<GitEvidence, String> {
-    git_evidence_with_policy(root, candidates, false, |_, _| {})
+    cached_git_evidence(root, candidates, false)
 }
 
 fn git_regular_file_evidence(
     root: &Path,
     candidates: &BTreeSet<String>,
 ) -> Result<GitEvidence, String> {
-    git_evidence_with_policy(root, candidates, true, |_, _| {})
+    cached_git_evidence(root, candidates, true)
+}
+
+fn cached_git_evidence(
+    root: &Path,
+    candidates: &BTreeSet<String>,
+    regular_files_only: bool,
+) -> Result<GitEvidence, String> {
+    let key = GitEvidenceCacheKey {
+        regular_files_only,
+        candidates: candidates.iter().cloned().collect(),
+    };
+    if let Some(evidence) = read_scope_value(root, |scope| scope.git_evidence.get(&key).cloned()) {
+        return evidence;
+    }
+    let result = git_evidence_with_policy(root, candidates, regular_files_only, |_, _| {});
+    update_read_scope(root, |scope| {
+        if scope.git_evidence.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            scope.git_evidence.insert(key, result.clone());
+        }
+    });
+    result
 }
 
 #[cfg(test)]
@@ -8339,6 +11217,7 @@ fn resolved_acceptance_manifest(
                 record.id
             ));
         }
+        validate_verification_execution_digest(root, record, &verification)?;
         validate_acceptance_manifest(manifest)?;
         if acceptance_manifest_digest(manifest)? != signed {
             return Err(format!(
@@ -8354,18 +11233,19 @@ fn resolved_acceptance_manifest(
                 record.id
             ));
         }
-        let ledger = load_approvals(root, record)?;
-        let approval = ledger
-            .approvals
-            .iter()
-            .rev()
-            .find(|approval| approval.gate == "acceptance")
-            .ok_or_else(|| format!("accepted change `{}` has no closing approval", record.id))?;
-        if approval.digest != closing_digest(record, &verification) {
-            return Err(format!(
-                "accepted change `{}` closing approval does not authenticate its manifest",
-                record.id
-            ));
+        if record.workflow_version >= 2 {
+            validate_finalization_evidence(root, record, &verification)?;
+        } else {
+            let ledger = load_approvals(root, record)?;
+            let approval = latest_terminal_approval(&ledger).ok_or_else(|| {
+                format!("accepted change `{}` has no closing approval", record.id)
+            })?;
+            if approval.digest != closing_digest(record, &verification) {
+                return Err(format!(
+                    "accepted change `{}` closing approval does not authenticate its manifest",
+                    record.id
+                ));
+            }
         }
         return Ok(manifest.clone());
     }
@@ -8447,11 +11327,7 @@ fn reconstruct_legacy_at_anchor(
             return Err("historical accepted verification did not pass".into());
         }
         let ledger = load_approvals(&tree, &historical)?;
-        let closing = ledger
-            .approvals
-            .iter()
-            .rev()
-            .find(|approval| approval.gate == "acceptance")
+        let closing = latest_terminal_approval(&ledger)
             .ok_or_else(|| "historical accepted state has no closing approval".to_string())?;
         if closing.digest != closing_digest(&historical, &verification) {
             return Err("historical accepted closing approval is invalid".into());
@@ -8501,23 +11377,38 @@ fn accepted_transition_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec
     let mut anchors = Vec::new();
     for reference in references {
         let state_pathspec = format!(":(top,literal){state}");
-        let output = Command::new("git")
-            .args([
+        let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+        let output = run_git_bounded(
+            root,
+            &[
                 "log",
                 "--format=%H",
+                &max_count,
                 &reference,
                 "--",
                 state_pathspec.as_str(),
-            ])
-            .current_dir(root)
-            .output()
-            .map_err(|error| format!("failed to inspect accepted history: {error}"))?;
+            ],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )
+        .map_err(|error| format!("failed to inspect accepted history: {error}"))?;
         if !output.status.success() {
             return Err(format!(
                 "failed to inspect accepted history at `{reference}`"
             ));
         }
-        for commit in String::from_utf8_lossy(&output.stdout).lines() {
+        let history = String::from_utf8_lossy(&output.stdout);
+        let commits: Vec<&str> = history
+            .lines()
+            .filter(|commit| !commit.is_empty())
+            .collect();
+        if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+            return Err(format!(
+                "accepted history exceeds the deterministic {}-commit bound",
+                MAX_TRUSTED_HISTORY_COMMITS
+            ));
+        }
+        for commit in commits {
             let current = git_change_record_at(root, commit, &state);
             if !current.is_some_and(|current| {
                 current.id == record.id && current.state == ChangeState::Accepted
@@ -8558,23 +11449,38 @@ fn accepted_recording_anchors(root: &Path, record: &ChangeRecord) -> Result<Vec<
     let mut anchors = Vec::new();
     for reference in references {
         let state_pathspec = format!(":(top,literal){state}");
-        let output = Command::new("git")
-            .args([
+        let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+        let output = run_git_bounded(
+            root,
+            &[
                 "log",
                 "--format=%H",
+                &max_count,
                 &reference,
                 "--",
                 state_pathspec.as_str(),
-            ])
-            .current_dir(root)
-            .output()
-            .map_err(|error| format!("failed to inspect accepted recording history: {error}"))?;
+            ],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )
+        .map_err(|error| format!("failed to inspect accepted recording history: {error}"))?;
         if !output.status.success() {
             return Err(format!(
                 "failed to inspect accepted recording history at `{reference}`"
             ));
         }
-        for commit in String::from_utf8_lossy(&output.stdout).lines() {
+        let history = String::from_utf8_lossy(&output.stdout);
+        let commits: Vec<&str> = history
+            .lines()
+            .filter(|commit| !commit.is_empty())
+            .collect();
+        if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+            return Err(format!(
+                "accepted recording history exceeds the deterministic {}-commit bound",
+                MAX_TRUSTED_HISTORY_COMMITS
+            ));
+        }
+        for commit in commits {
             if git_change_record_at(root, commit, &state).is_some_and(|current| {
                 current.id == record.id && current.state == ChangeState::Accepted
             }) {
@@ -8679,19 +11585,32 @@ fn authenticated_accepted_transition(
         {
             references.push(remote_default);
         }
-        let mut command = Command::new("git");
-        command.args(["log", "--format=%H", "--diff-filter=A"]);
-        command.args(&references);
-        let output = command
-            .arg("--")
-            .arg(&accepted_state_pathspec)
-            .current_dir(root)
-            .output()
+        let mut args = vec![
+            "log".to_string(),
+            "--format=%H".to_string(),
+            "--diff-filter=A".to_string(),
+            format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1),
+        ];
+        args.extend(references);
+        args.extend(["--".to_string(), accepted_state_pathspec.clone()]);
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let output = run_git_bounded(root, &arg_refs, None, MAX_GIT_COMMAND_OUTPUT_BYTES)
             .map_err(|error| format!("failed to inspect archived acceptance history: {error}"))?;
         if !output.status.success() {
             return Err("failed to inspect archived acceptance history".into());
         }
-        for anchor in String::from_utf8_lossy(&output.stdout).lines() {
+        let history = String::from_utf8_lossy(&output.stdout);
+        let anchors: Vec<&str> = history
+            .lines()
+            .filter(|anchor| !anchor.is_empty())
+            .collect();
+        if anchors.len() > MAX_TRUSTED_HISTORY_COMMITS {
+            return Err(format!(
+                "archived acceptance history exceeds the deterministic {}-commit bound",
+                MAX_TRUSTED_HISTORY_COMMITS
+            ));
+        }
+        for anchor in anchors {
             let Some(state_bytes) = git_object_bytes(root, anchor, &accepted_state_path) else {
                 continue;
             };
@@ -8799,6 +11718,9 @@ fn staged_accepted_snapshot_is_closing_authenticated(
     {
         return Ok(false);
     }
+    if validate_verification_execution_digest(root, accepted, &verification).is_err() {
+        return Ok(false);
+    }
     let Some(signed_inputs) = verification.acceptance_input_digest.as_ref() else {
         return Ok(false);
     };
@@ -8814,11 +11736,13 @@ fn staged_accepted_snapshot_is_closing_authenticated(
     } else if verification.semantic_succession.is_some() {
         return Ok(false);
     }
-    let closing_matches = approvals
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "acceptance")
+    if accepted.workflow_version >= 2 {
+        return Ok(
+            validate_finalization_evidence(root, accepted, &verification).is_ok()
+                && verification_commit_is_accepted_current(root, &verification),
+        );
+    }
+    let closing_matches = latest_terminal_approval(&approvals)
         .is_some_and(|approval| approval.digest == closing_digest(accepted, &verification));
     Ok(closing_matches && verification_commit_is_accepted_current(root, &verification))
 }
@@ -8833,21 +11757,25 @@ fn accepted_evidence_key(state: &[u8], verification: &[u8], approvals: &[u8]) ->
 
 fn git_object_bytes(root: &Path, commit: &str, path: &str) -> Option<Vec<u8>> {
     let object = format!("{commit}:{path}");
-    let output = Command::new("git")
-        .args(["show", object.as_str()])
-        .current_dir(root)
-        .output()
-        .ok()?;
+    let output = run_git_bounded(
+        root,
+        &["show", object.as_str()],
+        None,
+        MAX_CHANGE_ARTIFACT_BYTES as usize,
+    )
+    .ok()?;
     output.status.success().then_some(output.stdout)
 }
 
 fn git_change_record_at(root: &Path, commit: &str, path: &str) -> Option<ChangeRecord> {
     let object = format!("{commit}:{path}");
-    let output = Command::new("git")
-        .args(["show", object.as_str()])
-        .current_dir(root)
-        .output()
-        .ok()?;
+    let output = run_git_bounded(
+        root,
+        &["show", object.as_str()],
+        None,
+        MAX_CHANGE_ARTIFACT_BYTES as usize,
+    )
+    .ok()?;
     output
         .status
         .success()
@@ -8922,6 +11850,11 @@ fn historical_sequence_ledger_acceptance_content(
     if ledger.sequence <= sequence {
         return Ok(None);
     }
+    if let Some(content) =
+        historical_sequence_ledger_from_history(root, sequence, record.id.as_str())?
+    {
+        return Ok(Some(content));
+    }
     let historical = ChangeSequenceLedger {
         schema_version: ledger.schema_version,
         sequence,
@@ -8933,6 +11866,72 @@ fn historical_sequence_ledger_acceptance_content(
             .collect(),
     };
     Ok(Some(json_content(&historical)?.into_bytes()))
+}
+
+fn historical_sequence_ledger_from_history(
+    root: &Path,
+    sequence: u64,
+    record_id: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    let candidates = if let Some(cached) = read_scope_value(root, |scope| {
+        scope.historical_sequence_ledgers.get(&sequence).cloned()
+    }) {
+        cached?
+    } else {
+        let result = (|| {
+            let mut candidates = Vec::new();
+            if !git_repository_present(root)? {
+                return Ok(candidates);
+            }
+            let path = git_repo_relative_path(root, SEQUENCE_PATH)?;
+            let limits = lifecycle_validation_limits();
+            let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
+            let history = scoped_review_git_text(
+                root,
+                &["rev-list", max_count.as_str(), "HEAD", "--", path.as_str()],
+            )
+            .map_err(|_| "failed to inspect historical change-sequence ledgers".to_string())?;
+            let commits: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();
+            if commits.len() > limits.scoped_review_max_descendants {
+                return Err(format!(
+                    "change-sequence history exceeds the deterministic {}-commit bound",
+                    limits.scoped_review_max_descendants
+                ));
+            }
+            for commit in commits {
+                let Some(bytes) = scoped_review_file_at_commit(root, commit, &path)? else {
+                    continue;
+                };
+                let Ok(candidate) = serde_json::from_slice::<ChangeSequenceLedger>(&bytes) else {
+                    continue;
+                };
+                if candidate.schema_version == 1
+                    && candidate.sequence == sequence
+                    && change_sequence(&candidate.id) == Some(sequence)
+                    && json_content(&candidate)?.as_bytes() == bytes
+                {
+                    candidates.push(bytes);
+                }
+            }
+            Ok(candidates)
+        })();
+        update_read_scope(root, |scope| {
+            scope
+                .historical_sequence_ledgers
+                .insert(sequence, result.clone());
+        });
+        result?
+    };
+    for bytes in candidates {
+        let candidate: ChangeSequenceLedger =
+            serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
+        if candidate.acknowledged_collisions.iter().any(|collision| {
+            collision.sequence == sequence && collision.ids.iter().any(|id| id == record_id)
+        }) {
+            return Ok(Some(bytes));
+        }
+    }
+    Ok(None)
 }
 
 fn resolve_definition_approval_event<'a>(
@@ -9023,16 +12022,178 @@ fn resolve_definition_approval_event<'a>(
     Ok(current)
 }
 
+fn validate_scope_adoption<'a>(
+    root: &Path,
+    record: &ChangeRecord,
+    ledger: &'a ApprovalLedger,
+    approval_index: usize,
+    approval: &ApprovalRecord,
+) -> Result<&'a ApprovedScopeV1, String> {
+    let matches: Vec<&ScopeAdoptionV1> = ledger
+        .scope_adoptions
+        .iter()
+        .filter(|adoption| adoption.source_approval_index == approval_index as u64)
+        .collect();
+    if matches.len() != 1 || ledger.scope_adoptions.len() != 1 {
+        return Err("scope adoption must contain one unambiguous allowlisted event".into());
+    }
+    let adoption = matches[0];
+    let immutable_event_matches = record.id == CHG_0068_ID
+        && approval_index == 0
+        && approval.gate == "definition"
+        && approval.actor == "0xLeif"
+        && approval.timestamp == 1_785_369_606
+        && approval.digest == CHG_0068_LEGACY_APPROVAL_DIGEST
+        && approval.note.is_none()
+        && approval.definition_pair.is_none()
+        && approval.approved_scope.is_none()
+        && approval.scope_migration.is_none();
+    if !immutable_event_matches {
+        return Err(
+            "scope adoption source approval is outside the trusted CHG-0068 allowlist".into(),
+        );
+    }
+    let adoption_shape_matches = adoption.schema_version == 1
+        && adoption.change_id == CHG_0068_ID
+        && adoption.source_approval_index == 0
+        && adoption.legacy_approval_digest == CHG_0068_LEGACY_APPROVAL_DIGEST
+        && adoption.source_preimage_status == ScopeAdoptionSourcePreimageStatus::Unavailable
+        && adoption.equivalence_claim == ScopeAdoptionEquivalenceClaim::None
+        && adoption.adopted_scope_digest == CHG_0068_ADOPTED_SCOPE_DIGEST
+        && adoption.anchor.base_commit == CHG_0068_ADOPTION_BASE_COMMIT
+        && adoption.anchor.commit == CHG_0068_ADOPTION_ANCHOR_COMMIT
+        && adoption.anchor.approval_index == 0
+        && adoption.anchor.approvals_blob_sha256 == CHG_0068_ADOPTION_ANCHOR_BLOB
+        && adoption.authorization.actor == "0xLeif"
+        && adoption.authorization.recorded_at == 1_785_381_022
+        && adoption.authorization.reason == CHG_0068_ADOPTION_REASON
+        && !adoption.changes.is_empty()
+        && adoption.changes.iter().all(|change| {
+            !change.path.trim().is_empty()
+                && change.path.trim() == change.path
+                && !change.summary.trim().is_empty()
+                && change.summary.trim() == change.summary
+                && strict_portable_relative_path(&change.path).is_ok()
+        });
+    if !adoption_shape_matches {
+        return Err("scope adoption differs from the trusted CHG-0068 allowlist".into());
+    }
+    if scope_digest_from_approved(&adoption.adopted_scope)? != CHG_0068_ADOPTED_SCOPE_DIGEST {
+        return Err("scope adoption projection does not match its allowlisted digest".into());
+    }
+    let changes = serde_json::to_vec(&adoption.changes)
+        .map_err(|error| format!("failed to hash scope adoption classifications: {error}"))?;
+    if sha256_hex(&changes) != CHG_0068_ADOPTION_CHANGES_DIGEST {
+        return Err("scope adoption classifications differ from the trusted allowlist".into());
+    }
+
+    let anchor_expression = format!("{}^{{commit}}", adoption.anchor.commit);
+    let resolved_anchor = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &anchor_expression,
+        ],
+    )
+    .ok_or_else(|| {
+        "scope adoption anchor is unavailable; fetch full trusted history".to_string()
+    })?;
+    if resolved_anchor != adoption.anchor.commit {
+        return Err("scope adoption anchor is not canonical".into());
+    }
+    let resolved_base = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &format!("{}^{{commit}}", adoption.anchor.base_commit),
+        ],
+    )
+    .ok_or_else(|| "scope adoption base commit is unavailable".to_string())?;
+    let anchor_parent = git_output(
+        root,
+        &["rev-parse", &format!("{}^", adoption.anchor.commit)],
+    )
+    .ok_or_else(|| "scope adoption anchor parent is unavailable".to_string())?;
+    if resolved_base != adoption.anchor.base_commit || anchor_parent != resolved_base {
+        return Err("scope adoption anchor is outside its allowlisted base lineage".into());
+    }
+    let path = git_repo_relative_path(
+        root,
+        &format!("{CHANGES_PATH}/{}/approvals.json", record.id),
+    )?;
+    let bytes = git_file_at_commit(root, &resolved_anchor, &path)?
+        .ok_or_else(|| "scope adoption anchor approval blob is unavailable".to_string())?;
+    if sha256_hex(&bytes) != CHG_0068_ADOPTION_ANCHOR_BLOB {
+        return Err("scope adoption anchor approval blob is not allowlisted".into());
+    }
+    let anchor: ApprovalLedger = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("invalid scope adoption anchor approval ledger: {error}"))?;
+    let anchored_approval = anchor
+        .approvals
+        .get(adoption.anchor.approval_index as usize)
+        .ok_or_else(|| "scope adoption anchor approval index is missing".to_string())?;
+    let anchored_migration = anchored_approval
+        .scope_migration
+        .as_ref()
+        .ok_or_else(|| "scope adoption anchor migration projection is missing".to_string())?;
+    if anchored_approval.gate != approval.gate
+        || anchored_approval.actor != approval.actor
+        || anchored_approval.timestamp != approval.timestamp
+        || anchored_approval.digest != approval.digest
+        || anchored_approval.note != approval.note
+        || anchored_approval.approved_scope.as_ref() != Some(&adoption.adopted_scope)
+        || anchored_migration.source_definition_digest != adoption.legacy_approval_digest
+        || anchored_migration.scope_digest != adoption.adopted_scope_digest
+        || anchored_migration.changes != adoption.changes
+    {
+        return Err("scope adoption does not match its immutable anchor projection".into());
+    }
+    Ok(&adoption.adopted_scope)
+}
+
 fn effective_definition_approval<'a>(
     root: &Path,
     record: &ChangeRecord,
     ledger: &'a ApprovalLedger,
 ) -> Result<&'a ApprovalRecord, String> {
-    let latest = ledger
+    let latest_index = ledger
         .approvals
         .iter()
-        .rfind(|approval| approval.gate == "definition")
+        .rposition(|approval| approval.gate == "definition")
         .ok_or_else(|| "definition approval is missing".to_string())?;
+    let latest = &ledger.approvals[latest_index];
+    if record.workflow_version >= 2 {
+        let approved = if let Some(approved) = latest.approved_scope.as_ref() {
+            if latest.scope_migration.is_some() || !ledger.scope_adoptions.is_empty() {
+                return Err(
+                    "scope approval combines incompatible direct and adopted projections".into(),
+                );
+            }
+            approved
+        } else {
+            validate_scope_adoption(root, record, ledger, latest_index, latest)?
+        };
+        if approved.schema_version != 1 || approved.change_id != record.id {
+            return Err("scope approval projection has the wrong schema or change identity".into());
+        }
+        let approved_digest = scope_digest_from_approved(approved)?;
+        if latest.approved_scope.is_some() && latest.digest != approved_digest {
+            return Err("scope approval digest does not match its approved projection".into());
+        }
+        let current = approved_scope(root, record)?;
+        let expansion = scope_expansion(approved, &current);
+        if !expansion.is_empty() {
+            return Err(format!(
+                "scope approval requires renewal because {}",
+                expansion.join("; ")
+            ));
+        }
+        return Ok(latest);
+    }
     let corrections = load_correction_ledger(root, record)?;
     let prefix = correction_prefix_digest(record, &corrections.corrections)?;
     if latest.definition_pair.is_some() {
@@ -9041,14 +12202,48 @@ fn effective_definition_approval<'a>(
         if prefix != portable_prefix {
             return Err("portable definition approval correction prefix is stale".into());
         }
-        return resolve_definition_approval_event(record, ledger, &current, Some(&legacy), &prefix);
+        if let Ok(approval) =
+            resolve_definition_approval_event(record, ledger, &current, Some(&legacy), &prefix)
+        {
+            return Ok(approval);
+        }
+        let (legacy_current, legacy_projected, legacy_prefix) =
+            portable_definition_digest_pair_v501_with_task_mode(root, record, false)?;
+        if prefix != legacy_prefix {
+            return Err("portable definition approval correction prefix is stale".into());
+        }
+        return resolve_definition_approval_event(
+            record,
+            ledger,
+            &legacy_current,
+            Some(&legacy_projected),
+            &prefix,
+        );
     }
     let current = definition_digest(root, record)?;
     match resolve_definition_approval_event(record, ledger, &current, None, &prefix) {
         Ok(approval) => Ok(approval),
         Err(_) => {
             let transitional = definition_digest_with_explicit_false(root, record)?;
-            resolve_definition_approval_event(record, ledger, &transitional, None, &prefix)
+            if let Ok(approval) =
+                resolve_definition_approval_event(record, ledger, &transitional, None, &prefix)
+            {
+                return Ok(approval);
+            }
+            for explicit_false in [false, true] {
+                let legacy = legacy_task_definition_digest_for_correction_count(
+                    root,
+                    record,
+                    record.correction_count,
+                    explicit_false,
+                )?;
+                if let Ok(approval) =
+                    resolve_definition_approval_event(record, ledger, &legacy, None, &prefix)
+                {
+                    return Ok(approval);
+                }
+            }
+            Err("definition approval is stale; approve the current artifact digest again".into())
         }
     }
 }
@@ -9065,10 +12260,58 @@ enum AcceptedInputValidity {
 }
 
 fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
+    if let Some(cached) = read_scope_value(root, |scope| scope.terminal_evidence.clone()) {
+        return terminal_summary_from_cache(record, cached);
+    }
+    if read_scope_value(root, |_| Some(())).is_some() {
+        let result = list_all_changes_checked(root).map(|records| {
+            let (results, _) = terminal_evidence_results_with_records(root, &records);
+            results
+                .into_iter()
+                .map(|result| (result.id, result.evidence))
+                .collect()
+        });
+        update_read_scope(root, |scope| {
+            scope.terminal_evidence = Some(result.clone());
+        });
+        return terminal_summary_from_cache(record, result);
+    }
     let result = list_all_changes_checked(root)
         .map(|records| terminal_evidence_summary_with_records(root, record, &records));
     match result {
         Ok(summary) => summary,
+        Err(reason) => TerminalEvidenceSummary {
+            validity: if record.state == ChangeState::Archived {
+                TerminalEvidenceValidity::CorruptHistory
+            } else {
+                TerminalEvidenceValidity::Stale
+            },
+            reason: Some(reason),
+        },
+    }
+}
+
+fn terminal_summary_from_cache(
+    record: &ChangeRecord,
+    cached: Result<BTreeMap<String, TerminalEvidenceSummary>, String>,
+) -> TerminalEvidenceSummary {
+    match cached {
+        Ok(summaries) => {
+            summaries
+                .get(&record.id)
+                .cloned()
+                .unwrap_or_else(|| TerminalEvidenceSummary {
+                    validity: if record.state == ChangeState::Archived {
+                        TerminalEvidenceValidity::CorruptHistory
+                    } else {
+                        TerminalEvidenceValidity::Stale
+                    },
+                    reason: Some(format!(
+                        "terminal evidence snapshot is missing change `{}`",
+                        record.id
+                    )),
+                })
+        }
         Err(reason) => TerminalEvidenceSummary {
             validity: if record.state == ChangeState::Archived {
                 TerminalEvidenceValidity::CorruptHistory
@@ -9179,6 +12422,7 @@ fn authenticate_accepted_evidence(
     if !definition_digest_matches(root, record, &verification.contract_digest)? {
         return Err("accepted change verification contract is stale".into());
     }
+    validate_verification_execution_digest(root, record, &verification)?;
     let expected_inputs = verification
         .acceptance_input_digest
         .as_ref()
@@ -9203,16 +12447,18 @@ fn authenticate_accepted_evidence(
     } else if verification.semantic_succession.is_some() {
         return Err("legacy acceptance cannot carry succession evidence without a manifest".into());
     }
-    let expected = closing_digest(record, &verification);
-    let ledger = load_approvals(root, record)?;
-    let approval = ledger
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "acceptance")
-        .ok_or_else(|| "accepted change is missing closing approval".to_string())?;
-    if approval.digest != expected {
-        return Err("accepted change closing approval does not match verification evidence".into());
+    if record.workflow_version >= 2 {
+        validate_finalization_evidence(root, record, &verification)?;
+    } else {
+        let expected = closing_digest(record, &verification);
+        let ledger = load_approvals(root, record)?;
+        let approval = latest_terminal_approval(&ledger)
+            .ok_or_else(|| "accepted change is missing closing approval".to_string())?;
+        if approval.digest != expected {
+            return Err(
+                "accepted change closing approval does not match verification evidence".into(),
+            );
+        }
     }
     if !verification_commit_is_accepted_current(root, &verification)
         && !accepted_workspace_is_integrated(root, record)
@@ -9306,6 +12552,7 @@ fn validate_archived_integrity_with_cache(
     if !definition_digest_matches(root, archived, &verification.contract_digest)? {
         return Err("archived change verification contract is stale".into());
     }
+    validate_verification_execution_digest(root, archived, &verification)?;
     let expected_inputs = verification
         .acceptance_input_digest
         .as_ref()
@@ -9335,15 +12582,17 @@ fn validate_archived_integrity_with_cache(
         }
         reconstruct_legacy_acceptance_manifest(root, archived, expected_inputs)?;
     }
-    let ledger = load_approvals(root, archived)?;
-    let approval = ledger
-        .approvals
-        .iter()
-        .rev()
-        .find(|approval| approval.gate == "acceptance")
-        .ok_or_else(|| "archived change is missing closing approval".to_string())?;
-    if approval.digest != closing_digest(archived, &verification) {
-        return Err("archived change closing approval does not match verification evidence".into());
+    if archived.workflow_version >= 2 {
+        validate_finalization_evidence(root, archived, &verification)?;
+    } else {
+        let ledger = load_approvals(root, archived)?;
+        let approval = latest_terminal_approval(&ledger)
+            .ok_or_else(|| "archived change is missing closing approval".to_string())?;
+        if approval.digest != closing_digest(archived, &verification) {
+            return Err(
+                "archived change closing approval does not match verification evidence".into(),
+            );
+        }
     }
     Ok(())
 }
@@ -9557,13 +12806,22 @@ fn validate_legacy_archive_introductions(
         ensure_git_ancestor(root, introduction, cutoff, "legacy archive cutoff")?;
     }
 
-    let mut log = Command::new("git");
-    log.args(["log", "--format=%H", "--diff-filter=A", cutoff, "--"])
-        .arg(&history_pathspec)
-        .current_dir(root);
-    let output = log
-        .output()
-        .map_err(|error| format!("failed to inspect legacy archive introductions: {error}"))?;
+    let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+    let output = run_git_bounded(
+        root,
+        &[
+            "log",
+            "--format=%H",
+            "--diff-filter=A",
+            &max_count,
+            cutoff,
+            "--",
+            &history_pathspec,
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .map_err(|error| format!("failed to inspect legacy archive introductions: {error}"))?;
     if !output.status.success() {
         return Err(format!(
             "failed to inspect legacy archive introductions at cutoff `{cutoff}`"
@@ -9574,25 +12832,34 @@ fn validate_legacy_archive_introductions(
         .lines()
         .map(str::to_string)
         .collect();
+    if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+        return Err(format!(
+            "legacy archive introduction history exceeds the deterministic {}-commit bound",
+            MAX_TRUSTED_HISTORY_COMMITS
+        ));
+    }
     let mut candidates: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut parents = BTreeMap::new();
     for commit in commits {
-        let mut diff = Command::new("git");
-        diff.args([
-            "diff-tree",
-            "--root",
-            "-m",
-            "--no-commit-id",
-            "--name-only",
-            "-r",
-            "-z",
-            "--diff-filter=A",
-            &commit,
-            "--",
-        ])
-        .arg(&history_pathspec)
-        .current_dir(root);
-        let output = diff.output().map_err(|error| {
+        let output = run_git_bounded(
+            root,
+            &[
+                "diff-tree",
+                "--root",
+                "-m",
+                "--no-commit-id",
+                "--name-only",
+                "-r",
+                "-z",
+                "--diff-filter=A",
+                &commit,
+                "--",
+                &history_pathspec,
+            ],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )
+        .map_err(|error| {
             format!("failed to inspect legacy archive introduction `{commit}`: {error}")
         })?;
         if !output.status.success() {
@@ -9692,7 +12959,8 @@ fn validate_legacy_archive_baseline_bytes(
     if baseline.entries.len() > MAX_ACCEPTANCE_ENTRIES {
         return Err("legacy archive baseline exceeds the entry limit".into());
     }
-    if json_content(&baseline)?.as_bytes() != baseline_bytes {
+    let canonical = json_content(&baseline)?;
+    if !bytes_match_canonical_json(baseline_bytes, canonical.as_bytes()) {
         return Err("legacy archive baseline must use canonical persisted JSON bytes".into());
     }
     let mut previous: Option<(&str, &str)> = None;
@@ -9733,6 +13001,7 @@ fn ensure_git_ancestor(
     let status = Command::new("git")
         .args(["merge-base", "--is-ancestor", ancestor, descendant])
         .current_dir(root)
+        .stderr(Stdio::null())
         .status()
         .map_err(|error| format!("failed to inspect {label} ancestry: {error}"))?;
     if !status.success() {
@@ -10258,6 +13527,17 @@ fn terminal_delivery_projection(record: &ChangeRecord) -> ChangeRecord {
 }
 
 fn list_all_changes_checked(root: &Path) -> Result<BTreeMap<String, ChangeRecord>, String> {
+    if let Some(records) = read_scope_value(root, |scope| scope.all_records.clone()) {
+        return records;
+    }
+    let result = list_all_changes_uncached(root);
+    update_read_scope(root, |scope| {
+        scope.all_records = Some(result.clone());
+    });
+    result
+}
+
+fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecord>, String> {
     let mut records = BTreeMap::new();
     for record in list_changes_checked(root)? {
         records.insert(record.id.clone(), record);
@@ -10296,6 +13576,7 @@ fn list_all_changes_checked(root: &Path) -> Result<BTreeMap<String, ChangeRecord
         let record: ChangeRecord = serde_json::from_str(&content)
             .map_err(|error| format!("invalid archived state {}: {error}", path.display()))?;
         validate_loaded_change(&record, &record.id, &path)?;
+        validate_workflow_version_history(root, &record)?;
         if records.insert(record.id.clone(), record.clone()).is_some() {
             return Err(format!(
                 "change `{}` exists in multiple active/archive locations",
@@ -10346,6 +13627,14 @@ fn append_approval(
     note: Option<String>,
 ) -> Result<(), String> {
     let mut ledger = load_approvals(root, record)?;
+    let approved_scope = (gate == "definition" && record.workflow_version >= 2)
+        .then(|| approved_scope(root, record))
+        .transpose()?;
+    if gate == "definition" && approved_scope.is_some() {
+        // A direct renewed approval supersedes the one-time legacy adoption.
+        // Retaining both would make the new approval intentionally ambiguous.
+        ledger.scope_adoptions.clear();
+    }
     ledger.approvals.push(ApprovalRecord {
         gate: gate.into(),
         actor: resolve_actor(root, actor)?,
@@ -10353,6 +13642,8 @@ fn append_approval(
         digest,
         note,
         definition_pair: None,
+        approved_scope,
+        scope_migration: None,
     });
     write_json(
         &change_dir(root, &record.id).join("approvals.json"),
@@ -10406,6 +13697,8 @@ fn append_portable_definition_approval_v501(
         digest: current_digest.clone(),
         note,
         definition_pair: Some(metadata(DefinitionApprovalPairRole::Current)),
+        approved_scope: None,
+        scope_migration: None,
     };
     let legacy = ApprovalRecord {
         gate: "definition".into(),
@@ -10414,6 +13707,8 @@ fn append_portable_definition_approval_v501(
         digest: legacy_digest.clone(),
         note: Some("Portable SpecSync 5.0.1 definition projection".into()),
         definition_pair: Some(metadata(DefinitionApprovalPairRole::Legacy)),
+        approved_scope: None,
+        scope_migration: None,
     };
     let approvals = document
         .get_mut("approvals")
@@ -11095,7 +14390,8 @@ fn detect_foreign_source(root: &Path) -> Option<String> {
     None
 }
 
-fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
+fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, String)>, String> {
+    let mut prepared = Vec::new();
     let provenance = root.join(".specsync/import-provenance.json");
     let value = serde_json::json!({
         "source": source,
@@ -11103,7 +14399,7 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
         "scope": "active_plus_canonical",
         "archives": "preserved_in_place"
     });
-    write_json(&provenance, &value)?;
+    prepared.push((provenance, json_content(&value)?));
     let import_root = root.join(".specsync/imports").join(source);
     match source {
         "openspec" => {
@@ -11117,7 +14413,12 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
                     ));
                 }
                 Ok(metadata) if metadata.is_dir() => {
-                    copy_markdown_files(root, &canonical, &import_root.join("canonical"))?;
+                    prepare_markdown_files(
+                        root,
+                        &canonical,
+                        &import_root.join("canonical"),
+                        &mut prepared,
+                    )?;
                 }
                 Ok(_) => {
                     return Err(format!(
@@ -11140,9 +14441,9 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
                     ));
                 }
                 Ok(metadata) if metadata.is_file() => {
-                    fs::create_dir_all(&import_root).map_err(|error| error.to_string())?;
-                    fs::copy(&constitution, import_root.join("constitution.md"))
-                        .map_err(|error| error.to_string())?;
+                    let content = fs::read_to_string(&constitution)
+                        .map_err(|error| format!("failed to read foreign constitution: {error}"))?;
+                    prepared.push((import_root.join("constitution.md"), content));
                 }
                 Ok(_) => {
                     return Err(format!(
@@ -11176,11 +14477,22 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
                 source_changes.display()
             ));
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(prepared),
         Err(error) => return Err(error.to_string()),
     }
-    for entry in fs::read_dir(source_changes).map_err(|error| error.to_string())? {
-        let entry = entry.map_err(|error| error.to_string())?;
+    let mut entries = fs::read_dir(source_changes)
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    entries.sort_by_key(|entry| entry.file_name());
+    let mut known_descriptions: BTreeSet<String> = list_changes_checked(root)?
+        .into_iter()
+        .map(|record| record.description)
+        .collect();
+    let mut next_sequence = change_sequence(&next_change_id(root, "import")?)
+        .ok_or_else(|| "failed to allocate imported change sequence".to_string())?;
+    let mut last_imported_id = None;
+    for entry in entries {
         let entry_path = entry.path();
         reject_symlink_components(root, &entry_path)?;
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
@@ -11208,34 +14520,101 @@ fn import_foreign(root: &Path, source: &str) -> Result<(), String> {
         }
         let name = entry.file_name().to_string_lossy().to_string();
         let description = format!("Imported {source} change {name}");
-        if list_changes_checked(root)?
-            .iter()
-            .any(|record| record.description == description)
-        {
+        if known_descriptions.contains(&description) {
             continue;
         }
-        let record = create_change(
-            root,
-            CreateChangeRequest {
-                description,
-                kind: ChangeKind::Feature,
-                affected_specs: Vec::new(),
-                affected_paths: vec![portable_project_path(root, &entry_path)],
-                requested_artifacts: vec![
-                    ArtifactKind::Requirements,
-                    ArtifactKind::Design,
-                    ArtifactKind::Tasks,
-                ],
-                no_spec_change: true,
-                rationale: Some(format!(
-                    "Imported from {source}; canonical reconciliation is pending"
-                )),
-            },
-        )?;
+        let slug = slugify(&description);
+        let id = if next_sequence < 10_000 {
+            format!("CHG-{next_sequence:04}-{slug}")
+        } else {
+            format!("CHG-{next_sequence}-{slug}")
+        };
+        next_sequence += 1;
+        let mut affected_paths = vec![portable_project_path(root, &entry_path)];
+        if !affected_paths
+            .iter()
+            .any(|scope| path_matches_scope(SEQUENCE_PATH, scope))
+        {
+            affected_paths.push(SEQUENCE_PATH.into());
+        }
+        let mut selected_artifacts = adaptive_artifacts(ChangeKind::Feature, &[], &affected_paths);
+        for artifact in [
+            ArtifactKind::Requirements,
+            ArtifactKind::Design,
+            ArtifactKind::Tasks,
+        ] {
+            if !selected_artifacts.contains(&artifact) {
+                selected_artifacts.push(artifact);
+            }
+        }
+        let timestamp = now();
+        let record = ChangeRecord {
+            schema_version: 1,
+            workflow_version: 2,
+            workflow_origin_version: Some(2),
+            id: id.clone(),
+            slug,
+            title: title_from_description(&description),
+            description: description.clone(),
+            kind: ChangeKind::Feature,
+            state: ChangeState::Draft,
+            canonical_applied: false,
+            correction_count: 0,
+            base_commit: git_output(root, &["rev-parse", "HEAD"]),
+            created_at: timestamp,
+            updated_at: timestamp,
+            affected_specs: Vec::new(),
+            affected_paths,
+            no_spec_change: true,
+            no_spec_change_rationale: Some(format!(
+                "Imported from {source}; canonical reconciliation is pending"
+            )),
+            acceptance_criteria: Vec::new(),
+            selected_artifacts,
+            dependencies: Vec::new(),
+            supersedes: Vec::new(),
+            acceptance_owner_corrections: Vec::new(),
+            legacy_archive_baseline_digest: None,
+            answers: BTreeMap::new(),
+        };
+        let record_dir = change_dir(root, &record.id);
+        prepared.push((record_dir.join("state.json"), json_content(&record)?));
+        prepared.push((
+            record_dir.join("change.md"),
+            change_markdown_content(&record),
+        ));
+        prepared.push((
+            record_dir.join("approvals.json"),
+            json_content(&ApprovalLedger::default())?,
+        ));
+        for artifact in &record.selected_artifacts {
+            prepared.push((
+                record_dir.join(artifact.file_name()),
+                artifact_template(root, artifact, &record),
+            ));
+        }
         let destination = change_dir(root, &record.id).join("imported");
-        copy_markdown_files(root, &entry_path, &destination)?;
+        prepare_markdown_files(root, &entry_path, &destination, &mut prepared)?;
+        known_descriptions.insert(description);
+        last_imported_id = Some(record.id);
     }
-    Ok(())
+    if let Some(id) = last_imported_id {
+        let sequence =
+            change_sequence(&id).ok_or_else(|| format!("invalid imported change ID `{id}`"))?;
+        let acknowledged_collisions = load_change_sequence_ledger(root)?
+            .map(|ledger| ledger.acknowledged_collisions)
+            .unwrap_or_default();
+        prepared.push((
+            root.join(SEQUENCE_PATH),
+            json_content(&ChangeSequenceLedger {
+                schema_version: 1,
+                sequence,
+                id,
+                acknowledged_collisions,
+            })?,
+        ));
+    }
+    Ok(prepared)
 }
 
 fn validate_foreign_import(root: &Path, source: &str) -> Result<(), String> {
@@ -11274,10 +14653,11 @@ fn validate_foreign_import(root: &Path, source: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn copy_markdown_files(
+fn prepare_markdown_files(
     project_root: &Path,
     source: &Path,
     destination: &Path,
+    prepared: &mut Vec<(PathBuf, String)>,
 ) -> Result<(), String> {
     reject_symlink_components(project_root, source)?;
     let metadata = fs::symlink_metadata(source).map_err(|error| error.to_string())?;
@@ -11287,9 +14667,12 @@ fn copy_markdown_files(
             source.display()
         ));
     }
-    fs::create_dir_all(destination).map_err(|error| error.to_string())?;
-    for entry in fs::read_dir(source).map_err(|error| error.to_string())? {
-        let entry = entry.map_err(|error| error.to_string())?;
+    let mut entries = fs::read_dir(source)
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
         let path = entry.path();
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
         if file_type.is_symlink() {
@@ -11299,33 +14682,41 @@ fn copy_markdown_files(
             ));
         }
         if file_type.is_dir() {
-            copy_markdown_files(project_root, &path, &destination.join(entry.file_name()))?;
+            prepare_markdown_files(
+                project_root,
+                &path,
+                &destination.join(entry.file_name()),
+                prepared,
+            )?;
         } else if file_type.is_file()
             && path.extension().and_then(|value| value.to_str()) == Some("md")
         {
-            fs::copy(&path, destination.join(entry.file_name()))
-                .map_err(|error| error.to_string())?;
+            let content = fs::read_to_string(&path)
+                .map_err(|error| format!("failed to read foreign Markdown: {error}"))?;
+            prepared.push((destination.join(entry.file_name()), content));
         }
     }
     Ok(())
 }
 
 fn reject_symlink_components(project_root: &Path, candidate: &Path) -> Result<(), String> {
-    let relative = candidate.strip_prefix(project_root).map_err(|_| {
-        format!(
-            "foreign import path escapes project root: {}",
-            candidate.display()
-        )
-    })?;
+    reject_symlink_components_for(project_root, candidate, "foreign import path")
+}
+
+fn reject_symlink_components_for(
+    project_root: &Path,
+    candidate: &Path,
+    label: &str,
+) -> Result<(), String> {
+    let relative = candidate
+        .strip_prefix(project_root)
+        .map_err(|_| format!("{label} escapes project root: {}", candidate.display()))?;
     let mut current = project_root.to_path_buf();
     for component in relative.components() {
         current.push(component.as_os_str());
         match fs::symlink_metadata(&current) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err(format!(
-                    "refusing symlinked foreign import path: {}",
-                    current.display()
-                ));
+                return Err(format!("refusing symlinked {label}: {}", current.display()));
             }
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
@@ -11510,6 +14901,15 @@ fn validate_loaded_change(
 ) -> Result<(), String> {
     validate_change_id(&record.id)
         .map_err(|error| format!("invalid change state {}: {error}", state_path.display()))?;
+    if !matches!(record.workflow_version, 1 | 2) {
+        return Err(format!(
+            "invalid change state {}: unsupported workflow version {}",
+            state_path.display(),
+            record.workflow_version
+        ));
+    }
+    validate_workflow_version_anchor(record)
+        .map_err(|error| format!("invalid change state {}: {error}", state_path.display()))?;
     if record.id != expected_id {
         return Err(format!(
             "invalid change state {}: persisted ID `{}` does not match workspace `{expected_id}`",
@@ -11535,6 +14935,705 @@ fn validate_loaded_change(
                 name.escape_default()
             ));
         }
+    }
+    Ok(())
+}
+
+fn validate_workflow_version_anchor(record: &ChangeRecord) -> Result<(), String> {
+    match (record.workflow_version, record.workflow_origin_version) {
+        (1, None | Some(1)) | (2, Some(2)) => Ok(()),
+        (2, None) => {
+            Err("workflow-v2 state is missing its immutable workflow_origin_version anchor".into())
+        }
+        (version, Some(origin)) => Err(format!(
+            "workflow version {version} conflicts with immutable origin {origin}"
+        )),
+        _ => Err(format!(
+            "unsupported workflow version {}",
+            record.workflow_version
+        )),
+    }
+}
+
+fn validate_historical_workflow_version_anchor(record: &ChangeRecord) -> Result<(), String> {
+    match (record.workflow_version, record.workflow_origin_version) {
+        (1, None | Some(1)) | (2, None | Some(2)) => Ok(()),
+        (version, Some(origin)) => Err(format!(
+            "workflow version {version} conflicts with immutable origin {origin}"
+        )),
+        _ => Err(format!(
+            "unsupported workflow version {}",
+            record.workflow_version
+        )),
+    }
+}
+
+fn ensure_workflow_v2_baseline(root: &Path) -> Result<(), String> {
+    let Some(candidate) = prepare_workflow_v2_adoption_candidate(root)? else {
+        return Ok(());
+    };
+    let expected_snapshot = candidate.git_snapshot.clone();
+    write_prepared_files_checked(
+        root,
+        &[(
+            root.join(WORKFLOW_V2_BASELINE_PATH),
+            json_content(&candidate.baseline)?,
+        )],
+        || validate_workflow_v2_adoption_git_snapshot(root, &expected_snapshot),
+    )
+}
+
+fn prepare_workflow_v2_adoption_candidate(
+    root: &Path,
+) -> Result<Option<WorkflowV2AdoptionCandidate>, String> {
+    if read_workflow_v2_baseline(root)?.is_some() {
+        return Ok(None);
+    }
+    let git_snapshot = workflow_v2_adoption_git_snapshot(root)?;
+    validate_workflow_v1_records_at_adoption_cutoff(root, git_snapshot.cutoff_commit.as_deref())?;
+    Ok(Some(WorkflowV2AdoptionCandidate {
+        baseline: WorkflowV2Baseline {
+            schema_version: 1,
+            domain: "specsync.workflow-v2-baseline.v1".into(),
+            cutoff_commit: git_snapshot.cutoff_commit.clone(),
+        },
+        git_snapshot,
+    }))
+}
+
+fn validate_workflow_v1_records_at_adoption_cutoff(
+    root: &Path,
+    cutoff: Option<&str>,
+) -> Result<(), String> {
+    let records = list_all_changes_checked(root)?;
+    let workflow_v1_records: Vec<&ChangeRecord> = records
+        .values()
+        .filter(|record| record.workflow_version == 1)
+        .collect();
+    if workflow_v1_records.is_empty() {
+        return Ok(());
+    }
+    let Some(cutoff) = cutoff else {
+        let ids = workflow_v1_records
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(format!(
+            "cannot adopt workflow v2 because workflow-v1 change(s) {ids} have no trusted Git cutoff; commit and integrate or archive them in comparison-base history, then rerun `specsync change adopt`"
+        ));
+    };
+    let mut missing = Vec::new();
+    for record in workflow_v1_records {
+        if !workflow_v1_record_exists_at_cutoff(root, record, cutoff)? {
+            missing.push(record.id.as_str());
+        }
+    }
+    if missing.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "cannot adopt workflow v2 because workflow-v1 change(s) {} are absent from trusted cutoff {cutoff}; commit and integrate or archive them in comparison-base history, then rerun `specsync change adopt`",
+        missing.join(", ")
+    ))
+}
+
+#[cfg(test)]
+fn workflow_v2_baseline_cutoff(root: &Path) -> Option<String> {
+    workflow_v2_adoption_git_snapshot(root).ok()?.cutoff_commit
+}
+
+fn workflow_v2_adoption_git_snapshot(root: &Path) -> Result<WorkflowV2AdoptionGitSnapshot, String> {
+    if !git_repository_present_uncached(root)? {
+        return Ok(WorkflowV2AdoptionGitSnapshot {
+            head: None,
+            comparison_reference: None,
+            comparison_tip: None,
+            cutoff_commit: None,
+        });
+    }
+    let head = uncached_optional_git_text(root, &["rev-parse", "--verify", "HEAD^{commit}"])?;
+    let comparison_reference = uncached_optional_git_text(
+        root,
+        &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    )?
+    .or_else(|| {
+        ["origin/main", "origin/master"]
+            .into_iter()
+            .find_map(|candidate| {
+                uncached_optional_git_text(
+                    root,
+                    &["rev-parse", "--verify", &format!("{candidate}^{{commit}}")],
+                )
+                .ok()
+                .flatten()
+                .map(|_| candidate.to_string())
+            })
+    });
+    let comparison_tip = comparison_reference
+        .as_deref()
+        .map(|reference| {
+            uncached_optional_git_text(
+                root,
+                &["rev-parse", "--verify", &format!("{reference}^{{commit}}")],
+            )
+        })
+        .transpose()?
+        .flatten();
+    let cutoff_commit = match (comparison_reference.as_deref(), head.as_deref()) {
+        (Some(reference), Some(_)) => {
+            uncached_optional_git_text(root, &["merge-base", reference, "HEAD"])?
+                .filter(|cutoff| is_canonical_commit_id(cutoff))
+                .or_else(|| head.clone())
+        }
+        _ => head.clone(),
+    };
+    Ok(WorkflowV2AdoptionGitSnapshot {
+        head,
+        comparison_reference,
+        comparison_tip,
+        cutoff_commit,
+    })
+}
+
+fn uncached_optional_git_text(root: &Path, args: &[&str]) -> Result<Option<String>, String> {
+    let output = run_git_bounded(root, args, None, MAX_GIT_DIAGNOSTIC_BYTES)?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let value = String::from_utf8(output.stdout).map_err(|_| {
+        format!(
+            "Git query returned non-UTF-8 output: git {}",
+            args.join(" ")
+        )
+    })?;
+    let value = value.trim();
+    Ok((!value.is_empty()).then(|| value.to_string()))
+}
+
+fn validate_workflow_v2_adoption_git_snapshot(
+    root: &Path,
+    expected: &WorkflowV2AdoptionGitSnapshot,
+) -> Result<(), String> {
+    let current = workflow_v2_adoption_git_snapshot(root)?;
+    if &current == expected {
+        return Ok(());
+    }
+    Err(
+        "Git HEAD or remote-default comparison reference changed during workflow-v2 adoption; no migration was published, so retry `specsync change adopt` from a stable checkout"
+            .into(),
+    )
+}
+
+fn read_workflow_v2_baseline(root: &Path) -> Result<Option<(WorkflowV2Baseline, Vec<u8>)>, String> {
+    let path = root.join(WORKFLOW_V2_BASELINE_PATH);
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if workflow_v2_baseline_exists_in_reachable_history(root)? {
+                return Err(format!(
+                    "committed workflow-v2 baseline was deleted; restore the exact reachable {} bytes before continuing",
+                    WORKFLOW_V2_BASELINE_PATH
+                ));
+            }
+            return Ok(None);
+        }
+        Err(error) => {
+            return Err(format!(
+                "failed to inspect workflow-v2 baseline {}: {error}",
+                path.display()
+            ));
+        }
+    };
+    if !metadata.file_type().is_file() {
+        return Err(format!(
+            "workflow-v2 baseline is not a regular file: {}",
+            path.display()
+        ));
+    }
+    if metadata.len() > MAX_CHANGE_ARTIFACT_BYTES {
+        return Err(format!(
+            "workflow-v2 baseline exceeds {} byte limit",
+            MAX_CHANGE_ARTIFACT_BYTES
+        ));
+    }
+    let bytes =
+        fs::read(&path).map_err(|error| format!("failed to read workflow-v2 baseline: {error}"))?;
+    let baseline: WorkflowV2Baseline = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("invalid workflow-v2 baseline: {error}"))?;
+    if baseline.schema_version != 1 || baseline.domain != "specsync.workflow-v2-baseline.v1" {
+        return Err("unsupported workflow-v2 baseline schema or domain".into());
+    }
+    // Require canonical JSON structure. Git on Windows with autocrlf may rewrite
+    // the working tree to CRLF without changing the committed blob; treat that as
+    // the same baseline after stripping CR, still rejecting any other divergence.
+    let canonical = json_content(&baseline)?;
+    if !bytes_match_canonical_json(bytes.as_slice(), canonical.as_bytes()) {
+        return Err("workflow-v2 baseline must use canonical persisted JSON bytes".into());
+    }
+    if let Some(cutoff) = baseline.cutoff_commit.as_deref()
+        && !is_canonical_commit_id(cutoff)
+    {
+        return Err("workflow-v2 baseline cutoff must be a canonical commit ID".into());
+    }
+    Ok(Some((baseline, bytes)))
+}
+
+fn workflow_v2_baseline_exists_in_reachable_history(root: &Path) -> Result<bool, String> {
+    if !git_repository_present(root)?
+        || git_output(root, &["rev-parse", "--verify", "HEAD"]).is_none()
+    {
+        return Ok(false);
+    }
+    let baseline_path = git_repo_relative_path(root, WORKFLOW_V2_BASELINE_PATH)?;
+    let history = scoped_review_git_text(
+        root,
+        &[
+            "rev-list",
+            "--full-history",
+            "--max-count=1",
+            "HEAD",
+            "--",
+            baseline_path.as_str(),
+        ],
+    )
+    .map_err(|_| "failed to inspect reachable workflow-v2 baseline history".to_string())?;
+    Ok(history.lines().any(|line| !line.trim().is_empty()))
+}
+
+fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let baseline = read_workflow_v2_baseline(root)?;
+    let Some((baseline, current_bytes)) = baseline else {
+        if record.workflow_version >= 2 {
+            return Err(format!(
+                "workflow-v2 state requires {}; run `specsync change new` or restore the committed baseline",
+                WORKFLOW_V2_BASELINE_PATH
+            ));
+        }
+        return Ok(());
+    };
+    if !git_repository_present(root)? {
+        if baseline.cutoff_commit.is_some() {
+            return Err("non-Git workflow-v2 baseline cannot name a cutoff commit".into());
+        }
+        if record.workflow_version == 1 {
+            return Err("workflow-v1 state is not eligible after workflow-v2 adoption".into());
+        }
+        return Ok(());
+    }
+
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD"]);
+    let baseline_path = git_repo_relative_path(root, WORKFLOW_V2_BASELINE_PATH)?;
+    let Some(head) = head else {
+        if baseline.cutoff_commit.is_some() {
+            return Err("unborn workflow-v2 baseline cannot name a cutoff commit".into());
+        }
+        if record.workflow_version == 1 {
+            return Err("workflow-v1 state is not eligible after workflow-v2 adoption".into());
+        }
+        return Ok(());
+    };
+
+    let limits = lifecycle_validation_limits();
+    let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
+    let history = scoped_review_git_text(
+        root,
+        &[
+            "rev-list",
+            "--reverse",
+            "--full-history",
+            max_count.as_str(),
+            "HEAD",
+            "--",
+            baseline_path.as_str(),
+        ],
+    )
+    .map_err(|_| "failed to enumerate workflow-v2 baseline history".to_string())?;
+    let history: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();
+    if history.len() > limits.scoped_review_max_descendants {
+        return Err(format!(
+            "workflow-v2 baseline history exceeds the deterministic {}-commit bound",
+            limits.scoped_review_max_descendants
+        ));
+    }
+    if history.is_empty() {
+        if let Some(cutoff) = baseline.cutoff_commit.as_deref()
+            && !cached_git_status_success(root, &["merge-base", "--is-ancestor", cutoff, &head])?
+        {
+            return Err(
+                "uncommitted workflow-v2 baseline cutoff is not an ancestor of HEAD".into(),
+            );
+        }
+    } else {
+        let introductions = scoped_review_git_text(
+            root,
+            &[
+                "log",
+                "--format=%H",
+                "--diff-filter=A",
+                "HEAD",
+                "--",
+                baseline_path.as_str(),
+            ],
+        )
+        .map_err(|_| "failed to locate workflow-v2 baseline introduction".to_string())?;
+        let introductions: Vec<&str> = introductions
+            .lines()
+            .filter(|line| !line.is_empty())
+            .collect();
+        if introductions.len() != 1 {
+            return Err("workflow-v2 baseline must have one unique introduction".into());
+        }
+        let introduction = introductions[0];
+        let fields =
+            scoped_review_git_text(root, &["rev-list", "--parents", "-n", "1", introduction])
+                .map_err(|_| "failed to inspect workflow-v2 baseline introduction".to_string())?;
+        let fields: Vec<&str> = fields.split_whitespace().collect();
+        if fields.first().copied() != Some(introduction)
+            || fields.len().saturating_sub(1) > limits.scoped_review_max_parents
+        {
+            return Err("workflow-v2 baseline introduction has ambiguous parents".into());
+        }
+        let parents = &fields[1..];
+        match (parents.first().copied(), baseline.cutoff_commit.as_deref()) {
+            (None, None) => {}
+            (Some(first_parent), Some(cutoff))
+                if cached_git_status_success(
+                    root,
+                    &["merge-base", "--is-ancestor", cutoff, first_parent],
+                )? => {}
+            _ => {
+                return Err(
+                    "workflow-v2 baseline cutoff must be an ancestor of its introduction's first parent"
+                        .into(),
+                );
+            }
+        }
+        for parent in parents {
+            if scoped_review_file_at_commit(root, parent, &baseline_path)?.is_some() {
+                return Err("workflow-v2 baseline existed before its claimed introduction".into());
+            }
+        }
+        let introduced_bytes = scoped_review_file_at_commit(root, introduction, &baseline_path)?
+            .ok_or_else(|| {
+                "workflow-v2 baseline introduction is missing its exact bytes".to_string()
+            })?;
+        for commit in &history {
+            let bytes =
+                scoped_review_file_at_commit(root, commit, &baseline_path)?.ok_or_else(|| {
+                    "workflow-v2 baseline was deleted in reachable history".to_string()
+                })?;
+            if bytes != introduced_bytes {
+                return Err("workflow-v2 baseline changed after its introduction".into());
+            }
+            let fields =
+                scoped_review_git_text(root, &["rev-list", "--parents", "-n", "1", commit])
+                    .map_err(|_| {
+                        format!("failed to inspect workflow-v2 baseline commit {commit}")
+                    })?;
+            let fields: Vec<&str> = fields.split_whitespace().collect();
+            if fields.first().copied() != Some(*commit)
+                || fields.len().saturating_sub(1) > limits.scoped_review_max_parents
+            {
+                return Err(format!(
+                    "workflow-v2 baseline commit {commit} has ambiguous parent history"
+                ));
+            }
+            for parent in &fields[1..] {
+                if let Some(parent_bytes) =
+                    scoped_review_file_at_commit(root, parent, &baseline_path)?
+                    && parent_bytes != introduced_bytes
+                {
+                    return Err(
+                        "workflow-v2 baseline has a rewritten parent in reachable history".into(),
+                    );
+                }
+            }
+        }
+        let committed_bytes = scoped_review_file_at_commit(root, "HEAD", &baseline_path)?
+            .ok_or_else(|| "committed workflow-v2 baseline was deleted".to_string())?;
+        if introduced_bytes != committed_bytes || committed_bytes != current_bytes {
+            return Err("workflow-v2 baseline changed after its introduction".into());
+        }
+    }
+
+    if let Some(cutoff) = baseline.cutoff_commit.as_deref()
+        && !cached_git_status_success(root, &["merge-base", "--is-ancestor", cutoff, "HEAD"])?
+    {
+        return Err("workflow-v2 baseline cutoff is not reachable from HEAD".into());
+    }
+    if record.workflow_version != 1 {
+        return Ok(());
+    }
+    let cutoff = baseline.cutoff_commit.as_deref().ok_or_else(|| {
+        "workflow-v1 state is not eligible after root workflow-v2 adoption".to_string()
+    })?;
+    if !workflow_v1_record_exists_at_cutoff(root, record, cutoff)? {
+        return Err(format!(
+            "workflow-v1 change {} was not present at the trusted pre-v2 cutoff {}",
+            record.id, cutoff
+        ));
+    }
+    Ok(())
+}
+
+fn workflow_v1_record_exists_at_cutoff(
+    root: &Path,
+    record: &ChangeRecord,
+    cutoff: &str,
+) -> Result<bool, String> {
+    let candidate_paths = workflow_version_state_paths(root, record)?;
+    Ok(candidate_paths.iter().any(|path| {
+        git_change_record_at(root, cutoff, path).is_some_and(|historical| {
+            historical.id == record.id
+                && historical.workflow_version == 1
+                && matches!(historical.workflow_origin_version, None | Some(1))
+        })
+    }))
+}
+
+fn validate_workflow_version_history(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let key = format!(
+        "{}:{}:{:?}:{:?}",
+        record.id, record.workflow_version, record.workflow_origin_version, record.state
+    );
+    if let Some(result) = read_scope_value(root, |scope| {
+        scope.workflow_version_history.get(&key).cloned()
+    }) {
+        return result;
+    }
+    let result = validate_workflow_version_history_uncached(root, record);
+    update_read_scope(root, |scope| {
+        scope.workflow_version_history.insert(key, result.clone());
+    });
+    result
+}
+
+fn validate_workflow_version_history_uncached(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    validate_workflow_v2_baseline(root, record)?;
+    if !git_repository_present(root)? {
+        return Ok(());
+    }
+    if git_output(root, &["rev-parse", "--verify", "HEAD"]).is_none() {
+        return Ok(());
+    }
+    let state_paths = workflow_version_state_paths(root, record)?;
+    let limits = lifecycle_validation_limits();
+    let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
+    let mut arguments = vec![
+        "rev-list",
+        "--reverse",
+        "--full-history",
+        max_count.as_str(),
+        "HEAD",
+        "--",
+    ];
+    arguments.extend(state_paths.iter().map(String::as_str));
+    let commits = scoped_review_git_text(root, &arguments)
+        .map_err(|_| "failed to enumerate workflow-version history".to_string())?;
+    let commits: Vec<&str> = commits.lines().filter(|line| !line.is_empty()).collect();
+    if commits.len() > limits.scoped_review_max_descendants {
+        return Err(format!(
+            "workflow-version history exceeds the deterministic {}-commit bound",
+            limits.scoped_review_max_descendants
+        ));
+    }
+    for commit in commits {
+        let current = workflow_version_at_commit(root, commit, &state_paths)?;
+        let parents = scoped_review_git_text(root, &["rev-list", "--parents", "-n", "1", commit])
+            .map_err(|_| format!("failed to inspect workflow-version commit {commit}"))?;
+        let fields: Vec<&str> = parents.split_whitespace().collect();
+        if fields.first().copied() != Some(commit)
+            || fields.len().saturating_sub(1) > limits.scoped_review_max_parents
+        {
+            return Err(format!(
+                "workflow-version commit {commit} has ambiguous parent history"
+            ));
+        }
+        if fields.len() == 1 {
+            if current.is_none() {
+                return Err("workflow-version history deleted its creation anchor".into());
+            }
+            continue;
+        }
+        for parent in &fields[1..] {
+            let previous = workflow_version_at_commit(root, parent, &state_paths)?;
+            validate_workflow_version_transition(previous.as_ref(), current.as_ref())?;
+        }
+    }
+
+    for path in &state_paths {
+        let Some(bytes) = scoped_review_file_at_commit(root, "HEAD", path)? else {
+            continue;
+        };
+        let committed: ChangeRecord = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("invalid committed workflow-version state: {error}"))?;
+        if committed.workflow_version != record.workflow_version
+            || !matches!(
+                (
+                    committed.workflow_origin_version,
+                    record.workflow_origin_version,
+                ),
+                (previous, current) if previous == current
+                    || (previous.is_none()
+                        && current == Some(record.workflow_version))
+            )
+        {
+            return Err(
+                "workflow version or immutable creation anchor changed from committed state".into(),
+            );
+        }
+        break;
+    }
+    Ok(())
+}
+
+fn workflow_version_state_paths(root: &Path, record: &ChangeRecord) -> Result<Vec<String>, String> {
+    let active_state =
+        git_repo_relative_path(root, &format!("{CHANGES_PATH}/{}/state.json", record.id))?;
+    let mut state_paths = vec![active_state];
+    if record.state == ChangeState::Archived {
+        let workspace = find_change_dir(root, &record.id)?;
+        let archive_state = git_repo_relative_path(
+            root,
+            &portable_project_path(root, &workspace.join("state.json")),
+        )?;
+        if !state_paths.contains(&archive_state) {
+            state_paths.push(archive_state);
+        }
+    }
+    if !git_repository_present(root)?
+        || git_output(root, &["rev-parse", "--verify", "HEAD"]).is_none()
+    {
+        return Ok(state_paths);
+    }
+
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
+    let pathspec = format!(":(glob){archive_root}/*-{}/state.json", record.id.as_str());
+    let limits = lifecycle_validation_limits();
+    let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
+    let commits = scoped_review_git_text(
+        root,
+        &[
+            "rev-list",
+            "--full-history",
+            max_count.as_str(),
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+    )
+    .map_err(|_| "failed to enumerate archived workflow-version history".to_string())?;
+    let commits: Vec<&str> = commits.lines().filter(|line| !line.is_empty()).collect();
+    if commits.len() > limits.scoped_review_max_descendants {
+        return Err(format!(
+            "archived workflow-version history exceeds the deterministic {}-commit bound",
+            limits.scoped_review_max_descendants
+        ));
+    }
+    let archived_paths = scoped_review_git_text(
+        root,
+        &[
+            "log",
+            "--full-history",
+            "--format=",
+            "--name-only",
+            "-z",
+            max_count.as_str(),
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+    )
+    .map_err(|_| "failed to enumerate archived workflow-version paths".to_string())?;
+    for raw_path in archived_paths.split('\0') {
+        let path = raw_path.trim_matches('\n');
+        if path.is_empty() {
+            continue;
+        }
+        if !is_canonical_archive_state_path(path, &archive_root, &record.id) {
+            return Err(format!(
+                "workflow-version history contains a non-canonical archive path `{}`",
+                path.escape_default()
+            ));
+        }
+        if !state_paths.iter().any(|candidate| candidate == path) {
+            state_paths.push(path.to_string());
+        }
+    }
+    Ok(state_paths)
+}
+
+fn is_canonical_archive_state_path(path: &str, archive_root: &str, id: &str) -> bool {
+    let prefix = format!("{archive_root}/");
+    let suffix = format!("-{id}/state.json");
+    let Some(relative) = path.strip_prefix(&prefix) else {
+        return false;
+    };
+    let Some(date) = relative.strip_suffix(&suffix) else {
+        return false;
+    };
+    let bytes = date.as_bytes();
+    bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit())
+}
+
+fn workflow_version_at_commit(
+    root: &Path,
+    commit: &str,
+    state_paths: &[String],
+) -> Result<Option<(String, u32, Option<u32>)>, String> {
+    let mut found = None;
+    for path in state_paths {
+        let Some(bytes) = scoped_review_file_at_commit(root, commit, path)? else {
+            continue;
+        };
+        if found.is_some() {
+            return Err(format!(
+                "workflow-version history duplicates state at commit {commit}"
+            ));
+        }
+        let historical: ChangeRecord = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("invalid workflow-version history at {commit}: {error}"))?;
+        validate_historical_workflow_version_anchor(&historical)?;
+        found = Some((
+            path.clone(),
+            historical.workflow_version,
+            historical.workflow_origin_version,
+        ));
+    }
+    Ok(found)
+}
+
+fn validate_workflow_version_transition(
+    previous: Option<&(String, u32, Option<u32>)>,
+    current: Option<&(String, u32, Option<u32>)>,
+) -> Result<(), String> {
+    let Some((_, current_version, current_origin)) = current else {
+        return Err("workflow-version history deleted its immutable creation anchor".into());
+    };
+    let Some((_, previous_version, previous_origin)) = previous else {
+        return Ok(());
+    };
+    if current_version != previous_version
+        || !matches!(
+            (previous_origin, current_origin),
+            (previous, current)
+                if previous == current
+                    || (previous.is_none() && *current == Some(*current_version))
+        )
+    {
+        return Err(format!(
+            "workflow-version history changed immutable identity from {previous_version}/{previous_origin:?} to {current_version}/{current_origin:?}"
+        ));
     }
     Ok(())
 }
@@ -11568,6 +15667,7 @@ fn verification_is_current_checked_with_project_digest(
     if !definition_digest_matches(root, record, &evidence.contract_digest)? {
         return Err("verification contract digest is stale".into());
     }
+    validate_verification_execution_digest(root, record, evidence)?;
     if project_digest != evidence.workspace_digest {
         return Err("verification project-input digest is stale".into());
     }
@@ -11588,10 +15688,12 @@ fn verification_persistence_descendants(
     root: &Path,
     evidence: &VerificationRecord,
 ) -> Result<BTreeSet<String>, String> {
-    let stored_commit = evidence
-        .commit
-        .as_deref()
-        .ok_or_else(|| "verification commit is missing".to_string())?;
+    let Some(stored_commit) = evidence.commit.as_deref() else {
+        if !git_repository_present(root)? {
+            return Ok(BTreeSet::new());
+        }
+        return Err("verification commit is missing".to_string());
+    };
     if stored_commit.len() != 40
         || !stored_commit
             .bytes()
@@ -11622,25 +15724,22 @@ fn verification_persistence_descendants(
     {
         return Err("HEAD is not a canonical full object ID".into());
     }
-    let ancestor = Command::new("git")
-        .args(["merge-base", "--is-ancestor", &commit, &head])
-        .current_dir(root)
-        .status()
-        .map_err(|error| format!("failed to validate verification ancestry: {error}"))?;
-    if !ancestor.success() {
+    let ancestor =
+        cached_git_status_success(root, &["merge-base", "--is-ancestor", &commit, &head])
+            .map_err(|error| format!("failed to validate verification ancestry: {error}"))?;
+    if !ancestor {
         return Err("verification commit is not an ancestor of HEAD".into());
     }
     let range = format!("{commit}..{head}");
-    let output = Command::new("git")
-        .args(["rev-list", "--reverse", &range])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("failed to enumerate verification descendants: {error}"))?;
-    if !output.status.success() {
-        return Err("failed to enumerate verification descendants".into());
+    let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+    let commits = git_output_allow_empty(root, &["rev-list", "--reverse", &max_count, &range])
+        .ok_or_else(|| "failed to enumerate verification descendants".to_string())?;
+    if commits.lines().filter(|line| !line.is_empty()).count() > MAX_TRUSTED_HISTORY_COMMITS {
+        return Err(format!(
+            "verification descendant history exceeds the deterministic {}-commit bound",
+            MAX_TRUSTED_HISTORY_COMMITS
+        ));
     }
-    let commits = std::str::from_utf8(&output.stdout)
-        .map_err(|_| "verification descendant history is not valid UTF-8".to_string())?;
     let raw_project_prefix = git_output_allow_empty(root, &["rev-parse", "--show-prefix"])
         .ok_or_else(|| {
             "failed to resolve the project path within its Git repository".to_string()
@@ -11666,8 +15765,9 @@ fn verification_persistence_descendants(
             ));
         }
         for parent in &fields[1..] {
-            let output = Command::new("git")
-                .args([
+            let output = run_git_bounded(
+                root,
+                &[
                     "diff-tree",
                     "--no-commit-id",
                     "--name-only",
@@ -11676,10 +15776,11 @@ fn verification_persistence_descendants(
                     "-r",
                     parent,
                     descendant,
-                ])
-                .current_dir(root)
-                .output()
-                .map_err(|error| {
+                ],
+                None,
+                MAX_GIT_COMMAND_OUTPUT_BYTES,
+            )
+            .map_err(|error| {
                     format!(
                         "failed to inspect verification descendant {descendant} against parent {parent}: {error}"
                     )
@@ -11734,7 +15835,11 @@ fn supported_verification_persistence_id(path: &str) -> Result<String, String> {
     }
     if !matches!(
         parts[3],
-        "state.json" | "verification.json" | "verification-attempts.json"
+        "state.json"
+            | "verification.json"
+            | "verification-attempts.json"
+            | SCOPED_REVIEW_FILE
+            | SCOPED_REVIEW_ATTEMPTS_FILE
     ) {
         return Err(format!(
             "verification descendant changed disallowed path `{path}`"
@@ -11767,6 +15872,7 @@ fn ensure_verification_persistence_consistent(
             "verification persistence for `{id}` has a stale contract digest"
         ));
     }
+    validate_verification_execution_digest(root, &record, &verification)?;
     if project_digest != verification.workspace_digest {
         return Err(format!(
             "verification persistence for `{id}` has a stale project-input digest"
@@ -11800,6 +15906,7 @@ fn verification_commit_is_accepted_current(root: &Path, evidence: &VerificationR
     Command::new("git")
         .args(["merge-base", "--is-ancestor", commit, "HEAD"])
         .current_dir(root)
+        .stderr(Stdio::null())
         .status()
         .is_ok_and(|status| status.success())
 }
@@ -11816,6 +15923,7 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
             remote_default.as_str(),
         ])
         .current_dir(root)
+        .stderr(Stdio::null())
         .status()
         .is_ok_and(|status| status.success());
     if !head_is_integrated {
@@ -11834,6 +15942,7 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
     let state_exists = Command::new("git")
         .args(["cat-file", "-e", remote_state.as_str()])
         .current_dir(root)
+        .stderr(Stdio::null())
         .status()
         .is_ok_and(|status| status.success());
     state_exists
@@ -11846,6 +15955,7 @@ fn accepted_workspace_is_integrated(root: &Path, record: &ChangeRecord) -> bool 
                 repo_workspace_pathspec.as_str(),
             ])
             .current_dir(root)
+            .stderr(Stdio::null())
             .status()
             .is_ok_and(|status| status.success())
 }
@@ -11867,34 +15977,177 @@ fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, refere
         return false;
     };
     let top_state = format!(":(top,literal){repo_state}");
-    let history = Command::new("git")
-        .args(["log", "--format=%H", reference, "--", top_state.as_str()])
-        .current_dir(root)
-        .output();
-    let Ok(history) = history else {
+    let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+    let Ok(history) = run_git_bounded(
+        root,
+        &[
+            "log",
+            "--format=%H",
+            &max_count,
+            reference,
+            "--",
+            top_state.as_str(),
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    ) else {
         return false;
     };
     if !history.status.success() {
         return false;
     }
-    String::from_utf8_lossy(&history.stdout)
+    let history_text = String::from_utf8_lossy(&history.stdout);
+    let commits: Vec<&str> = history_text
         .lines()
-        .any(|commit| {
-            let object = format!("{commit}:{repo_state}");
-            let snapshot = Command::new("git")
-                .args(["show", object.as_str()])
-                .current_dir(root)
-                .output();
-            let Ok(snapshot) = snapshot else {
-                return false;
+        .filter(|commit| !commit.is_empty())
+        .collect();
+    if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+        return false;
+    }
+    commits.into_iter().any(|commit| {
+        git_file_at_commit(root, commit, &repo_state)
+            .ok()
+            .flatten()
+            .is_some_and(|snapshot| {
+                serde_json::from_slice::<ChangeRecord>(&snapshot).is_ok_and(|historical| {
+                    historical.id == record.id && historical.state == ChangeState::Accepted
+                })
+            })
+    })
+}
+
+fn archived_finalization_tree_is_recorded(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<bool, String> {
+    if record.state != ChangeState::Archived {
+        return Ok(false);
+    }
+    let workspace = find_change_dir(root, &record.id)?;
+    let project_workspace = portable_project_path(root, &workspace);
+    let repository_workspace = git_repo_relative_path(root, &project_workspace)?;
+    let workspace_pathspec = format!(":(top,literal){repository_workspace}");
+    let status = run_git_bounded(
+        root,
+        &[
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--",
+            &workspace_pathspec,
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )?;
+    if !status.status.success() || !status.stdout.is_empty() {
+        return Ok(false);
+    }
+    let current_tree = git_output(
+        root,
+        &["rev-parse", &format!("HEAD:{repository_workspace}")],
+    )
+    .ok_or_else(|| "current archive tree is not committed at HEAD".to_string())?;
+    let repository_state = format!("{repository_workspace}/state.json");
+    let state_pathspec = format!(":(top,literal){repository_state}");
+    let mut references = vec!["HEAD".to_string()];
+    if let Some(remote_default) = remote_default_ref(root)
+        && !references.contains(&remote_default)
+    {
+        references.push(remote_default);
+    }
+    let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+    let mut introductions = BTreeMap::new();
+    for reference in references {
+        let history = run_git_bounded(
+            root,
+            &[
+                "log",
+                "--format=%H",
+                "--diff-filter=A",
+                &max_count,
+                &reference,
+                "--",
+                &state_pathspec,
+            ],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )?;
+        if !history.status.success() {
+            continue;
+        }
+        let commits = String::from_utf8_lossy(&history.stdout);
+        let candidates: Vec<&str> = commits.lines().filter(|line| !line.is_empty()).collect();
+        if candidates.len() > MAX_TRUSTED_HISTORY_COMMITS {
+            return Err(format!(
+                "archive history exceeds the deterministic {}-commit bound",
+                MAX_TRUSTED_HISTORY_COMMITS
+            ));
+        }
+        for candidate in candidates {
+            if introductions.contains_key(candidate) {
+                continue;
+            }
+            let Some(state) = git_file_at_commit(root, candidate, &repository_state)? else {
+                continue;
             };
-            snapshot.status.success()
-                && serde_json::from_slice::<ChangeRecord>(&snapshot.stdout).is_ok_and(
-                    |historical| {
-                        historical.id == record.id && historical.state == ChangeState::Accepted
-                    },
-                )
-        })
+            let Ok(historical) = serde_json::from_slice::<ChangeRecord>(&state) else {
+                continue;
+            };
+            if historical.id != record.id || historical.state != ChangeState::Archived {
+                continue;
+            }
+            let parents =
+                scoped_review_git_text(root, &["rev-list", "--parents", "-n", "1", candidate])
+                    .map_err(|_| format!("failed to inspect archive introduction {candidate}"))?;
+            let fields: Vec<&str> = parents.split_whitespace().collect();
+            if fields.first().copied() != Some(candidate)
+                || fields.len() < 2
+                || fields.len().saturating_sub(1)
+                    > lifecycle_validation_limits().scoped_review_max_parents
+            {
+                return Err(format!(
+                    "archive introduction {candidate} has ambiguous parent history"
+                ));
+            }
+            let mut absent_from_every_parent = true;
+            for parent in &fields[1..] {
+                let existing = run_scoped_review_git(
+                    root,
+                    &["ls-tree", "-z", parent, "--", &repository_workspace],
+                )?;
+                if !existing.status.success() {
+                    return Err(format!(
+                        "failed to inspect archive introduction parent {parent}"
+                    ));
+                }
+                if !existing.stdout.is_empty() {
+                    absent_from_every_parent = false;
+                    break;
+                }
+            }
+            if !absent_from_every_parent {
+                continue;
+            }
+            let candidate_tree = git_output(
+                root,
+                &["rev-parse", &format!("{candidate}:{repository_workspace}")],
+            );
+            if let Some(candidate_tree) = candidate_tree {
+                introductions.insert(candidate.to_string(), candidate_tree);
+            }
+        }
+    }
+    if introductions.len() > 1 {
+        return Err(format!(
+            "archive has {} reachable introduction commits; expected exactly one",
+            introductions.len()
+        ));
+    }
+    Ok(introductions
+        .values()
+        .next()
+        .is_some_and(|tree| tree == &current_tree))
 }
 
 #[cfg(test)]
@@ -11929,19 +16182,12 @@ fn accepted_change_has_current_canonical_successors(root: &Path, record: &Change
     specs_governed && paths_governed
 }
 
-fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
+fn maximum_observed_sequence(root: &Path) -> Result<u64, String> {
     let mut maximum = 0_u64;
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
         if let Ok(entries) = fs::read_dir(base) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
-                for part in name.split('-') {
-                    if let Some(number) = part.strip_prefix("CHG")
-                        && let Ok(value) = number.parse::<u64>()
-                    {
-                        maximum = maximum.max(value);
-                    }
-                }
                 if let Some(index) = name.find("CHG-") {
                     let digits: String = name[index + 4..]
                         .chars()
@@ -11954,7 +16200,68 @@ fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
             }
         }
     }
+    if let Some(ledger) = load_change_sequence_ledger(root)? {
+        maximum = maximum.max(ledger.sequence);
+    }
+    // Multi-agent / multi-clone: set SPECSYNC_SEQUENCE_BASE to a disjoint high-water
+    // (e.g. agent A=100, agent B=200) so parallel clones do not mint the same CHG-NNNN.
+    if let Ok(base) = std::env::var("SPECSYNC_SEQUENCE_BASE") {
+        let base = base.trim();
+        if !base.is_empty() {
+            let value: u64 = base.parse().map_err(|_| {
+                format!(
+                    "SPECSYNC_SEQUENCE_BASE must be a positive integer, got `{}`",
+                    base.escape_default()
+                )
+            })?;
+            if value == 0 {
+                return Err("SPECSYNC_SEQUENCE_BASE must be >= 1".into());
+            }
+            // Treat BASE as the next sequence this agent may mint (high-water exclusive).
+            maximum = maximum.max(value.saturating_sub(1));
+        }
+    }
+    Ok(maximum)
+}
+
+fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
+    let maximum = maximum_observed_sequence(root)?;
     Ok(format!("CHG-{:04}-{slug}", maximum + 1))
+}
+
+/// Pick the next CHG id and create its workspace directory exclusively.
+///
+/// Retries when the directory already exists (shared-filesystem multi-process races).
+/// Separate git clones still need `SPECSYNC_SEQUENCE_BASE` (or post-merge renumber)
+/// because they cannot see each other's uncommitted workspaces.
+fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf), String> {
+    let changes = root.join(CHANGES_PATH);
+    fs::create_dir_all(&changes).map_err(|error| {
+        format!(
+            "failed to create active changes directory {}: {error}",
+            changes.display()
+        )
+    })?;
+    let mut maximum = maximum_observed_sequence(root)?;
+    for _ in 0..10_000u32 {
+        let sequence = maximum + 1;
+        let id = format!("CHG-{:04}-{slug}", sequence);
+        let dir = change_dir(root, &id);
+        match fs::create_dir(&dir) {
+            Ok(()) => return Ok((id, dir)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                maximum = maximum.max(sequence);
+                continue;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to create change workspace {}: {error}",
+                    dir.display()
+                ));
+            }
+        }
+    }
+    Err("exhausted change sequence allocation retries".into())
 }
 
 fn slugify(value: &str) -> String {
@@ -12046,28 +16353,64 @@ fn require_state(
 }
 
 fn git_output(root: &Path, args: &[&str]) -> Option<String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if value.is_empty() { None } else { Some(value) }
+    cached_git_text_query(root, args, false)
 }
 
 fn git_output_allow_empty(root: &Path, args: &[&str]) -> Option<String> {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(root)
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+    cached_git_text_query(root, args, true)
+}
+
+fn cached_git_text_query(root: &Path, args: &[&str], allow_empty: bool) -> Option<String> {
+    let key = GitTextQueryCacheKey {
+        allow_empty,
+        arguments: args
+            .iter()
+            .map(|argument| (*argument).to_string())
+            .collect(),
+    };
+    if let Some(value) = read_scope_value(root, |scope| scope.git_text_queries.get(&key).cloned()) {
+        return value;
+    }
+    record_test_git_process();
+    let output = run_git_bounded(root, args, None, MAX_GIT_COMMAND_OUTPUT_BYTES).ok()?;
+    if !output.status.success() {
+        update_read_scope(root, |scope| {
+            if scope.git_text_queries.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+                scope.git_text_queries.insert(key, None);
+            }
+        });
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let result = if allow_empty || !value.is_empty() {
+        Some(value)
+    } else {
+        None
+    };
+    update_read_scope(root, |scope| {
+        if scope.git_text_queries.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            scope.git_text_queries.insert(key, result.clone());
+        }
+    });
+    result
+}
+
+fn cached_git_status_success(root: &Path, args: &[&str]) -> Result<bool, String> {
+    let key: Vec<String> = args
+        .iter()
+        .map(|argument| (*argument).to_string())
+        .collect();
+    if let Some(value) = read_scope_value(root, |scope| scope.git_status_queries.get(&key).cloned())
+    {
+        return value;
+    }
+    let result = run_git_bounded(root, args, None, 1024).map(|output| output.status.success());
+    update_read_scope(root, |scope| {
+        if scope.git_status_queries.len() < MAX_CHANGE_READ_CACHE_ENTRIES {
+            scope.git_status_queries.insert(key, result.clone());
+        }
+    });
+    result
 }
 
 fn git_repo_relative_path(root: &Path, project_path: &str) -> Result<String, String> {
@@ -12089,6 +16432,19 @@ fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String
         .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
+fn bytes_match_canonical_json(on_disk: &[u8], canonical: &[u8]) -> bool {
+    if on_disk == canonical {
+        return true;
+    }
+    // Accept CRLF-only working-tree rewrites of an otherwise exact LF canonical file.
+    let lf_only: Vec<u8> = on_disk
+        .iter()
+        .copied()
+        .filter(|&byte| byte != b'\r')
+        .collect();
+    lf_only.as_slice() == canonical
+}
+
 fn json_content<Value: Serialize>(value: &Value) -> Result<String, String> {
     let content = serde_json::to_string_pretty(value).map_err(|error| error.to_string())?;
     Ok(format!("{content}\n"))
@@ -12096,6 +16452,14 @@ fn json_content<Value: Serialize>(value: &Value) -> Result<String, String> {
 
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+fn legacy_workflow_version() -> u32 {
+    1
+}
+
+fn is_legacy_workflow_version(value: &u32) -> bool {
+    *value == legacy_workflow_version()
 }
 
 fn is_zero_u64(value: &u64) -> bool {
@@ -12202,7 +16566,38 @@ mod tests {
         }
     }
 
+    fn ensure_test_verification_policy(root: &Path) {
+        if !root.join(POLICY_PATH).exists() {
+            write_default_policy(root, vec!["true".into()]).unwrap();
+            return;
+        }
+        let mut policy = load_policy(root).unwrap();
+        if policy.verification_commands.is_empty() {
+            policy.verification_commands = vec!["true".into()];
+            write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        }
+    }
+
+    fn persist_legacy_test_record(root: &Path, record: &mut ChangeRecord) {
+        record.workflow_version = 1;
+        record.workflow_origin_version = None;
+        save_change(root, record).unwrap();
+        let baseline = root.join(WORKFLOW_V2_BASELINE_PATH);
+        if baseline.exists() {
+            fs::remove_file(baseline).unwrap();
+        }
+    }
+
     fn completed_record(root: &Path) -> ChangeRecord {
+        completed_record_with_workflow(root, true)
+    }
+
+    fn completed_current_record(root: &Path) -> ChangeRecord {
+        completed_record_with_workflow(root, false)
+    }
+
+    fn completed_record_with_workflow(root: &Path, legacy: bool) -> ChangeRecord {
+        ensure_test_verification_policy(root);
         let mut record = create_change(
             root,
             CreateChangeRequest {
@@ -12223,12 +16618,25 @@ mod tests {
         record
             .answers
             .insert("architecture_risk".into(), "no".into());
-        save_change(root, &record).unwrap();
+        if legacy {
+            persist_legacy_test_record(root, &mut record);
+        } else {
+            save_change(root, &record).unwrap();
+        }
         write_change_markdown(root, &record).unwrap();
         record
     }
 
     fn completed_no_spec_record(root: &Path) -> ChangeRecord {
+        completed_no_spec_record_with_workflow(root, true)
+    }
+
+    fn completed_no_spec_current_record(root: &Path) -> ChangeRecord {
+        completed_no_spec_record_with_workflow(root, false)
+    }
+
+    fn completed_no_spec_record_with_workflow(root: &Path, legacy: bool) -> ChangeRecord {
+        ensure_test_verification_policy(root);
         fs::create_dir_all(root.join("src")).unwrap();
         fs::create_dir_all(root.join("specs/change")).unwrap();
         fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
@@ -12255,7 +16663,11 @@ mod tests {
         record
             .answers
             .insert("architecture_risk".into(), "no".into());
-        save_change(root, &record).unwrap();
+        if legacy {
+            persist_legacy_test_record(root, &mut record);
+        } else {
+            save_change(root, &record).unwrap();
+        }
         write_change_markdown(root, &record).unwrap();
         for artifact in &record.selected_artifacts {
             let content = if *artifact == ArtifactKind::Tasks {
@@ -12273,6 +16685,18 @@ mod tests {
     }
 
     fn completed_section_only_record(root: &Path, delta: &str) -> ChangeRecord {
+        completed_section_only_record_with_workflow(root, delta, true)
+    }
+
+    fn completed_section_only_current_record(root: &Path, delta: &str) -> ChangeRecord {
+        completed_section_only_record_with_workflow(root, delta, false)
+    }
+
+    fn completed_section_only_record_with_workflow(
+        root: &Path,
+        delta: &str,
+        legacy: bool,
+    ) -> ChangeRecord {
         fs::create_dir_all(root.join("src")).unwrap();
         fs::create_dir_all(root.join("specs/auth")).unwrap();
         fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
@@ -12281,7 +16705,11 @@ mod tests {
             "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Legacy Notes\n\nRetained for compatibility.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
         )
         .unwrap();
-        let record = completed_record(root);
+        let record = if legacy {
+            completed_record(root)
+        } else {
+            completed_current_record(root)
+        };
         for artifact in &record.selected_artifacts {
             let content = if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Complete the documentation change.\n"
@@ -12306,6 +16734,1313 @@ mod tests {
         accept_change(root, &record.id, Some("Closing reviewer".into()), None).unwrap()
     }
 
+    fn current_workflow_record(root: &Path, mut record: ChangeRecord) -> ChangeRecord {
+        let baseline_path = root.join(WORKFLOW_V2_BASELINE_PATH);
+        if !baseline_path.exists() {
+            write_json(
+                &baseline_path,
+                &WorkflowV2Baseline {
+                    schema_version: 1,
+                    domain: "specsync.workflow-v2-baseline.v1".into(),
+                    cutoff_commit: workflow_v2_baseline_cutoff(root),
+                },
+            )
+            .unwrap();
+        }
+        record.workflow_version = 2;
+        record.workflow_origin_version = Some(2);
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        record
+    }
+
+    #[test]
+    fn new_change_serializes_immutable_workflow_origin() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = create_change(
+            root,
+            CreateChangeRequest {
+                description: "record workflow origin".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ci/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Lifecycle metadata only".into()),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(record.workflow_version, 2);
+        assert_eq!(record.workflow_origin_version, Some(2));
+        let state = fs::read_to_string(change_dir(root, &record.id).join("state.json")).unwrap();
+        assert!(state.contains("\"workflow_origin_version\": 2"));
+    }
+
+    #[test]
+    fn workflow_v2_without_its_origin_anchor_is_rejected() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let mut record = current_workflow_record(root, completed_no_spec_record(root));
+        record.workflow_origin_version = None;
+        save_change(root, &record).unwrap();
+
+        let error = load_change(root, &record.id).unwrap_err();
+        assert!(error.contains("missing its immutable workflow_origin_version anchor"));
+    }
+
+    #[test]
+    fn pre_anchor_workflow_v2_history_accepts_one_way_origin_backfill() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "seed"]);
+        let mut record = current_workflow_record(root, completed_no_spec_record(root));
+        record.workflow_origin_version = None;
+        save_change(root, &record).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(
+            root,
+            &["commit", "-m", "record pre-anchor workflow-v2 state"],
+        );
+
+        record.workflow_origin_version = Some(2);
+        save_change(root, &record).unwrap();
+
+        assert_eq!(
+            load_change(root, &record.id)
+                .unwrap()
+                .workflow_origin_version,
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn workflow_v2_adoption_keeps_explicitly_anchored_workflow_v1_records_readable() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let record = create_change(
+            root,
+            CreateChangeRequest {
+                description: "preserve anchored legacy change".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Upgrade compatibility fixture".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(record.workflow_version, 1);
+        assert_eq!(record.workflow_origin_version, Some(1));
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "trusted workflow-v1 cutoff"]);
+        let cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+
+        policy.version = 2;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        ensure_workflow_v2_baseline(root).unwrap();
+        let baseline = read_workflow_v2_baseline(root).unwrap().unwrap().0;
+        assert_eq!(baseline.cutoff_commit.as_deref(), Some(cutoff.as_str()));
+        assert_eq!(load_change(root, &record.id).unwrap(), record);
+    }
+
+    #[test]
+    fn change_adopt_moves_only_new_changes_to_v2_without_rewriting_v1_policy() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let legacy = create_change(
+            root,
+            CreateChangeRequest {
+                description: "preserve legacy workflow evidence".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/legacy/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Upgrade compatibility fixture".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(legacy.workflow_version, 1);
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "trusted workflow-v1 cutoff"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+
+        adopt(root, false, None).unwrap();
+
+        assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+        let baseline = read_workflow_v2_baseline(root).unwrap().unwrap().0;
+        assert_eq!(baseline.cutoff_commit.as_deref(), Some(cutoff.as_str()));
+        assert_eq!(load_change(root, &legacy.id).unwrap(), legacy);
+        let current = create_change(
+            root,
+            CreateChangeRequest {
+                description: "use the single current workflow".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/current/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Workflow migration regression".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(current.workflow_version, 2);
+        assert_eq!(current.workflow_origin_version, Some(2));
+    }
+
+    #[test]
+    fn change_adopt_rejects_uncommitted_workflow_v1_records_without_writes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "trusted base"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let legacy = create_change(
+            root,
+            CreateChangeRequest {
+                description: "leave workflow-v1 evidence uncommitted".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/uncommitted/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Upgrade compatibility fixture".into()),
+            },
+        )
+        .unwrap();
+        let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains(&legacy.id));
+        assert!(error.contains("absent from trusted cutoff"));
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+    }
+
+    #[test]
+    fn change_adopt_rejects_branch_only_workflow_v1_records_without_writes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "trusted base"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let trusted_cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let legacy = create_change(
+            root,
+            CreateChangeRequest {
+                description: "leave workflow-v1 evidence on a branch".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/branch-only/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Upgrade compatibility fixture".into()),
+            },
+        )
+        .unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "branch-only workflow-v1 change"]);
+        let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains(&legacy.id));
+        assert!(error.contains(&trusted_cutoff));
+        assert!(error.contains("absent from trusted cutoff"));
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+    }
+
+    #[test]
+    fn change_adopt_rolls_back_when_comparison_ref_moves_during_publication() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "seed"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let legacy = create_change(
+            root,
+            CreateChangeRequest {
+                description: "anchor workflow-v1 evidence before adoption".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/legacy/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Adoption race fixture".into()),
+            },
+        )
+        .unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "trusted workflow-v1 record"]);
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        let trusted_head = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+        let hook_root = root.to_path_buf();
+        inject_transaction_after_journal_hook(move || {
+            quiet_git(
+                &hook_root,
+                &["update-ref", "refs/remotes/origin/main", "HEAD^"],
+            );
+        });
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains("comparison reference changed"));
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+        assert_eq!(load_change(root, &legacy.id).unwrap(), legacy);
+
+        quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        adopt(root, false, None).unwrap();
+        let baseline = read_workflow_v2_baseline(root).unwrap().unwrap().0;
+        assert_eq!(
+            baseline.cutoff_commit.as_deref(),
+            Some(trusted_head.as_str())
+        );
+    }
+
+    #[test]
+    fn change_adopt_rejects_workflow_v1_records_without_git_history() {
+        for initialize_git in [false, true] {
+            let temp = TempDir::new().unwrap();
+            let root = temp.path();
+            if initialize_git {
+                quiet_git(root, &["init", "-b", "main"]);
+            }
+            write_default_policy(root, Vec::new()).unwrap();
+            let mut policy = load_policy(root).unwrap();
+            policy.version = 1;
+            write_json(&root.join(POLICY_PATH), &policy).unwrap();
+            let legacy = create_change(
+                root,
+                CreateChangeRequest {
+                    description: "preserve workflow-v1 evidence without history".into(),
+                    kind: ChangeKind::Operations,
+                    affected_specs: Vec::new(),
+                    affected_paths: vec!["ops/no-history/".into()],
+                    requested_artifacts: Vec::new(),
+                    no_spec_change: true,
+                    rationale: Some("Upgrade compatibility fixture".into()),
+                },
+            )
+            .unwrap();
+            let policy_before = fs::read(root.join(POLICY_PATH)).unwrap();
+
+            let error = adopt(root, false, None).unwrap_err();
+
+            assert!(error.contains(&legacy.id));
+            assert!(error.contains("no trusted Git cutoff"));
+            assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+            assert!(!root.join(".specsync/adoption-report.json").exists());
+            assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
+        }
+    }
+
+    #[test]
+    fn change_adopt_rolls_back_injected_publication_failure_and_retries_cleanly() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        inject_transaction_write_failure(1);
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains("injected atomic publication failure"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+
+        adopt(root, false, None).unwrap();
+        assert!(root.join(POLICY_PATH).is_file());
+        assert!(root.join(".specsync/adoption-report.json").is_file());
+        assert!(root.join(WORKFLOW_V2_BASELINE_PATH).is_file());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+    }
+
+    #[test]
+    fn change_adopt_recovers_interrupted_publication_before_idempotent_retry() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        let original_policy = fs::read_to_string(root.join(POLICY_PATH)).unwrap();
+        let entries = vec![
+            TransactionEntry {
+                path: POLICY_PATH.into(),
+                original: Some(original_policy.clone()),
+            },
+            TransactionEntry {
+                path: ".specsync/adoption-report.json".into(),
+                original: None,
+            },
+            TransactionEntry {
+                path: WORKFLOW_V2_BASELINE_PATH.into(),
+                original: None,
+            },
+        ];
+        let journal = TransactionJournal {
+            schema_version: 1,
+            entry_count: entries.len(),
+            entries_digest: transaction_entries_digest(&entries).unwrap(),
+            entries,
+        };
+        write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
+        write_json(&root.join(POLICY_PATH), &default_policy(root, Vec::new())).unwrap();
+        fs::write(
+            root.join(".specsync/adoption-report.json"),
+            "{\"partial\":true}\n",
+        )
+        .unwrap();
+        write_json(
+            &root.join(WORKFLOW_V2_BASELINE_PATH),
+            &WorkflowV2Baseline {
+                schema_version: 1,
+                domain: "specsync.workflow-v2-baseline.v1".into(),
+                cutoff_commit: None,
+            },
+        )
+        .unwrap();
+
+        adopt(root, false, None).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(root.join(POLICY_PATH)).unwrap(),
+            original_policy
+        );
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert!(root.join(".specsync/adoption-report.json").is_file());
+        assert!(root.join(WORKFLOW_V2_BASELINE_PATH).is_file());
+        adopt(root, false, None).unwrap();
+        assert_eq!(
+            fs::read_to_string(root.join(POLICY_PATH)).unwrap(),
+            original_policy
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn change_adopt_rejects_symlinked_import_destination_without_writes() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let external = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("openspec/specs/auth")).unwrap();
+        fs::create_dir_all(root.join("openspec/changes/add-passkeys")).unwrap();
+        fs::write(
+            root.join("openspec/specs/auth/spec.md"),
+            "# Authentication\n\nCanonical contract.\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("openspec/changes/add-passkeys/proposal.md"),
+            "# Add passkeys\n\nActive proposal.\n",
+        )
+        .unwrap();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        symlink(external.path(), root.join(".specsync/imports")).unwrap();
+
+        let error = adopt(root, false, Some("openspec")).unwrap_err();
+
+        assert!(error.contains("symlinked transaction target"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert_eq!(external.path().read_dir().unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn change_adopt_rejects_symlinked_metadata_root_before_lock_write() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TempDir::new().unwrap();
+        let external = TempDir::new().unwrap();
+        let root = temp.path();
+        symlink(external.path(), root.join(".specsync")).unwrap();
+
+        let error = adopt(root, false, None).unwrap_err();
+
+        assert!(error.contains("symlinked lifecycle lock path"));
+        assert_eq!(external.path().read_dir().unwrap().count(), 0);
+        assert!(!external.path().join("change.lock").exists());
+        assert!(!external.path().join("sdd.json").exists());
+        assert!(!external.path().join("adoption-report.json").exists());
+        assert!(!external.path().join("workflow-v2-baseline.json").exists());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn change_adopt_rejects_non_utf8_import_target_before_transaction() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let canonical = root.join("openspec/specs/auth");
+        fs::create_dir_all(&canonical).unwrap();
+        let invalid_name = OsString::from_vec(b"contract-\xff.md".to_vec());
+        fs::write(canonical.join(invalid_name), "# Contract\n").unwrap();
+
+        let error = adopt(root, false, Some("openspec")).unwrap_err();
+
+        assert!(error.contains("not valid UTF-8"));
+        assert!(error.contains("cannot be journaled losslessly"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert!(!root.join(".specsync/imports").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_transaction_target_is_rejected_before_filesystem_lookup() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let temp = TempDir::new().unwrap();
+        let target = temp
+            .path()
+            .join(OsString::from_vec(b"transaction-\xff.json".to_vec()));
+
+        let error = validate_prepared_transaction_target(temp.path(), &target).unwrap_err();
+
+        assert!(error.contains("not valid UTF-8"));
+        assert!(error.contains("cannot be journaled losslessly"));
+        assert!(!temp.path().join(TRANSACTION_PATH).exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn change_adopt_rejects_backslash_import_target_before_transaction() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let canonical = root.join("openspec/specs/auth");
+        fs::create_dir_all(&canonical).unwrap();
+        fs::write(canonical.join("contract\\part.md"), "# Contract\n").unwrap();
+
+        let error = adopt(root, false, Some("openspec")).unwrap_err();
+
+        assert!(error.contains("Unix filename component with `\\`"));
+        assert!(error.contains("cannot be journaled losslessly"));
+        assert!(!root.join(POLICY_PATH).exists());
+        assert!(!root.join(".specsync/adoption-report.json").exists());
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+        assert!(!root.join(TRANSACTION_PATH).exists());
+        assert!(!root.join(".specsync/imports").exists());
+    }
+
+    #[test]
+    fn workflow_v2_baseline_rewrite_then_restore_remains_invalid() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "seed"]);
+
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "introduce workflow-v2 baseline"]);
+        let introduction = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        let baseline_path = root.join(WORKFLOW_V2_BASELINE_PATH);
+        let original = fs::read(&baseline_path).unwrap();
+        let mut rewritten: WorkflowV2Baseline = serde_json::from_slice(&original).unwrap();
+        rewritten.cutoff_commit = Some(introduction);
+        write_json(&baseline_path, &rewritten).unwrap();
+        quiet_git(root, &["add", WORKFLOW_V2_BASELINE_PATH]);
+        quiet_git(root, &["commit", "-m", "rewrite workflow-v2 baseline"]);
+        fs::write(&baseline_path, original).unwrap();
+        quiet_git(root, &["add", WORKFLOW_V2_BASELINE_PATH]);
+        quiet_git(root, &["commit", "-m", "restore workflow-v2 baseline"]);
+
+        let error = load_change(root, &record.id).unwrap_err();
+        assert!(error.contains("workflow-v2 baseline changed after its introduction"));
+    }
+
+    #[test]
+    fn deleted_workflow_v2_baseline_cannot_reenable_workflow_v1_creation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let first = create_change(
+            root,
+            CreateChangeRequest {
+                description: "introduce the current workflow".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/current/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Workflow baseline fixture".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(first.workflow_version, 2);
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "introduce workflow-v2 baseline"]);
+        fs::remove_file(root.join(WORKFLOW_V2_BASELINE_PATH)).unwrap();
+
+        for commit_deletion in [false, true] {
+            if commit_deletion {
+                quiet_git(root, &["add", "--update"]);
+                quiet_git(root, &["commit", "-m", "delete workflow-v2 baseline"]);
+            }
+            let error = create_change(
+                root,
+                CreateChangeRequest {
+                    description: "must not fall back to workflow v1".into(),
+                    kind: ChangeKind::Operations,
+                    affected_specs: Vec::new(),
+                    affected_paths: vec!["ops/fallback/".into()],
+                    requested_artifacts: Vec::new(),
+                    no_spec_change: true,
+                    rationale: Some("Workflow deletion regression".into()),
+                },
+            )
+            .unwrap_err();
+            assert!(error.contains("committed workflow-v2 baseline was deleted"));
+            assert!(
+                !root
+                    .join(CHANGES_PATH)
+                    .join("CHG-0002-must-not-fall-back-to-workflow-v1")
+                    .exists()
+            );
+        }
+    }
+
+    #[test]
+    fn merged_second_parent_baseline_cannot_reenable_workflow_v1_creation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut policy = load_policy(root).unwrap();
+        policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &policy).unwrap();
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "workflow-v1 base"]);
+        let cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+        quiet_git(root, &["switch", "-c", "baseline-parent"]);
+        write_json(
+            &root.join(WORKFLOW_V2_BASELINE_PATH),
+            &WorkflowV2Baseline {
+                schema_version: 1,
+                domain: "specsync.workflow-v2-baseline.v1".into(),
+                cutoff_commit: Some(cutoff),
+            },
+        )
+        .unwrap();
+        quiet_git(root, &["add", WORKFLOW_V2_BASELINE_PATH]);
+        quiet_git(root, &["commit", "-m", "introduce workflow-v2 baseline"]);
+        quiet_git(root, &["switch", "main"]);
+        quiet_git(
+            root,
+            &[
+                "merge",
+                "--no-ff",
+                "-s",
+                "ours",
+                "baseline-parent",
+                "-m",
+                "retain v1 tree while merging baseline parent",
+            ],
+        );
+        assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
+
+        let error = create_change(
+            root,
+            CreateChangeRequest {
+                description: "must not ignore a merged baseline parent".into(),
+                kind: ChangeKind::Operations,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["ops/merge-topology/".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Every-parent baseline regression".into()),
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("committed workflow-v2 baseline was deleted"));
+        assert!(
+            !root
+                .join(CHANGES_PATH)
+                .join("CHG-0001-must-not-ignore-a-merged-baseline-parent")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn workflow_version_downgrade_then_revert_remains_invalid() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "seed"]);
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let workflow_v2 = fs::read(&state_path).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "create workflow-v2 change"]);
+
+        let mut downgraded: serde_json::Value = serde_json::from_slice(&workflow_v2).unwrap();
+        let object = downgraded.as_object_mut().unwrap();
+        object.remove("workflow_version");
+        object.remove("workflow_origin_version");
+        fs::write(
+            &state_path,
+            format!("{}\n", serde_json::to_string_pretty(&downgraded).unwrap()),
+        )
+        .unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "attempt workflow downgrade"]);
+        fs::write(&state_path, workflow_v2).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "hide workflow downgrade"]);
+
+        let error = load_change(root, &record.id).unwrap_err();
+        assert!(error.contains("workflow-version history changed immutable identity"));
+    }
+
+    #[test]
+    fn workflow_version_history_follows_cross_date_rearchive_paths() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("seed.txt"), "seed\n").unwrap();
+        quiet_git(root, &["add", "seed.txt"]);
+        quiet_git(root, &["commit", "-m", "seed"]);
+
+        let mut record = current_workflow_record(root, completed_no_spec_record(root));
+        record.state = ChangeState::Accepted;
+        save_change(root, &record).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "record accepted workflow identity"]);
+
+        let first_archive = root
+            .join(ARCHIVE_PATH)
+            .join(format!("2026-07-14-{}", record.id));
+        fs::create_dir_all(first_archive.parent().unwrap()).unwrap();
+        fs::rename(change_dir(root, &record.id), &first_archive).unwrap();
+        record.state = ChangeState::Archived;
+        write_json(&first_archive.join("state.json"), &record).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "archive on first date"]);
+
+        fs::rename(&first_archive, change_dir(root, &record.id)).unwrap();
+        record.state = ChangeState::Verifying;
+        save_change(root, &record).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "reopen archived record"]);
+
+        let second_archive = root
+            .join(ARCHIVE_PATH)
+            .join(format!("2026-07-15-{}", record.id));
+        fs::rename(change_dir(root, &record.id), &second_archive).unwrap();
+        record.state = ChangeState::Archived;
+        write_json(&second_archive.join("state.json"), &record).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "rearchive on second date"]);
+
+        let state_paths = workflow_version_state_paths(root, &record).unwrap();
+        assert!(state_paths.iter().any(|path| path.contains("2026-07-14-")));
+        assert!(state_paths.iter().any(|path| path.contains("2026-07-15-")));
+        let loaded = load_change(root, &record.id).unwrap();
+        assert_eq!(loaded.workflow_version, 2);
+        assert_eq!(loaded.workflow_origin_version, Some(2));
+    }
+
+    // Verifies REQ-change-043, REQ-change-044, and REQ-change-046.
+    #[test]
+    fn one_approval_review_and_finalize_archive_on_the_same_branch() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git command failed: {args:?}"
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        let approved =
+            approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        assert_eq!(approved.state, ChangeState::Approved);
+
+        let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+        assert!(verification.passed);
+        git(&["add", "."]);
+        git(&["commit", "-m", "Implement approved change"]);
+        let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+        assert!(verification.passed);
+
+        let review = record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+        assert_eq!(
+            review.implementation_commit,
+            git_output(root, &["rev-parse", "HEAD"]).unwrap()
+        );
+        let destination = finalize_change(root, &record.id).unwrap();
+        assert!(destination.is_dir());
+        assert!(!change_dir(root, &record.id).exists());
+
+        let archived = load_change(root, &record.id).unwrap();
+        assert_eq!(archived.state, ChangeState::Archived);
+        let approvals = load_approvals(root, &archived).unwrap();
+        assert_eq!(
+            approvals
+                .approvals
+                .iter()
+                .filter(|approval| approval.gate == "definition")
+                .count(),
+            1
+        );
+        assert!(latest_terminal_approval(&approvals).is_none());
+        let verification = load_verification(root, &archived).unwrap();
+        assert!(validate_finalization_evidence(root, &archived, &verification).is_ok());
+        let mut finalization = load_finalization(root, &archived).unwrap();
+        finalization.closing_digest = "0".repeat(64);
+        write_json(&destination.join("finalization.json"), &finalization).unwrap();
+        assert!(validate_archived_integrity(root, &archived).is_err());
+    }
+
+    #[test]
+    fn interrupted_same_pr_finalization_resumes_without_another_approval() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git command failed: {args:?}"
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        check_change(root, Some(&record.id)).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
+        record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+        accept_change_with_gate(root, &record.id, None, None, "finalization", true, true).unwrap();
+
+        let error = archive_change_with_same_pr_finalize_failure(root, &record.id).unwrap_err();
+        assert!(error.contains("source restored"), "{error}");
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Accepted
+        );
+
+        let destination = finalize_change(root, &record.id).unwrap();
+        assert!(destination.is_dir());
+        let archived = load_change(root, &record.id).unwrap();
+        let approvals = load_approvals(root, &archived).unwrap();
+        assert_eq!(
+            approvals
+                .approvals
+                .iter()
+                .filter(|approval| approval.gate == "definition")
+                .count(),
+            1
+        );
+        assert!(latest_terminal_approval(&approvals).is_none());
+    }
+
+    #[test]
+    fn post_move_same_pr_finalization_resumes_across_dates_without_another_approval() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git command failed: {args:?}"
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        check_change(root, Some(&record.id)).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
+        record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+        accept_change_with_gate(root, &record.id, None, None, "finalization", true, true).unwrap();
+
+        let source = change_dir(root, &record.id);
+        let destination = root
+            .join(ARCHIVE_PATH)
+            .join(format!("1900-01-01-{}", record.id));
+        fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        fs::rename(&source, &destination).unwrap();
+        let state_path = destination.join("state.json");
+        let markdown_path = destination.join("change.md");
+        let original_state = fs::read_to_string(&state_path).unwrap();
+        let original_markdown = fs::read_to_string(&markdown_path).unwrap();
+        write_json(
+            &root.join(TRANSACTION_PATH),
+            &[
+                TransactionEntry {
+                    path: portable_project_path(root, &state_path),
+                    original: Some(original_state),
+                },
+                TransactionEntry {
+                    path: portable_project_path(root, &markdown_path),
+                    original: Some(original_markdown),
+                },
+            ],
+        )
+        .unwrap();
+        let mut interrupted = load_change(root, &record.id).unwrap();
+        interrupted.state = ChangeState::Archived;
+        fs::write(&state_path, json_content(&interrupted).unwrap()).unwrap();
+
+        let resumed = finalize_change(root, &record.id).unwrap();
+        assert_eq!(resumed, destination);
+        assert_eq!(
+            load_change(root, &record.id).unwrap().state,
+            ChangeState::Archived
+        );
+    }
+
+    #[test]
+    fn workflow_v2_archive_survives_squash_merge_in_fresh_clone() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("source");
+        fs::create_dir_all(&root).unwrap();
+        let git = |directory: &Path, args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(directory)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git command failed: {args:?}"
+            );
+        };
+        git(&root, &["init", "-b", "main"]);
+        git(&root, &["config", "user.email", "test@example.com"]);
+        git(&root, &["config", "user.name", "Test"]);
+        // Keep workflow-v2 baseline and lifecycle JSON byte-identical across platforms.
+        // Windows CI defaults can enable core.autocrlf and rewrite committed digests on clone.
+        git(&root, &["config", "core.autocrlf", "false"]);
+        git(&root, &["config", "core.eol", "lf"]);
+        fs::write(
+            root.join(".gitattributes"),
+            "*.json text eol=lf\n*.md text eol=lf\n",
+        )
+        .unwrap();
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&root, &["add", "README.md", ".gitattributes"]);
+        git(&root, &["commit", "-m", "base"]);
+        git(&root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(
+            &root,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+        );
+        git(&root, &["switch", "-c", "feature"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "// Committed before workflow-v2 adoption.\n",
+        )
+        .unwrap();
+        git(&root, &["add", "src/lib.rs"]);
+        git(&root, &["commit", "-m", "pre-adoption implementation"]);
+
+        let record = current_workflow_record(&root, completed_no_spec_record(&root));
+        approve_definition(&root, &record.id, Some("Scope owner".into()), None).unwrap();
+        check_change(&root, Some(&record.id)).unwrap();
+        git(&root, &["add", "."]);
+        git(&root, &["commit", "-m", "Implement approved change"]);
+        check_change(&root, Some(&record.id)).unwrap();
+        record_scoped_review_with_verdict(
+            &root,
+            &record.id,
+            "Independent reviewer".into(),
+            ScopedReviewVerdict::Block,
+        )
+        .unwrap();
+        git(&root, &["add", "."]);
+        git(&root, &["commit", "-m", "Record blocking scoped review"]);
+        record_scoped_review(&root, &record.id, "Independent reviewer".into()).unwrap();
+        git(&root, &["add", "."]);
+        git(&root, &["commit", "-m", "Record passing scoped review"]);
+        let implementation_commit = git_output(&root, &["rev-parse", "HEAD"]).unwrap();
+        finalize_change(&root, &record.id).unwrap();
+        git(&root, &["add", "."]);
+        git(&root, &["commit", "-m", "Finalize change"]);
+
+        git(&root, &["switch", "main"]);
+        git(&root, &["merge", "--squash", "feature"]);
+        git(&root, &["commit", "-m", "Squash feature"]);
+        git(&root, &["branch", "-D", "feature"]);
+
+        let fresh = temp.path().join("fresh");
+        let root_text = root.to_string_lossy().to_string();
+        let fresh_text = fresh.to_string_lossy().to_string();
+        // Apply LF identity at clone time. Setting core.autocrlf after checkout is too late:
+        // Windows CI with a system autocrlf=true would already rewrite lifecycle JSON digests.
+        git(
+            temp.path(),
+            &[
+                "-c",
+                "core.autocrlf=false",
+                "-c",
+                "core.eol=lf",
+                "clone",
+                "--no-local",
+                "--single-branch",
+                "--branch",
+                "main",
+                &root_text,
+                &fresh_text,
+            ],
+        );
+        // Clones do not inherit the source repo's local identity. CI runners often have no
+        // global user.name/email, so set them explicitly before any fresh-tree commits.
+        git(&fresh, &["config", "user.email", "test@example.com"]);
+        git(&fresh, &["config", "user.name", "Test"]);
+        git(&fresh, &["config", "core.autocrlf", "false"]);
+        git(&fresh, &["config", "core.eol", "lf"]);
+        assert!(
+            git_output(
+                &fresh,
+                &[
+                    "rev-parse",
+                    "--verify",
+                    &format!("{implementation_commit}^{{commit}}"),
+                ],
+            )
+            .is_none()
+        );
+        let archived = load_change(&fresh, &record.id).unwrap();
+        assert_eq!(archived.state, ChangeState::Archived);
+        validate_archived_integrity(&fresh, &archived).unwrap();
+
+        let archived_dir = find_change_dir(&fresh, &record.id).unwrap();
+        fs::write(
+            archived_dir.join("context.md"),
+            "# Context\n\nAttempted later archive rewrite.\n",
+        )
+        .unwrap();
+        let mut rewritten_state = load_change(&fresh, &record.id).unwrap();
+        rewritten_state.updated_at += 1;
+        fs::write(
+            archived_dir.join("state.json"),
+            json_content(&rewritten_state).unwrap(),
+        )
+        .unwrap();
+        git(&fresh, &["add", "."]);
+        git(&fresh, &["commit", "-m", "Attempt later archive rewrite"]);
+        assert!(!archived_finalization_tree_is_recorded(&fresh, &rewritten_state).unwrap());
+    }
+
+    #[test]
+    fn scoped_review_requires_an_independent_passing_verdict() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git command failed: {args:?}"
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
+
+        let error = record_scoped_review(root, &record.id, "scope OWNER".into()).unwrap_err();
+        assert!(
+            error.contains("someone other than the scope approver"),
+            "{error}"
+        );
+        let error = record_scoped_review(root, &record.id, "Independent\u{200b} reviewer".into())
+            .unwrap_err();
+        assert!(error.contains("stable ASCII identity"), "{error}");
+        let blocked = record_scoped_review_with_verdict(
+            root,
+            &record.id,
+            "Independent reviewer".into(),
+            ScopedReviewVerdict::Block,
+        )
+        .unwrap();
+        assert_eq!(blocked.verdict, ScopedReviewVerdict::Block);
+        let reviewed_implementation = blocked.implementation_commit.clone();
+        let error = finalize_change(root, &record.id).unwrap_err();
+        assert!(
+            error.contains("independent scoped review is stale"),
+            "{error}"
+        );
+        let passed = record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+        assert_eq!(passed.verdict, ScopedReviewVerdict::Pass);
+        assert_eq!(passed.implementation_commit, reviewed_implementation);
+        let attempts: ScopedReviewAttemptLedger = serde_json::from_str(
+            &fs::read_to_string(scoped_review_attempts_path(root, &record)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(attempts.reviews.len(), 2);
+        assert_eq!(attempts.reviews[0].verdict, ScopedReviewVerdict::Block);
+        assert_eq!(attempts.reviews[1].verdict, ScopedReviewVerdict::Pass);
+    }
+
+    #[test]
+    fn scoped_review_attempt_history_rejects_erasing_a_committed_block() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git command failed: {args:?}"
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Materialize checked implementation"]);
+        check_change(root, Some(&record.id)).unwrap();
+        record_scoped_review_with_verdict(
+            root,
+            &record.id,
+            "Independent reviewer".into(),
+            ScopedReviewVerdict::Block,
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Record blocking scoped review"]);
+
+        let passed = record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+        let rewritten = ScopedReviewAttemptLedger {
+            schema_version: 1,
+            reviews: vec![passed.clone()],
+        };
+        fs::write(
+            scoped_review_attempts_path(root, &record),
+            serde_json::to_vec_pretty(&rewritten).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            scoped_review_path(root, &record),
+            serde_json::to_vec_pretty(&passed).unwrap(),
+        )
+        .unwrap();
+
+        let error = load_scoped_review(root, &record).unwrap_err();
+        assert!(
+            error.contains("removed or rewrote committed evidence"),
+            "{error}"
+        );
+
+        git(&["add", "."]);
+        git(&["commit", "-m", "Attempt to erase blocking scoped review"]);
+        let error = load_scoped_review(root, &record).unwrap_err();
+        assert!(
+            error.contains("removed or rewrote committed evidence"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn scoped_review_freshness_rejects_change_then_revert_history() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git command failed: {args:?}"
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Implement approved change"]);
+        check_change(root, Some(&record.id)).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Materialize checked implementation"]);
+        check_change(root, Some(&record.id)).unwrap();
+        record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "Record scoped review"]);
+
+        let source = root.join("src/lib.rs");
+        let original = fs::read(&source).unwrap();
+        fs::write(&source, "pub fn ready() -> bool { false }\n").unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "Change reviewed implementation"]);
+        fs::write(&source, original).unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "Revert reviewed implementation"]);
+
+        let error = finalize_change(root, &record.id).unwrap_err();
+        assert!(
+            error.contains("cannot accept stale verification")
+                && error.contains("disallowed path `src/lib.rs`"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn finalize_requires_current_independent_review() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        check_change(root, Some(&record.id)).unwrap();
+
+        let error = finalize_change(root, &record.id).unwrap_err();
+
+        assert!(error.contains("independent scoped review evidence is missing"));
+        assert!(change_dir(root, &record.id).is_dir());
+    }
+
     #[test]
     fn successor_evidence_fields_are_byte_compatible_when_absent() {
         let temp = TempDir::new().unwrap();
@@ -12323,6 +18058,7 @@ mod tests {
             timestamp: 1,
             commit: None,
             contract_digest: "contract".into(),
+            execution_digest: None,
             workspace_digest: "workspace".into(),
             acceptance_input_digest: None,
             acceptance_manifest: None,
@@ -12501,6 +18237,34 @@ mod tests {
     }
 
     #[test]
+    fn missing_verification_commit_is_allowed_only_outside_git() {
+        let evidence = VerificationRecord {
+            timestamp: now(),
+            commit: None,
+            contract_digest: "contract".into(),
+            execution_digest: None,
+            workspace_digest: "workspace".into(),
+            acceptance_input_digest: None,
+            acceptance_manifest: None,
+            semantic_succession: None,
+            passed: true,
+            commands: Vec::new(),
+            requirement_ids: Vec::new(),
+        };
+        let plain = TempDir::new().unwrap();
+        assert!(
+            verification_persistence_descendants(plain.path(), &evidence)
+                .unwrap()
+                .is_empty()
+        );
+
+        let unborn = TempDir::new().unwrap();
+        quiet_git(unborn.path(), &["init", "-b", "main"]);
+        let error = verification_persistence_descendants(unborn.path(), &evidence).unwrap_err();
+        assert_eq!(error, "verification commit is missing");
+    }
+
+    #[test]
     fn literal_pathspecs_do_not_expand_metacharacter_or_colon_candidates() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -12585,6 +18349,29 @@ mod tests {
             evidence.entry("governed.txt").unwrap().payload,
             b"payload\n"
         );
+    }
+
+    #[test]
+    fn read_scope_reuses_git_evidence_for_repeated_candidates() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::write(root.join("candidate.txt"), "candidate\n").unwrap();
+        quiet_git(root, &["add", "candidate.txt"]);
+        quiet_git(root, &["commit", "-m", "candidate"]);
+        let candidates = BTreeSet::from(["candidate.txt".to_string()]);
+
+        let _scope = begin_change_read_scope(root);
+        reset_test_git_process_count();
+        let first = git_evidence(root, &candidates).unwrap();
+        let first_queries = test_git_process_count();
+        let second = git_evidence(root, &candidates).unwrap();
+
+        assert_eq!(second, first);
+        assert!(first_queries > 0);
+        assert_eq!(test_git_process_count(), first_queries);
     }
 
     #[test]
@@ -13035,7 +18822,7 @@ mod tests {
 
     #[test]
     fn attribute_output_requires_the_exact_requested_cartesian_set() {
-        let paths = vec!["tracked.txt".to_string()];
+        let paths = ["tracked.txt".to_string()];
         let refs = paths.iter().collect::<Vec<_>>();
         let valid = b"tracked.txt\0filter\0unspecified\0tracked.txt\0working-tree-encoding\0unset\0tracked.txt\0ident\0unspecified\0";
         validate_git_attribute_output(&refs, valid).unwrap();
@@ -13750,9 +19537,12 @@ mod tests {
     fn invalid_supersedes_mutation_is_transactional() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let predecessor = completed_section_only_record(
+        let predecessor = current_workflow_record(
             root,
-            "## MODIFIED\n### SPEC SECTION Invariants\n\nPredecessor.\n",
+            completed_section_only_record(
+                root,
+                "## MODIFIED\n### SPEC SECTION Invariants\n\nPredecessor.\n",
+            ),
         );
         let successor = create_change(
             root,
@@ -14273,6 +20063,26 @@ mod tests {
     }
 
     #[test]
+    fn read_scope_memoizes_repeated_summary_git_lookups() {
+        let (temp, id, _) = verification_history_fixture();
+        let root = temp.path();
+        let record = load_change(root, &id).unwrap();
+        let _scope = begin_change_read_scope(root);
+
+        reset_test_git_process_count();
+        let first = summarize_change(root, &record);
+        let first_queries = test_git_process_count();
+        let second = summarize_change(root, &record);
+
+        assert_eq!(
+            serde_json::to_value(&second).unwrap(),
+            serde_json::to_value(&first).unwrap()
+        );
+        assert!(first_queries > 0);
+        assert_eq!(test_git_process_count(), first_queries);
+    }
+
+    #[test]
     fn strict_check_reports_standalone_unprovable_archived_history() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
@@ -14302,7 +20112,10 @@ mod tests {
         );
         assert_eq!(
             summarize_change(root, &record).next_action,
-            "invalid archived evidence"
+            format!(
+                "restore the archive for {} from trusted Git history, then run `specsync change check`",
+                record.id
+            )
         );
     }
 
@@ -14334,6 +20147,7 @@ mod tests {
             timestamp: now(),
             commit: None,
             contract_digest: definition_digest(root, &record).unwrap(),
+            execution_digest: None,
             workspace_digest: project_input_digest(root).unwrap(),
             acceptance_input_digest: Some(acceptance_input_digest(root, &record, &[]).unwrap()),
             acceptance_manifest: None,
@@ -14739,9 +20553,12 @@ mod tests {
     fn persisted_supersedes_cycle_fails_before_predecessor_manifest_use() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let mut first = completed_section_only_record(
+        let mut first = current_workflow_record(
             root,
-            "## MODIFIED\n### SPEC SECTION Invariants\n\nFirst.\n",
+            completed_section_only_record(
+                root,
+                "## MODIFIED\n### SPEC SECTION Invariants\n\nFirst.\n",
+            ),
         );
         let mut second = create_change(
             root,
@@ -15263,6 +21080,17 @@ mod tests {
 
         let error = validate_change_sequences(root).unwrap_err();
         assert!(error.contains("includes a mutable change"));
+        let summary = summarize_change(root, &first);
+        assert!(
+            summary
+                .next_action
+                .contains("remove the premature acknowledgement")
+                || summary
+                    .next_action
+                    .contains("accept or archive every member"),
+            "frozen ledger must surface freeze remediation as next_action, got: {}",
+            summary.next_action
+        );
     }
 
     // Verifies REQ-change-035.
@@ -15757,8 +21585,9 @@ mod tests {
         git(&["merge", "--squash", "feature"]);
         git(&["commit", "-m", "squash original"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        adopt(root, false, None).unwrap();
 
-        let mut no_spec_successor = completed_no_spec_record(root);
+        let mut no_spec_successor = completed_no_spec_current_record(root);
         no_spec_successor.affected_specs = original.affected_specs.clone();
         no_spec_successor.affected_paths = original.affected_paths.clone();
         save_change(root, &no_spec_successor).unwrap();
@@ -15779,8 +21608,8 @@ mod tests {
             root, &original
         ));
 
-        let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nA later semantic change governs authentication.\n";
-        let mut successor = completed_section_only_record(root, delta);
+        let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nA later semantic change governs authentication.\n\nAcceptance Criteria\n- Authentication remains governed by the successor.\n";
+        let mut successor = completed_section_only_current_record(root, delta);
         successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
         successor = start_implementation(root, &successor.id).unwrap();
         git(&["add", "."]);
@@ -15809,7 +21638,13 @@ mod tests {
                 .unwrap()
         );
         assert!(ensure_closing_approval_valid(root, &original).is_err());
-        assert_eq!(summarize_change(root, &original).next_action, "reopen");
+        assert_eq!(
+            summarize_change(root, &original).next_action,
+            format!(
+                "run `specsync change reopen {} --actor <name> --reason <reason>`",
+                original.id
+            )
+        );
 
         let reopened = reopen_change(
             root,
@@ -15918,6 +21753,7 @@ mod tests {
             timestamp: now(),
             commit: None,
             contract_digest: definition_digest(root, &record).unwrap(),
+            execution_digest: None,
             workspace_digest: project_input_digest(root).unwrap(),
             acceptance_input_digest: Some(acceptance_input_digest(root, &record, &[]).unwrap()),
             acceptance_manifest: None,
@@ -16066,8 +21902,342 @@ mod tests {
         assert!(ensure_definition_approval_valid(temp.path(), &record).is_ok());
     }
 
+    #[test]
+    fn current_workflow_scope_approval_survives_execution_detail_changes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        let record =
+            approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        let approved_digest = definition_digest(root, &record).unwrap();
+        let record = start_implementation(root, &record.id).unwrap();
+        let verification = verify_change(root, &record.id).unwrap();
+        assert_eq!(verification.contract_digest, approved_digest);
+        let approved_execution = verification.execution_digest.clone().unwrap();
+
+        fs::write(
+            change_dir(root, &record.id).join("context.md"),
+            "# Context\n\nImplementation evidence was refined after approval.\n",
+        )
+        .unwrap();
+
+        assert_eq!(definition_digest(root, &record).unwrap(), approved_digest);
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
+        assert_ne!(execution_digest(root, &record).unwrap(), approved_execution);
+        assert!(!verification_is_current(root, &record, &verification));
+        assert_eq!(
+            summarize_change(root, &record).next_action,
+            format!("run `specsync change check {}`", record.id)
+        );
+    }
+
+    #[test]
+    fn current_workflow_scope_changes_require_renewal_with_plain_diff() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        let record =
+            approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        let mut expanded = record.clone();
+        expanded.affected_specs.clear();
+        expanded.affected_paths.clear();
+        expanded.acceptance_criteria.clear();
+        expanded.affected_paths.push("src/new-surface.rs".into());
+        expanded
+            .acceptance_criteria
+            .push("A newly exposed surface is supported".into());
+        save_change(root, &expanded).unwrap();
+        write_change_markdown(root, &expanded).unwrap();
+
+        let error = ensure_definition_approval_valid(root, &expanded).unwrap_err();
+        assert!(
+            error.contains("affected paths added: src/new-surface.rs"),
+            "{error}"
+        );
+        assert!(
+            error.contains("affected paths removed:") && error.contains("src/"),
+            "{error}"
+        );
+        assert!(
+            error.contains("acceptance criteria added: A newly exposed surface is supported"),
+            "{error}"
+        );
+        assert!(
+            error.contains("acceptance criteria removed: Verification is fresh"),
+            "{error}"
+        );
+        assert!(
+            error.contains("affected canonical specs removed: change"),
+            "{error}"
+        );
+        let summary = summarize_change(root, &expanded);
+        assert!(!summary.approval_valid);
+        assert_eq!(summary.scope_expansion.len(), 5);
+        assert!(summary.next_action.contains("change approve"));
+    }
+
+    #[test]
+    fn current_workflow_delta_materialization_preserves_scope_approval() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let mut record = current_workflow_record(root, completed_record(root));
+        for artifact in &record.selected_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                if *artifact == ArtifactKind::Tasks {
+                    "# Tasks\n\n- [x] Complete\n"
+                } else {
+                    "# Complete\n\nReviewed.\n"
+                },
+            )
+            .unwrap();
+        }
+        fs::write(
+            delta_path(root, &record, "auth"),
+            "## ADDED\n### REQUIREMENT REQ-auth-001\nThe system SHALL authenticate users with a passkey.\n\nAcceptance Criteria\n- A passkey authenticates the user.\n",
+        )
+        .unwrap();
+        record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        let scope = definition_digest(root, &record).unwrap();
+        let execution = execution_digest(root, &record).unwrap();
+
+        fs::write(
+            delta_path(root, &record, "auth"),
+            "## ADDED\n### REQUIREMENT REQ-auth-001\nThe system SHALL authenticate users with a passkey.\n\nAcceptance Criteria\n- A registered passkey authenticates the user.\n- A rejected passkey does not create a session.\n",
+        )
+        .unwrap();
+
+        assert_eq!(definition_digest(root, &record).unwrap(), scope);
+        assert_ne!(execution_digest(root, &record).unwrap(), execution);
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
+    }
+
+    #[test]
+    fn unallowlisted_scope_migration_cannot_rewrite_an_approval_projection() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        let scope = approved_scope(root, &record).unwrap();
+        let scope_digest = scope_digest_from_approved(&scope).unwrap();
+        let source_definition_digest = execution_digest(root, &record).unwrap();
+        let mut ledger = load_approvals(root, &record).unwrap();
+        ledger.approvals.push(ApprovalRecord {
+            gate: "definition".into(),
+            actor: "Scope owner".into(),
+            timestamp: now(),
+            digest: source_definition_digest.clone(),
+            note: None,
+            definition_pair: None,
+            approved_scope: Some(scope),
+            scope_migration: Some(ScopeApprovalMigrationV1 {
+                schema_version: 1,
+                source_definition_digest,
+                scope_digest,
+                changes: vec![NonMaterialScopeChangeV1 {
+                    path: format!("{CHANGES_PATH}/{}/testing.md", record.id),
+                    category: NonMaterialScopeChangeCategory::TestEvidence,
+                    summary: "Refined automated evidence after scope approval.".into(),
+                }],
+            }),
+        });
+        write_json(
+            &change_dir(root, &record.id).join("approvals.json"),
+            &ledger,
+        )
+        .unwrap();
+        let error = ensure_definition_approval_valid(root, &record).unwrap_err();
+        assert!(
+            error.contains("incompatible direct and adopted projections"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn scope_adoption_fails_closed_when_anchor_is_unavailable_or_replayed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        assert!(
+            Command::new("git")
+                .args(["init", "-b", "main"])
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let mut record = current_workflow_record(root, completed_no_spec_record(root));
+        record.id = CHG_0068_ID.into();
+        let adopted_scope: ApprovedScopeV1 = serde_json::from_str(include_str!(concat!(
+            "../tests/fixtures/chg-0068-adopted-scope.json"
+        )))
+        .unwrap();
+        assert_eq!(
+            scope_digest_from_approved(&adopted_scope).unwrap(),
+            CHG_0068_ADOPTED_SCOPE_DIGEST
+        );
+        let change_root = format!("{CHANGES_PATH}/{CHG_0068_ID}");
+        let changes = [
+            (
+                "state.json",
+                NonMaterialScopeChangeCategory::LifecycleMetadata,
+                "Recorded workflow-version and implementation-state metadata.",
+            ),
+            (
+                "change.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Regenerated the human-readable change projection from the already-approved intent and scope.",
+            ),
+            (
+                "deltas/change.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved one-workflow, finalization, bounded-validation, and scoped-review contract.",
+            ),
+            (
+                "deltas/cli.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved strict-validator and no-external-merge CLI behavior.",
+            ),
+            (
+                "deltas/cmd_change.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved guided status and finalize command behavior.",
+            ),
+            (
+                "deltas/cmd_check.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved schema and warning-reporting reliability behavior.",
+            ),
+            (
+                "deltas/github.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved same-PR archive and lightweight required-CI behavior.",
+            ),
+            (
+                "deltas/validator.md",
+                NonMaterialScopeChangeCategory::CanonicalMaterialization,
+                "Materialized the approved non-vacuous schema validation behavior.",
+            ),
+            (
+                "testing.md",
+                NonMaterialScopeChangeCategory::TestEvidence,
+                "Expanded targeted regression and final-gate evidence for the approved contract.",
+            ),
+            (
+                "tasks.md",
+                NonMaterialScopeChangeCategory::Implementation,
+                "Recorded implementation progress without changing task scope.",
+            ),
+        ]
+        .into_iter()
+        .map(|(path, category, summary)| NonMaterialScopeChangeV1 {
+            path: format!("{change_root}/{path}"),
+            category,
+            summary: summary.into(),
+        })
+        .collect::<Vec<_>>();
+        let ledger = ApprovalLedger {
+            approvals: vec![ApprovalRecord {
+                gate: "definition".into(),
+                actor: "0xLeif".into(),
+                timestamp: 1_785_369_606,
+                digest: CHG_0068_LEGACY_APPROVAL_DIGEST.into(),
+                note: None,
+                definition_pair: None,
+                approved_scope: None,
+                scope_migration: None,
+            }],
+            scope_adoptions: vec![ScopeAdoptionV1 {
+                schema_version: 1,
+                change_id: CHG_0068_ID.into(),
+                source_approval_index: 0,
+                legacy_approval_digest: CHG_0068_LEGACY_APPROVAL_DIGEST.into(),
+                source_preimage_status: ScopeAdoptionSourcePreimageStatus::Unavailable,
+                equivalence_claim: ScopeAdoptionEquivalenceClaim::None,
+                adopted_scope,
+                adopted_scope_digest: CHG_0068_ADOPTED_SCOPE_DIGEST.into(),
+                anchor: ScopeAdoptionAnchorV1 {
+                    base_commit: CHG_0068_ADOPTION_BASE_COMMIT.into(),
+                    commit: CHG_0068_ADOPTION_ANCHOR_COMMIT.into(),
+                    approval_index: 0,
+                    approvals_blob_sha256: CHG_0068_ADOPTION_ANCHOR_BLOB.into(),
+                },
+                authorization: ScopeAdoptionAuthorizationV1 {
+                    actor: "0xLeif".into(),
+                    recorded_at: 1_785_381_022,
+                    reason: CHG_0068_ADOPTION_REASON.into(),
+                },
+                changes,
+            }],
+            reopenings: Vec::new(),
+        };
+        let error =
+            validate_scope_adoption(root, &record, &ledger, 0, &ledger.approvals[0]).unwrap_err();
+        assert!(error.contains("anchor is unavailable"), "{error}");
+    }
+
+    #[test]
+    fn renewed_direct_scope_approval_supersedes_legacy_adoption() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        let scope = approved_scope(root, &record).unwrap();
+        let mut ledger = load_approvals(root, &record).unwrap();
+        ledger.scope_adoptions.push(ScopeAdoptionV1 {
+            schema_version: 1,
+            change_id: record.id.clone(),
+            source_approval_index: 0,
+            legacy_approval_digest: "a".repeat(64),
+            source_preimage_status: ScopeAdoptionSourcePreimageStatus::Unavailable,
+            equivalence_claim: ScopeAdoptionEquivalenceClaim::None,
+            adopted_scope: scope.clone(),
+            adopted_scope_digest: scope_digest_from_approved(&scope).unwrap(),
+            anchor: ScopeAdoptionAnchorV1 {
+                base_commit: "b".repeat(40),
+                commit: "c".repeat(40),
+                approval_index: 0,
+                approvals_blob_sha256: "d".repeat(64),
+            },
+            authorization: ScopeAdoptionAuthorizationV1 {
+                actor: "Scope owner".into(),
+                recorded_at: now(),
+                reason: "Test one-time adoption".into(),
+            },
+            changes: vec![NonMaterialScopeChangeV1 {
+                path: format!("{CHANGES_PATH}/{}/context.md", record.id),
+                category: NonMaterialScopeChangeCategory::LifecycleMetadata,
+                summary: "Test adoption".into(),
+            }],
+        });
+        write_json(
+            &change_dir(root, &record.id).join("approvals.json"),
+            &ledger,
+        )
+        .unwrap();
+
+        let renewed =
+            approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        let ledger = load_approvals(root, &renewed).unwrap();
+        assert!(ledger.scope_adoptions.is_empty());
+        assert!(
+            ledger
+                .approvals
+                .last()
+                .and_then(|approval| approval.approved_scope.as_ref())
+                .is_some()
+        );
+        assert!(ensure_definition_approval_valid(root, &renewed).is_ok());
+    }
+
     fn portable_definition_record(root: &Path) -> ChangeRecord {
         let mut record = completed_no_spec_record(root);
+        persist_legacy_test_record(root, &mut record);
         record.legacy_archive_baseline_digest = Some("a".repeat(64));
         save_change(root, &record).unwrap();
         record
@@ -16151,6 +22321,8 @@ mod tests {
                 digest: "c".repeat(64),
                 note: None,
                 definition_pair: None,
+                approved_scope: None,
+                scope_migration: None,
             },
         );
         assert_invalid(intervening);
@@ -16192,6 +22364,8 @@ mod tests {
             digest: "f".repeat(64),
             note: None,
             definition_pair: None,
+            approved_scope: None,
+            scope_migration: None,
         });
         assert!(
             resolve_definition_approval_event(
@@ -16216,6 +22390,8 @@ mod tests {
             digest: current.clone(),
             note: None,
             definition_pair: None,
+            approved_scope: None,
+            scope_migration: None,
         });
         assert!(
             resolve_definition_approval_event(
@@ -16234,6 +22410,49 @@ mod tests {
         )
         .unwrap();
         assert!(ensure_definition_approval_valid(root, &record).is_err());
+    }
+
+    #[test]
+    fn portable_definition_pair_accepts_historical_exact_task_bytes() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = portable_definition_record(root);
+        append_portable_definition_approval_v501(root, &record, Some("Scope owner".into()), None)
+            .unwrap();
+
+        let (current, legacy, prefix) =
+            portable_definition_digest_pair_v501_with_task_mode(root, &record, false).unwrap();
+        let mut ledger = load_approvals(root, &record).unwrap();
+        let event_index = 0;
+        let actor = ledger.approvals[0].actor.clone();
+        let timestamp = ledger.approvals[0].timestamp;
+        let pair_id = definition_approval_pair_id(
+            &record,
+            event_index,
+            &actor,
+            timestamp,
+            &prefix,
+            &current,
+            &legacy,
+        );
+        for (index, approval) in ledger.approvals.iter_mut().enumerate() {
+            approval.digest = if index == 0 {
+                current.clone()
+            } else {
+                legacy.clone()
+            };
+            let metadata = approval.definition_pair.as_mut().unwrap();
+            metadata.pair_id = pair_id.clone();
+            metadata.current_digest = current.clone();
+            metadata.legacy_digest = legacy.clone();
+        }
+        write_json(
+            &change_dir(root, &record.id).join("approvals.json"),
+            &ledger,
+        )
+        .unwrap();
+
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
     }
 
     #[test]
@@ -16849,11 +23068,15 @@ mod tests {
         git(&["add", "src/lib.rs"]);
         git(&["commit", "-m", "feature"]);
         let mut record = completed_record(root);
-        record.affected_paths = vec!["src/".into(), SEQUENCE_PATH.into()];
+        record.affected_paths = vec!["src/".into(), SEQUENCE_PATH.into(), POLICY_PATH.into()];
         record.state = ChangeState::Approved;
         assert_eq!(
             uncovered_meaningful_paths(root, &SddPolicy::default(), &[record.clone()]).unwrap(),
-            vec![SEQUENCE_PATH.to_string(), "src/lib.rs".into()]
+            vec![
+                SEQUENCE_PATH.to_string(),
+                POLICY_PATH.to_string(),
+                "src/lib.rs".into(),
+            ]
         );
         record.state = ChangeState::Implementing;
         assert!(
@@ -16915,6 +23138,7 @@ mod tests {
             timestamp: now(),
             commit: None,
             contract_digest: definition_digest(root, &record).unwrap(),
+            execution_digest: None,
             workspace_digest: "workspace".into(),
             acceptance_input_digest: None,
             acceptance_manifest: None,
@@ -16982,7 +23206,10 @@ mod tests {
         )
         .unwrap();
         let error = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap_err();
-        assert!(error.contains("working-tree inputs changed"));
+        assert!(
+            error.contains("verification project-input digest is stale"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -17008,7 +23235,13 @@ mod tests {
         assert!(stale_report.errors.iter().any(|error| {
             error.contains("accepted change verification is stale for current delivery inputs")
         }));
-        assert_eq!(summarize_change(root, &record).next_action, "reopen");
+        assert_eq!(
+            summarize_change(root, &record).next_action,
+            format!(
+                "run `specsync change reopen {} --actor <name> --reason <reason>`",
+                record.id
+            )
+        );
 
         let reopened = reopen_change(
             root,
@@ -17184,7 +23417,7 @@ mod tests {
     fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        write_default_policy(root, Vec::new()).unwrap();
+        write_default_policy(root, vec!["true".into()]).unwrap();
         fs::write(root.join("README.md"), "Initial review instructions.\n").unwrap();
         let mut record = create_change(
             root,
@@ -17204,7 +23437,7 @@ mod tests {
         record
             .answers
             .insert("architecture_risk".into(), "no".into());
-        save_change(root, &record).unwrap();
+        persist_legacy_test_record(root, &mut record);
         write_change_markdown(root, &record).unwrap();
         for artifact in &record.selected_artifacts {
             let content = if *artifact == ArtifactKind::Tasks {
@@ -17357,7 +23590,7 @@ mod tests {
     fn batch_owner_corrections_append_transactionally_or_not_at_all() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        write_default_policy(root, Vec::new()).unwrap();
+        write_default_policy(root, vec!["true".into()]).unwrap();
         fs::create_dir_all(root.join("src")).unwrap();
         fs::create_dir_all(root.join("specs/legacy")).unwrap();
         fs::create_dir_all(root.join("specs/current")).unwrap();
@@ -17389,7 +23622,7 @@ mod tests {
         record
             .answers
             .insert("architecture_risk".into(), "no".into());
-        save_change(root, &record).unwrap();
+        persist_legacy_test_record(root, &mut record);
         write_change_markdown(root, &record).unwrap();
         for artifact in &record.selected_artifacts {
             let content = if *artifact == ArtifactKind::Tasks {
@@ -17479,6 +23712,64 @@ mod tests {
             missing_acceptance_owner_paths(root, &record.id, "current")
                 .unwrap()
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn owner_batch_validation_queries_canonical_module_once() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        let paths = (0..20)
+            .map(|index| format!("src/owner_{index}.rs"))
+            .collect::<Vec<_>>();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/current")).unwrap();
+        for path in &paths {
+            fs::write(root.join(path), "pub fn owned() {}\n").unwrap();
+        }
+        let files = paths
+            .iter()
+            .map(|path| format!("  - {path}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(
+            root.join("specs/current/current.spec.md"),
+            format!(
+                "---\nmodule: current\nversion: 1\nstatus: stable\nfiles:\n{files}\n---\n\n# Current\n\n## Purpose\n\nOwner fixture.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"
+            ),
+        )
+        .unwrap();
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs = vec!["legacy".into()];
+        record.affected_paths = paths.clone();
+        record.acceptance_owner_corrections = paths
+            .iter()
+            .enumerate()
+            .map(|(index, path)| AcceptanceOwnerCorrection {
+                schema_version: 1,
+                sequence: index as u64 + 1,
+                path: path.clone(),
+                module: "current".into(),
+                actor: "Reviewer".into(),
+                reason: "Repair historical ownership".into(),
+                timestamp: 1,
+            })
+            .collect();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "owner fixture"]);
+
+        reset_test_canonical_module_query_count();
+        reset_test_git_process_count();
+        validate_acceptance_owner_corrections_current(root, &record).unwrap();
+        let git_queries = test_git_process_count();
+
+        assert_eq!(test_canonical_module_query_count(), 1);
+        assert!(
+            git_queries <= 40,
+            "one module should require one bounded evidence capture, observed {git_queries} Git queries"
         );
     }
 
@@ -17636,7 +23927,7 @@ mod tests {
             error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
         }));
 
-        policy.verification_commands.clear();
+        policy.verification_commands = vec!["true".into()];
         write_json(&root.join(POLICY_PATH), &policy).unwrap();
         verify_change(root, &successor.id).unwrap();
         assert!(check_project(root).errors.iter().any(|error| {
@@ -17778,7 +24069,9 @@ mod tests {
                 .map(String::as_str),
             Some("yes")
         );
-        assert_eq!(result.summary.next_action, "complete artifacts");
+        for artifact in ["research.md", "design.md", "plan.md"] {
+            assert!(result.summary.next_action.contains(artifact));
+        }
         assert!(!result.summary.approval_valid);
         assert_eq!(
             serde_json::to_value(load_approvals(root, &result.change).unwrap()).unwrap(),
@@ -17882,7 +24175,10 @@ mod tests {
         )
         .unwrap();
         assert!(first.correction.added_artifacts.is_empty());
-        assert_eq!(first.summary.next_action, "approve");
+        assert_eq!(
+            first.summary.next_action,
+            format!("run `specsync change approve {} --actor <name>`", record.id)
+        );
         assert!(ensure_definition_approval_valid(root, &first.change).is_err());
         record =
             approve_definition(root, &record.id, Some("Definition reviewer".into()), None).unwrap();
@@ -18057,7 +24353,7 @@ mod tests {
         let error = effective_change_definition(root, &divergent.change).unwrap_err();
         assert!(
             error.contains("correction history divergence detected"),
-            "{error}"
+            "expected correction history divergence"
         );
     }
 
@@ -18441,7 +24737,10 @@ mod tests {
         let head = git_output(root, &["rev-parse", "HEAD"]).unwrap();
         fs::write(root.join(".git/shallow"), format!("{head}\n")).unwrap();
         let error = effective_change_definition(root, &correction.change).unwrap_err();
-        assert!(error.contains("shallow Git checkout"), "{error}");
+        assert!(
+            error.contains("shallow Git checkout"),
+            "expected shallow Git checkout rejection"
+        );
     }
 
     // Verifies REQ-change-032.
@@ -18629,7 +24928,7 @@ mod tests {
         let error = effective_change_definition(root, &record).unwrap_err();
         assert!(
             error.contains("does not match state.json correction_count"),
-            "{error}"
+            "expected correction_count mismatch"
         );
         fs::write(&ledger_path, &valid_ledger).unwrap();
 
@@ -18637,14 +24936,20 @@ mod tests {
         tampered["corrections"][0]["sequence"] = serde_json::json!(2);
         write_json(&ledger_path, &tampered).unwrap();
         let error = effective_change_definition(root, &record).unwrap_err();
-        assert!(error.contains("sequence is not contiguous"), "{error}");
+        assert!(
+            error.contains("sequence is not contiguous"),
+            "expected non-contiguous correction sequence"
+        );
         fs::write(&ledger_path, &valid_ledger).unwrap();
 
         let mut unsupported: serde_json::Value = serde_json::from_str(&valid_ledger).unwrap();
         unsupported["corrections"][0]["field"] = serde_json::json!("acceptance_criteria");
         write_json(&ledger_path, &unsupported).unwrap();
         let error = effective_change_definition(root, &record).unwrap_err();
-        assert!(error.contains("invalid correction ledger"), "{error}");
+        assert!(
+            error.contains("invalid correction ledger"),
+            "expected invalid correction ledger"
+        );
         fs::write(&ledger_path, &valid_ledger).unwrap();
 
         let mut tampered_definition: serde_json::Value =
@@ -18653,7 +24958,10 @@ mod tests {
             serde_json::json!("forged-definition-digest");
         write_json(&ledger_path, &tampered_definition).unwrap();
         let error = effective_change_definition(root, &record).unwrap_err();
-        assert!(error.contains("invalid prior gate evidence"), "{error}");
+        assert!(
+            error.contains("invalid prior gate evidence"),
+            "expected invalid prior gate evidence"
+        );
         fs::write(&ledger_path, &valid_ledger).unwrap();
 
         let second = TempDir::new().unwrap();
@@ -18678,7 +24986,7 @@ mod tests {
     fn acceptance_rechecks_late_dependency_state() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let mut record = completed_no_spec_record(root);
+        let mut record = current_workflow_record(root, completed_no_spec_record(root));
         record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
         record = start_implementation(root, &record.id).unwrap();
         verify_change(root, &record.id).unwrap();
@@ -18709,6 +25017,7 @@ mod tests {
         .unwrap();
         let mut evidence = load_verification(root, &record).unwrap();
         evidence.contract_digest = definition_digest(root, &record).unwrap();
+        evidence.execution_digest = Some(execution_digest(root, &record).unwrap());
         evidence.workspace_digest = project_input_digest(root).unwrap();
         write_json(
             &change_dir(root, &record.id).join("verification.json"),
@@ -18859,6 +25168,114 @@ mod tests {
             definition_digest(first.path(), &record).unwrap(),
             definition_digest(second.path(), &record).unwrap()
         );
+    }
+
+    #[test]
+    fn task_completion_progress_does_not_invalidate_scope_approval() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        let tasks = change_dir(root, &record.id).join("tasks.md");
+        let approved_digest = definition_digest(root, &record).unwrap();
+
+        fs::write(&tasks, "# Tasks\n\n- [ ] Complete\n").unwrap();
+        assert_eq!(definition_digest(root, &record).unwrap(), approved_digest);
+
+        fs::write(
+            &tasks,
+            "# Tasks\n\n- [x] Complete\n- [x] Newly added scope\n",
+        )
+        .unwrap();
+        assert_ne!(definition_digest(root, &record).unwrap(), approved_digest);
+    }
+
+    #[test]
+    fn task_progress_digest_accepts_both_historical_checkbox_encodings() {
+        let before_completion = TempDir::new().unwrap();
+        let root = before_completion.path();
+        let record = completed_no_spec_record(root);
+        let tasks = change_dir(root, &record.id).join("tasks.md");
+        fs::write(&tasks, "# Tasks\n\n- [ ] Complete\n").unwrap();
+        let unchecked_digest =
+            legacy_task_definition_digest_for_correction_count(root, &record, 0, false).unwrap();
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Scope owner".into()),
+            unchecked_digest,
+            None,
+        )
+        .unwrap();
+        fs::write(&tasks, "# Tasks\n\n- [x] Complete\n").unwrap();
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
+
+        let after_completion = TempDir::new().unwrap();
+        let root = after_completion.path();
+        let record = completed_no_spec_record(root);
+        let checked_digest =
+            legacy_task_definition_digest_for_correction_count(root, &record, 0, false).unwrap();
+        assert_ne!(checked_digest, definition_digest(root, &record).unwrap());
+        append_approval(
+            root,
+            &record,
+            "definition",
+            Some("Scope owner".into()),
+            checked_digest,
+            None,
+        )
+        .unwrap();
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
+    }
+
+    #[test]
+    fn task_progress_and_completion_share_a_markdown_aware_parser() {
+        let payload =
+            b"# Tasks\n\n+ [ ] Plus task\n* [x] Star task\n\n```md\n- [ ] Example only\n```\n";
+        let offsets = markdown_task_checkbox_offsets(payload);
+        assert_eq!(offsets.len(), 2);
+        assert_eq!(payload[offsets[0]], b' ');
+        assert_eq!(payload[offsets[1]], b'x');
+
+        let canonical = canonical_definition_artifact_payload(
+            ".specsync/changes/CHG-0001-example/tasks.md",
+            payload,
+        );
+        assert_eq!(canonical[offsets[0]], b' ');
+        assert_eq!(canonical[offsets[1]], b' ');
+        assert!(
+            String::from_utf8(canonical)
+                .unwrap()
+                .contains("- [ ] Example only")
+        );
+    }
+
+    #[test]
+    fn verification_routing_fails_closed_without_any_validator() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        let policy = SddPolicy {
+            verification_commands: Vec::new(),
+            ..SddPolicy::default()
+        };
+        fs::remove_file(root.join(POLICY_PATH)).unwrap();
+
+        let error = verification_commands_for_change(root, &policy, &record, false).unwrap_err();
+        assert!(error.contains("no verification commands"));
+    }
+
+    #[test]
+    fn broad_scope_overlap_triggers_strict_validation() {
+        let temp = TempDir::new().unwrap();
+        let mut record = completed_no_spec_record(temp.path());
+        record.affected_specs.clear();
+        record.affected_paths = vec!["src/".into()];
+
+        assert!(change_requires_strict_validation(
+            &record,
+            &VerificationRouting::default()
+        ));
     }
 
     #[test]
@@ -19312,7 +25729,7 @@ mod tests {
             ChangeState::Verifying
         );
 
-        policy.verification_commands.clear();
+        policy.verification_commands = vec!["true".into()];
         write_json(&root.join(POLICY_PATH), &policy).unwrap();
         let successful = verify_change(root, &record.id).unwrap();
         assert!(successful.passed);
@@ -19331,7 +25748,7 @@ mod tests {
     fn overlapping_active_deltas_are_blocked() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let mut first = completed_record(root);
+        let mut first = current_workflow_record(root, completed_record(root));
         let mut second = create_change(
             root,
             CreateChangeRequest {
@@ -19616,6 +26033,64 @@ mod tests {
     }
 
     #[test]
+    fn torn_transaction_staging_file_is_never_treated_as_the_journal() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let canonical = root.join(".specsync/state.json");
+        fs::write(&canonical, "original\n").unwrap();
+        fs::write(
+            root.join(".specsync/.specsync-transaction-torn"),
+            b"{\"incomplete\":",
+        )
+        .unwrap();
+
+        let lock = acquire_project_lock(root).unwrap();
+        drop(lock);
+
+        assert_eq!(fs::read_to_string(canonical).unwrap(), "original\n");
+        assert!(!root.join(TRANSACTION_PATH).exists());
+    }
+
+    #[test]
+    fn torn_canonical_transaction_journal_fails_closed() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let canonical = root.join(".specsync/state.json");
+        fs::write(&canonical, "partial payload\n").unwrap();
+        let journal = TransactionJournal {
+            schema_version: 1,
+            entry_count: 2,
+            entries_digest: "0".repeat(64),
+            entries: vec![TransactionEntry {
+                path: ".specsync/state.json".into(),
+                original: Some("original\n".into()),
+            }],
+        };
+        write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
+
+        let error = acquire_project_lock(root).err().unwrap();
+        assert!(error.contains("transaction journal integrity"));
+        assert_eq!(fs::read_to_string(&canonical).unwrap(), "partial payload\n");
+        assert!(root.join(TRANSACTION_PATH).exists());
+    }
+
+    #[test]
+    fn unreadable_transaction_backup_aborts_before_journal_publication() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let target = root.join("state.json");
+        fs::write(&target, [0xff, 0xfe]).unwrap();
+
+        let error =
+            write_prepared_files(root, &[(target.clone(), "replacement\n".into())]).unwrap_err();
+        assert!(error.contains("failed to preserve transaction target"));
+        assert_eq!(fs::read(&target).unwrap(), vec![0xff, 0xfe]);
+        assert!(!root.join(TRANSACTION_PATH).exists());
+    }
+
+    #[test]
     fn change_dependencies_reject_cycles() {
         let temp = TempDir::new().unwrap();
         let request = |description: &str| CreateChangeRequest {
@@ -19817,12 +26292,72 @@ mod tests {
         assert_ne!(first, second);
     }
 
+    #[test]
+    fn later_sequence_claim_reuses_the_committed_collision_owner_ledger() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+
+        let mut first = completed_no_spec_record(root);
+        first.state = ChangeState::Accepted;
+        save_change(root, &first).unwrap();
+        let mut collision_owner = first.clone();
+        collision_owner.id = "CHG-0001-collision-owner".into();
+        collision_owner.slug = "collision-owner".into();
+        collision_owner.title = "Collision owner".into();
+        save_change(root, &collision_owner).unwrap();
+        let mut collision_ids = vec![first.id.clone(), collision_owner.id.clone()];
+        collision_ids.sort();
+        let historical = ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: 1,
+            id: collision_owner.id.clone(),
+            acknowledged_collisions: vec![ChangeSequenceCollision {
+                sequence: 1,
+                ids: collision_ids.clone(),
+            }],
+        };
+        write_json(&root.join(SEQUENCE_PATH), &historical).unwrap();
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "record collision owner ledger"]);
+        let historical_bytes = fs::read(root.join(SEQUENCE_PATH)).unwrap();
+
+        let mut later = first.clone();
+        later.id = "CHG-0002-later-owner".into();
+        later.slug = "later-owner".into();
+        later.title = "Later owner".into();
+        later.state = ChangeState::Draft;
+        save_change(root, &later).unwrap();
+        write_json(
+            &root.join(SEQUENCE_PATH),
+            &ChangeSequenceLedger {
+                schema_version: 1,
+                sequence: 2,
+                id: later.id,
+                acknowledged_collisions: vec![ChangeSequenceCollision {
+                    sequence: 1,
+                    ids: collision_ids,
+                }],
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            historical_sequence_ledger_acceptance_content(root, &first)
+                .unwrap()
+                .unwrap(),
+            historical_bytes
+        );
+    }
+
     // Verifies REQ-change-029.
     #[test]
     fn valid_later_sequence_claim_preserves_historical_acceptance_input() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let mut record = completed_no_spec_record(root);
+        let mut record = current_workflow_record(root, completed_no_spec_record(root));
         record.state = ChangeState::Implementing;
         record.affected_paths = vec![".specsync".into()];
         save_change(root, &record).unwrap();
@@ -19856,7 +26391,7 @@ mod tests {
     fn later_collision_acknowledgements_do_not_stale_earlier_sequence_evidence() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let mut predecessor = completed_no_spec_record(root);
+        let mut predecessor = completed_no_spec_current_record(root);
         predecessor.state = ChangeState::Implementing;
         predecessor.affected_paths = vec![SEQUENCE_PATH.into()];
         save_change(root, &predecessor).unwrap();
@@ -19925,6 +26460,9 @@ mod tests {
         git(&["config", "user.email", "test@example.com"]);
         git(&["config", "user.name", "Test"]);
         write_default_policy(root, Vec::new()).unwrap();
+        let mut legacy_policy = load_policy(root).unwrap();
+        legacy_policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &legacy_policy).unwrap();
 
         let mut predecessor = completed_no_spec_record(root);
         git(&["add", "."]);
@@ -20040,12 +26578,17 @@ mod tests {
         record.state = ChangeState::Implementing;
         record.affected_paths = vec![".specsync".into()];
         save_change(root, &record).unwrap();
+        // Disk may not run ahead of the ledger high-water mark.
+        let mut later = record.clone();
+        later.id = "CHG-0002-later-owner".into();
+        later.slug = "later-owner".into();
+        save_change(root, &later).unwrap();
         write_json(
             &root.join(SEQUENCE_PATH),
             &ChangeSequenceLedger {
                 schema_version: 1,
-                sequence: 2,
-                id: "CHG-0002-missing-owner".into(),
+                sequence: 1,
+                id: record.id.clone(),
                 acknowledged_collisions: Vec::new(),
             },
         )
@@ -20053,6 +26596,25 @@ mod tests {
 
         let error = acceptance_input_digest(root, &record, &[]).unwrap_err();
         assert!(error.contains("highest recorded sequence"));
+    }
+
+    #[test]
+    fn abandoned_draft_may_leave_sequence_high_water_without_workspace() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = completed_no_spec_record(root);
+        save_change(root, &record).unwrap();
+        write_json(
+            &root.join(SEQUENCE_PATH),
+            &ChangeSequenceLedger {
+                schema_version: 1,
+                sequence: 2,
+                id: "CHG-0002-abandoned-draft".into(),
+                acknowledged_collisions: Vec::new(),
+            },
+        )
+        .unwrap();
+        assert!(validate_change_sequences(root).is_ok());
     }
 
     #[test]
@@ -20194,12 +26756,52 @@ mod tests {
     }
 
     #[test]
+    fn dependency_order_is_deterministic_for_twenty_change_chain() {
+        let temp = TempDir::new().unwrap();
+        let seed = completed_record(temp.path());
+        let records = (0..20)
+            .map(|index| {
+                let mut record = seed.clone();
+                record.id = format!("CHG-{:04}-chain", index + 1);
+                record.dependencies = (index > 0)
+                    .then(|| format!("CHG-{index:04}-chain"))
+                    .into_iter()
+                    .collect();
+                record
+            })
+            .collect::<Vec<_>>();
+        let expected = records
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect::<Vec<_>>();
+        let ascending = (0..records.len()).collect::<Vec<_>>();
+        let descending = (0..records.len()).rev().collect::<Vec<_>>();
+        let interleaved = (0..records.len())
+            .step_by(2)
+            .chain((1..records.len()).step_by(2).rev())
+            .collect::<Vec<_>>();
+
+        for indices in [ascending, descending, interleaved] {
+            let input = indices
+                .iter()
+                .map(|index| &records[*index])
+                .collect::<Vec<_>>();
+            let ordered = dependency_ordered_changes(input)
+                .unwrap()
+                .into_iter()
+                .map(|record| record.id.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(ordered, expected);
+        }
+    }
+
+    #[test]
     fn transitive_dependencies_order_overlapping_deltas() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();
-        let mut prerequisite = completed_record(root);
-        let mut middle = completed_record(root);
-        let mut dependent = completed_record(root);
+        let mut prerequisite = completed_current_record(root);
+        let mut middle = completed_current_record(root);
+        let mut dependent = completed_current_record(root);
         prerequisite.state = ChangeState::Implementing;
         middle.state = ChangeState::Implementing;
         dependent.state = ChangeState::Implementing;
@@ -20540,7 +27142,7 @@ mod tests {
         let mut record = completed_record(root);
         record.base_commit = Some(original_base);
         record.state = ChangeState::Implementing;
-        record.affected_paths = vec!["src/".into(), SEQUENCE_PATH.into()];
+        record.affected_paths = vec!["src/".into(), SEQUENCE_PATH.into(), POLICY_PATH.into()];
         let policy = SddPolicy::default();
         assert!(
             uncovered_meaningful_paths(root, &policy, &[record])
@@ -20822,6 +27424,8 @@ mod tests {
             "state.json",
             "verification.json",
             "verification-attempts.json",
+            SCOPED_REVIEW_FILE,
+            SCOPED_REVIEW_ATTEMPTS_FILE,
         ] {
             assert_eq!(
                 supported_verification_persistence_id(&format!(".specsync/changes/{id}/{name}"))
@@ -20868,10 +27472,126 @@ mod tests {
         }
         let record = load_change(root, &id).unwrap();
         assert!(verification_is_current(root, &record, &evidence));
-        assert_eq!(summarize_change(root, &record).next_action, "accept");
+        assert_eq!(
+            summarize_change(root, &record).next_action,
+            format!(
+                "run `specsync change review {id} --reviewer <independent-reviewer>` after the PR's scoped review passes"
+            )
+        );
         assert!(!check_project(root).errors.iter().any(|error| {
             error.contains(&id) && error.contains("verification evidence is stale")
         }));
+    }
+
+    // Verifies REQ-change-013, REQ-change-016, and REQ-change-046.
+    #[test]
+    fn scoped_review_persistence_commit_keeps_verification_current() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let verification_paths = verification_persistence_paths(&id);
+        let verification_path_refs: Vec<&str> =
+            verification_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &verification_path_refs, "persist verification");
+        let review = record_scoped_review(root, &id, "Independent Reviewer".into()).unwrap();
+        let review_paths = [
+            format!(".specsync/changes/{id}/{SCOPED_REVIEW_FILE}"),
+            format!(".specsync/changes/{id}/{SCOPED_REVIEW_ATTEMPTS_FILE}"),
+        ];
+        let review_path_refs: Vec<&str> = review_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &review_path_refs, "persist scoped review");
+        let record = load_change(root, &id).unwrap();
+        assert!(verification_is_current(root, &record, &evidence));
+        assert!(scoped_review_is_current(root, &record, &review));
+        assert_eq!(
+            summarize_change(root, &record).next_action,
+            format!("run `specsync change finalize {id}`")
+        );
+        assert!(!check_project(root).errors.iter().any(|error| {
+            error.contains(&id) && error.contains("verification evidence is stale")
+        }));
+    }
+
+    // Verifies REQ-change-013, REQ-change-016, and REQ-change-046.
+    #[test]
+    fn scoped_review_persistence_mixed_with_source_change_is_stale() {
+        let (temp, id, evidence) = verification_history_fixture();
+        let root = temp.path();
+        let verification_paths = verification_persistence_paths(&id);
+        let verification_path_refs: Vec<&str> =
+            verification_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &verification_path_refs, "persist verification");
+        record_scoped_review(root, &id, "Independent Reviewer".into()).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let review_paths = [
+            format!(".specsync/changes/{id}/{SCOPED_REVIEW_FILE}"),
+            format!(".specsync/changes/{id}/{SCOPED_REVIEW_ATTEMPTS_FILE}"),
+        ];
+        let mut committed: Vec<&str> = review_paths.iter().map(String::as_str).collect();
+        committed.push("src/lib.rs");
+        commit_paths(root, &committed, "mix scoped review and source");
+        let record = load_change(root, &id).unwrap();
+        assert!(!verification_is_current(root, &record, &evidence));
+    }
+
+    // Verifies REQ-change-013, REQ-change-016, and REQ-change-046.
+    #[test]
+    fn scoped_review_recording_rejects_verification_change_then_revert_history() {
+        let (temp, id, _) = verification_history_fixture();
+        let root = temp.path();
+        let verification_paths = verification_persistence_paths(&id);
+        let verification_path_refs: Vec<&str> =
+            verification_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &verification_path_refs, "persist verification");
+        let source = root.join("src/lib.rs");
+        let original = fs::read(&source).unwrap();
+        fs::write(&source, "pub fn ready() -> bool { false }\n").unwrap();
+        commit_paths(root, &["src/lib.rs"], "change verified implementation");
+        fs::write(&source, original).unwrap();
+        commit_paths(root, &["src/lib.rs"], "revert verified implementation");
+
+        let error = record_scoped_review(root, &id, "Independent Reviewer".into()).unwrap_err();
+        assert!(
+            error.contains("verification descendant changed disallowed path `src/lib.rs`"),
+            "{error}"
+        );
+    }
+
+    // Verifies REQ-change-046.
+    #[test]
+    fn persisted_scoped_review_rejects_scope_approver_as_reviewer() {
+        let (temp, id, _) = verification_history_fixture();
+        let root = temp.path();
+        let verification_paths = verification_persistence_paths(&id);
+        let verification_path_refs: Vec<&str> =
+            verification_paths.iter().map(String::as_str).collect();
+        commit_paths(root, &verification_path_refs, "persist verification");
+        let mut review = record_scoped_review(root, &id, "Independent Reviewer".into()).unwrap();
+        review.reviewer = "reviewer".into();
+        let attempts = ScopedReviewAttemptLedger {
+            schema_version: 1,
+            reviews: vec![review.clone()],
+        };
+        let record = load_change(root, &id).unwrap();
+        fs::write(
+            scoped_review_path(root, &record),
+            json_content(&review).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            scoped_review_attempts_path(root, &record),
+            json_content(&attempts).unwrap(),
+        )
+        .unwrap();
+
+        let error = load_scoped_review(root, &record).unwrap_err();
+        assert!(error.contains("also the scope approver"), "{error}");
+        let error =
+            accept_change_with_gate(root, &id, None, None, "finalization", true, true).unwrap_err();
+        assert!(error.contains("also the scope approver"), "{error}");
     }
 
     // Verifies REQ-change-013 and REQ-change-016.
@@ -21282,6 +28002,9 @@ mod tests {
         git(&["commit", "-m", "base"]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
         write_default_policy(root, Vec::new()).unwrap();
+        let mut legacy_policy = load_policy(root).unwrap();
+        legacy_policy.version = 1;
+        write_json(&root.join(POLICY_PATH), &legacy_policy).unwrap();
 
         let mut records = vec![
             completed_no_spec_record(root),
@@ -21303,6 +28026,7 @@ mod tests {
                 timestamp: now(),
                 commit: git_output(root, &["rev-parse", "HEAD"]),
                 contract_digest: definition_digest(root, record).unwrap(),
+                execution_digest: None,
                 workspace_digest: project_input_digest(root).unwrap(),
                 acceptance_input_digest: None,
                 acceptance_manifest: None,

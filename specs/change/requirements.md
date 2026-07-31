@@ -6,12 +6,27 @@ spec: change.spec.md
 
 ### REQ-change-001
 
-The system SHALL require definition and closing human approval gates for every meaningful change.
+The system SHALL require exactly one human scope approval for each new meaningful change and SHALL
+record finalization as automated terminal evidence rather than a second approval.
 
 #### Acceptance Criteria
 
-- Neither gate exposes a force or emergency bypass.
-- Artifact changes invalidate the definition approval digest.
+- The scope approval exposes no force or emergency bypass.
+- Scope approval binds only stable intent, acceptance criteria, public-contract/risk declarations,
+  and affected spec/path/dependency/supersession scope.
+- Implementation notes, task progress, test/evidence plans, semantic-delta materialization,
+  canonical materialization, and lifecycle metadata preserve scope approval but invalidate
+  automated execution evidence and scoped review when their bound digest changes.
+- An added, removed, or replaced affected spec/path, acceptance criterion, dependency,
+  supersession obligation, or changed intent/classification requires renewed scope approval and
+  status explains the exact change in plain language.
+- Independent scoped review and current verification remain mandatory before same-PR finalization.
+- The historical CHG-0068 definition preimage remains explicitly unavailable and no equivalence
+  proof is claimed; one compile-time allowlist freezes its exact source approval, adoption
+  commit/blob, stable-scope digest, authorization, and non-material classifications without
+  appending a second approval.
+- Historical closing approvals remain readable and verifiable without being required for new
+  workflow-version-2 changes.
 
 ### REQ-change-002
 
@@ -19,7 +34,8 @@ The system SHALL validate implementation against canonical contracts plus approv
 
 #### Acceptance Criteria
 
-- Canonical files remain unchanged before acceptance.
+- Only `change check` materializes approved semantic deltas into canonical files, before scoped
+  review and finalization.
 - Overlapping active deltas are detected before implementation.
 
 ### REQ-change-003
@@ -125,7 +141,10 @@ Acceptance Criteria
 - Persisted affected spec names are validated before delta paths are constructed.
 - Unreadable or malformed historical tombstone deltas and approval ledgers fail closed.
 - Verifying workspaces require passed evidence, a matching effective contract digest, and a matching project-input digest in local and hosted checks.
-- A descendant verification commit remains current only when every intervening commit and every parent edge changes exactly `state.json`, `verification.json`, or `verification-attempts.json` under a canonical active-change ID and the persisted state/evidence remains consistent.
+- A descendant verification commit remains current only when every intervening commit and every
+  parent edge changes exactly `state.json`, `verification.json`, `verification-attempts.json`,
+  `review.json`, or `review-attempts.json` under a canonical active-change ID and the persisted
+  state, verification, latest-attempt, and scoped-review evidence remains consistent.
 - Source-change-then-revert history, ambiguous merges, nonancestor history, malformed paths, and any broader volatile or lifecycle path fail closed.
 
 ### REQ-change-014
@@ -171,7 +190,10 @@ Acceptance Criteria
 
 - Normal verification-commit ancestry remains mandatory proof and uses identical local and CI semantics.
 - Every intervening commit is inspected against every parent with NUL-delimited portable paths; a net tree diff cannot hide a governed change and later revert.
-- Only supported verification persistence beneath canonical active-change IDs may follow verification without invalidating it; archive, approvals, tasks, definitions, sequence, hashes, locks, configuration, policy, specs, source, tests, build, and cache paths are rejected.
+- Only `state.json`, `verification.json`, `verification-attempts.json`, `review.json`, and
+  `review-attempts.json` beneath canonical active-change IDs may follow verification without
+  invalidating it; archive, approvals, tasks, definitions, sequence, hashes, locks, configuration,
+  policy, specs, source, tests, build, and cache paths are rejected.
 - Matching effective contract and project-input digests plus consistent state, verification, and latest-attempt evidence remain mandatory.
 - A squash fallback for accepted closing evidence still requires matching scoped inputs and an unchanged accepted workspace integrated on the remote default branch.
 - Unintegrated heads, changed scoped inputs, stale contracts, mismatched closing approvals, nonancestor evidence, and ambiguous merges fail closed.
@@ -323,6 +345,7 @@ Acceptance Criteria
 
 - Creating a later valid lifecycle record does not stale an earlier accepted record solely because the sequence ledger advanced.
 - Historical reconstruction uses the earlier owner and includes only collision acknowledgements whose sequence is not later than that owner.
+- When acknowledged legacy collision members signed one canonical committed ledger for their shared sequence, reconstruction reuses those exact historical bytes instead of substituting each member's ID.
 - The current sequence owner remains bound to the exact current ledger content.
 - Malformed claims, claims without a workspace, non-maximum claims, duplicate sequences, and invalid collision acknowledgements fail closed.
 - Every covered path other than a valid later-owned sequence ledger remains acceptance-digest input.
@@ -532,4 +555,128 @@ Acceptance Criteria
 - Parent-directory and exact-child candidate scopes remain valid across pathspec batch boundaries.
 - Deterministic output bounds, unresolved-stage rejection, malformed metadata rejection, and
   out-of-scope path rejection remain unchanged.
+
+### REQ-change-043
+
+The verified lifecycle SHALL provide one discoverable workflow and one file layout with one human
+scope approval for every new change.
+
+Acceptance Criteria
+
+- The path is `change new` → one `change approve` → implement → `change check` → ordinary PR
+  review → `change finalize` → GitHub merge.
+- There is no lifecycle-mode selection, second SpecSync approval, closing approval gate, alternate archive
+  layout, or SpecSync merge command.
+- Scope approval binds stable intent, acceptance criteria, public-contract/risk declarations, and
+  affected spec/path/dependency/supersession scope—not implementation, test/evidence,
+  semantic-delta materialization, canonical materialization, or lifecycle metadata.
+- Non-material execution/evidence changes preserve scope approval, invalidate their separate
+  execution digest, and require fresh automated validators plus the one scoped review.
+- A demonstrable stable-scope change requires renewed approval, and status explains each added or
+  removed criterion, affected spec/path, dependency, supersession obligation, or changed intent in
+  plain language.
+- Checking off an already-approved task records implementation progress without changing either
+  scope or execution digests; changing task text preserves scope but stales execution evidence.
+- Every status result prints exactly one explicit next action.
+- Expected missing-history ancestry probes never leak raw Git fatal diagnostics into status output.
+- Explicit `--strict`, project policy, or release/security classification adds full-history,
+  full-suite, security, or release validators to the same verification evidence without changing
+  the state machine, workflow, approval count, commands, finalization, archive, or layout.
+- Existing two-approval records remain readable and verifiable without reinterpretation or resigning.
+- Workflow-v2 adoption records one immutable project cutoff at the stable comparison-base ancestor
+  when available; `change adopt` activates that baseline without rewriting an existing version-1
+  policy, refuses before mutation when any existing workflow-v1 record is absent from the proposed
+  cutoff, and atomically publishes policy, imports, report, and baseline so interruption or failure
+  cannot partially activate workflow v2; every transaction target has a lossless UTF-8,
+  platform-separator-safe journal identity and is confined beneath the project with symlink
+  components rejected before and during publication. The lifecycle lock is likewise opened through
+  a no-follow project capability before any metadata write. All subsequent changes use workflow
+  v2, its introduction remains valid after squash/rebase, and a workflow-v1 record remains eligible
+  only when that exact ID/version with omitted or explicit version-1 origin existed at the trusted
+  cutoff.
+- Every bounded workflow-v2 baseline-touching commit and readable parent retains the exact
+  introduction bytes, so rewrite→restore history cannot conceal a changed cutoff and deleting a
+  committed baseline—including one introduced only on a merged parent—cannot silently reactivate
+  workflow v1.
+- Workflow-origin history boundedly follows every reachable canonical dated archive state path for
+  the exact change ID, so archive→reopen→rearchive moves preserve the immutable creation anchor.
+- The one CHG-0068 adoption fails closed and requests full trusted history when its immutable
+  allowlisted commit/blob anchor is unavailable.
+
+### REQ-change-044
+
+The lifecycle SHALL finalize and archive a change on its implementation PR through one
+metadata/archive-only commit without repeating implementation validation.
+
+Acceptance Criteria
+
+- `change finalize` requires the approved implementation parent to have every required green check.
+- The finalization child may change only exact approved lifecycle/archive paths and must preserve
+  code, canonical spec, requirements, tests, configuration, and delivery-tree relationships.
+- Finalization applies semantic deltas, writes accepted state, validates bidirectional ownership,
+  and moves the same package to `.specsync/archive/changes/YYYY-MM-DD-<id>/` transactionally.
+- A process interruption between terminal archive-file writes is recovered from the transaction
+  journal before retry, including after a calendar rollover.
+- A fresh clone after squash or rebase merge authenticates the exact surviving archived subtree
+  when the original implementation commit object is no longer reachable.
+- The lightweight archive lane validates parent checks, diff classification, unchanged tree,
+  archive integrity, ownership, and finalization digest and reports success to required CI.
+- Product tests and independent scoped review are not rerun for a valid archive-only child.
+- `change finalize` makes the PR ready; GitHub alone performs the merge.
+
+### REQ-change-045
+
+Lifecycle validation SHALL reuse a deterministic invocation-scoped snapshot and bounded evidence
+queries without weakening fail-closed historical conclusions.
+
+Acceptance Criteria
+
+- Active/archive records, canonical owners, Git comparison state, candidate entries, and completed
+  terminal evidence are loaded or computed at most once per invocation key.
+- Git and evidence queries have deterministic bounds independent of overlapping path scopes.
+- Dependency and successor graphs use stable ordering.
+- Canonical owner batches are validated in one pass.
+- Warm and cold validation return identical errors, warnings, path coverage, and evidence validity.
+
+### REQ-change-046
+
+Agent-authored changes SHALL receive one independent scoped review of implementation evidence before
+finalization.
+
+Acceptance Criteria
+
+- Review input contains only the change package, implementation diff, canonical semantic delta, and
+  targeted evidence.
+- The result binds the implementation parent commit, those input digests, an explicit pass/block
+  verdict, a stable reviewer claim distinct from the scope approver, and the exact required
+  GitHub Actions check whose authenticated result is proven again by finalization.
+- Every review attempt is append-only; `review.json` is only the latest projection and cannot erase
+  a prior blocking result.
+- Native review recording and finalization run the same every-parent verification-freshness
+  validator as project checking, and every persisted review attempt revalidates that its reviewer
+  is distinct from the scope approver bound to that attempt's contract digest.
+- Every intervening commit is inspected against every parent; any implementation change, including
+  change-then-revert history, stales the review, while the metadata/archive-only finalization commit
+  does not rerun or stale it. Native and hosted validators load the same committed descendant,
+  parent, output, and timeout limits.
+- Finalization fails when a required scoped review is missing or blocking.
+- Status states when review is needed and directs the user to open or update the PR so the configured
+  scoped-review check runs.
+
+### REQ-change-audit-project-001
+
+The change module SHALL expose `audit_project` that validates active change workspaces and living SDD policy/spec coherence without rewalking archived terminal evidence by default.
+
+Acceptance Criteria
+- `audit_project` does not load or re-authenticate every archived change's terminal evidence.
+- `check_project` remains available for full integrity including archives (tests / rare callers).
+- CLI project-health surface uses the active-only path.
+
+### REQ-change-check-scoped-002
+
+`check_change` SHALL continue to materialize approved deltas and run verification for one selected change only; project-wide archive integrity is not part of that function.
+
+Acceptance Criteria
+- Selecting zero, one, or many open changes behaves as before (nothing / that id / error listing ids).
+- Archive terminal evidence is not required for a successful scoped check.
 

@@ -7,8 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Notes
+
+- Private CorvidLabs/spec-sync-sandbox dogfood for workflow-v2 adopt is recorded in sandbox scenario 019; tagging 6.0.0 remains gated on this PR.
+
+## [6.0.0] - 2026-07-29
+
+### Added
+
+- **One guided change workflow for SpecSync 6.0** — `change status` always names one next action,
+  `change check` applies approved deltas and runs affected-component verification, one independent
+  scoped PR review binds the implementation, and `change finalize` creates the dated archive in the
+  same PR without merging externally.
+- **Additive strict validation** — global `--strict`, project policy, and deterministic
+  release/security classification add validators to the same workflow/evidence instead of
+  selecting another lifecycle, approval count, or artifact layout.
+- **Positive archive-only CI and merge binding** — a lightweight child lane proves parent checks,
+  exact archive shape, unchanged delivery tree, ownership, review, and finalization digest; a
+  post-merge job records a compact check/comment bound to the actual merge commit before release.
+
 ### Changed
 
+- **Low-churn lifecycle evidence** — ordinary work uses one human scope approval and one scoped
+  review. Historical two-approval evidence and repair commands remain readable without re-signing.
+- **Targeted lifecycle reads** — invocation-scoped snapshots, bounded Git/evidence memoization,
+  stable graph ordering, and one-pass owner batches remove the modest-scale performance cliffs.
+- **Safer installation and parsing UX** — Git hook installation honors effective Git hook paths
+  and project-keyed managed blocks; generated agent artifacts preserve customizations; ignore and
+  schema diagnostics fail visibly; TypeScript Unicode export identity is canonicalized.
 - **MCP now starts read-only and fails closed at its trust boundary** (#414) — mutating tools require
   the explicit `mcp --allow-write` opt-in; read paths are confined beneath the canonical server
   root before filesystem probing; operations use bounded capability-safe snapshots and confined
@@ -878,7 +904,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v5.2.0...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.0.0...HEAD
+[6.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.0.0
 [5.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.2.0
 [5.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.1.1
 [5.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.1.0

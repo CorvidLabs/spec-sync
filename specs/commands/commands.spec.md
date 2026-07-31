@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 11
+version: 13
 status: stable
 files:
   - src/commands/mod.rs
@@ -31,7 +31,9 @@ depends_on:
 
 ## Purpose
 
-Shared command infrastructure and registry used by all CLI subcommands. It centralizes config loading, spec discovery, filtering, schema construction, validation, exit handling, GitHub drift issues, and dispatch modules including the verified 5.0 change lifecycle.
+Shared command infrastructure used by all CLI subcommands. It centralizes config loading, spec
+discovery, filtering, one checked schema snapshot per validation invocation, visible ignore
+suppression, exit handling, and GitHub drift diagnostics.
 
 ## Public API
 
@@ -43,8 +45,8 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 | `validate_module_name` | `module_name: &str` | `Result<(), String>` | Validate a user-supplied module name as one portable path segment: reject traversal/control/Windows-invalid characters, trailing spaces/dots, Windows reserved device basenames (including before extensions), and names whose `<name>.spec.md` filename exceeds 255 UTF-8 bytes |
 | `filter_specs` | `root: &Path, spec_files: &[PathBuf], filters: &[String]` | `Vec<PathBuf>` | Filter spec files by user-provided names/paths (exact path, relative path, filename, module name); returns all if filters is empty |
 | `filter_by_status` | `spec_files: &[PathBuf], exclude: &[String], only: &[String]` | `Vec<PathBuf>` | Filter spec files by their frontmatter status field; supports exclude-list and allow-list modes |
-| `build_schema_columns` | `root: &Path, config: &SpecSyncConfig` | `HashMap<String, SchemaTable>` | Build column-level schema from migration files if `schema_dir` is configured |
-| `run_validation` | `root: &Path, spec_files: &[PathBuf], ownership_spec_files: &[PathBuf], schema_tables: &HashSet<String>, schema_columns: &HashMap<String, schema::SchemaTable>, config: &types::SpecSyncConfig, collect: bool, explain: bool, ignore_rules: &IgnoreRules` | `(usize, usize, usize, usize, Vec<String>, Vec<String>, Vec<String>)` | Run validation on all spec files returning (errors, warnings, passed, total, error_strings, warning_strings, notice_strings); contains full text rendering logic |
+| `build_schema_columns` | `root: &Path, config: &SpecSyncConfig` | `HashMap<String, SchemaTable>` | Compatibility column-map wrapper; checked command validation uses one fallible snapshot internally |
+| `run_validation` | `root: &Path, spec_files: &[PathBuf], ownership_spec_files: &[PathBuf], config: &types::SpecSyncConfig, collect: bool, explain: bool, ignore_rules: &IgnoreRules` | `(usize, usize, usize, usize, Vec<String>, Vec<String>, Vec<String>)` | Validate all selected specs from one checked schema input and return error/warning/pass counts plus rendered diagnostics/notices |
 | `compute_exit_code` | `total_errors, total_warnings, strict, enforcement, coverage, require_coverage` | `i32` | Compute exit code without printing or exiting based on enforcement mode |
 | `exit_with_status` | `total_errors, total_warnings, strict, enforcement, coverage, require_coverage` | `!` | Same as `compute_exit_code` but prints messages and calls `process::exit()` |
 | `create_drift_issues` | `root, config, all_errors, format` | `()` | Create GitHub issues for specs with validation errors, grouping errors by spec path; terminal diagnostics sanitize hostile repository, path, URL, and provider text before rendering, while the GitHub layer sanitizes issue title/body text |
@@ -87,7 +89,8 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 
 1. `load_and_discover` excludes spec files starting with `_` (underscore prefix marks internal/template specs)
 2. `filter_specs` matches against four forms: exact path, relative path, filename stem, and module name (stem minus `.spec` suffix)
-3. `run_validation` applies ignore rules (global, inline, per-spec) to filter warnings before counting
+3. `run_validation` applies only classified ignore rules before counting and retains deterministic
+   structured details for every suppressed warning.
 4. In text mode, draft specs show explicit "Section validation skipped (status: draft)" and "Export validation skipped (status: draft)" notices instead of misleading green checkmarks, plus a closing hint to set `status: active`
 5. Failing checks render negated labels (e.g. "✗ Frontmatter invalid"), never a ✗ next to a passing label
 4. Exit code logic by enforcement mode: Warn → always 0; EnforceNew → 1 if unspecced files; Strict → 1 on errors, also 1 on warnings when `--strict`
@@ -134,7 +137,7 @@ Shared command infrastructure and registry used by all CLI subcommands. It centr
 |-----------|----------|
 | No spec files found and `allow_empty` is false | Prints suggestion to run `specsync generate` and exits 0 |
 | Filter matches no specs | Prints warning listing unmatched filters, returns empty vec (cmd_check then exits 1) |
-| `schema_dir` not configured | `build_schema_columns` returns empty map (no error) |
+| Configured schema cannot produce a checked snapshot | Validation reports an error and cannot pass through an empty comparison |
 | GitHub repo unresolvable for drift issues | Prints a sanitized error and returns without creating issues |
 | `gh` CLI fails to create issue | Prints a sanitized per-spec error and continues with remaining specs |
 | Module name is non-portable, reserved, or too long | Returns an actionable `Err` before any output path is joined or created |
@@ -188,3 +191,5 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
+| 2026-07-31 | CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle: Scoped change check, change audit, and agent pack for the two-verb lifecycle |

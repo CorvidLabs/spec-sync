@@ -10,9 +10,17 @@ use tree_sitter::{Parser, Tree};
 /// instead of `Name`. `declare` is accepted as an optional modifier so
 /// ambient declarations (`export declare function/class/const ...`) are not
 /// silently dropped.
+///
+/// JavaScript identifiers may spell Unicode scalar values as `\uXXXX` or
+/// `\u{...}`. Capture the complete source spelling so canonicalization can
+/// decode it rather than reporting the prefix before the backslash.
+const JS_IDENTIFIER: &str = r"(?:\w|\\u(?:\{[0-9A-Fa-f]{1,6}\}|[0-9A-Fa-f]{4}))+";
+
 static EXPORT_DECL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"export\s+(?:declare\s+)?(?:async\s+)?(?:abstract\s+)?(?:const\s+enum|function|class|interface|type|const|enum)\s+(\w+)")
-        .unwrap()
+    Regex::new(&format!(
+        r"export\s+(?:declare\s+)?(?:async\s+)?(?:abstract\s+)?(?:const\s+enum|function|class|interface|type|const|enum)\s+({JS_IDENTIFIER})"
+    ))
+    .unwrap()
 });
 
 /// export type { Name, Name2 }
@@ -24,18 +32,23 @@ static RE_EXPORT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"export\s*\{([^
 
 /// export * from './module' or export * as name from './module'
 static WILDCARD_EXPORT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"export\s+\*\s+(?:as\s+(\w+)\s+)?from\s+['"]([^'"]+)['"]"#).unwrap()
+    Regex::new(&format!(
+        r#"export\s+\*\s+(?:as\s+({JS_IDENTIFIER})\s+)?from\s+['"]([^'"]+)['"]"#
+    ))
+    .unwrap()
 });
 
 /// export default function/class name or export default expression
 static EXPORT_DEFAULT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"export\s+default\s+(?:(?:abstract\s+)?(?:function|class)\s+(\w+)|(\w+)\s*[;\n])")
-        .unwrap()
+    Regex::new(&format!(
+        r"export\s+default\s+(?:(?:abstract\s+)?(?:function|class)\s+({JS_IDENTIFIER})|({JS_IDENTIFIER})\s*[;\n])"
+    ))
+    .unwrap()
 });
 
 /// export = name (CommonJS-style default export)
 static EXPORT_EQUALS: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"export\s*=\s*(\w+)").unwrap());
+    LazyLock::new(|| Regex::new(&format!(r"export\s*=\s*({JS_IDENTIFIER})")).unwrap());
 
 /// `exports.name = value` or `module.exports.name = value`.
 static COMMONJS_PROPERTY_EXPORT: LazyLock<Regex> = LazyLock::new(|| {
@@ -48,6 +61,72 @@ static COMMONJS_PROPERTY_EXPORT: LazyLock<Regex> = LazyLock::new(|| {
 /// Start of a `module.exports = { ... }` object assignment.
 static COMMONJS_OBJECT_EXPORT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)(?:^|[^\w$.])module\s*\.\s*exports\s*=\s*\{").unwrap());
+
+/// Decode JavaScript Unicode escapes in an identifier to its symbol identity.
+///
+/// The raw spelling remains available to the caller for diagnostics until the
+/// canonical name is accepted. Invalid scalar values and malformed escapes are
+/// rejected instead of emitting a truncated or partially decoded name.
+fn decode_js_identifier_escapes(raw_name: &str) -> Option<String> {
+    if !raw_name.contains('\\') {
+        return Some(raw_name.to_string());
+    }
+
+    let bytes = raw_name.as_bytes();
+    let mut canonical = String::with_capacity(raw_name.len());
+    let mut copied_through = 0;
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if bytes[index] != b'\\' {
+            index += 1;
+            continue;
+        }
+
+        canonical.push_str(&raw_name[copied_through..index]);
+        if bytes.get(index + 1) != Some(&b'u') {
+            return None;
+        }
+
+        let (digits_start, digits_end, next_index) = if bytes.get(index + 2) == Some(&b'{') {
+            let digits_start = index + 3;
+            let close_offset = bytes[digits_start..]
+                .iter()
+                .position(|byte| *byte == b'}')?;
+            let digits_end = digits_start + close_offset;
+            if !(1..=6).contains(&(digits_end - digits_start)) {
+                return None;
+            }
+            (digits_start, digits_end, digits_end + 1)
+        } else {
+            let digits_start = index + 2;
+            let digits_end = digits_start.checked_add(4)?;
+            if digits_end > bytes.len() {
+                return None;
+            }
+            (digits_start, digits_end, digits_end)
+        };
+
+        let digits = raw_name.get(digits_start..digits_end)?;
+        if !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return None;
+        }
+        let value = u32::from_str_radix(digits, 16).ok()?;
+        canonical.push(char::from_u32(value)?);
+
+        copied_through = next_index;
+        index = next_index;
+    }
+
+    canonical.push_str(&raw_name[copied_through..]);
+    Some(canonical)
+}
+
+fn push_js_identifier(symbols: &mut Vec<String>, raw_name: &str) {
+    if let Some(canonical_name) = decode_js_identifier_escapes(raw_name) {
+        push_unique(symbols, &canonical_name);
+    }
+}
 
 /// Extract exported symbols from TypeScript/JavaScript source (without file resolution).
 ///
@@ -88,14 +167,21 @@ pub fn extract_exports_with_resolver(
     // Direct exports: export function/class/interface/type/const/enum
     for caps in EXPORT_DECL.captures_iter(&stripped) {
         if let Some(name) = caps.get(1) {
-            symbols.push(name.as_str().to_string());
+            // A malformed escape after an otherwise valid prefix must not
+            // resurrect the old truncated identity (`caf\u{...}` -> `caf`).
+            if stripped.as_bytes().get(name.end()) != Some(&b'\\') {
+                push_js_identifier(&mut symbols, name.as_str());
+            }
         }
     }
 
     // Default exports: export default class/function Name
     for caps in EXPORT_DEFAULT.captures_iter(&stripped) {
         if let Some(name) = caps.get(1).or_else(|| caps.get(2)) {
-            let n = name.as_str();
+            let raw_name = name.as_str();
+            let Some(canonical_name) = decode_js_identifier_escapes(raw_name) else {
+                continue;
+            };
             // Skip keyword-like default exports (e.g. `export default new ...`)
             if ![
                 "new",
@@ -108,17 +194,19 @@ pub fn extract_exports_with_resolver(
                 "null",
                 "undefined",
             ]
-            .contains(&n)
+            .contains(&canonical_name.as_str())
             {
-                symbols.push(n.to_string());
+                push_unique(&mut symbols, &canonical_name);
             }
         }
     }
 
     // CommonJS-style default export: export = Name
     for caps in EXPORT_EQUALS.captures_iter(&stripped) {
-        if let Some(name) = caps.get(1) {
-            symbols.push(name.as_str().to_string());
+        if let Some(name) = caps.get(1)
+            && stripped.as_bytes().get(name.end()) != Some(&b'\\')
+        {
+            push_js_identifier(&mut symbols, name.as_str());
         }
     }
 
@@ -130,7 +218,7 @@ pub fn extract_exports_with_resolver(
                 // Handle "Foo as Bar"
                 let final_name = name.split(" as ").last().unwrap_or(name).trim();
                 if !final_name.is_empty() {
-                    symbols.push(final_name.to_string());
+                    push_js_identifier(&mut symbols, final_name);
                 }
             }
         }
@@ -149,7 +237,7 @@ pub fn extract_exports_with_resolver(
                 let name = name.strip_prefix("type ").unwrap_or(name);
                 let final_name = name.split(" as ").last().unwrap_or(name).trim();
                 if !final_name.is_empty() {
-                    symbols.push(final_name.to_string());
+                    push_js_identifier(&mut symbols, final_name);
                 }
             }
         }
@@ -159,22 +247,22 @@ pub fn extract_exports_with_resolver(
     for caps in WILDCARD_EXPORT.captures_iter(&stripped) {
         if let Some(alias) = caps.get(1) {
             // export * as Ns from '...' — the namespace name itself is the export
-            symbols.push(alias.as_str().to_string());
+            push_js_identifier(&mut symbols, alias.as_str());
         } else if let Some(resolver) = resolver {
             // export * from '...' — resolve the target module and pull its exports
             let path = caps.get(2).unwrap().as_str();
             if let Some(target_content) = resolver(path) {
                 // Recurse without resolver to avoid infinite loops
                 let target_symbols = extract_exports_with_resolver(&target_content, None);
-                symbols.extend(target_symbols);
+                for symbol in target_symbols {
+                    push_unique(&mut symbols, &symbol);
+                }
             }
         }
     }
 
     for symbol in extract_commonjs_exports(content) {
-        if !symbols.contains(&symbol) {
-            symbols.push(symbol);
-        }
+        push_unique(&mut symbols, &symbol);
     }
 
     symbols
@@ -591,6 +679,69 @@ fn strip_comments_preserving_strings(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_unicode_escape_identifiers_are_canonicalized_for_direct_exports() {
+        let src = r#"
+export const caf\u0061 = 1;
+export function \u{62}et\u0061() {}
+export interface \u0047amma {}
+export const cafa = 2;
+"#;
+
+        let symbols = extract_exports(src);
+
+        assert_eq!(symbols, vec!["cafa", "beta", "Gamma"]);
+        assert!(!symbols.contains(&"caf".to_string()));
+    }
+
+    #[test]
+    fn test_unicode_escape_identifiers_are_canonicalized_for_export_paths() {
+        let src = r#"
+export default class Def\u0061ult {}
+export = Mod\u0075le;
+export type { SourceType as T\u0079pe };
+export { Source as ali\u0061s, Loc\u0061l };
+export * as N\u0061mespace from './module';
+"#;
+
+        let symbols = extract_exports(src);
+
+        assert_eq!(
+            symbols,
+            vec!["Default", "Module", "Type", "alias", "Local", "Namespace"]
+        );
+
+        let default_expression = extract_exports(r"export default v\u0061lue;");
+        assert_eq!(default_expression, vec!["value"]);
+    }
+
+    #[test]
+    fn test_unicode_escape_identifiers_are_canonicalized_through_resolver() {
+        let resolver = |path: &str| {
+            (path == "./dependency").then(|| r"export function dep\u0065ndency() {}".to_string())
+        };
+
+        let symbols =
+            extract_exports_with_resolver("export * from './dependency';", Some(&resolver));
+
+        assert_eq!(symbols, vec!["dependency"]);
+    }
+
+    #[test]
+    fn test_invalid_unicode_escape_identifiers_are_not_truncated() {
+        let src = r#"
+export const tooLong\u{1234567} = 1;
+export const surrogate\uD800 = 2;
+export const outOfRange\u{110000} = 3;
+export const valid = 4;
+"#;
+
+        let symbols = extract_exports(src);
+
+        assert_eq!(symbols, vec!["valid"]);
+        assert!(!symbols.contains(&"tooLong".to_string()));
+    }
 
     #[test]
     fn test_basic_exports() {

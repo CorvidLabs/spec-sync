@@ -86,31 +86,24 @@ It also provides a verified spec-driven development lifecycle, coverage gates, q
 
 SpecSync's core is deterministic and local. It does not require a hosted SpecSync service, Corvid AI account, provider key, or embedded model. Claude, Cursor, Codex, Gemini, and other coding agents use the same CLI and lifecycle through their own permissions.
 
-## Full SDD lifecycle
+## Verified change workflow
 
-SpecSync 5.0 manages delivery as versioned change workspaces:
-
-```text
-draft → approved → implementing → verifying → accepted → archived
-```
+SpecSync 6.0 keeps one change package and one user-facing path from scope to merge:
 
 ```bash
 specsync change new "Add passkeys" --spec auth --path src/auth.rs --json
 specsync change answer CHG-0001-add-passkeys acceptance_criteria \
   "A registered passkey authenticates the user" --json
 specsync change approve CHG-0001-add-passkeys
-specsync change start CHG-0001-add-passkeys
 
 # implement the approved contract or semantic delta
-specsync check --strict
-specsync change verify CHG-0001-add-passkeys
-specsync change accept CHG-0001-add-passkeys
-
-# merge first; archive after delivery integration is proven
-specsync change archive CHG-0001-add-passkeys
+specsync change check CHG-0001-add-passkeys
+# open/update the PR; ordinary review + SpecSync scoped review run once
+specsync change finalize CHG-0001-add-passkeys
+# commit the metadata/archive-only result; GitHub performs the merge
 ```
 
-Approvals are human, portable, and digest-bound. Verification binds test evidence to the exact commit and working-tree inputs. Acceptance atomically updates canonical specs and requirements. Dirty edits invalidate evidence instead of silently changing the accepted result.
+The one scope approval is human, portable, and digest-bound. Verification is targeted to affected components; explicit `--strict`, policy, and release/security classification add validators without changing the workflow. Finalization atomically updates canonical specs and archives the package in the same PR. Dirty edits invalidate evidence instead of silently changing the reviewed result.
 
 [Read the workflow guide](site/src/content/docs/workflow.md) or run the [complete lifecycle example](examples/sdd-lifecycle/).
 
@@ -131,9 +124,9 @@ brew install CorvidLabs/tap/spec-sync
 ### GitHub Action
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5.2.0
+- uses: CorvidLabs/spec-sync@v6.0.0
   with:
-    version: '5.2.0'
+    version: '6.0.0'
     strict: 'true'
     require-coverage: '100'
 ```
@@ -144,9 +137,9 @@ updates. Until that promotion completes, use the immutable Action and binary pin
 Minimal immutable configuration:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v5.2.0
+- uses: CorvidLabs/spec-sync@v6.0.0
   with:
-    version: '5.2.0'
+    version: '6.0.0'
 ```
 
 ### Pre-built binaries

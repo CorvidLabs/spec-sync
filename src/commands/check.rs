@@ -11,14 +11,52 @@ use crate::ignore::IgnoreRules;
 use crate::output::{print_check_markdown, print_coverage_line, print_summary};
 use crate::parser;
 use crate::types;
-use crate::validator::{compute_coverage_checked, get_schema_table_names};
+use crate::validator::compute_coverage_checked;
 
 use crate::config::is_legacy_layout;
 
 use super::{
-    build_schema_columns, compute_exit_code, create_drift_issues, exit_with_status,
-    filter_by_status, filter_specs, load_and_discover, run_validation,
+    compute_exit_code, create_drift_issues, exit_with_status, filter_by_status, filter_specs,
+    load_and_discover, run_validation_with_suppressions,
 };
+
+fn suppressed_warning_summary(detail: &serde_json::Value) -> String {
+    let clean = |field: &str| {
+        detail[field]
+            .as_str()
+            .unwrap_or("unknown")
+            .replace(['\r', '\n'], " ")
+    };
+    format!(
+        "{} [{}; {}]: {}",
+        clean("spec"),
+        clean("category"),
+        clean("source"),
+        clean("warning")
+    )
+}
+
+fn print_suppressed_markdown(details: &[serde_json::Value]) {
+    if details.is_empty() {
+        return;
+    }
+    println!("\n### Suppressed warnings\n");
+    for detail in details {
+        println!("- {}", suppressed_warning_summary(detail));
+    }
+}
+
+fn append_suppressed_markdown(body: &mut String, details: &[serde_json::Value]) {
+    if details.is_empty() {
+        return;
+    }
+    body.push_str("\n### Suppressed warnings\n\n");
+    for detail in details {
+        body.push_str("- ");
+        body.push_str(&suppressed_warning_summary(detail));
+        body.push('\n');
+    }
+}
 
 fn checked_coverage_or_exit(
     root: &Path,
@@ -122,7 +160,10 @@ pub fn cmd_check(
     // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
     // message under --format json). Default warn mode still exits 0 there.
     let (config, all_spec_files) = load_and_discover(root, true);
-    let sdd_report = crate::change::check_project(root);
+    // Active workspaces + living specs only. Archives are history; full archive
+    // integrity is not part of `specsync check` (use `change audit` / internal
+    // check_project when a full historical walk is intentionally required).
+    let sdd_report = crate::change::audit_project(root);
     if sdd_report.enabled {
         for warning in &sdd_report.warnings {
             if matches!(format, Text) {
@@ -338,8 +379,6 @@ pub fn cmd_check(
         println!("  Review the affected specs directly or ask your coding agent to update them.\n");
     }
 
-    let schema_tables = get_schema_table_names(root, &config);
-    let schema_columns = build_schema_columns(root, &config);
     let ignore_rules = IgnoreRules::load(root);
 
     if dry_run && !fix {
@@ -419,18 +458,24 @@ pub fn cmd_check(
     }
 
     let collect = !matches!(format, Text);
-    let (total_errors, total_warnings, passed, total, all_errors, all_warnings, all_notices) =
-        run_validation(
-            root,
-            &specs_to_validate,
-            &all_spec_files,
-            &schema_tables,
-            &schema_columns,
-            &config,
-            collect,
-            explain,
-            &ignore_rules,
-        );
+    let (
+        total_errors,
+        total_warnings,
+        passed,
+        total,
+        all_errors,
+        all_warnings,
+        all_notices,
+        suppressed_warnings,
+    ) = run_validation_with_suppressions(
+        root,
+        &specs_to_validate,
+        &all_spec_files,
+        &config,
+        collect,
+        explain,
+        &ignore_rules,
+    );
     // Git-based staleness detection (--stale flag)
     let stale_threshold = stale.map(|opt| opt.unwrap_or(5));
     let mut git_stale_warnings: usize = 0;
@@ -549,6 +594,7 @@ pub fn cmd_check(
                 "passed": exit_code == 0,
                 "errors": all_errors,
                 "warnings": all_warnings,
+                "suppressed_warnings": suppressed_warnings,
                 "notices": all_notices,
                 "stale": stale_entries,
                 "specs_checked": total,
@@ -576,6 +622,7 @@ pub fn cmd_check(
                 &coverage,
                 exit_code == 0,
             );
+            print_suppressed_markdown(&suppressed_warnings);
             process::exit(exit_code);
         }
         Github => {
@@ -589,7 +636,7 @@ pub fn cmd_check(
             );
             let repo = github::detect_repo(root);
             let branch = comment::detect_branch(root);
-            let body = comment::render_check_comment(
+            let mut body = comment::render_check_comment(
                 total,
                 passed,
                 effective_warnings,
@@ -602,10 +649,21 @@ pub fn cmd_check(
                 repo.as_deref(),
                 branch.as_deref(),
             );
+            append_suppressed_markdown(&mut body, &suppressed_warnings);
             print!("{body}");
             process::exit(exit_code);
         }
         Text | Table | Csv => {
+            if !suppressed_warnings.is_empty() {
+                println!(
+                    "{} {} warning(s) suppressed by explicit ignore rules",
+                    "ℹ".cyan(),
+                    suppressed_warnings.len()
+                );
+                for detail in &suppressed_warnings {
+                    println!("  - {}", suppressed_warning_summary(detail));
+                }
+            }
             print_summary(total, passed, effective_warnings, total_errors);
             print_coverage_line(&coverage);
             exit_with_status(

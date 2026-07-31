@@ -387,15 +387,28 @@ pub enum ChangeAction {
         #[arg(long)]
         portable_5_0_1: bool,
     },
-    /// Transition an approved change into implementation
+    /// Compatibility alias for projects created before approval entered implementation automatically
+    #[command(hide = true)]
     Start {
         /// Change ID
         id: String,
     },
-    /// Run the configured verification gate and record evidence
+    /// Compatibility alias for the verification performed by `change check`
+    #[command(hide = true)]
     Verify {
         /// Change ID
         id: String,
+    },
+    /// Record one independent scoped review of the current implementation
+    Review {
+        /// Change ID
+        id: String,
+        /// Stable ASCII reviewer claim (the required GitHub check authenticates the review)
+        #[arg(long)]
+        reviewer: String,
+        /// Scoped review verdict
+        #[arg(long, value_parser = ["pass", "block"], default_value = "pass")]
+        verdict: String,
     },
     /// Reopen stale accepted evidence for a fresh verification and closing approval
     Reopen {
@@ -448,7 +461,8 @@ pub enum ChangeAction {
         #[arg(long)]
         reason: String,
     },
-    /// Record closing approval and atomically apply semantic deltas
+    /// Legacy compatibility command for an explicit closing approval
+    #[command(hide = true)]
     Accept {
         /// Change ID
         id: String,
@@ -460,13 +474,24 @@ pub enum ChangeAction {
         note: Option<String>,
     },
     /// Move an accepted change into the immutable dated archive
+    #[command(hide = true)]
     Archive {
         /// Change ID
         id: String,
     },
-    /// Validate all active change workspaces and CI coverage
-    Check,
-    /// Adopt the 5.0 SDD lifecycle in an existing project
+    /// Finalize and archive the reviewed change on its existing pull request
+    Finalize {
+        /// Change ID
+        id: String,
+    },
+    /// Materialize approved deltas and run targeted verification for one change
+    Check {
+        /// Optional change ID; inferred when exactly one change is being implemented
+        id: Option<String>,
+    },
+    /// Audit active change workspaces and living SDD policy/spec coherence
+    Audit,
+    /// Adopt the current verified lifecycle in an existing project
     Adopt {
         /// Preview adoption without writing files
         #[arg(long)]
@@ -739,6 +764,67 @@ mod tests {
             Some(Command::Change {
                 action: ChangeAction::New { .. }
             })
+        ));
+    }
+
+    #[test]
+    fn change_check_review_and_finalize_are_plain_commands() {
+        let check =
+            Cli::try_parse_from(["specsync", "change", "check", "CHG-0001-passkeys"]).unwrap();
+        assert!(matches!(
+            check.command,
+            Some(Command::Change {
+                action: ChangeAction::Check { id: Some(id) }
+            }) if id == "CHG-0001-passkeys"
+        ));
+
+        let review = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "review",
+            "CHG-0001-passkeys",
+            "--reviewer",
+            "Independent agent",
+        ])
+        .unwrap();
+        assert!(matches!(
+            review.command,
+            Some(Command::Change {
+                action: ChangeAction::Review {
+                    id,
+                    reviewer,
+                    verdict
+                }
+            }) if id == "CHG-0001-passkeys"
+                && reviewer == "Independent agent"
+                && verdict == "pass"
+        ));
+
+        let blocked = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "review",
+            "CHG-0001-passkeys",
+            "--reviewer",
+            "Independent agent",
+            "--verdict",
+            "block",
+        ])
+        .unwrap();
+        assert!(matches!(
+            blocked.command,
+            Some(Command::Change {
+                action: ChangeAction::Review { verdict, .. }
+            }) if verdict == "block"
+        ));
+
+        let finalize =
+            Cli::try_parse_from(["specsync", "change", "finalize", "CHG-0001-passkeys"]).unwrap();
+        assert!(matches!(
+            finalize.command,
+            Some(Command::Change {
+                action: ChangeAction::Finalize { id }
+            }) if id == "CHG-0001-passkeys"
         ));
     }
 

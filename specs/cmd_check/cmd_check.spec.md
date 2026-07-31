@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 10
+version: 11
 status: stable
 files:
   - src/commands/check.rs
@@ -25,7 +25,9 @@ depends_on:
 
 ## Purpose
 
-Implements the primary deterministic validation entry point, including caching, local markdown auto-fix, output formats, SDD gates, and optional drift issues.
+Implements the primary deterministic validation entry point, including one fallible schema
+snapshot, visible ignore suppression, caching, local Markdown auto-fix, structured formats, SDD
+gates, and optional drift issues.
 
 ## Public API
 
@@ -39,6 +41,8 @@ Implements the primary deterministic validation entry point, including caching, 
 
 9. Coverage uses checked manifest discovery; malformed Gradle settings make the result inconclusive
    and exit 1 instead of producing partial or vacuous coverage.
+10. Text, JSON, Markdown, and GitHub output distinguish emitted warnings from deterministic
+    suppressed-warning details, while strict exit behavior counts only unsuppressed findings.
 
 ## Behavioral Examples
 
@@ -109,3 +113,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |

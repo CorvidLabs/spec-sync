@@ -131,10 +131,11 @@ fn ci_check_requires_persisted_verification_evidence() {
     state["state"] = serde_json::Value::String("verifying".into());
     fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
 
+    // Project-health audit inspects persisted verifying evidence; scoped check re-runs tests.
     specsync()
         .env("CI", "true")
         .env_remove("GITHUB_WORKSPACE")
-        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("verification evidence is missing"));
@@ -156,7 +157,7 @@ fn ci_check_requires_persisted_verification_evidence() {
     specsync()
         .env("CI", "true")
         .env_remove("GITHUB_WORKSPACE")
-        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(
@@ -180,7 +181,8 @@ fn comment_suppresses_configured_command_output_but_check_streams_it() {
         .stdout(predicate::str::contains("binary: rustc").not());
 
     specsync()
-        .env("CI", "true")
+        .env_remove("CI")
+        .env_remove("GITHUB_ACTIONS")
         .env_remove("GITHUB_WORKSPACE")
         .args(["--root", root.to_str().unwrap(), "change", "check"])
         .assert()

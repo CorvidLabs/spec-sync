@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 6
+version: 8
 status: stable
 files:
   - src/agents.rs
@@ -12,7 +12,9 @@ depends_on: []
 
 ## Purpose
 
-Installs native, tool-owned verified-SDD skills for Claude Code, Cursor, Codex, and Gemini CLI. Where the tool supports project commands, SpecSync installs both create-spec and create-change commands; Codex receives the project skill only because its command mechanism is deprecated/global.
+Installs native, tool-owned verified-SDD skills for Claude Code, Cursor, Codex, and Gemini CLI.
+Generated artifacts are tracked in `.specsync/agent-artifacts.json` so upgrades and uninstall can
+distinguish exact managed bytes from user customization.
 
 ## Public API
 
@@ -45,9 +47,12 @@ Installs native, tool-owned verified-SDD skills for Claude Code, Cursor, Codex, 
 ## Invariants
 
 1. Each `AgentTool` owns an SDD skill and, where supported, both `create-spec` and `create-change` commands — Codex has the project skill only because its command mechanism is deprecated/global.
-2. Installation is idempotent per-artifact and content-aware — `install_agent` writes an artifact when it's missing *or* when its existing content differs from the current template (so upgrading spec-sync refreshes stale installations), and returns `Ok(false)` only when every artifact already matches the current template exactly.
-3. Every artifact spec-sync writes lives inside a `spec-sync/`-named skill folder or a `specsync`-namespaced command file/directory that spec-sync fully owns — no marker-string surgery on shared files is needed (unlike `hooks.rs`).
-4. `uninstall_agent` removes the skill directory wholesale (`remove_dir_all`) and the command file, then removes the command file's immediate parent directory only if that parent is named `specsync` and is now empty — it never removes a tool's shared `commands/` directory (e.g. `.claude/commands/`, `.cursor/commands/`), which may hold unrelated user commands.
+2. Installation is idempotent per artifact. It updates only missing files, exact bytes recorded in
+   the versioned manifest, or legacy bytes matching a known generated template.
+3. A customized, untracked, non-UTF-8, or digest-mismatched artifact is preserved and reported as
+   an actionable conflict; one conflict prevents all writes for that tool.
+4. Uninstall removes only digest-matching managed files, aggregates conflicts before mutation,
+   prunes matching manifest entries, and removes a managed directory only when it is empty.
 5. Cursor's command file is flat (`.cursor/commands/specsync-create-spec.md`, no namespaced subdirectory, no YAML frontmatter) since Cursor's command mechanism doesn't support either.
 6. Claude and Gemini's commands live in a namespaced subdirectory (`.claude/commands/specsync/create-spec.md`, `.gemini/commands/specsync/create-spec.toml`) so they're invoked as `/specsync:create-spec`.
 7. Gemini's command file is TOML (`description`/`prompt` keys, `{{args}}` placeholder), hand-built as a string template since no `toml` crate dependency exists in this project.
@@ -94,6 +99,7 @@ Installs native, tool-owned verified-SDD skills for Claude Code, Cursor, Codex, 
 | Cannot create skill/command directory | Returns `Err` with descriptive message |
 | Cannot write skill/command file | Returns `Err` with descriptive message |
 | Cannot remove skill directory or command file | Returns `Err` with descriptive message |
+| Generated artifact was customized | Preserves every customized artifact and returns one actionable conflict report |
 
 ## Dependencies
 
@@ -119,3 +125,5 @@ Installs native, tool-owned verified-SDD skills for Claude Code, Cursor, Codex, 
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
 | 2026-07-13 | CHG-0016-preserve-free-text-arguments-in-generated-agent-commands: Preserve free-text arguments in generated agent commands |
 | 2026-07-15 | SpecSync | CHG-0041-synchronize-generated-create-spec-agent-commands-with-the-corrected-free-text-pa: Synchronize generated create-spec agent commands with the corrected free-text parser guidance and prevent checked-in asset drift |
+| 2026-07-30 | SpecSync | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
+| 2026-07-31 | SpecSync | CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle: Scoped change check, change audit, and agent pack for the two-verb lifecycle |

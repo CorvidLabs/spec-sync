@@ -3,11 +3,9 @@ use std::process;
 
 use crate::output::{print_coverage_line, print_coverage_report, print_summary};
 use crate::types;
-use crate::validator::{compute_coverage_checked, get_schema_table_names};
+use crate::validator::compute_coverage_checked;
 
-use super::{
-    build_schema_columns, compute_exit_code, exit_with_status, load_and_discover, run_validation,
-};
+use super::{compute_exit_code, exit_with_status, load_and_discover, run_validation};
 
 pub fn cmd_coverage(
     root: &Path,
@@ -28,16 +26,12 @@ pub fn cmd_coverage(
     } else {
         config.enforcement
     });
-    let schema_tables = get_schema_table_names(root, &config);
-    let schema_columns = build_schema_columns(root, &config);
     let ignore_rules = crate::ignore::IgnoreRules::default();
     let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings, _all_notices) =
         run_validation(
             root,
             &spec_files,
             &spec_files,
-            &schema_tables,
-            &schema_columns,
             &config,
             json,
             false,

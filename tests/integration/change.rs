@@ -2,8 +2,99 @@ use super::helpers::specsync;
 use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
-use std::process::Command;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use tempfile::TempDir;
+
+/// Convert a host path into a form Git Bash accepts on Windows (`/c/Users/...`).
+fn path_for_bash(path: &Path) -> String {
+    let raw = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let displayed = raw.to_string_lossy();
+    let stripped = displayed
+        .strip_prefix(r"\\?\")
+        .or_else(|| displayed.strip_prefix("//?/"))
+        .unwrap_or(&displayed);
+    let forward = stripped.replace('\\', "/");
+    if let Some((drive, rest)) = forward.split_once(':') {
+        if drive.len() == 1
+            && drive
+                .chars()
+                .next()
+                .is_some_and(|character| character.is_ascii_alphabetic())
+        {
+            return format!("/{}{}", drive.to_ascii_lowercase(), rest);
+        }
+    }
+    forward
+}
+
+/// Resolve a real bash suitable for shell scripts.
+///
+/// On Windows GitHub runners, bare `bash` often resolves to the WSL launcher
+/// (`System32\bash.exe`), which fails with "no installed distributions" when WSL
+/// is not provisioned. Prefer an explicit override, then Git for Windows bash.
+fn resolve_bash() -> PathBuf {
+    if let Some(explicit) = std::env::var_os("SPECSYNC_BASH") {
+        let path = PathBuf::from(explicit);
+        if path.as_os_str().is_empty() {
+            // fall through
+        } else {
+            return path;
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        const CANDIDATES: &[&str] = &[
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+        ];
+        for candidate in CANDIDATES {
+            let path = Path::new(candidate);
+            if path.is_file() {
+                return path.to_path_buf();
+            }
+        }
+
+        if let Ok(output) = Command::new("where.exe").arg("bash").output() {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                let mut fallback: Option<PathBuf> = None;
+                for line in text.lines() {
+                    let candidate = line.trim();
+                    if candidate.is_empty() {
+                        continue;
+                    }
+                    let lower = candidate.to_ascii_lowercase();
+                    // Skip the Windows Store / WSL stub — it is not a POSIX shell.
+                    if lower.ends_with(r"\system32\bash.exe")
+                        || lower.ends_with(r"\sysnative\bash.exe")
+                        || lower.contains(r"\windowsapps\")
+                    {
+                        continue;
+                    }
+                    if lower.contains(r"\git\bin\bash") || lower.contains(r"\git\usr\bin\bash") {
+                        return PathBuf::from(candidate);
+                    }
+                    if fallback.is_none() {
+                        fallback = Some(PathBuf::from(candidate));
+                    }
+                }
+                if let Some(path) = fallback {
+                    return path;
+                }
+            }
+        }
+    }
+
+    PathBuf::from("bash")
+}
+
+fn bash_command() -> Command {
+    Command::new(resolve_bash())
+}
 
 #[test]
 fn verification_freshness_status_and_check_are_environment_independent() {
@@ -39,7 +130,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
             "require_change_for_meaningful_files": false,
             "meaningful_paths": ["src/", ".specsync/sdd.json"],
             "ignored_paths": [".specsync/"],
-            "verification_commands": [],
+            "verification_commands": ["true"],
             "custom_artifacts": {},
             "principles_file": null
         }))
@@ -146,55 +237,62 @@ fn verification_freshness_status_and_check_are_environment_independent() {
     }
     git(&["commit", "-m", "persist verification"]);
 
-    let assert_surfaces = |expected_action: &str, check_succeeds: bool, environment: &str| {
-        let configure = |command: &mut assert_cmd::Command| {
-            command
-                .env_remove("CI")
-                .env_remove("GITHUB_ACTIONS")
-                .env_remove("GITHUB_WORKSPACE");
-            match environment {
-                "ci" => {
-                    command.env("CI", "true");
+    let assert_surfaces =
+        |expected_action: &str, check_succeeds: Option<bool>, environment: &str| {
+            let configure = |command: &mut assert_cmd::Command| {
+                command
+                    .env_remove("CI")
+                    .env_remove("GITHUB_ACTIONS")
+                    .env_remove("GITHUB_WORKSPACE");
+                match environment {
+                    "ci" => {
+                        command.env("CI", "true");
+                    }
+                    "github" => {
+                        command
+                            .env("GITHUB_ACTIONS", "true")
+                            .env("GITHUB_WORKSPACE", root);
+                    }
+                    _ => {}
                 }
-                "github" => {
-                    command
-                        .env("GITHUB_ACTIONS", "true")
-                        .env("GITHUB_WORKSPACE", root);
+            };
+            let mut status = specsync();
+            configure(&mut status);
+            let output = status
+                .args([
+                    "--root",
+                    root.to_str().unwrap(),
+                    "--json",
+                    "change",
+                    "status",
+                    id,
+                ])
+                .assert()
+                .success()
+                .get_output()
+                .stdout
+                .clone();
+            let value: Value = serde_json::from_slice(&output).unwrap();
+            assert_eq!(value["summary"]["next_action"], expected_action);
+            if let Some(check_succeeds) = check_succeeds {
+                let mut check = specsync();
+                configure(&mut check);
+                let assertion = check
+                    .args(["--root", root.to_str().unwrap(), "change", "check"])
+                    .assert();
+                if check_succeeds {
+                    assertion.success();
+                } else {
+                    assertion.failure();
                 }
-                _ => {}
             }
         };
-        let mut status = specsync();
-        configure(&mut status);
-        let output = status
-            .args([
-                "--root",
-                root.to_str().unwrap(),
-                "--json",
-                "change",
-                "status",
-                id,
-            ])
-            .assert()
-            .success()
-            .get_output()
-            .stdout
-            .clone();
-        let value: Value = serde_json::from_slice(&output).unwrap();
-        assert_eq!(value["summary"]["next_action"], expected_action);
-        let mut check = specsync();
-        configure(&mut check);
-        let assertion = check
-            .args(["--root", root.to_str().unwrap(), "change", "check"])
-            .assert();
-        if check_succeeds {
-            assertion.success();
-        } else {
-            assertion.failure();
-        }
-    };
     for environment in ["local", "ci", "github"] {
-        assert_surfaces("accept", true, environment);
+        assert_surfaces(
+            "run `specsync change review CHG-0001-harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
+            Some(true),
+            environment,
+        );
     }
     fs::write(
         root.join("src/lib.rs"),
@@ -204,7 +302,22 @@ fn verification_freshness_status_and_check_are_environment_independent() {
     git(&["add", "src/lib.rs"]);
     git(&["commit", "-m", "change governed input"]);
     for environment in ["local", "ci", "github"] {
-        assert_surfaces("verify", false, environment);
+        assert_surfaces(
+            "run `specsync change check CHG-0001-harden-verification-freshness`",
+            None,
+            environment,
+        );
+    }
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .assert()
+        .success();
+    for environment in ["local", "ci", "github"] {
+        assert_surfaces(
+            "run `specsync change review CHG-0001-harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
+            None,
+            environment,
+        );
     }
 }
 
@@ -414,12 +527,366 @@ fn init_enables_sdd_for_new_projects() {
     let policy: Value =
         serde_json::from_str(&fs::read_to_string(temp.path().join(".specsync/sdd.json")).unwrap())
             .unwrap();
+    assert_eq!(policy["version"], 2);
     assert_eq!(policy["enabled"], true);
     assert!(temp.path().join(".specsync/archive/changes").is_dir());
 }
 
+// Regression for the doubled review/CI cost demonstrated by CorvidLabs/rune PR #23.
 #[test]
-fn no_spec_change_completes_full_cli_lifecycle() {
+fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate_product_ci() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    // Workflow-v2 baseline is byte-compared. Disable autocrlf so Windows runners
+    // do not rewrite committed LF JSON into CRLF working-tree bytes.
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join(".github/scripts")).unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::copy(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(".github/scripts/lifecycle-validation-limits.json"),
+        root.join(".github/scripts/lifecycle-validation-limits.json"),
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        r#"{
+  "version": 2,
+  "enabled": true,
+  "require_change_for_meaningful_files": false,
+  "meaningful_paths": [],
+  "ignored_paths": [".specsync/"],
+  "verification_commands": ["true"],
+  "custom_artifacts": {},
+  "principles_file": null
+}
+"#,
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+    let classifier = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(".github/scripts/classify-ci-paths.sh");
+    let mut archived_ids = Vec::new();
+
+    for index in 1..=8 {
+        let branch = format!("rune-originating-pr-{index}");
+        git(&["switch", "-c", &branch]);
+        let affected_path = format!("docs/rune-change-{index}.md");
+        let description = format!("Finalize Rune change {index}");
+        let created = specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "--json",
+                "change",
+                "new",
+                &description,
+                "--kind",
+                "documentation",
+                "--path",
+                &affected_path,
+                "--no-spec-change",
+                "--rationale",
+                "Documentation-only behavior does not alter a technical contract",
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let created: Value = serde_json::from_slice(&created).unwrap();
+        let id = created["change"]["id"].as_str().unwrap().to_string();
+        archived_ids.push(id.clone());
+
+        for (question, answer) in [
+            (
+                "acceptance_criteria",
+                "The originating PR contains its own compact archive finalization",
+            ),
+            ("public_contract", "no"),
+            ("architecture_risk", "no"),
+        ] {
+            specsync()
+                .args([
+                    "--root",
+                    root.to_str().unwrap(),
+                    "change",
+                    "answer",
+                    &id,
+                    question,
+                    answer,
+                ])
+                .assert()
+                .success();
+        }
+
+        let active_dir = root.join(".specsync/changes").join(&id);
+        let state: Value =
+            serde_json::from_str(&fs::read_to_string(active_dir.join("state.json")).unwrap())
+                .unwrap();
+        assert_eq!(state["workflow_version"], 2);
+        for artifact in state["selected_artifacts"].as_array().unwrap() {
+            let artifact = artifact.as_str().unwrap();
+            let content = if artifact == "tasks" {
+                "# Tasks\n\n- [x] Complete the originating PR.\n".to_string()
+            } else {
+                format!(
+                    "# {}\n\nComplete evidence for the originating PR.\n",
+                    artifact.replace('-', " ")
+                )
+            };
+            fs::write(active_dir.join(format!("{artifact}.md")), content).unwrap();
+        }
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "approve",
+                &id,
+                "--actor",
+                "Scope owner",
+            ])
+            .assert()
+            .success();
+
+        fs::write(
+            root.join(&affected_path),
+            format!("# Rune change {index}\n\nDelivered in its originating PR.\n"),
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", &format!("implement Rune change {index}")]);
+        let implementation_commit = git(&["rev-parse", "HEAD"]);
+        let implementation_tree = git(&["rev-parse", "HEAD^{tree}"]);
+        specsync()
+            .args(["--root", root.to_str().unwrap(), "change", "check", &id])
+            .assert()
+            .success();
+
+        let status = specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "--json",
+                "change",
+                "status",
+                &id,
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let status: Value = serde_json::from_slice(&status).unwrap();
+        assert_eq!(
+            status["summary"]["next_action"],
+            format!(
+                "run `specsync change review {id} --reviewer <independent-reviewer>` after the PR's scoped review passes"
+            )
+        );
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "review",
+                &id,
+                "--reviewer",
+                "Independent reviewer",
+            ])
+            .assert()
+            .success();
+        let finalized = specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "--json",
+                "change",
+                "finalize",
+                &id,
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let finalized: Value = serde_json::from_slice(&finalized).unwrap();
+        assert_eq!(finalized["ready_for_github_merge"], true);
+        assert_eq!(finalized["next_action"], "merge the PR on GitHub");
+        assert_eq!(finalized["implementation_commit"], implementation_commit);
+        assert_eq!(finalized["implementation_tree"], implementation_tree);
+
+        let archive_dir = std::path::PathBuf::from(finalized["archived"].as_str().unwrap());
+        assert!(!active_dir.exists());
+        assert!(archive_dir.is_dir());
+        let archived_state: Value =
+            serde_json::from_str(&fs::read_to_string(archive_dir.join("state.json")).unwrap())
+                .unwrap();
+        let accepted_state: Value = serde_json::from_str(
+            &fs::read_to_string(archive_dir.join("accepted-state.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(archived_state["workflow_version"], 2);
+        assert_eq!(archived_state["state"], "archived");
+        assert_eq!(accepted_state["state"], "accepted");
+
+        let verification: Value = serde_json::from_str(
+            &fs::read_to_string(archive_dir.join("verification.json")).unwrap(),
+        )
+        .unwrap();
+        let review: Value =
+            serde_json::from_str(&fs::read_to_string(archive_dir.join("review.json")).unwrap())
+                .unwrap();
+        let finalization: Value = serde_json::from_str(
+            &fs::read_to_string(archive_dir.join("finalization.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(review["schema_version"], 2);
+        assert_eq!(review["verdict"], "pass");
+        assert_eq!(review["execution_digest"], verification["execution_digest"]);
+        assert_eq!(
+            finalization["contract_digest"],
+            verification["contract_digest"]
+        );
+        assert_eq!(
+            finalization["workspace_digest"],
+            verification["workspace_digest"]
+        );
+        assert_eq!(finalization["implementation_commit"], implementation_commit);
+        assert_eq!(finalization["implementation_tree"], implementation_tree);
+        for field in ["closing_digest", "review_digest", "finalization_digest"] {
+            assert_eq!(finalization[field].as_str().unwrap().len(), 64);
+        }
+        let approvals: Value =
+            serde_json::from_str(&fs::read_to_string(archive_dir.join("approvals.json")).unwrap())
+                .unwrap();
+        let approvals = approvals["approvals"].as_array().unwrap();
+        assert_eq!(approvals.len(), 1);
+        assert_eq!(approvals[0]["gate"], "definition");
+
+        git(&["add", ".specsync"]);
+        let archive_diff = Command::new("git")
+            .args([
+                "diff",
+                "--cached",
+                "--name-status",
+                "-z",
+                "--find-renames",
+                "HEAD",
+                "--",
+                ".specsync",
+            ])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(archive_diff.status.success());
+        // Always invoke through bash: the classifier is a shell script, and Windows cannot
+        // execute #! scripts directly (Win32 error 193). Resolve Git Bash explicitly —
+        // bare `bash` on GHA Windows often hits the WSL stub instead of Git for Windows.
+        // Pass bash-native absolute paths so Git Bash does not mis-parse `C:\...` roots.
+        let classifier_bash = path_for_bash(Path::new(&classifier));
+        let root_bash = path_for_bash(root);
+        let bash = resolve_bash();
+        let mut classifier_child = bash_command()
+            .arg(&classifier_bash)
+            .arg(&root_bash)
+            .arg("false")
+            .arg("name-status")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap_or_else(|error| {
+                panic!(
+                    "failed to spawn bash classifier via {}: {error}",
+                    bash.display()
+                )
+            });
+        classifier_child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(&archive_diff.stdout)
+            .unwrap();
+        let classification = classifier_child.wait_with_output().unwrap();
+        let classifier_stdout = String::from_utf8_lossy(&classification.stdout);
+        let classifier_stderr = String::from_utf8_lossy(&classification.stderr);
+        assert!(
+            classification.status.success(),
+            "classifier failed (status={:?})\nstdout:\n{classifier_stdout}\nstderr:\n{classifier_stderr}",
+            classification.status.code()
+        );
+        let classification = classifier_stdout.into_owned();
+        assert!(
+            classification.contains("archive_only=true\n")
+                || classification.contains("archive_only=true\r\n"),
+            "{classification}"
+        );
+        assert!(
+            classification.contains("full=false\n") || classification.contains("full=false\r\n"),
+            "{classification}"
+        );
+        assert!(
+            classification.contains("site=false\n") || classification.contains("site=false\r\n"),
+            "{classification}"
+        );
+        assert!(
+            classification.contains("vscode=false\n")
+                || classification.contains("vscode=false\r\n"),
+            "{classification}"
+        );
+
+        git(&["add", "."]);
+        git(&["commit", "-m", &format!("finalize Rune change {index}")]);
+        assert_eq!(git(&["rev-parse", "HEAD^"]), implementation_commit);
+        git(&["switch", "main"]);
+        git(&["merge", "--ff-only", &branch]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&["branch", "-d", &branch]);
+    }
+
+    let archived = root
+        .join(".specsync/archive/changes")
+        .read_dir()
+        .unwrap()
+        .filter_map(Result::ok)
+        .count();
+    assert_eq!(archived, archived_ids.len());
+    let active = root
+        .join(".specsync/changes")
+        .read_dir()
+        .unwrap()
+        .filter_map(Result::ok)
+        .count();
+    assert_eq!(active, 0);
+    assert_eq!(git(&["branch", "--format=%(refname:short)"]), "main");
+}
+
+#[test]
+fn workflow_v2_cannot_downgrade_by_omitting_workflow_version() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let git = |args: &[&str]| {
@@ -454,98 +921,113 @@ fn no_spec_change_completes_full_cli_lifecycle() {
         .assert()
         .success();
     let id = "CHG-0001-update-contributor-documentation";
-    for (question, answer) in [
-        (
-            "acceptance_criteria",
-            "Contributors can follow the updated workflow",
-        ),
-        ("public_contract", "no"),
-        ("architecture_risk", "no"),
-    ] {
-        specsync()
-            .args([
-                "--root",
-                root.to_str().unwrap(),
-                "change",
-                "answer",
-                id,
-                question,
-                answer,
-            ])
-            .assert()
-            .success();
-    }
-    let dir = root.join(".specsync/changes").join(id);
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "accept", id])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("uses the single 6.0 workflow"));
+    let state_path = root.join(".specsync/changes").join(id).join("state.json");
+    let mut legacy_state: Value =
+        serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    legacy_state
+        .as_object_mut()
+        .unwrap()
+        .remove("workflow_version");
     fs::write(
-        dir.join("context.md"),
-        "# Context\n\nDocumentation update.\n",
+        &state_path,
+        format!("{}\n", serde_json::to_string_pretty(&legacy_state).unwrap()),
     )
     .unwrap();
-    fs::write(
-        dir.join("docs.md"),
-        "# Docs\n\nReviewed contributor copy.\n",
-    )
-    .unwrap();
-    for command in ["approve", "start", "verify", "accept"] {
+    for command in ["status", "approve", "start", "finalize"] {
         specsync()
             .args(["--root", root.to_str().unwrap(), "change", command, id])
             .assert()
-            .success();
+            .failure()
+            .stderr(predicate::str::contains(
+                "workflow version 1 conflicts with immutable origin 2",
+            ));
     }
-    git(&["add", "."]);
-    git(&["commit", "-m", "record accepted lifecycle evidence"]);
-    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
-    fs::write(
-        root.join(".specsync/sdd.json"),
-        r#"{
-  "version": 1,
-  "enabled": true,
-  "require_change_for_meaningful_files": false,
-  "meaningful_paths": [],
-  "ignored_paths": [],
-  "verification_commands": ["cargo metadata --manifest-path definitely-missing/Cargo.toml"],
-  "custom_artifacts": {},
-  "principles_file": null
-}
-
-"#,
-    )
-    .unwrap();
+    // Project integrity surfaces workflow conflicts; scoped check only verifies one open change.
     specsync()
-        .env("CI", "true")
-        .env_remove("GITHUB_WORKSPACE")
-        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "CI verification command `cargo metadata --manifest-path definitely-missing/Cargo.toml` failed",
+            "workflow version 1 conflicts with immutable origin 2",
         ));
-    fs::write(
-        root.join(".specsync/sdd.json"),
-        r#"{
-  "version": 1,
-  "enabled": true,
-  "require_change_for_meaningful_files": false,
-  "meaningful_paths": [],
-  "ignored_paths": [],
-  "verification_commands": [],
-  "custom_artifacts": {},
-  "principles_file": null
 }
-"#,
-    )
-    .unwrap();
+
+#[test]
+fn first_reachable_workflow_v1_state_requires_the_trusted_pre_v2_cutoff() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["commit", "--allow-empty", "-m", "trusted pre-v2 cutoff"]);
     specsync()
-        .args(["--root", root.to_str().unwrap(), "change", "archive", id])
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "new",
+            "Update contributor documentation",
+            "--kind",
+            "documentation",
+            "--path",
+            "README.md",
+            "--no-spec-change",
+            "--rationale",
+            "Documentation-only wording does not alter a technical contract",
+        ])
         .assert()
         .success();
-    assert!(!dir.exists());
-    assert!(
-        root.join(".specsync/archive/changes")
-            .read_dir()
-            .unwrap()
-            .any(|entry| entry.unwrap().file_name().to_string_lossy().ends_with(id))
-    );
+    let id = "CHG-0001-update-contributor-documentation";
+    let state_path = root.join(".specsync/changes").join(id).join("state.json");
+    let mut legacy_state: Value =
+        serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    let object = legacy_state.as_object_mut().unwrap();
+    object.remove("workflow_version");
+    object.remove("workflow_origin_version");
+    fs::write(
+        &state_path,
+        format!("{}\n", serde_json::to_string_pretty(&legacy_state).unwrap()),
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&[
+        "commit",
+        "-m",
+        "attempt first-reachable workflow-v1 downgrade",
+    ]);
+
+    for command in ["status", "accept", "archive"] {
+        specsync()
+            .args(["--root", root.to_str().unwrap(), "change", command, id])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains(
+                "was not present at the trusted pre-v2 cutoff",
+            ));
+    }
+    // Project integrity surfaces cutoff violations; scoped check only verifies one open change.
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "was not present at the trusted pre-v2 cutoff",
+        ));
 }
 
 #[test]
@@ -576,7 +1058,7 @@ fn change_supersede_persists_an_exact_predecessor_obligation_through_the_cli() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": [],
   "ignored_paths": [],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -753,7 +1235,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": [],
   "ignored_paths": [],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -835,8 +1317,9 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         .success();
 
     fs::write(root.join("README.md"), "Final review instructions.\n").unwrap();
+    // Stale accepted evidence is project health (`change audit`), not scoped `change check`.
     specsync()
-        .args(["--root", root.to_str().unwrap(), "change", "check"])
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
         .assert()
         .failure()
         .stderr(predicate::str::contains(
@@ -883,8 +1366,8 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
     specsync()
         .args(["--root", root.to_str().unwrap(), "change", "check"])
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("verification evidence is stale"));
+        .success()
+        .stdout(predicate::str::contains("verified"));
 
     let docs_path = dir.join("docs.md");
     let accepted_docs = fs::read_to_string(&docs_path).unwrap();
@@ -985,7 +1468,7 @@ fn reopened_owner_correction_is_deterministic_through_json_cli() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": ["src/"],
   "ignored_paths": [".specsync/", "specs/"],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -1140,7 +1623,7 @@ fn batch_correct_owner_through_cli_is_transactional() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": ["src/"],
   "ignored_paths": [".specsync/", "specs/"],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -1309,7 +1792,7 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": [],
   "ignored_paths": [],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }
@@ -1413,7 +1896,10 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
         value["effective_definition"]["answers"]["architecture_risk"],
         "yes"
     );
-    assert_eq!(value["summary"]["next_action"], "complete artifacts");
+    let next_action = value["summary"]["next_action"].as_str().unwrap();
+    for artifact in ["research.md", "design.md", "plan.md"] {
+        assert!(next_action.contains(artifact));
+    }
     assert_eq!(value["corrections"].as_array().unwrap().len(), 1);
 
     for artifact in ["research.md", "design.md", "plan.md"] {
@@ -1446,7 +1932,10 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
         show["corrections"][0]["reason"],
         "The lifecycle implementation affects persisted architecture"
     );
-    assert_eq!(show["summary"]["next_action"], "approve");
+    assert_eq!(
+        show["summary"]["next_action"],
+        "run `specsync change approve CHG-0001-correct-lifecycle-classification --actor <name>`"
+    );
 
     specsync()
         .args([
@@ -1468,9 +1957,35 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
         .stdout
         .clone();
     let status = String::from_utf8(status).unwrap();
-    assert!(status.contains("architecture_risk: no → yes by Release reviewer"));
-    assert!(status.contains("architecture_risk=yes"));
-    assert!(status.contains("Next: verify"));
+    // Text mode summarizes corrections without printing digest-bearing audit lines;
+    // effective answers stay in --json (asserted above via change show).
+    assert!(
+        status.contains("Corrections: 1 recorded"),
+        "expected correction count summary in text status, got:\n{status}"
+    );
+    assert!(status.contains(&format!("Next: run `specsync change check {id}`")));
+    let status_json = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "status",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let status_json: Value = serde_json::from_slice(&status_json).unwrap();
+    // Original interview answer remains no; effective definition is yes after correction.
+    assert_eq!(status_json["change"]["answers"]["architecture_risk"], "no");
+    assert_eq!(
+        status_json["effective_definition"]["answers"]["architecture_risk"],
+        "yes"
+    );
+    assert_eq!(status_json["corrections"].as_array().unwrap().len(), 1);
 
     specsync()
         .args(["--root", root.to_str().unwrap(), "change", "verify", id])
@@ -1517,7 +2032,7 @@ fn indirect_recursive_lifecycle_check_fails_once_with_context() {
   "require_change_for_meaningful_files": false,
   "meaningful_paths": [],
   "ignored_paths": [],
-  "verification_commands": [],
+  "verification_commands": ["true"],
   "custom_artifacts": {},
   "principles_file": null
 }

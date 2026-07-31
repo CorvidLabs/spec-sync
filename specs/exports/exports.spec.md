@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 10
+version: 11
 status: stable
 files:
   - src/exports/mod.rs
@@ -160,6 +160,8 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 7b. Wildcard resolution is one level deep — resolved modules are parsed without a resolver to avoid infinite loops
 7c. `export * as Ns from './module'` emits the namespace name (Ns) as the export, not the individual symbols
 7d. Without a resolver (e.g. in unit tests), wildcard `export *` lines are silently skipped
+7e. TypeScript Unicode escapes in supported declaration, alias, default, `export =`, and relative
+    re-export names decode to one stable identity; malformed escapes do not create symbols.
 8. Rust backends extract plain `pub` and crate-visible `pub(crate)` declarations and re-exports across every listed source file; narrower `pub(super)`, `pub(self)`, and `pub(in path::to::mod)` remain excluded
 9. Go backend extracts uppercase (exported) identifiers and methods
 10. Python backend uses `__all__` if present, otherwise top-level non-underscore `def/class`
@@ -175,6 +177,9 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 20. `get_exported_symbols_from_content` treats `file_path` only as language/type context, parses the
     supplied snapshot text, never reopens the path, and disables TypeScript wildcard-import
     resolution so a retained snapshot cannot regain ambient filesystem authority
+21. Erlang regex and AST backends emit canonical `name/arity` identities for functions and types,
+    preserve overloaded arities, derive `export_all` arity from balanced forms, and skip incomplete
+    or macro-placeholder attributes.
 
 ## Behavioral Examples
 
@@ -340,6 +345,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 | 2026-07-14 | CHG-0037-resolve-extensionless-mjs-barrel-exports-for-newly-discovered-module-javascript: Resolve extensionless mjs barrel exports for newly discovered module JavaScript sources |
 | 2026-07-14 | CHG-0038-harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener: Harden CommonJS export extraction and exclude module JavaScript tests from generated specs |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
 
 ## CommonJS Extraction
 

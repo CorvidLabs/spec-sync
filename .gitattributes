@@ -1,0 +1,4 @@
+# Lifecycle evidence and workflow baselines are byte-compared. Keep LF so
+# Windows autocrlf does not rewrite working trees into non-canonical form.
+.specsync/workflow-v2-baseline.json text eol=lf
+.specsync/**/*.json text eol=lf

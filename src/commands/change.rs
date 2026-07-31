@@ -4,12 +4,13 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use crate::change::{
-    self, ArtifactKind, ChangeKind, ChangeRecord, CorrectionField, CreateChangeRequest,
+    self, ArtifactKind, ChangeKind, ChangeRecord, ChangeState, CorrectionField,
+    CreateChangeRequest, InterviewQuestion,
 };
 use crate::cli::ChangeAction;
 use crate::types::OutputFormat;
 
-pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
+pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, strict: bool) {
     let result = match action {
         ChangeAction::New {
             description,
@@ -37,15 +38,15 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                     },
                 )
             })
-            .and_then(|record| print_record(root, &record, format, true)),
+            .and_then(|record| print_record(root, &record, format, true, strict)),
         ChangeAction::Answer {
             id,
             question,
             answer,
         } => change::answer_question(root, &id, &question, &answer)
-            .and_then(|record| print_record(root, &record, format, true)),
+            .and_then(|record| print_record(root, &record, format, true, strict)),
         ChangeAction::Depend { id, on } => change::add_dependency(root, &id, &on)
-            .and_then(|record| print_record(root, &record, format, false)),
+            .and_then(|record| print_record(root, &record, format, false, strict)),
         ChangeAction::Supersede {
             id,
             predecessor,
@@ -53,19 +54,24 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
             module,
             digest,
         } => change::add_supersedes_obligation(root, &id, &predecessor, &path, &module, &digest)
-            .and_then(|record| print_record(root, &record, format, false)),
+            .and_then(|record| print_record(root, &record, format, false, strict)),
         ChangeAction::List => {
-            print_records(root, &change::list_changes(root), format);
+            let _scope = change::begin_change_read_scope(root);
+            print_records(root, &change::list_changes(root), format, strict);
             Ok(())
         }
-        ChangeAction::Show { id } => change::load_change(root, &id)
-            .and_then(|record| print_record(root, &record, format, true)),
+        ChangeAction::Show { id } => {
+            let _scope = change::begin_change_read_scope(root);
+            change::load_change(root, &id)
+                .and_then(|record| print_record(root, &record, format, true, strict))
+        }
         ChangeAction::Status { id } => {
+            let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
                 change::load_change(root, &id)
-                    .and_then(|record| print_record(root, &record, format, false))
+                    .and_then(|record| print_record(root, &record, format, false, strict))
             } else {
-                print_records(root, &change::list_changes(root), format);
+                print_records(root, &change::list_changes(root), format, strict);
                 Ok(())
             }
         }
@@ -85,7 +91,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
         ChangeAction::Start { id } => change::start_implementation(root, &id)
             .map(|record| print_transition(&record, format, "implementation started")),
         ChangeAction::Verify { id } => {
-            change::verify_change(root, &id).map(|verification| match format {
+            let result = if strict {
+                change::verify_change_with_strict(root, &id, true)
+            } else {
+                change::verify_change(root, &id)
+            };
+            result.map(|verification| match format {
                 OutputFormat::Json => print_json(&verification),
                 _ => println!(
                     "{} verification passed ({} command(s), {} requirement(s))",
@@ -95,6 +106,29 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 ),
             })
         }
+        ChangeAction::Review {
+            id,
+            reviewer,
+            verdict,
+        } => change::ScopedReviewVerdict::parse(&verdict).and_then(|verdict| {
+            let result = if verdict == change::ScopedReviewVerdict::Pass {
+                change::record_scoped_review(root, &id, reviewer)
+            } else {
+                change::record_scoped_review_with_verdict(root, &id, reviewer, verdict)
+            };
+            result.map(|review| {
+                match format {
+                    OutputFormat::Json => print_json(&review),
+                    _ => println!(
+                        "{} {} independent review recorded as {} at {}",
+                        "✓".green(),
+                        review.change_id,
+                        review.verdict.as_str(),
+                        review.implementation_commit
+                    ),
+                }
+            })
+        }),
         ChangeAction::Reopen { id, actor, reason } => {
             change::reopen_change(root, &id, actor, reason).map(|result| match format {
                 OutputFormat::Json => print_json(&result),
@@ -217,7 +251,16 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 }
             })
         }
-        ChangeAction::Accept { id, actor, note } => change::accept_change(root, &id, actor, note)
+        ChangeAction::Accept { id, actor, note } => change::load_change(root, &id)
+            .and_then(|record| {
+                if record.workflow_version >= 2 {
+                    return Err(format!(
+                        "{} uses the single 6.0 workflow; record scoped review and run `specsync change finalize {}`",
+                        record.id, record.id
+                    ));
+                }
+                change::accept_change(root, &id, actor, note)
+            })
             .map(|record| {
                 print_transition(
                     &record,
@@ -226,26 +269,158 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                 )
             }),
         ChangeAction::Archive { id } => {
-            change::archive_change(root, &id).map(|path| match format {
+            change::load_change(root, &id).and_then(|record| {
+                if record.workflow_version >= 2 {
+                    return Err(format!(
+                        "{} uses same-PR finalization; run `specsync change finalize {}`",
+                        record.id, record.id
+                    ));
+                }
+                change::archive_change(root, &id)
+            }).map(|path| match format {
                 OutputFormat::Json => print_json(&serde_json::json!({ "archived": path })),
                 _ => println!("{} Archived to {}", "✓".green(), path.display()),
             })
         }
-        ChangeAction::Check => {
-            let report = change::check_project(root);
+        ChangeAction::Finalize { id } => change::finalize_change(root, &id).and_then(|path| {
+            let finalization_path = path.join("finalization.json");
+            let content = fs::read_to_string(&finalization_path).map_err(|error| {
+                format!("failed to read {}: {error}", finalization_path.display())
+            })?;
+            let finalization: change::FinalizationRecord =
+                serde_json::from_str(&content).map_err(|error| {
+                    format!(
+                        "invalid finalization {}: {error}",
+                        finalization_path.display()
+                    )
+                })?;
+            match format {
+                OutputFormat::Json => print_json(&serde_json::json!({
+                    "id": id,
+                    "archived": path,
+                    "implementation_commit": finalization.implementation_commit,
+                    "implementation_tree": finalization.implementation_tree,
+                    "contract_digest": finalization.contract_digest,
+                    "workspace_digest": finalization.workspace_digest,
+                    "review_digest": finalization.review_digest,
+                    "finalization_digest": finalization.finalization_digest,
+                    "ready_for_github_merge": true,
+                    "next_action": "merge the PR on GitHub",
+                })),
+                _ => {
+                    // Digests stay in --json only; text mode names the archive + commit.
+                    println!("{} {} finalized on this PR", "✓".green(), id);
+                    println!("  Archive: {}", path.display());
+                    println!("  Implementation: {}", finalization.implementation_commit);
+                    println!("  Next: merge the PR on GitHub");
+                }
+            }
+            Ok(())
+        }),
+        ChangeAction::Check { id } => {
+            // Scoped verification only — project integrity is `change audit`.
+            let display_id = id.clone().unwrap_or_else(|| "open change".into());
+            if !matches!(format, OutputFormat::Json) {
+                println!("Checking {display_id}…");
+            }
+            let verification = if strict {
+                change::check_change_with_strict(root, id.as_deref(), true)
+            } else {
+                change::check_change(root, id.as_deref())
+            };
+            match format {
+                OutputFormat::Json => match &verification {
+                    Ok(Some(record)) => {
+                        print_json(&serde_json::json!({ "verification": record }));
+                        if !record.passed {
+                            process::exit(1);
+                        }
+                    }
+                    Ok(None) => {
+                        print_json(&serde_json::json!({
+                            "verification": null,
+                            "message": "nothing to check",
+                        }));
+                    }
+                    Err(error) => {
+                        print_json(&serde_json::json!({ "error": error }));
+                        process::exit(1);
+                    }
+                },
+                _ => match &verification {
+                    Ok(Some(record)) => {
+                        // Prefer the ID from the change workspace after verify.
+                        let verified_id = id.clone().or_else(|| {
+                            change::list_changes(root)
+                                .into_iter()
+                                .find(|record| {
+                                    matches!(
+                                        record.state,
+                                        ChangeState::Implementing | ChangeState::Verifying
+                                    )
+                                })
+                                .map(|record| record.id)
+                        });
+                        let label = verified_id.as_deref().unwrap_or(display_id.as_str());
+                        if record.passed {
+                            println!("{} {} verified", "✓".green(), label);
+                            if let Some(change_id) = &verified_id
+                                && let Ok(change_record) = change::load_change(root, change_id)
+                            {
+                                let questions = change::next_questions(&change_record);
+                                println!(
+                                    "  Next: {}",
+                                    text_mode_next_action(&change_record, &questions)
+                                );
+                            }
+                        } else {
+                            eprintln!(
+                                "{} {} verification failed",
+                                "error:".red().bold(),
+                                label
+                            );
+                            for command in &record.commands {
+                                if !command.success {
+                                    eprintln!(
+                                        "  failed: {} (exit {:?})",
+                                        command.command, command.exit_code
+                                    );
+                                }
+                            }
+                            println!(
+                                "  Next: fix verification failures and re-run `specsync change check{}`",
+                                verified_id
+                                    .as_ref()
+                                    .map(|value| format!(" {value}"))
+                                    .unwrap_or_default()
+                            );
+                            process::exit(1);
+                        }
+                    }
+                    Ok(None) => {
+                        println!("Nothing to check (no approved/implementing/verifying change).");
+                    }
+                    Err(error) => {
+                        eprintln!("{} {error}", "error:".red().bold());
+                        process::exit(1);
+                    }
+                },
+            }
+            Ok(())
+        }
+        ChangeAction::Audit => {
+            let report = change::audit_project(root);
             let passed = report.errors.is_empty();
             match format {
-                OutputFormat::Json => print_json(&report),
+                OutputFormat::Json => {
+                    print_json(&serde_json::json!({ "report": report }));
+                }
                 _ => {
-                    for result in &report.terminal_evidence {
+                    if report.enabled {
                         println!(
-                            "{} evidence: {}",
-                            result.id,
-                            result.evidence.validity.as_str()
+                            "Auditing active changes ({})…",
+                            report.checked_changes
                         );
-                        if let Some(reason) = &result.evidence.reason {
-                            println!("  reason: {reason}");
-                        }
                     }
                     for warning in &report.warnings {
                         println!("{} {warning}", "warning:".yellow().bold());
@@ -255,10 +430,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat) {
                     }
                     if passed {
                         println!(
-                            "{} {} active change(s) valid",
+                            "{} audit passed ({} active)",
                             "✓".green(),
                             report.checked_changes
                         );
+                    } else {
+                        println!("  Next: fix active workspace / living-spec issues above");
                     }
                 }
             }
@@ -295,77 +472,60 @@ fn print_record(
     record: &ChangeRecord,
     format: OutputFormat,
     include_questions: bool,
+    strict: bool,
 ) -> Result<(), String> {
-    let summary = change::summarize_change(root, record);
-    let effective_definition = change::effective_change_definition(root, record)?;
-    let corrections = change::correction_history(root, record)?;
     let questions = if include_questions {
         change::next_questions(record)
     } else {
         Vec::new()
     };
     match format {
-        OutputFormat::Json => print_json(&serde_json::json!({
-            "change": record,
-            "effective_definition": effective_definition,
-            "corrections": corrections,
-            "summary": summary,
-            "questions": questions,
-        })),
+        OutputFormat::Json => {
+            // JSON keeps digests and correction ledgers for machine consumers.
+            let summary = change::summarize_change_with_strict(root, record, strict);
+            let effective_definition = change::effective_change_definition(root, record)?;
+            let corrections = change::correction_history(root, record)?;
+            print_json(&serde_json::json!({
+                "change": record,
+                "effective_definition": effective_definition,
+                "corrections": corrections,
+                "summary": summary,
+                "questions": questions,
+            }));
+        }
         _ => {
-            println!("{} {}", record.id.bold(), record.title);
-            println!("  State: {}", record.state.as_str());
-            println!("  Next: {}", summary.next_action);
-            if !corrections.is_empty() {
-                println!("  Corrections:");
-                for correction in &corrections {
-                    println!(
-                        "    {}: {} → {} by {} at {} — {}",
-                        correction.field.as_str(),
-                        correction.prior_effective_value,
-                        correction.corrected_value,
-                        correction.actor,
-                        correction.timestamp,
-                        correction.reason
-                    );
-                    println!(
-                        "      digests: {} → {}",
-                        correction.prior_view_digest, correction.corrected_view_digest
-                    );
-                }
+            // Text mode must not invoke digest-bearing loaders into cleartext sinks
+            // (CodeQL rust/cleartext-logging). Human output uses interview/state only.
+            let id = record.id.clone();
+            let title = record.title.clone();
+            let state = record.state.as_str().to_owned();
+            println!("{} {}", id.bold(), title);
+            println!("  State: {state}");
+            println!("  Next: {}", text_mode_next_action(record, &questions));
+            if !record.answers.is_empty() {
+                let answer_summary = record
+                    .answers
+                    .iter()
+                    .map(|(field, value)| format!("{field}={value}"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                println!("  Answers: {answer_summary}");
+            }
+            if record.correction_count > 0 {
                 println!(
-                    "  Effective answers: {}",
-                    effective_definition
-                        .answers
-                        .iter()
-                        .map(|(field, value)| format!("{field}={value}"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    "  Corrections: {} recorded (use --json for the audit ledger)",
+                    record.correction_count
                 );
             }
             if !record.acceptance_owner_corrections.is_empty() {
-                println!("  Acceptance owner corrections:");
-                for correction in &record.acceptance_owner_corrections {
-                    println!(
-                        "    {}: {} owned by {} by {} at {} — {}",
-                        correction.sequence,
-                        correction.path,
-                        correction.module,
-                        correction.actor,
-                        correction.timestamp,
-                        correction.reason
-                    );
-                }
-            }
-            if let Some(evidence) = &summary.terminal_evidence {
-                println!("  Evidence: {}", evidence.validity.as_str());
-                if let Some(reason) = &evidence.reason {
-                    println!("  Evidence reason: {reason}");
-                }
+                println!(
+                    "  Acceptance owner corrections: {} (use --json for details)",
+                    record.acceptance_owner_corrections.len()
+                );
             }
             if include_questions && !questions.is_empty() {
                 println!("\nInterview:");
-                for question in questions {
+                for question in &questions {
                     println!("  {} — {}", question.id.cyan(), question.prompt);
                     if !question.choices.is_empty() {
                         println!("    Choices: {}", question.choices.join(", "));
@@ -377,29 +537,53 @@ fn print_record(
     Ok(())
 }
 
-fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat) {
-    let summaries: Vec<_> = records
-        .iter()
-        .map(|record| change::summarize_change(root, record))
-        .collect();
+/// Human next-step string from interview/state only (no digest-bearing loaders).
+fn text_mode_next_action(record: &ChangeRecord, questions: &[InterviewQuestion]) -> String {
+    let id = record.id.as_str();
+    match record.state {
+        ChangeState::Draft if questions.is_empty() => {
+            format!("run `specsync change approve {id} --actor <name>`")
+        }
+        ChangeState::Draft => {
+            let question = questions
+                .first()
+                .map(|question| question.id.as_str())
+                .unwrap_or("<question>");
+            format!("run `specsync change answer {id} {question} <answer>`")
+        }
+        ChangeState::Approved | ChangeState::Implementing => {
+            format!("run `specsync change check {id}`")
+        }
+        ChangeState::Verifying => {
+            format!("run `specsync change check {id}` or finalize when ready")
+        }
+        ChangeState::Accepted if record.workflow_version >= 2 => {
+            format!("run `specsync change finalize {id}`")
+        }
+        ChangeState::Accepted => format!("run `specsync change archive {id}`"),
+        ChangeState::Archived => "no further action".into(),
+    }
+}
+
+fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, strict: bool) {
     match format {
-        OutputFormat::Json => print_json(&summaries),
-        _ if summaries.is_empty() => println!("No active SDD changes."),
+        OutputFormat::Json => {
+            let summaries: Vec<_> = records
+                .iter()
+                .map(|record| change::summarize_change_with_strict(root, record, strict))
+                .collect();
+            print_json(&summaries);
+        }
+        _ if records.is_empty() => println!("No active SDD changes."),
         _ => {
-            for summary in summaries {
-                let evidence = summary
-                    .terminal_evidence
-                    .as_ref()
-                    .map(|evidence| format!("  evidence: {}", evidence.validity.as_str()))
-                    .unwrap_or_default();
-                println!(
-                    "{}  {:<13}  {}  next: {}{}",
-                    summary.id.bold(),
-                    summary.state.as_str(),
-                    summary.title,
-                    summary.next_action,
-                    evidence
-                );
+            // Text list view avoids digest-bearing summarize loaders (cleartext-logging).
+            for record in records {
+                let questions = change::next_questions(record);
+                let id = record.id.clone();
+                let title = record.title.clone();
+                let state = record.state.as_str().to_owned();
+                let next = text_mode_next_action(record, &questions);
+                println!("{:<14}  {state:<13}  {title}  next: {next}", id.bold());
             }
         }
     }

@@ -1,0 +1,203 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1785470969,
+      "digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "note": "Scoped check + audit + agent pack",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
+        "title": "Scoped change check, change audit, and agent pack for the two-verb lifecycle",
+        "description": "Scoped change check, change audit, and agent pack for the two-verb lifecycle",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cli",
+          "cmd_change",
+          "commands",
+          "hooks"
+        ],
+        "affected_paths": [
+          ".claude/commands",
+          ".claude/skills/spec-sync/SKILL.md",
+          ".cursor/commands",
+          ".specsync/change-sequence.json",
+          "Agents.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/integrations/ai-agents.md",
+          "site/src/content/docs/workflow.md",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/cli.rs",
+          "src/commands/agents.rs",
+          "src/commands/change.rs",
+          "src/hooks.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check verifies only the target change without revalidating archived terminal evidence; change audit validates active workspaces and living specs only; agents install ships /specsync:check and /specsync:audit; skill and hooks teach the two-verb model; text UX shows phases and a one-line success footer with next action"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1785473858,
+      "digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "note": "Refresh definition after requirement evidence alignment",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
+        "title": "Scoped change check, change audit, and agent pack for the two-verb lifecycle",
+        "description": "Scoped change check, change audit, and agent pack for the two-verb lifecycle",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cli",
+          "cmd_change",
+          "commands",
+          "hooks"
+        ],
+        "affected_paths": [
+          ".claude/commands",
+          ".claude/skills/spec-sync/SKILL.md",
+          ".cursor/commands",
+          ".specsync/change-sequence.json",
+          "Agents.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/integrations/ai-agents.md",
+          "site/src/content/docs/workflow.md",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/cli.rs",
+          "src/commands/agents.rs",
+          "src/commands/change.rs",
+          "src/hooks.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check verifies only the target change without revalidating archived terminal evidence; change audit validates active workspaces and living specs only; agents install ships /specsync:check and /specsync:audit; skill and hooks teach the two-verb model; text UX shows phases and a one-line success footer with next action"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1785473860,
+      "digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "note": "Refresh definition after requirement evidence alignment",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
+        "title": "Scoped change check, change audit, and agent pack for the two-verb lifecycle",
+        "description": "Scoped change check, change audit, and agent pack for the two-verb lifecycle",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cli",
+          "cmd_change",
+          "commands",
+          "hooks"
+        ],
+        "affected_paths": [
+          ".claude/commands",
+          ".claude/skills/spec-sync/SKILL.md",
+          ".cursor/commands",
+          ".specsync/change-sequence.json",
+          "Agents.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/integrations/ai-agents.md",
+          "site/src/content/docs/workflow.md",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/cli.rs",
+          "src/commands/agents.rs",
+          "src/commands/change.rs",
+          "src/hooks.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check verifies only the target change without revalidating archived terminal evidence; change audit validates active workspaces and living specs only; agents install ships /specsync:check and /specsync:audit; skill and hooks teach the two-verb model; text UX shows phases and a one-line success footer with next action"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1785516691,
+      "digest": "b25bc074f03a4352d71eee64fa54ca4afe633b79726c3ec8ef4a61f4c44583b9",
+      "note": "Add cmd_agents and cli_args ownership for finalize",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
+        "title": "Scoped change check, change audit, and agent pack for the two-verb lifecycle",
+        "description": "Scoped change check, change audit, and agent pack for the two-verb lifecycle",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cli",
+          "cli_args",
+          "cmd_agents",
+          "cmd_change",
+          "commands",
+          "hooks"
+        ],
+        "affected_paths": [
+          ".claude/commands",
+          ".claude/skills/spec-sync/SKILL.md",
+          ".cursor/commands",
+          ".specsync/change-sequence.json",
+          "Agents.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/integrations/ai-agents.md",
+          "site/src/content/docs/workflow.md",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/cli.rs",
+          "src/commands/agents.rs",
+          "src/commands/change.rs",
+          "src/hooks.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check verifies only the target change without revalidating archived terminal evidence; change audit validates active workspaces and living specs only; agents install ships /specsync:check and /specsync:audit; skill and hooks teach the two-verb model; text UX shows phases and a one-line success footer with next action"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

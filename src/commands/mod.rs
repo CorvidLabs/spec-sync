@@ -41,7 +41,8 @@ use crate::scoring;
 use crate::types;
 use crate::types::SpecStatus;
 use crate::validator::{
-    find_spec_files, load_config_and_discover_retained, source_within_root, validate_spec,
+    find_spec_files, load_config_and_discover_retained, schema_config_problems_for_snapshot,
+    schema_table_names_from_snapshot, source_within_root, validate_spec,
 };
 
 pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConfig, Vec<PathBuf>) {
@@ -279,8 +280,52 @@ pub fn build_schema_columns(
     config: &types::SpecSyncConfig,
 ) -> std::collections::HashMap<String, schema::SchemaTable> {
     match &config.schema_dir {
-        Some(dir) => schema::build_schema(&root.join(dir)),
+        Some(dir) => schema::build_schema_snapshot(&root.join(dir))
+            .map(|snapshot| snapshot.tables)
+            .unwrap_or_default(),
         None => std::collections::HashMap::new(),
+    }
+}
+
+struct SchemaValidationInput {
+    table_names: HashSet<String>,
+    tables: HashMap<String, schema::SchemaTable>,
+    errors: Vec<String>,
+}
+
+fn build_schema_validation_input(
+    root: &Path,
+    config: &types::SpecSyncConfig,
+) -> SchemaValidationInput {
+    let Some(directory) = &config.schema_dir else {
+        return SchemaValidationInput {
+            table_names: HashSet::new(),
+            tables: HashMap::new(),
+            errors: schema_config_problems_for_snapshot(config, None),
+        };
+    };
+
+    match schema::build_schema_snapshot(&root.join(directory)) {
+        Ok(snapshot) => {
+            let (table_names, errors) = match schema_table_names_from_snapshot(&snapshot, config) {
+                Ok(table_names) => (table_names, Vec::new()),
+                Err(error) => (HashSet::new(), vec![error]),
+            };
+            SchemaValidationInput {
+                table_names,
+                tables: snapshot.tables,
+                errors,
+            }
+        }
+        Err(error) => {
+            let mut errors = schema_config_problems_for_snapshot(config, None);
+            errors.push(error.to_string());
+            SchemaValidationInput {
+                table_names: HashSet::new(),
+                tables: HashMap::new(),
+                errors,
+            }
+        }
     }
 }
 
@@ -366,8 +411,6 @@ pub fn run_validation(
     root: &Path,
     spec_files: &[PathBuf],
     ownership_spec_files: &[PathBuf],
-    schema_tables: &std::collections::HashSet<String>,
-    schema_columns: &std::collections::HashMap<String, schema::SchemaTable>,
     config: &types::SpecSyncConfig,
     collect: bool,
     explain: bool,
@@ -381,13 +424,66 @@ pub fn run_validation(
     Vec<String>,
     Vec<String>,
 ) {
+    let (errors, warnings, passed, total, rendered_errors, rendered_warnings, notices, _) =
+        run_validation_with_suppressions(
+            root,
+            spec_files,
+            ownership_spec_files,
+            config,
+            collect,
+            explain,
+            ignore_rules,
+        );
+    (
+        errors,
+        warnings,
+        passed,
+        total,
+        rendered_errors,
+        rendered_warnings,
+        notices,
+    )
+}
+
+type ValidationWithSuppressions = (
+    usize,
+    usize,
+    usize,
+    usize,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+    Vec<serde_json::Value>,
+);
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn run_validation_with_suppressions(
+    root: &Path,
+    spec_files: &[PathBuf],
+    ownership_spec_files: &[PathBuf],
+    config: &types::SpecSyncConfig,
+    collect: bool,
+    explain: bool,
+    ignore_rules: &IgnoreRules,
+) -> ValidationWithSuppressions {
+    let schema_input = build_schema_validation_input(root, config);
     let mut total_errors = 0;
-    let mut total_warnings = 0;
+    let mut total_warnings = ignore_rules.warnings.len();
     let mut passed = 0;
     let mut drafts_skipped = 0;
     let mut all_errors = ValidationErrors::default();
-    let mut all_warnings: Vec<String> = Vec::new();
+    let mut all_warnings = ignore_rules
+        .warnings
+        .iter()
+        .map(|warning| format!(".specsyncignore: {warning}"))
+        .collect::<Vec<_>>();
     let mut all_notices: Vec<String> = Vec::new();
+    let mut all_suppressed_warnings: Vec<serde_json::Value> = Vec::new();
+    if !collect {
+        for warning in &ignore_rules.warnings {
+            println!("{} {warning}", "warning:".yellow().bold());
+        }
+    }
     let mut file_owners: HashMap<String, Vec<String>> = HashMap::new();
     let mut spec_files_by_path: HashMap<PathBuf, HashSet<String>> = HashMap::new();
     for spec_file in ownership_spec_files {
@@ -428,7 +524,13 @@ pub fn run_validation(
     }
 
     for spec_file in spec_files {
-        let mut result = validate_spec(spec_file, root, schema_tables, schema_columns, config);
+        let mut result = validate_spec(
+            spec_file,
+            root,
+            &schema_input.table_names,
+            &schema_input.tables,
+            config,
+        );
         let owner = spec_file
             .strip_prefix(root)
             .unwrap_or(spec_file)
@@ -457,12 +559,23 @@ pub fn run_validation(
             .map(|content| IgnoreRules::parse_inline(&content))
             .unwrap_or_default();
 
-        // Filter out suppressed warnings
-        let filtered_warnings: Vec<&String> = result
-            .warnings
-            .iter()
-            .filter(|w| !ignore_rules.is_suppressed(w, &result.spec_path, &inline_ignores))
-            .collect();
+        // Filter only classified warnings, while retaining deterministic
+        // machine-readable details for every suppression.
+        let mut filtered_warnings = Vec::new();
+        for warning in &result.warnings {
+            if let Some((category, source)) =
+                ignore_rules.suppression_source(warning, &result.spec_path, &inline_ignores)
+            {
+                all_suppressed_warnings.push(serde_json::json!({
+                    "spec": result.spec_path,
+                    "warning": warning,
+                    "category": category.as_str(),
+                    "source": source,
+                }));
+            } else {
+                filtered_warnings.push(warning);
+            }
+        }
 
         if collect {
             let prefix = &result.spec_path;
@@ -531,7 +644,7 @@ pub fn run_validation(
             for e in &table_errors {
                 println!("  {} {e}", "✗".red());
             }
-        } else if !schema_tables.is_empty() {
+        } else if !schema_input.table_names.is_empty() {
             println!("  {} All DB tables exist in schema", "✓".green());
         }
 
@@ -732,19 +845,15 @@ pub fn run_validation(
         }
     }
 
-    // Schema/migration files that exist but can't be read as UTF-8 are silently
-    // skipped by build_schema — their tables/columns vanish, which can silently
-    // disable db_tables/column validation (an all-unreadable schema makes the
-    // checks a no-op). Surface them once, project-level (not per spec), as hard
-    // errors so the gate fails loud instead of under-validating.
-    if let Some(dir) = &config.schema_dir {
-        for err in schema::schema_read_errors(&root.join(dir)) {
-            total_errors += 1;
-            if collect {
-                all_errors.push_unattributed(err);
-            } else {
-                println!("\n{} {err}", "✗".red());
-            }
+    // Surface schema snapshot and configured-pattern failures once at project
+    // scope. The compatibility table/column APIs remain infallible for existing
+    // callers, but no failed input may become a vacuous validation pass.
+    for error in schema_input.errors {
+        total_errors += 1;
+        if collect {
+            all_errors.push_unattributed(error);
+        } else {
+            println!("\n{} {error}", "✗".red());
         }
     }
 
@@ -755,6 +864,17 @@ pub fn run_validation(
         );
     }
 
+    fn suppression_sort_key(value: &serde_json::Value) -> (&str, &str, &str, &str) {
+        (
+            value["spec"].as_str().unwrap_or_default(),
+            value["category"].as_str().unwrap_or_default(),
+            value["warning"].as_str().unwrap_or_default(),
+            value["source"].as_str().unwrap_or_default(),
+        )
+    }
+    all_suppressed_warnings
+        .sort_by(|left, right| suppression_sort_key(left).cmp(&suppression_sort_key(right)));
+
     (
         total_errors,
         total_warnings,
@@ -763,6 +883,7 @@ pub fn run_validation(
         all_errors.into_rendered(),
         all_warnings,
         all_notices,
+        all_suppressed_warnings,
     )
 }
 
@@ -972,19 +1093,19 @@ fn create_drift_issues_with_diagnostics(
 
 #[cfg(test)]
 mod tests {
-    use super::{ValidationErrors, create_drift_issues, run_validation, validate_module_name};
-    use crate::ignore::IgnoreRules;
-    use crate::schema::SchemaTable;
+    use super::{
+        ValidationErrors, create_drift_issues, run_validation, run_validation_with_suppressions,
+        validate_module_name,
+    };
+    use crate::ignore::{IgnoreRules, WarningCategory};
     use crate::types::{OutputFormat, SpecSyncConfig};
-    use std::collections::{HashMap, HashSet};
+    use std::fs;
     use std::path::{Path, PathBuf};
 
     type RunValidationSignature = fn(
         &Path,
         &[PathBuf],
         &[PathBuf],
-        &HashSet<String>,
-        &HashMap<String, SchemaTable>,
         &SpecSyncConfig,
         bool,
         bool,
@@ -1159,6 +1280,94 @@ mod tests {
             Some(&vec!["independent failure".to_string()])
         );
         assert_eq!(errors.as_ref(), rendered);
+    }
+
+    #[test]
+    fn validation_reports_structured_suppression_details_without_counting_finding() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path();
+        let spec_path = root.join("specs/demo/demo.spec.md");
+        fs::create_dir_all(spec_path.parent().unwrap()).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/demo.rs"), "pub fn visible() {}\n").unwrap();
+        fs::write(
+            &spec_path,
+            r#"---
+module: demo
+version: 1
+status: stable
+files:
+  - src/demo.rs
+---
+
+# Demo
+
+## Purpose
+
+Demonstrate visible suppression.
+
+## Requirements
+
+- The module remains deterministic.
+
+## Public API
+
+| Export | Description |
+|---|---|
+
+## Invariants
+
+1. Validation remains deterministic.
+
+## Behavioral Examples
+
+The module can be checked.
+
+## Error Cases
+
+Invalid input is rejected.
+
+## Dependencies
+
+None.
+
+## Change Log
+
+| Date | Change |
+|---|---|
+| 2026-07-29 | Initial |
+"#,
+        )
+        .unwrap();
+        let mut ignore_rules = IgnoreRules::default();
+        ignore_rules
+            .global
+            .insert(WarningCategory::UndocumentedExport);
+
+        let (_, warning_count, _, _, _, warnings, _, suppressed) = run_validation_with_suppressions(
+            root,
+            std::slice::from_ref(&spec_path),
+            std::slice::from_ref(&spec_path),
+            &SpecSyncConfig::default(),
+            true,
+            false,
+            &ignore_rules,
+        );
+
+        assert!(
+            warnings
+                .iter()
+                .all(|warning| !warning.contains("Undocumented export"))
+        );
+        assert_eq!(warning_count, warnings.len());
+        assert!(suppressed.iter().any(|detail| {
+            detail["spec"] == "specs/demo/demo.spec.md"
+                && detail["category"] == "undocumented-export"
+                && detail["source"] == "global"
+                && detail["warning"]
+                    .as_str()
+                    .is_some_and(|warning| warning.contains("Undocumented export"))
+        }));
     }
 
     #[test]

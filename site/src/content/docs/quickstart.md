@@ -77,24 +77,27 @@ specsync change new "Document and verify the existing authentication module" \
 
 Answer the returned questions, complete its adaptively selected artifacts, and approve the definition before implementation. Agents installed during `init` conduct this interview conversationally.
 
-> **Two gates fire before `change approve` succeeds:**
+> **Two completeness checks fire before the one `change approve` checkpoint succeeds:**
 >
 > 1. **Artifact completeness** — every generated artifact in the change workspace (`context.md`, `requirements.md`, `tasks.md`, `testing.md`, and any others the interview selected) must have its scaffold `TODO` marker replaced with real content. Approval fails with a path-and-line diagnostic naming the unfinished artifact.
 > 2. **Semantic deltas** — each spec module the change touches needs a delta file at `.specsync/changes/<change-id>/deltas/<module>.md` describing its contract changes (added/modified requirements and spec-section content). The set of delta modules must exactly match the change's affected specs, or approval fails with `semantic delta modules must exactly match affected specs`.
 
-Continue through the same lifecycle after the definition is complete:
+Continue through the single workflow after the definition is complete:
 
 ```bash
-specsync change approve CHG-...   # explicit human definition approval
-specsync change start CHG-...     # begin implementation
+specsync change approve CHG-...   # one explicit human scope approval
 # implement the approved contract and keep module specs synchronized
-specsync change verify CHG-...    # run configured tests and record evidence
-specsync change accept CHG-...    # explicit human closing approval
-# merge the delivery branch, then archive its immutable change record
-specsync change archive CHG-...
+specsync change check CHG-...     # scoped verify: apply deltas + targeted tests for this change
+specsync change audit             # active workspaces + living specs (archives are history)
+# open/update the PR; ordinary review + SpecSync scoped review run once
+specsync change finalize CHG-...  # create the same-PR metadata/archive-only commit
+# GitHub merge protections perform the merge
 ```
 
-See the [Workflow Guide](workflow.md) for requirements, semantic deltas, approval digests, verification evidence, and archival rules.
+`specsync change status CHG-...` always prints exactly one next action. Explicit `--strict`,
+project policy, and release/security classification add validators to this same path; they do not
+create another lifecycle or approval. See the [Workflow Guide](workflow.md) for requirements,
+semantic deltas, approval digests, targeted evidence, scoped review, and same-PR finalization.
 
 ## 3. Generate Specs
 
@@ -225,9 +228,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v5.2.0
+      - uses: CorvidLabs/spec-sync@v6.0.0
         with:
-          version: '5.2.0'
+          version: '6.0.0'
           strict: true
           require-coverage: 80
 ```

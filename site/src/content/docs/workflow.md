@@ -4,26 +4,25 @@ section: "Reference"
 order: 2
 ---
 
-End-to-end walkthrough of the verified SpecSync 5.0 SDD workflow.
+End-to-end walkthrough of the verified SpecSync 6.0 change workflow.
 
 ---
 
-## The Change Lifecycle
+## The Change Workflow
 
-Every delivery change goes through a predictable lifecycle:
+Every new delivery follows one predictable path:
 
 ```text
-draft → approved → implementing → verifying → accepted → archived
+new → one scope approval → implement → check → PR review → finalize → GitHub merge
 ```
 
 | State | What happens | Key commands |
 |:------|:-------------|:-------------|
 | **Draft** | Deterministic interview selects scope and adaptive artifacts | `change new`, `change answer` |
-| **Approved** | A human approves the definition digest | `change approve` |
-| **Implementing** | Code follows canonical specs plus approved deltas | `change start`, `check` |
-| **Verifying** | Tests and requirement evidence are recorded | `change verify` |
-| **Accepted** | Closing approval atomically updates canonical truth; delivery evidence can be reopened and supported classification or ownership mistakes corrected with audit history | `change accept`, `change reopen`, `change correct`, `change correct-owner` |
-| **Archived** | The immutable workspace moves to dated history | `change archive` |
+| **Approved** | A human approves the scope/definition digest once | `change approve` |
+| **Implementing** | Code, canonical specs, and tests follow the approved package | `change check` |
+| **Verifying** | Targeted evidence is current and one scoped PR review is required | `change check`, ordinary PR review |
+| **Archived** | Finalization atomically applies deltas and moves the package to dated history in the same PR | `change finalize` |
 
 Module maturity (`draft → review → active → stable → deprecated → archived`) remains separately available through `specsync lifecycle`.
 
@@ -49,25 +48,44 @@ Complete selected artifacts and semantic deltas, then obtain explicit human appr
 
 ```bash
 specsync change approve CHG-0001-add-passkeys
-specsync change start CHG-0001-add-passkeys
 ```
 
-Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Changing an approved artifact invalidates its digest and blocks progress until reapproved.
+Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Only a change to the approved stable intent, contract, acceptance criteria, or affected scope requires renewed human approval. Implementation details, tests, evidence, canonical delta materialization, and lifecycle metadata preserve that approval while automated verification and the independent scoped review are refreshed.
 
-## 3. Verify, Accept, and Archive
+## 3. Check, Review, and Finalize
 
 ```bash
-specsync change verify CHG-0001-add-passkeys
-specsync change accept CHG-0001-add-passkeys
-# merge the delivery branch before archiving
-specsync change archive CHG-0001-add-passkeys
+specsync change check CHG-0001-add-passkeys
+# open or update the PR, then complete ordinary PR review
+# after an independent scoped reviewer passes the change package, diff, spec delta, and evidence:
+specsync change review CHG-0001-add-passkeys --reviewer "Ada Reviewer"
+specsync change finalize CHG-0001-add-passkeys
+# commit the metadata/archive-only result; GitHub performs the merge
 ```
 
-Verification runs only project-configured native test commands without a shell and streams their output. Do not configure `specsync check`, `specsync change`, `specsync lifecycle`, or an indirect Fledge lane that invokes them as a verification command: lifecycle checking remains a separate top-level gate, and recursive re-entry is rejected. Its evidence is bound to both the commit and the tested working-tree inputs, so source, test, configuration, or contract edits require a fresh verification. Every attempt is appended to `verification-attempts.json`; `verification.json` is the current projection, so a failed attempt remains inspectable and a corrected retry can pass. Acceptance requires successful evidence, requirement-to-test/API traceability, complete tasks, conflict-free deltas, and closing human approval.
+`change check` applies approved semantic deltas and runs the affected component's configured
+verification for **this change only**. It does not re-validate archived terminal evidence —
+archives are history. Use `change audit` for project health over **active** workspaces and living
+specs. Explicit `--strict`, project policy, and deterministic release/security classification add
+validators to the same scoped evidence path. Source, test, configuration, or contract edits stale
+verification; implementation edits after scoped review stale the review. `change status` prints the
+exact `change review` command when this independent review is the next required action; `change
+review` records the completed review and does not replace the repository's ordinary PR review.
 
-Archive after the delivery branch is merged (or otherwise no longer differs from its comparison base). Until then, SpecSync keeps the accepted workspace active because the delivery diff still depends on its path coverage. This prevents the common gap where accepting and immediately archiving makes an unmerged implementation look unspecced.
+The reviewer value is a stable ASCII claim recorded with an append-only pass/block trail. It is not
+the trust root: required CI authenticates the official `SpecSync scoped review` GitHub Actions check
+on the exact implementation parent before the finalization child can merge.
 
-Squash merges are fully supported: the archiver trusts any commit on the default branch that records the change as accepted with byte-identical `state.json`, `verification.json`, and `approvals.json` evidence, even when the squash discarded the original acceptance-transition commit or the verification commit never entered mainline history. Changes with no matching in-history accepted record still fail closed, so evidence can never be fabricated by editing the working tree. If `check` reports that an accepted change's verification is stale for current delivery inputs, the error names the offending input and the concrete remediation — `change reopen <id>` when the input drifted, or `specsync migrate 5.0` when a 5.0.1-era ledger is missing reopening digest fields.
+`change finalize` requires current verification and independent review, writes domain-separated
+finalization evidence, and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/` in one
+metadata/archive-only commit. Its lightweight CI lane proves the parent implementation checks were
+green and the child changed only approved lifecycle/archive paths; it does not rerun product tests
+or scoped review. GitHub branch protection or merge queue owns the merge. A post-merge job binds the
+actual merge commit/tree to a compact archive event before release validation can proceed.
+
+Historical `start`, `verify`, `accept`, `archive`, `reopen`, `correct`, and `correct-owner`
+commands remain available to validate or repair older two-approval evidence. They are compatibility
+surfaces, not steps in the new-change workflow.
 
 ## 4. Reopen After Accepted Review Fixes
 
@@ -134,7 +152,12 @@ The repository includes executable examples for a [complete lifecycle](https://g
 specsync init
 ```
 
-This creates `.specsync/config.toml`, `.specsync/sdd.json`, the change/archive directories, detects verification commands, and offers native agent integration plus a first change interview. Existing 4.x projects remain unchanged until `specsync change adopt`.
+This creates `.specsync/config.toml`, `.specsync/sdd.json`, the change/archive directories, detects
+verification commands, and offers native agent integration plus a first change interview. Existing
+projects remain unchanged until `specsync change adopt`; adoption preserves their policy and
+historical evidence while routing subsequent changes through this workflow. Commit and integrate
+every active legacy change first: adoption refuses to publish a partial migration when a v1 record
+is absent from the trusted comparison cutoff.
 
 ### Install hooks and agent instructions
 

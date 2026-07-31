@@ -18,9 +18,30 @@ pub enum WarningCategory {
     SpecSize,
     MinInvariants,
     RequireDependsOn,
+    ExportsDocumented,
 }
 
 impl WarningCategory {
+    /// Stable machine-readable category name.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::RequirementsCompanion => "requirements-companion",
+            Self::StubSection => "stub-section",
+            Self::UndocumentedExport => "undocumented-export",
+            Self::Deprecated => "deprecated",
+            Self::UnknownStatus => "unknown-status",
+            Self::UnknownAgentPolicy => "unknown-agent-policy",
+            Self::SchemaColumn => "schema-column",
+            Self::SchemaTypeMismatch => "schema-type-mismatch",
+            Self::ConsumedBy => "consumed-by",
+            Self::ChangelogEntries => "changelog-entries",
+            Self::SpecSize => "spec-size",
+            Self::MinInvariants => "min-invariants",
+            Self::RequireDependsOn => "require-depends-on",
+            Self::ExportsDocumented => "exports-documented",
+        }
+    }
+
     /// Parse a category name from a string (case-insensitive, supports kebab-case).
     pub fn from_str(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().replace('_', "-").as_str() {
@@ -37,6 +58,7 @@ impl WarningCategory {
             "spec-size" => Some(Self::SpecSize),
             "min-invariants" | "invariants" => Some(Self::MinInvariants),
             "require-depends-on" | "depends-on" => Some(Self::RequireDependsOn),
+            "exports-documented" => Some(Self::ExportsDocumented),
             _ => None,
         }
     }
@@ -84,6 +106,20 @@ impl WarningCategory {
         if warning.contains("rule: require_depends_on") {
             return Some(Self::RequireDependsOn);
         }
+        if warning
+            .strip_suffix(" exports documented")
+            .and_then(|counts| counts.split_once('/'))
+            .is_some_and(|(documented, total)| {
+                !documented.is_empty()
+                    && documented
+                        .chars()
+                        .all(|character| character.is_ascii_digit())
+                    && !total.is_empty()
+                    && total.chars().all(|character| character.is_ascii_digit())
+            })
+        {
+            return Some(Self::ExportsDocumented);
+        }
         None
     }
 }
@@ -95,6 +131,8 @@ pub struct IgnoreRules {
     pub global: HashSet<WarningCategory>,
     /// Categories suppressed for specific spec paths.
     pub per_spec: std::collections::HashMap<String, HashSet<WarningCategory>>,
+    /// Invalid or ineffective rules found while loading `.specsyncignore`.
+    pub warnings: Vec<String>,
 }
 
 impl IgnoreRules {
@@ -110,13 +148,25 @@ impl IgnoreRules {
     pub fn load(root: &Path) -> Self {
         let mut rules = Self::default();
         let ignore_path = root.join(".specsyncignore");
-        let content = match fs::read_to_string(&ignore_path) {
-            Ok(c) => c,
+        let bytes = match fs::read(&ignore_path) {
+            Ok(bytes) => bytes,
             Err(_) => return rules,
         };
+        let bytes = bytes
+            .strip_prefix(b"\xef\xbb\xbf")
+            .unwrap_or(bytes.as_slice());
 
-        for line in content.lines() {
-            let line = line.trim();
+        for (index, raw_line) in bytes.split(|byte| *byte == b'\n').enumerate() {
+            let line_number = index + 1;
+            let line = match std::str::from_utf8(raw_line) {
+                Ok(line) => line.trim(),
+                Err(_) => {
+                    rules.warnings.push(format!(
+                        ".specsyncignore line {line_number} is not valid UTF-8 — skipped"
+                    ));
+                    continue;
+                }
+            };
             // Skip empty lines and comments
             if line.is_empty() || line.starts_with('#') {
                 continue;
@@ -124,16 +174,25 @@ impl IgnoreRules {
 
             // Strip inline comments
             let line = line.split('#').next().unwrap_or(line).trim();
+            if line.is_empty() {
+                continue;
+            }
 
-            if let Some((category_str, spec_pattern)) = line.split_once(':') {
-                // Per-spec rule: category:path
-                if let Some(category) = WarningCategory::from_str(category_str) {
-                    let pattern = spec_pattern.trim().to_string();
-                    rules.per_spec.entry(pattern).or_default().insert(category);
-                }
-            } else if let Some(category) = WarningCategory::from_str(line) {
+            if let Some(category) = WarningCategory::from_str(line) {
                 // Global rule
                 rules.global.insert(category);
+            } else if let Some((category, pattern)) = parse_per_spec_rule(line) {
+                if pattern.is_empty() {
+                    rules.warnings.push(format!(
+                        ".specsyncignore line {line_number} has an empty spec path: `{line}`"
+                    ));
+                    continue;
+                }
+                rules.per_spec.entry(pattern).or_default().insert(category);
+            } else {
+                rules.warnings.push(format!(
+                    ".specsyncignore line {line_number} matches no warning category: `{line}`"
+                ));
             }
         }
 
@@ -167,30 +226,57 @@ impl IgnoreRules {
         spec_rel_path: &str,
         inline_ignores: &HashSet<WarningCategory>,
     ) -> bool {
-        let category = match WarningCategory::classify(warning) {
-            Some(c) => c,
-            None => return false,
-        };
+        self.suppression_source(warning, spec_rel_path, inline_ignores)
+            .is_some()
+    }
+
+    /// Return the matched category and source for a suppressed warning.
+    pub fn suppression_source(
+        &self,
+        warning: &str,
+        spec_rel_path: &str,
+        inline_ignores: &HashSet<WarningCategory>,
+    ) -> Option<(WarningCategory, &'static str)> {
+        let category = WarningCategory::classify(warning)?;
 
         // Check global suppression
         if self.global.contains(&category) {
-            return true;
+            return Some((category, "global"));
         }
 
         // Check inline suppression
         if inline_ignores.contains(&category) {
-            return true;
+            return Some((category, "inline"));
         }
 
         // Check per-spec suppression
+        let normalized_path = normalize_spec_path(spec_rel_path);
         for (pattern, categories) in &self.per_spec {
-            if categories.contains(&category) && spec_rel_path.starts_with(pattern.as_str()) {
-                return true;
+            if categories.contains(&category) && normalized_path.starts_with(pattern.as_str()) {
+                return Some((category, "path"));
             }
         }
 
-        false
+        None
     }
+}
+
+fn parse_per_spec_rule(line: &str) -> Option<(WarningCategory, String)> {
+    if let Some((category, path)) = line.split_once(':')
+        && let Some(category) = WarningCategory::from_str(category)
+    {
+        return Some((category, normalize_spec_path(path)));
+    }
+    let (path, category) = line.rsplit_once(':')?;
+    WarningCategory::from_str(category).map(|category| (category, normalize_spec_path(path)))
+}
+
+fn normalize_spec_path(path: &str) -> String {
+    let normalized = path.trim().replace('\\', "/");
+    normalized
+        .strip_prefix("./")
+        .unwrap_or(&normalized)
+        .to_string()
 }
 
 #[cfg(test)]
@@ -351,10 +437,120 @@ mod tests {
     }
 
     #[test]
+    fn test_classify_exports_documented_summary() {
+        assert_eq!(
+            WarningCategory::classify("2/5 exports documented"),
+            Some(WarningCategory::ExportsDocumented)
+        );
+        assert_eq!(
+            WarningCategory::from_str("exports-documented"),
+            Some(WarningCategory::ExportsDocumented)
+        );
+        for malformed in [
+            "2/x exports documented",
+            "/5 exports documented",
+            "2/ exports documented",
+            "prefix 2/5 exports documented",
+            "2/5 exports documented later",
+        ] {
+            assert_eq!(WarningCategory::classify(malformed), None);
+        }
+    }
+
+    #[test]
+    fn test_exports_documented_summary_suppressible() {
+        let mut rules = IgnoreRules::default();
+        rules.global.insert(WarningCategory::ExportsDocumented);
+        assert!(rules.is_suppressed(
+            "2/5 exports documented",
+            "specs/a/a.spec.md",
+            &HashSet::new(),
+        ));
+    }
+
+    #[test]
+    fn test_load_tolerates_utf8_bom() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join(".specsyncignore"),
+            "\u{feff}undocumented-export\n",
+        )
+        .unwrap();
+
+        let rules = IgnoreRules::load(tmp.path());
+        assert!(rules.global.contains(&WarningCategory::UndocumentedExport));
+        assert!(rules.warnings.is_empty());
+    }
+
+    #[test]
+    fn test_load_invalid_utf8_line_skipped_not_poisoning() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut bytes = b"undocumented-export\n".to_vec();
+        bytes.extend_from_slice(b"bad-\xff\xfe-line\n");
+        bytes.extend_from_slice(b"changelog\n");
+        fs::write(tmp.path().join(".specsyncignore"), bytes).unwrap();
+
+        let rules = IgnoreRules::load(tmp.path());
+        assert!(rules.global.contains(&WarningCategory::UndocumentedExport));
+        assert!(rules.global.contains(&WarningCategory::ChangelogEntries));
+        assert_eq!(rules.warnings.len(), 1);
+        assert!(rules.warnings[0].contains("line 2"));
+        assert!(rules.warnings[0].contains("not valid UTF-8"));
+    }
+
+    #[test]
+    fn test_load_accepts_both_per_spec_orders_and_windows_separators() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join(".specsyncignore"),
+            "stub-section:specs/legacy/\nspecs\\windows\\:undocumented-export\nC:\\specs\\api.spec.md:exports-documented\n",
+        )
+        .unwrap();
+
+        let rules = IgnoreRules::load(tmp.path());
+        assert!(rules.per_spec["specs/legacy/"].contains(&WarningCategory::StubSection));
+        assert!(rules.per_spec["specs/windows/"].contains(&WarningCategory::UndocumentedExport));
+        assert!(
+            rules.per_spec["C:/specs/api.spec.md"].contains(&WarningCategory::ExportsDocumented)
+        );
+    }
+
+    #[test]
+    fn test_load_warns_on_unmatchable_rule() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join(".specsyncignore"),
+            "undocumanted-export\nunknown:path\n",
+        )
+        .unwrap();
+
+        let rules = IgnoreRules::load(tmp.path());
+        assert_eq!(rules.warnings.len(), 2);
+        assert!(rules.warnings[0].contains("line 1"));
+        assert!(rules.warnings[0].contains("undocumanted-export"));
+        assert!(rules.warnings[1].contains("line 2"));
+    }
+
+    #[test]
+    fn test_per_spec_matching_normalizes_windows_paths() {
+        let mut rules = IgnoreRules::default();
+        rules.per_spec.insert(
+            "specs/legacy/".into(),
+            HashSet::from([WarningCategory::UndocumentedExport]),
+        );
+        assert!(rules.is_suppressed(
+            "Undocumented export 'old' from src/legacy.ts",
+            r".\specs\legacy\api.spec.md",
+            &HashSet::new(),
+        ));
+    }
+
+    #[test]
     fn test_load_no_file() {
         let tmp = tempfile::tempdir().unwrap();
         let rules = IgnoreRules::load(tmp.path());
         assert!(rules.global.is_empty());
         assert!(rules.per_spec.is_empty());
+        assert!(rules.warnings.is_empty());
     }
 }

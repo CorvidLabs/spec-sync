@@ -131,8 +131,9 @@ brew install CorvidLabs/tap/spec-sync
     require-coverage: '100'
 ```
 
-After each immutable release passes its platform smoke tests, `@v5` follows compatible 5.x Action
-updates. Until that promotion completes, use the immutable Action and binary pins shown above.
+Prefer the immutable `@v6.0.0` Action and binary pins shown above for release gates. A floating
+`@v6` tag may follow compatible 6.x Action updates after each immutable release passes its platform
+smoke tests.
 
 Minimal immutable configuration:
 

@@ -60,12 +60,12 @@ printf '%s\n' \
     '' \
     '1. Every public behavior is backed by a permanent requirement ID.' \
     '2. Every accepted epic passes the configured Cargo test command.' \
-    '3. Canonical truth changes only through closing approval.' \
+    '3. Canonical truth changes only through approved check and finalize.' \
     '' \
     '## Behavioral Examples' \
     '' \
     '- Product clients can read a stable product name.' \
-    '- New behaviors appear only after their epic is accepted.' \
+    '- New behaviors appear only after their epic is finalized.' \
     '' \
     '## Error Cases' \
     '' \
@@ -107,7 +107,7 @@ printf '%s\n' '---' 'spec: product.spec.md' '---' '' '# Tasks' '' '- [x] Establi
 "$bin" agents install >/dev/null
 printf '\n# Generated demonstration evidence\nreview-report.md\n' >> .gitignore
 git add .
-git commit -m "Initialize SpecSync 5.0 product" >/dev/null
+git commit -m "Initialize SpecSync 6.0 product" >/dev/null
 git update-ref refs/remotes/origin/main HEAD
 
 titles=(
@@ -210,27 +210,21 @@ for index in 0 1 2 3 4; do
         > "$change_dir/deltas/product.md"
 
     "$bin" change approve "$id" --actor "Epic Product Reviewer" >/dev/null
-    "$bin" change start "$id" >/dev/null
     implement_epic "$number"
+    # Materialize approved deltas and run targeted verification before binding evidence.
+    "$bin" change check "$id"
     git add .
     git commit -m "Implement epic $number: $title" >/dev/null
-    "$bin" change verify "$id"
-    "$bin" change accept "$id" --actor "Epic Closing Reviewer" >/dev/null
+    "$bin" change check "$id"
+    "$bin" change review "$id" --reviewer "Epic Independent Reviewer" >/dev/null
+    "$bin" change finalize "$id" >/dev/null
     git add .
-    git commit -m "Accept epic $number contract" >/dev/null
-
-    # Updating origin/main models the reviewed feature being merged. Archival is
-    # intentionally post-merge because its active scope covers the delivery diff.
-    git update-ref refs/remotes/origin/main HEAD
-    "$bin" change archive "$id" >/dev/null
-    git add .
-    git commit -m "Archive epic $number evidence" >/dev/null
-    git update-ref refs/remotes/origin/main HEAD
+    git commit -m "Finalize epic $number archive" >/dev/null
     previous_id="$id"
 done
 
 {
-    printf '# SpecSync 5.0 five-epic review\n\n'
+    printf '# SpecSync 6.0 five-epic review\n\n'
     printf '## Release identity\n\n'
     "$bin" --version
     printf '\n## Strict validation\n\n```text\n'
@@ -238,9 +232,10 @@ done
     printf '```\n\n## Quality score\n\n```text\n'
     "$bin" score --all --explain
     printf '```\n\n## Lifecycle inventory\n\n'
-    printf -- '- Accepted and archived epics: %s/5\n' "$(find .specsync/archive/changes -name state.json | wc -l | tr -d ' ')"
+    printf -- '- Finalized and archived epics: %s/5\n' "$(find .specsync/archive/changes -name state.json | wc -l | tr -d ' ')"
     printf -- '- Active changes: %s\n' "$(find .specsync/changes -name state.json | wc -l | tr -d ' ')"
-    printf -- '- Approval gates recorded: %s/10\n' "$(grep -h '\"gate\"' .specsync/archive/changes/*/approvals.json | wc -l | tr -d ' ')"
+    printf -- '- Definition approvals recorded: %s/5\n' "$(grep -h '\"gate\"' .specsync/archive/changes/*/approvals.json | wc -l | tr -d ' ')"
+    printf -- '- Scoped review records: %s/5\n' "$(find .specsync/archive/changes -name review.json 2>/dev/null | wc -l | tr -d ' ')"
     printf -- '- Verification records: %s/5\n' "$(find .specsync/archive/changes -name verification.json | wc -l | tr -d ' ')"
     printf -- '- Canonical product spec version: %s\n' "$(awk '/^version:/ { print $2; exit }' specs/product/product.spec.md)"
     printf -- '- Permanent product requirements: %s\n' "$(grep -c '^### REQ-product-' specs/product/requirements.md)"
@@ -259,4 +254,4 @@ done
 } > review-report.md
 
 "$bin" check --strict --require-coverage 100 --force
-printf '\nFive-epic SpecSync 5.0 proof passed.\nProject: %s\nReport: %s/review-report.md\n' "$root" "$root"
+printf '\nFive-epic SpecSync 6.0 proof passed.\nProject: %s\nReport: %s/review-report.md\n' "$root" "$root"

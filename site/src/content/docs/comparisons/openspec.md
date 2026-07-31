@@ -20,18 +20,18 @@ Both tools provide:
 
 ## Enforcement boundary
 
-| Question | SpecSync 5.1 | OpenSpec core |
+| Question | SpecSync 6.0 | OpenSpec core |
 |---|---|---|
 | Canonical current behavior | Module `requirements.md` + `*.spec.md` | `openspec/specs/<domain>/spec.md` |
 | Proposed intent | `change.md`, interview answers, companions | `proposal.md` |
 | Semantic changes | Module-scoped deltas | Change-local delta specs |
 | Technical design | Optional `design.md`, durable `context.md` | `design.md` |
 | Work tracking | `tasks.md` | `tasks.md` |
-| Definition approval | Mandatory digest-bound human gate | Review/agent workflow convention |
-| Verification | Configured commands plus requirement evidence | Validation and agent-led verification |
+| Definition approval | One digest-bound human scope approval | Review/agent workflow convention |
+| Verification | Scoped `change check` plus requirement evidence | Validation and agent-led verification |
 | Real export/schema parsing | Built into the deterministic core | Not built into the core artifact workflow |
-| Canonical merge | Atomic during acceptance | Applied during sync/archive workflow |
-| Post-change history | Accepted workspace, then immutable archive | Archived change folder |
+| Canonical merge | Atomic during `change check` / same-PR `finalize` | Applied during sync/archive workflow |
+| Post-change history | Same-PR finalize into immutable dated archive | Archived change folder |
 
 OpenSpec is lighter when the team wants a proposal-oriented agent workflow and semantic requirements without language-specific enforcement. Its default core profile keeps a small propose/apply/sync/archive surface, while verification, onboarding, bulk archival, and stepwise artifact control are available through expanded workflows. SpecSync carries more machinery because it also acts as a CI contract checker: a documented export that disappeared, an undocumented public export, a missing source file, or database-schema drift becomes a deterministic finding.
 

@@ -1,10 +1,10 @@
 # Executable SDD lifecycle
 
 This example creates an isolated Git repository and drives the packaged
-`specsync` binary through:
+`specsync` binary through the SpecSync 6.0 single workflow:
 
 ```text
-draft → approved → implementing → verifying → accepted
+draft → approved → implement → check → scoped review → finalize → archived
 ```
 
 Run it from the SpecSync repository:
@@ -13,7 +13,7 @@ Run it from the SpecSync repository:
 SPECSYNC_BIN="$PWD/target/release/specsync" ./examples/sdd-lifecycle/run.sh
 ```
 
-The example deliberately leaves the accepted workspace active. Archival belongs
-after the delivery diff is merged and no longer relies on the workspace for path
-coverage.
-
+`change check` verifies **this change only**. `change audit` reports project
+health over active workspaces and living specs. `change finalize` creates the
+dated archive on the same branch (same-PR finalization); GitHub still owns the
+merge when you use this workflow in a real repository.

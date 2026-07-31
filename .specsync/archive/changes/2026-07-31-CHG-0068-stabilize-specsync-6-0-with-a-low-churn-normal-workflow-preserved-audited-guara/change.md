@@ -1,6 +1,6 @@
 ---
 id: CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara
-state: verifying
+state: archived
 type: feature
 base_commit: fc091c88f72a6d2fb2df168f4baa4370579ff8a2
 ---

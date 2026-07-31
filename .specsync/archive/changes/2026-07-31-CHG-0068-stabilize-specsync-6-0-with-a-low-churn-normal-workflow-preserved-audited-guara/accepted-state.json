@@ -7,11 +7,11 @@
   "title": "Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes",
   "description": "Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, bounded lifecycle validation, and selected high-confidence UX fixes",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "fc091c88f72a6d2fb2df168f4baa4370579ff8a2",
   "created_at": 1785367711,
-  "updated_at": 1785536016,
+  "updated_at": 1785537042,
   "affected_specs": [
     "change",
     "cmd_change",

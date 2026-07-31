@@ -1,0 +1,1676 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1785471556,
+      "commit": "4c32e08e3bfaffb1ab121c85069c3638e842e544",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "f124fd4cf8fb9dad10afd1ca2cf69bdbb670e887eb84e34f8406202078e68be0",
+      "workspace_digest": "28e416c8a6d65a70383f846fec8868ea933877968ef82976d8b1f7e5cea761c3",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785472045,
+      "commit": "4c32e08e3bfaffb1ab121c85069c3638e842e544",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "f124fd4cf8fb9dad10afd1ca2cf69bdbb670e887eb84e34f8406202078e68be0",
+      "workspace_digest": "a7d1192127035a5c6f64fbfdaa51c04a82ecb126ffaadfbc8a328454b0844423",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785473109,
+      "commit": "4c32e08e3bfaffb1ab121c85069c3638e842e544",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "f124fd4cf8fb9dad10afd1ca2cf69bdbb670e887eb84e34f8406202078e68be0",
+      "workspace_digest": "5d3746055d862ada69be56a34fea4131598d3bf5c6753d8049986b58e43ef3f2",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785474830,
+      "commit": "4c32e08e3bfaffb1ab121c85069c3638e842e544",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "113d3fb4b28ce1694ecb92298e57da7ab339a67e74ffa7434078dadfd014377b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785478977,
+      "commit": "f87f2e0cf8da14f5c6b6b666e73e5239531a3240",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "3e7b89747e7a8e81289127cf59901dfa6937e23dba29f154e3822587eac98816",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785482034,
+      "commit": "7adb6107cca16ed7902498cd494a8ebf4f5dad46",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "3e7b89747e7a8e81289127cf59901dfa6937e23dba29f154e3822587eac98816",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785485825,
+      "commit": "db52a7e1349d64cc673e8c2101dd23f92fb30005",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "94c2ad3a2bbd8c5cdbc7a817ea6983e8b97a2636b0ed8696e808385b2562ca33",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785489906,
+      "commit": "35ff1e69b5a6d69534ecc68a7a35df0dac6456bd",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "16c5bf34c8c964710417b04ec8ad3ce6657593803c34f8a53760340b6defe68c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785506566,
+      "commit": "718d21688b06815b0cf514e3a67eade8b5420d9a",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "6c39d156c00c856446557a2cef6e6b9fc5cd982ab1a72c6f5225b52c833ab9d7",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785508931,
+      "commit": "200b4c757a00d678497fb1a379fa02c76d0f94e9",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "bf3e2db53e4f0b4706651915475882229225fd30d877367aac84a6ffb5fe4538",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785511446,
+      "commit": "09a9fa2a4be9c74ae337d83f2ca4dfff299f402a",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "10f4b9d0ed3a3885b08284a3a975c1111cda9c2d7e50a530d3c6770164edca3b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785514315,
+      "commit": "af8d2f1f125ed89c19320f2b245a4667f460ffd2",
+      "contract_digest": "426dffbe586030169761ed72f711f842a4bdc2d6a9aa6f867b9070e60ded550f",
+      "execution_digest": "8da0e46ecf06fcaa7d3e505f5a0025202be5b62305b40daa09c52c2357c1640b",
+      "workspace_digest": "e3cffeb3a0bcfd4346d281c5f876eca58cd092deb8efdfc59e9779a4568d4cb4",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785519808,
+      "commit": "1e9bad6841878d66abf441c57584944bc7177896",
+      "contract_digest": "b25bc074f03a4352d71eee64fa54ca4afe633b79726c3ec8ef4a61f4c44583b9",
+      "execution_digest": "511c0b5c46e238c0a19a2cedce0e891fc458015a53a72b0a439dfe2571b0196f",
+      "workspace_digest": "e3cffeb3a0bcfd4346d281c5f876eca58cd092deb8efdfc59e9779a4568d4cb4",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-args-0069-001",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-agents-0069-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785532965,
+      "commit": "32c8b350d1625035a77809bc5eaf8235d964589d",
+      "contract_digest": "b25bc074f03a4352d71eee64fa54ca4afe633b79726c3ec8ef4a61f4c44583b9",
+      "execution_digest": "511c0b5c46e238c0a19a2cedce0e891fc458015a53a72b0a439dfe2571b0196f",
+      "workspace_digest": "d179ce02071adc0deeafa1303ad74c1d00839497bfad3e47acc43008c1ade5b2",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-args-0069-001",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-agents-0069-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785536945,
+      "commit": "8f73cebc22774f30181373ff06463da1028cbbd5",
+      "contract_digest": "b25bc074f03a4352d71eee64fa54ca4afe633b79726c3ec8ef4a61f4c44583b9",
+      "execution_digest": "511c0b5c46e238c0a19a2cedce0e891fc458015a53a72b0a439dfe2571b0196f",
+      "workspace_digest": "89b8bf58ea4b718ad871817b593731ffc746734677ebe3bd565a3cd9dda80ea0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-args-0069-001",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-agents-0069-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785538384,
+      "commit": "a8d0f968af5ab1e9b99dfb6798e40f2ae1cbb02f",
+      "contract_digest": "b25bc074f03a4352d71eee64fa54ca4afe633b79726c3ec8ef4a61f4c44583b9",
+      "execution_digest": "511c0b5c46e238c0a19a2cedce0e891fc458015a53a72b0a439dfe2571b0196f",
+      "workspace_digest": "89b8bf58ea4b718ad871817b593731ffc746734677ebe3bd565a3cd9dda80ea0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-args-0069-001",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-agents-0069-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    },
+    {
+      "timestamp": 1785538384,
+      "commit": "07ebca7b4b5e5066e8049f1689cec43ac8278390",
+      "contract_digest": "b25bc074f03a4352d71eee64fa54ca4afe633b79726c3ec8ef4a61f4c44583b9",
+      "execution_digest": "511c0b5c46e238c0a19a2cedce0e891fc458015a53a72b0a439dfe2571b0196f",
+      "workspace_digest": "89b8bf58ea4b718ad871817b593731ffc746734677ebe3bd565a3cd9dda80ea0",
+      "acceptance_input_digest": "bff0fd11196ce5a3a7a8e7eb58dc8b44364a599ccbb99e0274a3b532c65857ee",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".claude/commands",
+            "kind": "non_file",
+            "mode": 0,
+            "payload_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "entry_digest": "f2dd4b231aa1d8a2fb18517749d689ec4b3bfef0af168fe449205e3c5b33cee9",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".claude/commands/specsync/audit.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6d8662ba5837b27234cf116b612a0262f1c68c5a8a46f1cd04d32347c02d86ed",
+            "entry_digest": "c00595c28ebde972d1b3cdd177a188a43b9b318904649945c13fb190ef077f2d",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".claude/commands/specsync/check.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "cc1d09df43d126cf7a39c4e2e8fb4e356d9b885f799839d9147a400f42968204",
+            "entry_digest": "1a1492d841a6228bacd89d6d1ba52edcd4d4143593794cab532d931370f09a89",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".claude/commands/specsync/create-change.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "826e4f473728c8c6f680455b580a9937189370132b0299fccaf10a4a7390d2e3",
+            "entry_digest": "c2b469a0469ee9865a9f635f253dd325ce12776ad41cea5ef3b247b472df4ac2",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".claude/commands/specsync/create-spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b1bff9be92176be0d8ad24d09fdf5ef2a9494f1c2b0f19b2161d739e55cca948",
+            "entry_digest": "88b573b6a5a1322d7b5cd03308f4399fab0a871eae906bf92aba775dbfbb3fbc",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".claude/skills/spec-sync/SKILL.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5a6301f38351aaeacf92db57a035c77734e3bf695025d83634e89891e46996c",
+            "entry_digest": "85ae7112be56168b03f1c4dcda2701ded965e9993961cb0ce25a947873871daf",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".cursor/commands",
+            "kind": "non_file",
+            "mode": 0,
+            "payload_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "entry_digest": "11e756f7e2c72cfeafabd046e85a792e759ee37b43674374ba90a10504c3b8e6",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".cursor/commands/specsync-audit.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f985b018f264a57bdc2c116c40515cc7e39e773d24011b4c3b274739a0655b27",
+            "entry_digest": "4edbd27797dd38133bb16c011cb5fc42036f0995867910c7c84593375f144610",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".cursor/commands/specsync-check.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0553092c44b9efb3c783bdca3ede90026f4699b85bf2540262e703547f8e72ed",
+            "entry_digest": "be0ddca177e60a9a92ec804ec5301f370807195ba170cd5c03ed691cee9c2af5",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".cursor/commands/specsync-create-change.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "058565cf4e6fb0920212f39f51eddee0b10fd2a1bf2c6a9fe0841a6b49540a2d",
+            "entry_digest": "01de082d30d1c2b62fd9e5e9208137c19c1b8590aa34d7b9f71e67edbe7ae767",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".cursor/commands/specsync-create-spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "96a88bac62a30f969fe784a6e5f7c113849db5b25caa2d9fea920a7cffc44d93",
+            "entry_digest": "5dacf3e5d871ee81d1219a9a503bc4a8e5f1bf543e2a8666fc9cd091d9438ff6",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".specsync/change-sequence.json",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "81803dc27d9b933795f3f0dd3e6f725335f05247e57f4dcd7c4f8275db6acb5f",
+            "entry_digest": "3eb79f3811315c076993fe10e2e380afbd7d9ef05d373d85baf8fa068b85c496",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "Agents.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d48c57a76f9c89590b4721821c7c9c5fffffbc0e3dd48548b9d433225aa8e304",
+            "entry_digest": "cfeb55319fcf0bb6eb8c00723e613ecd667874c55b237e8db63a15f36448d107",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/cli.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "72dcf118b25cb5e36e677302829eda3c5c4c54521f75c9af78acac737530ae19",
+            "entry_digest": "97769c5d3b3a051a6944fa1d1f236cad935e7b9e3be0c922b8d8db1bfa7208fe",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/integrations/ai-agents.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7e1378ceedef2b5a3dce4be247d7fc50e83a670450ff950b4eba0f669273a88b",
+            "entry_digest": "d88e4e6ac4972e7332421f9a9664812046c65445d76d07f6c1e13c472424e4ac",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/workflow.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d8f1cb2c8b1482d869cd9feaee3971f992343ac703713cd61e0076d2aec28a2b",
+            "entry_digest": "258fd5fbdeb4d19a220eca735ae41b82ddb077c0c789a4d2e5a9fc1f24cfc53e",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/agents/agents.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6cd06bed4dabac9bdd01557754c18fd6d2de3e2ae52073e14deaa2e8097f7878",
+            "entry_digest": "d65cdee67448168613ac752de87e63357cff9c5ba3b2292924176d2be0f2924f",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9e711f6d737193aa8b4cc50d243bd7237c04201fcc30ef86e77e1a9d13aee501",
+            "entry_digest": "b3cba3a2469c2638c0d1f609b0f14d2b9df1d8bb0371f4a991b87b9669c36354",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fdd4140325f7e90493c4608bb058f7e18ff1d3404654ac254532f1f766bac1ca",
+            "entry_digest": "b535fa152bce1818f5a5954fd4621593b456c56bb509dc8d7bd21de6e47500ca",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8a04dfd9accad7db0f6a5602c24d3c7260b0b20265ea0216cec2ec31ac605482",
+            "entry_digest": "f1a387b4bfd055d87ffeea59acf05accd9d85153b04728b7774fe22ddfb5217f",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c4871375f762d41e9bb321ecb68ed79cdacdac343a78069db8666dba0cb6a2d8",
+            "entry_digest": "0e655f7884750f3f2471202bc9b379d15196cc3a5c46bc5c77ba231a69082e19",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/change/change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4a4e11112baac0b7343a4a28478d75e5152d7dc6285e3083f59248a26acb9041",
+            "entry_digest": "999570f597a5eb039c0dc4cc6edb93a5a65410532ec75a7eec1b3edd4331b368",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "53264f9e044a325eeaaf9bbab9ce4ec7fb81234c5de1da9d1c0c456deabb4bc2",
+            "entry_digest": "56a342417525f9c38a2fd5a5a3c7cf8152d368293c20779a903bcaa522752d9f",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c76e2bd63783bb1dc278ff3773e83829e2feb92d8e9c762ea7bbe55c9e567171",
+            "entry_digest": "430363d75f8843319874826f2fb9155393b67da18f79baaf7e0ed458248f822f",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6b6feacbe3239028432b1b5fbd189d66ba49871b9ebfcc17bcc55854d72c3940",
+            "entry_digest": "2c51838c34f7b3ac3d50786bd387c2d5b79b1366c172271f58e8f9d48092a1e2",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "46c1862b80a37a795945855d42db525dc796b6d5cac5e4b140e0847934f41209",
+            "entry_digest": "5b4f485b62a1abd8d11b71cd6133855f1cb71c85af76529673055c81e2651080",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/cli/cli.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a1bf00eb2e63b2bc2fed468d752c236c7b403094630f1d7795e485bcd0b10dde",
+            "entry_digest": "029d71a25276cb328bc063b9570912b3f17b2515334a8460f3c9b5c00648dd6c",
+            "owners": [
+              "cli"
+            ]
+          },
+          {
+            "path": "specs/cli/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fbc0cc65eef12ae3bfc16755c6a306eb738d0f75ddf9c456f95fae56680ff59a",
+            "entry_digest": "b9f3cb3edbd2e855143fc4e447a5bc82ad93860c5557a53ea5a6f96883da81ef",
+            "owners": [
+              "cli"
+            ]
+          },
+          {
+            "path": "specs/cli/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "18222462d295bcbb90870a60b8f05bf9aa29832b7819693a4069ef8bc5074c65",
+            "entry_digest": "29c8290b0fd8147cd49a5a815d0b83f358493ee8220b3e768da06d0b487a4f14",
+            "owners": [
+              "cli"
+            ]
+          },
+          {
+            "path": "specs/cli/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8287c7c9f0338ec5dada45d3bacbbda01680ab9a14f0abc660372fd7cb1e20e7",
+            "entry_digest": "55b98fba0717590900f224036e061949c1c9e1a63efb64af8e37eb9c3215babc",
+            "owners": [
+              "cli"
+            ]
+          },
+          {
+            "path": "specs/cli/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "302900d7862c16fc6bcc82b9d37315bb2591219ddf6fadf6d769aaf7b99dfc45",
+            "entry_digest": "a9712830cc56ed0ac3b17ec22e5095d58c4a2a67215283d8de5b4e71e9607aa7",
+            "owners": [
+              "cli"
+            ]
+          },
+          {
+            "path": "specs/cli_args/cli_args.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "53717827914a07f9228f8a5c101cafa168d675baaab74a333d726d2a95a600ca",
+            "entry_digest": "6fc18a1d432098d7cdb01ae0ca7e16b4e88c29446db79abd9c3486284eb8aa68",
+            "owners": [
+              "cli_args"
+            ]
+          },
+          {
+            "path": "specs/cli_args/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "993f8fff9d4ba57a712d7a212665d87585767ac4fd877fc8747515b87c9811a8",
+            "entry_digest": "9c3ccba4bf697dc36c43cb7a2fae0ac97d6fd8ebef2d49ba4419395946bb9699",
+            "owners": [
+              "cli_args"
+            ]
+          },
+          {
+            "path": "specs/cli_args/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9c15ad38cdd5cad9c75a2a9ac3544f6ebd2af3a1a5bdc27279d4a560d24e843c",
+            "entry_digest": "002ee2dafeb64c7f7814b5c2334aa95618ac30c902f65ff8e8f9800bf8b97d6e",
+            "owners": [
+              "cli_args"
+            ]
+          },
+          {
+            "path": "specs/cli_args/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b79920437d135d8d32ab91a37eab0ec2263d3d73cd5db7ad67795961b0a97196",
+            "entry_digest": "0dab578ac6aca11c22bab4e03d23765a294ddeee9ea6bd4ddeeff1da5b781665",
+            "owners": [
+              "cli_args"
+            ]
+          },
+          {
+            "path": "specs/cli_args/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "593bc2da5024bc4a7a8439a720165c37f72493426507aabb8d90924eb3adf19e",
+            "entry_digest": "ff5e81a9ef69b088bc29c5b3f0a93ba771d35cff2664af7dc2c9f88a0ce5a8e1",
+            "owners": [
+              "cli_args"
+            ]
+          },
+          {
+            "path": "specs/cmd_agents/cmd_agents.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5df1a230b6af84c44326ceb88e5d0dd8140bc641cf43c55569e4654d668bb19a",
+            "entry_digest": "01bc9ff4582a4fbd900add0b1df2d29aafc4356840b0d944138a1290fd14f7bf",
+            "owners": [
+              "cmd_agents"
+            ]
+          },
+          {
+            "path": "specs/cmd_agents/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e9d428358862b4baa310ffdec3572285ef9c3317cf5a13a1d1d795fb20eaca35",
+            "entry_digest": "3df23852030234884df6740593b053f668e3910521448a0a46487208acb047a8",
+            "owners": [
+              "cmd_agents"
+            ]
+          },
+          {
+            "path": "specs/cmd_agents/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7c84f43ac715ac9eb8b7f3672bfa5c61f92d932716fdb13525344a9c1bf28c46",
+            "entry_digest": "0b66dc425d9918f8050391f04686a7ce1696c421e3467c6acb98dab361cfb5a8",
+            "owners": [
+              "cmd_agents"
+            ]
+          },
+          {
+            "path": "specs/cmd_agents/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f0eb90f65474a52afc441cb8729b3353317f8532fbdc758ba1daf407a5215902",
+            "entry_digest": "3115d73f2397685b2a4cf403bef95ad266c01193f771d4c568bb48e420805000",
+            "owners": [
+              "cmd_agents"
+            ]
+          },
+          {
+            "path": "specs/cmd_agents/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fae44cf5dc155ee34f78abd86a5bb0a41a7fc90270749428477bc16b167dbefa",
+            "entry_digest": "01e8e7ba268ca7c9acbdf555b7266fb3778a44791d3665e78e97c3dcf00887c0",
+            "owners": [
+              "cmd_agents"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/cmd_change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e8883f692763a628431994c717b35a6662fee0c78aaa8bd6adacaa5cf705c094",
+            "entry_digest": "ac04b1fc9f2e16daaef2db3fff64fff209fb168b79f21b79564c56fb61e5ec99",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "21c040d2e4a0bf31a9d3cb680476682633512976a77f995a267ceba52f11a9f4",
+            "entry_digest": "5b5176b937b3005e790c8f4d2c69256b81c60e533ef9443edd883e360c4b48bf",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1744d9fa543247e4f94d8a80e92a6b9fb2105d3a072d934a315c134d7bafbc50",
+            "entry_digest": "7225c0da0cd64e090bd49387a8b9bb6e4ffb667134f0dfa00c6cfa78495fd735",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fece9e991d1efd6963cb06d466f144817caad768aa9fb910f741ce7a67c3d5f9",
+            "entry_digest": "c490f682b96303b1e0312e81a06cf3510ce4a5f99915daf5c57cd2625e93866a",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a74290a3fd5164cff9f5091810c18f84ddfcde5515a36863c638cad3e7127b09",
+            "entry_digest": "95b5b719353d3eb5f7a099caa8ebc62c559327c6714da9d54ef8a40e74b2073a",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/commands/commands.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7a063ae75d30f01ae69450fb949f49ba7b7f582b6953bcecf980ae657ec412b6",
+            "entry_digest": "7b19bb7776ca87e98892a31148671dc62a81ca16a304b2b0f9f47902c407b9f6",
+            "owners": [
+              "commands"
+            ]
+          },
+          {
+            "path": "specs/commands/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c8425be5c15d52fc3c358f224e65be74e5b7d7a8d29abe9150d337f4f6637992",
+            "entry_digest": "f7c1c4644b8cd85dc66d0b20f1e1de1d0348981240baab47d29871f3155f267c",
+            "owners": [
+              "commands"
+            ]
+          },
+          {
+            "path": "specs/commands/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "869fd6b42fb32d01946177151d3501d8a6c7a8219ec61929482e56b682aae6af",
+            "entry_digest": "57f9e5681b7f524b79f0144e2cfc89bc4cc9ad85840ee0ac55cc4dcaf1b1e8e0",
+            "owners": [
+              "commands"
+            ]
+          },
+          {
+            "path": "specs/commands/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bca24cb3c88c6bf03c276b4f84a87a85b771b233deee0ec35a5f237e1869a83f",
+            "entry_digest": "902a803c39b2c6f74ab0f3bc259d7ed50851e80ea36a033f1e006b78040e6d96",
+            "owners": [
+              "commands"
+            ]
+          },
+          {
+            "path": "specs/commands/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5bd66a279ea18eea991b54212227c09979f1abcf1bafcc2db91d690bf85e71b7",
+            "entry_digest": "ba1474b6cde70f21e55348104d64d03c31753778394492489a85b20f9c5f01b3",
+            "owners": [
+              "commands"
+            ]
+          },
+          {
+            "path": "specs/hooks/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c6ee2db887551bfc30fafadca7227e6f9edb82596f3dcca6fbb9d0251c5db973",
+            "entry_digest": "939399a1aa19bccedcab15bc2c5944f9946f9ef6e331ea8187b96100f2bc51b0",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "specs/hooks/hooks.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "af2c2f88833bbf98762063d91f37608aaf9ce6b3f921df7860ac66e155a81d9f",
+            "entry_digest": "39786326a13e355b9d6e6d27e11a9e6bcfdab1037587bd73532a49bdf505b434",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "specs/hooks/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c350c85242c4ee6e94add050a45a102d3f26d7abf8b99b09754318f96c13fc8a",
+            "entry_digest": "b90faee29c2b214634bd8f542771e507f5c558232cdc66c0eb49b085f024d8b3",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "specs/hooks/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ae98561d04692615f99e1588ccc6008c0da43ad5a54a5e6e631605cc34567778",
+            "entry_digest": "90179e1c68b51755a255fef8901d3b608e80edd2519e9a881f4f702191061462",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "specs/hooks/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3d29a556230f45183d663692f7d28b6d912c4280f5b78da1fc332fccead1c9cd",
+            "entry_digest": "f0e4711079a79e4c126ec066375db79ed04b7eaac13e89acbd85c2ce19b8afbc",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "src/agents.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1a2c779193e451914e9e0a04675c4535166e52534ceaf66f554538effe1c87e1",
+            "entry_digest": "0cbd968caeb619767abe5ec0de631493af6d577483fdd2702d20e2eab4345813",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "src/change.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b44b3f1319b5627cb95a2855ea1e96c050737d13f4b84f5339858a5972a0fd9c",
+            "entry_digest": "34343ee8bed88741e8f5585f122e40d61bb2955edfe792f5b3a2a7a8178f6356",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/cli.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "55b49c89f4808cefe01af6d5bb6ec352f3f781541aa6609c53f2e531886994d0",
+            "entry_digest": "96f6464fee7426e726c82119b0ab19a6a93c5ddca94fa903e56960461a889ebe",
+            "owners": [
+              "cli_args"
+            ]
+          },
+          {
+            "path": "src/commands/agents.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "120f87b5dec528a4476a333f490134c58417d3867c369dee665e1319d069215e",
+            "entry_digest": "5556610db0a2666e44448583047bbc361bae0b4a7042efa1218b1b6f85b7d3d2",
+            "owners": [
+              "cmd_agents"
+            ]
+          },
+          {
+            "path": "src/commands/change.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8e9781808a5572d57131188984b0877915589df61c744e36ec8d6db683cc98e9",
+            "entry_digest": "4c197e1b6415ec514e75e793f44371ccea27c85d47a07f8f6cb658d324fa4f89",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "src/hooks.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "eeae945104e4523bd57f2f872520c91d6b5840c0d11b9c75e72635707983d004",
+            "entry_digest": "d51f50898af099acdbff853a0ed772069caa897572b9db67241dc8f961e76a72",
+            "owners": [
+              "hooks"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test agents::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test hooks::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-audit-project-001",
+        "REQ-change-check-scoped-002",
+        "REQ-cli-args-0069-001",
+        "REQ-cli-change-audit-001",
+        "REQ-cmd-agents-0069-001",
+        "REQ-cmd-change-audit-001",
+        "REQ-cmd-change-check-scoped-001",
+        "REQ-commands-change-audit-dispatch-001",
+        "REQ-hooks-two-verb-001"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
+      "reviewer": "grok-agent-finalize",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "688c88797b7733c165598a1e474fe064d571c323",
+      "contract_digest": "b25bc074f03a4352d71eee64fa54ca4afe633b79726c3ec8ef4a61f4c44583b9",
+      "execution_digest": "511c0b5c46e238c0a19a2cedce0e891fc458015a53a72b0a439dfe2571b0196f",
+      "workspace_digest": "89b8bf58ea4b718ad871817b593731ffc746734677ebe3bd565a3cd9dda80ea0",
+      "timestamp": 1785536976
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle",
+      "reviewer": "grok-agent-finalize",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "77b8456529b5b49ee671cf50f7c7563fe0f91bd7",
+      "contract_digest": "b25bc074f03a4352d71eee64fa54ca4afe633b79726c3ec8ef4a61f4c44583b9",
+      "execution_digest": "511c0b5c46e238c0a19a2cedce0e891fc458015a53a72b0a439dfe2571b0196f",
+      "workspace_digest": "89b8bf58ea4b718ad871817b593731ffc746734677ebe3bd565a3cd9dda80ea0",
+      "timestamp": 1785538399
+    }
+  ]
+}

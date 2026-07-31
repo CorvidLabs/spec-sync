@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara",
+  "implementation_commit": "7292bad8b63abb27ca15c9e059ac02522e5ed008",
+  "implementation_tree": "a0fdcd637b0eb6e26c31ced5ff192fc9a8f248c5",
+  "contract_digest": "4250edac7e32401d9637f2cc81927604ef80435e9c4a6b9700130a04875b0b7e",
+  "workspace_digest": "89b8bf58ea4b718ad871817b593731ffc746734677ebe3bd565a3cd9dda80ea0",
+  "closing_digest": "01654f38e2d855fa34990b24c9a7ee0c5fb8973ef8966b08a5c9e1738b5ccce5",
+  "review_digest": "22136414e1d2e202669fed6b37a0a4d0cd078467a1eda5cd7a869728081f62a3",
+  "finalization_digest": "6a968b111449e357a4cead1b1a0b4575cb8dbe53e7a96407bf5bc7a6a6119c41",
+  "timestamp": 1785537042
+}

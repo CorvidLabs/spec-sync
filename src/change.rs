@@ -5734,9 +5734,9 @@ pub fn summarize_change_with_strict(
                 )
             }
             ChangeState::Accepted
-                if terminal_evidence
-                    .as_ref()
-                    .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale) =>
+                if terminal_evidence.as_ref().is_some_and(|evidence| {
+                    evidence.validity == TerminalEvidenceValidity::Stale
+                }) =>
             {
                 format!(
                     "run `specsync change reopen {} --actor <name> --reason <reason>`",
@@ -21082,8 +21082,12 @@ mod tests {
         assert!(error.contains("includes a mutable change"));
         let summary = summarize_change(root, &first);
         assert!(
-            summary.next_action.contains("remove the premature acknowledgement")
-                || summary.next_action.contains("accept or archive every member"),
+            summary
+                .next_action
+                .contains("remove the premature acknowledgement")
+                || summary
+                    .next_action
+                    .contains("accept or archive every member"),
             "frozen ledger must surface freeze remediation as next_action, got: {}",
             summary.next_action
         );

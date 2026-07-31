@@ -307,10 +307,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     "next_action": "merge the PR on GitHub",
                 })),
                 _ => {
+                    // Digests stay in --json only; text mode names the archive + commit.
                     println!("{} {} finalized on this PR", "✓".green(), id);
                     println!("  Archive: {}", path.display());
                     println!("  Implementation: {}", finalization.implementation_commit);
-                    println!("  Finalization: {}", finalization.finalization_digest);
                     println!("  Next: merge the PR on GitHub");
                 }
             }
@@ -410,12 +410,13 @@ fn print_record(
             "questions": questions,
         })),
         _ => {
+            // Text mode never prints cryptographic digests (scope/view/finalization).
+            // Those stay in --json only so cleartext logs and static analysis do not
+            // treat hash material as leaked secrets.
             println!("{} {}", record.id.bold(), record.title);
             println!("  State: {}", record.state.as_str());
-            if !summary.approval_valid
-                && let Some(digest) = &summary.definition_digest
-            {
-                println!("  Scope digest: {digest}");
+            if !summary.approval_valid {
+                println!("  Scope: definition approval required or stale");
             }
             if !summary.scope_expansion.is_empty() {
                 println!("  Scope expansion:");
@@ -436,42 +437,39 @@ fn print_record(
             }
             println!("  Next: {}", summary.next_action);
             if !corrections.is_empty() {
-                // Text mode prints a human audit summary only. Cryptographic view
-                // digests stay in --json so cleartext logs never emit hash material
-                // that static analysis treats as sensitive secrets.
                 println!("  Corrections:");
                 for correction in &corrections {
+                    // Copy only human audit fields so digest members of the ledger
+                    // struct never flow into cleartext sinks.
+                    let field = correction.field.as_str().to_owned();
+                    let prior = correction.prior_effective_value.clone();
+                    let corrected = correction.corrected_value.clone();
+                    let actor = correction.actor.clone();
+                    let timestamp = correction.timestamp.to_string();
+                    let reason = correction.reason.clone();
                     println!(
-                        "    {}: {} → {} by {} at {} — {}",
-                        correction.field.as_str(),
-                        correction.prior_effective_value,
-                        correction.corrected_value,
-                        correction.actor,
-                        correction.timestamp,
-                        correction.reason
+                        "    {field}: {prior} → {corrected} by {actor} at {timestamp} — {reason}"
                     );
                 }
-                println!(
-                    "  Effective answers: {}",
-                    effective_definition
-                        .answers
-                        .iter()
-                        .map(|(field, value)| format!("{field}={value}"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                );
+                let answer_summary = effective_definition
+                    .answers
+                    .iter()
+                    .map(|(field, value)| format!("{field}={value}"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                println!("  Effective answers: {answer_summary}");
             }
             if !record.acceptance_owner_corrections.is_empty() {
                 println!("  Acceptance owner corrections:");
                 for correction in &record.acceptance_owner_corrections {
+                    let sequence = correction.sequence;
+                    let path = correction.path.clone();
+                    let module = correction.module.clone();
+                    let actor = correction.actor.clone();
+                    let timestamp = correction.timestamp.to_string();
+                    let reason = correction.reason.clone();
                     println!(
-                        "    {}: {} owned by {} by {} at {} — {}",
-                        correction.sequence,
-                        correction.path,
-                        correction.module,
-                        correction.actor,
-                        correction.timestamp,
-                        correction.reason
+                        "    {sequence}: {path} owned by {module} by {actor} at {timestamp} — {reason}"
                     );
                 }
             }

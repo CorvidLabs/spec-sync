@@ -24161,7 +24161,7 @@ mod tests {
         let error = effective_change_definition(root, &divergent.change).unwrap_err();
         assert!(
             error.contains("correction history divergence detected"),
-            "{error}"
+            "expected correction history divergence"
         );
     }
 
@@ -24545,7 +24545,10 @@ mod tests {
         let head = git_output(root, &["rev-parse", "HEAD"]).unwrap();
         fs::write(root.join(".git/shallow"), format!("{head}\n")).unwrap();
         let error = effective_change_definition(root, &correction.change).unwrap_err();
-        assert!(error.contains("shallow Git checkout"), "{error}");
+        assert!(
+            error.contains("shallow Git checkout"),
+            "expected shallow Git checkout rejection"
+        );
     }
 
     // Verifies REQ-change-032.
@@ -24733,7 +24736,7 @@ mod tests {
         let error = effective_change_definition(root, &record).unwrap_err();
         assert!(
             error.contains("does not match state.json correction_count"),
-            "{error}"
+            "expected correction_count mismatch"
         );
         fs::write(&ledger_path, &valid_ledger).unwrap();
 
@@ -24741,14 +24744,20 @@ mod tests {
         tampered["corrections"][0]["sequence"] = serde_json::json!(2);
         write_json(&ledger_path, &tampered).unwrap();
         let error = effective_change_definition(root, &record).unwrap_err();
-        assert!(error.contains("sequence is not contiguous"), "{error}");
+        assert!(
+            error.contains("sequence is not contiguous"),
+            "expected non-contiguous correction sequence"
+        );
         fs::write(&ledger_path, &valid_ledger).unwrap();
 
         let mut unsupported: serde_json::Value = serde_json::from_str(&valid_ledger).unwrap();
         unsupported["corrections"][0]["field"] = serde_json::json!("acceptance_criteria");
         write_json(&ledger_path, &unsupported).unwrap();
         let error = effective_change_definition(root, &record).unwrap_err();
-        assert!(error.contains("invalid correction ledger"), "{error}");
+        assert!(
+            error.contains("invalid correction ledger"),
+            "expected invalid correction ledger"
+        );
         fs::write(&ledger_path, &valid_ledger).unwrap();
 
         let mut tampered_definition: serde_json::Value =
@@ -24757,7 +24766,10 @@ mod tests {
             serde_json::json!("forged-definition-digest");
         write_json(&ledger_path, &tampered_definition).unwrap();
         let error = effective_change_definition(root, &record).unwrap_err();
-        assert!(error.contains("invalid prior gate evidence"), "{error}");
+        assert!(
+            error.contains("invalid prior gate evidence"),
+            "expected invalid prior gate evidence"
+        );
         fs::write(&ledger_path, &valid_ledger).unwrap();
 
         let second = TempDir::new().unwrap();

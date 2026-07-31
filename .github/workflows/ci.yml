@@ -169,7 +169,16 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
-      # Integration fixtures shell out to classify-ci-paths.sh (needs jq + bash on Windows).
+      # Integration fixtures shell out to classify-ci-paths.sh (needs jq + Git Bash on Windows).
+      # Prefer Git for Windows bash over the WSL launcher that bare `bash` often resolves to.
+      - name: Prefer Git Bash over WSL (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "C:/Program Files/Git/bin" >> "$GITHUB_PATH"
+          echo "SPECSYNC_BASH=C:/Program Files/Git/bin/bash.exe" >> "$GITHUB_ENV"
+          "C:/Program Files/Git/bin/bash.exe" --version | head -1
       - name: Install jq (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash

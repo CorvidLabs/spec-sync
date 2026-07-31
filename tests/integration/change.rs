@@ -3,7 +3,7 @@ use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tempfile::TempDir;
 
@@ -27,6 +27,73 @@ fn path_for_bash(path: &Path) -> String {
         }
     }
     forward
+}
+
+/// Resolve a real bash suitable for shell scripts.
+///
+/// On Windows GitHub runners, bare `bash` often resolves to the WSL launcher
+/// (`System32\bash.exe`), which fails with "no installed distributions" when WSL
+/// is not provisioned. Prefer an explicit override, then Git for Windows bash.
+fn resolve_bash() -> PathBuf {
+    if let Some(explicit) = std::env::var_os("SPECSYNC_BASH") {
+        let path = PathBuf::from(explicit);
+        if path.as_os_str().is_empty() {
+            // fall through
+        } else {
+            return path;
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        const CANDIDATES: &[&str] = &[
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+        ];
+        for candidate in CANDIDATES {
+            let path = Path::new(candidate);
+            if path.is_file() {
+                return path.to_path_buf();
+            }
+        }
+
+        if let Ok(output) = Command::new("where.exe").arg("bash").output() {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                let mut fallback: Option<PathBuf> = None;
+                for line in text.lines() {
+                    let candidate = line.trim();
+                    if candidate.is_empty() {
+                        continue;
+                    }
+                    let lower = candidate.to_ascii_lowercase();
+                    // Skip the Windows Store / WSL stub — it is not a POSIX shell.
+                    if lower.ends_with(r"\system32\bash.exe")
+                        || lower.ends_with(r"\sysnative\bash.exe")
+                        || lower.contains(r"\windowsapps\")
+                    {
+                        continue;
+                    }
+                    if lower.contains(r"\git\bin\bash") || lower.contains(r"\git\usr\bin\bash") {
+                        return PathBuf::from(candidate);
+                    }
+                    if fallback.is_none() {
+                        fallback = Some(PathBuf::from(candidate));
+                    }
+                }
+                if let Some(path) = fallback {
+                    return path;
+                }
+            }
+        }
+    }
+
+    PathBuf::from("bash")
+}
+
+fn bash_command() -> Command {
+    Command::new(resolve_bash())
 }
 
 #[test]
@@ -733,11 +800,13 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
             .unwrap();
         assert!(archive_diff.status.success());
         // Always invoke through bash: the classifier is a shell script, and Windows cannot
-        // execute #! scripts directly (Win32 error 193). GitHub Actions Windows runners ship bash.
+        // execute #! scripts directly (Win32 error 193). Resolve Git Bash explicitly —
+        // bare `bash` on GHA Windows often hits the WSL stub instead of Git for Windows.
         // Pass bash-native absolute paths so Git Bash does not mis-parse `C:\...` roots.
         let classifier_bash = path_for_bash(Path::new(&classifier));
         let root_bash = path_for_bash(root);
-        let mut classifier_child = Command::new("bash")
+        let bash = resolve_bash();
+        let mut classifier_child = bash_command()
             .arg(&classifier_bash)
             .arg(&root_bash)
             .arg("false")
@@ -746,7 +815,12 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .unwrap();
+            .unwrap_or_else(|error| {
+                panic!(
+                    "failed to spawn bash classifier via {}: {error}",
+                    bash.display()
+                )
+            });
         classifier_child
             .stdin
             .take()

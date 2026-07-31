@@ -87,16 +87,27 @@ if base_guard.returncode != 0:
             "trusted-policy bootstrap is restricted to the immutable SpecSync 6.0 PR/base identity"
         )
     pull = api(f"repos/{repository}/pulls/{pull_request}")
+    pull_head = (pull.get("head") or {}).get("sha")
     if (
         pull.get("number") != pull_request
         or (pull.get("base") or {}).get("sha") != base
         or (pull.get("base") or {}).get("ref") != BOOTSTRAP_BASE_REF
         or ((pull.get("base") or {}).get("repo") or {}).get("full_name") != repository
-        or (pull.get("head") or {}).get("sha") != candidate
         or (pull.get("head") or {}).get("ref") != BOOTSTRAP_HEAD_REF
+        or not isinstance(pull_head, str)
+        or re.fullmatch(r"[0-9a-f]{40}", pull_head) is None
     ):
         raise SystemExit(
             "trusted-policy bootstrap PR metadata does not match its frozen repository/base/branch identity"
+        )
+    # Archive-only (and review-only) gates validate the exact parent SHA, which is an
+    # ancestor of the PR head rather than equal to it. Accept both the tip and its
+    # ancestors so same-PR finalization can bootstrap on PR #480.
+    if pull_head != candidate and git(
+        root, "merge-base", "--is-ancestor", candidate, pull_head, check=False
+    ).returncode != 0:
+        raise SystemExit(
+            "trusted-policy bootstrap candidate is not the PR head or an ancestor of it"
         )
     if git(root, "merge-base", "--is-ancestor", base, candidate, check=False).returncode != 0:
         raise SystemExit("trusted-policy bootstrap candidate does not descend from its frozen base")

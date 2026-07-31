@@ -1738,6 +1738,38 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
     })
 }
 
+/// Project-wide next_action when the sequence ledger is frozen (invalid acknowledgements,
+/// mutable multi-id acks, or unacknowledged duplicates). Returns `None` when the ledger is healthy.
+fn sequence_ledger_freeze_next_action(root: &Path) -> Option<String> {
+    match validate_change_sequences(root) {
+        Ok(()) => None,
+        Err(reason)
+            if reason.contains("includes a mutable change")
+                || reason.contains("only immutable accepted or archived") =>
+        {
+            // Premature multi-id sequence acknowledgements freeze change new/adopt until every
+            // collision member is accepted/archived (or the acknowledgement is corrected).
+            Some(
+                "accept or archive every member of the acknowledged sequence collision (or remove the premature acknowledgement from `.specsync/change-sequence.json`), then re-run `specsync change status`"
+                    .into(),
+            )
+        }
+        Err(reason)
+            if reason.contains("no longer matches the exact historical ID set")
+                || reason.contains("must contain at least two unique IDs")
+                || reason.contains("duplicate acknowledgements for") =>
+        {
+            Some(format!(
+                "fix or remove the invalid acknowledgement in `.specsync/change-sequence.json` ({reason}), then re-run `specsync change status`"
+            ))
+        }
+        Err(reason) if reason.contains("duplicate numeric change sequence") => Some(format!(
+            "{reason}; update from the default branch (or set SPECSYNC_SEQUENCE_BASE for multi-clone fleets), then create a new change"
+        )),
+        Err(_) => None,
+    }
+}
+
 fn validate_change_sequences(root: &Path) -> Result<(), String> {
     let located = located_change_sequences(root)?;
     let ledger = load_change_sequence_ledger(root)?;
@@ -5627,112 +5659,105 @@ pub fn summarize_change_with_strict(
         .unwrap_or_default();
     let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
         .then(|| terminal_evidence_summary(root, record));
-    let next_action = match record.state {
-        ChangeState::Draft if next_questions(record).is_empty() => {
-            format!("run `specsync change approve {} --actor <name>`", record.id)
+    // Sequence-ledger freezes must outrank state-local next actions (including reopen /
+    // finalize). Premature multi-id acknowledgements block change new/adopt project-wide.
+    let next_action = if let Some(remediation) = sequence_ledger_freeze_next_action(root) {
+        remediation
+    } else {
+        match record.state {
+            ChangeState::Draft if next_questions(record).is_empty() => {
+                format!("run `specsync change approve {} --actor <name>`", record.id)
+            }
+            ChangeState::Draft => {
+                let question = next_questions(record)
+                    .into_iter()
+                    .next()
+                    .map(|question| question.id)
+                    .unwrap_or_else(|| "<question>".into());
+                format!(
+                    "run `specsync change answer {} {} <answer>`",
+                    record.id, question
+                )
+            }
+            ChangeState::Approved if !approval_valid => {
+                format!("run `specsync change approve {} --actor <name>`", record.id)
+            }
+            ChangeState::Approved => {
+                format!("run `specsync change check {}`", record.id)
+            }
+            ChangeState::Implementing if !artifacts_complete => {
+                format!(
+                    "complete {}, then run `specsync change status {}`",
+                    incomplete_artifacts.join(", "),
+                    record.id
+                )
+            }
+            ChangeState::Implementing if !approval_valid => {
+                format!("run `specsync change approve {} --actor <name>`", record.id)
+            }
+            ChangeState::Implementing => {
+                format!("run `specsync change check {}`", record.id)
+            }
+            ChangeState::Verifying if !artifacts_complete => {
+                format!(
+                    "complete {}, then run `specsync change status {}`",
+                    incomplete_artifacts.join(", "),
+                    record.id
+                )
+            }
+            ChangeState::Verifying if !approval_valid => {
+                format!("run `specsync change approve {} --actor <name>`", record.id)
+            }
+            ChangeState::Verifying if !verification_current() => {
+                format!("run `specsync change check {}`", record.id)
+            }
+            ChangeState::Verifying if !scoped_review_current => {
+                format!(
+                    "run `specsync change review {} --reviewer <independent-reviewer>` after the PR's scoped review passes",
+                    record.id
+                )
+            }
+            ChangeState::Verifying => {
+                format!("run `specsync change finalize {}`", record.id)
+            }
+            ChangeState::Accepted if !correction_valid => format!(
+                "restore `.specsync/changes/{}/corrections.json` from trusted history, then run `specsync change status {}`",
+                record.id, record.id
+            ),
+            ChangeState::Accepted if record.workflow_version >= 2 => {
+                format!("run `specsync change finalize {}`", record.id)
+            }
+            ChangeState::Accepted if ensure_closing_approval_valid(root, record).is_err() => {
+                format!(
+                    "run `specsync change reopen {} --actor <name> --reason <reason>`",
+                    record.id
+                )
+            }
+            ChangeState::Accepted
+                if terminal_evidence
+                    .as_ref()
+                    .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale) =>
+            {
+                format!(
+                    "run `specsync change reopen {} --actor <name> --reason <reason>`",
+                    record.id
+                )
+            }
+            ChangeState::Accepted => {
+                format!("run `specsync change archive {}`", record.id)
+            }
+            ChangeState::Archived
+                if terminal_evidence.as_ref().is_some_and(|evidence| {
+                    evidence.validity == TerminalEvidenceValidity::CorruptHistory
+                }) =>
+            {
+                format!(
+                    "restore the archive for {} from trusted Git history, then run `specsync change check`",
+                    record.id
+                )
+            }
+            ChangeState::Archived => "merge the PR on GitHub if it is still open".into(),
         }
-        ChangeState::Draft => {
-            let question = next_questions(record)
-                .into_iter()
-                .next()
-                .map(|question| question.id)
-                .unwrap_or_else(|| "<question>".into());
-            format!(
-                "run `specsync change answer {} {} <answer>`",
-                record.id, question
-            )
-        }
-        ChangeState::Approved if !approval_valid => {
-            format!("run `specsync change approve {} --actor <name>`", record.id)
-        }
-        ChangeState::Approved => {
-            format!("run `specsync change check {}`", record.id)
-        }
-        ChangeState::Implementing if !artifacts_complete => {
-            format!(
-                "complete {}, then run `specsync change status {}`",
-                incomplete_artifacts.join(", "),
-                record.id
-            )
-        }
-        ChangeState::Implementing if !approval_valid => {
-            format!("run `specsync change approve {} --actor <name>`", record.id)
-        }
-        ChangeState::Implementing => {
-            format!("run `specsync change check {}`", record.id)
-        }
-        ChangeState::Verifying if !artifacts_complete => {
-            format!(
-                "complete {}, then run `specsync change status {}`",
-                incomplete_artifacts.join(", "),
-                record.id
-            )
-        }
-        ChangeState::Verifying if !approval_valid => {
-            format!("run `specsync change approve {} --actor <name>`", record.id)
-        }
-        ChangeState::Verifying if !verification_current() => {
-            format!("run `specsync change check {}`", record.id)
-        }
-        ChangeState::Verifying if !scoped_review_current => {
-            format!(
-                "run `specsync change review {} --reviewer <independent-reviewer>` after the PR's scoped review passes",
-                record.id
-            )
-        }
-        ChangeState::Verifying => {
-            format!("run `specsync change finalize {}`", record.id)
-        }
-        ChangeState::Accepted if !correction_valid => format!(
-            "restore `.specsync/changes/{}/corrections.json` from trusted history, then run `specsync change status {}`",
-            record.id, record.id
-        ),
-        ChangeState::Accepted if record.workflow_version >= 2 => {
-            format!("run `specsync change finalize {}`", record.id)
-        }
-        ChangeState::Accepted if ensure_closing_approval_valid(root, record).is_err() => {
-            format!(
-                "run `specsync change reopen {} --actor <name> --reason <reason>`",
-                record.id
-            )
-        }
-        ChangeState::Accepted
-            if terminal_evidence.as_ref().is_some_and(|evidence| {
-                evidence.validity == TerminalEvidenceValidity::Stale
-                    && evidence.reason.as_deref().is_some_and(|reason| {
-                        reason.contains("includes a mutable change")
-                            || reason.contains("only immutable accepted or archived")
-                    })
-            }) =>
-        {
-            // Premature multi-id sequence acknowledgements freeze the ledger until every
-            // collision member is accepted/archived (or the acknowledgement is corrected).
-            "accept or archive every member of the acknowledged sequence collision (or remove the premature acknowledgement from `.specsync/change-sequence.json`), then re-run `specsync change status`".into()
-        }
-        ChangeState::Accepted
-            if terminal_evidence
-                .as_ref()
-                .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale) =>
-        {
-            format!(
-                "run `specsync change reopen {} --actor <name> --reason <reason>`",
-                record.id
-            )
-        }
-        ChangeState::Accepted => {
-            format!("run `specsync change archive {}`", record.id)
-        }
-        ChangeState::Archived
-            if terminal_evidence.as_ref().is_some_and(|evidence| {
-                evidence.validity == TerminalEvidenceValidity::CorruptHistory
-            }) =>
-        {
-            format!(
-                "restore the archive for {} from trusted Git history, then run `specsync change check`",
-                record.id
-            )
-        }
-        ChangeState::Archived => "merge the PR on GitHub if it is still open".into(),
     };
     ChangeSummary {
         id: record.id.clone(),
@@ -21055,6 +21080,13 @@ mod tests {
 
         let error = validate_change_sequences(root).unwrap_err();
         assert!(error.contains("includes a mutable change"));
+        let summary = summarize_change(root, &first);
+        assert!(
+            summary.next_action.contains("remove the premature acknowledgement")
+                || summary.next_action.contains("accept or archive every member"),
+            "frozen ledger must surface freeze remediation as next_action, got: {}",
+            summary.next_action
+        );
     }
 
     // Verifies REQ-change-035.

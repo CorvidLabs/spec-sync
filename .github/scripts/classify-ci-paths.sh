@@ -488,10 +488,18 @@ if [[ "$archive_only" != "true" && "$review_only" != "true" ]] && command -v jq 
         fi
         if [[ "$current_review" != "true" ]]; then
             review_candidates=$((review_candidates + 1))
-            review_required_change_id="$state_id"
+            # Prefer the first unreviewed verifying change so multi-change PRs
+            # can run the SpecSync scoped review check and record reviews one
+            # at a time instead of deadlocking when candidates != 1.
+            if [[ -z "$review_required_change_id" ]]; then
+                review_required_change_id="$state_id"
+            fi
         fi
     done
-    if [[ "$review_candidates" == "1" ]]; then
+    # Any unreviewed verifying change needs the scoped-review CI check. Requiring
+    # exactly one candidate left dual-CHG PRs stuck (check skipped → no review
+    # provenance → cannot finalize either change).
+    if [[ "$review_candidates" -ge 1 ]]; then
         review_required=true
     else
         review_required_change_id=""

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0072-heal-reopen-closing-approval-recovery-for-stale-accepted-evidence",
+      "reviewer": "grok-agent-finalize",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "ffe6105e7479dae77714e88a5bce7496e04e1df2",
+      "contract_digest": "1d896feca4c236d4497bdf14cbaa8134da5fad6ab9ad5548bbcf4e4b7373531f",
+      "execution_digest": "da1cfcc74cc4f4c0282e6c8048f13ce4aa6447703d61350db480b59e52da609b",
+      "workspace_digest": "2b127020b821b1d87bc72f8c0b2284f73fdc9402896c196c7409b4979f23df15",
+      "timestamp": 1785558526
+    }
+  ]
+}

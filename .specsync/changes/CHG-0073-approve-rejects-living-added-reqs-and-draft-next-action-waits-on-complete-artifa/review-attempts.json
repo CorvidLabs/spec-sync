@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0073-approve-rejects-living-added-reqs-and-draft-next-action-waits-on-complete-artifa",
+      "reviewer": "product-scoped-review",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "06b3602ba62843129b9a30eca55dde2ae1005df7",
+      "contract_digest": "83601613808f75a7ca0550a4f9566c835b943bebd7a61b53587b77eaefa11f53",
+      "execution_digest": "ccf5fb9a066c478344c84bf1fa3f1e7e2087882a89f820ea41b55b881d6d4b10",
+      "workspace_digest": "b94b577b2dfd9bae68c7206895e795fd0d5ebdc3218a6901782c0c689cd49b1b",
+      "timestamp": 1785602636
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0073-approve-rejects-living-added-reqs-and-draft-next-action-waits-on-complete-artifa",
+      "reviewer": "product-scoped-review",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "ec4eb1bcde91e8158bba08286d242da85a705244",
+      "contract_digest": "83601613808f75a7ca0550a4f9566c835b943bebd7a61b53587b77eaefa11f53",
+      "execution_digest": "ccf5fb9a066c478344c84bf1fa3f1e7e2087882a89f820ea41b55b881d6d4b10",
+      "workspace_digest": "c7c77d0ee4f3cee9a55824be8bcc28d525d064ba7a5da0726607ba92bf622283",
+      "timestamp": 1785603972
+    }
+  ]
+}

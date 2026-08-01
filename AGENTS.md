@@ -38,6 +38,47 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync change audit` | Project health over active workspaces and living specs (archives are history) |
 | `specsync migrate 5.0` | Backfill 5.0.1-era reopening digest fields idempotently (the remediation `check` prints for missing-field ledgers) |
 
+
+## Before pushing (MANDATORY — keep it FAST)
+
+**Never `git push` without a green pre-push gate.** The CI failures that look "obvious" (fmt, path coverage / SDD active change, undocumented exports) are exactly what this gate catches locally.
+
+```bash
+fledge lanes run pre-push
+# or: ./scripts/pre-push-gate.sh
+```
+
+**Target: seconds to ~2 minutes on a warm tree.** This is intentionally *not* a full test suite.
+
+| Step | What | Why fast |
+|------|------|----------|
+| 1 | `cargo fmt --check` | seconds |
+| 2 | `cargo check` | incremental types only (no clippy, no tests) |
+| 3 | `specsync check --strict --require-coverage 100 --force` | uses `target/release/specsync` when present |
+
+**Do not** put these in pre-push (they belong in `fledge lanes run verify` / CI):
+
+- full `cargo test` / `change check` verification suite
+- `cargo clippy -D warnings` (run in verify)
+- docs site / vscode package builds
+
+If step 3 fails with *meaningful changed paths are not covered by an active change*:
+
+1. Create or update an active SDD change covering every dirty path (`change new` / expand `affected_paths`)
+2. Fill artifacts completely (no HTML TODO comment stubs)
+3. `change approve` then ensure the change is **implementing** or **verifying** (approved-only does not cover paths)
+4. Document any new public exports in the module spec Public API table
+5. Re-run `fledge lanes run pre-push`
+
+When the PR is merge-ready (not every push):
+
+```bash
+fledge lanes run verify   # clippy + full test + release build + spec-check
+```
+
+Do **not** rely on remote CI as the first formatter or path-coverage check.
+
+
 ## Spec Lifecycle
 
 Specs follow a lifecycle from creation through archival:

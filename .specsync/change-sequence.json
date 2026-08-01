@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 72,
-  "id": "CHG-0072-heal-reopen-closing-approval-recovery-for-stale-accepted-evidence",
+  "sequence": 73,
+  "id": "CHG-0073-approve-rejects-living-added-reqs-and-draft-next-action-waits-on-complete-artifa",
   "acknowledged_collisions": [
     {
       "sequence": 16,

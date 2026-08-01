@@ -44,3 +44,5 @@ spec: change.spec.md
 - [x] Resume same-PR finalization after a crash that leaves the accepted workspace at its dated destination
 - [x] Fail closed on missing adoption anchors, preserve append-only review attempts, recover partial
   terminal archive writes, share freshness limits, and authenticate squash-surviving v2 archives
+
+- [x] Approve fails closed on ADDED of living REQ; draft next_action waits on complete artifacts (2026-08-01)

@@ -370,7 +370,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                                 let questions = change::next_questions(&change_record);
                                 println!(
                                     "  Next: {}",
-                                    text_mode_next_action(&change_record, &questions)
+                                    text_mode_next_action(root, &change_record, &questions)
                                 );
                             }
                         } else {
@@ -501,7 +501,10 @@ fn print_record(
             let state = record.state.as_str().to_owned();
             println!("{} {}", id.bold(), title);
             println!("  State: {state}");
-            println!("  Next: {}", text_mode_next_action(record, &questions));
+            println!(
+                "  Next: {}",
+                text_mode_next_action(root, record, &questions)
+            );
             if !record.answers.is_empty() {
                 let answer_summary = record
                     .answers
@@ -537,19 +540,27 @@ fn print_record(
     Ok(())
 }
 
-/// Human next-step string from interview/state only (no digest-bearing loaders).
-fn text_mode_next_action(record: &ChangeRecord, questions: &[InterviewQuestion]) -> String {
+/// Human next-step string from interview/state and lightweight artifact completeness.
+/// Avoids digest-bearing loaders (CodeQL cleartext-logging); only reads selected artifact files.
+fn text_mode_next_action(
+    root: &Path,
+    record: &ChangeRecord,
+    questions: &[InterviewQuestion],
+) -> String {
     let id = record.id.as_str();
     match record.state {
-        ChangeState::Draft if questions.is_empty() => {
-            format!("run `specsync change approve {id} --actor <name>`")
-        }
-        ChangeState::Draft => {
+        ChangeState::Draft if !questions.is_empty() => {
             let question = questions
                 .first()
                 .map(|question| question.id.as_str())
                 .unwrap_or("<question>");
             format!("run `specsync change answer {id} {question} <answer>`")
+        }
+        ChangeState::Draft if !change::artifacts_complete_for_guidance(root, record) => {
+            format!("complete selected artifacts, then run `specsync change status {id}`")
+        }
+        ChangeState::Draft => {
+            format!("run `specsync change approve {id} --actor <name>`")
         }
         ChangeState::Approved | ChangeState::Implementing => {
             format!("run `specsync change check {id}`")
@@ -582,7 +593,7 @@ fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, st
                 let id = record.id.clone();
                 let title = record.title.clone();
                 let state = record.state.as_str().to_owned();
-                let next = text_mode_next_action(record, &questions);
+                let next = text_mode_next_action(root, record, &questions);
                 println!("{:<14}  {state:<13}  {title}  next: {next}", id.bold());
             }
         }

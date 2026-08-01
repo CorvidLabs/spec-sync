@@ -27,7 +27,8 @@ if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       case "$f" in
-        .specsync/archive/*|.specsync/change-sequence.json) ;;
+        # Archive move deletes active workspace files; lifecycle evidence lives under changes/.
+        .specsync/archive/*|.specsync/changes/*|.specsync/change-sequence.json|.specsync/change.lock) ;;
         *) archive_tip=false; break ;;
       esac
     done <<<"$files"

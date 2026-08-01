@@ -16,6 +16,22 @@
       "execution_digest": "67801ba3c1882eeb6761810703f950e3651af807fb105fd196157aca63653ad4",
       "workspace_digest": "399de0238ed83a9d4e81f38cf1bbf49031fb5b95c86963cac1509381d61fa806",
       "timestamp": 1785610446
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0074-simplify-specsync-ci-to-one-expensive-suite-authority-with-residual-trust-identi",
+      "reviewer": "codex-agent-mendel",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "5cce84e2a850bb74a76249e3ea5bd01aff282577",
+      "contract_digest": "3f6c3bc6aaf1bffef82fee470b3a88c57c9127422f5a407fe1bbef0e40d4db81",
+      "execution_digest": "67801ba3c1882eeb6761810703f950e3651af807fb105fd196157aca63653ad4",
+      "workspace_digest": "1c69ee13b34891668c0df3e6b0556c12ebe6b78ab1fdc36fc119bcdc51f16c51",
+      "timestamp": 1785611655
     }
   ]
 }

@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1785609643,
+      "commit": "0ea95ce5a409ee7685bb31a182ef2c633bf9baee",
+      "contract_digest": "3f6c3bc6aaf1bffef82fee470b3a88c57c9127422f5a407fe1bbef0e40d4db81",
+      "execution_digest": "843e3a997ff1ac4637321e12baa00bf7b64ff23afea0c25ddb637f9620e5c304",
+      "workspace_digest": "05600cb9fee8b588b725ab043a2232fe24f6d7e9aaa80e3532cc5128f72d3b45",
+      "passed": true,
+      "commands": [
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-006"
+      ]
+    },
+    {
+      "timestamp": 1785610427,
+      "commit": "0ea95ce5a409ee7685bb31a182ef2c633bf9baee",
+      "contract_digest": "3f6c3bc6aaf1bffef82fee470b3a88c57c9127422f5a407fe1bbef0e40d4db81",
+      "execution_digest": "67801ba3c1882eeb6761810703f950e3651af807fb105fd196157aca63653ad4",
+      "workspace_digest": "399de0238ed83a9d4e81f38cf1bbf49031fb5b95c86963cac1509381d61fa806",
+      "passed": true,
+      "commands": [
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-006"
+      ]
+    }
+  ]
+}

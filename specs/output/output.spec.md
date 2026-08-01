@@ -1,6 +1,6 @@
 ---
 module: output
-version: 3
+version: 4
 status: stable
 files:
   - src/output.rs
@@ -93,3 +93,4 @@ Renders terminal and markdown output for spec-sync commands. Provides colored te
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
+| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |

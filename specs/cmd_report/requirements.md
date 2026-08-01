@@ -35,13 +35,9 @@ spec: cmd_report.spec.md
 
 ### REQ-cmd-report-001
 
-The report command SHALL provide a trustworthy project/module health view and SHALL fail closed when
-manifest discovery is inconclusive.
+The `cmd_report` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-
-- Overall coverage uses `compute_coverage_checked`.
-- Malformed Gradle/manifest discovery exits nonzero before partial report rendering.
-- JSON remains parseable with `valid: false`, `inconclusive: true`, null overall coverage, zero
-  counts, an empty `modules` collection, and an explicit error.
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 

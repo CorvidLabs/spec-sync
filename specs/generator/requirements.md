@@ -15,11 +15,11 @@ spec: generator.spec.md
 
 ### REQ-generator-001
 
-The generator SHALL produce deterministic local scaffolds that a human or connected coding agent can refine.
+The `generator` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- Generation has no provider parameter or AI error channel.
-- Custom and language-aware templates, source detection, companions, and no-overwrite guarantees remain unchanged.
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-generator-002
 

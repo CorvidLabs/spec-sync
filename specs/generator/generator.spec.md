@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 8
+version: 9
 status: stable
 files:
   - src/generator.rs
@@ -32,6 +32,8 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
 | `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a spec using files from a custom template directory |
 | `generate_companion_files_from_template` | `spec_dir, module_name, template_dir, design_enabled` | `()` | Generate companion files from a custom template directory with fallback to defaults; creates design.md only when `design_enabled` is true |
+| `collect_exports_for_files` | `root, source_files` | `Vec<String>` | Collect exported symbols across the given source files |
+| `populate_public_api_table` | `spec, exports` | `String` | Insert or refresh a Public API table from discovered export names |
 
 ### Exported Types
 
@@ -110,3 +112,4 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | 2026-06-11 | Add `find_single_source_fallback` so `new`/`scaffold` auto-detect the source in single-source-file projects (e.g. a fresh cargo crate with only `src/lib.rs`) |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |

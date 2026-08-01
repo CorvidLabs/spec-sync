@@ -54,10 +54,10 @@ spec: commands.spec.md
 
 ### REQ-commands-001
 
-The `commands` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
+The `commands` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- Related `cargo test` coverage for `commands` remains green.
+- Related tests remain green.
 - No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-commands-002

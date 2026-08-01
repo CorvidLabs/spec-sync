@@ -1,5 +1,5 @@
 ---
-change: CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes
+change: CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped
 artifact: design
 ---
 

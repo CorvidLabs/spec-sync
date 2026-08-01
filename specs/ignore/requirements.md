@@ -31,9 +31,9 @@ spec: ignore.spec.md
 
 ### REQ-ignore-001
 
-The `ignore` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
+The `ignore` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- Related `cargo test` coverage for `ignore` remains green.
+- Related tests remain green.
 - No intentional regression of SpecSync 6.0 lifecycle verbs.
 

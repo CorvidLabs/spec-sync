@@ -37,9 +37,9 @@ spec: scoring.spec.md
 
 ### REQ-scoring-001
 
-The `scoring` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
+The `scoring` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- Related `cargo test` coverage for `scoring` remains green.
+- Related tests remain green.
 - No intentional regression of SpecSync 6.0 lifecycle verbs.
 

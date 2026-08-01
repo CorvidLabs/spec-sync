@@ -1,6 +1,6 @@
 ---
 module: changelog
-version: 3
+version: 4
 status: stable
 files:
   - src/changelog.rs
@@ -33,6 +33,9 @@ Automated changelog generation for spec changes between git refs. Compares specs
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `parse_range` | `range: &str` | `Option<(String, String)>` | Parse a range string like "v0.1..v0.2" into (from, to) tuple |
+| `parse_range_full` | `range: &str` | `Option<(String, String, bool)>` | Parse a range including three-dot merge-base form into (from, to, use_merge_base) |
+| `resolve_ref` | `root, git_ref` | `Result<String, String>` | Resolve a git ref to a commit SHA |
+| `merge_base` | `root, a, b` | `Result<String, String>` | Compute the merge-base of two refs |
 | `generate_changelog` | `root, specs_dir, from_ref, to_ref` | `ChangelogReport` | Generate a changelog comparing specs between two git refs |
 | `format_text` | `report: &ChangelogReport` | `String` | Format changelog as colored terminal text |
 | `format_json` | `report: &ChangelogReport` | `String` | Format changelog as JSON |
@@ -97,3 +100,4 @@ Automated changelog generation for spec changes between git refs. Compares specs
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |

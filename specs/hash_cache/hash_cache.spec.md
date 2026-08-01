@@ -1,6 +1,6 @@
 ---
 module: hash_cache
-version: 4
+version: 5
 status: stable
 files:
   - src/hash_cache.rs
@@ -124,3 +124,4 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | 2026-04-13 | Document design.md and testing.md in companion file detection list |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
+| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |

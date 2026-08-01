@@ -36,15 +36,9 @@ spec: importer.spec.md
 
 ### REQ-importer-001
 
-The importer SHALL normalize supported external content into safe local spec drafts while
-sanitizing paths, secrets, markup, and oversized input.
+The `importer` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-
-- GitHub imports require explicit `GITHUB_TOKEN` and use the shared typed, bounded in-process REST
-  path.
-- GitHub imports revalidate repository access after an ambiguous issue 404 and never launch a
-  `gh issue view` subprocess.
-- GitHub, Jira, and Confluence titles are slugified and then validated through the shared portable
-  module-name contract before an imported item or output path is constructed.
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 

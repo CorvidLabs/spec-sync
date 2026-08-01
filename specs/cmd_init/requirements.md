@@ -31,11 +31,11 @@ spec: cmd_init.spec.md
 
 ### REQ-cmd-init-001
 
-The system SHALL initialize local lifecycle coordination files as ignored, recoverable implementation details.
+The `cmd_init` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- New projects ignore the lifecycle lock and transaction journal.
-- Initialization remains idempotent and does not weaken SDD enforcement.
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-cmd-init-002
 

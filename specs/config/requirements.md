@@ -16,10 +16,10 @@ spec: config.spec.md
 
 ### REQ-config-001
 
-The `config` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
+The `config` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- Related `cargo test` coverage for `config` remains green.
+- Related tests remain green.
 - No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-config-002

@@ -39,9 +39,9 @@ spec: cmd_score.spec.md
 
 ### REQ-cmd-score-001
 
-The `cmd_score` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change, including error reporting and coverage/enforcement edges that those fixes address.
+The `cmd_score` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- Related `cargo test` coverage for `cmd_score` remains green.
+- Related tests remain green.
 - No intentional regression of SpecSync 6.0 lifecycle verbs.
 

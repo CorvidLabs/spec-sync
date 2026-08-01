@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 70,
-  "id": "CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes",
+  "sequence": 71,
+  "id": "CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped",
   "acknowledged_collisions": [
     {
       "sequence": 16,

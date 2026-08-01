@@ -36,13 +36,9 @@ spec: cmd_lifecycle.spec.md
 
 ### REQ-cmd-lifecycle-001
 
-The lifecycle command SHALL enforce valid spec maturity transitions and SHALL preserve deterministic text and structured output.
+The `cmd_lifecycle` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- `promote`/`demote` use `SpecStatus::next()`/`prev()`; `set` accepts any valid status; all validate via `can_transition_to()` unless `--force`.
-- Guard evaluation checks `min_score`, `require_sections`, and staleness (`no_stale`/`stale_threshold`), matching both specific (`from→to`) and wildcard (`*→to`) keys in either Unicode (`→`) or ASCII (`->`) form.
-- A blocked transition (invalid jump or failed guard) prints the failures and exits 1; `--force` overrides both.
-- When `track_history` is enabled, successful transitions append a dated `lifecycle_log` entry to the spec frontmatter.
-- `auto-promote` advances only specs whose next transition passes guards (or, with `--dry-run`, reports what would change without writing).
-- `enforce` exits non-zero when any selected check (`require_status`, `check_allowed`, `check_max_age`) finds a violation; `status`, `history`, and `guard` honor JSON output.
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 

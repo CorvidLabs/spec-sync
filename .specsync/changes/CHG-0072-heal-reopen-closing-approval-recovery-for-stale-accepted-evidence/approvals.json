@@ -1,0 +1,38 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785549026,
+      "digest": "a6576ef2769a5e94024922ab85f468cf1315aad45c5b479a96c7be7dd7527fed",
+      "note": "Heal reopen closing recovery",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0072-heal-reopen-closing-approval-recovery-for-stale-accepted-evidence",
+        "title": "Heal reopen closing-approval recovery for stale accepted evidence",
+        "description": "Heal reopen closing-approval recovery for stale accepted evidence",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/change/",
+          "src/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Accepted changes can reopen after verification tip drift or finalization closing; re-accept/finalize and archive work; definition can be re-approved while accepted when stale; legacy finalize refuses with accept+archive guidance."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

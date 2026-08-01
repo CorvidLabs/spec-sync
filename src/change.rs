@@ -2540,11 +2540,9 @@ pub fn reopen_change(
     })?;
     let current_verification = load_verification(root, &record)?;
     let mut ledger = load_approvals(root, &record)?;
-    let superseded_approval = latest_terminal_approval(&ledger)
-        .cloned()
-        .ok_or_else(|| {
-            "accepted change is missing closing approval (acceptance or finalization)".to_string()
-        })?;
+    let superseded_approval = latest_terminal_approval(&ledger).cloned().ok_or_else(|| {
+        "accepted change is missing closing approval (acceptance or finalization)".to_string()
+    })?;
     let prior_verification = verification_for_closing_approval(
         root,
         &record,

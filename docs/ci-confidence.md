@@ -32,9 +32,9 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 - cheap path classification, Action validation, and required readiness gates
 - Trust's release-binary identity, contract, Augur, and Attest gates
 
-### Tier B: main, nightly, release, labeled, or platform-sensitive changes
+### Tier B: immutable release candidates
 
-- macOS and Windows full tests
+- Ubuntu, macOS, and Windows integration and release validation against one exact candidate SHA
 - expensive line coverage/tarpaulin
 - any additional release or security matrix required by project policy
 
@@ -42,6 +42,19 @@ The Trust split in this change is non-protected and lands first. Moving macOS, W
 coverage from every PR into Tier B changes `.github/workflows/**`; that requires the repository's
 separately pinned required-workflow process. Until that follow-up lands, the existing CI workflow
 continues running those jobs on every product PR.
+
+The future protected-workflow follow-up should make Ubuntu the authoritative integration platform
+for ordinary development and product PRs. macOS and Windows should not consume runner time on those
+PRs. Instead, a release-candidate cycle should:
+
+1. Freeze an exact candidate commit on an RC branch and create an immutable RC marker/tag for that
+   SHA.
+2. Run the required Ubuntu, macOS, and Windows integration/release gates against that same SHA.
+3. Refuse the final release tag and uploads unless every required platform is green for the unchanged
+   candidate SHA.
+
+If the candidate changes, create a new immutable RC marker and rerun the cross-platform gate. Do not
+create the final release tag first and use its uploads to discover platform failures afterward.
 
 ## Wall-clock model
 
@@ -104,8 +117,8 @@ Do **not** expect `fledge trust verify` alone to replace multi-OS CI; GitHub CI 
 ## Anti-patterns (do not reintroduce)
 
 1. Putting `test` / full `lanes.verify` back into Trust’s GitHub lifecycle
-2. Making Trust the only place that runs tests (drops multi-OS)
-3. Dropping Windows/macOS without a scheduled, labeled, main, or release Tier B plan
+2. Making Trust the only place that runs tests (drops release-candidate multi-OS validation)
+3. Dropping Windows/macOS without an immutable-SHA release-candidate gate
 4. Running `cargo test` in both CI and Trust “just to be safe” (doubles cost, same bugs)
 
 ## Related

@@ -153,19 +153,6 @@ Run `specsync add-spec <module-name>` to scaffold the spec and companion files, 
 - `specsync resolve --remote` — verify cross-project dependencies
 "#;
 
-/// Shell-comment sentinels bracketing the spec-sync-managed block inside a
-/// `pre-commit` hook. They let `uninstall` remove EXACTLY our block and never
-/// touch user content — the same managed-block strategy the markdown
-/// companions use (`HOOK_BEGIN`/`HOOK_END` below).
-const PRE_COMMIT_BEGIN: &str =
-    "# >>> specsync:pre-commit (managed by `specsync hooks` — do not edit inside) >>>";
-const PRE_COMMIT_END: &str = "# <<< specsync:pre-commit <<<";
-
-/// Resolve the hooks dir for read-only checks; `None` when unresolvable.
-fn git_hooks_dir_if_any(root: &Path) -> Option<PathBuf> {
-    git_hooks_dir(root, false).ok().filter(|p| p.is_dir())
-}
-
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 # spec-sync pre-commit hook — validates specs before allowing commits.
 # Installed by: specsync hooks install --precommit

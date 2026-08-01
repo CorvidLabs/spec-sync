@@ -7,8 +7,8 @@ use crate::exports::{
     is_test_file,
 };
 use crate::parser::{
-    body_has_section, find_section_offset, find_stub_sections, get_missing_sections,
-    get_near_miss_sections, get_spec_symbols, parse_frontmatter,
+    body_has_section, find_section_offset, find_stub_sections, get_duplicate_spec_symbols,
+    get_missing_sections, get_near_miss_sections, get_spec_symbols, parse_frontmatter,
 };
 use crate::schema::{self, SchemaTable};
 use crate::types::{
@@ -1960,6 +1960,10 @@ fn validate_spec_content_internal(
         }
     };
 
+    // Surface parse-time frontmatter diagnostics before structural checks.
+    result.errors.extend(parsed.errors.iter().cloned());
+    result.warnings.extend(parsed.warnings.iter().cloned());
+
     let fm = &parsed.frontmatter;
     let body = &parsed.body;
     result.status = fm.parsed_status();
@@ -2299,6 +2303,14 @@ fn validate_spec_content_internal(
         spec_status,
         Some(crate::types::SpecStatus::Draft) | Some(crate::types::SpecStatus::Review)
     );
+
+    if !skip_api {
+        for symbol in get_duplicate_spec_symbols(body) {
+            result.errors.push(format!(
+                "Public API lists `{symbol}` more than once — remove the duplicate row"
+            ));
+        }
+    }
 
     if !fm.files.is_empty() && !skip_api {
         // Track exports with their source file for attribution
@@ -4973,10 +4985,10 @@ pub fn compute_coverage_checked(
             continue;
         }
         for file in &parsed.frontmatter.files {
-            if let Some(normalized) = normalize_source_mapping(file) {
-                if !root.join(&normalized).exists() {
-                    missing_files.push(normalized);
-                }
+            if let Some(normalized) = normalize_source_mapping(file)
+                && !root.join(&normalized).exists()
+            {
+                missing_files.push(normalized);
             }
         }
     }

@@ -36,7 +36,6 @@ use std::process;
 
 use crate::ignore::IgnoreRules;
 use crate::parser;
-use crate::schema;
 use crate::scoring;
 use crate::types;
 use crate::types::SpecStatus;
@@ -63,6 +62,7 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
     (config, spec_files)
 }
 
+#[allow(dead_code)]
 fn normalize_project_path(root: &Path, path: &Path) -> String {
     path.strip_prefix(root)
         .unwrap_or(path)
@@ -70,6 +70,7 @@ fn normalize_project_path(root: &Path, path: &Path) -> String {
         .replace('\\', "/")
 }
 
+#[allow(dead_code)]
 fn collect_validation_files(root: &Path, directory: &Path, inputs: &mut Vec<String>) {
     let Ok(entries) = std::fs::read_dir(directory) else {
         return;
@@ -94,6 +95,7 @@ fn collect_validation_files(root: &Path, directory: &Path, inputs: &mut Vec<Stri
 /// Inputs that can alter any spec's validation result independently of that
 /// spec's own files. The ignore path is retained even when absent so creating
 /// it invalidates prior snapshots.
+#[allow(dead_code)]
 fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<String> {
     let mut inputs = vec![".specsyncignore".to_string()];
     if let Some(config_path) = &config.config_path {
@@ -107,6 +109,8 @@ fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<
     inputs
 }
 
+/// List normalized inventory paths for selected specs (validation snapshot inputs).
+#[allow(dead_code)]
 pub(crate) fn spec_inventory(root: &Path, spec_files: &[PathBuf]) -> Vec<String> {
     let mut inventory = spec_files
         .iter()

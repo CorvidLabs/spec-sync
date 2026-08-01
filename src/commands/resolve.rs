@@ -179,7 +179,7 @@ pub fn cmd_resolve(
 
     if local_refs.is_empty() && cross_refs.is_empty() && malformed_refs.is_empty() {
         if json {
-            println!("{}", r#"{"dependencies":[],"passed":true}"#);
+            println!("{{\"dependencies\":[],\"passed\":true}}");
         } else {
             println!("\n  No dependencies declared in any spec.");
         }

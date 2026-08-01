@@ -310,12 +310,6 @@ fn render_init_text(report: &InitReport) {
                 "!".yellow()
             );
             println!("  Edit .specsync/config.toml if your sources live elsewhere.");
-        } else {
-            println!(
-                "  {} No source directories detected — defaulted to source_dirs = [\"src\"].",
-                "!".yellow()
-            );
-            println!("  Edit .specsync/config.toml if your sources live elsewhere.");
         }
         if report
             .restored

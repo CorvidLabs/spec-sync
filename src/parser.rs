@@ -471,9 +471,6 @@ fn set_scalar(
     }
 }
 
-/// Parse an inline bracket array of strings (`[a, b]` → vec!["a", "b"]) or a
-/// bare scalar (`a` → vec!["a"]). Quotes are stripped from each element.
-
 fn is_version_shaped(value: &str) -> bool {
     let unquoted = value
         .strip_prefix('"')

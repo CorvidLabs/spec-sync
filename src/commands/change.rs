@@ -739,3 +739,55 @@ fn parse_owner_manifest(path: &Path) -> Result<Vec<(String, String)>, String> {
     }
     Ok(resolved)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn draft_text_surfaces_require_complete_artifacts_before_approval() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let mut record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Clarify contributor guidance".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["src/commands/change.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some(
+                    "Documentation-only behavior does not alter a technical contract".into(),
+                ),
+            },
+        )
+        .expect("create draft");
+        for (question, answer) in [
+            (
+                "acceptance_criteria",
+                "Every draft text surface requires complete artifacts before approval",
+            ),
+            ("public_contract", "no"),
+            ("architecture_risk", "no"),
+        ] {
+            record = change::answer_question(root, &record.id, question, answer)
+                .expect("answer interview question");
+        }
+        let questions = change::next_questions(&record);
+        assert!(questions.is_empty(), "interview must be complete");
+
+        for surface in ["status", "show", "list"] {
+            let next = text_mode_next_action(root, &record, &questions);
+            assert!(
+                next.contains("complete selected artifacts"),
+                "{surface} text recommended the wrong next action: {next}"
+            );
+            assert!(
+                !next.contains("change approve"),
+                "{surface} text recommended premature approval: {next}"
+            );
+        }
+    }
+}

@@ -29,6 +29,15 @@ cargo clippy -- -D warnings
 cargo fmt
 ```
 
+### Before every push (required)
+
+```bash
+fledge lanes run pre-push
+# or: ./scripts/pre-push-gate.sh
+```
+
+This is the same class of checks CI runs for **fmt** and **spec-check**. Do not push red.
+
 ### Running Locally
 
 ```bash

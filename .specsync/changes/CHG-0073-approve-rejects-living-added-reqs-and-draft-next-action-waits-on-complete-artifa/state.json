@@ -11,14 +11,18 @@
   "canonical_applied": true,
   "base_commit": "109164ad9faccb598ae7e8caf7a2d488722cc237",
   "created_at": 1785595484,
-  "updated_at": 1785597249,
+  "updated_at": 1785597490,
   "affected_specs": [
     "change",
     "cmd_change"
   ],
   "affected_paths": [
     ".specsync/change-sequence.json",
+    "AGENTS.md",
     "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "fledge.toml",
+    "scripts/",
     "specs/change/",
     "specs/cmd_change/",
     "src/change.rs",

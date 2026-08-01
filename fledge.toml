@@ -34,6 +34,7 @@ cmd = "cd vscode-extension && bun run compile"
 [tasks.vscode-package]
 cmd = "cd vscode-extension && bun run package"
 
+
 [lanes.check]
 description = "Quick pre-commit check"
 steps = [{ parallel = ["fmt", "lint"] }, "test"]
@@ -53,6 +54,13 @@ steps = [
 [lanes.pre-commit]
 description = "Fast gate before committing"
 steps = [{ parallel = ["fmt", "lint"] }, "check-types"]
+
+[lanes.pre-push]
+description = "MANDATORY before every git push — matches CI fmt + types + path/spec coverage"
+steps = [
+  { parallel = ["fmt", "lint", "check-types"] },
+  "spec-check",
+]
 
 [lanes.verify]
 description = "Required Trust gate for the SpecSync repository"

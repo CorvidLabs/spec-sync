@@ -38,6 +38,39 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync change audit` | Project health over active workspaces and living specs (archives are history) |
 | `specsync migrate 5.0` | Backfill 5.0.1-era reopening digest fields idempotently (the remediation `check` prints for missing-field ledgers) |
 
+
+## Before pushing (MANDATORY)
+
+**Never `git push` without a green pre-push gate.** The CI failures that look "obvious" (fmt, path coverage / SDD active change, undocumented exports) are exactly what this gate catches locally.
+
+```bash
+fledge lanes run pre-push
+# or: ./scripts/pre-push-gate.sh
+```
+
+That runs, in order:
+
+1. `cargo fmt --check`
+2. `cargo clippy -- -D warnings`
+3. `cargo check`
+4. `specsync check --strict --require-coverage 100 --force` (via `cargo run -- …`)
+
+If step 4 fails with *meaningful changed paths are not covered by an active change*:
+
+1. Create or update an active SDD change covering every dirty path (`change new` / expand `affected_paths`)
+2. Fill artifacts completely (no HTML `<!-- TODO` stubs)
+3. `change approve` then ensure the change is **implementing** or **verifying** (approved-only does not cover paths)
+4. Document any new public exports in the module spec Public API table
+5. Re-run `fledge lanes run pre-push`
+
+Optional but recommended before opening/updating a PR:
+
+```bash
+fledge lanes run verify   # full trust lane: + test + release build + spec-check
+```
+
+Do **not** rely on remote CI as the first formatter or path-coverage check.
+
 ## Spec Lifecycle
 
 Specs follow a lifecycle from creation through archival:

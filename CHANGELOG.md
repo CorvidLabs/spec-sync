@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Mandatory local pre-push gate** — `fledge lanes run pre-push` (or `./scripts/pre-push-gate.sh`) runs fmt + clippy + types + strict path/spec coverage before every push; documented in AGENTS.md.
+
 ### Fixed
 
 - SpecSync 6.0 reopen/finalize paths address stranded accepted-record deadlocks reported via CorvidLabs/spec-sync#481 (fledge PR CorvidLabs/fledge#506 worked around the 5.x strand by manual archive).

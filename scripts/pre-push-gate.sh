@@ -1,61 +1,68 @@
 #!/usr/bin/env bash
 # Fast mandatory gate before `git push` on CorvidLabs/spec-sync.
-#
-# Goal: catch the failures we keep shipping to CI (fmt + path/export coverage)
-# in ~seconds to ~1–2 minutes on a warm machine — NOT a full test suite.
-#
-# Preferred:
-#   fledge lanes run pre-push
-# Equivalent:
-#   ./scripts/pre-push-gate.sh
-#
-# Full trust (slower, before merge-ready):
-#   fledge lanes run verify
-#
-# Exit 0 only when every step succeeds. Do not push on non-zero.
+# Target: ~seconds–2 minutes warm. Not full test/clippy.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 ts() { date +%s; }
-elapsed() {
-  local start="$1" end
-  end=$(ts)
-  echo $((end - start))
-}
 
 total_start=$(ts)
 echo "==> pre-push gate (fast) — started $(date -u +%H:%M:%S)Z"
 
-# 1) Format — seconds
+archive_tip=false
+if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+  files=$(
+    {
+      git diff --name-only --relative '@{u}'...HEAD 2>/dev/null || true
+      git status --porcelain -uall | awk '{print $NF}'
+    } | sed '/^$/d' | sort -u
+  )
+  if [ -n "$files" ]; then
+    archive_tip=true
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      case "$f" in
+        .specsync/archive/*|.specsync/change-sequence.json) ;;
+        *) archive_tip=false; break ;;
+      esac
+    done <<<"$files"
+  fi
+fi
+
 step_start=$(ts)
 echo "==> [1/3] cargo fmt --check"
 cargo fmt -- --check
 echo "    ok ($(( $(ts) - step_start ))s)"
 
-# 2) Types only — incremental; skip clippy here (clipply lives in verify/ci)
 step_start=$(ts)
 echo "==> [2/3] cargo check"
 cargo check --quiet
 echo "    ok ($(( $(ts) - step_start ))s)"
 
-# 3) Spec/path coverage — prefer release binary (no recompile)
 step_start=$(ts)
-echo "==> [3/3] strict path/spec coverage"
-if [[ -x target/release/specsync ]]; then
+if [ -x target/release/specsync ]; then
   SPECSYNC_BIN=target/release/specsync
-  echo "    using $SPECSYNC_BIN"
-elif [[ -x target/debug/specsync ]]; then
+elif [ -x target/debug/specsync ]; then
   SPECSYNC_BIN=target/debug/specsync
-  echo "    using $SPECSYNC_BIN (debug)"
 else
-  echo "    building release binary once (cached thereafter)…"
+  echo "    building release binary once…"
   cargo build --release --quiet
   SPECSYNC_BIN=target/release/specsync
 fi
-"$SPECSYNC_BIN" check --strict --require-coverage 100 --force
+
+if [ "$archive_tip" = true ]; then
+  echo "==> [3/3] archive-tip mode (audit only; path coverage skipped)"
+  echo "    using $SPECSYNC_BIN"
+  "$SPECSYNC_BIN" change audit
+else
+  echo "==> [3/3] strict path/spec coverage"
+  echo "    using $SPECSYNC_BIN"
+  "$SPECSYNC_BIN" check --strict --require-coverage 100 --force
+fi
 echo "    ok ($(( $(ts) - step_start ))s)"
 
 total=$(( $(ts) - total_start ))
 echo "==> pre-push gate PASS in ${total}s — safe to git push"
-echo "    (for full test+clippy+release: fledge lanes run verify)"
+[ "$archive_tip" = true ] && echo "    archive-tip: CI should use archive-integrity path"
+echo "    (full test+clippy: fledge lanes run verify)"

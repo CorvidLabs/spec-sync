@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Mandatory local pre-push gate** — `fledge lanes run pre-push` (or `./scripts/pre-push-gate.sh`) runs fmt + clippy + types + strict path/spec coverage before every push; documented in AGENTS.md.
+- **Mandatory local pre-push gate (fast)** — `fledge lanes run pre-push` / `./scripts/pre-push-gate.sh` runs fmt + cargo check + strict path/spec coverage with timing (target: ~seconds–2 min warm; no full test/clippy). Full suite remains `fledge lanes run verify` / CI.
 
 ### Fixed
 

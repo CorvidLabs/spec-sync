@@ -19,6 +19,13 @@ cmd = "cargo check"
 [tasks.spec-check]
 cmd = "cargo run -- check --strict --require-coverage 100 --force"
 
+# Prefer release binary — avoids recompiling the whole crate on every pre-push.
+[tasks.spec-check-fast]
+cmd = "bash scripts/spec-check-fast.sh"
+
+[tasks.pre-push]
+cmd = "bash scripts/pre-push-gate.sh"
+
 [tasks.docs-test]
 cmd = "cd site && bun test"
 
@@ -33,7 +40,6 @@ cmd = "cd vscode-extension && bun run compile"
 
 [tasks.vscode-package]
 cmd = "cd vscode-extension && bun run package"
-
 
 [lanes.check]
 description = "Quick pre-commit check"
@@ -55,15 +61,13 @@ steps = [
 description = "Fast gate before committing"
 steps = [{ parallel = ["fmt", "lint"] }, "check-types"]
 
+# Keep this FAST. Clippy + cargo test belong in verify/ci, not pre-push.
 [lanes.pre-push]
-description = "MANDATORY before every git push — matches CI fmt + types + path/spec coverage"
-steps = [
-  { parallel = ["fmt", "lint", "check-types"] },
-  "spec-check",
-]
+description = "MANDATORY before every git push — fast: fmt + types + path/spec coverage"
+steps = ["pre-push"]
 
 [lanes.verify]
-description = "Required Trust gate for the SpecSync repository"
+description = "Required Trust gate for the SpecSync repository (slower: + clippy + full test + release build)"
 steps = [
   { parallel = ["fmt", "lint", "check-types"] },
   "test",

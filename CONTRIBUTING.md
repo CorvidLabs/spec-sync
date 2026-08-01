@@ -29,14 +29,15 @@ cargo clippy -- -D warnings
 cargo fmt
 ```
 
-### Before every push (required)
+### Before every push (required, keep it fast)
 
 ```bash
 fledge lanes run pre-push
 # or: ./scripts/pre-push-gate.sh
 ```
 
-This is the same class of checks CI runs for **fmt** and **spec-check**. Do not push red.
+Runs **fmt + cargo check + strict path/spec coverage** only (target: ~seconds–2 min warm).  
+Does **not** run full `cargo test` or clippy — those are `fledge lanes run verify` / CI. Do not push red.
 
 ### Running Locally
 

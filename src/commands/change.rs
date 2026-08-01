@@ -687,12 +687,11 @@ fn ship_status_report(root: &Path, id: Option<&str>) -> Result<serde_json::Value
     };
 
     let ship_sequence = vec![
-        "Ensure a product (non-review/archive) tip is HEAD and wait for: trust=success, SpecSync trusted policy=success, SpecSync implementation ready=success".to_string(),
-        "Required CI gate may fail with 'run finalize' on product tips — expected".to_string(),
-        "Push review tip alone (review.json + review-attempts.json only); wait for trust reuse success".to_string(),
-        "Run `specsync change finalize <id>`, commit the exact archive move, push archive tip alone".to_string(),
-        "Wait for archive-integrity + Required CI gate success, then merge".to_string(),
-        "Never push archive seconds after product tip — that cancels parent policy (cancel-poison)".to_string(),
+        "Land product work and wait once for: trust + SpecSync trusted policy + SpecSync implementation ready on a product tip".to_string(),
+        "Required CI gate may fail with 'run finalize' on product tips — expected until archive tip".to_string(),
+        "Record scoped review; CI reuses trust/implementation from first-parent product ancestors (no tip dance)".to_string(),
+        "Run `specsync change finalize <id>` and push the archive commit; archive-integrity reuses ancestor provenance".to_string(),
+        "Wait for archive-integrity + Required CI gate, then merge".to_string(),
     ];
 
     let next = match (tip_class.as_str(), &change_json) {

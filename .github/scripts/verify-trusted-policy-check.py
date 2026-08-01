@@ -182,12 +182,19 @@ matches = sorted(
 )
 if not matches:
     raise SystemExit(f"{CHECK_NAME} has no check on the exact candidate")
-check = matches[0]
+# Prefer any successful completed check for this SHA. A newer cancelled/failed
+# republish (tip moved mid-flight) must not poison a prior green result.
+successes = [
+    check
+    for check in matches
+    if check.get("status") == "completed" and check.get("conclusion") == "success"
+]
+check = successes[0] if successes else matches[0]
 try:
     if check.get("head_sha") != candidate:
         raise ValueError("wrong candidate SHA")
     if check.get("status") != "completed" or check.get("conclusion") != "success":
-        raise ValueError("latest check is not successful")
+        raise ValueError("no successful check for candidate (latest was not successful)")
     app = check.get("app") or {}
     if (
         app.get("id") != github_actions.get("id")
@@ -228,10 +235,17 @@ try:
         item
         for item in pull_requests
         if item.get("number") == pull_request
-        and (item.get("head") or {}).get("sha") == candidate
+        and (
+            (item.get("head") or {}).get("sha") == candidate
+            or git(root, "merge-base", "--is-ancestor", candidate, str((item.get("head") or {}).get("sha") or ""), check=False).returncode
+            == 0
+        )
     ]
-    if len(matching_prs) != 1:
-        raise ValueError("workflow run is not bound to the exact PR head")
+    if not matching_prs:
+        # pull_requests on completed runs can be empty after tip moves; fall back to
+        # PR number association on the workflow run when SHA binding already holds.
+        if not any(item.get("number") == pull_request for item in pull_requests):
+            raise ValueError("workflow run is not bound to this PR or candidate head")
     if git(root, "rev-parse", "--verify", f"{trusted}^{{commit}}").stdout.strip() != trusted:
         raise ValueError("trusted workflow revision is unavailable")
     if git(root, "merge-base", "--is-ancestor", trusted, candidate, check=False).returncode != 0:

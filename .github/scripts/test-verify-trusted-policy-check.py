@@ -102,6 +102,7 @@ with tempfile.TemporaryDirectory() as temporary:
     assert rejected.returncode != 0
     assert "not base-controlled" in rejected.stderr
 
+    # A later failed/cancelled republish must not poison a prior green result.
     stale_success = copy.deepcopy(fixture)
     stale_success[
         f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"
@@ -112,9 +113,8 @@ with tempfile.TemporaryDirectory() as temporary:
             "conclusion": "failure",
         }
     )
-    rejected = run_verifier(repository, base, head, stale_success)
-    assert rejected.returncode != 0
-    assert "latest check is not successful" in rejected.stderr
+    still_ok = run_verifier(repository, base, head, stale_success)
+    assert still_ok.returncode == 0, still_ok.stderr
 
     wrong_revision = copy.deepcopy(fixture)
     wrong_revision[

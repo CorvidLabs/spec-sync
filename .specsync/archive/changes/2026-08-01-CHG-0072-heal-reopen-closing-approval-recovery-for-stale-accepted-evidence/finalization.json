@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0072-heal-reopen-closing-approval-recovery-for-stale-accepted-evidence",
+  "implementation_commit": "b73c3de0bf9c3b253925674f88dc67570392fb69",
+  "implementation_tree": "6ca67114ab6000f9fca051af352cd17b7748a790",
+  "contract_digest": "1d896feca4c236d4497bdf14cbaa8134da5fad6ab9ad5548bbcf4e4b7373531f",
+  "workspace_digest": "2b127020b821b1d87bc72f8c0b2284f73fdc9402896c196c7409b4979f23df15",
+  "closing_digest": "b33404f98a1c577f5fbe80572393422ff1deb1efa049335344cb252ce9a05dc9",
+  "review_digest": "f7f91255f22695ac1ef87668d4caa3b698783568ba9ceab56c2f0084856da635",
+  "finalization_digest": "2f6d9c4ea886381424e1544456025c7038f3a61f6a095589901701f683202d86",
+  "timestamp": 1785558535
+}

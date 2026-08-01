@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0072-heal-reopen-closing-approval-recovery-for-stale-accepted-evidence",
+  "slug": "heal-reopen-closing-approval-recovery-for-stale-accepted-evidence",
+  "title": "Heal reopen closing-approval recovery for stale accepted evidence",
+  "description": "Heal reopen closing-approval recovery for stale accepted evidence",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "9a00223bf254e79bd38fb41d3e2fc302edb66f71",
+  "created_at": 1785549012,
+  "updated_at": 1785558535,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    ".specsync/change-sequence.json",
+    "specs/change/",
+    "src/change.rs",
+    "tests/",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Accepted changes can reopen after verification tip drift or finalization closing; re-accept/finalize and archive work; definition can be re-approved while accepted when stale; legacy finalize refuses with accept+archive guidance."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

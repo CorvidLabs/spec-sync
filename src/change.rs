@@ -2131,16 +2131,25 @@ fn approve_definition_with_projection(
 ) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
-    require_state(
-        &record,
-        &[
-            ChangeState::Draft,
-            ChangeState::Approved,
-            ChangeState::Implementing,
-            ChangeState::Verifying,
-        ],
-        "approve the definition",
-    )?;
+    // Accepted records may re-approve the definition when the artifact digest drifted
+    // (reopen recovery). Refuse no-op re-approvals that would only rewrite an already-valid
+    // definition approval while the change is accepted.
+    let allow_accepted_definition_refresh = record.state == ChangeState::Accepted
+        && ensure_definition_approval_valid(root, &record).is_err();
+    if allow_accepted_definition_refresh {
+        // Fall through after the dedicated accepted check.
+    } else {
+        require_state(
+            &record,
+            &[
+                ChangeState::Draft,
+                ChangeState::Approved,
+                ChangeState::Implementing,
+                ChangeState::Verifying,
+            ],
+            "approve the definition",
+        )?;
+    }
     list_changes_checked(root)?;
     bind_legacy_archive_baseline_authority(root, &mut record)?;
     let prior_state = record.state;
@@ -2519,27 +2528,38 @@ pub fn reopen_change(
     if reason.is_empty() {
         return Err("reopen requires a non-empty reason passed with --reason".into());
     }
-    ensure_definition_approval_valid(root, &record)?;
-    let prior_verification = load_verification(root, &record)?;
+    ensure_definition_approval_valid(root, &record).map_err(|error| {
+        if error.contains("definition approval is stale") {
+            format!(
+                "{error}; run `specsync change approve {} --actor <name>` while the change is still accepted to refresh the definition digest, then reopen",
+                record.id
+            )
+        } else {
+            error
+        }
+    })?;
+    let current_verification = load_verification(root, &record)?;
+    let mut ledger = load_approvals(root, &record)?;
+    let superseded_approval = latest_terminal_approval(&ledger).cloned().ok_or_else(|| {
+        "accepted change is missing closing approval (acceptance or finalization)".to_string()
+    })?;
+    let prior_verification = verification_for_closing_approval(
+        root,
+        &record,
+        &superseded_approval,
+        &current_verification,
+    )?;
     if !prior_verification.passed {
         return Err("accepted change has failed verification evidence".into());
     }
     if !definition_digest_matches(root, &record, &prior_verification.contract_digest)? {
-        return Err("accepted change verification contract is stale; restore the accepted definition before reopening delivery evidence".into());
+        return Err("accepted change verification contract is stale; restore the accepted definition before reopening delivery evidence, or run `specsync change approve` to refresh a drifted definition while accepted".into());
     }
     validate_verification_execution_digest(root, &record, &prior_verification)?;
     let stale_acceptance_input_digest = prior_verification
         .acceptance_input_digest
         .clone()
         .ok_or_else(|| "accepted change is missing current delivery-input evidence".to_string())?;
-    let expected_closing_digest = closing_digest(&record, &prior_verification);
-    let mut ledger = load_approvals(root, &record)?;
-    let superseded_approval = latest_terminal_approval(&ledger)
-        .cloned()
-        .ok_or_else(|| "accepted change is missing closing approval".to_string())?;
-    if superseded_approval.digest != expected_closing_digest {
-        return Err("accepted change closing approval does not match verification evidence".into());
-    }
     let current_acceptance_input_digest =
         if let Some(manifest) = &prior_verification.acceptance_manifest {
             let current = acceptance_manifest_with_signed_owners(root, &record, &[], manifest)?;
@@ -2553,16 +2573,24 @@ pub fn reopen_change(
                 .into(),
         );
     }
-    authenticate_accepted_evidence(root, &record)?;
-    let records = list_all_changes_checked(root)?;
-    let mut visiting = BTreeSet::new();
-    let mut memo = BTreeMap::new();
-    if validate_accepted_inputs_recursive(root, &record, &records, &mut visiting, &mut memo).is_ok()
-    {
-        return Err(
-            "accepted change delivery inputs are current (exact or successor-covered); reopen is allowed only when delivery evidence is stale"
-                .into(),
-        );
+    let tip_matches_closing = current_verification.passed
+        && superseded_approval.digest == closing_digest(&record, &current_verification);
+    // When verification.json still matches the closing approval, fully authenticate and
+    // honor successor coverage. When only a historical attempt matches (tip re-verify or
+    // ledger drift), bind to that prior — live vs stale above already proved content drift.
+    if tip_matches_closing {
+        authenticate_accepted_evidence(root, &record)?;
+        let records = list_all_changes_checked(root)?;
+        let mut visiting = BTreeSet::new();
+        let mut memo = BTreeMap::new();
+        if validate_accepted_inputs_recursive(root, &record, &records, &mut visiting, &mut memo)
+            .is_ok()
+        {
+            return Err(
+                "accepted change delivery inputs are current (exact or successor-covered); reopen is allowed only when delivery evidence is stale"
+                    .into(),
+            );
+        }
     }
     let audit = ReopenRecord {
         schema_version: 1,
@@ -4332,7 +4360,9 @@ fn ensure_reopened_definition_unchanged(root: &Path, record: &ChangeRecord) -> R
 }
 
 fn is_terminal_approval(approval: &ApprovalRecord) -> bool {
-    approval.gate == "acceptance"
+    // Workflow v1 writes gate "acceptance". Same-PR finalization (workflow v2) writes
+    // gate "finalization" with the same closing digest domain so reopen can supersede it.
+    matches!(approval.gate.as_str(), "acceptance" | "finalization")
 }
 
 fn latest_terminal_approval(ledger: &ApprovalLedger) -> Option<&ApprovalRecord> {
@@ -4341,6 +4371,73 @@ fn latest_terminal_approval(ledger: &ApprovalLedger) -> Option<&ApprovalRecord> 
         .iter()
         .rev()
         .find(|approval| is_terminal_approval(approval))
+}
+
+fn load_verification_attempts(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Vec<VerificationRecord>, String> {
+    let history_path = change_dir(root, &record.id).join("verification-attempts.json");
+    if !history_path.exists() {
+        return Ok(Vec::new());
+    }
+    let content = fs::read_to_string(&history_path)
+        .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
+    let history: VerificationAttemptLedger = serde_json::from_str(&content)
+        .map_err(|error| format!("invalid verification attempt history: {error}"))?;
+    if history.schema_version != 1 {
+        return Err(format!(
+            "unsupported verification attempt history schema version {}",
+            history.schema_version
+        ));
+    }
+    Ok(history.attempts)
+}
+
+/// Resolve the verification snapshot that authenticates the latest terminal closing approval.
+///
+/// After reopen→re-verify, `verification.json` is rewritten without acceptance fields and no
+/// longer matches the closing approval. Reopen must bind to the historical attempt that the
+/// closing approval actually signed, not the latest (pre-accept) re-verify tip.
+fn verification_for_closing_approval(
+    root: &Path,
+    record: &ChangeRecord,
+    closing: &ApprovalRecord,
+    current: &VerificationRecord,
+) -> Result<VerificationRecord, String> {
+    if current.passed && closing.digest == closing_digest(record, current) {
+        return Ok(current.clone());
+    }
+    let mut attempts = load_verification_attempts(root, record)?;
+    attempts.push(current.clone());
+    attempts.reverse();
+    for attempt in attempts {
+        if attempt.passed && closing.digest == closing_digest(record, &attempt) {
+            return Ok(attempt);
+        }
+    }
+    if record.workflow_version >= 2
+        && let Ok(finalization) = load_finalization(root, record)
+        && finalization.closing_digest == closing.digest
+    {
+        for attempt in load_verification_attempts(root, record)?
+            .into_iter()
+            .chain(std::iter::once(current.clone()))
+            .rev()
+        {
+            if attempt.passed
+                && finalization.contract_digest == attempt.contract_digest
+                && finalization.workspace_digest == attempt.workspace_digest
+                && finalization.closing_digest == closing_digest(record, &attempt)
+            {
+                return Ok(attempt);
+            }
+        }
+    }
+    Err(
+        "accepted change closing approval does not match verification evidence; restore `verification.json` from trusted history that matches the latest acceptance/finalization approval, or re-accept after a successful reopen once delivery is stale"
+            .into(),
+    )
 }
 
 fn scoped_review_path(root: &Path, record: &ChangeRecord) -> PathBuf {
@@ -5238,6 +5335,20 @@ fn accept_change_with_gate(
                 "automatic finalization does not accept a second approval actor or note".into(),
             );
         }
+        // Persist a terminal ledger entry so reopen can supersede the closing digest after
+        // archive-only tips or interrupted finalizations. Gate "finalization" is terminal.
+        ledger.approvals.push(ApprovalRecord {
+            gate: "finalization".into(),
+            actor: "specsync:finalization".into(),
+            timestamp: now(),
+            digest: closing_digest.clone(),
+            note: Some("Same-PR finalization closing digest".into()),
+            definition_pair: None,
+            approved_scope: None,
+            scope_migration: None,
+        });
+        let approvals_path = change_dir(root, &record.id).join("approvals.json");
+        prepared.push((approvals_path, json_content(&ledger)?));
     } else {
         let actor = resolve_actor(root, actor)?;
         let stable_definition_digest = definition_digest(root, &record)?;
@@ -5274,18 +5385,34 @@ fn accept_change_with_gate(
         change_dir(root, &record.id).join("verification.json"),
         json_content(&verification)?,
     ));
-    if verification_adopted {
+    // Always append the acceptance-bound verification so reopen can recover when the tip
+    // verification.json is later rewritten without the signed acceptance fields.
+    {
         let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
-        let mut attempts: VerificationAttemptLedger = serde_json::from_str(
-            &fs::read_to_string(&attempts_path)
-                .map_err(|error| format!("failed to read verification attempts: {error}"))?,
-        )
-        .map_err(|error| format!("invalid verification attempts: {error}"))?;
-        if attempts.schema_version != 1 || attempts.attempts.is_empty() {
-            return Err(
-                "verification attempt history cannot adopt the implementation commit".into(),
-            );
-        }
+        let mut attempts = if attempts_path.exists() {
+            let history: VerificationAttemptLedger = serde_json::from_str(
+                &fs::read_to_string(&attempts_path)
+                    .map_err(|error| format!("failed to read verification attempts: {error}"))?,
+            )
+            .map_err(|error| format!("invalid verification attempt history: {error}"))?;
+            if history.schema_version != 1 {
+                return Err(format!(
+                    "unsupported verification attempt history schema version {}",
+                    history.schema_version
+                ));
+            }
+            if verification_adopted && history.attempts.is_empty() {
+                return Err(
+                    "verification attempt history cannot adopt the implementation commit".into(),
+                );
+            }
+            history
+        } else {
+            VerificationAttemptLedger {
+                schema_version: 1,
+                attempts: Vec::new(),
+            }
+        };
         attempts.attempts.push(verification.clone());
         prepared.push((attempts_path, json_content(&attempts)?));
     }
@@ -5349,6 +5476,12 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         &[ChangeState::Verifying, ChangeState::Accepted],
         "finalize the change",
     )?;
+    if record.workflow_version < 2 {
+        return Err(format!(
+            "{} uses the legacy workflow; after reopen run `specsync change accept {} --actor <name>` then `specsync change archive {}` (do not use finalize — it would write finalization evidence without a matching acceptance closing approval)",
+            record.id, record.id, record.id
+        ));
+    }
     if !record.canonical_applied {
         return Err(
             "canonical deltas are not materialized; run `specsync change check` before review"
@@ -17579,7 +17712,18 @@ mod tests {
                 .count(),
             1
         );
-        assert!(latest_terminal_approval(&approvals).is_none());
+        // Same-PR finalization records a terminal finalization approval for reopen recovery.
+        assert!(
+            latest_terminal_approval(&approvals).is_some_and(|a| a.gate == "finalization"),
+            "finalization must leave a terminal closing approval"
+        );
+        assert!(
+            !approvals
+                .approvals
+                .iter()
+                .any(|approval| approval.gate == "acceptance"),
+            "same-PR finalization must not write a legacy acceptance gate"
+        );
         let verification = load_verification(root, &archived).unwrap();
         assert!(validate_finalization_evidence(root, &archived, &verification).is_ok());
         let mut finalization = load_finalization(root, &archived).unwrap();
@@ -17638,7 +17782,10 @@ mod tests {
                 .count(),
             1
         );
-        assert!(latest_terminal_approval(&approvals).is_none());
+        assert!(
+            latest_terminal_approval(&approvals).is_some_and(|a| a.gate == "finalization"),
+            "finalization must leave a terminal closing approval"
+        );
     }
 
     #[test]
@@ -23286,6 +23433,184 @@ mod tests {
                 .prior_verification
                 .contract_digest,
             prior_verification.contract_digest
+        );
+    }
+
+    // Verifies reopen recovery when verification.json no longer matches the closing
+    // approval (tip re-verify drift) but attempt history still authenticates it.
+    #[test]
+    fn reopen_binds_historical_verification_when_tip_no_longer_matches_closing() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        let accepted_verification = load_verification(root, &record).unwrap();
+        let closing = latest_terminal_approval(&load_approvals(root, &record).unwrap())
+            .cloned()
+            .expect("closing approval");
+        assert_eq!(
+            closing.digest,
+            closing_digest(&record, &accepted_verification)
+        );
+
+        // Drift the tip: rewrite verification.json to a fresh pre-accept shape that no
+        // longer carries the acceptance digest the closing approval signed.
+        let mut drifted = accepted_verification.clone();
+        drifted.acceptance_input_digest = None;
+        drifted.acceptance_manifest = None;
+        drifted.semantic_succession = None;
+        drifted.timestamp = now();
+        record_verification_attempt(root, &record, &drifted).unwrap();
+        assert_ne!(
+            closing.digest,
+            closing_digest(&record, &load_verification(root, &record).unwrap())
+        );
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+
+        let reopened = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "Tip verification drifted after accept; delivery inputs also changed".into(),
+        )
+        .expect("reopen must bind the historical acceptance-bound verification");
+        assert_eq!(reopened.change.state, ChangeState::Verifying);
+        assert_eq!(
+            reopened.audit.prior_verification.acceptance_input_digest,
+            accepted_verification.acceptance_input_digest
+        );
+
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        assert_eq!(record.state, ChangeState::Accepted);
+        assert!(check_project(root).errors.is_empty());
+        let closing_after = latest_terminal_approval(&load_approvals(root, &record).unwrap())
+            .cloned()
+            .expect("new closing approval");
+        assert_eq!(
+            closing_after.digest,
+            closing_digest(&record, &load_verification(root, &record).unwrap())
+        );
+    }
+
+    // Verifies workflow-v2 same-PR finalize after reopen writes a terminal finalization
+    // approval that a later reopen can supersede.
+    #[test]
+    fn workflow_v2_reopen_after_finalization_accept_then_finalize_archives() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git command failed: {args:?}"
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+
+        let mut record = current_workflow_record(root, completed_no_spec_record(root));
+        assert!(record.workflow_version >= 2);
+        record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+        let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+        assert!(verification.passed);
+        git(&["add", "."]);
+        git(&["commit", "-m", "Implement approved change"]);
+        let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+        assert!(verification.passed);
+        record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+
+        // Accept via finalization gate without archiving yet (interrupted finalize shape).
+        accept_change_with_gate(root, &record.id, None, None, "finalization", true, true).unwrap();
+        record = load_change(root, &record.id).unwrap();
+        assert_eq!(record.state, ChangeState::Accepted);
+        let ledger = load_approvals(root, &record).unwrap();
+        assert!(
+            latest_terminal_approval(&ledger).is_some_and(|a| a.gate == "finalization"),
+            "finalization must leave a terminal ledger approval"
+        );
+
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+        let reopened = reopen_change(
+            root,
+            &record.id,
+            "Release reviewer".into(),
+            "delivery input changed after finalization accept".into(),
+        )
+        .expect("v2 reopen must supersede finalization closing approval");
+        assert_eq!(reopened.change.state, ChangeState::Verifying);
+        assert_eq!(reopened.audit.superseded_approval.gate, "finalization");
+
+        git(&["add", "."]);
+        git(&["commit", "-m", "fix after reopen"]);
+        let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+        assert!(verification.passed);
+        record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+        let path = finalize_change(root, &record.id).expect("finalize after reopen must archive");
+        assert!(path.join("finalization.json").exists());
+        assert!(!change_dir(root, &record.id).exists());
+    }
+
+    #[test]
+    fn accepted_change_can_refresh_stale_definition_approval() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        record = accept_change(root, &record.id, Some("Closer".into()), None).unwrap();
+        assert_eq!(record.state, ChangeState::Accepted);
+
+        // Mutate a selected artifact so the definition digest drifts while accepted.
+        let context = change_dir(root, &record.id).join("context.md");
+        let mut body = fs::read_to_string(&context).unwrap();
+        body.push_str("\n\nRefreshed context while accepted.\n");
+        fs::write(&context, body).unwrap();
+        assert!(ensure_definition_approval_valid(root, &record).is_err());
+
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+            .expect("accepted records must re-approve a stale definition");
+        assert_eq!(record.state, ChangeState::Accepted);
+        assert!(ensure_definition_approval_valid(root, &record).is_ok());
+    }
+
+    #[test]
+    fn legacy_workflow_finalize_refuses_and_names_accept_archive() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let mut record = completed_no_spec_record(root);
+        assert_eq!(record.workflow_version, 1);
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+        let error = finalize_change(root, &record.id).unwrap_err();
+        assert!(
+            error.contains("legacy workflow") && error.contains("change accept"),
+            "{error}"
         );
     }
 

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 51
+version: 52
 status: active
 files:
   - src/change.rs
@@ -339,3 +339,4 @@ Acceptance Criteria
 | 2026-07-30 | CHG-0068 review hardening: Preserve exact review-only children while enforcing every-parent verification freshness and persisted reviewer independence at native review/finalization mutations |
 | 2026-07-30 | CHG-0068 sandbox hardening: Atomically and path-safely activate workflow v2 without rewriting or stranding existing workflow-v1 evidence, and fail closed on every-parent baseline deletion |
 | 2026-07-31 | CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle: Scoped change check, change audit, and agent pack for the two-verb lifecycle |
+| 2026-08-01 | CHG-0072-heal-reopen-closing-approval-recovery-for-stale-accepted-evidence: Heal reopen closing-approval recovery for stale accepted evidence |

@@ -784,8 +784,11 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
             serde_json::from_str(&fs::read_to_string(archive_dir.join("approvals.json")).unwrap())
                 .unwrap();
         let approvals = approvals["approvals"].as_array().unwrap();
-        assert_eq!(approvals.len(), 1);
+        // definition + terminal finalization closing approval (for reopen recovery)
+        assert_eq!(approvals.len(), 2);
         assert_eq!(approvals[0]["gate"], "definition");
+        assert_eq!(approvals[1]["gate"], "finalization");
+        assert_eq!(approvals[1]["actor"], "specsync:finalization");
 
         git(&["add", ".specsync"]);
         let archive_diff = Command::new("git")

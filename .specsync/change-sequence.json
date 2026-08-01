@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 71,
-  "id": "CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped",
+  "sequence": 72,
+  "id": "CHG-0072-heal-reopen-closing-approval-recovery-for-stale-accepted-evidence",
   "acknowledged_collisions": [
     {
       "sequence": 16,

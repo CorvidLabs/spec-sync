@@ -5801,10 +5801,7 @@ pub fn summarize_change_with_strict(
         remediation
     } else {
         match record.state {
-            ChangeState::Draft if next_questions(record).is_empty() => {
-                format!("run `specsync change approve {} --actor <name>`", record.id)
-            }
-            ChangeState::Draft => {
+            ChangeState::Draft if !next_questions(record).is_empty() => {
                 let question = next_questions(record)
                     .into_iter()
                     .next()
@@ -5814,6 +5811,25 @@ pub fn summarize_change_with_strict(
                     "run `specsync change answer {} {} <answer>`",
                     record.id, question
                 )
+            }
+            // Prefer completing selected artifacts over approve when interview is done
+            // but TODO/empty stubs remain (sandbox #16).
+            ChangeState::Draft if !artifacts_complete => {
+                if incomplete_artifacts.is_empty() {
+                    format!(
+                        "complete selected artifacts, then run `specsync change status {}`",
+                        record.id
+                    )
+                } else {
+                    format!(
+                        "complete {}, then run `specsync change status {}`",
+                        incomplete_artifacts.join(", "),
+                        record.id
+                    )
+                }
+            }
+            ChangeState::Draft => {
+                format!("run `specsync change approve {} --actor <name>`", record.id)
             }
             ChangeState::Approved if !approval_valid => {
                 format!("run `specsync change approve {} --actor <name>`", record.id)
@@ -6816,6 +6832,12 @@ fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
             )
 }
 
+
+/// Lightweight artifact completeness for human next-action guidance (no digests).
+pub fn artifacts_complete_for_guidance(root: &Path, record: &ChangeRecord) -> bool {
+    validate_artifacts(root, record).is_ok()
+}
+
 fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let dir = find_change_dir(root, &record.id)?;
     let effective = effective_change_definition(root, record)?;
@@ -7200,9 +7222,34 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
                     item.key
                 ));
             }
+            if item.target == DeltaTarget::Requirement
+                && item.operation == DeltaOperation::Added
+                && living_requirement_heading_exists(root, module, &item.key)?
+            {
+                return Err(format!(
+                    "cannot add existing block `{}`; use ## MODIFIED for requirements already present in the living tree",
+                    item.key
+                ));
+            }
         }
     }
     Ok(())
+}
+
+
+/// True when living `requirements.md` already has a `### {key}` requirement heading.
+fn living_requirement_heading_exists(
+    root: &Path,
+    module: &str,
+    key: &str,
+) -> Result<bool, String> {
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    let (_, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
+    let Ok(content) = fs::read_to_string(&requirements_path) else {
+        return Ok(false);
+    };
+    let heading = format!("### {key}");
+    Ok(content.lines().any(|line| line.trim_end() == heading))
 }
 
 fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
@@ -26525,6 +26572,113 @@ mod tests {
         let error = validate_delta_files(temp.path(), &record).unwrap_err();
         assert!(error.contains("must match affected module `auth`"));
     }
+
+    #[test]
+    fn draft_next_action_prefers_complete_artifacts_over_approve() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = current_workflow_record(root, completed_no_spec_record(root));
+        for artifact in &record.selected_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                format!(
+                    "---\nchange: {}\nartifact: {}\n---\n\n# {}\n\n<!-- TODO: fill -->\n",
+                    record.id,
+                    artifact.file_name().trim_end_matches(".md"),
+                    artifact.file_name()
+                ),
+            )
+            .unwrap();
+        }
+        let summary = summarize_change(root, &record);
+        assert!(!summary.artifacts_complete);
+        assert!(
+            summary.next_action.contains("complete"),
+            "expected complete-artifacts guidance, got {}",
+            summary.next_action
+        );
+        assert!(
+            !summary.next_action.contains("change approve"),
+            "must not recommend approve while artifacts incomplete: {}",
+            summary.next_action
+        );
+
+        for artifact in &record.selected_artifacts {
+            let body = if *artifact == ArtifactKind::Tasks {
+                "# Tasks\n\n- [x] Complete\n"
+            } else {
+                "# Complete\n\nReady for approval.\n"
+            };
+            fs::write(change_dir(root, &record.id).join(artifact.file_name()), body).unwrap();
+        }
+        let summary = summarize_change(root, &record);
+        assert!(summary.artifacts_complete);
+        assert!(
+            summary.next_action.contains("change approve"),
+            "expected approve next, got {}",
+            summary.next_action
+        );
+    }
+
+    #[test]
+    fn added_requirement_already_in_living_tree_fails_delta_validation() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(root.join("src/auth.rs"), "pub fn auth() {}\n").unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `auth` | Auth entry. |\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("specs/auth/requirements.md"),
+            "---\nspec: auth.spec.md\n---\n\n# Requirements\n\n### REQ-auth-001\n\nThe auth module SHALL provide an `auth` entry point.\n\nAcceptance Criteria\n\n- Callers can invoke `auth`.\n",
+        )
+        .unwrap();
+
+        let record = current_workflow_record(root, completed_record(root));
+        for artifact in &record.selected_artifacts {
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                if *artifact == ArtifactKind::Tasks {
+                    "# Tasks\n\n- [x] Complete\n"
+                } else {
+                    "# Complete\n\nReviewed.\n"
+                },
+            )
+            .unwrap();
+        }
+        fs::write(
+            delta_path(root, &record, "auth"),
+            "## ADDED\n### REQUIREMENT REQ-auth-001\nThe auth module SHALL provide an `auth` entry point.\n\nAcceptance Criteria\n- Callers can invoke `auth`.\n",
+        )
+        .unwrap();
+        let error = validate_delta_files(root, &record).unwrap_err();
+        assert!(
+            error.contains("cannot add existing block `REQ-auth-001`"),
+            "{error}"
+        );
+        assert!(
+            error.contains("## MODIFIED"),
+            "error should steer agents to MODIFIED: {error}"
+        );
+        let approve_error =
+            approve_definition(root, &record.id, Some("Owner".into()), None).unwrap_err();
+        assert!(
+            approve_error.contains("cannot add existing block"),
+            "{approve_error}"
+        );
+
+        fs::write(
+            delta_path(root, &record, "auth"),
+            "## MODIFIED\n### REQUIREMENT REQ-auth-001\nThe auth module SHALL provide an `auth` entry point with documented behavior.\n\nAcceptance Criteria\n- Callers can invoke `auth`.\n- Behavior is documented.\n",
+        )
+        .unwrap();
+        assert!(validate_delta_files(root, &record).is_ok());
+    }
+
 
     #[test]
     fn change_identifiers_and_scope_cannot_escape_project_root() {

@@ -43,3 +43,8 @@ Unit tests cover IDs, requirement grammar, semantic application, unsafe command 
 - `REQ-change-041`: unit coverage proves `canonical_module_paths` succeeds against an inert stub via conventional `specs/<module>/` paths and still emits the exact parse diagnostic for non-inert unparsable registries.
 - `REQ-change-042`: unit coverage proves a real parent-plus-exact-children scope deduplicates identical stage-zero entries across bounded pathspec batches, while direct accumulator regressions independently reject differing modes and object IDs without replacing the first pair.
 - `REQ-change-043`: workflow-v2 regressions prove implementation/test/delta/lifecycle detail changes preserve the original scope approval while staling execution evidence, material scope additions require renewal with a plain-language diff, and a classified pre-boundary approval migration preserves the original human event.
+
+## Unit coverage (sandbox #14 / #16)
+
+- `draft_next_action_prefers_complete_artifacts_over_approve` — interview-complete draft with `<!-- TODO -->` artifacts must not recommend approve.
+- `added_requirement_already_in_living_tree_fails_delta_validation` — `## ADDED` of an existing living REQ fails `validate_delta_files` and `approve_definition`; `## MODIFIED` succeeds validation.

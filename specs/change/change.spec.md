@@ -1,6 +1,6 @@
 ---
 module: change
-version: 52
+version: 53
 status: active
 files:
   - src/change.rs
@@ -26,7 +26,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 6. Verification and scoped-review evidence bind the implementation commit and governed inputs; a scoped review records an explicit pass/block verdict, must be independent from the scope approver, and stays fresh only when every descendant/parent edge changes supported lifecycle persistence.
 7. Invalid policy, unavailable coverage comparison, failed evidence, stale ordering gates, and protected sequence-ledger edits without lifecycle coverage fail closed.
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
-9. Approval validates complete module-scoped deltas, corrupt state fails closed, and transactional same-PR finalization remains retryable before or after the archive-directory move.
+9. Approval validates complete module-scoped deltas, refuses `## ADDED` for requirement IDs already present in the living tree (agents must use `## MODIFIED`), corrupt state fails closed, and transactional same-PR finalization remains retryable before or after the archive-directory move.
 10. Permanent requirement tombstones come only from accepted history, and default path coverage includes root delivery metadata.
 11. Concurrent effective-contract validations use isolated temporary workspaces.
 12. Stale accepted delivery evidence can return only to verifying through an explicit human actor and reason, while prior verification and closing evidence remain inspectable.
@@ -280,6 +280,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-08-01 | Approve rejects ADDED existing living REQs; draft next_action prefers complete artifacts over approve when stubs remain. |
 | 2026-07-10 | v4: normalize imported, evidence, and digest paths across Windows and Unix |
 | 2026-07-10 | v3: make approval digests and detected verification commands portable across CI checkouts |
 | 2026-07-10 | v2: compare meaningful path coverage with the current remote base after rebases |

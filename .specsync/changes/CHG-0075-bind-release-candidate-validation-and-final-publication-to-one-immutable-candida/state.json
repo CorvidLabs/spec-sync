@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida",
+  "slug": "bind-release-candidate-validation-and-final-publication-to-one-immutable-candida",
+  "title": "Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows",
+  "description": "Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows",
+  "kind": "operations",
+  "state": "draft",
+  "base_commit": "6a0956fbe53669aa9a7bc564fd472e0952a70f2a",
+  "created_at": 1785611817,
+  "updated_at": 1785611843,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
+    ".github/scripts/validate-release-candidate.py",
+    ".github/scripts/test-validate-release-candidate.py",
+    "fledge.toml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Ordinary development and product pull requests use Ubuntu as the only integration platform; an RC branch is frozen by an immutable vX.Y.Z-rc.N marker bound to one candidate commit; Ubuntu macOS and Windows run the same named release-candidate Fledge lane against that exact commit and publish SHA-bound evidence; changing the candidate requires a new RC marker; final vX.Y.Z tag creation and release uploads are refused unless every required platform result is green for that unchanged candidate commit, and the final tag is created only after the cross-platform gate succeeds."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks",
+    "research",
+    "docs",
+    "requirements"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

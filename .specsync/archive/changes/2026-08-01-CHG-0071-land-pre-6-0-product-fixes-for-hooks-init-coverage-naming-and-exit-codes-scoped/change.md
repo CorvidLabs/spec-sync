@@ -1,6 +1,6 @@
 ---
 id: CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 4c936cd6f4a9dae7e138a90d3af1709c8ee6e2f4
 ---

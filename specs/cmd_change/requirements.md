@@ -107,3 +107,10 @@ Acceptance Criteria
 - Text and JSON next-action guidance do not recommend change approve for interview-complete drafts with incomplete selected artifacts.
 - Completeness guidance remains available without writing digests into cleartext text sinks.
 
+### REQ-cmd-change-ship-001
+
+ship-status reports tip class and ship sequence.
+
+### REQ-cmd-change-ship-002
+
+next_action prefers ship sequence after scoped review.

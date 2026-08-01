@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 14
+version: 15
 status: active
 files:
   - src/commands/change.rs
@@ -92,6 +92,8 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 `crate::cli::ChangeAction` to the `cli_args` contract rather than the top-level `cli` executable contract.
 
 ## Change Log
+
+| 2026-08-01 | Add ship-status and ship-sequence next_action guidance |
 
 | 2026-07-30 | Scoped `change check`; add `change audit` two-verb UX |
 

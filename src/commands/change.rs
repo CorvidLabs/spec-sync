@@ -1,7 +1,7 @@
 use colored::Colorize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process;
+use std::process::{self, Command};
 
 use crate::change::{
     self, ArtifactKind, ChangeKind, ChangeRecord, ChangeState, CorrectionField,
@@ -312,11 +312,17 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     println!("{} {} finalized on this PR", "✓".green(), id);
                     println!("  Archive: {}", path.display());
                     println!("  Implementation: {}", finalization.implementation_commit);
-                    println!("  Next: merge the PR on GitHub");
+                    println!("  Ship sequence (do not skip waits):");
+                    println!("    1. Product tip must already be green: trust + SpecSync trusted policy + SpecSync implementation ready");
+                    println!("    2. Push this archive commit alone as the PR tip");
+                    println!("    3. Wait for archive-integrity + Required CI gate");
+                    println!("    4. Then merge the PR on GitHub");
+                    println!("  See: specsync change ship-status");
                 }
             }
             Ok(())
         }),
+        ChangeAction::ShipStatus { id } => print_ship_status(root, id.as_deref(), format),
         ChangeAction::Check { id } => {
             // Scoped verification only — project integrity is `change audit`.
             let display_id = id.clone().unwrap_or_else(|| "open change".into());
@@ -566,14 +572,285 @@ fn text_mode_next_action(
             format!("run `specsync change check {id}`")
         }
         ChangeState::Verifying => {
-            format!("run `specsync change check {id}` or finalize when ready")
+            // Lightweight only (no digest loaders): review.json presence + artifact files.
+            let review_path = root
+                .join(".specsync/changes")
+                .join(&record.id)
+                .join("review.json");
+            if review_path.is_file() {
+                format!(
+                    "product tip green (trust+policy+implementation ready), then `specsync change finalize {id}`, push archive tip alone; see `specsync change ship-status`"
+                )
+            } else if change::artifacts_complete_for_guidance(root, record) {
+                format!(
+                    "run `specsync change review {id} --reviewer <other-than-approver> --verdict pass`, then ship-status"
+                )
+            } else {
+                format!("run `specsync change check {id}` or complete verification")
+            }
         }
         ChangeState::Accepted if record.workflow_version >= 2 => {
-            format!("run `specsync change finalize {id}`")
+            format!(
+                "run `specsync change finalize {id}` then push archive tip alone after product tip is green (`ship-status`)"
+            )
         }
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
         ChangeState::Archived => "no further action".into(),
     }
+}
+
+fn print_ship_status(root: &Path, id: Option<&str>, format: OutputFormat) -> Result<(), String> {
+    let report = ship_status_report(root, id)?;
+    match format {
+        OutputFormat::Json => {
+            print_json(&report);
+            Ok(())
+        }
+        _ => {
+            println!("{}", "Ship status".bold());
+            println!("  HEAD:   {}", report["head_sha"].as_str().unwrap_or(""));
+            println!(
+                "  Parent: {}",
+                report["parent_sha"].as_str().unwrap_or("(root)")
+            );
+            println!(
+                "  Tip class: {}",
+                report["tip_class"].as_str().unwrap_or("unknown")
+            );
+            if let Some(change) = report.get("change") {
+                if !change.is_null() {
+                    println!(
+                        "  Change: {} ({})",
+                        change["id"].as_str().unwrap_or(""),
+                        change["state"].as_str().unwrap_or("")
+                    );
+                    println!(
+                        "  Review current: {}  Verification present: {}",
+                        change["scoped_review_current"], change["verification_present"]
+                    );
+                }
+            }
+            println!("  Ship sequence:");
+            if let Some(steps) = report["ship_sequence"].as_array() {
+                for step in steps {
+                    println!("    - {}", step.as_str().unwrap_or(""));
+                }
+            }
+            println!("  Next: {}", report["next"].as_str().unwrap_or(""));
+            Ok(())
+        }
+    }
+}
+
+fn ship_status_report(root: &Path, id: Option<&str>) -> Result<serde_json::Value, String> {
+    let head = git_rev_parse(root, "HEAD")?;
+    let parent = git_rev_parse(root, "HEAD^").ok();
+    let tip_class = classify_head_tip(root, &head, parent.as_deref())?;
+    let change_json = match resolve_ship_change(root, id)? {
+        Some(record) => {
+            let summary = change::summarize_change_with_strict(root, &record, false);
+            let verification_present = root
+                .join(".specsync/changes")
+                .join(&record.id)
+                .join("verification.json")
+                .is_file()
+                || root
+                    .join(".specsync/archive/changes")
+                    .read_dir()
+                    .ok()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|e| e.ok())
+                    .any(|e| {
+                        e.file_name().to_string_lossy().contains(
+                            record
+                                .id
+                                .split('-')
+                                .take(2)
+                                .collect::<Vec<_>>()
+                                .join("-")
+                                .as_str(),
+                        ) && e.path().join("verification.json").is_file()
+                    });
+            Some(serde_json::json!({
+                "id": record.id,
+                "state": record.state,
+                "workflow_version": record.workflow_version,
+                "scoped_review_current": summary.scoped_review_current,
+                "artifacts_complete": summary.artifacts_complete,
+                "approval_valid": summary.approval_valid,
+                "verification_present": verification_present,
+                "lifecycle_next": summary.next_action,
+            }))
+        }
+        None => None,
+    };
+
+    let ship_sequence = vec![
+        "Ensure a product (non-review/archive) tip is HEAD and wait for: trust=success, SpecSync trusted policy=success, SpecSync implementation ready=success".to_string(),
+        "Required CI gate may fail with 'run finalize' on product tips — expected".to_string(),
+        "Push review tip alone (review.json + review-attempts.json only); wait for trust reuse success".to_string(),
+        "Run `specsync change finalize <id>`, commit the exact archive move, push archive tip alone".to_string(),
+        "Wait for archive-integrity + Required CI gate success, then merge".to_string(),
+        "Never push archive seconds after product tip — that cancels parent policy (cancel-poison)".to_string(),
+    ];
+
+    let next = match (tip_class.as_str(), &change_json) {
+        ("archive_only", _) => {
+            "wait for archive-integrity + Required CI gate, then merge on GitHub".to_string()
+        }
+        ("review_only", Some(c)) if c["scoped_review_current"].as_bool() == Some(true) => {
+            format!(
+                "wait for trust reuse on this tip, then finalize {} and push archive tip alone",
+                c["id"].as_str().unwrap_or("<id>")
+            )
+        }
+        ("review_only", _) => "wait for trust reuse success on this review tip".to_string(),
+        (_, Some(c))
+            if c["state"] == "verifying" && c["scoped_review_current"].as_bool() != Some(true) =>
+        {
+            format!(
+                "record scoped review for {}, keep product tip green, then finalize",
+                c["id"].as_str().unwrap_or("<id>")
+            )
+        }
+        (_, Some(c)) if c["state"] == "verifying" => {
+            format!(
+                "keep product tip green (trust+policy+implementation ready), then finalize {}",
+                c["id"].as_str().unwrap_or("<id>")
+            )
+        }
+        (_, Some(c)) if c["state"] == "implementing" || c["state"] == "approved" => {
+            format!(
+                "run `specsync change check {}`",
+                c["id"].as_str().unwrap_or("<id>")
+            )
+        }
+        _ => "follow ship_sequence; use --json for machine fields".to_string(),
+    };
+
+    Ok(serde_json::json!({
+        "head_sha": head,
+        "parent_sha": parent,
+        "tip_class": tip_class,
+        "change": change_json,
+        "ship_sequence": ship_sequence,
+        "next": next,
+        "product_issues": ["#487", "#488", "#489"],
+    }))
+}
+
+fn resolve_ship_change(
+    root: &Path,
+    id: Option<&str>,
+) -> Result<Option<change::ChangeRecord>, String> {
+    let _scope = change::begin_change_read_scope(root);
+    if let Some(id) = id {
+        return change::load_change(root, id).map(Some);
+    }
+    let active = change::list_changes(root);
+    let delivering: Vec<_> = active
+        .into_iter()
+        .filter(|r| {
+            matches!(
+                r.state,
+                ChangeState::Approved
+                    | ChangeState::Implementing
+                    | ChangeState::Verifying
+                    | ChangeState::Accepted
+            )
+        })
+        .collect();
+    match delivering.len() {
+        0 => Ok(None),
+        1 => Ok(Some(delivering.into_iter().next().expect("len 1"))),
+        _ => Err("multiple delivering changes; pass an explicit change id to ship-status".into()),
+    }
+}
+
+fn git_rev_parse(root: &Path, rev: &str) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["-C", root.to_str().unwrap_or("."), "rev-parse", rev])
+        .output()
+        .map_err(|e| format!("git rev-parse failed: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "git rev-parse {rev} failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn classify_head_tip(root: &Path, head: &str, parent: Option<&str>) -> Result<String, String> {
+    let Some(parent) = parent else {
+        return Ok("product".into());
+    };
+    let script = root.join(".github/scripts/classify-ci-paths.sh");
+    if !script.is_file() {
+        return Ok("unknown".into());
+    }
+    let diff = Command::new("git")
+        .args([
+            "-C",
+            root.to_str().unwrap_or("."),
+            "diff",
+            "--name-status",
+            "-z",
+            "-M",
+            parent,
+            head,
+        ])
+        .output()
+        .map_err(|e| format!("git diff failed: {e}"))?;
+    if !diff.status.success() {
+        return Ok("unknown".into());
+    }
+    let mut child = Command::new("bash")
+        .arg(&script)
+        .arg(root)
+        .arg("false")
+        .arg("name-status")
+        .arg(parent)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("classify-ci-paths failed to start: {e}"))?;
+    use std::io::Write;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(&diff.stdout)
+            .map_err(|e| format!("classify stdin: {e}"))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("classify wait: {e}"))?;
+    if !output.status.success() {
+        return Ok("unknown".into());
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut archive_only = false;
+    let mut review_only = false;
+    let mut full = false;
+    for line in text.lines() {
+        if let Some(v) = line.strip_prefix("archive_only=") {
+            archive_only = v == "true";
+        } else if let Some(v) = line.strip_prefix("review_only=") {
+            review_only = v == "true";
+        } else if let Some(v) = line.strip_prefix("full=") {
+            full = v == "true";
+        }
+    }
+    Ok(if archive_only {
+        "archive_only".into()
+    } else if review_only {
+        "review_only".into()
+    } else if full {
+        "product".into()
+    } else {
+        "lifecycle_other".into()
+    })
 }
 
 fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, strict: bool) {

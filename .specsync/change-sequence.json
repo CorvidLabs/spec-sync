@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 73,
-  "id": "CHG-0073-approve-rejects-living-added-reqs-and-draft-next-action-waits-on-complete-artifa",
+  "sequence": 74,
+  "id": "CHG-0074-buttery-ship-status-and-ship-sequence-guidance",
   "acknowledged_collisions": [
     {
       "sequence": 16,

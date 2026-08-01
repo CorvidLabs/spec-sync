@@ -497,6 +497,11 @@ pub enum ChangeAction {
         /// Change ID
         id: String,
     },
+    /// Report HEAD tip class and staged ship sequence for workflow-v2 close-out
+    ShipStatus {
+        /// Optional change ID (defaults to single active delivering change)
+        id: Option<String>,
+    },
     /// Materialize approved deltas and run targeted verification for one change
     Check {
         /// Optional change ID; inferred when exactly one change is being implemented

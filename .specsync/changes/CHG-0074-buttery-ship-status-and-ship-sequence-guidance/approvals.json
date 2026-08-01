@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "buttery-loop",
+      "timestamp": 1785606625,
+      "digest": "510afcca11af6dc55360a4fb2cc10ba347acd94fea00b4185113af62a032ee1e",
+      "note": "ship-status surface for GOAL-6-buttery",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0074-buttery-ship-status-and-ship-sequence-guidance",
+        "title": "Buttery ship-status and ship sequence guidance",
+        "description": "buttery ship-status and ship sequence guidance",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".github/workflows/",
+          ".specsync/change-sequence.json",
+          "AGENTS.md",
+          "docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status reports tip class and staged ship sequence; finalize guidance and next_action point agents at product→review→archive waits; drills/027 can probe the surface"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

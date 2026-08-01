@@ -14,7 +14,7 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 | Release binary build | **CI** (consumer) + **Trust** (identity) | CI: action-consumer; Trust: packages PR binary for contract |
 | Spec contract + 100% path coverage | **CI** + **Trust contract gate** | CI `spec-check` proves tree; Trust re-checks with **PR release binary** (identity, not a second matrix) |
 | Security advisories | **CI** | `audit` |
-| Coverage measurement | **CI** | Tier B when expensive; strict 100% spec/path coverage stays Tier A |
+| Coverage measurement | **CI** | ordinary full product PRs; never duplicated in Trust |
 | Site / VS Code extension | **CI** | `site`, `vscode-extension` |
 | Action packaging consumer | **CI** | `action-consumer` |
 | Deterministic risk (Augur) | **Trust only** | Trust action risk gate |
@@ -29,23 +29,18 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 - Ubuntu `cargo clippy -- -D warnings` and full `cargo test`
 - `specsync check --strict --require-coverage 100`
 - `cargo audit`
+- line coverage/tarpaulin for full product changes
 - cheap path classification, Action validation, and required readiness gates
 - Trust's release-binary identity, contract, Augur, and Attest gates
 
 ### Tier B: immutable release candidates
 
 - Ubuntu, macOS, and Windows integration and release validation against one exact candidate SHA
-- expensive line coverage/tarpaulin
 - any additional release or security matrix required by project policy
 
-The Trust split in this change is non-protected and lands first. Moving macOS, Windows, and expensive
-coverage from every PR into Tier B changes `.github/workflows/**`; that requires the repository's
-separately pinned required-workflow process. Until that follow-up lands, the existing CI workflow
-continues running those jobs on every product PR.
-
-The future protected-workflow follow-up should make Ubuntu the authoritative integration platform
-for ordinary development and product PRs. macOS and Windows should not consume runner time on those
-PRs. Instead, a release-candidate cycle should:
+The Trust split remains non-protected. CHG-0075 applies the separately pinned protected-workflow
+update: Ubuntu is the authoritative integration platform for ordinary development and product PRs,
+while macOS and Windows run only in the immutable release-candidate cycle:
 
 1. Freeze an exact candidate commit on an RC branch and create an immutable RC marker/tag for that
    SHA.
@@ -62,20 +57,23 @@ Before this change, Trust was roughly 20 minutes, including roughly 17 minutes s
 full Rust suite. After this change, Trust should take roughly 3–8 minutes for release build, light
 lifecycle, contract, risk, and provenance.
 
-The immediate product-tip critical path remains:
+The immediate product-tip critical path is:
 
 ```text
 Parallel critical path ≈ max(
-  test/windows,   # historically 15–45m
-  test/macos,     # ~16m
+  test/ubuntu,    # authoritative product suite
   trust,          # should be ~3–8m after this redesign (release build + light lifecycle + contract + augur)
   spec-check,     # ~10–12m
   coverage        # ~10m
 )
 ```
 
-After the separately pinned Tier B workflow update, the ordinary PR target is approximately 5–15
-minutes. This PR does not claim that matrix scheduling improvement before the protected change lands.
+With the Tier B workflow update, the ordinary PR target is approximately 5–15 minutes.
+
+Final-tag authority is split across three active rulesets. Humans may create RC markers, but no
+actor may move or delete them. Only the dedicated CorvidLabs release GitHub App may create a final
+tag, and no actor—including that App—may move or delete one. The App's repository-scoped token is
+minted only inside the protected `release` environment, whose deployment policy admits `main` only.
 
 Trust must **not** re-run `cargo test` / clippy / full verify after CI already did.
 
@@ -100,7 +98,8 @@ That preserves “this binary is the contract” without a second multi-OS suite
 
 | Tip | CI | Trust |
 |-----|----|-------|
-| Product / full | Full matrix + gates | Full Trust action (light lifecycle) |
+| Product / full | Ubuntu product lane + gates | Full Trust action (light lifecycle) |
+| Release candidate | Ubuntu + macOS + Windows release lane at one immutable SHA | Release identity and provenance |
 | `review_only` | Reuse / skip heavy | Reuse ancestor trust |
 | `archive_only` | archive-integrity | Reuse ancestor trust |
 
@@ -112,7 +111,8 @@ fledge lanes run verify                # one full local completion suite
 fledge trust verify                    # contract + risk + light lifecycle + attest
 ```
 
-Do **not** expect `fledge trust verify` alone to replace multi-OS CI; GitHub CI is the multi-OS authority.
+Do **not** expect `fledge trust verify` alone to replace release-candidate multi-OS CI; the Release
+workflow is the cross-platform authority for an exact immutable candidate SHA.
 
 ## Anti-patterns (do not reintroduce)
 
@@ -123,6 +123,6 @@ Do **not** expect `fledge trust verify` alone to replace multi-OS CI; GitHub CI 
 
 ## Related
 
-- Protected matrix scheduling and ancestor-reuse follow-ups require a separately pinned workflow update
+- Further protected topology or ancestor-reuse changes require a separately pinned workflow update
 - `fledge.toml` lanes: `verify` vs `trust-lifecycle`
 - `.trust.toml` lifecycle command

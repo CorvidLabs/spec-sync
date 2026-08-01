@@ -143,6 +143,7 @@ jobs:
         run: |
           .github/scripts/test-classify-ci-paths.sh
           .github/scripts/test-lifecycle-workflows.sh
+          python3 .github/scripts/test-validate-release-candidate.py
 
   archive-integrity:
     needs: classify
@@ -160,45 +161,17 @@ jobs:
   test:
     needs: classify
     if: needs.classify.outputs.full == 'true'
-    runs-on: ${{ matrix.os }}
-    # Windows integration (multi-change finalize fixtures) regularly exceeds 30m.
+    # Ordinary development has one authoritative integration platform. The
+    # immutable release-candidate workflow qualifies the exact candidate SHA on
+    # Ubuntu, macOS, and Windows before any final tag can be created.
+    runs-on: ubuntu-latest
     timeout-minutes: 45
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
-      # Integration fixtures shell out to classify-ci-paths.sh (needs jq + Git Bash on Windows).
-      # Prefer Git for Windows bash over the WSL launcher that bare `bash` often resolves to.
-      - name: Prefer Git Bash over WSL (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "C:/Program Files/Git/bin" >> "$GITHUB_PATH"
-          # Use 8.3-style path without spaces so GITHUB_ENV and Command::new are reliable.
-          bash_path="C:/Progra~1/Git/bin/bash.exe"
-          if [[ ! -x "$bash_path" ]]; then
-            bash_path="C:/Program Files/Git/bin/bash.exe"
-          fi
-          echo "SPECSYNC_BASH=${bash_path}" >> "$GITHUB_ENV"
-          "$bash_path" --version | head -1
-      - name: Install jq (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL -o /usr/bin/jq.exe \
-            https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-windows-amd64.exe
-          jq --version
       - run: cargo build --verbose
-      - name: Run tests
-        env:
-          # Belt-and-suspenders for the classifier shell used by integration tests.
-          SPECSYNC_BASH: ${{ matrix.os == 'windows-latest' && 'C:\Progra~1\Git\bin\bash.exe' || '' }}
-        run: cargo test --verbose
+      - run: cargo test --verbose
       - run: cargo clippy -- -D warnings
 
   fmt:

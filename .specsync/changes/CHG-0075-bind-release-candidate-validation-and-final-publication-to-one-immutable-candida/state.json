@@ -7,10 +7,11 @@
   "title": "Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows",
   "description": "Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows",
   "kind": "operations",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "6a0956fbe53669aa9a7bc564fd472e0952a70f2a",
   "created_at": 1785611817,
-  "updated_at": 1785611843,
+  "updated_at": 1785617227,
   "affected_specs": [
     "github"
   ],
@@ -19,6 +20,8 @@
     ".github/workflows/release.yml",
     ".github/scripts/validate-release-candidate.py",
     ".github/scripts/test-validate-release-candidate.py",
+    ".github/scripts/test-lifecycle-workflows.sh",
+    ".github/workflows/lifecycle-policy-guard.yml",
     "fledge.toml",
     ".specsync/change-sequence.json"
   ],

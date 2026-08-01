@@ -16,6 +16,9 @@ cmd = "cargo audit --ignore RUSTSEC-2024-0384"
 [tasks.check-types]
 cmd = "cargo check"
 
+[tasks.release-candidate-test]
+cmd = "python3 .github/scripts/test-validate-release-candidate.py"
+
 [tasks.spec-check]
 cmd = "cargo run -- check --strict --require-coverage 100 --force"
 
@@ -54,6 +57,7 @@ steps = [
   "build",
   "audit",
   "spec-check",
+  "release-candidate-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]
 
@@ -75,6 +79,7 @@ steps = [
   "test",
   "build",
   "spec-check",
+  "release-candidate-test",
 ]
 
 # Used by .trust.toml [lifecycle] for the GitHub Trust action only.
@@ -82,6 +87,13 @@ steps = [
 [lanes.trust-lifecycle]
 description = "Trust GitHub lifecycle — no duplicate cargo test (CI is authority)"
 steps = ["check-types"]
+
+# The release workflow runs this exact lane on Ubuntu, macOS, and Windows for
+# one immutable RC tag. Keep platform qualification here so local reproduction
+# and every hosted runner share one command surface.
+[lanes.release-candidate]
+description = "Immutable release-candidate qualification (tests + release build)"
+steps = ["test", "build"]
 
 [lanes.repo]
 description = "Full repository validation, including docs and editor extension"
@@ -91,5 +103,6 @@ steps = [
   "build",
   "audit",
   "spec-check",
+  "release-candidate-test",
   { parallel = ["docs-test", "docs-lint", "docs-build", "vscode-compile", "vscode-package"] },
 ]

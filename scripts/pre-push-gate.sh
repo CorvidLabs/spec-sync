@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Fast mandatory gate before `git push` on CorvidLabs/spec-sync.
-# Target: ~seconds–2 minutes warm. Not full test/clippy.
+# Fast mandatory gate before `git push` (~seconds–2 min warm).
+# Not full cargo test / clippy — those stay in verify/CI.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -10,6 +10,10 @@ ts() { date +%s; }
 total_start=$(ts)
 echo "==> pre-push gate (fast) — started $(date -u +%H:%M:%S)Z"
 
+# Archive-only tip: unpushed/diff files are solely under .specsync/archive/
+# (and optional change-sequence). Skip product path coverage and change audit —
+# after finalize there is no active delivering change, and CI archive-integrity
+# owns that path.
 archive_tip=false
 if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
   files=$(
@@ -40,29 +44,26 @@ echo "==> [2/3] cargo check"
 cargo check --quiet
 echo "    ok ($(( $(ts) - step_start ))s)"
 
-step_start=$(ts)
-if [ -x target/release/specsync ]; then
-  SPECSYNC_BIN=target/release/specsync
-elif [ -x target/debug/specsync ]; then
-  SPECSYNC_BIN=target/debug/specsync
-else
-  echo "    building release binary once…"
-  cargo build --release --quiet
-  SPECSYNC_BIN=target/release/specsync
-fi
-
 if [ "$archive_tip" = true ]; then
-  echo "==> [3/3] archive-tip mode (audit only; path coverage skipped)"
-  echo "    using $SPECSYNC_BIN"
-  "$SPECSYNC_BIN" change audit
+  echo "==> [3/3] archive-tip mode — skip product path coverage (CI archive-integrity)"
 else
+  step_start=$(ts)
+  if [ -x target/release/specsync ]; then
+    SPECSYNC_BIN=target/release/specsync
+  elif [ -x target/debug/specsync ]; then
+    SPECSYNC_BIN=target/debug/specsync
+  else
+    echo "    building release binary once…"
+    cargo build --release --quiet
+    SPECSYNC_BIN=target/release/specsync
+  fi
   echo "==> [3/3] strict path/spec coverage"
   echo "    using $SPECSYNC_BIN"
   "$SPECSYNC_BIN" check --strict --require-coverage 100 --force
+  echo "    ok ($(( $(ts) - step_start ))s)"
 fi
-echo "    ok ($(( $(ts) - step_start ))s)"
 
 total=$(( $(ts) - total_start ))
 echo "==> pre-push gate PASS in ${total}s — safe to git push"
-[ "$archive_tip" = true ] && echo "    archive-tip: CI should use archive-integrity path"
+[ "$archive_tip" = true ] && echo "    archive-tip: CI should run archive-integrity"
 echo "    (full test+clippy: fledge lanes run verify)"

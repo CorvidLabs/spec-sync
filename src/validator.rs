@@ -7,8 +7,8 @@ use crate::exports::{
     is_test_file,
 };
 use crate::parser::{
-    body_has_section, find_section_offset, find_stub_sections, get_missing_sections,
-    get_near_miss_sections, get_spec_symbols, parse_frontmatter,
+    body_has_section, find_section_offset, find_stub_sections, get_duplicate_spec_symbols,
+    get_missing_sections, get_near_miss_sections, get_spec_symbols, parse_frontmatter,
 };
 use crate::schema::{self, SchemaTable};
 use crate::types::{
@@ -1960,6 +1960,10 @@ fn validate_spec_content_internal(
         }
     };
 
+    // Surface parse-time frontmatter diagnostics before structural checks.
+    result.errors.extend(parsed.errors.iter().cloned());
+    result.warnings.extend(parsed.warnings.iter().cloned());
+
     let fm = &parsed.frontmatter;
     let body = &parsed.body;
     result.status = fm.parsed_status();
@@ -2299,6 +2303,14 @@ fn validate_spec_content_internal(
         spec_status,
         Some(crate::types::SpecStatus::Draft) | Some(crate::types::SpecStatus::Review)
     );
+
+    if !skip_api {
+        for symbol in get_duplicate_spec_symbols(body) {
+            result.errors.push(format!(
+                "Public API lists `{symbol}` more than once — remove the duplicate row"
+            ));
+        }
+    }
 
     if !fm.files.is_empty() && !skip_api {
         // Track exports with their source file for attribution
@@ -4797,6 +4809,7 @@ pub fn compute_coverage(
         specced_loc: 0,
         loc_coverage_percent: 0,
         unspecced_file_loc: Vec::new(),
+        missing_files: Vec::new(),
     })
 }
 
@@ -4949,11 +4962,45 @@ pub fn compute_coverage_checked(
         }
     }
 
+    // Files a non-draft spec references in `files:` that do not exist on disk.
+    // Draft planned mappings (status: draft, file not created yet) are intentional
+    // and already surface as notices — they must not defeat `--require-coverage`.
+    // Counting other missing references toward the denominator stops
+    // `--require-coverage 100` from passing vacuously over broken references.
+    let mut missing_files: Vec<String> = Vec::new();
+    for spec_file in &retained_spec_files {
+        let Ok(content) = std::fs::read_to_string(root.join(&spec_file.relative_path)) else {
+            continue;
+        };
+        let normalized = content.replace("\r\n", "\n");
+        let Some(parsed) = parse_frontmatter(&normalized) else {
+            continue;
+        };
+        if parsed.frontmatter.parsed_status() == Some(crate::types::SpecStatus::Draft)
+            && !config.require_draft_files
+        {
+            continue;
+        }
+        if parsed.frontmatter.parsed_status() == Some(crate::types::SpecStatus::Archived) {
+            continue;
+        }
+        for file in &parsed.frontmatter.files {
+            if let Some(normalized) = normalize_source_mapping(file)
+                && !root.join(&normalized).exists()
+            {
+                missing_files.push(normalized);
+            }
+        }
+    }
+    missing_files.sort();
+    missing_files.dedup();
+
     let specced_count = all_source_files.len() - unspecced_files.len();
-    let coverage_percent = if all_source_files.is_empty() {
+    let total_files = all_source_files.len() + missing_files.len();
+    let coverage_percent = if total_files == 0 {
         100
     } else {
-        (specced_count * 100) / all_source_files.len()
+        (specced_count * 100) / total_files
     };
 
     let loc_coverage_percent = (specced_loc * 100).checked_div(total_loc).unwrap_or(100);
@@ -4968,5 +5015,52 @@ pub fn compute_coverage_checked(
         specced_loc,
         loc_coverage_percent,
         unspecced_file_loc,
+        missing_files,
     })
+}
+
+pub(crate) fn validate_local_dependency(
+    dep: &str,
+    root: &Path,
+    specs_dir: &str,
+) -> Result<PathBuf, String> {
+    if is_cross_project_ref(dep) {
+        // Cross-project refs (e.g. "owner/repo@module") are validated
+        // by `specsync resolve`, not during local checks.
+        return Ok(root.join(specs_dir));
+    }
+    let trimmed = dep.trim();
+    if trimmed.is_empty() {
+        return Err("Dependency spec entry is empty".to_string());
+    }
+    let as_path = Path::new(trimmed);
+    if as_path.is_absolute()
+        || as_path.components().any(|c| {
+            matches!(
+                c,
+                std::path::Component::ParentDir | std::path::Component::Prefix(_)
+            )
+        })
+        || trimmed.contains('\\')
+    {
+        return Err(format!(
+            "Dependency spec path escapes the project root: {trimmed} (absolute paths and `..` traversal are not allowed)"
+        ));
+    }
+    // Bare module names (no path separators or extension) resolve
+    // against the specs directory, not the project root.
+    let full_path = if !trimmed.contains('/') && !trimmed.contains('.') {
+        root.join(specs_dir).join(trimmed)
+    } else {
+        root.join(trimmed)
+    };
+    if !source_within_root(root, trimmed) {
+        return Err(format!(
+            "Dependency spec path escapes the project root: {trimmed} (symlink resolution leaves the project)"
+        ));
+    }
+    if !full_path.exists() {
+        return Err(format!("Dependency spec not found: {trimmed}"));
+    }
+    Ok(full_path)
 }

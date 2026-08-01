@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 16
+version: 17
 status: stable
 files:
   - src/cli.rs
@@ -136,3 +136,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
 | 2026-07-30 | CHG-0068: Add a discoverable optional `change review --verdict pass|block` conclusion |
 | 2026-07-30 | CHG-0068: Clarify reviewer text as a stable claim while hosted check provenance authenticates the append-only review trail |
+| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |

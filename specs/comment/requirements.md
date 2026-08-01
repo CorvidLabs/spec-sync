@@ -35,11 +35,11 @@ spec: comment.spec.md
 
 ### REQ-comment-001
 
-Rendered pull-request reports SHALL be bounded for GitHub transport.
+The `comment` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- The complete UTF-8 markdown body remains below GitHub's comment-body limit.
-- Truncation preserves the status summary and explains how to obtain full local diagnostics.
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-comment-002
 

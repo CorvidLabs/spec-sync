@@ -90,12 +90,22 @@ pub enum Command {
         batch: Vec<String>,
     },
     /// Create .specsync/config.toml and initialize the verified SDD layout
-    Init,
+    Init {
+        /// Repair a partially-initialized project: restore missing .specsync
+        /// support files (version stamp, .gitignore, sdd.json, directories)
+        /// without touching the existing config
+        #[arg(long)]
+        repair: bool,
+    },
     /// Score spec quality (0-100) with letter grades and improvement suggestions
     Score {
         /// Show detailed per-category breakdown explaining exactly why each spec lost points
         #[arg(long)]
         explain: bool,
+        /// Fail when any selected spec scores below this threshold (0-100).
+        /// `--strict` implies 80 when this flag is omitted.
+        #[arg(long, value_name = "N", value_parser = clap::value_parser!(u32).range(0..=100))]
+        min_score: Option<u32>,
         /// Score all specs (default when no filters provided; enables batch summary stats)
         #[arg(long)]
         all: bool,
@@ -152,11 +162,11 @@ pub enum Command {
     },
     /// Show export changes since last commit (useful for CI/PR comments)
     Diff {
-        /// Git ref to compare against (default: HEAD).
-        /// In GitHub Actions PR context, auto-detects the base branch
-        /// from GITHUB_BASE_REF when set to HEAD.
-        #[arg(long, default_value = "HEAD")]
-        base: String,
+        /// Git ref to compare against (default: auto-detect the PR base from
+        /// GITHUB_BASE_REF in GitHub Actions pull_request* events, else HEAD).
+        /// An explicit value always wins over environment auto-detection.
+        #[arg(long)]
+        base: Option<String>,
     },
     /// Manage agent instruction files and git hooks for spec awareness
     Hooks {
@@ -209,7 +219,10 @@ pub enum Command {
     },
     /// Quick-create a minimal spec for a module (auto-detects source files)
     New {
-        /// Module name for the new spec
+        /// Module name for the new spec.
+        /// Rules: 1-64 chars — letters, digits, `-`, `_`, `.`; must start with a
+        /// letter or digit; no spaces, path separators, or reserved names
+        /// (`change`, `specs`, Windows device names like `con`).
         name: String,
         /// Also create required companions (requirements.md, tasks.md, context.md, testing.md)
         /// and optional design.md when design artifacts are enabled
@@ -745,6 +758,20 @@ mod tests {
     }
 
     #[test]
+    fn score_minimum_is_bounded_to_zero_through_one_hundred() {
+        let cli =
+            Cli::try_parse_from(["specsync", "score", "--min-score", "80", "generator"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Score {
+                min_score: Some(80),
+                ..
+            })
+        ));
+        assert!(Cli::try_parse_from(["specsync", "score", "--min-score", "101"]).is_err());
+    }
+
+    #[test]
     fn change_new_collects_sdd_scope() {
         let cli = Cli::try_parse_from([
             "specsync",
@@ -1047,5 +1074,24 @@ mod tests {
             ])
             .is_ok()
         );
+    }
+
+    #[test]
+    fn init_repair_preserves_global_format_grammar_without_force_mode() {
+        let repaired = Cli::try_parse_from(["specsync", "init", "--repair", "--json"]).unwrap();
+        assert!(repaired.json);
+        assert!(matches!(
+            repaired.command,
+            Some(Command::Init { repair: true })
+        ));
+
+        let plain = Cli::try_parse_from(["specsync", "--format", "csv", "init"]).unwrap();
+        assert_eq!(plain.format, crate::types::OutputFormat::Csv);
+        assert!(matches!(
+            plain.command,
+            Some(Command::Init { repair: false })
+        ));
+
+        assert!(Cli::try_parse_from(["specsync", "init", "--force"]).is_err());
     }
 }

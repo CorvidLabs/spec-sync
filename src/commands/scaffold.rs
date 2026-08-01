@@ -7,15 +7,19 @@ use crate::config::load_config;
 use crate::generator;
 use crate::registry;
 
-use super::validate_module_name;
+use super::validate_scaffold_module_name;
 
 pub fn cmd_add_spec(root: &Path, module_name: &str) {
-    if let Err(e) = validate_module_name(module_name) {
+    if let Err(e) = validate_scaffold_module_name(module_name) {
         eprintln!("{e}");
         process::exit(1);
     }
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
+    if let Err(e) = super::check_case_collision(&specs_dir, module_name) {
+        eprintln!("{e}");
+        process::exit(1);
+    }
     let spec_dir = specs_dir.join(module_name);
     let spec_file = spec_dir.join(format!("{module_name}.spec.md"));
 
@@ -39,138 +43,37 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
         process::exit(1);
     }
 
-    // Use the same deterministic template generator as `generate`.
-    let template_path = specs_dir.join("_template.spec.md");
-    let template = if template_path.exists() {
-        fs::read_to_string(&template_path).unwrap_or_default()
-    } else {
-        String::new()
-    };
+    // Detect source files with the same logic as `generate`/`scaffold` so all
+    // generators agree: config module definitions, module subdirectories, flat
+    // name-matched files, then the single-source-file fallback.
+    let mut module_files = generator::find_files_for_module(root, module_name, &config);
+    if module_files.is_empty()
+        && let Some(single) = generator::find_single_source_fallback(root, &config)
+    {
+        eprintln!(
+            "{} No source files matched module '{module_name}' by name — claiming the project's only source file '{single}'.",
+            "⚠".yellow()
+        );
+        eprintln!(
+            "  Verify this mapping; if another spec already covers this file, `specsync check` reports duplicate spec ownership."
+        );
+        module_files.push(single);
+    }
 
-    // Find any matching source files
-    let module_files: Vec<String> = config
-        .source_dirs
-        .iter()
-        .flat_map(|src_dir| {
-            let module_dir = root.join(src_dir).join(module_name);
-            if module_dir.exists() {
-                walkdir::WalkDir::new(&module_dir)
-                    .into_iter()
-                    .filter_map(|e| e.ok())
-                    .filter(|e| {
-                        e.path().is_file()
-                            && crate::exports::has_configured_extension(
-                                e.path(),
-                                &config.source_extensions,
-                                config.include_extensionless,
-                            )
-                            && !crate::exports::is_test_file(e.path(), root)
-                    })
-                    .map(|e| {
-                        e.path()
-                            .strip_prefix(root)
-                            .unwrap_or(e.path())
-                            .to_string_lossy()
-                            .replace('\\', "/")
-                    })
-                    .collect::<Vec<_>>()
-            } else {
-                vec![]
-            }
-        })
-        .collect();
+    if module_files.is_empty() {
+        eprintln!(
+            "{} No source files matched module '{module_name}' — the spec is created with an empty `files:` list.",
+            "⚠".yellow()
+        );
+        eprintln!(
+            "  Add the module's source path(s) to the `files:` list in the spec frontmatter;"
+        );
+        eprintln!("  `specsync check` fails on empty `files:`.");
+    }
 
-    let _ = template; // Template handling is done by generate_spec internal
-
-    // Generate spec content using the internal generate function
-    let spec_content = {
-        let title = module_name
-            .split('-')
-            .map(|w| {
-                let mut chars = w.chars();
-                match chars.next() {
-                    Some(c) => c.to_uppercase().to_string() + chars.as_str(),
-                    None => String::new(),
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        let files_yaml = if module_files.is_empty() {
-            "  # - path/to/source/file".to_string()
-        } else {
-            module_files
-                .iter()
-                .map(|f| format!("  - {f}"))
-                .collect::<Vec<_>>()
-                .join("\n")
-        };
-
-        format!(
-            r#"---
-module: {module_name}
-version: 1
-status: draft
-files:
-{files_yaml}
-db_tables: []
-depends_on: []
----
-
-# {title}
-
-## Purpose
-
-Document this module's responsibility, inputs, outputs, and ownership boundaries.
-
-## Public API
-
-### Exported Functions
-
-| Function | Parameters | Returns | Description |
-|----------|-----------|---------|-------------|
-
-### Exported Types
-
-| Type | Description |
-|------|-------------|
-
-## Invariants
-
-1. Define an invariant that must remain true for supported inputs.
-
-## Behavioral Examples
-
-### Scenario: Core behavior
-
-- **Given** precondition
-- **When** action
-- **Then** result
-
-## Error Cases
-
-| Condition | Behavior |
-|-----------|----------|
-
-## Dependencies
-
-### Consumes
-
-| Module | What is used |
-|--------|-------------|
-
-### Consumed By
-
-| Module | What is used |
-|--------|-------------|
-
-## Change Log
-
-| Date | Author | Change |
-|------|--------|--------|
-"#
-        )
-    };
+    // Generate spec content with the shared deterministic generator (language-aware
+    // template, valid `files:` list, pre-populated Public API table).
+    let spec_content = generator::generate_spec(module_name, &module_files, root, &specs_dir);
 
     match fs::write(&spec_file, &spec_content) {
         Ok(_) => {
@@ -211,6 +114,7 @@ mod tests {
 
         let spec = fs::read_to_string(root.join("specs/widget/widget.spec.md")).unwrap();
         assert!(spec.contains("src/widget/index.mjs"), "{spec}");
+        assert!(spec.contains("| `value` |"), "{spec}");
         assert!(!spec.contains("index.test.cjs"), "{spec}");
         assert!(!spec.contains("index.spec.mjs"), "{spec}");
     }
@@ -222,12 +126,16 @@ pub fn cmd_scaffold(
     dir: Option<PathBuf>,
     template: Option<PathBuf>,
 ) {
-    if let Err(e) = validate_module_name(module_name) {
+    if let Err(e) = validate_scaffold_module_name(module_name) {
         eprintln!("{e}");
         process::exit(1);
     }
     let config = load_config(root);
     let specs_dir = dir.unwrap_or_else(|| root.join(&config.specs_dir));
+    if let Err(e) = super::check_case_collision(&specs_dir, module_name) {
+        eprintln!("{e}");
+        process::exit(1);
+    }
     let spec_dir = specs_dir.join(module_name);
     let spec_file = spec_dir.join(format!("{module_name}.spec.md"));
 
@@ -261,11 +169,20 @@ pub fn cmd_scaffold(
     }
 
     // Auto-detect source files matching the module name; for single-source-file
-    // projects (e.g. only src/lib.rs) fall back to that file.
+    // projects (e.g. only src/lib.rs) fall back to that file. The fallback
+    // claims a file whose name doesn't match the module — warn, since a wrong
+    // claim causes duplicate spec ownership errors at check time.
     let mut module_files = generator::find_files_for_module(root, module_name, &config);
     if module_files.is_empty()
         && let Some(single) = generator::find_single_source_fallback(root, &config)
     {
+        eprintln!(
+            "{} No source files matched module '{module_name}' by name — claiming the project's only source file '{single}'.",
+            "⚠".yellow()
+        );
+        eprintln!(
+            "  Verify this mapping; if another spec already covers this file, `specsync check` reports duplicate spec ownership."
+        );
         module_files.push(single);
     }
 

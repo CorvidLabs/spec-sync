@@ -6,7 +6,17 @@ use crate::config::load_config;
 use crate::deps;
 use crate::types;
 
-pub fn cmd_deps(root: &Path, strict: bool, format: types::OutputFormat, mermaid: bool, dot: bool) {
+use super::{compute_exit_code, default_enforcement, load_and_discover};
+
+pub fn cmd_deps(
+    root: &Path,
+    strict: bool,
+    enforcement: Option<types::EnforcementMode>,
+    require_coverage: Option<usize>,
+    format: types::OutputFormat,
+    mermaid: bool,
+    dot: bool,
+) {
     let config = load_config(root);
 
     // --mermaid or --dot: output graph visualization and exit
@@ -139,6 +149,36 @@ pub fn cmd_deps(root: &Path, strict: bool, format: types::OutputFormat, mermaid:
 
     if !report.errors.is_empty() || strict_fail {
         process::exit(1);
+    }
+
+    // --require-coverage gate (#419): was completely inert. Evaluate the same
+    // coverage computation `specsync coverage` uses and fail below the
+    // threshold. Honored in every output format; JSON/machine formats gate
+    // silently via the exit code (handled by not printing here when Json).
+    if let Some(req) = require_coverage {
+        let (_, spec_files) = load_and_discover(root, true);
+        let coverage = crate::validator::compute_coverage(root, &spec_files, &config);
+        let enforcement = enforcement.unwrap_or_else(|| default_enforcement(&config));
+        let code = compute_exit_code(0, 0, strict, enforcement, &coverage, Some(req));
+        if format != types::OutputFormat::Json {
+            if code == 0 {
+                println!(
+                    "  {} Coverage {}% meets --require-coverage {req}%",
+                    "✓".green(),
+                    coverage.coverage_percent
+                );
+            } else {
+                eprintln!(
+                    "{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
+                    "--require-coverage".red(),
+                    coverage.coverage_percent,
+                    coverage.unspecced_files.len()
+                );
+            }
+        }
+        if code != 0 {
+            process::exit(code);
+        }
     }
 }
 

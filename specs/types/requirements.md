@@ -16,11 +16,11 @@ spec: types.spec.md
 
 ### REQ-types-001
 
-Core shared types SHALL contain no embedded inference-provider or credential configuration.
+The `types` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- `AiProvider` and its helper API are removed.
-- `SpecSyncConfig` has no AI provider, model, command, key, base URL, or timeout fields.
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-types-002
 

@@ -1,6 +1,6 @@
 ---
 module: util
-version: 2
+version: 3
 status: stable
 files:
   - src/util.rs
@@ -22,6 +22,7 @@ Provides small shared utility functions used by validators, fix suggestions, and
 |----------|------------|---------|-------------|
 | `levenshtein` | `a: &str, b: &str` | `usize` | Computes Unicode-scalar edit distance between two strings |
 | `safe_regex` | `pattern: &str` | `Option<regex::Regex>` | Compiles a user-provided regex with bounded regex and DFA size limits |
+| `confine_path_to_root` | `root, rel` | `Option<PathBuf>` | Resolve a project-relative path and reject escapes outside the root |
 
 ## Invariants
 
@@ -73,3 +74,4 @@ Provides small shared utility functions used by validators, fix suggestions, and
 |------|--------|
 | 2026-06-07 | Initial spec for shared utility helpers |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |

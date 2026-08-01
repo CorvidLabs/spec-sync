@@ -123,13 +123,30 @@ fn build_dep_graph_checked(
         // Extract module names from depends_on paths.
         // Paths like "specs/types/types.spec.md" → module name "types"
         // Cross-project refs are skipped here.
-        let declared_deps: Vec<String> = parsed
-            .frontmatter
-            .depends_on
-            .iter()
-            .filter(|d| !is_cross_project_ref(d))
-            .filter_map(|d| extract_module_from_dep_path(d))
-            .collect();
+        // Every entry gets the SAME verdict as `check`/`resolve`: escapes,
+        // missing targets, and unresolvable shapes are hard errors, not
+        // silently dropped edges.
+        let mut declared_deps: Vec<String> = Vec::new();
+        for dep in &parsed.frontmatter.depends_on {
+            if is_cross_project_ref(dep) {
+                continue;
+            }
+            match crate::validator::validate_local_dependency(dep, root, specs_dir) {
+                Ok(_) => match extract_module_from_dep_path(dep) {
+                    Some(module) => declared_deps.push(module),
+                    None => unreadable.push(format!(
+                        "{spec_path}: dependency entry `{dep}` does not name a module (expected a bare module name or a path ending in .spec.md)"
+                    )),
+                },
+                Err(message) => {
+                    // Keep the edge so missing_deps still names the target.
+                    if let Some(module) = extract_module_from_dep_path(dep) {
+                        declared_deps.push(module);
+                    }
+                    unreadable.push(format!("{spec_path}: {message}"));
+                }
+            }
+        }
 
         graph.insert(
             module_name.clone(),
@@ -809,6 +826,55 @@ mod tests {
 
         let report = validate_deps(tmp.path(), "specs");
         assert!(!report.cycles.is_empty());
+    }
+
+    #[test]
+    fn test_flow_style_depends_on_counts_edges() {
+        // `depends_on: [b]` (the flow style `specsync new` scaffolds) must
+        // produce a real edge, not silently parse as zero dependencies.
+        let tmp = TempDir::new().unwrap();
+        create_spec(tmp.path(), "b", &[], &[]);
+        let spec_dir = tmp.path().join("specs").join("a");
+        fs::create_dir_all(&spec_dir).unwrap();
+        fs::write(
+            spec_dir.join("a.spec.md"),
+            "---\nmodule: a\nversion: 1\nstatus: active\nfiles: []\ndepends_on: [b]\n---\n\n# A\n\n## Purpose\nTest\n",
+        )
+        .unwrap();
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert_eq!(report.edge_count, 1, "report: {report:?}");
+        assert!(report.errors.is_empty(), "errors: {:?}", report.errors);
+    }
+
+    #[test]
+    fn test_deps_rejects_escapes_and_missing_with_same_verdict_as_check() {
+        let tmp = TempDir::new().unwrap();
+        let spec_dir = tmp.path().join("specs").join("a");
+        fs::create_dir_all(&spec_dir).unwrap();
+        fs::write(
+            spec_dir.join("a.spec.md"),
+            "---\nmodule: a\nversion: 1\nstatus: active\nfiles: []\ndepends_on: [/etc/passwd, nosuchmod]\n---\n\n# A\n\n## Purpose\nTest\n",
+        )
+        .unwrap();
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|e| e.contains("escapes the project root") && e.contains("/etc/passwd")),
+            "errors: {:?}",
+            report.errors
+        );
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|e| e.contains("Dependency spec not found: nosuchmod")),
+            "errors: {:?}",
+            report.errors
+        );
     }
 
     #[test]

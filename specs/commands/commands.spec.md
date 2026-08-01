@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 13
+version: 15
 status: stable
 files:
   - src/commands/mod.rs
@@ -84,6 +84,12 @@ suppression, exit handling, and GitHub drift diagnostics.
 | `lifecycle` | Spec lifecycle status transitions (promote, demote, set, status) |
 | `migrate` | v3.x to v4.0.0 project migration (config relocation, lifecycle extraction) |
 | `rehash` | Regenerate hash cache for all specs |
+| `spec_inventory` | List normalized inventory paths for selected specs |
+| `MAX_MODULE_NAME_LEN` | Maximum scaffold module name length |
+| `MODULE_NAME_RULES` | Scaffold naming rules text |
+| `validate_scaffold_module_name` | Strict naming for newly scaffolded modules |
+| `check_case_collision` | Reject case-only collisions with existing specs |
+| `default_enforcement` | Resolve config enforcement when CLI omits override |
 
 ## Invariants
 
@@ -193,3 +199,5 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
 | 2026-07-31 | CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle: Scoped change check, change audit, and agent pack for the two-verb lifecycle |
+| 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
+| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |

@@ -1277,13 +1277,109 @@ mod tests {
         let tmp = setup_git();
         fs::remove_dir_all(tmp.path().join(".git").join("hooks")).unwrap();
         assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        let content = fs::read_to_string(tmp.path().join(".git/hooks/pre-commit")).unwrap();
+        assert!(content.contains(PRE_COMMIT_BEGIN_PREFIX));
+        assert!(content.contains(PRE_COMMIT_END_PREFIX));
+    }
+
+    #[test]
+    fn install_precommit_inserts_before_trailing_exit_0() {
+        // #415: a block appended AFTER an existing `exit 0` is dead code.
+        let tmp = setup_git();
+        let hooks_dir = tmp.path().join(".git").join("hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        fs::write(
+            hooks_dir.join("pre-commit"),
+            "#!/bin/sh\necho \"user hook content\"\nexit 0\n",
+        )
+        .unwrap();
+        assert!(install_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        let content = fs::read_to_string(hooks_dir.join("pre-commit")).unwrap();
+        let block_pos = content.find(PRE_COMMIT_BEGIN_PREFIX).unwrap();
+        let exit_pos = content.rfind("exit 0").unwrap();
         assert!(
-            tmp.path()
-                .join(".git")
-                .join("hooks")
-                .join("pre-commit")
-                .exists()
+            block_pos < exit_pos,
+            "managed block must run before the user's exit 0:\n{content}"
         );
+        assert!(content.contains("user hook content"));
+    }
+
+    #[test]
+    fn uninstall_precommit_removes_only_managed_block() {
+        // #415 regression: user content must survive uninstall.
+        let tmp = setup_git();
+        let hooks_dir = tmp.path().join(".git").join("hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        fs::write(
+            hooks_dir.join("pre-commit"),
+            "#!/bin/sh\necho \"user hook content\"\nexit 0\n",
+        )
+        .unwrap();
+        install_hook(tmp.path(), HookTarget::Precommit).unwrap();
+        assert!(uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        let content = fs::read_to_string(hooks_dir.join("pre-commit")).unwrap();
+        assert!(content.contains("user hook content"));
+        assert!(content.contains("exit 0"));
+        assert!(!content.contains("specsync"));
+    }
+
+    #[test]
+    fn uninstall_precommit_deletes_file_that_is_purely_ours() {
+        let tmp = setup_git();
+        let hooks_dir = tmp.path().join(".git").join("hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        install_hook(tmp.path(), HookTarget::Precommit).unwrap();
+        let path = hooks_dir.join("pre-commit");
+        assert!(path.exists());
+        assert!(uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn uninstall_precommit_leaves_user_hook_untouched() {
+        // #415: never delete a hook file the tool didn't create.
+        let tmp = setup_git();
+        let hooks_dir = tmp.path().join(".git").join("hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        let original = "#!/bin/sh\necho \"user hook content\"\nexit 0\n";
+        fs::write(hooks_dir.join("pre-commit"), original).unwrap();
+        assert!(!uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        assert_eq!(
+            fs::read_to_string(hooks_dir.join("pre-commit")).unwrap(),
+            original
+        );
+    }
+
+    #[test]
+    fn uninstall_precommit_removes_legacy_appended_block() {
+        // Blocks installed by spec-sync ≤5.2.0 (marker, no sentinels) must
+        // still be removed precisely, preserving user content.
+        let tmp = setup_git();
+        let hooks_dir = tmp.path().join(".git").join("hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        let legacy = format!(
+            "#!/bin/sh\necho \"user hook content\"\n\n{LEGACY_PRE_COMMIT_MARKER}\n{}\n",
+            PRE_COMMIT_HOOK
+                .lines()
+                .skip(1)
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        fs::write(hooks_dir.join("pre-commit"), legacy).unwrap();
+        assert!(uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        let content = fs::read_to_string(hooks_dir.join("pre-commit")).unwrap();
+        assert!(content.contains("user hook content"));
+        assert!(!content.contains("spec-sync pre-commit hook"));
+    }
+
+    #[test]
+    fn uninstall_precommit_removes_legacy_whole_file_hook() {
+        let tmp = setup_git();
+        let hooks_dir = tmp.path().join(".git").join("hooks");
+        fs::create_dir_all(&hooks_dir).unwrap();
+        fs::write(hooks_dir.join("pre-commit"), PRE_COMMIT_HOOK).unwrap();
+        assert!(uninstall_hook(tmp.path(), HookTarget::Precommit).unwrap());
+        assert!(!hooks_dir.join("pre-commit").exists());
     }
 
     #[cfg(unix)]

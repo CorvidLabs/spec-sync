@@ -33,14 +33,9 @@ spec: cmd_stale.spec.md
 
 ### REQ-cmd-stale-001
 
-The stale command SHALL report Git-distance staleness deterministically with threshold and maturity-status filtering.
+The `cmd_stale` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- `specsync stale` lists specs whose source files have changed since the spec was last committed, sorted most-stale-first
-- A spec is stale when any of its source files has `>= threshold` commits since the spec's last commit (default threshold: 5)
-- Output reports per-spec commit count and the list of drifted source files (each with its own commit count)
-- Honors the global `--exclude-status` / `--only-status` filters when selecting which specs to scan
-- Supports `text`/`table`/`csv` (human), `json` (machine), and `markdown`/`github` output formats
-- Exit code is 1 when any stale specs are detected, 0 when all are fresh (for CI usage)
-- Requires a git repository: errors and exits 1 when `is_git_repo` returns false (JSON mode emits an error object instead of stderr text)
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 

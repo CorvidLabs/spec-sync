@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped",
+  "reviewer": "grok-agent-finalize",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "d6011df8798c8e1c47259920e700b5ded47f0472",
+  "contract_digest": "b3c190b44eb7db5943b27b3a01239109bed7be7bcea7e06afd1b646938a16a5b",
+  "execution_digest": "6bc1b34c0f002c509c89fc2314d3f105f886ab5cf580ecb28b88b0a83f5787b2",
+  "workspace_digest": "898a685e1d114b6876954ed4d2ad3ace2e0ba2e7aa91918784826003b924b023",
+  "timestamp": 1785543880
+}

@@ -1,6 +1,6 @@
 ---
 module: deps
-version: 4
+version: 5
 status: stable
 files:
   - src/deps.rs
@@ -100,3 +100,4 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |

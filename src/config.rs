@@ -98,6 +98,38 @@ pub fn discover_manifest_modules_checked(
 
 /// Scan-based source directory detection (fallback when no manifests found).
 fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
+    let detected = scan_source_dirs(root);
+    if detected.is_empty() {
+        // Fallback to "src" if nothing detected
+        return vec!["src".to_string()];
+    }
+    detected
+}
+
+/// Like [`detect_source_dirs`], but also reports whether any source
+/// directories were actually detected. `false` means the `["src"]` fallback
+/// was used — callers (e.g. `init`) must not present it as "detected".
+pub(crate) fn detect_source_dirs_with_confidence(root: &Path) -> (Vec<String>, bool) {
+    // Manifest-aware detection first
+    let manifest_discovery = manifest::discover_from_manifests(root);
+    if !manifest_discovery.source_dirs.is_empty() {
+        let mut dirs = manifest_discovery.source_dirs;
+        dirs.sort();
+        dirs.dedup();
+        return (dirs, true);
+    }
+
+    let scanned = scan_source_dirs(root);
+    if scanned.is_empty() {
+        (vec!["src".to_string()], false)
+    } else {
+        (scanned, true)
+    }
+}
+
+/// Raw directory scan with no fallback — returns an empty vector when no
+/// source directories or root-level source files are found.
+fn scan_source_dirs(root: &Path) -> Vec<String> {
     let ignored: HashSet<&str> = IGNORED_DIRS.iter().copied().collect();
     let mut source_dirs: Vec<String> = Vec::new();
     let mut has_root_source_files = false;
@@ -105,7 +137,7 @@ fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
     // Check immediate children of root
     let entries = match fs::read_dir(root) {
         Ok(e) => e,
-        Err(_) => return vec!["src".to_string()],
+        Err(_) => return Vec::new(),
     };
 
     for entry in entries.flatten() {
@@ -134,15 +166,9 @@ fn detect_source_dirs_by_scan(root: &Path) -> Vec<String> {
         return vec![".".to_string()];
     }
 
-    if source_dirs.is_empty() {
-        // Fallback to "src" if nothing detected
-        return vec!["src".to_string()];
-    }
-
     source_dirs.sort();
     source_dirs
 }
-
 /// Check if a directory contains source files, scanning up to `max_depth` levels.
 fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usize) -> bool {
     for entry in WalkDir::new(dir)
@@ -191,6 +217,131 @@ pub fn read_config_file(path: &Path) -> Option<String> {
     } else {
         trimmed.to_string()
     })
+}
+
+/// Validate that an existing configuration file is readable, syntactically
+/// valid, and gives known path fields their documented shapes.
+///
+/// This intentionally does not reject unknown extension keys. It only prevents
+/// `init --repair` from claiming success while a malformed or wrongly typed
+/// canonical config remains unusable.
+pub(crate) fn validate_config_file(path: &Path) -> Result<(), String> {
+    let content = fs::read_to_string(path)
+        .map_err(|error| format!("failed to read config {}: {error}", path.display()))?;
+    let is_json = path.extension().and_then(|extension| extension.to_str()) == Some("json");
+    if is_json {
+        let value: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|error| format!("invalid JSON config {}: {error}", path.display()))?;
+        let object = value.as_object().ok_or_else(|| {
+            format!(
+                "invalid JSON config {}: root must be an object",
+                path.display()
+            )
+        })?;
+        if let Some(specs_dir) = object.get("specsDir").or_else(|| object.get("specs_dir")) {
+            required_nonempty_config_string(specs_dir.as_str(), path, "specsDir")?;
+        }
+        if let Some(source_dirs) = object
+            .get("sourceDirs")
+            .or_else(|| object.get("source_dirs"))
+        {
+            validate_config_string_array(source_dirs, path, "sourceDirs")?;
+        }
+        return Ok(());
+    }
+
+    let value: toml::Value = toml::from_str(&content)
+        .map_err(|error| format!("invalid TOML config {}: {error}", path.display()))?;
+    let table = value.as_table().ok_or_else(|| {
+        format!(
+            "invalid TOML config {}: root must be a table",
+            path.display()
+        )
+    })?;
+    if let Some(specs_dir) = table.get("specs_dir") {
+        required_nonempty_config_string(specs_dir.as_str(), path, "specs_dir")?;
+    }
+    if let Some(source_dirs) = table.get("source_dirs") {
+        validate_config_string_array(source_dirs, path, "source_dirs")?;
+    }
+    Ok(())
+}
+
+fn required_nonempty_config_string(
+    value: Option<&str>,
+    path: &Path,
+    field: &str,
+) -> Result<(), String> {
+    match value {
+        Some(value) if !value.trim().is_empty() => Ok(()),
+        Some(_) => Err(format!(
+            "invalid config {}: `{field}` must not be empty",
+            path.display()
+        )),
+        None => Err(format!(
+            "invalid config {}: `{field}` must be a string",
+            path.display()
+        )),
+    }
+}
+
+fn validate_config_string_array(
+    value: &impl ConfigArrayValue,
+    path: &Path,
+    field: &str,
+) -> Result<(), String> {
+    let Some(items) = value.config_array() else {
+        return Err(format!(
+            "invalid config {}: `{field}` must be an array of strings",
+            path.display()
+        ));
+    };
+    if items.iter().all(|item| item.config_string().is_some()) {
+        Ok(())
+    } else {
+        Err(format!(
+            "invalid config {}: `{field}` must contain only strings",
+            path.display()
+        ))
+    }
+}
+
+trait ConfigArrayValue {
+    type Item: ConfigStringValue;
+
+    fn config_array(&self) -> Option<&Vec<Self::Item>>;
+}
+
+trait ConfigStringValue {
+    fn config_string(&self) -> Option<&str>;
+}
+
+impl ConfigArrayValue for serde_json::Value {
+    type Item = serde_json::Value;
+
+    fn config_array(&self) -> Option<&Vec<Self::Item>> {
+        self.as_array()
+    }
+}
+
+impl ConfigStringValue for serde_json::Value {
+    fn config_string(&self) -> Option<&str> {
+        self.as_str()
+    }
+}
+
+impl ConfigArrayValue for toml::Value {
+    type Item = toml::Value;
+
+    fn config_array(&self) -> Option<&Vec<Self::Item>> {
+        self.as_array()
+    }
+}
+
+impl ConfigStringValue for toml::Value {
+    fn config_string(&self) -> Option<&str> {
+        self.as_str()
+    }
 }
 
 /// Load config from a specific file path (JSON or TOML based on extension).
@@ -516,11 +667,23 @@ pub fn is_legacy_layout(root: &Path) -> bool {
 
 /// Escape a string value for safe embedding in a TOML quoted string.
 fn toml_escape(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
-        .replace('\t', "\\t")
+    let mut escaped = String::with_capacity(s.len());
+    for character in s.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\u{08}' => escaped.push_str("\\b"),
+            '\t' => escaped.push_str("\\t"),
+            '\n' => escaped.push_str("\\n"),
+            '\u{0C}' => escaped.push_str("\\f"),
+            '\r' => escaped.push_str("\\r"),
+            control if control.is_control() => {
+                escaped.push_str(&format!("\\u{:04X}", control as u32));
+            }
+            value => escaped.push(value),
+        }
+    }
+    escaped
 }
 
 /// Format a `name = ["a", "b"]` TOML array line (an empty slice → `name = []`).
@@ -1167,6 +1330,10 @@ fn parse_toml_config_with_source_dirs(
                 }
                 "enforcement" => {
                     let s = parse_toml_string(value);
+                    // Mark enforcement as explicitly configured: gate commands
+                    // honor an explicit `warn` (exit 0), while an UNSET
+                    // enforcement gates on errors (see default_enforcement).
+                    config.enforcement_set = true;
                     match s.as_str() {
                         "strict" => {
                             config.enforcement = crate::types::EnforcementMode::Strict;
@@ -2840,5 +3007,44 @@ verify_issues = false
         )
         .unwrap();
         assert_eq!(config_to_toml_lossy_fields(&config), vec!["customRules"]);
+    }
+
+    #[test]
+    fn validate_config_file_rejects_syntax_and_required_field_shapes() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let toml_path = temp.path().join("config.toml");
+        fs::write(
+            &toml_path,
+            "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
+        )
+        .unwrap();
+        validate_config_file(&toml_path).expect("canonical TOML must validate");
+
+        fs::write(&toml_path, "specs_dir = [\"wrong\"]\n").unwrap();
+        let error = validate_config_file(&toml_path).unwrap_err();
+        assert!(error.contains("`specs_dir` must be a string"), "{error}");
+
+        let json_path = temp.path().join("config.json");
+        fs::write(&json_path, r#"{"specsDir":"specs","sourceDirs":["src"]}"#).unwrap();
+        validate_config_file(&json_path).expect("canonical JSON must validate");
+
+        fs::write(&json_path, r#"{"specsDir":"specs","sourceDirs":[1]}"#).unwrap();
+        let error = validate_config_file(&json_path).unwrap_err();
+        assert!(error.contains("sourceDirs"), "{error}");
+    }
+
+    #[test]
+    fn config_to_toml_escapes_every_control_character_as_valid_toml() {
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src\u{0000}\u{0008}\u{000c}\u{0085}".to_string()],
+            ..SpecSyncConfig::default()
+        };
+        let serialized = config_to_toml(&config);
+        let parsed: toml::Value =
+            toml::from_str(&serialized).expect("serialized config must be valid TOML");
+        assert_eq!(
+            parsed["source_dirs"][0].as_str(),
+            Some("src\u{0000}\u{0008}\u{000c}\u{0085}")
+        );
     }
 }

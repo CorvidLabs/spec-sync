@@ -8,15 +8,25 @@ use crate::parser;
 use crate::types;
 use crate::validator::compute_coverage_checked;
 
-use super::{filter_by_status, load_and_discover};
+use super::{compute_exit_code, default_enforcement, filter_by_status, load_and_discover};
 
+#[allow(clippy::too_many_arguments)]
 pub fn cmd_report(
     root: &Path,
     format: types::OutputFormat,
     stale_threshold: usize,
     exclude_status: &[String],
     only_status: &[String],
+    strict: bool,
+    enforcement: Option<types::EnforcementMode>,
+    require_coverage: Option<usize>,
 ) {
+    let enforcement = enforcement.unwrap_or(if strict {
+        types::EnforcementMode::Strict
+    } else {
+        let config = crate::config::load_config(root);
+        default_enforcement(&config)
+    });
     let (config, all_spec_files) = load_and_discover(root, true);
     let spec_files = filter_by_status(&all_spec_files, exclude_status, only_status);
     let coverage = compute_coverage_checked(root, &spec_files, &config).unwrap_or_else(|error| {
@@ -47,6 +57,7 @@ pub fn cmd_report(
         module_name: String,
         source_files: Vec<String>,
         coverage_pct: f64,
+        status: Option<String>,
         stale: bool,
         stale_commits_behind: usize,
         incomplete: bool,
@@ -102,9 +113,11 @@ pub fn cmd_report(
                         continue;
                     }
                     let behind = git_commits_since(root, &spec_commit, source_file);
+                    // Always track the real drift: `commits_behind` must reflect
+                    // sub-threshold drift too, not only once the module is stale.
+                    max_behind = max_behind.max(behind);
                     if behind >= stale_threshold {
                         stale = true;
-                        max_behind = max_behind.max(behind);
                     }
                 }
             }
@@ -156,6 +169,7 @@ pub fn cmd_report(
             module_name,
             source_files: fm.files.clone(),
             coverage_pct: cov,
+            status: fm.status.clone(),
             stale,
             stale_commits_behind: max_behind,
             incomplete,
@@ -184,6 +198,7 @@ pub fn cmd_report(
                     serde_json::json!({
                         "module": m.module_name,
                         "spec_path": m.spec_path,
+                        "status": m.status,
                         "source_files": m.source_files,
                         "coverage_pct": (m.coverage_pct * 100.0).round() / 100.0,
                         "stale": m.stale,
@@ -206,6 +221,55 @@ pub fn cmd_report(
                 "modules": module_json,
             });
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            // Machine consumers get the gate via the exit code alone (printing
+            // the human gate message would corrupt the JSON on stdout).
+            std::process::exit(compute_exit_code(
+                stale_count + incomplete_count,
+                0,
+                strict,
+                enforcement,
+                &coverage,
+                require_coverage,
+            ));
+        }
+        types::OutputFormat::Csv => {
+            println!("module,spec_path,status,coverage_pct,stale,commits_behind,incomplete");
+            for m in &modules {
+                println!(
+                    "{},{},{},{:.0},{},{},{}",
+                    m.module_name,
+                    m.spec_path,
+                    m.status.as_deref().unwrap_or(""),
+                    m.coverage_pct,
+                    m.stale,
+                    m.stale_commits_behind,
+                    m.incomplete,
+                );
+            }
+            println!("SUMMARY,,,{overall_coverage:.1},{stale_count},,{incomplete_count}",);
+        }
+        types::OutputFormat::Markdown | types::OutputFormat::Github => {
+            println!("## Spec Coverage Report\n");
+            println!(
+                "**Overall:** {}/{} files covered ({:.1}%)  ",
+                coverage.specced_file_count, coverage.total_source_files, overall_coverage,
+            );
+            println!(
+                "**Modules:** {total_modules} total, {stale_count} stale, {incomplete_count} incomplete\n"
+            );
+            println!("| Module | Status | Coverage | Stale | Commits Behind | Incomplete |");
+            println!("|--------|--------|----------|-------|----------------|------------|");
+            for m in &modules {
+                println!(
+                    "| {} | {} | {:.0}% | {} | {} | {} |",
+                    m.module_name,
+                    m.status.as_deref().unwrap_or(""),
+                    m.coverage_pct,
+                    if m.stale { "yes" } else { "no" },
+                    m.stale_commits_behind,
+                    if m.incomplete { "yes" } else { "no" },
+                );
+            }
         }
         _ => {
             println!(
@@ -296,4 +360,29 @@ pub fn cmd_report(
             println!();
         }
     }
+
+    // CI gating (#430): every enforcement path must be able to fail the
+    // process. Stale and incomplete modules count as failures; `--enforcement
+    // warn` still exits 0, `enforce-new` gates on unspecced files, and
+    // `--require-coverage` gates on real file coverage. CSV is a machine
+    // format — gate silently via the exit code like JSON (handled above).
+    let failures = stale_count + incomplete_count;
+    if matches!(format, types::OutputFormat::Csv) {
+        std::process::exit(compute_exit_code(
+            failures,
+            0,
+            strict,
+            enforcement,
+            &coverage,
+            require_coverage,
+        ));
+    }
+    super::exit_with_status(
+        failures,
+        0,
+        strict,
+        enforcement,
+        &coverage,
+        require_coverage,
+    );
 }

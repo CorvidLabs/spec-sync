@@ -193,6 +193,10 @@ pub struct CoverageReport {
     pub loc_coverage_percent: usize,
     /// (file_path, line_count) sorted by LOC descending.
     pub unspecced_file_loc: Vec<(String, usize)>,
+    /// Files referenced by a spec's `files:` list that do not exist on disk.
+    /// They count toward the coverage denominator but can never be covered,
+    /// so a `--require-coverage` gate cannot pass vacuously over broken specs.
+    pub missing_files: Vec<String>,
 }
 
 /// Controls export extraction granularity.
@@ -315,6 +319,14 @@ pub struct SpecSyncConfig {
     /// - `strict`: exit 1 on any validation error.
     #[serde(default)]
     pub enforcement: EnforcementMode,
+
+    /// Whether `enforcement` was explicitly set in the loaded config file
+    /// (not serialized — set at runtime by the config loader). Lets gate
+    /// commands distinguish an explicit opt-in `warn` (exit 0 on failures)
+    /// from an unset enforcement, which must gate on errors so failures are
+    /// not silently green in CI.
+    #[serde(skip)]
+    pub enforcement_set: bool,
 
     /// Lifecycle transition guards — configurable rules that must pass before
     /// a spec can be promoted/transitioned.
@@ -813,6 +825,7 @@ impl Default for SpecSyncConfig {
             task_archive_days: None,
             github: None,
             enforcement: EnforcementMode::default(),
+            enforcement_set: false,
             lifecycle: LifecycleConfig::default(),
             companions: CompanionConfig::default(),
             config_path: None,

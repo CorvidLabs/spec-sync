@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped",
+  "implementation_commit": "220ac7b28ce2a045da4e3ea6d226f040444c539e",
+  "implementation_tree": "ee1fe75df8dbcf3e8be66f172c21258fbe46ce22",
+  "contract_digest": "b3c190b44eb7db5943b27b3a01239109bed7be7bcea7e06afd1b646938a16a5b",
+  "workspace_digest": "898a685e1d114b6876954ed4d2ad3ace2e0ba2e7aa91918784826003b924b023",
+  "closing_digest": "fee6c26154b6c807df656ed9038d113a61dffa5edfa8b205b210b09b3e905e2c",
+  "review_digest": "1c51126a97c87bc3109a169cb63cf30015d859b31e6ab0b03cfa8c28c4e19427",
+  "finalization_digest": "0bee2bb704ec9ecea6a40e8b8e7135bc5e533691daa5442680a6b70f817e6115",
+  "timestamp": 1785543890
+}

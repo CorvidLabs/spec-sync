@@ -36,7 +36,6 @@ use std::process;
 
 use crate::ignore::IgnoreRules;
 use crate::parser;
-use crate::schema;
 use crate::scoring;
 use crate::types;
 use crate::types::SpecStatus;
@@ -61,6 +60,65 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
     }
 
     (config, spec_files)
+}
+
+#[allow(dead_code)]
+fn normalize_project_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+#[allow(dead_code)]
+fn collect_validation_files(root: &Path, directory: &Path, inputs: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return;
+    };
+    let mut paths = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    paths.sort();
+    for path in paths {
+        let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if metadata.is_dir() && !metadata.file_type().is_symlink() {
+            collect_validation_files(root, &path, inputs);
+        } else if metadata.is_file() {
+            inputs.push(normalize_project_path(root, &path));
+        }
+    }
+}
+
+/// Inputs that can alter any spec's validation result independently of that
+/// spec's own files. The ignore path is retained even when absent so creating
+/// it invalidates prior snapshots.
+#[allow(dead_code)]
+fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<String> {
+    let mut inputs = vec![".specsyncignore".to_string()];
+    if let Some(config_path) = &config.config_path {
+        inputs.push(normalize_project_path(root, config_path));
+    }
+    if let Some(schema_dir) = &config.schema_dir {
+        collect_validation_files(root, &root.join(schema_dir), &mut inputs);
+    }
+    inputs.sort();
+    inputs.dedup();
+    inputs
+}
+
+/// List normalized inventory paths for selected specs (validation snapshot inputs).
+#[allow(dead_code)]
+pub(crate) fn spec_inventory(root: &Path, spec_files: &[PathBuf]) -> Vec<String> {
+    let mut inventory = spec_files
+        .iter()
+        .map(|path| normalize_project_path(root, path))
+        .collect::<Vec<_>>();
+    inventory.sort();
+    inventory.dedup();
+    inventory
 }
 
 /// Validate a user-supplied module name used by the scaffolding commands
@@ -99,9 +157,9 @@ pub fn validate_module_name(module_name: &str) -> Result<(), String> {
         ));
     }
 
-    if module_name.ends_with(' ') || module_name.ends_with('.') {
+    if module_name != module_name.trim() || module_name.ends_with('.') {
         return Err(format!(
-            "invalid module name `{}`: trailing spaces and dots are not portable",
+            "invalid module name `{}`: leading/trailing spaces and trailing dots are not portable",
             module_name.escape_default()
         ));
     }
@@ -129,6 +187,84 @@ pub fn validate_module_name(module_name: &str) -> Result<(), String> {
         ));
     }
 
+    Ok(())
+}
+
+/// Stricter naming rules for names the scaffolding commands (`new`, `add-spec`,
+/// `scaffold`, `wizard`) are about to mint. On top of the traversal-safety base
+/// rules, a newly scaffolded name must satisfy the documented naming rules:
+/// length, character set, reserved words. Internal callers validating
+/// pre-existing module names use [`validate_module_name`] so older repos with
+/// legacy names keep working.
+/// Maximum module-name length.
+pub(crate) const MAX_MODULE_NAME_LEN: usize = 64;
+
+fn is_reserved_module_name(lower: &str) -> bool {
+    const RESERVED: &[&str] = &[
+        "change", "changes", "spec", "specs", "con", "prn", "aux", "nul", "com1", "com2", "com3",
+        "com4", "com5", "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5",
+        "lpt6", "lpt7", "lpt8", "lpt9",
+    ];
+    RESERVED.contains(&lower)
+}
+
+/// Documented naming rules for scaffold errors.
+pub(crate) const MODULE_NAME_RULES: &str = "1-64 chars: letters, digits, `-`, `_`, `.`; must start with a letter or digit; no spaces, path separators, or reserved names";
+
+pub(crate) fn validate_scaffold_module_name(module_name: &str) -> Result<(), String> {
+    validate_module_name(module_name)?;
+
+    // Length limit (character count, not bytes).
+    let char_count = module_name.chars().count();
+    if char_count == 0 || char_count > MAX_MODULE_NAME_LEN {
+        return Err(format!(
+            "invalid module name `{}`: must be 1-{MAX_MODULE_NAME_LEN} characters (got {char_count}). Rules: {MODULE_NAME_RULES}",
+            module_name.escape_default()
+        ));
+    }
+
+    // Character set: letters/digits plus `-`, `_`, `.`; must start with a
+    // letter or digit (no leading dash, dot, emoji, or whitespace).
+    let mut chars = module_name.chars();
+    let first = chars.next().unwrap_or(' ');
+    let charset_ok = first.is_alphanumeric()
+        && module_name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.');
+    if !charset_ok {
+        return Err(format!(
+            "invalid module name `{}`: {MODULE_NAME_RULES}",
+            module_name.escape_default()
+        ));
+    }
+
+    // Reserved words (case-insensitive — `CON` is as unwritable as `con`).
+    if is_reserved_module_name(&module_name.to_lowercase()) {
+        return Err(format!(
+            "invalid module name `{module_name}`: reserved name. Rules: {MODULE_NAME_RULES}"
+        ));
+    }
+
+    Ok(())
+}
+
+/// Reject a module name that would collide with an existing spec directory
+/// under a case-folding filesystem (e.g. `Lib` vs existing `lib`). Linux
+/// allows both, but the repo then breaks on macOS/Windows checkouts.
+pub(crate) fn check_case_collision(specs_dir: &Path, module_name: &str) -> Result<(), String> {
+    let entries = match std::fs::read_dir(specs_dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(()), // no specs dir yet — nothing to collide with
+    };
+    for entry in entries.flatten() {
+        let existing = entry.file_name().to_string_lossy().to_string();
+        if existing != module_name && existing.eq_ignore_ascii_case(module_name) {
+            return Err(format!(
+                "invalid module name `{module_name}`: collides with existing spec directory \
+                 `{existing}` on case-insensitive filesystems (macOS/Windows) — pick a distinct name"
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -278,9 +414,9 @@ pub fn filter_by_status(
 pub fn build_schema_columns(
     root: &Path,
     config: &types::SpecSyncConfig,
-) -> std::collections::HashMap<String, schema::SchemaTable> {
+) -> std::collections::HashMap<String, crate::schema::SchemaTable> {
     match &config.schema_dir {
-        Some(dir) => schema::build_schema_snapshot(&root.join(dir))
+        Some(dir) => crate::schema::build_schema_snapshot(&root.join(dir))
             .map(|snapshot| snapshot.tables)
             .unwrap_or_default(),
         None => std::collections::HashMap::new(),
@@ -289,7 +425,7 @@ pub fn build_schema_columns(
 
 struct SchemaValidationInput {
     table_names: HashSet<String>,
-    tables: HashMap<String, schema::SchemaTable>,
+    tables: HashMap<String, crate::schema::SchemaTable>,
     errors: Vec<String>,
 }
 
@@ -305,7 +441,7 @@ fn build_schema_validation_input(
         };
     };
 
-    match schema::build_schema_snapshot(&root.join(directory)) {
+    match crate::schema::build_schema_snapshot(&root.join(directory)) {
         Ok(snapshot) => {
             let (table_names, errors) = match schema_table_names_from_snapshot(&snapshot, config) {
                 Ok(table_names) => (table_names, Vec::new()),
@@ -602,15 +738,22 @@ pub(super) fn run_validation_with_suppressions(
 
         println!("\n{}", result.spec_path.bold());
 
-        // Frontmatter check
-        let has_fm_errors = result
+        // Frontmatter check — on failure, print each specific frontmatter
+        // error inline; a bare "Frontmatter invalid" with the cause buried in
+        // Suggested fixes leaves users guessing.
+        let fm_errors: Vec<&str> = result
             .errors
             .iter()
-            .any(|e| e.starts_with("Frontmatter") || e.starts_with("Missing or malformed"));
-        if has_fm_errors {
-            println!("  {} Frontmatter invalid", "✗".red());
-        } else {
+            .filter(|e| e.starts_with("Frontmatter") || e.starts_with("Missing or malformed"))
+            .map(|s| s.as_str())
+            .collect();
+        if fm_errors.is_empty() {
             println!("  {} Frontmatter valid", "✓".green());
+        } else {
+            println!("  {} Frontmatter invalid", "✗".red());
+            for e in &fm_errors {
+                println!("    {} {e}", "✗".red());
+            }
         }
 
         // File existence
@@ -698,6 +841,10 @@ pub(super) fn run_validation_with_suppressions(
                     .map(|c| c.is_ascii_digit())
                     .unwrap_or(false)
         });
+        let suppressed_api_summary = result.export_summary.as_ref().is_some_and(|summary| {
+            result.warnings.iter().any(|warning| warning == summary)
+                && ignore_rules.is_suppressed(summary, &result.spec_path, &inline_ignores)
+        });
         if is_draft {
             println!(
                 "  {} Export validation skipped (status: draft)",
@@ -708,7 +855,7 @@ pub(super) fn run_validation_with_suppressions(
             // warning — print it as one so the summary's warning count matches
             // the number of ⚠ lines shown.
             println!("  {} {line}", "⚠".yellow());
-        } else if let Some(ref summary) = result.export_summary {
+        } else if !suppressed_api_summary && let Some(ref summary) = result.export_summary {
             println!("  {} {summary}", "✓".green());
         }
 
@@ -857,6 +1004,29 @@ pub(super) fn run_validation_with_suppressions(
         }
     }
 
+    // .specsyncignore problems (unknown categories, invalid UTF-8 lines):
+    // dead rules must be visible, not silently inert.
+    for warning in &ignore_rules.warnings {
+        total_warnings += 1;
+        if collect {
+            all_warnings.push(warning.clone());
+        } else {
+            println!("\n{} {warning}", "⚠".yellow());
+        }
+    }
+
+    // Suppression must be visible in every output format — otherwise a typo'd
+    // rule is indistinguishable from a working one.
+    let suppressed_warnings = all_suppressed_warnings.len();
+    if suppressed_warnings > 0 {
+        let notice = format!("{suppressed_warnings} warning(s) suppressed by .specsyncignore");
+        if collect {
+            all_notices.push(notice);
+        } else {
+            println!("\n{} {notice}", "ℹ".cyan());
+        }
+    }
+
     if !collect && drafts_skipped > 0 {
         println!(
             "\n{} {drafts_skipped} draft spec(s) skipped section and export validation — set `status: active` to enable full checks",
@@ -894,6 +1064,24 @@ fn colorize_subscore(score: u32) -> String {
         20 => s.green().to_string(),
         10..=19 => s.yellow().to_string(),
         _ => s.red().to_string(),
+    }
+}
+
+/// Resolve the enforcement mode when the user did NOT pass `--enforcement`.
+///
+/// Consistent convention across all gate commands (`check`, `coverage`,
+/// `report`, `score`, `generate`, `comment`):
+/// - an explicit `enforcement` key in the config file is honored as-is
+///   (including `warn`, which always exits 0);
+/// - when enforcement is not configured anywhere, the default GATES ON
+///   ERRORS (`Strict`-like): validation errors exit 1. Warnings remain
+///   non-blocking unless `--strict` is also passed. This is the only safe
+///   default for CI — a command that prints "1 failed" must not exit 0.
+pub(crate) fn default_enforcement(config: &types::SpecSyncConfig) -> types::EnforcementMode {
+    if config.enforcement_set {
+        config.enforcement
+    } else {
+        types::EnforcementMode::Strict
     }
 }
 
@@ -1159,6 +1347,9 @@ mod tests {
             "evil\nversion: 99", // newline → frontmatter injection
             "tab\tname",
             "null\0byte",
+            "  spaced  ", // padded names would create literal whitespace directories
+            " spaced",
+            "spaced ",
         ] {
             assert!(
                 validate_module_name(name).is_err(),
@@ -1377,5 +1568,61 @@ None.
         // components include a Prefix, so the single-Normal-segment check refuses it.
         assert!(validate_module_name("C:foo").is_err());
         assert!(validate_module_name("C:\\abs").is_err());
+    }
+
+    // ── #442 regression: naming rules ──────────────────────────────────
+
+    #[test]
+    fn validate_scaffold_module_name_rejects_overlong_names() {
+        let long = "a".repeat(200);
+        let err = super::validate_scaffold_module_name(&long).unwrap_err();
+        assert!(err.contains("1-64"), "{err}");
+        let max_ok = "a".repeat(64);
+        assert!(super::validate_scaffold_module_name(&max_ok).is_ok());
+    }
+
+    #[test]
+    fn validate_scaffold_module_name_rejects_reserved_names() {
+        for name in ["change", "specs", "con", "CON", "nul", "com1", "Changes"] {
+            assert!(
+                super::validate_scaffold_module_name(name).is_err(),
+                "`{name}` is reserved and must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_scaffold_module_name_rejects_spaces_leading_dash_emoji() {
+        for name in ["my module", "-dash", "🚀rocket", ".hidden", "trailing "] {
+            assert!(
+                super::validate_scaffold_module_name(name).is_err(),
+                "`{name}` must be rejected"
+            );
+        }
+        // Still accepted: documented charset.
+        for name in [
+            "auth",
+            "auth-service",
+            "user_profile",
+            "a.b",
+            "v2",
+            "Módulo",
+        ] {
+            assert!(
+                super::validate_scaffold_module_name(name).is_ok(),
+                "`{name}` should stay valid"
+            );
+        }
+    }
+
+    #[test]
+    fn case_collision_detects_case_fold_duplicates() {
+        let tmp = tempfile::tempdir().unwrap();
+        let specs_dir = tmp.path().join("specs");
+        std::fs::create_dir_all(specs_dir.join("lib")).unwrap();
+        assert!(super::check_case_collision(&specs_dir, "Lib").is_err());
+        assert!(super::check_case_collision(&specs_dir, "LIB").is_err());
+        assert!(super::check_case_collision(&specs_dir, "lib").is_ok()); // same name: normal "already exists" path
+        assert!(super::check_case_collision(&specs_dir, "other").is_ok());
     }
 }

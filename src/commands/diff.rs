@@ -9,15 +9,37 @@ use crate::types;
 
 use super::load_and_discover;
 
-pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
+pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, strict: bool) {
     let (config, spec_files) = load_and_discover(root, false);
 
-    // Auto-detect PR context: when base is default "HEAD" and we're in a GitHub
-    // Actions pull_request event, compare against the PR's base branch instead.
-    let effective_base = if base == "HEAD" {
-        detect_pr_base().unwrap_or_else(|| base.to_string())
-    } else {
-        base.to_string()
+    // An explicit --base always wins over environment auto-detection (a literal
+    // `--base HEAD` used to be hijacked by the PR-context fallback, since HEAD
+    // doubled as the "not specified" sentinel).
+    let effective_base = match base {
+        Some(b) => b.to_string(),
+        None => match detect_pr_base() {
+            Some(b) => b,
+            None => {
+                // Silent HEAD fallback = silent no-op in the default CI states
+                // (detached HEAD, push events): the working tree vs HEAD is
+                // empty by construction in a clean checkout, so nothing is
+                // ever compared while the run greens. Say so loudly.
+                eprintln!(
+                    "specsync: no PR base detected (GITHUB_EVENT_NAME is not a pull_request* event); comparing against HEAD"
+                );
+                eprintln!(
+                    "  In a clean CI checkout this compares nothing — pass --base <ref> to choose a real comparison base."
+                );
+                if strict {
+                    eprintln!(
+                        "{} no usable base ref and none given — refusing to silently diff HEAD",
+                        "--strict mode".red()
+                    );
+                    process::exit(1);
+                }
+                "HEAD".to_string()
+            }
+        },
     };
     let base = effective_base.as_str();
 
@@ -318,7 +340,8 @@ pub fn cmd_diff(root: &Path, base: &str, format: types::OutputFormat) {
 /// or `None` otherwise.
 fn detect_pr_base() -> Option<String> {
     let event = std::env::var("GITHUB_EVENT_NAME").ok()?;
-    if event != "pull_request" && event != "pull_request_target" {
+    // GitHub sets GITHUB_BASE_REF for all three PR-flavored events.
+    if event != "pull_request" && event != "pull_request_target" && event != "pull_request_review" {
         return None;
     }
     let base_ref = std::env::var("GITHUB_BASE_REF").ok()?;

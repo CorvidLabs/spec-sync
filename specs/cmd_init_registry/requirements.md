@@ -28,11 +28,9 @@ spec: cmd_init_registry.spec.md
 
 ### REQ-cmd-init-registry-001
 
-The registry initialization command SHALL create the canonical registry once from discovered specs and SHALL not overwrite existing state.
+The `cmd_init_registry` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- `cmd_init_registry` writes `specsync-registry.toml` at the project root using `registry::generate_registry(root, project_name, &config.specs_dir)`.
-- The project name is `name` when provided; otherwise the root directory's file name, falling back to `"project"` when that cannot be determined.
-- If `specsync-registry.toml` already exists, the command prints a message and returns without writing.
-- On success, prints "Created specsync-registry.toml".
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 

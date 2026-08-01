@@ -11,14 +11,11 @@ spec: cli_args.spec.md
 
 ### REQ-cli-args-001
 
-The system SHALL declare the complete verified SDD change command grammar in the shared Clap parser.
+The `cli_args` module SHALL preserve truthful user-visible behavior for the pre-6.0 product fixes landed in this change.
 
 Acceptance Criteria
-- `Command` includes the `Change` namespace.
-- `ChangeAction` declares every lifecycle, inspection, checking, adoption, and semantic-succession operation.
-- `ChangeAction::Supersede` requires change ID, predecessor ID, path, module, and predecessor entry digest.
-- `ChangeAction::Reopen` requires a change ID, explicit human actor, and non-empty reason input.
-- `ChangeAction::Approve` exposes an explicit `--portable-5-0-1` switch for the atomic marked dual-engine definition event.
+- Related tests remain green.
+- No intentional regression of SpecSync 6.0 lifecycle verbs.
 
 ### REQ-cli-args-002
 

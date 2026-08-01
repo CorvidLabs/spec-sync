@@ -7,11 +7,11 @@
   "title": "Approve rejects living ADDED REQs and draft next_action waits on complete artifacts",
   "description": "Approve rejects living ADDED REQs and draft next_action waits on complete artifacts",
   "kind": "bug_fix",
-  "state": "implementing",
+  "state": "verifying",
   "canonical_applied": true,
   "base_commit": "109164ad9faccb598ae7e8caf7a2d488722cc237",
   "created_at": 1785595484,
-  "updated_at": 1785595711,
+  "updated_at": 1785597249,
   "affected_specs": [
     "change",
     "cmd_change"

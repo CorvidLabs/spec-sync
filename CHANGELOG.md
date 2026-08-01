@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- SpecSync 6.0 reopen/finalize paths address stranded accepted-record deadlocks reported via CorvidLabs/spec-sync#481 (fledge PR CorvidLabs/fledge#506 worked around the 5.x strand by manual archive).
+
 - **Draft `next_action` no longer recommends approve while artifacts are incomplete** — when the interview is done but selected artifacts still contain `<!-- TODO -->` stubs (or are empty), status/show guidance prefers completing those artifacts first (sandbox #16).
 - **Approve rejects `## ADDED` of living requirement IDs** — definition approval and delta validation fail closed with a `## MODIFIED` remediation hint when the requirement already exists in the living tree (sandbox #14).
 

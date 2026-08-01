@@ -501,7 +501,10 @@ fn print_record(
             let state = record.state.as_str().to_owned();
             println!("{} {}", id.bold(), title);
             println!("  State: {state}");
-            println!("  Next: {}", text_mode_next_action(root, record, &questions));
+            println!(
+                "  Next: {}",
+                text_mode_next_action(root, record, &questions)
+            );
             if !record.answers.is_empty() {
                 let answer_summary = record
                     .answers

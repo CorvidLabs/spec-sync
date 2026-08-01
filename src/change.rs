@@ -6832,7 +6832,6 @@ fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
             )
 }
 
-
 /// Lightweight artifact completeness for human next-action guidance (no digests).
 pub fn artifacts_complete_for_guidance(root: &Path, record: &ChangeRecord) -> bool {
     validate_artifacts(root, record).is_ok()
@@ -7236,13 +7235,8 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     Ok(())
 }
 
-
 /// True when living `requirements.md` already has a `### {key}` requirement heading.
-fn living_requirement_heading_exists(
-    root: &Path,
-    module: &str,
-    key: &str,
-) -> Result<bool, String> {
+fn living_requirement_heading_exists(root: &Path, module: &str, key: &str) -> Result<bool, String> {
     let specs_dir = crate::config::load_config(root).specs_dir;
     let (_, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
     let Ok(content) = fs::read_to_string(&requirements_path) else {
@@ -26609,7 +26603,11 @@ mod tests {
             } else {
                 "# Complete\n\nReady for approval.\n"
             };
-            fs::write(change_dir(root, &record.id).join(artifact.file_name()), body).unwrap();
+            fs::write(
+                change_dir(root, &record.id).join(artifact.file_name()),
+                body,
+            )
+            .unwrap();
         }
         let summary = summarize_change(root, &record);
         assert!(summary.artifacts_complete);
@@ -26678,7 +26676,6 @@ mod tests {
         .unwrap();
         assert!(validate_delta_files(root, &record).is_ok());
     }
-
 
     #[test]
     fn change_identifiers_and_scope_cannot_escape_project_root() {

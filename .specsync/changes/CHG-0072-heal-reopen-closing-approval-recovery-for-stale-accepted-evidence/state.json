@@ -7,10 +7,11 @@
   "title": "Heal reopen closing-approval recovery for stale accepted evidence",
   "description": "Heal reopen closing-approval recovery for stale accepted evidence",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "9a00223bf254e79bd38fb41d3e2fc302edb66f71",
   "created_at": 1785549012,
-  "updated_at": 1785549026,
+  "updated_at": 1785550611,
   "affected_specs": [
     "change"
   ],

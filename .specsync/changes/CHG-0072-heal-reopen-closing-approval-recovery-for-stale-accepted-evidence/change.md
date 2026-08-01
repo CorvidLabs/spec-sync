@@ -1,6 +1,6 @@
 ---
 id: CHG-0072-heal-reopen-closing-approval-recovery-for-stale-accepted-evidence
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 9a00223bf254e79bd38fb41d3e2fc302edb66f71
 ---

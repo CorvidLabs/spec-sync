@@ -39,6 +39,50 @@
           "public_contract": "yes"
         }
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "buttery-loop",
+      "timestamp": 1785608174,
+      "digest": "866543535e37d8b7c20112ed4d04d40e230934eb774f6c07a165904d2b8579ea",
+      "note": "CI confidence: Trust lifecycle no longer duplicates cargo test",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0074-buttery-ship-status-and-ship-sequence-guidance",
+        "title": "Buttery ship-status and ship sequence guidance",
+        "description": "buttery ship-status and ship sequence guidance",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".github/workflows/",
+          ".specsync/change-sequence.json",
+          ".trust.toml",
+          "AGENTS.md",
+          "CONTRIBUTING.md",
+          "docs/",
+          "docs/ci-confidence.md",
+          "fledge.toml",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status reports tip class and staged ship sequence; finalize guidance and next_action point agents at product→review→archive waits; drills/027 can probe the surface"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
     }
   ],
   "reopenings": []

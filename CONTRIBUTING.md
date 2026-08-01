@@ -144,3 +144,7 @@ vscode-extension/ # VS Code integration
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+
+## CI and Trust
+
+Merge confidence and the CI/Trust split are documented in [docs/ci-confidence.md](docs/ci-confidence.md). GitHub CI owns the test matrix; Trust must not re-run it.

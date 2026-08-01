@@ -131,6 +131,19 @@ Each `*.spec.md` needs YAML frontmatter (`module`, `version`, `status`, `files`)
 
 For richer integration, run `specsync mcp` to start the MCP server. This exposes `specsync_check`, `specsync_generate`, `specsync_coverage`, and `specsync_score` as callable tools.
 
+## CI vs Trust (no duplicate suites)
+
+See **[docs/ci-confidence.md](docs/ci-confidence.md)**.
+
+| Gate | Authority |
+|------|-----------|
+| Multi-OS `cargo test`, clippy, coverage, audit, site, vscode | **GitHub CI** |
+| PR release binary + contract on that binary + Augur + Attest | **Trust workflow** |
+| Full local suite before "done" | `fledge lanes run verify` |
+| Trust GitHub lifecycle | `trust-lifecycle` (types only — CI already tested) |
+
+Do **not** reintroduce `cargo test` into the Trust GitHub lifecycle lane.
+
 <!-- CorvidLabs trust toolchain: BEGIN (managed, do not edit inside) -->
 ## CorvidLabs trust toolchain
 

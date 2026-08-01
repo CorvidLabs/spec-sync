@@ -1,5 +1,8 @@
 name: CI
 
+# 100% merge confidence for product tips lives HERE (single suite authority).
+# Trust (.github/workflows/trust.yml) must not re-run cargo test — see docs/ci-confidence.md.
+
 permissions:
   contents: read
   actions: read

@@ -1,5 +1,10 @@
 name: trust
 
+# Confidence split (see docs/ci-confidence.md):
+# - CI owns multi-OS cargo test, clippy, coverage, audit, site, vscode, action-consumer, path-aware tips
+# - Trust owns PR release-binary identity, contract on that binary, Augur, Attest
+# - Trust lifecycle lane is trust-lifecycle (types only) — NOT lanes.verify (no second test suite)
+
 on:
   pull_request:
   push:
@@ -13,6 +18,11 @@ permissions:
 jobs:
   trust:
     name: trust
+
+# Confidence split (see docs/ci-confidence.md):
+# - CI owns multi-OS cargo test, clippy, coverage, audit, site, vscode, action-consumer, path-aware tips
+# - Trust owns PR release-binary identity, contract on that binary, Augur, Attest
+# - Trust lifecycle lane is trust-lifecycle (types only) — NOT lanes.verify (no second test suite)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -82,7 +92,7 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Package SpecSync release candidate for Trust
+      - name: Package SpecSync release candidate for Trust (identity artifact; not a test suite)
         if: steps.child.outputs.reuse != 'true'
         shell: bash
         run: |

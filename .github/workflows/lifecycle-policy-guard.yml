@@ -110,6 +110,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           POLICY_RESULT: ${{ needs.policy.result }}
           TRUSTED_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
@@ -126,13 +128,14 @@ jobs:
               "PR #${PR_NUMBER} candidate: \`${HEAD_SHA}\`" \
               "Base commit: \`${BASE_SHA}\`" \
               "Trusted workflow revision: \`${TRUSTED_WORKFLOW_SHA}\`" \
+              "Workflow run attempt: \`${RUN_ID}/${RUN_ATTEMPT}\`" \
               "Policy inspection: \`${POLICY_RESULT}\`"
           )"
           payload="${RUNNER_TEMP}/specsync-trusted-policy-check.json"
           jq -n \
             --arg name "SpecSync trusted policy" \
             --arg head_sha "$HEAD_SHA" \
-            --arg external_id "specsync-trusted-policy:${TRUSTED_WORKFLOW_SHA}:${HEAD_SHA}" \
+            --arg external_id "specsync-trusted-policy:${TRUSTED_WORKFLOW_SHA}:${HEAD_SHA}:${RUN_ID}:${RUN_ATTEMPT}" \
             --arg details_url "$RUN_URL" \
             --arg conclusion "$conclusion" \
             --arg title "$title" \

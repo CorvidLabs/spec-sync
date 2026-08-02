@@ -16,8 +16,8 @@ Acceptance Criteria
 - Reuse walks only the bounded first-parent ancestry of the current pull request.
 - A reusable check is successful, exact-SHA-bound, GitHub-Actions-authored, PR-bound, and produced by
   the expected workflow.
-- Newer cancelled or failed checks do not override an earlier successful exact-SHA trusted-policy
-  result.
+- Newer cancelled or failed checks or workflow reruns do not override an earlier successful
+  exact-SHA trusted-policy result; the successful publication binds its immutable run attempt.
 - Missing, foreign, stale, wrong-workflow, non-ancestor, malformed, or ambiguous evidence fails
   closed.
 - Metadata descendants do not rerun the full product matrix when eligible ancestor evidence exists.

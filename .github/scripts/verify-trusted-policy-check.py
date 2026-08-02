@@ -204,7 +204,8 @@ try:
         raise ValueError("check is not from GitHub Actions")
     external = str(check.get("external_id") or "")
     external_match = re.fullmatch(
-        rf"specsync-trusted-policy:([0-9a-f]{{40}}):{re.escape(candidate)}",
+        rf"specsync-trusted-policy:([0-9a-f]{{40}}):{re.escape(candidate)}"
+        r"(?::([0-9]+):([0-9]+))?",
         external,
     )
     if external_match is None:
@@ -212,6 +213,14 @@ try:
     trusted = external_match.group(1)
     if trusted != base:
         raise ValueError("check is not bound to the exact PR base revision")
+    bound_run_id = int(external_match.group(2)) if external_match.group(2) else None
+    bound_run_attempt = int(external_match.group(3)) if external_match.group(3) else None
+    if (bound_run_id is None) != (bound_run_attempt is None):
+        raise ValueError("check has an incomplete workflow run-attempt binding")
+    if bound_run_id is not None and (
+        bound_run_id <= 0 or bound_run_attempt is None or bound_run_attempt <= 0
+    ):
+        raise ValueError("check has an invalid workflow run-attempt binding")
 
     check_id = int(check.get("id", 0))
     if check_id <= 0:
@@ -225,49 +234,70 @@ try:
     if workflow_details is None and details != canonical_check_details:
         raise ValueError("check details URL is not a recognized GitHub check or workflow run")
 
-    runs_endpoint = (
-        f"repos/{repository}/actions/runs?event=pull_request_target"
-        f"&head_sha={candidate}&per_page=100"
-    )
-    runs_payload = api(runs_endpoint)
-    runs = runs_payload.get("workflow_runs")
-    total_count = runs_payload.get("total_count")
-    if (
-        not isinstance(runs, list)
-        or not isinstance(total_count, int)
-        or isinstance(total_count, bool)
-        or total_count != len(runs)
-        or total_count > 100
-    ):
-        raise ValueError("workflow run lookup is incomplete or exceeds its bound")
+    if bound_run_id is not None:
+        if (
+            workflow_details is not None
+            and int(workflow_details.group(1)) != bound_run_id
+        ):
+            raise ValueError("check details URL identifies a different workflow run")
+        run = api(
+            f"repos/{repository}/actions/runs/{bound_run_id}/attempts/{bound_run_attempt}"
+        )
+        if run.get("id") != bound_run_id:
+            raise ValueError("workflow run attempt belongs to the wrong workflow run")
+        if run.get("run_attempt") != bound_run_attempt:
+            raise ValueError("workflow run attempt reports the wrong run attempt")
+        if str(run.get("path") or "").split("@", 1)[0] != WORKFLOW_PATH:
+            raise ValueError("workflow run attempt is from a different workflow")
+        run_id = bound_run_id
+    else:
+        # Historical checks did not bind an immutable run attempt. Preserve their
+        # bounded lookup semantics so already-committed evidence remains usable.
+        runs_endpoint = (
+            f"repos/{repository}/actions/runs?event=pull_request_target"
+            f"&head_sha={candidate}&per_page=100"
+        )
+        runs_payload = api(runs_endpoint)
+        runs = runs_payload.get("workflow_runs")
+        total_count = runs_payload.get("total_count")
+        if (
+            not isinstance(runs, list)
+            or not isinstance(total_count, int)
+            or isinstance(total_count, bool)
+            or total_count != len(runs)
+            or total_count > 100
+        ):
+            raise ValueError("workflow run lookup is incomplete or exceeds its bound")
 
-    policy_runs = [
-        run
-        for run in runs
-        if isinstance(run, dict)
-        and str(run.get("path") or "").split("@", 1)[0] == WORKFLOW_PATH
-    ]
-    if workflow_details is not None:
-        named_run_id = int(workflow_details.group(1))
-        policy_runs = [run for run in policy_runs if run.get("id") == named_run_id]
-    elif len(policy_runs) > 1:
-        # GitHub rewrites custom-check details URLs to /runs/<check-id>. In that
-        # case, ignore later failed/cancelled publications and require one unique
-        # successful policy run for the selected successful exact-SHA check.
         policy_runs = [
-            run
-            for run in policy_runs
-            if run.get("status") == "completed" and run.get("conclusion") == "success"
+            item
+            for item in runs
+            if isinstance(item, dict)
+            and str(item.get("path") or "").split("@", 1)[0] == WORKFLOW_PATH
         ]
-    if len(policy_runs) != 1:
-        raise ValueError("workflow run lookup is missing or ambiguous")
-    run = policy_runs[0]
-    run_id = int(run.get("id", 0))
-    if run_id <= 0:
-        raise ValueError("workflow run has no valid GitHub identity")
+        if workflow_details is not None:
+            named_run_id = int(workflow_details.group(1))
+            policy_runs = [item for item in policy_runs if item.get("id") == named_run_id]
+        elif len(policy_runs) > 1:
+            # GitHub rewrites custom-check details URLs to /runs/<check-id>. In
+            # that case, require one unique successful policy publication.
+            policy_runs = [
+                item
+                for item in policy_runs
+                if item.get("status") == "completed"
+                and item.get("conclusion") == "success"
+            ]
+        if len(policy_runs) != 1:
+            raise ValueError("workflow run lookup is missing or ambiguous")
+        run = policy_runs[0]
+        run_id = int(run.get("id", 0))
+        if run_id <= 0:
+            raise ValueError("workflow run has no valid GitHub identity")
     if run.get("event") != "pull_request_target":
         raise ValueError("workflow run is not base-controlled")
     if run.get("status") != "completed" or run.get("conclusion") != "success":
+        if bound_run_attempt is not None:
+            raise ValueError("workflow run attempt is not successful")
         raise ValueError("workflow run is not successful")
     if (run.get("repository") or {}).get("full_name") != repository:
         raise ValueError("workflow run belongs to another repository")
@@ -308,9 +338,12 @@ try:
         != git(root, "rev-parse", f"{base}:{WORKFLOW_PATH}").stdout.strip()
     ):
         raise ValueError("trusted workflow does not match the exact PR base policy")
+    attempt_summary = (
+        f" attempt {bound_run_attempt}" if bound_run_attempt is not None else ""
+    )
     print(
-        f"Verified {CHECK_NAME} run {run_id} at trusted revision {trusted} "
-        f"for candidate {candidate}."
+        f"Verified {CHECK_NAME} run {run_id}{attempt_summary} at trusted revision "
+        f"{trusted} for candidate {candidate}."
     )
 except (
     json.JSONDecodeError,

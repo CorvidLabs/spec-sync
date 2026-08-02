@@ -27,5 +27,9 @@ conclusion, and check-run identity. Trusted-policy custom checks remain on their
 an explicit workflow URL selects that run, while GitHub's canonical rewritten URL requires one unique
 successful matching policy run and ignores later failed/cancelled publications.
 
+To preserve a successful publication when GitHub reruns the same workflow run, the protected
+publisher includes immutable run ID and run-attempt identity in the authenticated external binding.
+The verifier resolves that exact attempt rather than trusting the mutable latest state of the run.
+
 No CLI command, lifecycle state, approval count, artifact layout, or merge behavior changes. The
 existing `change status` and `change finalize` path remains authoritative.

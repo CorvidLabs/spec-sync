@@ -45,11 +45,13 @@ with tempfile.TemporaryDirectory() as temporary:
     git(repository, "commit", "-m", "a")
     first = git(repository, "rev-parse", "HEAD")
     (repository / "b.txt").write_text("b\n", encoding="utf-8")
+    review_dir = repository / ".specsync/changes/CHG-0001-test"
+    (review_dir / "deltas").mkdir(parents=True)
+    (review_dir / "change.md").write_text("# Change\n", encoding="utf-8")
+    (review_dir / "deltas/github.md").write_text("# Delta\n", encoding="utf-8")
     git(repository, "add", ".")
     git(repository, "commit", "-m", "b")
     product = git(repository, "rev-parse", "HEAD")
-    review_dir = repository / ".specsync/changes/CHG-0001-test"
-    review_dir.mkdir(parents=True)
     (review_dir / "review.json").write_text("{}\n", encoding="utf-8")
     (review_dir / "review-attempts.json").write_text("{}\n", encoding="utf-8")
     git(repository, "add", ".")

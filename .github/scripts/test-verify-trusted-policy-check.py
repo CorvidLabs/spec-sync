@@ -13,6 +13,14 @@ ROOT = Path(__file__).resolve().parents[2]
 VERIFIER = ROOT / ".github/scripts/verify-trusted-policy-check.py"
 WORKFLOW = ".github/workflows/lifecycle-policy-guard.yml"
 
+publisher = (ROOT / WORKFLOW).read_text(encoding="utf-8")
+assert "RUN_ID: ${{ github.run_id }}" in publisher
+assert "RUN_ATTEMPT: ${{ github.run_attempt }}" in publisher
+assert (
+    "specsync-trusted-policy:${TRUSTED_WORKFLOW_SHA}:${HEAD_SHA}:"
+    "${RUN_ID}:${RUN_ATTEMPT}"
+) in publisher
+
 
 def git(root: Path, *arguments: str) -> str:
     return subprocess.check_output(
@@ -106,6 +114,58 @@ with tempfile.TemporaryDirectory() as temporary:
 
     passed = run_verifier(repository, base, head, fixture)
     assert passed.returncode == 0, passed.stderr
+
+    attempt_endpoint = "repos/CorvidLabs/spec-sync/actions/runs/9001/attempts/1"
+    attempt_bound = copy.deepcopy(fixture)
+    attempt_bound[
+        f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"
+    ]["check_runs"][0]["external_id"] = (
+        f"specsync-trusted-policy:{base}:{head}:9001:1"
+    )
+    attempt_bound[attempt_endpoint] = {**run, "run_attempt": 1}
+    passed = run_verifier(repository, base, head, attempt_bound)
+    assert passed.returncode == 0, passed.stderr
+
+    same_run_failed_rerun = copy.deepcopy(attempt_bound)
+    same_run_failed_rerun[runs_endpoint]["workflow_runs"][0].update(
+        {"run_attempt": 2, "conclusion": "failure"}
+    )
+    passed = run_verifier(repository, base, head, same_run_failed_rerun)
+    assert passed.returncode == 0, passed.stderr
+
+    failed_bound_attempt = copy.deepcopy(attempt_bound)
+    failed_bound_attempt[attempt_endpoint]["conclusion"] = "failure"
+    rejected = run_verifier(repository, base, head, failed_bound_attempt)
+    assert rejected.returncode != 0
+    assert "workflow run attempt is not successful" in rejected.stderr
+
+    wrong_bound_attempt = copy.deepcopy(attempt_bound)
+    wrong_bound_attempt[attempt_endpoint]["run_attempt"] = 2
+    rejected = run_verifier(repository, base, head, wrong_bound_attempt)
+    assert rejected.returncode != 0
+    assert "wrong run attempt" in rejected.stderr
+
+    wrong_bound_run = copy.deepcopy(attempt_bound)
+    wrong_bound_run[attempt_endpoint]["id"] = 9002
+    rejected = run_verifier(repository, base, head, wrong_bound_run)
+    assert rejected.returncode != 0
+    assert "wrong workflow run" in rejected.stderr
+
+    wrong_bound_workflow = copy.deepcopy(attempt_bound)
+    wrong_bound_workflow[attempt_endpoint]["path"] = ".github/workflows/ci.yml"
+    rejected = run_verifier(repository, base, head, wrong_bound_workflow)
+    assert rejected.returncode != 0
+    assert "different workflow" in rejected.stderr
+
+    mismatched_bound_run = copy.deepcopy(attempt_bound)
+    mismatched_bound_run[
+        f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"
+    ]["check_runs"][0]["details_url"] = (
+        "https://github.com/CorvidLabs/spec-sync/actions/runs/9002"
+    )
+    rejected = run_verifier(repository, base, head, mismatched_bound_run)
+    assert rejected.returncode != 0
+    assert "different workflow run" in rejected.stderr
 
     workflow_details = copy.deepcopy(fixture)
     workflow_details[

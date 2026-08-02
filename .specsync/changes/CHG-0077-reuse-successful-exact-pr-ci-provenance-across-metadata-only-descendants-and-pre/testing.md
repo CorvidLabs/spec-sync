@@ -29,6 +29,8 @@ artifact: testing
 - Reject reusable job checks with run-only URLs, wrong job names, or another check-run identity.
 - Preserve canonical rewritten trusted-policy URLs while ignoring later failed/cancelled runs and
   rejecting multiple successful matching runs as ambiguous.
+- Preserve a successful publication when a later attempt of the same workflow run fails or is
+  cancelled, and reject mismatched or unavailable run-attempt identity.
 
 ## Completion
 

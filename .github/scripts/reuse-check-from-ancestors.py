@@ -128,7 +128,7 @@ def review_metadata_only_edge(records: list[tuple[str, tuple[str, ...]]]) -> boo
         return False
 
     pattern = re.compile(
-        r"^\.specsync/changes/(CHG-[0-9]{4,}-.+)/"
+        r"^\.specsync/changes/(CHG-[0-9]{4,}-[^/]+)/"
         r"(review(?:-attempts)?\.json)$"
     )
     matched = [pattern.fullmatch(paths[0]) for _status, paths in records]
@@ -156,11 +156,11 @@ def archive_metadata_only_edge(
     records: list[tuple[str, tuple[str, ...]]],
 ) -> bool:
     active_pattern = re.compile(
-        r"^\.specsync/changes/(?P<change>CHG-[0-9]{4,}-.+)/(?P<relative>.+)$"
+        r"^\.specsync/changes/(?P<change>CHG-[0-9]{4,}-[^/]+)/(?P<relative>.+)$"
     )
     archive_pattern = re.compile(
         r"^\.specsync/archive/changes/"
-        r"(?P<dated>[0-9]{4}-[0-9]{2}-[0-9]{2}-(?P<change>CHG-[0-9]{4,}-.+?))/"
+        r"(?P<dated>[0-9]{4}-[0-9]{2}-[0-9]{2}-(?P<change>CHG-[0-9]{4,}-[^/]+))/"
         r"(?P<relative>.+)$"
     )
     change_id: str | None = None

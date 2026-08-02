@@ -1,0 +1,89 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785635299,
+      "digest": "3cc10e57f0c84b52044a3f0339e35c4e83852e64c0925c83da0340cd24a9b4fe",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre",
+        "title": "Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result",
+        "description": "Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result",
+        "kind": "feature",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/reuse-check-from-ancestors.py",
+          ".github/scripts/test-reuse-check-from-ancestors.py",
+          ".github/scripts/test-verify-trusted-policy-check.py",
+          ".github/scripts/verify-trusted-policy-check.py",
+          ".github/workflows/ci.yml",
+          ".github/workflows/finalize-change.yml",
+          ".github/workflows/trust.yml",
+          ".specsync/change-sequence.json"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A review-only or archive-only metadata descendant reuses the nearest successful first-parent product CI evidence only when the check is successful, GitHub-Actions-authored, bound to the same pull request and exact ancestor SHA, and produced by the expected workflow; later cancelled or failed checks cannot override an earlier successful exact-SHA trusted-policy result; missing, foreign, stale, wrong-workflow, non-ancestor, or ambiguous evidence fails closed; focused tests reproduce PR #492's orphan-parent and cancel-poison failures and pass after the repair."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785642825,
+      "digest": "c0ca07f435a527372c52aec484bd92c02a5310a43282c38a23b222e8fa6a409a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre",
+        "title": "Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result",
+        "description": "Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result",
+        "kind": "feature",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/reuse-check-from-ancestors.py",
+          ".github/scripts/test-reuse-check-from-ancestors.py",
+          ".github/scripts/test-verify-trusted-policy-check.py",
+          ".github/scripts/verify-trusted-policy-check.py",
+          ".github/workflows/ci.yml",
+          ".github/workflows/finalize-change.yml",
+          ".github/workflows/lifecycle-policy-guard.yml",
+          ".github/workflows/trust.yml",
+          ".specsync/change-sequence.json"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A review-only or archive-only metadata descendant reuses the nearest successful first-parent product CI evidence only when the check is successful, GitHub-Actions-authored, bound to the same pull request and exact ancestor SHA, and produced by the expected workflow; later cancelled or failed checks or workflow reruns cannot override an earlier successful exact-SHA trusted-policy result whose immutable run attempt is authenticated; missing, foreign, stale, wrong-workflow, non-ancestor, or ambiguous evidence fails closed; focused tests reproduce PR #492's orphan-parent and cancel-poison failures and pass after the repair."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1785688906,
+      "digest": "1d55b9fde91e753d07d2f10a3d82341f522d1c80038b74d99308cd8b93d444e5",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

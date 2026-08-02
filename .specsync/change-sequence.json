@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 76,
-  "id": "CHG-0076-accept-github-s-rewritten-trusted-policy-check-url-while-preserving-exact-base-c",
+  "sequence": 77,
+  "id": "CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre",
   "acknowledged_collisions": [
     {
       "sequence": 16,

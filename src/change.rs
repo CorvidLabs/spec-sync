@@ -2446,7 +2446,10 @@ pub fn verify_change_with_strict(
             .unwrap_or_else(|| "a configured verification command failed".to_string());
         return Err(format!(
             "verification failed: {failed}; see commands[] in {}",
-            portable_project_path(root, &change_dir(root, &record.id).join("verification.json"))
+            portable_project_path(
+                root,
+                &change_dir(root, &record.id).join("verification.json")
+            )
         ));
     }
     Ok(verification)
@@ -26243,7 +26246,9 @@ mod tests {
         let first_error = verify_change(root, &record.id).unwrap_err();
         // The failure names the exact command and where its evidence lives, so an
         // author does not have to open verification.json to learn which step failed.
-        assert!(first_error.contains("cargo metadata --manifest-path definitely-missing/Cargo.toml"));
+        assert!(
+            first_error.contains("cargo metadata --manifest-path definitely-missing/Cargo.toml")
+        );
         assert!(first_error.contains("verification.json"));
         assert_eq!(
             load_change(root, &record.id).unwrap().state,

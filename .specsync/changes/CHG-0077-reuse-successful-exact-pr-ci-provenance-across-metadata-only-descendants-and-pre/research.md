@@ -76,3 +76,8 @@ reuse or fail, and checks republished on metadata children or older product comm
   historical acceptance and archive parsing accepts exactly native enum spellings and u64 JSON
   timestamps, preserves fully filtered empty manifests, and never emits tracked interpreter state.
   Focused regressions exercise each boundary through the actual manifest and archive-edge paths.
+- Independent rereview found that native serialization and native digest framing intentionally use
+  different `non_file`/`non-file` spellings, and that one conjunctive overflow fixture could mask a
+  missing call-site check. The helper now mirrors the native framed spelling, and one shared archive
+  timestamp-sequence validator has independent boundary assertions for every persisted field plus a
+  real archive-edge boolean rejection fixture.

@@ -31,3 +31,4 @@ artifact: tasks
 - [x] Close Swift/Gradle auto-detection parity and legacy predecessor reconstruction findings.
 - [x] Close colonless Gradle/comment parsing and symlink predecessor parity findings.
 - [x] Close late native manifest/timestamp parity and generated-bytecode review findings.
+- [x] Close independent rereview findings for native entry framing and non-vacuous timestamp tests.

@@ -66,11 +66,27 @@ assert module.u64_json_integer(2**64 - 1)
 assert not module.u64_json_integer(True)
 assert not module.u64_json_integer(-1)
 assert not module.u64_json_integer(2**64)
+valid_archive_timestamps = [1, 2, 3, 2, 2]
+assert module.archive_timestamp_sequence_valid(*valid_archive_timestamps)
+for index, invalid_timestamp in enumerate((True, True, 2**64, 2**64, 2**64)):
+    timestamps = valid_archive_timestamps.copy()
+    timestamps[index] = invalid_timestamp
+    assert not module.archive_timestamp_sequence_valid(*timestamps)
 unsupported_non_file = {
     "schema_version": 1,
     "entries": [signed_entry("commands", "non-file", 0, b"")],
 }
 assert module.acceptance_manifest_digest(unsupported_non_file) is None
+native_non_file = signed_entry("commands", "non_file", 0, b"")
+assert native_non_file["entry_digest"] == module.framed_digest(
+    "specsync.acceptance-entry.v1",
+    [
+        ("path", b"commands"),
+        ("kind", b"non-file"),
+        ("mode", __import__("struct").pack(">I", 0)),
+        ("payload-digest", __import__("hashlib").sha256(b"").hexdigest().encode()),
+    ],
+)
 
 
 with tempfile.TemporaryDirectory() as temporary:
@@ -1039,41 +1055,25 @@ with tempfile.TemporaryDirectory() as temporary:
     assert module.metadata_parent(repository, archive) == metadata
     assert not module.metadata_only_edge(repository, first, product)
 
-    git(repository, "switch", "-c", "out-of-range-archive-timestamps", metadata)
+    git(repository, "switch", "-c", "invalid-archive-timestamp", metadata)
     git(repository, "cherry-pick", "-n", archive)
-    out_of_range_archive_dir = (
+    invalid_timestamp_archive_dir = (
         repository / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
     )
-    for state_name in ("state.json", "accepted-state.json"):
-        state_record = json.loads(
-            (out_of_range_archive_dir / state_name).read_text(encoding="utf-8")
+    invalid_accepted_state = json.loads(
+        (invalid_timestamp_archive_dir / "accepted-state.json").read_text(
+            encoding="utf-8"
         )
-        state_record["updated_at"] = 2**64
-        (out_of_range_archive_dir / state_name).write_text(
-            json.dumps(state_record) + "\n", encoding="utf-8"
-        )
-    out_of_range_finalization = json.loads(
-        (out_of_range_archive_dir / "finalization.json").read_text(encoding="utf-8")
     )
-    out_of_range_finalization["timestamp"] = 2**64
-    out_of_range_finalization["finalization_digest"] = module.finalization_digest(
-        out_of_range_finalization
-    )
-    (out_of_range_archive_dir / "finalization.json").write_text(
-        json.dumps(out_of_range_finalization) + "\n", encoding="utf-8"
-    )
-    out_of_range_approvals = json.loads(
-        (out_of_range_archive_dir / "approvals.json").read_text(encoding="utf-8")
-    )
-    out_of_range_approvals["approvals"][-1]["timestamp"] = 2**64
-    (out_of_range_archive_dir / "approvals.json").write_text(
-        json.dumps(out_of_range_approvals) + "\n", encoding="utf-8"
+    invalid_accepted_state["updated_at"] = True
+    (invalid_timestamp_archive_dir / "accepted-state.json").write_text(
+        json.dumps(invalid_accepted_state) + "\n", encoding="utf-8"
     )
     git(repository, "add", ".")
-    git(repository, "commit", "-m", "out-of-range archive timestamps")
-    out_of_range_archive = git(repository, "rev-parse", "HEAD")
+    git(repository, "commit", "-m", "invalid archive timestamp")
+    invalid_timestamp_archive = git(repository, "rev-parse", "HEAD")
     assert not module.metadata_only_edge(
-        repository, metadata, out_of_range_archive
+        repository, metadata, invalid_timestamp_archive
     )
     git(repository, "switch", "main")
 

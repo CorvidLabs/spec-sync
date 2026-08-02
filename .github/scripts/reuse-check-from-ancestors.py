@@ -1010,6 +1010,27 @@ def u64_json_integer(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and 0 <= value < 2**64
 
 
+def archive_timestamp_sequence_valid(
+    parent_updated_at: object,
+    accepted_updated_at: object,
+    archived_updated_at: object,
+    finalization_timestamp: object,
+    closing_timestamp: object,
+) -> bool:
+    values = (
+        parent_updated_at,
+        accepted_updated_at,
+        archived_updated_at,
+        finalization_timestamp,
+        closing_timestamp,
+    )
+    return all(u64_json_integer(value) for value in values) and (
+        parent_updated_at <= accepted_updated_at <= archived_updated_at
+        and accepted_updated_at <= finalization_timestamp <= archived_updated_at
+        and accepted_updated_at <= closing_timestamp <= archived_updated_at
+    )
+
+
 def framed_digest(domain: str, frames: list[tuple[str, bytes]]) -> str:
     digest = hashlib.sha256()
 
@@ -1045,11 +1066,13 @@ def finalization_digest(finalization: dict) -> str:
 
 
 def acceptance_entry_digest(entry: dict) -> str:
+    kind = str(entry["kind"])
+    framed_kind = "non-file" if kind == "non_file" else kind
     return framed_digest(
         "specsync.acceptance-entry.v1",
         [
             ("path", str(entry["path"]).encode()),
-            ("kind", str(entry["kind"]).encode()),
+            ("kind", framed_kind.encode()),
             ("mode", struct.pack(">I", int(entry["mode"]))),
             ("payload-digest", str(entry["payload_digest"]).encode()),
         ],
@@ -1965,11 +1988,6 @@ def canonical_archive_transition(
             or parent_state.get("state") != "verifying"
             or archived_state.get("state") != "archived"
             or accepted_state.get("state") != "accepted"
-            or not u64_json_integer(parent_state.get("updated_at"))
-            or not u64_json_integer(accepted_state.get("updated_at"))
-            or not u64_json_integer(archived_state.get("updated_at"))
-            or accepted_state["updated_at"] < parent_state["updated_at"]
-            or archived_state["updated_at"] < accepted_state["updated_at"]
         ):
             return False
 
@@ -2087,9 +2105,6 @@ def canonical_archive_transition(
             != archived_verification.get("workspace_digest")
             or finalization.get("closing_digest")
             != closing_digest(change_id, archived_verification)
-            or not u64_json_integer(finalization.get("timestamp"))
-            or finalization["timestamp"] < accepted_state["updated_at"]
-            or finalization["timestamp"] > archived_state["updated_at"]
             or finalization_digest(finalization)
             != finalization.get("finalization_digest")
         ):
@@ -2168,9 +2183,13 @@ def canonical_archive_transition(
             or closing.get("actor") != "specsync:finalization"
             or closing.get("digest") != finalization["closing_digest"]
             or closing.get("note") != "Same-PR finalization closing digest"
-            or not u64_json_integer(closing.get("timestamp"))
-            or closing["timestamp"] < accepted_state["updated_at"]
-            or closing["timestamp"] > archived_state["updated_at"]
+            or not archive_timestamp_sequence_valid(
+                parent_state.get("updated_at"),
+                accepted_state.get("updated_at"),
+                archived_state.get("updated_at"),
+                finalization.get("timestamp"),
+                closing.get("timestamp"),
+            )
         ):
             return False
     except (

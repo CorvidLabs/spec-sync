@@ -2131,6 +2131,7 @@ fn approve_definition_with_projection(
 ) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
+    ensure_no_sequence_collision(root, &record)?;
     // Accepted records may re-approve the definition when the artifact digest drifted
     // (reopen recovery). Refuse no-op re-approvals that would only rewrite an already-valid
     // definition approval while the change is accepted.
@@ -2380,6 +2381,21 @@ pub fn verify_change_with_strict(
     for configured in &verification_commands {
         reject_direct_lifecycle_verification(root, configured)?;
     }
+    // Evidence completeness is derived from committed artifacts alone, so it is
+    // resolved before the verification commands run. Discovering a missing
+    // requirement-evidence row only after a full suite costs an entire
+    // re-verification cycle for a defect the workspace already described.
+    let requirement_ids = collect_requirement_ids(root, &record)?;
+    let has_semantic_acceptance_item = semantic_acceptance_item_exists(root, &record)?;
+    let missing_evidence = requirement_evidence_missing(root, &record, &requirement_ids);
+    let acceptance_evidence_present =
+        acceptance_criteria_have_evidence(&record, has_semantic_acceptance_item);
+    if !acceptance_evidence_present || !missing_evidence.is_empty() {
+        return Err(format!(
+            "verification cannot start: {}",
+            evidence_gap_detail(&record, acceptance_evidence_present, &missing_evidence)
+        ));
+    }
     let mut commands = Vec::new();
     for configured in verification_commands {
         let status = run_configured_command(root, &configured, ConfiguredCommandOutput::Inherit)?;
@@ -2392,13 +2408,8 @@ pub fn verify_change_with_strict(
             break;
         }
     }
-    let requirement_ids = collect_requirement_ids(root, &record)?;
-    let has_semantic_acceptance_item = semantic_acceptance_item_exists(root, &record)?;
-    let missing_evidence = requirement_evidence_missing(root, &record, &requirement_ids);
     let commands_passed = commands.iter().all(|command| command.success);
-    let acceptance_evidence_present =
-        acceptance_criteria_have_evidence(&record, has_semantic_acceptance_item);
-    let passed = commands_passed && acceptance_evidence_present && missing_evidence.is_empty();
+    let passed = commands_passed;
     let verification = VerificationRecord {
         timestamp: now(),
         commit: git_output(root, &["rev-parse", "HEAD"]),
@@ -2419,21 +2430,55 @@ pub fn verify_change_with_strict(
     record.updated_at = now();
     save_change(root, &record)?;
     if !verification.passed {
-        let detail = if !commands_passed {
-            "configured verification command failed".to_string()
-        } else if !acceptance_evidence_present {
-            "semantic acceptance evidence is missing".to_string()
-        } else {
-            format!(
-                "requirement evidence missing for {}",
-                missing_evidence.join(", ")
-            )
-        };
+        let failed = verification
+            .commands
+            .iter()
+            .find(|command| !command.success)
+            .map(|command| {
+                format!(
+                    "`{}` exited with {}",
+                    command.command,
+                    command
+                        .exit_code
+                        .map_or_else(|| "a signal".to_string(), |code| code.to_string())
+                )
+            })
+            .unwrap_or_else(|| "a configured verification command failed".to_string());
         return Err(format!(
-            "verification failed: {detail}; inspect verification.json"
+            "verification failed: {failed}; see commands[] in {}",
+            portable_project_path(root, &change_dir(root, &record.id).join("verification.json"))
         ));
     }
     Ok(verification)
+}
+
+/// Names the artifact and section an author must edit to close an evidence gap.
+///
+/// The gap is always described by the change workspace rather than by
+/// `verification.json`, so pointing at the record itself sends authors to a file
+/// that cannot contain the answer.
+fn evidence_gap_detail(
+    record: &ChangeRecord,
+    acceptance_evidence_present: bool,
+    missing_evidence: &[String],
+) -> String {
+    let testing = format!(".specsync/changes/{}/testing.md", record.id);
+    if !acceptance_evidence_present {
+        return format!(
+            "semantic acceptance evidence is missing; record how each acceptance criterion is \
+             proven in {testing}"
+        );
+    }
+    format!(
+        "no requirement evidence for {}; add a row for {} to the `## Requirement evidence` table in \
+         {testing}",
+        missing_evidence.join(", "),
+        if missing_evidence.len() == 1 {
+            "it"
+        } else {
+            "each"
+        }
+    )
 }
 
 fn verification_commands_for_change(
@@ -6186,6 +6231,9 @@ fn check_project_with_command_output(
         {
             report.errors.push(format!("{}: {error}", record.id));
         }
+        if let Err(error) = ensure_no_sequence_collision(root, record) {
+            report.errors.push(error);
+        }
         for dependency in &record.dependencies {
             if dependency_reaches(root, dependency, &record.id, &mut BTreeSet::new()) {
                 report.errors.push(format!(
@@ -7221,12 +7269,15 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
                     item.key
                 ));
             }
+            // A block already present with exactly the declared content means this
+            // delta is applied, not conflicting. Rejecting it here would make an
+            // applied change permanently unverifiable.
             if item.target == DeltaTarget::Requirement
                 && item.operation == DeltaOperation::Added
-                && living_requirement_heading_exists(root, module, &item.key)?
+                && living_requirement_conflicts(root, module, &item.key, &item.content)?
             {
                 return Err(format!(
-                    "cannot add existing block `{}`; use ## MODIFIED for requirements already present in the living tree",
+                    "cannot add existing block `{}` with different content; use ## MODIFIED for requirements already present in the living tree",
                     item.key
                 ));
             }
@@ -7236,14 +7287,32 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
 }
 
 /// True when living `requirements.md` already has a `### {key}` requirement heading.
-fn living_requirement_heading_exists(root: &Path, module: &str, key: &str) -> Result<bool, String> {
+/// True when living `requirements.md` already has a `### {key}` requirement whose
+/// content differs from what an `## ADDED` delta declares.
+///
+/// A byte-equivalent block is an already-applied delta and is not a conflict, so
+/// re-deriving the canonical tree converges instead of failing.
+fn living_requirement_conflicts(
+    root: &Path,
+    module: &str,
+    key: &str,
+    declared: &str,
+) -> Result<bool, String> {
     let specs_dir = crate::config::load_config(root).specs_dir;
     let (_, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
-    let Ok(content) = fs::read_to_string(&requirements_path) else {
+    let Ok(source) = fs::read_to_string(&requirements_path) else {
         return Ok(false);
     };
     let heading = format!("### {key}");
-    Ok(content.lines().any(|line| line.trim_end() == heading))
+    let Some(start) = source.find(&heading) else {
+        return Ok(false);
+    };
+    let body = &source[start..];
+    let end = body
+        .match_indices("\n### ")
+        .next()
+        .map_or(body.len(), |(index, _)| index);
+    Ok(!markdown_block_matches(&body[..end], &heading, declared))
 }
 
 fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
@@ -7527,6 +7596,26 @@ fn canonical_module_paths(
     Ok((spec_path, requirements_path))
 }
 
+/// True when an existing markdown block already carries exactly the declared
+/// heading and body, ignoring line-ending style and surrounding blank lines.
+///
+/// Used to decide whether an `## ADDED` delta has already been applied. Only an
+/// exact content match counts: a block that exists with different text is a real
+/// conflict and must be declared `## MODIFIED`.
+fn markdown_block_matches(existing: &str, heading: &str, content: &str) -> bool {
+    fn normalize(value: &str) -> String {
+        value
+            .replace("\r\n", "\n")
+            .trim_matches(['\n', ' ', '\t'])
+            .to_string()
+    }
+    let existing = normalize(existing);
+    let Some(body) = existing.strip_prefix(&normalize(heading)) else {
+        return false;
+    };
+    normalize(body) == normalize(content)
+}
+
 fn apply_markdown_block(
     source: &str,
     prefix: &str,
@@ -7573,8 +7662,21 @@ fn apply_markdown_block(
             .unwrap_or(source.len())
     });
     match operation {
+        // An ADDED block that is already present with exactly the declared content
+        // is an applied delta, not a conflict. Re-deriving the canonical tree must
+        // converge, otherwise the delta can never be reconciled against the tree
+        // and a partially-applied run leaves the change permanently unverifiable.
         DeltaOperation::Added if start.is_some() => {
-            return Err(format!("cannot add existing block `{key}`"));
+            if let (Some(start_index), Some(end_offset)) = (start, end) {
+                let existing = &source[lines[start_index].0..end_offset];
+                if markdown_block_matches(existing, &heading, content) {
+                    return Ok(source.to_string());
+                }
+            }
+            return Err(format!(
+                "cannot add existing block `{key}` with different content; use ## MODIFIED to \
+                 change a block already present in the living tree"
+            ));
         }
         DeltaOperation::Modified | DeltaOperation::Removed if start.is_none() => {
             return Err(format!("cannot modify/remove missing block `{key}`"));
@@ -13701,6 +13803,53 @@ fn terminal_delivery_projection(record: &ChangeRecord) -> ChangeRecord {
         projection.state = ChangeState::Accepted;
     }
     projection
+}
+
+/// The `CHG-NNNN` ordinal of a change ID, when it has one.
+fn change_sequence_number(id: &str) -> Option<u32> {
+    id.strip_prefix("CHG-")?
+        .split('-')
+        .next()?
+        .parse::<u32>()
+        .ok()
+}
+
+/// Rejects two distinct changes that claimed the same `CHG-NNNN` ordinal from the
+/// same base commit.
+///
+/// Independent worktrees and clones allocate from their own sequence ledger, so
+/// two can hand out the same ordinal to different work. They only become visible
+/// to each other once both land, and by then the ordinal no longer identifies a
+/// single change. Differing base commits are legitimate — a branch re-cut from a
+/// later tip may reuse an ordinal — so only a shared base is a genuine collision.
+fn ensure_no_sequence_collision(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let Some(ordinal) = change_sequence_number(&record.id) else {
+        return Ok(());
+    };
+    // An unknown base cannot establish that two changes were cut from the same
+    // point, so it never raises a collision rather than guessing.
+    let Some(base) = record.base_commit.as_deref() else {
+        return Ok(());
+    };
+    let conflicting: Vec<String> = list_all_changes_checked(root)?
+        .values()
+        .filter(|other| {
+            other.id != record.id
+                && other.base_commit.as_deref() == Some(base)
+                && change_sequence_number(&other.id) == Some(ordinal)
+        })
+        .map(|other| other.id.clone())
+        .collect();
+    if conflicting.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "change ordinal CHG-{ordinal:04} is claimed by {} and {} from the same base commit {base}. \
+         Two workspaces allocated it independently. Recreate one of them with `specsync change new` \
+         so each change owns a distinct ordinal.",
+        record.id,
+        conflicting.join(", ")
+    ))
 }
 
 fn list_all_changes_checked(root: &Path) -> Result<BTreeMap<String, ChangeRecord>, String> {
@@ -26092,7 +26241,10 @@ mod tests {
         record = start_implementation(root, &record.id).unwrap();
 
         let first_error = verify_change(root, &record.id).unwrap_err();
-        assert!(first_error.contains("configured verification command failed"));
+        // The failure names the exact command and where its evidence lives, so an
+        // author does not have to open verification.json to learn which step failed.
+        assert!(first_error.contains("cargo metadata --manifest-path definitely-missing/Cargo.toml"));
+        assert!(first_error.contains("verification.json"));
         assert_eq!(
             load_change(root, &record.id).unwrap().state,
             ChangeState::Verifying
@@ -26111,6 +26263,55 @@ mod tests {
         assert!(!history.attempts[0].passed);
         assert!(history.attempts[1].passed);
         assert!(load_verification(root, &record).unwrap().passed);
+    }
+
+    #[test]
+    fn added_block_reapplies_when_content_is_identical() {
+        let source = "# Requirements\n\n### REQ-auth-001\n\nUsers sign in.\n";
+        // Re-deriving an already-applied ADDED block converges instead of failing,
+        // so a partially-applied run can still be reconciled.
+        let unchanged = apply_markdown_block(
+            source,
+            "### ",
+            "REQ-auth-001",
+            "Users sign in.",
+            DeltaOperation::Added,
+        )
+        .unwrap();
+        assert_eq!(unchanged, source);
+
+        // A block present with different text is a real conflict and must be declared.
+        let error = apply_markdown_block(
+            source,
+            "### ",
+            "REQ-auth-001",
+            "Users sign in with passkeys.",
+            DeltaOperation::Added,
+        )
+        .unwrap_err();
+        assert!(error.contains("different content"), "{error}");
+        assert!(error.contains("## MODIFIED"), "{error}");
+    }
+
+    #[test]
+    fn change_ordinals_identify_independently_allocated_workspaces() {
+        // Two workspaces that allocated CHG-0078 for different work share an ordinal,
+        // which is what makes them a collision once both land on the same base.
+        assert_eq!(
+            change_sequence_number("CHG-0078-delete-the-ci-reimplementation"),
+            Some(78)
+        );
+        assert_eq!(
+            change_sequence_number("CHG-0078-todo-artifact-markers"),
+            Some(78)
+        );
+        assert_ne!(
+            change_sequence_number("CHG-0079-something-else"),
+            change_sequence_number("CHG-0078-todo-artifact-markers")
+        );
+        // Non-ordinal identifiers never raise a collision.
+        assert!(change_sequence_number("CHG-not-a-number").is_none());
+        assert!(change_sequence_number("legacy-change").is_none());
     }
 
     #[test]

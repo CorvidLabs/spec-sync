@@ -97,9 +97,9 @@ The regression fixture covers both symlink and non-production source claims.
 Config-review trigger: accepting JSON and TOML source-directory spellings interchangeably could
 honor a key that native SpecSync ignores, while assuming `src` when native performs auto-detection
 could assign a different ownership boundary. Durable invariant: historical ownership reads only the
-format-specific committed key (`source_dirs` for TOML, `sourceDirs` for JSON) and fails closed when
-explicit committed source roots are unavailable. Fully signed negative manifests ensure the
-symlink/non-production regressions exercise those guards rather than path-set mismatch.
+format-specific committed key (`source_dirs` for TOML, `sourceDirs` for JSON) and reconstructs
+native manifest-first/tree-scan source roots when the key is omitted. Fully signed negative manifests
+ensure the symlink/non-production regressions exercise those guards rather than path-set mismatch.
 
 Input-authentication trigger: Git can store configuration and registry paths as symlinks, and the
 first historical parser accepted their blob payloads even though native path loading would not treat
@@ -124,3 +124,13 @@ semantically valid review pair stored as symlinks.
 The last parity pass added the protected root `specsync-registry.toml` to delivery precedence and
 kept native review history semantics: first appearance may contain collapsed history, but each later
 review-only edge appends exactly one attempt. Regressions cover both cases.
+
+Independent audit trigger: tuple shape alone did not prove that semantic succession was grounded in
+the definition-signed base, missing canonical companions fell through to delivery ownership, and an
+omitted `source_dirs` setting was treated unlike native auto-detection. Root cause: historical replay
+validated the closing projection without fully rebuilding the base and path-defined ownership
+context. Durable invariant: every succession predecessor digest is resolved from accepted evidence
+at an ancestor definition base and requires a non-removed semantic delta; canonical companion
+ownership applies even to signed missing entries; omitted source roots use bounded committed-tree
+manifest/scanning semantics. Focused regressions cover forged predecessor digests, missing companion
+owner substitution, and Cargo-backed auto-detection with source-like files outside the detected root.

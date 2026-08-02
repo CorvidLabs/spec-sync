@@ -26,3 +26,5 @@ artifact: tasks
 - [x] Reject symlink and non-production corrected ownership while requiring regular canonical specs.
 - [x] Close the final five adversarial traversal gaps for exact owners, frontmatter forms, symlink
   targets, review-only metadata authentication, and semantic-succession obligations.
+- [x] Authenticate semantic succession at its definition base, preserve missing canonical companion
+  ownership, and mirror omitted-source-root auto-detection after independent audit.

@@ -262,6 +262,37 @@ with tempfile.TemporaryDirectory() as temporary:
         forged_extra_owner,
         ownership_state,
     )
+    missing_companion_state = copy.deepcopy(ownership_state)
+    missing_companion_state["affected_paths"].append("specs/foo/tasks.md")
+    missing_companion_manifest = ownership_manifest_with(
+        signed_entry(
+            "specs/foo/tasks.md",
+            "missing",
+            0,
+            b"",
+            ["foo"],
+        )
+    )
+    assert module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        missing_companion_manifest,
+        missing_companion_state,
+    )
+    forged_missing_owner = copy.deepcopy(missing_companion_manifest)
+    missing_entry = next(
+        entry
+        for entry in forged_missing_owner["entries"]
+        if entry["path"] == "specs/foo/tasks.md"
+    )
+    missing_entry["owners"] = ["@exact:delivery"]
+    missing_entry["entry_digest"] = module.acceptance_entry_digest(missing_entry)
+    assert not module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        forged_missing_owner,
+        missing_companion_state,
+    )
     test_state = copy.deepcopy(ownership_state)
     test_state["affected_paths"].append("tests/foo.rs")
     test_manifest = ownership_manifest_with(
@@ -382,11 +413,74 @@ with tempfile.TemporaryDirectory() as temporary:
         ownership_repository, ownership_commit, bad_link_manifest, bad_link_state
     )
 
+    (ownership_repository / ".specsync/config.toml").write_text(
+        'specs_dir = "custom-specs"\n', encoding="utf-8"
+    )
+    (ownership_repository / "Cargo.toml").write_text(
+        '[package]\nname = "ownership-fixture"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+    (ownership_repository / "tools").mkdir()
+    (ownership_repository / "tools/helper.rs").write_text(
+        "pub fn helper() {}\n", encoding="utf-8"
+    )
+    predecessor_state = copy.deepcopy(ownership_state)
+    predecessor_state["id"] = "CHG-0000-predecessor"
+    predecessor_state["state"] = "accepted"
+    predecessor_root = ownership_repository / ".specsync/changes/CHG-0000-predecessor"
+    predecessor_root.mkdir(parents=True)
+    (predecessor_root / "state.json").write_text(
+        json.dumps(predecessor_state), encoding="utf-8"
+    )
+    (predecessor_root / "verification.json").write_text(
+        json.dumps(
+            {
+                "acceptance_input_digest": module.acceptance_manifest_digest(
+                    ownership_manifest
+                ),
+                "acceptance_manifest": ownership_manifest,
+            }
+        ),
+        encoding="utf-8",
+    )
+    git(ownership_repository, "add", ".")
+    git(ownership_repository, "commit", "-m", "accepted predecessor base")
+    predecessor_base = git(ownership_repository, "rev-parse", "HEAD")
+    assert module.configured_source_dirs(
+        ownership_repository, predecessor_base
+    ) == {"src"}
+    auto_state = copy.deepcopy(ownership_state)
+    auto_state["affected_paths"].append("tools/helper.rs")
+    auto_manifest = ownership_manifest_with(
+        signed_entry(
+            "tools/helper.rs",
+            "file",
+            0o100644,
+            b"pub fn helper() {}\n",
+            ["@exact:delivery"],
+        )
+    )
+    assert module.acceptance_manifest_matches_commit(
+        ownership_repository, predecessor_base, auto_manifest, auto_state
+    )
+
+    successor_id = "CHG-0001-ownership"
+    successor_delta = ownership_repository / f".specsync/changes/{successor_id}/deltas"
+    successor_delta.mkdir(parents=True)
+    (successor_delta / "foo.md").write_text(
+        "## MODIFIED\n\n### REQUIREMENT REQ-foo-001\n\nThe successor changes the signed contract.\n",
+        encoding="utf-8",
+    )
+    git(ownership_repository, "add", ".")
+    git(ownership_repository, "commit", "-m", "successor semantic delta")
+    successor_revision = git(ownership_repository, "rev-parse", "HEAD")
+
     successor_entry = next(
         entry for entry in ownership_manifest["entries"] if entry["path"] == "src/foo.rs"
     )
-    predecessor_digest = "a" * 64
+    predecessor_digest = successor_entry["entry_digest"]
     succession_state = copy.deepcopy(ownership_state)
+    succession_state["base_commit"] = predecessor_base
     succession_state["supersedes"] = [
         {
             "predecessor_id": "CHG-0000-predecessor",
@@ -411,19 +505,55 @@ with tempfile.TemporaryDirectory() as temporary:
             }
         ],
     }
+    changed_successor_manifest = copy.deepcopy(ownership_manifest)
+    changed_successor = next(
+        entry for entry in changed_successor_manifest["entries"] if entry["path"] == "src/foo.rs"
+    )
+    changed_successor["payload_digest"] = "b" * 64
+    changed_successor["entry_digest"] = module.acceptance_entry_digest(changed_successor)
+    succession["tuples"][0]["successor_entry_digest"] = changed_successor["entry_digest"]
     assert module.semantic_succession_matches_state(
-        succession, succession_state, ownership_manifest
+        ownership_repository,
+        successor_revision,
+        succession,
+        succession_state,
+        changed_successor_manifest,
     )
     assert not module.semantic_succession_matches_state(
-        None, succession_state, ownership_manifest
+        ownership_repository,
+        successor_revision,
+        None,
+        succession_state,
+        changed_successor_manifest,
     )
     forged_succession = copy.deepcopy(succession)
     forged_succession["tuples"] = []
     assert not module.semantic_succession_matches_state(
-        forged_succession, succession_state, ownership_manifest
+        ownership_repository,
+        successor_revision,
+        forged_succession,
+        succession_state,
+        changed_successor_manifest,
+    )
+    forged_predecessor = copy.deepcopy(succession)
+    forged_predecessor["tuples"][0]["predecessor_entry_digest"] = "a" * 64
+    succession_state_forged = copy.deepcopy(succession_state)
+    succession_state_forged["supersedes"][0]["obligations"][0][
+        "predecessor_entry_digest"
+    ] = "a" * 64
+    assert not module.semantic_succession_matches_state(
+        ownership_repository,
+        successor_revision,
+        forged_predecessor,
+        succession_state_forged,
+        changed_successor_manifest,
     )
     assert module.semantic_succession_matches_state(
-        None, ownership_state, ownership_manifest
+        ownership_repository,
+        successor_revision,
+        None,
+        ownership_state,
+        ownership_manifest,
     )
     malformed_correction = copy.deepcopy(ownership_state)
     malformed_correction["acceptance_owner_corrections"][0]["timestamp"] = -1
@@ -520,7 +650,7 @@ with tempfile.TemporaryDirectory() as temporary:
     git(ownership_repository, "add", ".specsync/config.toml")
     git(ownership_repository, "commit", "-m", "wrong TOML source-dir key")
     wrong_key_commit = git(ownership_repository, "rev-parse", "HEAD")
-    assert module.configured_source_dirs(ownership_repository, wrong_key_commit) is None
+    assert module.configured_source_dirs(ownership_repository, wrong_key_commit) == {"src"}
 
     (ownership_repository / ".specsync/config.toml").unlink()
     (ownership_repository / ".specsync/config.toml").symlink_to(
@@ -535,7 +665,7 @@ with tempfile.TemporaryDirectory() as temporary:
     git(ownership_repository, "add", ".specsync/config.toml")
     git(ownership_repository, "commit", "-m", "missing source-dir config")
     missing_config_commit = git(ownership_repository, "rev-parse", "HEAD")
-    assert module.configured_source_dirs(ownership_repository, missing_config_commit) is None
+    assert module.configured_source_dirs(ownership_repository, missing_config_commit) == {"src"}
 
     (ownership_repository / ".specsync/registry.toml").write_text(
         '[specs]\nbar = "specs/bar/bar.spec.md"\n', encoding="utf-8"

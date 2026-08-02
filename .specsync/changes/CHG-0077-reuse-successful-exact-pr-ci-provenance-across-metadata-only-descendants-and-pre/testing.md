@@ -53,8 +53,9 @@ artifact: testing
 - Reconstruct valid audited acceptance-owner corrections and reject malformed correction ledgers.
 - Reject duplicate, out-of-scope, already-affected, non-owning, noncanonical, reserved-owner,
   malformed-path, symlink, non-production, and over-limit owner-correction ledgers.
-- Parse only format-native source-directory keys and fail closed when committed source roots would
-  require native auto-detection; use fully signed symlink/non-production manifests to isolate guards.
+- Parse only format-native source-directory keys and mirror committed-tree manifest-first/scanning
+  source-root auto-detection when the key is omitted; use fully signed symlink/non-production
+  manifests to isolate guards.
 - Require regular committed config/registry blobs, reject nameless mapped registries, and resolve an
   unmapped corrected owner through the committed custom `specs_dir` fallback.
 - Accept a valid finalization-generated review history containing an earlier block followed by the
@@ -72,6 +73,9 @@ artifact: testing
   and reject otherwise-valid review projection/ledger JSON stored as Git symlinks.
 - Preserve exact-delivery precedence for root `specsync-registry.toml` and reject a review-only edge
   that appends multiple attempts after a committed ledger.
+- Resolve every semantic predecessor digest from accepted evidence at the definition-signed ancestor
+  base, require a non-removed module delta, classify signed missing canonical companions as
+  module-owned, and preserve Cargo-backed auto-detection for source-like files outside `src`.
 
 ## Completion
 

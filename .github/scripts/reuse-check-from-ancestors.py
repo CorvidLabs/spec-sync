@@ -57,6 +57,15 @@ SOURCE_EXTENSIONS = {
     "r", "rb", "rs", "scala", "scm", "sh", "swift", "ts", "tsx", "vala",
     "yaml", "yml",
 }
+STATIC_SOURCE_EXTENSIONS = {"html", "htm", "css"}
+IGNORED_SOURCE_DIRS = {
+    "node_modules", ".git", ".hg", ".svn", "dist", "build", "out",
+    "target", "vendor", ".next", ".nuxt", ".output", ".cache",
+    ".turbo", "coverage", "__pycache__", ".mypy_cache", ".pytest_cache",
+    ".tox", ".venv", "venv", "env", ".env", ".idea", ".vscode",
+    ".DS_Store", "specs", "docs", "doc", ".github", ".gitlab",
+    "migrations", "Pods", ".dart_tool", ".gradle", "bin", "obj",
+}
 
 
 def portable_project_path_valid(path: object) -> bool:
@@ -172,6 +181,191 @@ def strip_yaml_comment(value: str) -> str:
             return value[:marker].rstrip()
     return value
 
+
+def detected_source_dirs_at_revision(
+    root: Path,
+    revision: str,
+    revision_tree: dict[str, tuple[str, str, str]],
+) -> set[str] | None:
+    """Mirror native manifest-first source-root detection over a committed tree."""
+
+    def regular_text(path: str) -> str | None:
+        entry = revision_tree.get(path)
+        if entry is None:
+            return ""
+        if entry[0] not in REGULAR_FILE_MODES or entry[1] != "blob":
+            raise ValueError(f"source manifest {path} is not a regular file")
+        return git_bytes(root, revision, path).decode("utf-8")
+
+    def directory_exists(path: str) -> bool:
+        return revision_tree.get(path, (None, None, None))[1] == "tree"
+
+    discovered: set[str] = set()
+    try:
+        cargo = regular_text("Cargo.toml")
+        if cargo:
+            document = tomllib.loads(cargo)
+            if isinstance(document.get("package"), dict) and isinstance(
+                document["package"].get("name"), str
+            ):
+                discovered.add("src")
+            for target in document.get("bin", []):
+                if isinstance(target, dict) and isinstance(target.get("name"), str):
+                    target_path = target.get("path", f"src/bin/{target['name']}.rs")
+                    if isinstance(target_path, str):
+                        parent = Path(target_path).parent.as_posix()
+                        discovered.add(parent if parent != "." else "src")
+            workspace = document.get("workspace")
+            members = workspace.get("members", []) if isinstance(workspace, dict) else []
+            if not isinstance(members, list):
+                return None
+            for member in members:
+                if not isinstance(member, str) or not portable_project_path_valid(member):
+                    return None
+                if member.endswith("/*"):
+                    prefix = member[:-2].rstrip("/")
+                    candidates = {
+                        path[len(prefix) + 1 :].split("/", 1)[0]
+                        for path in revision_tree
+                        if path.startswith(f"{prefix}/")
+                    }
+                    discovered.update(f"{prefix}/{name}" for name in candidates if name)
+                else:
+                    discovered.add(member.rstrip("/"))
+
+        package_swift = regular_text("Package.swift")
+        if package_swift:
+            targets = re.findall(
+                r"\.(?:target|executableTarget|systemLibrary)\s*\((.*?)\)",
+                package_swift,
+                flags=re.DOTALL,
+            )
+            for target in targets:
+                name = re.search(r'\bname\s*:\s*"([^"]+)"', target)
+                explicit = re.search(r'\bpath\s*:\s*"([^"]+)"', target)
+                if name:
+                    discovered.add(explicit.group(1) if explicit else f"Sources/{name.group(1)}")
+            if not targets and directory_exists("Sources"):
+                discovered.add("Sources")
+
+        gradle_names = (
+            "build.gradle.kts", "build.gradle", "settings.gradle.kts", "settings.gradle"
+        )
+        gradle = {name: regular_text(name) for name in gradle_names}
+        if any(gradle.values()):
+            build = gradle["build.gradle.kts"] or gradle["build.gradle"] or ""
+            roots = (
+                ("app/src/main/java", "app/src/main/kotlin", "src/main/java", "src/main/kotlin")
+                if "android {" in build or "android{" in build
+                else ("src/main/kotlin", "src/main/java", "src/main/scala")
+            )
+            discovered.update(path for path in roots if directory_exists(path))
+            settings = gradle["settings.gradle.kts"] or gradle["settings.gradle"] or ""
+            for module in re.findall(r"['\"]:([^'\"]+)['\"]", settings):
+                module_path = module.replace(":", "/")
+                kotlin = f"{module_path}/src/main/kotlin"
+                java = f"{module_path}/src/main/java"
+                discovered.add(
+                    kotlin if directory_exists(kotlin) else java if directory_exists(java)
+                    else f"{module_path}/src/main"
+                )
+
+        package_json = regular_text("package.json")
+        if package_json:
+            package = json.loads(package_json)
+            if not isinstance(package, dict):
+                return None
+            main = package.get("main", "")
+            source = "src" if directory_exists("src") else "lib" if directory_exists("lib") else (
+                Path(main).parent.as_posix() if isinstance(main, str) and main.startswith("./")
+                else "src"
+            )
+            discovered.add(source)
+            workspaces = package.get("workspaces", [])
+            if isinstance(workspaces, dict):
+                workspaces = workspaces.get("packages", [])
+            if not isinstance(workspaces, list):
+                return None
+            for pattern in workspaces:
+                if not isinstance(pattern, str):
+                    return None
+                base = pattern.removesuffix("/**").removesuffix("/*").rstrip("/")
+                if not base or not portable_project_path_valid(base):
+                    return None
+                children = {
+                    path[len(base) + 1 :].split("/", 1)[0]
+                    for path in revision_tree
+                    if path.startswith(f"{base}/")
+                }
+                for child in children:
+                    workspace = f"{base}/{child}"
+                    if f"{workspace}/package.json" in revision_tree:
+                        discovered.add(
+                            f"{workspace}/src"
+                            if directory_exists(f"{workspace}/src") else workspace
+                        )
+
+        if regular_text("pubspec.yaml"):
+            discovered.add("lib")
+        if regular_text("go.mod"):
+            go_roots = {
+                path
+                for path in ("cmd", "internal", "pkg", "api")
+                if directory_exists(path)
+            }
+            discovered.update(go_roots or {"."})
+        pyproject = regular_text("pyproject.toml")
+        if pyproject:
+            document = tomllib.loads(pyproject)
+            project = document.get("project")
+            poetry = (
+                document.get("tool", {}).get("poetry", {})
+                if isinstance(document.get("tool"), dict)
+                else {}
+            )
+            name = project.get("name") if isinstance(project, dict) else None
+            if not isinstance(name, str):
+                name = poetry.get("name") if isinstance(poetry, dict) else None
+            name = name if isinstance(name, str) else "app"
+            discovered.add(
+                "src"
+                if directory_exists("src")
+                else name if directory_exists(name) else "."
+            )
+    except (
+        json.JSONDecodeError,
+        OSError,
+        subprocess.SubprocessError,
+        tomllib.TOMLDecodeError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
+        return None
+
+    if discovered:
+        return {path.strip("/") or "." for path in discovered}
+
+    scanned: set[str] = set()
+    root_source = False
+    detectable = SOURCE_EXTENSIONS | STATIC_SOURCE_EXTENSIONS
+    for path, entry in revision_tree.items():
+        if entry[1] != "blob" or entry[0] not in REGULAR_FILE_MODES:
+            continue
+        parts = path.split("/")
+        extension = Path(path).suffix.removeprefix(".")
+        if extension not in detectable:
+            continue
+        if len(parts) == 1:
+            root_source = True
+            continue
+        top = parts[0]
+        if top.startswith(".") or top in IGNORED_SOURCE_DIRS or len(parts) - 1 > 3:
+            continue
+        scanned.add(top)
+    if scanned:
+        return scanned
+    return {"."} if root_source else {"src"}
+
 def configured_layout(
     root: Path,
     revision: str,
@@ -205,17 +399,16 @@ def configured_layout(
             return None
         source_dirs = config.get("source_dirs" if kind == "toml" else "sourceDirs")
         if source_dirs is None:
-            # Native loading falls back to manifest-aware and filesystem scanning.
-            # Historical verification has only committed tree evidence, so it must
-            # fail closed rather than guess a source root that native did not select.
-            return specs_dir, None
+            detected = detected_source_dirs_at_revision(root, revision, revision_tree)
+            return (specs_dir, detected) if detected is not None else None
         if not isinstance(source_dirs, list) or any(
             not isinstance(source, str) or not source.strip("/")
             for source in source_dirs
         ):
             return None
         return specs_dir, {source.strip("/") for source in source_dirs}
-    return "specs", None
+    detected = detected_source_dirs_at_revision(root, revision, revision_tree)
+    return ("specs", detected) if detected is not None else None
 
 
 def configured_source_dirs(root: Path, revision: str) -> set[str] | None:
@@ -914,7 +1107,10 @@ def acceptance_manifest_matches_commit(
             (Path(spec_dir) / name).as_posix()
             for name in CANONICAL_SPEC_COMPANIONS
         }
-        for path in companion_entries & canonical_owned:
+        # Native ownership is path-defined: a declared missing canonical
+        # companion still belongs to its module and must not fall through to
+        # the exact-delivery owner merely because no tree entry exists.
+        for path in canonical_owned:
             owners_by_path.setdefault(path, set()).add(module)
         sources = spec_source_paths(root, revision, spec_path)
         if sources is None:
@@ -1215,8 +1411,143 @@ def semantic_succession_digest(evidence: object) -> str | None:
     return framed_digest("specsync.semantic-succession.v1", frames)
 
 
+def change_root_at_revision(
+    root: Path,
+    revision: str,
+    change_id: str,
+) -> tuple[str, dict] | None:
+    entries = revision_entries(root, revision)
+    candidates: dict[str, str] = {}
+    active = f".specsync/changes/{change_id}"
+    if f"{active}/state.json" in entries:
+        candidates[active] = f"{active}/state.json"
+    archive_prefix = ".specsync/archive/changes/"
+    for path in entries:
+        if not path.startswith(archive_prefix):
+            continue
+        relative = path[len(archive_prefix) :]
+        directory, separator, name = relative.partition("/")
+        if separator and directory.endswith(change_id) and name in {
+            "accepted-state.json", "state.json"
+        }:
+            archive_root = f"{archive_prefix}{directory}"
+            if name == "accepted-state.json" or archive_root not in candidates:
+                candidates[archive_root] = path
+    if len(candidates) != 1:
+        return None
+    directory, state_path = candidates.popitem()
+    entry = entries.get(state_path)
+    if entry is None or entry[0] not in REGULAR_FILE_MODES or entry[1] != "blob":
+        return None
+    try:
+        state = json_object_at(root, revision, state_path)
+    except (
+        json.JSONDecodeError,
+        OSError,
+        subprocess.SubprocessError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
+        return None
+    if state.get("id") != change_id:
+        return None
+    return directory, state
+
+
+def predecessor_entry_digest_at_base(
+    root: Path,
+    base: str,
+    predecessor_id: str,
+    path: str,
+) -> str | None:
+    located = change_root_at_revision(root, base, predecessor_id)
+    if located is None:
+        return None
+    predecessor_root, predecessor_state = located
+    if predecessor_state.get("state") not in {"accepted", "archived"}:
+        return None
+    try:
+        verification = json_object_at(
+            root, base, f"{predecessor_root}/verification.json"
+        )
+    except (
+        json.JSONDecodeError,
+        OSError,
+        subprocess.SubprocessError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
+        return None
+    manifest = verification.get("acceptance_manifest")
+    if (
+        not isinstance(manifest, dict)
+        or acceptance_manifest_digest(manifest)
+        != verification.get("acceptance_input_digest")
+        or not acceptance_manifest_matches_commit(
+            root, base, manifest, predecessor_state
+        )
+    ):
+        return None
+    matching = [
+        entry
+        for entry in manifest.get("entries", [])
+        if isinstance(entry, dict) and entry.get("path") == path
+    ]
+    if len(matching) != 1 or not digest_is_sha256(matching[0].get("entry_digest")):
+        return None
+    return matching[0]["entry_digest"]
+
+
+def semantic_delta_has_nonremoved_item(
+    root: Path,
+    revision: str,
+    change_id: object,
+    module: str,
+) -> bool:
+    if not isinstance(change_id, str):
+        return False
+    path = f".specsync/changes/{change_id}/deltas/{module}.md"
+    entries = revision_entries(root, revision)
+    entry = entries.get(path)
+    if entry is None or entry[0] not in REGULAR_FILE_MODES or entry[1] != "blob":
+        return False
+    try:
+        content = git_bytes(root, revision, path).decode("utf-8")
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        return False
+    operation: str | None = None
+    target = False
+    body: list[str] = []
+
+    def valid_item() -> bool:
+        return operation in {"ADDED", "MODIFIED"} and target and bool("\n".join(body).strip())
+
+    for line in content.splitlines():
+        if line.startswith("## "):
+            if valid_item():
+                return True
+            operation = line[3:].strip().upper()
+            target = False
+            body = []
+        elif line.startswith("### "):
+            if valid_item():
+                return True
+            heading = line[4:]
+            target = heading.startswith(("REQUIREMENT ", "SPEC SECTION ")) and bool(
+                heading.split(" ", 1)[1].strip()
+            )
+            body = []
+        elif target:
+            body.append(line)
+    return valid_item()
+
+
 def semantic_succession_matches_state(
-    evidence: object, state: dict, manifest: dict
+    root: Path,
+    revision: str,
+    evidence: object,
+    state: dict,
+    manifest: dict,
 ) -> bool:
     expected: set[tuple[str, str, str, str]] = set()
     supersedes = state.get("supersedes", [])
@@ -1250,6 +1581,20 @@ def semantic_succession_matches_state(
             expected.add(item)
     if not expected:
         return evidence is None
+    base = state.get("base_commit")
+    if (
+        not isinstance(base, str)
+        or re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", base) is None
+        or subprocess.run(
+            ["git", "merge-base", "--is-ancestor", base, revision],
+            cwd=root,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        ).returncode
+        != 0
+    ):
+        return False
     if semantic_succession_digest(evidence) is None or not isinstance(evidence, dict):
         return False
     tuples = evidence.get("tuples")
@@ -1278,6 +1623,16 @@ def semantic_succession_matches_state(
             or item.get("successor_entry_digest") != successor.get("entry_digest")
             or item.get("successor_entry_digest")
             == item.get("predecessor_entry_digest")
+            or predecessor_entry_digest_at_base(
+                root,
+                base,
+                item.get("predecessor_id"),
+                item.get("path"),
+            )
+            != item.get("predecessor_entry_digest")
+            or not semantic_delta_has_nonremoved_item(
+                root, revision, state.get("id"), item.get("module")
+            )
         ):
             return False
         actual.add(obligation)
@@ -1534,6 +1889,8 @@ def canonical_archive_transition(
             or not isinstance(manifest, dict)
             or not acceptance_manifest_matches_commit(root, parent, manifest, parent_state)
             or not semantic_succession_matches_state(
+                root,
+                parent,
                 archived_verification.get("semantic_succession"),
                 parent_state,
                 manifest,

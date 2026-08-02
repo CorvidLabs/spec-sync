@@ -239,7 +239,8 @@ Acceptance Criteria
   pull request and repository, produced by the expected workflow, and linked to its exact successful
   workflow job and selected check identity.
 - A newer cancelled or failed trusted-policy publication does not override an earlier authenticated
-  success for the same exact SHA, including when GitHub rewrites the successful check's display URL.
+  success for the same exact SHA, including a failed rerun of the same workflow run; the successful
+  publication remains bound to its immutable run attempt even when GitHub rewrites its display URL.
 - Missing, foreign, stale, wrong-workflow, second-parent, malformed, unsuccessful-only, over-limit,
   or ambiguous evidence fails closed.
 - Eligible metadata descendants do not rerun the full product matrix.

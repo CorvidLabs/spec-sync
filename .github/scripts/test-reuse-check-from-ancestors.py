@@ -68,7 +68,7 @@ assert not module.u64_json_integer(-1)
 assert not module.u64_json_integer(2**64)
 valid_archive_timestamps = [1, 2, 3, 2, 2]
 assert module.archive_timestamp_sequence_valid(*valid_archive_timestamps)
-for index, invalid_timestamp in enumerate((True, True, 2**64, 2**64, 2**64)):
+for index, invalid_timestamp in enumerate((1.0, 2.0, 3.0, 2.0, 2.0)):
     timestamps = valid_archive_timestamps.copy()
     timestamps[index] = invalid_timestamp
     assert not module.archive_timestamp_sequence_valid(*timestamps)

@@ -85,6 +85,7 @@ artifact: testing
 - Disable focused-test bytecode generation and keep interpreter-specific caches out of the tree.
 - Match native `non_file` JSON to the signed `non-file` entry frame and exercise each state,
   finalization, and closing timestamp independently before the archive-edge integration assertion.
+- Use in-order floating-point probes so each timestamp assertion isolates u64 type enforcement.
 
 ## Completion
 

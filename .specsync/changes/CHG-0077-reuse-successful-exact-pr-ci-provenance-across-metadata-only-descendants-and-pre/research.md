@@ -81,3 +81,6 @@ reuse or fail, and checks republished on metadata children or older product comm
   missing call-site check. The helper now mirrors the native framed spelling, and one shared archive
   timestamp-sequence validator has independent boundary assertions for every persisted field plus a
   real archive-edge boolean rejection fixture.
+- The final rereview tightened those field assertions to use in-order non-integer values, proving
+  that every persisted timestamp is rejected by the u64 type invariant rather than incidentally by
+  the ordering invariant.

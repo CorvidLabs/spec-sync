@@ -1,6 +1,6 @@
 ---
 id: CHG-0074-simplify-specsync-ci-to-one-expensive-suite-authority-with-residual-trust-identi
-state: implementing
+state: archived
 type: operations
 base_commit: 0ea95ce5a409ee7685bb31a182ef2c633bf9baee
 ---

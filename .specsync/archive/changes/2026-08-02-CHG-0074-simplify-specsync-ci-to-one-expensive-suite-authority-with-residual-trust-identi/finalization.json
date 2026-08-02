@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0074-simplify-specsync-ci-to-one-expensive-suite-authority-with-residual-trust-identi",
+  "implementation_commit": "b117382f08bf5f56965a2a1cf394b2d690662b8d",
+  "implementation_tree": "30010a52e1fb750022e5fe47b894751fe3fe23b7",
+  "contract_digest": "3f6c3bc6aaf1bffef82fee470b3a88c57c9127422f5a407fe1bbef0e40d4db81",
+  "workspace_digest": "5b2ee5cca0f72cbd13dcc5ae664cd04099a5ea6f508ef9021269e252af971dac",
+  "closing_digest": "02bf8a658d2198179ba2c2ebf50cd386e912ffbdd856136cef96e0f6014d334a",
+  "review_digest": "e403e9fd68ae6141bbf6bc187c1bccb2344a95bd60861ea949aa73dd2fe6db2a",
+  "finalization_digest": "3530996c8a369607f2ebf780a2937a4e9110cc7fe27e6b7bd1976b369cbb2f2a",
+  "timestamp": 1785628845
+}

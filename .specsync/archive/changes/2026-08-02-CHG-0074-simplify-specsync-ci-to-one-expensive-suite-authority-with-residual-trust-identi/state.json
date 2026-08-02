@@ -7,11 +7,11 @@
   "title": "Simplify SpecSync CI to one expensive-suite authority with residual Trust identity gates, preserving full local verification and documenting the 95% confidence model",
   "description": "Simplify SpecSync CI to one expensive-suite authority with residual Trust identity gates, preserving full local verification and documenting the 95% confidence model",
   "kind": "operations",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "0ea95ce5a409ee7685bb31a182ef2c633bf9baee",
   "created_at": 1785608765,
-  "updated_at": 1785628704,
+  "updated_at": 1785628993,
   "affected_specs": [
     "github"
   ],

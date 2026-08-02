@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 74,
-  "id": "CHG-0074-simplify-specsync-ci-to-one-expensive-suite-authority-with-residual-trust-identi",
+  "sequence": 76,
+  "id": "CHG-0076-accept-github-s-rewritten-trusted-policy-check-url-while-preserving-exact-base-c",
   "acknowledged_collisions": [
     {
       "sequence": 16,

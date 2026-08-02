@@ -436,6 +436,8 @@ with tempfile.TemporaryDirectory() as temporary:
     )
     (ownership_repository / "settings.gradle.kts").write_text(
         '// include(":ignored")\n'
+        '"""project("app").projectDir = file("triple-ignored")"""\n'
+        '/* outer /* project("app").projectDir = file("nested-ignored") */ */\n'
         'include("app")\n'
         'project("app").projectDir = file("custom-app")\n',
         encoding="utf-8",

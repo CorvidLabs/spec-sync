@@ -220,24 +220,38 @@ def balanced_call_blocks(content: str, marker: str) -> list[str] | None:
 def strip_gradle_comments(content: str) -> str | None:
     output: list[str] = []
     index = 0
-    quote: str | None = None
-    escaped = False
     while index < len(content):
         character = content[index]
         following = content[index + 1] if index + 1 < len(content) else ""
-        if quote is not None:
-            output.append(character)
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == quote:
-                quote = None
-            index += 1
+        if character in {"'", '"'} and content[index : index + 3] == character * 3:
+            delimiter = character * 3
+            output.extend("   ")
+            index += 3
+            end = content.find(delimiter, index)
+            if end < 0:
+                return None
+            output.extend("\n" if value == "\n" else " " for value in content[index:end])
+            output.extend("   ")
+            index = end + 3
         elif character in {"'", '"'}:
-            quote = character
+            delimiter = character
+            escaped = False
             output.append(character)
             index += 1
+            while index < len(content):
+                quoted = content[index]
+                output.append(quoted)
+                index += 1
+                if escaped:
+                    escaped = False
+                elif quoted == "\\":
+                    escaped = True
+                elif quoted == delimiter:
+                    break
+            else:
+                return None
+            if escaped:
+                return None
         elif character == "/" and following == "/":
             newline = content.find("\n", index + 2)
             if newline < 0:
@@ -245,11 +259,24 @@ def strip_gradle_comments(content: str) -> str | None:
             output.append("\n")
             index = newline + 1
         elif character == "/" and following == "*":
-            end = content.find("*/", index + 2)
-            if end < 0:
+            output.extend("  ")
+            index += 2
+            depth = 1
+            while index < len(content) and depth:
+                pair = content[index : index + 2]
+                if pair == "/*":
+                    depth += 1
+                    output.extend("  ")
+                    index += 2
+                elif pair == "*/":
+                    depth -= 1
+                    output.extend("  ")
+                    index += 2
+                else:
+                    output.append("\n" if content[index] == "\n" else " ")
+                    index += 1
+            if depth:
                 return None
-            output.extend("\n" for value in content[index : end + 2] if value == "\n")
-            index = end + 2
         else:
             output.append(character)
             index += 1

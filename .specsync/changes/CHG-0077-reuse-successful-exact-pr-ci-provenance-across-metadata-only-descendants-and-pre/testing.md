@@ -79,6 +79,7 @@ artifact: testing
 - Preserve explicit Swift target paths after nested dependency calls, apply Gradle `projectDir`
   overrides, and reconstruct succession entries for aggregate-only legacy predecessor evidence.
 - Accept colonless/commented Gradle settings and portable symlink predecessor entries.
+- Mask triple-quoted Gradle literals and nested block comments before effective-path parsing.
 
 ## Completion
 

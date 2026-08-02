@@ -143,3 +143,4 @@ from the signed base tree and therefore remain compatible with aggregate-only le
 Fixtures cover nested Swift dependencies, a Gradle `projectDir` override, and a legacy predecessor.
 The final adversarial pass also covers colonless Gradle module identities, comment stripping, and
 portable symlink predecessor entries so the historical parser cannot diverge on those native forms.
+Comment stripping preserves native triple-quoted literals and nested block-comment semantics.

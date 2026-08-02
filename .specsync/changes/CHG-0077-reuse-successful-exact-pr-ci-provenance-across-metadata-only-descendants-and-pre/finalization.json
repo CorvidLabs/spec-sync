@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre",
+  "implementation_commit": "97018c1df9152e1117a96bdafbbf3d14cdbb9fce",
+  "implementation_tree": "b6cf68561dbb431803161c6ca71f0a279ba60881",
+  "contract_digest": "c0ca07f435a527372c52aec484bd92c02a5310a43282c38a23b222e8fa6a409a",
+  "workspace_digest": "3924a7c01d9e4471a9734bbcb3e5c338e2149f761813e0ac1fdf6e49f6085fc8",
+  "closing_digest": "1d55b9fde91e753d07d2f10a3d82341f522d1c80038b74d99308cd8b93d444e5",
+  "review_digest": "f439acd1ab8f0662380681c98a0817e2f873a22c38ee291f5d1925092b59b168",
+  "finalization_digest": "d6f048454631c17ab197c5e4cec62a9f0433beed69769be30363ab75155d0dc1",
+  "timestamp": 1785688906
+}

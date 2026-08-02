@@ -7,11 +7,11 @@
   "title": "Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result",
   "description": "Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "7b6b10d1f54fd1fc32e9bbe936cf23ab39958e0b",
   "created_at": 1785635069,
-  "updated_at": 1785688815,
+  "updated_at": 1785688906,
   "affected_specs": [
     "github"
   ],

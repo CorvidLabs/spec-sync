@@ -134,3 +134,10 @@ at an ancestor definition base and requires a non-removed semantic delta; canoni
 ownership applies even to signed missing entries; omitted source roots use bounded committed-tree
 manifest/scanning semantics. Focused regressions cover forged predecessor digests, missing companion
 owner substitution, and Cargo-backed auto-detection with source-like files outside the detected root.
+
+Parity re-review trigger: regex-only Swift target parsing lost explicit paths after nested dependency
+calls, Gradle project-directory overrides were not applied, and predecessor lookup assumed modern
+per-entry manifests. Durable invariant: committed-tree source discovery uses balanced Swift call
+parsing and effective Gradle module paths, while succession entry digests are reconstructed directly
+from the signed base tree and therefore remain compatible with aggregate-only legacy evidence.
+Fixtures cover nested Swift dependencies, a Gradle `projectDir` override, and a legacy predecessor.

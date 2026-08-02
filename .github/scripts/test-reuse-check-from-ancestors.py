@@ -420,6 +420,28 @@ with tempfile.TemporaryDirectory() as temporary:
         '[package]\nname = "ownership-fixture"\nversion = "0.1.0"\n',
         encoding="utf-8",
     )
+    (ownership_repository / "Package.swift").write_text(
+        '// swift-tools-version: 6.0\n'
+        'let package = Package(targets: [.target('
+        'name: "Nested", dependencies: [.product(name: "Dep", package: "dep")], '
+        'path: "CustomSources")])\n',
+        encoding="utf-8",
+    )
+    (ownership_repository / "CustomSources").mkdir()
+    (ownership_repository / "CustomSources/main.swift").write_text(
+        "public func nested() {}\n", encoding="utf-8"
+    )
+    (ownership_repository / "build.gradle.kts").write_text(
+        'plugins { kotlin("jvm") version "2.0.0" }\n', encoding="utf-8"
+    )
+    (ownership_repository / "settings.gradle.kts").write_text(
+        'include(":app")\nproject(":app").projectDir = file("custom-app")\n',
+        encoding="utf-8",
+    )
+    (ownership_repository / "custom-app/src/main/kotlin").mkdir(parents=True)
+    (ownership_repository / "custom-app/src/main/kotlin/App.kt").write_text(
+        "class App\n", encoding="utf-8"
+    )
     (ownership_repository / "tools").mkdir()
     (ownership_repository / "tools/helper.rs").write_text(
         "pub fn helper() {}\n", encoding="utf-8"
@@ -437,8 +459,7 @@ with tempfile.TemporaryDirectory() as temporary:
             {
                 "acceptance_input_digest": module.acceptance_manifest_digest(
                     ownership_manifest
-                ),
-                "acceptance_manifest": ownership_manifest,
+                )
             }
         ),
         encoding="utf-8",
@@ -446,9 +467,10 @@ with tempfile.TemporaryDirectory() as temporary:
     git(ownership_repository, "add", ".")
     git(ownership_repository, "commit", "-m", "accepted predecessor base")
     predecessor_base = git(ownership_repository, "rev-parse", "HEAD")
+    detected_roots = {"src", "CustomSources", "custom-app/src/main/kotlin"}
     assert module.configured_source_dirs(
         ownership_repository, predecessor_base
-    ) == {"src"}
+    ) == detected_roots
     auto_state = copy.deepcopy(ownership_state)
     auto_state["affected_paths"].append("tools/helper.rs")
     auto_manifest = ownership_manifest_with(
@@ -650,7 +672,9 @@ with tempfile.TemporaryDirectory() as temporary:
     git(ownership_repository, "add", ".specsync/config.toml")
     git(ownership_repository, "commit", "-m", "wrong TOML source-dir key")
     wrong_key_commit = git(ownership_repository, "rev-parse", "HEAD")
-    assert module.configured_source_dirs(ownership_repository, wrong_key_commit) == {"src"}
+    assert module.configured_source_dirs(
+        ownership_repository, wrong_key_commit
+    ) == detected_roots
 
     (ownership_repository / ".specsync/config.toml").unlink()
     (ownership_repository / ".specsync/config.toml").symlink_to(
@@ -665,7 +689,9 @@ with tempfile.TemporaryDirectory() as temporary:
     git(ownership_repository, "add", ".specsync/config.toml")
     git(ownership_repository, "commit", "-m", "missing source-dir config")
     missing_config_commit = git(ownership_repository, "rev-parse", "HEAD")
-    assert module.configured_source_dirs(ownership_repository, missing_config_commit) == {"src"}
+    assert module.configured_source_dirs(
+        ownership_repository, missing_config_commit
+    ) == detected_roots
 
     (ownership_repository / ".specsync/registry.toml").write_text(
         '[specs]\nbar = "specs/bar/bar.spec.md"\n', encoding="utf-8"

@@ -182,6 +182,41 @@ def strip_yaml_comment(value: str) -> str:
     return value
 
 
+def balanced_call_blocks(content: str, marker: str) -> list[str] | None:
+    blocks: list[str] = []
+    search_from = 0
+    while True:
+        start = content.find(marker, search_from)
+        if start < 0:
+            return blocks
+        index = start + len(marker)
+        depth = 1
+        quote: str | None = None
+        escaped = False
+        while index < len(content):
+            character = content[index]
+            if quote is not None:
+                if escaped:
+                    escaped = False
+                elif character == "\\":
+                    escaped = True
+                elif character == quote:
+                    quote = None
+            elif character in {"'", '"'}:
+                quote = character
+            elif character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth == 0:
+                    blocks.append(content[start + len(marker) : index])
+                    search_from = index + 1
+                    break
+            index += 1
+        else:
+            return None
+
+
 def detected_source_dirs_at_revision(
     root: Path,
     revision: str,
@@ -235,16 +270,21 @@ def detected_source_dirs_at_revision(
 
         package_swift = regular_text("Package.swift")
         if package_swift:
-            targets = re.findall(
-                r"\.(?:target|executableTarget|systemLibrary)\s*\((.*?)\)",
-                package_swift,
-                flags=re.DOTALL,
-            )
+            targets: list[str] = []
+            for marker in (".target(", ".executableTarget(", ".systemLibrary("):
+                parsed = balanced_call_blocks(package_swift, marker)
+                if parsed is None:
+                    return None
+                targets.extend(parsed)
             for target in targets:
                 name = re.search(r'\bname\s*:\s*"([^"]+)"', target)
                 explicit = re.search(r'\bpath\s*:\s*"([^"]+)"', target)
                 if name:
-                    discovered.add(explicit.group(1) if explicit else f"Sources/{name.group(1)}")
+                    discovered.add(
+                        explicit.group(1)
+                        if explicit
+                        else f"Sources/{name.group(1)}"
+                    )
             if not targets and directory_exists("Sources"):
                 discovered.add("Sources")
 
@@ -261,8 +301,29 @@ def detected_source_dirs_at_revision(
             )
             discovered.update(path for path in roots if directory_exists(path))
             settings = gradle["settings.gradle.kts"] or gradle["settings.gradle"] or ""
-            for module in re.findall(r"['\"]:([^'\"]+)['\"]", settings):
-                module_path = module.replace(":", "/")
+            overrides: dict[str, str] = {}
+            override_pattern = re.compile(
+                r'''project\(\s*["']:(?P<module>[^"']+)["']\s*\)\s*'''
+                r'''(?:\.projectDir\s*=|\.setProjectDir\()\s*'''
+                r'''(?:file\(|new\s+File\(\s*rootDir\s*,\s*)'''
+                r'''["'](?P<path>[^"']+)["']'''
+            )
+            for match in override_pattern.finditer(settings):
+                overrides[match.group("module").replace(":", "/")] = match.group(
+                    "path"
+                ).strip("/")
+            included: set[str] = set()
+            for statement in re.findall(
+                r"(?ms)^\s*include\s*(?:\((.*?)\)|(.*?))\s*$", settings
+            ):
+                body = statement[0] or statement[1]
+                included.update(
+                    value.replace(":", "/")
+                    for value in re.findall(r'''["']:\s*([^"']+)["']''', body)
+                    if value.strip(":")
+                )
+            for module in included:
+                module_path = overrides.get(module, module)
                 kotlin = f"{module_path}/src/main/kotlin"
                 java = f"{module_path}/src/main/java"
                 discovered.add(
@@ -1466,36 +1527,44 @@ def predecessor_entry_digest_at_base(
     predecessor_root, predecessor_state = located
     if predecessor_state.get("state") not in {"accepted", "archived"}:
         return None
+    del predecessor_root
+    objects = revision_entries(root, base)
+    tree_entry = objects.get(path)
     try:
-        verification = json_object_at(
-            root, base, f"{predecessor_root}/verification.json"
-        )
-    except (
-        json.JSONDecodeError,
-        OSError,
-        subprocess.SubprocessError,
-        UnicodeDecodeError,
-        ValueError,
-    ):
+        if tree_entry is None:
+            kind = "missing"
+            mode = 0
+            payload = b""
+        elif tree_entry[1] == "tree":
+            kind = "non_file"
+            mode = 0
+            payload = b""
+        elif tree_entry[0] in REGULAR_FILE_MODES and tree_entry[1] == "blob":
+            kind = "file"
+            mode = int(tree_entry[0], 8)
+            payload = git_bytes(root, base, path)
+        elif tree_entry[0] == "120000" and tree_entry[1] == "blob":
+            kind = "symlink"
+            mode = 0o120000
+            payload = git_bytes(root, base, path)
+            target = payload.decode("utf-8")
+            if not portable_symlink_target_valid(target):
+                return None
+        elif tree_entry[0] == "160000" and tree_entry[1] == "commit":
+            kind = "gitlink"
+            mode = 0o160000
+            payload = tree_entry[2].encode("ascii")
+        else:
+            return None
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError, ValueError):
         return None
-    manifest = verification.get("acceptance_manifest")
-    if (
-        not isinstance(manifest, dict)
-        or acceptance_manifest_digest(manifest)
-        != verification.get("acceptance_input_digest")
-        or not acceptance_manifest_matches_commit(
-            root, base, manifest, predecessor_state
-        )
-    ):
-        return None
-    matching = [
-        entry
-        for entry in manifest.get("entries", [])
-        if isinstance(entry, dict) and entry.get("path") == path
-    ]
-    if len(matching) != 1 or not digest_is_sha256(matching[0].get("entry_digest")):
-        return None
-    return matching[0]["entry_digest"]
+    entry = {
+        "path": path,
+        "kind": kind,
+        "mode": mode,
+        "payload_digest": hashlib.sha256(payload).hexdigest(),
+    }
+    return acceptance_entry_digest(entry)
 
 
 def semantic_delta_has_nonremoved_item(

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre",
+  "reviewer": "Ohm",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ba8214914070ddf1e77974d7780f1f1c6237b43e",
+  "contract_digest": "c0ca07f435a527372c52aec484bd92c02a5310a43282c38a23b222e8fa6a409a",
+  "execution_digest": "0bca318de90549a0e6aab33094bcc08753b5ea6a1eb8bb0bbd0dc22b22f9a048",
+  "workspace_digest": "43adb5aee11d20decf27e6aabb1ef49fe2cce78d4d3187b148ed212253ee00de",
+  "timestamp": 1785646984
+}

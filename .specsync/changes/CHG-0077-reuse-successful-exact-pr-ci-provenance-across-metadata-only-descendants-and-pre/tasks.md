@@ -29,3 +29,4 @@ artifact: tasks
 - [x] Authenticate semantic succession at its definition base, preserve missing canonical companion
   ownership, and mirror omitted-source-root auto-detection after independent audit.
 - [x] Close Swift/Gradle auto-detection parity and legacy predecessor reconstruction findings.
+- [x] Close colonless Gradle/comment parsing and symlink predecessor parity findings.

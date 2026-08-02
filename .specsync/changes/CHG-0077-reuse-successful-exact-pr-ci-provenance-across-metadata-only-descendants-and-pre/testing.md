@@ -78,6 +78,7 @@ artifact: testing
   module-owned, and preserve Cargo-backed auto-detection for source-like files outside `src`.
 - Preserve explicit Swift target paths after nested dependency calls, apply Gradle `projectDir`
   overrides, and reconstruct succession entries for aggregate-only legacy predecessor evidence.
+- Accept colonless/commented Gradle settings and portable symlink predecessor entries.
 
 ## Completion
 

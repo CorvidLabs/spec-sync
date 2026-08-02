@@ -217,6 +217,45 @@ def balanced_call_blocks(content: str, marker: str) -> list[str] | None:
             return None
 
 
+def strip_gradle_comments(content: str) -> str | None:
+    output: list[str] = []
+    index = 0
+    quote: str | None = None
+    escaped = False
+    while index < len(content):
+        character = content[index]
+        following = content[index + 1] if index + 1 < len(content) else ""
+        if quote is not None:
+            output.append(character)
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quote:
+                quote = None
+            index += 1
+        elif character in {"'", '"'}:
+            quote = character
+            output.append(character)
+            index += 1
+        elif character == "/" and following == "/":
+            newline = content.find("\n", index + 2)
+            if newline < 0:
+                break
+            output.append("\n")
+            index = newline + 1
+        elif character == "/" and following == "*":
+            end = content.find("*/", index + 2)
+            if end < 0:
+                return None
+            output.extend("\n" for value in content[index : end + 2] if value == "\n")
+            index = end + 2
+        else:
+            output.append(character)
+            index += 1
+    return "".join(output)
+
+
 def detected_source_dirs_at_revision(
     root: Path,
     revision: str,
@@ -300,26 +339,28 @@ def detected_source_dirs_at_revision(
                 else ("src/main/kotlin", "src/main/java", "src/main/scala")
             )
             discovered.update(path for path in roots if directory_exists(path))
-            settings = gradle["settings.gradle.kts"] or gradle["settings.gradle"] or ""
+            settings_raw = gradle["settings.gradle.kts"] or gradle["settings.gradle"] or ""
+            settings = strip_gradle_comments(settings_raw)
+            if settings is None:
+                return None
             overrides: dict[str, str] = {}
             override_pattern = re.compile(
-                r'''project\(\s*["']:(?P<module>[^"']+)["']\s*\)\s*'''
+                r'''project\(\s*["'](?P<module>:?[^"']+)["']\s*\)\s*'''
                 r'''(?:\.projectDir\s*=|\.setProjectDir\()\s*'''
                 r'''(?:file\(|new\s+File\(\s*rootDir\s*,\s*)'''
                 r'''["'](?P<path>[^"']+)["']'''
             )
             for match in override_pattern.finditer(settings):
-                overrides[match.group("module").replace(":", "/")] = match.group(
-                    "path"
-                ).strip("/")
+                module = match.group("module").lstrip(":").replace(":", "/")
+                overrides[module] = match.group("path").strip("/")
             included: set[str] = set()
             for statement in re.findall(
                 r"(?ms)^\s*include\s*(?:\((.*?)\)|(.*?))\s*$", settings
             ):
                 body = statement[0] or statement[1]
                 included.update(
-                    value.replace(":", "/")
-                    for value in re.findall(r'''["']:\s*([^"']+)["']''', body)
+                    value.lstrip(":").replace(":", "/")
+                    for value in re.findall(r'''["']\s*(:?[^"']+)["']''', body)
                     if value.strip(":")
                 )
             for module in included:
@@ -1547,8 +1588,7 @@ def predecessor_entry_digest_at_base(
             kind = "symlink"
             mode = 0o120000
             payload = git_bytes(root, base, path)
-            target = payload.decode("utf-8")
-            if not portable_symlink_target_valid(target):
+            if not portable_symlink_target_valid(payload):
                 return None
         elif tree_entry[0] == "160000" and tree_entry[1] == "commit":
             kind = "gitlink"

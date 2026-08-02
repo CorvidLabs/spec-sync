@@ -435,7 +435,9 @@ with tempfile.TemporaryDirectory() as temporary:
         'plugins { kotlin("jvm") version "2.0.0" }\n', encoding="utf-8"
     )
     (ownership_repository / "settings.gradle.kts").write_text(
-        'include(":app")\nproject(":app").projectDir = file("custom-app")\n',
+        '// include(":ignored")\n'
+        'include("app")\n'
+        'project("app").projectDir = file("custom-app")\n',
         encoding="utf-8",
     )
     (ownership_repository / "custom-app/src/main/kotlin").mkdir(parents=True)
@@ -471,6 +473,15 @@ with tempfile.TemporaryDirectory() as temporary:
     assert module.configured_source_dirs(
         ownership_repository, predecessor_base
     ) == detected_roots
+    expected_symlink = signed_entry(
+        "docs/good-link", "symlink", 0o120000, b"foo.rs"
+    )["entry_digest"]
+    assert module.predecessor_entry_digest_at_base(
+        ownership_repository,
+        predecessor_base,
+        "CHG-0000-predecessor",
+        "docs/good-link",
+    ) == expected_symlink
     auto_state = copy.deepcopy(ownership_state)
     auto_state["affected_paths"].append("tools/helper.rs")
     auto_manifest = ownership_manifest_with(

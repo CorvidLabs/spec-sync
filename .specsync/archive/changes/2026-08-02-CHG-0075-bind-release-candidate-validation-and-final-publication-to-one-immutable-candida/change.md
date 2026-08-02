@@ -1,6 +1,6 @@
 ---
 id: CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida
-state: implementing
+state: archived
 type: operations
 base_commit: 6a0956fbe53669aa9a7bc564fd472e0952a70f2a
 ---

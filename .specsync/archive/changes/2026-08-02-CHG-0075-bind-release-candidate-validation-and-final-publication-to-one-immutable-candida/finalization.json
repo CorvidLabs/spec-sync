@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida",
+  "implementation_commit": "76aa53ebc117e623a727575febfd1cc1ecaaa8e3",
+  "implementation_tree": "f82a6105ab71f93ab5c509fe3ed36169b1d10fc0",
+  "contract_digest": "627d74135d4c32b0de73613a18c4a8c1a19cb78641ce1b54ebe5eb4f6bc003c7",
+  "workspace_digest": "11228a926ef89f25e84787bb31935a51da8cc9f7c5ba69d92376a83b85b93fc2",
+  "closing_digest": "1392a02f20534a241928f4f6f596350a36bcf56c1ee7487a72a640e6b9917bb4",
+  "review_digest": "00a8eb0a75fdf0e559d64426c0c1f3bbe4b44ff1d75ca3a3eb910099cf9aebfb",
+  "finalization_digest": "0d807a4b117bcd2cd2c2c830d5f69e632b2e795d73da6723824af41596694f01",
+  "timestamp": 1785634487
+}

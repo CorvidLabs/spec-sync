@@ -1,16 +1,16 @@
 {
   "schema_version": 2,
   "change_id": "CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida",
-  "reviewer": "Lovelace",
+  "reviewer": "Ohm",
   "provenance": {
     "schema_version": 1,
     "provider": "github_actions_check",
     "required_check": "SpecSync scoped review"
   },
   "verdict": "pass",
-  "implementation_commit": "188f535aaa0cf692977d9be77c5d7ff0d52bd33d",
+  "implementation_commit": "76aa53ebc117e623a727575febfd1cc1ecaaa8e3",
   "contract_digest": "627d74135d4c32b0de73613a18c4a8c1a19cb78641ce1b54ebe5eb4f6bc003c7",
   "execution_digest": "35bbec0a7b5410221b391c15432ac7ddde0a9fc0e4c650bc8ba442037a021dcd",
-  "workspace_digest": "6848b33cbc2671664dd2029fe6aa6de77196fe8af90dc2830c3fd59a9bea4ec7",
-  "timestamp": 1785617264
+  "workspace_digest": "11228a926ef89f25e84787bb31935a51da8cc9f7c5ba69d92376a83b85b93fc2",
+  "timestamp": 1785634474
 }

@@ -7,11 +7,11 @@
   "title": "Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows",
   "description": "Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows",
   "kind": "operations",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "6a0956fbe53669aa9a7bc564fd472e0952a70f2a",
   "created_at": 1785611817,
-  "updated_at": 1785633019,
+  "updated_at": 1785634620,
   "affected_specs": [
     "github"
   ],

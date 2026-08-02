@@ -289,6 +289,28 @@ with tempfile.TemporaryDirectory() as temporary:
     passed = run_verifier(repository, base, head, stale_success)
     assert passed.returncode == 0, passed.stderr
 
+    newer_invalid_success = copy.deepcopy(fixture)
+    newer_invalid_success[
+        f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"
+    ]["check_runs"].append(
+        {
+            **check,
+            "id": 21,
+            "external_id": f"specsync-trusted-policy:{'0' * 40}:{head}",
+            "details_url": "https://github.com/CorvidLabs/spec-sync/runs/21",
+        }
+    )
+    passed = run_verifier(repository, base, head, newer_invalid_success)
+    assert passed.returncode == 0, passed.stderr
+
+    excessive_successes = copy.deepcopy(fixture)
+    excessive_successes[
+        f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"
+    ]["check_runs"] = [{**check, "id": identifier} for identifier in range(20, 29)]
+    rejected = run_verifier(repository, base, head, excessive_successes)
+    assert rejected.returncode != 0
+    assert "bounded authentication limit" in rejected.stderr
+
     ambiguous_successes = copy.deepcopy(fixture)
     ambiguous_successes[runs_endpoint] = {
         "total_count": 2,

@@ -22,11 +22,14 @@ Environment:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import struct
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -149,6 +152,774 @@ def git_object_exists(root: Path, revision: str, path: str) -> bool:
     ).returncode == 0
 
 
+def git_bytes(root: Path, revision: str, path: str) -> bytes:
+    return subprocess.check_output(
+        ["git", "show", f"{revision}:{path}"],
+        cwd=root,
+        timeout=30,
+    )
+
+
+def revision_entries(root: Path, revision: str) -> dict[str, tuple[str, str, str]]:
+    output = subprocess.check_output(
+        ["git", "ls-tree", "-r", "-z", revision],
+        cwd=root,
+        timeout=30,
+    )
+    entries: dict[str, tuple[str, str, str]] = {}
+    for record in output.split(b"\0"):
+        if not record:
+            continue
+        metadata, separator, path = record.partition(b"\t")
+        if not separator:
+            raise ValueError("archive tree contains an invalid entry")
+        mode, object_type, object_id = metadata.decode("ascii").split()
+        decoded_path = path.decode("utf-8")
+        if decoded_path in entries:
+            raise ValueError("archive tree contains duplicate entries")
+        entries[decoded_path] = (mode, object_type, object_id)
+    return entries
+
+
+def tree_entries(
+    root: Path, revision: str, tree: str
+) -> dict[str, tuple[str, str, str]]:
+    prefix = f"{tree}/"
+    return {
+        path[len(prefix) :]: entry
+        for path, entry in revision_entries(root, revision).items()
+        if path.startswith(prefix)
+    }
+
+
+def git_blob_payloads(
+    root: Path, object_ids: list[str], maximum_bytes: int = 64 * 1024 * 1024
+) -> dict[str, bytes]:
+    unique = list(dict.fromkeys(object_ids))
+    process = subprocess.Popen(
+        ["git", "cat-file", "--batch"],
+        cwd=root,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if process.stdin is None or process.stdout is None:
+        process.kill()
+        raise ValueError("could not open bounded Git object reader")
+    payloads: dict[str, bytes] = {}
+    total = 0
+    try:
+        for object_id in unique:
+            process.stdin.write(object_id.encode("ascii") + b"\n")
+            process.stdin.flush()
+            header = process.stdout.readline(256)
+            fields = header.rstrip(b"\n").split()
+            if (
+                len(fields) != 3
+                or fields[0].decode("ascii") != object_id
+                or fields[1] != b"blob"
+            ):
+                raise ValueError("Git object reader returned an invalid blob header")
+            size = int(fields[2])
+            total += size
+            if size < 0 or total > maximum_bytes:
+                raise ValueError("archive evidence payload exceeds its bounded size")
+            payload = process.stdout.read(size)
+            if len(payload) != size or process.stdout.read(1) != b"\n":
+                raise ValueError("Git object reader returned a truncated blob")
+            payloads[object_id] = payload
+        process.stdin.close()
+        if process.wait(timeout=30) != 0:
+            raise ValueError("Git object reader failed")
+    except Exception:
+        process.kill()
+        process.wait(timeout=5)
+        raise
+    return payloads
+
+
+def json_object_at(root: Path, revision: str, path: str) -> dict:
+    value = json.loads(git_bytes(root, revision, path))
+    if not isinstance(value, dict):
+        raise ValueError(f"{path} is not a JSON object")
+    return value
+
+
+def differs_only(left: dict, right: dict, names: set[str]) -> bool:
+    if left.keys() != right.keys():
+        return False
+    return all(left[name] == right[name] for name in left.keys() - names)
+
+
+def digest_is_sha256(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def framed_digest(domain: str, frames: list[tuple[str, bytes]]) -> str:
+    digest = hashlib.sha256()
+
+    def frame(tag: str, value: bytes) -> None:
+        tag_bytes = tag.encode()
+        digest.update(struct.pack(">Q", len(tag_bytes)))
+        digest.update(tag_bytes)
+        digest.update(struct.pack(">Q", len(value)))
+        digest.update(value)
+
+    frame("domain", domain.encode())
+    for tag, value in frames:
+        frame(tag, value)
+    return digest.hexdigest()
+
+
+def finalization_digest(finalization: dict) -> str:
+    return framed_digest(
+        "specsync.finalization-digest.v2",
+        [
+            (tag, str(finalization[name]).encode())
+            for tag, name in (
+        ("change-id", "change_id"),
+        ("implementation-commit", "implementation_commit"),
+        ("implementation-tree", "implementation_tree"),
+        ("contract", "contract_digest"),
+        ("workspace", "workspace_digest"),
+        ("closing", "closing_digest"),
+        ("review", "review_digest"),
+            )
+        ],
+    )
+
+
+def acceptance_entry_digest(entry: dict) -> str:
+    return framed_digest(
+        "specsync.acceptance-entry.v1",
+        [
+            ("path", str(entry["path"]).encode()),
+            ("kind", str(entry["kind"]).encode()),
+            ("mode", struct.pack(">I", int(entry["mode"]))),
+            ("payload-digest", str(entry["payload_digest"]).encode()),
+        ],
+    )
+
+
+def acceptance_manifest_digest(manifest: dict) -> str | None:
+    if manifest.keys() != {"schema_version", "entries"} or manifest.get(
+        "schema_version"
+    ) != 1:
+        return None
+    entries = manifest.get("entries")
+    if not isinstance(entries, list) or not 1 <= len(entries) <= 100_000:
+        return None
+    frames: list[tuple[str, bytes]] = [("schema-version", struct.pack(">I", 1))]
+    previous_path: str | None = None
+    empty_digest = hashlib.sha256(b"").hexdigest()
+    valid_modes = {
+        "file": {0o100644, 0o100755},
+        "symlink": {0o120000},
+        "gitlink": {0o160000},
+        "missing": {0},
+        "non_file": {0},
+        "non-file": {0},
+    }
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.keys() != {
+            "path",
+            "kind",
+            "mode",
+            "payload_digest",
+            "entry_digest",
+            "owners",
+        }:
+            return None
+        path = entry.get("path")
+        kind = entry.get("kind")
+        mode = entry.get("mode")
+        owners = entry.get("owners")
+        if (
+            not isinstance(path, str)
+            or not path
+            or len(path.encode()) > 4096
+            or path.startswith(("/", "\\"))
+            or path.endswith("/")
+            or "\\" in path
+            or any(part in {"", ".", ".."} for part in path.split("/"))
+            or any(ord(character) < 32 or 127 <= ord(character) <= 159 for character in path)
+            or (previous_path is not None and previous_path >= path)
+            or kind not in valid_modes
+            or not isinstance(mode, int)
+            or isinstance(mode, bool)
+            or mode not in valid_modes[kind]
+            or not digest_is_sha256(entry.get("payload_digest"))
+            or not digest_is_sha256(entry.get("entry_digest"))
+            or entry["entry_digest"] != acceptance_entry_digest(entry)
+            or kind in {"missing", "non_file", "non-file"}
+            and entry["payload_digest"] != empty_digest
+            or not isinstance(owners, list)
+            or not 1 <= len(owners) <= 1024
+        ):
+            return None
+        previous_owner: str | None = None
+        for owner in owners:
+            if (
+                not isinstance(owner, str)
+                or not owner
+                or len(owner.encode()) > 256
+                or previous_owner is not None
+                and previous_owner >= owner
+                or owner.startswith("@exact:")
+                and owner not in {"@exact:test", "@exact:delivery"}
+            ):
+                return None
+            previous_owner = owner
+        previous_path = path
+        frames.extend(
+            [
+                ("entry", b""),
+                ("path", path.encode()),
+                ("kind", kind.replace("_", "-").encode()),
+                ("mode", struct.pack(">I", mode)),
+                ("payload-digest", entry["payload_digest"].encode()),
+                ("entry-digest", entry["entry_digest"].encode()),
+                *(("owner", owner.encode()) for owner in owners),
+            ]
+        )
+    return framed_digest("specsync.acceptance-manifest.v1", frames)
+
+
+def acceptance_manifest_matches_commit(
+    root: Path, revision: str, manifest: dict, state: dict
+) -> bool:
+    entries = manifest.get("entries")
+    if not isinstance(entries, list):
+        return False
+    by_path = {entry.get("path"): entry for entry in entries if isinstance(entry, dict)}
+    affected_paths = state.get("affected_paths")
+    if not isinstance(affected_paths, list) or any(
+        not isinstance(path, str) for path in affected_paths
+    ):
+        return False
+    revision_tree = revision_entries(root, revision)
+    expected_paths: set[str] = set()
+    for path in affected_paths:
+        if path.endswith("/"):
+            expected_paths.update(
+                candidate
+                for candidate in revision_tree
+                if candidate.startswith(path)
+            )
+        else:
+            expected_paths.add(path)
+    supersedes = state.get("supersedes", [])
+    if not isinstance(supersedes, list):
+        return False
+    for edge in supersedes:
+        if not isinstance(edge, dict) or not isinstance(edge.get("obligations", []), list):
+            return False
+        for obligation in edge.get("obligations", []):
+            if not isinstance(obligation, dict) or not isinstance(
+                obligation.get("path"), str
+            ):
+                return False
+            expected_paths.add(obligation["path"])
+
+    affected_specs = state.get("affected_specs", [])
+    if not isinstance(affected_specs, list):
+        return False
+    owners_by_path: dict[str, set[str]] = {}
+    specs: dict = {}
+    if affected_specs:
+        try:
+            registry = tomllib.loads(
+                git_bytes(root, revision, ".specsync/registry.toml").decode("utf-8")
+            )
+        except (
+            KeyError,
+            OSError,
+            subprocess.SubprocessError,
+            UnicodeDecodeError,
+            tomllib.TOMLDecodeError,
+        ):
+            return False
+        loaded_specs = registry.get("specs")
+        if not isinstance(loaded_specs, dict):
+            return False
+        specs = loaded_specs
+    for module in affected_specs:
+        if not isinstance(module, str):
+            return False
+        spec_path = specs.get(module, f"specs/{module}/{module}.spec.md")
+        if not isinstance(spec_path, str) or spec_path not in revision_tree:
+            return False
+        spec_dir = str(Path(spec_path).parent)
+        companion_prefix = f"{spec_dir}/"
+        companion_entries = {
+            path for path in revision_tree if path.startswith(companion_prefix)
+        }
+        expected_paths.update(companion_entries)
+        for path in companion_entries:
+            owners_by_path.setdefault(path, set()).add(module)
+        try:
+            frontmatter = git_bytes(root, revision, spec_path).decode("utf-8").split(
+                "---", 2
+            )[1]
+        except (IndexError, OSError, subprocess.SubprocessError, UnicodeDecodeError):
+            return False
+        files_block = re.search(
+            r"(?ms)^files:\s*\n((?:[ \t]+-[^\n]*(?:\n|$))*)", frontmatter
+        )
+        if files_block is not None:
+            for raw in re.findall(r"(?m)^[ \t]+-\s*(.+?)\s*$", files_block.group(1)):
+                source = raw.strip("'\"")
+                if source:
+                    owners_by_path.setdefault(source, set()).add(module)
+    if expected_paths != set(by_path):
+        return False
+
+    blob_ids = [
+        revision_tree[entry["path"]][2]
+        for entry in entries
+        if entry["kind"] in {"file", "symlink"}
+        and entry["path"] in revision_tree
+        and revision_tree[entry["path"]][1] == "blob"
+    ]
+    blob_payloads = git_blob_payloads(root, blob_ids)
+    for entry in entries:
+        path = entry["path"]
+        expected_owners = sorted(owners_by_path.get(path, set()))
+        if expected_owners:
+            if entry["owners"] != expected_owners:
+                return False
+        elif len(entry["owners"]) != 1 or entry["owners"][0] not in {
+            "@exact:test",
+            "@exact:delivery",
+        }:
+            return False
+        kind = entry["kind"]
+        if kind == "missing":
+            if path in revision_tree or entry["payload_digest"] != hashlib.sha256(
+                b""
+            ).hexdigest():
+                return False
+            continue
+        tree_entry = revision_tree.get(path)
+        if tree_entry is None:
+            return False
+        mode, object_type, object_id = tree_entry
+        if int(mode, 8) != entry["mode"]:
+            return False
+        if kind == "non_file":
+            if object_type != "tree":
+                return False
+            payload = b""
+        elif kind == "gitlink":
+            if object_type != "commit":
+                return False
+            payload = object_id.encode()
+        else:
+            if object_type != "blob":
+                return False
+            payload = blob_payloads.get(object_id)
+            if payload is None:
+                return False
+        if path == ".specsync/change-sequence.json":
+            payload = historical_sequence_payload(root, revision, state)
+            if payload is None:
+                return False
+        if hashlib.sha256(payload).hexdigest() != entry["payload_digest"]:
+            return False
+    return True
+
+
+def historical_sequence_payload(
+    root: Path, revision: str, state: dict
+) -> bytes | None:
+    match = re.match(r"^CHG-([0-9]+)-", str(state.get("id", "")))
+    if match is None:
+        return None
+    sequence = int(match.group(1))
+    path = ".specsync/change-sequence.json"
+    current = json.loads(git_bytes(root, revision, path))
+    if not isinstance(current, dict) or not isinstance(current.get("sequence"), int):
+        return None
+    if current["sequence"] <= sequence:
+        return git_bytes(root, revision, path)
+    commits = git(root, "rev-list", "--max-count=257", revision, "--", path).splitlines()
+    if len(commits) > 256:
+        return None
+    for commit in commits:
+        try:
+            content = git_bytes(root, commit, path)
+            candidate = json.loads(content)
+        except (json.JSONDecodeError, subprocess.SubprocessError):
+            continue
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("sequence") == sequence
+            and candidate.get("id") == state.get("id")
+        ):
+            return content
+    collisions = current.get("acknowledged_collisions", [])
+    if not isinstance(collisions, list):
+        return None
+    historical = {
+        "schema_version": current.get("schema_version"),
+        "sequence": sequence,
+        "id": state.get("id"),
+        "acknowledged_collisions": [
+            collision
+            for collision in collisions
+            if isinstance(collision, dict)
+            and isinstance(collision.get("sequence"), int)
+            and collision["sequence"] <= sequence
+        ],
+    }
+    return (json.dumps(historical, indent=2) + "\n").encode()
+
+
+def semantic_succession_digest(evidence: object) -> str | None:
+    if not isinstance(evidence, dict) or evidence.keys() != {"schema_version", "tuples"}:
+        return None
+    tuples = evidence.get("tuples")
+    if evidence.get("schema_version") != 1 or not isinstance(tuples, list):
+        return None
+    frames: list[tuple[str, bytes]] = [("schema-version", struct.pack(">I", 1))]
+    previous: tuple[int, str, str, str] | None = None
+    for item in tuples:
+        if not isinstance(item, dict) or item.keys() != {
+            "predecessor_id",
+            "path",
+            "module",
+            "predecessor_entry_digest",
+            "successor_entry_digest",
+        }:
+            return None
+        match = re.match(r"^CHG-([0-9]+)-", str(item.get("predecessor_id", "")))
+        key = (
+            int(match.group(1)) if match else -1,
+            str(item.get("predecessor_id", "")),
+            str(item.get("path", "")),
+            str(item.get("module", "")),
+        )
+        if (
+            match is None
+            or previous is not None
+            and previous >= key
+            or not digest_is_sha256(item.get("predecessor_entry_digest"))
+            or not digest_is_sha256(item.get("successor_entry_digest"))
+        ):
+            return None
+        previous = key
+        frames.extend(
+            [
+                ("tuple", b""),
+                ("predecessor-id", key[1].encode()),
+                ("path", key[2].encode()),
+                ("module", key[3].encode()),
+                ("predecessor-entry-digest", item["predecessor_entry_digest"].encode()),
+                ("successor-entry-digest", item["successor_entry_digest"].encode()),
+            ]
+        )
+    return framed_digest("specsync.semantic-succession.v1", frames)
+
+
+def compact_json(value: object) -> bytes:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
+
+
+def closing_digest(change_id: str, verification: dict) -> str | None:
+    manifest = verification.get("acceptance_manifest")
+    acceptance = verification.get("acceptance_input_digest")
+    if acceptance_manifest_digest(manifest) != acceptance:
+        return None
+    frames: list[tuple[str, bytes]] = [
+        ("record-id", change_id.encode()),
+        ("contract", str(verification.get("contract_digest", "")).encode()),
+    ]
+    execution = verification.get("execution_digest")
+    if execution is not None:
+        frames.append(("execution", str(execution).encode()))
+    frames.extend(
+        [
+            ("workspace", str(verification.get("workspace_digest", "")).encode()),
+            ("commit", str(verification.get("commit") or "").encode()),
+            ("acceptance", b"\x01" + str(acceptance).encode()),
+            ("acceptance-input-manifest-v1", compact_json(manifest)),
+        ]
+    )
+    succession = verification.get("semantic_succession")
+    if succession is not None:
+        succession_digest = semantic_succession_digest(succession)
+        if succession_digest is None:
+            return None
+        frames.append(("semantic-succession-v1", succession_digest.encode()))
+    return framed_digest("specsync.closing-digest.v2", frames)
+
+
+def definition_approver(approvals: dict, contract_digest: object) -> str | None:
+    items = approvals.get("approvals")
+    if not isinstance(items, list) or not isinstance(contract_digest, str):
+        return None
+    for item in reversed(items):
+        if (
+            isinstance(item, dict)
+            and item.get("gate") == "definition"
+            and item.get("digest") == contract_digest
+            and isinstance(item.get("actor"), str)
+        ):
+            return item["actor"].strip()
+    adoptions = approvals.get("scope_adoptions", [])
+    if not isinstance(adoptions, list):
+        return None
+    for adoption in reversed(adoptions):
+        if (
+            not isinstance(adoption, dict)
+            or adoption.get("adopted_scope_digest") != contract_digest
+            or not isinstance(adoption.get("source_approval_index"), int)
+        ):
+            continue
+        index = adoption["source_approval_index"]
+        if 0 <= index < len(items):
+            source = items[index]
+            if (
+                isinstance(source, dict)
+                and source.get("gate") == "definition"
+                and isinstance(source.get("actor"), str)
+            ):
+                return source["actor"].strip()
+    return None
+
+
+def canonical_archive_transition(
+    root: Path,
+    parent: str,
+    child: str,
+    change_id: str,
+    active_root: str,
+    archive_root: str,
+    parent_tree: str,
+) -> bool:
+    mutable = {
+        "approvals.json",
+        "change.md",
+        "review-attempts.json",
+        "review.json",
+        "state.json",
+        "verification-attempts.json",
+        "verification.json",
+    }
+    generated = {"accepted-state.json", "finalization.json"}
+    try:
+        active_entries = tree_entries(root, parent, active_root)
+        archive_entries = tree_entries(root, child, archive_root)
+        if archive_entries.keys() != active_entries.keys() | generated:
+            return False
+        for relative, entry in active_entries.items():
+            if relative not in mutable and archive_entries.get(relative) != entry:
+                return False
+
+        parent_state = json_object_at(root, parent, f"{active_root}/state.json")
+        archived_state = json_object_at(root, child, f"{archive_root}/state.json")
+        accepted_state = json_object_at(
+            root, child, f"{archive_root}/accepted-state.json"
+        )
+        finalization = json_object_at(root, child, f"{archive_root}/finalization.json")
+        if (
+            not differs_only(parent_state, archived_state, {"state", "updated_at"})
+            or not differs_only(parent_state, accepted_state, {"state", "updated_at"})
+            or parent_state.get("workflow_version") != 2
+            or parent_state.get("id") != change_id
+            or parent_state.get("state") != "verifying"
+            or archived_state.get("state") != "archived"
+            or accepted_state.get("state") != "accepted"
+            or not isinstance(parent_state.get("updated_at"), int)
+            or not isinstance(accepted_state.get("updated_at"), int)
+            or not isinstance(archived_state.get("updated_at"), int)
+            or accepted_state["updated_at"] < parent_state["updated_at"]
+            or archived_state["updated_at"] < accepted_state["updated_at"]
+        ):
+            return False
+
+        parent_change = git_bytes(root, parent, f"{active_root}/change.md")
+        archived_change = git_bytes(root, child, f"{archive_root}/change.md")
+        expected_change, replacements = re.subn(
+            br"(?m)^state: (?:implementing|verifying)$",
+            b"state: archived",
+            parent_change,
+        )
+        if replacements != 1 or archived_change != expected_change:
+            return False
+
+        parent_approvals = json_object_at(root, parent, f"{active_root}/approvals.json")
+        archived_approvals = json_object_at(root, child, f"{archive_root}/approvals.json")
+        parent_items = parent_approvals.get("approvals")
+        archived_items = archived_approvals.get("approvals")
+        if (
+            not differs_only(parent_approvals, archived_approvals, {"approvals"})
+            or not isinstance(parent_items, list)
+            or not isinstance(archived_items, list)
+            or archived_items[:-1] != parent_items
+            or len(archived_items) != len(parent_items) + 1
+        ):
+            return False
+        closing = archived_items[-1]
+
+        parent_verification = json_object_at(
+            root, parent, f"{active_root}/verification.json"
+        )
+        archived_verification = json_object_at(
+            root, child, f"{archive_root}/verification.json"
+        )
+        inherited = {
+            name: value
+            for name, value in archived_verification.items()
+            if name
+            not in {
+                "commit",
+                "acceptance_input_digest",
+                "acceptance_manifest",
+                "semantic_succession",
+            }
+        }
+        parent_inherited = {
+            name: value
+            for name, value in parent_verification.items()
+            if name not in {"commit", "semantic_succession"}
+        }
+        if inherited != parent_inherited or archived_verification.get("commit") != parent:
+            return False
+        manifest = archived_verification.get("acceptance_manifest")
+        if (
+            acceptance_manifest_digest(manifest)
+            != archived_verification.get("acceptance_input_digest")
+            or not isinstance(manifest, dict)
+            or not acceptance_manifest_matches_commit(root, parent, manifest, parent_state)
+            or archived_verification.get("passed") is not True
+        ):
+            return False
+
+        parent_attempts = json_object_at(
+            root, parent, f"{active_root}/verification-attempts.json"
+        )
+        archived_attempts = json_object_at(
+            root, child, f"{archive_root}/verification-attempts.json"
+        )
+        if (
+            parent_attempts.keys() != archived_attempts.keys()
+            or parent_attempts.get("schema_version") != 1
+            or not isinstance(parent_attempts.get("attempts"), list)
+            or archived_attempts.get("attempts")
+            != parent_attempts["attempts"] + [archived_verification]
+        ):
+            return False
+
+        expected_finalization_keys = {
+            "schema_version",
+            "change_id",
+            "implementation_commit",
+            "implementation_tree",
+            "contract_digest",
+            "workspace_digest",
+            "closing_digest",
+            "review_digest",
+            "finalization_digest",
+            "timestamp",
+        }
+        if (
+            finalization.keys() != expected_finalization_keys
+            or finalization.get("schema_version") != 2
+            or finalization.get("change_id") != change_id
+            or finalization.get("implementation_commit") != parent
+            or finalization.get("implementation_tree") != parent_tree
+            or any(
+                not digest_is_sha256(finalization.get(name))
+                for name in (
+                    "contract_digest",
+                    "workspace_digest",
+                    "closing_digest",
+                    "review_digest",
+                    "finalization_digest",
+                )
+            )
+            or finalization.get("contract_digest")
+            != archived_verification.get("contract_digest")
+            or finalization.get("workspace_digest")
+            != archived_verification.get("workspace_digest")
+            or finalization.get("closing_digest")
+            != closing_digest(change_id, archived_verification)
+            or not isinstance(finalization.get("timestamp"), int)
+            or finalization["timestamp"] < accepted_state["updated_at"]
+            or finalization["timestamp"] > archived_state["updated_at"]
+            or finalization_digest(finalization)
+            != finalization.get("finalization_digest")
+        ):
+            return False
+        parent_review = json_object_at(root, parent, f"{active_root}/review.json")
+        review = json_object_at(root, child, f"{archive_root}/review.json")
+        parent_reviews = json_object_at(
+            root, parent, f"{active_root}/review-attempts.json"
+        )
+        archived_reviews = json_object_at(
+            root, child, f"{archive_root}/review-attempts.json"
+        )
+        parent_review_items = parent_reviews.get("reviews")
+        archived_review_items = archived_reviews.get("reviews")
+        review_unchanged = review == parent_review and archived_reviews == parent_reviews
+        review_appended = (
+            parent_reviews.keys() == archived_reviews.keys()
+            and parent_reviews.get("schema_version") == 1
+            and isinstance(parent_review_items, list)
+            and isinstance(archived_review_items, list)
+            and archived_review_items == parent_review_items + [review]
+        )
+        review_commit = str(review.get("implementation_commit") or "")
+        review_digest = hashlib.sha256(compact_json(review)).hexdigest()
+        approver = definition_approver(parent_approvals, review.get("contract_digest"))
+        if (
+            not (review_unchanged or review_appended)
+            or review.get("schema_version") != 2
+            or review.get("change_id") != change_id
+            or review.get("verdict") != "pass"
+            or not isinstance(review.get("reviewer"), str)
+            or not review["reviewer"].strip()
+            or not review["reviewer"].isascii()
+            or approver is None
+            or review["reviewer"].strip().casefold() == approver.casefold()
+            or review.get("provenance")
+            != {
+                "schema_version": 1,
+                "provider": "github_actions_check",
+                "required_check": "SpecSync scoped review",
+            }
+            or re.fullmatch(r"[0-9a-f]{40}", review_commit) is None
+            or review_appended
+            and review_commit != parent
+            or finalization["review_digest"] != review_digest
+            or finalization["contract_digest"] != review.get("contract_digest")
+            or finalization["workspace_digest"] != review.get("workspace_digest")
+            or archived_verification.get("execution_digest")
+            != review.get("execution_digest")
+            or not isinstance(closing, dict)
+            or closing.keys() != {"gate", "actor", "timestamp", "digest", "note"}
+            or closing.get("gate") != "finalization"
+            or closing.get("actor") != "specsync:finalization"
+            or closing.get("digest") != finalization["closing_digest"]
+            or closing.get("note") != "Same-PR finalization closing digest"
+            or not isinstance(closing.get("timestamp"), int)
+            or closing["timestamp"] < accepted_state["updated_at"]
+            or closing["timestamp"] > archived_state["updated_at"]
+        ):
+            return False
+    except (
+        json.JSONDecodeError,
+        KeyError,
+        OSError,
+        subprocess.SubprocessError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
+        return False
+    return True
+
+
 def archive_metadata_only_edge(
     root: Path,
     parent: str,
@@ -220,23 +991,17 @@ def archive_metadata_only_edge(
     ):
         return False
     try:
-        state = json.loads(git(root, "show", f"{child}:{archive_root}/state.json"))
-        finalization = json.loads(
-            git(root, "show", f"{child}:{archive_root}/finalization.json")
-        )
         parent_tree = git(root, "rev-parse", f"{parent}^{{tree}}")
-    except (json.JSONDecodeError, subprocess.CalledProcessError):
+    except subprocess.CalledProcessError:
         return False
-    return (
-        isinstance(state, dict)
-        and state.get("workflow_version") == 2
-        and state.get("id") == change_id
-        and state.get("state") == "archived"
-        and isinstance(finalization, dict)
-        and finalization.get("schema_version") == 2
-        and finalization.get("change_id") == change_id
-        and finalization.get("implementation_commit") == parent
-        and finalization.get("implementation_tree") == parent_tree
+    return canonical_archive_transition(
+        root,
+        parent,
+        child,
+        change_id,
+        active_root,
+        archive_root,
+        parent_tree,
     )
 
 

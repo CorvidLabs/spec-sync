@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 
 
 WORKFLOW_PATH = ".github/workflows/lifecycle-policy-guard.yml"
@@ -190,6 +191,49 @@ successful_matches = [
     for check in matches
     if check.get("status") == "completed" and check.get("conclusion") == "success"
 ]
+selected_check_id = os.environ.get("SPECSYNC_TRUSTED_POLICY_SELECTED_CHECK_ID", "").strip()
+if selected_check_id:
+    successful_matches = [
+        check for check in successful_matches if str(check.get("id")) == selected_check_id
+    ]
+elif len(successful_matches) > 1:
+    if len(successful_matches) > 8:
+        raise SystemExit(
+            f"latest {CHECK_NAME} result is invalid: successful publication count "
+            "exceeds the bounded authentication limit"
+        )
+    errors: list[str] = []
+    deadline = time.monotonic() + 30
+    for candidate_check in successful_matches:
+        environment = os.environ.copy()
+        environment["SPECSYNC_TRUSTED_POLICY_SELECTED_CHECK_ID"] = str(
+            candidate_check.get("id", "")
+        )
+        try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                errors.append("bounded publication authentication timed out")
+                break
+            attempted = subprocess.run(
+                [sys.executable, str(Path(__file__).resolve())],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=remaining,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            errors.append(f"check {candidate_check.get('id')} validation timed out")
+            continue
+        if attempted.returncode == 0:
+            print(attempted.stdout, end="")
+            sys.exit(0)
+        errors.append(attempted.stderr.strip())
+    detail = "; ".join(error for error in errors if error)
+    raise SystemExit(
+        f"latest {CHECK_NAME} result is invalid: no successful publication authenticated"
+        + (f" ({detail})" if detail else "")
+    )
 check = successful_matches[0] if successful_matches else matches[0]
 try:
     if check.get("head_sha") != candidate:

@@ -5,6 +5,7 @@ import contextlib
 import copy
 import importlib.util
 import io
+import json
 import os
 import subprocess
 import tempfile
@@ -47,13 +48,80 @@ with tempfile.TemporaryDirectory() as temporary:
     (repository / "b.txt").write_text("b\n", encoding="utf-8")
     review_dir = repository / ".specsync/changes/CHG-0001-test"
     (review_dir / "deltas").mkdir(parents=True)
-    (review_dir / "change.md").write_text("# Change\n", encoding="utf-8")
+    (review_dir / "change.md").write_text(
+        "---\nid: CHG-0001-test\nstate: verifying\n---\n# Change\n",
+        encoding="utf-8",
+    )
     (review_dir / "deltas/github.md").write_text("# Delta\n", encoding="utf-8")
+    state = {
+        "workflow_version": 2,
+        "id": "CHG-0001-test",
+        "state": "verifying",
+        "updated_at": 1,
+        "affected_paths": ["a.txt"],
+    }
+    (review_dir / "state.json").write_text(
+        json.dumps(state) + "\n", encoding="utf-8"
+    )
+    (review_dir / "approvals.json").write_text(
+        json.dumps(
+            {
+                "approvals": [
+                    {
+                        "gate": "definition",
+                        "actor": "Scope owner",
+                        "digest": "1" * 64,
+                    }
+                ],
+                "reopenings": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    verification = {
+        "timestamp": 1,
+        "commit": "0" * 40,
+        "contract_digest": "1" * 64,
+        "execution_digest": "2" * 64,
+        "workspace_digest": "3" * 64,
+        "passed": True,
+        "commands": [],
+        "requirement_ids": [],
+    }
+    (review_dir / "verification.json").write_text(
+        json.dumps(verification) + "\n", encoding="utf-8"
+    )
+    (review_dir / "verification-attempts.json").write_text(
+        json.dumps({"schema_version": 1, "attempts": []}) + "\n",
+        encoding="utf-8",
+    )
     git(repository, "add", ".")
     git(repository, "commit", "-m", "b")
     product = git(repository, "rev-parse", "HEAD")
-    (review_dir / "review.json").write_text("{}\n", encoding="utf-8")
-    (review_dir / "review-attempts.json").write_text("{}\n", encoding="utf-8")
+    review = {
+        "schema_version": 2,
+        "change_id": "CHG-0001-test",
+        "reviewer": "Independent reviewer",
+        "provenance": {
+            "schema_version": 1,
+            "provider": "github_actions_check",
+            "required_check": "SpecSync scoped review",
+        },
+        "verdict": "pass",
+        "implementation_commit": product,
+        "contract_digest": "1" * 64,
+        "execution_digest": "2" * 64,
+        "workspace_digest": "3" * 64,
+        "timestamp": 1,
+    }
+    (review_dir / "review.json").write_text(
+        json.dumps(review, indent=2) + "\n", encoding="utf-8"
+    )
+    (review_dir / "review-attempts.json").write_text(
+        json.dumps({"schema_version": 1, "reviews": [review]}) + "\n",
+        encoding="utf-8",
+    )
     git(repository, "add", ".")
     git(repository, "commit", "-m", "review metadata")
     metadata = git(repository, "rev-parse", "HEAD")
@@ -65,17 +133,86 @@ with tempfile.TemporaryDirectory() as temporary:
     archive_dir.parent.mkdir(parents=True)
     git(repository, "mv", str(review_dir), str(archive_dir))
     metadata_tree = git(repository, "rev-parse", f"{metadata}^{{tree}}")
+    archived_state = {**state, "state": "archived", "updated_at": 3}
+    accepted_state = {**state, "state": "accepted", "updated_at": 2}
     (archive_dir / "state.json").write_text(
-        '{"workflow_version":2,"id":"CHG-0001-test","state":"archived"}\n',
+        json.dumps(archived_state) + "\n", encoding="utf-8"
+    )
+    (archive_dir / "accepted-state.json").write_text(
+        json.dumps(accepted_state) + "\n", encoding="utf-8"
+    )
+    archived_change = (archive_dir / "change.md").read_text(encoding="utf-8")
+    (archive_dir / "change.md").write_text(
+        archived_change.replace("state: verifying\n", "state: archived\n"),
         encoding="utf-8",
     )
-    (archive_dir / "finalization.json").write_text(
-        (
-            '{"schema_version":2,"change_id":"CHG-0001-test",'
-            f'"implementation_commit":"{metadata}",'
-            f'"implementation_tree":"{metadata_tree}"}}\n'
+    acceptance_entry = {
+        "path": "a.txt",
+        "kind": "file",
+        "mode": 0o100644,
+        "payload_digest": __import__("hashlib").sha256(b"a\n").hexdigest(),
+        "entry_digest": "",
+        "owners": ["@exact:delivery"],
+    }
+    acceptance_entry["entry_digest"] = module.acceptance_entry_digest(
+        acceptance_entry
+    )
+    acceptance_manifest = {"schema_version": 1, "entries": [acceptance_entry]}
+    archived_verification = {
+        **verification,
+        "commit": metadata,
+        "acceptance_input_digest": module.acceptance_manifest_digest(
+            acceptance_manifest
         ),
+        "acceptance_manifest": acceptance_manifest,
+    }
+    (archive_dir / "verification.json").write_text(
+        json.dumps(archived_verification) + "\n", encoding="utf-8"
+    )
+    (archive_dir / "verification-attempts.json").write_text(
+        json.dumps({"schema_version": 1, "attempts": [archived_verification]})
+        + "\n",
         encoding="utf-8",
+    )
+    finalization = {
+        "schema_version": 2,
+        "change_id": "CHG-0001-test",
+        "implementation_commit": metadata,
+        "implementation_tree": metadata_tree,
+        "contract_digest": "1" * 64,
+        "workspace_digest": "3" * 64,
+        "closing_digest": module.closing_digest(
+            "CHG-0001-test", archived_verification
+        ),
+        "review_digest": __import__("hashlib").sha256(
+            json.dumps(review, separators=(",", ":")).encode()
+        ).hexdigest(),
+        "finalization_digest": "",
+        "timestamp": 2,
+    }
+    finalization["finalization_digest"] = module.finalization_digest(finalization)
+    (archive_dir / "finalization.json").write_text(
+        json.dumps(finalization) + "\n", encoding="utf-8"
+    )
+    approvals = {
+        "approvals": [
+            {
+                "gate": "definition",
+                "actor": "Scope owner",
+                "digest": "1" * 64,
+            },
+            {
+                "gate": "finalization",
+                "actor": "specsync:finalization",
+                "timestamp": 2,
+                "digest": finalization["closing_digest"],
+                "note": "Same-PR finalization closing digest",
+            }
+        ],
+        "reopenings": [],
+    }
+    (archive_dir / "approvals.json").write_text(
+        json.dumps(approvals) + "\n", encoding="utf-8"
     )
     git(repository, "add", ".")
     git(repository, "commit", "-m", "archive metadata")
@@ -88,6 +225,119 @@ with tempfile.TemporaryDirectory() as temporary:
     assert module.metadata_only_edge(repository, metadata, archive)
     assert module.metadata_parent(repository, archive) == metadata
     assert not module.metadata_only_edge(repository, first, product)
+
+    git(repository, "switch", "-c", "tampered-archive", metadata)
+    git(repository, "cherry-pick", "-n", archive)
+    tampered_archive_dir = (
+        repository / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
+    )
+    (tampered_archive_dir / "deltas/github.md").write_text(
+        "# Corrupted delta\n", encoding="utf-8"
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "tampered archive metadata")
+    tampered_archive = git(repository, "rev-parse", "HEAD")
+    assert not module.metadata_only_edge(repository, metadata, tampered_archive)
+
+    git(repository, "switch", "-c", "incomplete-archive", metadata)
+    git(repository, "cherry-pick", "-n", archive)
+    incomplete_archive_dir = (
+        repository / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
+    )
+    (incomplete_archive_dir / "deltas/github.md").unlink()
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "incomplete archive metadata")
+    incomplete_archive = git(repository, "rev-parse", "HEAD")
+    assert not module.metadata_only_edge(repository, metadata, incomplete_archive)
+
+    git(repository, "switch", "-c", "forged-archive", metadata)
+    git(repository, "cherry-pick", "-n", archive)
+    forged_archive_dir = (
+        repository / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
+    )
+    forged_verification = json.loads(
+        (forged_archive_dir / "verification.json").read_text(encoding="utf-8")
+    )
+    forged_entry = forged_verification["acceptance_manifest"]["entries"][0]
+    forged_entry["payload_digest"] = __import__("hashlib").sha256(
+        b"forged\n"
+    ).hexdigest()
+    forged_entry["entry_digest"] = module.acceptance_entry_digest(forged_entry)
+    forged_verification["acceptance_input_digest"] = module.acceptance_manifest_digest(
+        forged_verification["acceptance_manifest"]
+    )
+    forged_closing = module.closing_digest("CHG-0001-test", forged_verification)
+    (forged_archive_dir / "verification.json").write_text(
+        json.dumps(forged_verification) + "\n", encoding="utf-8"
+    )
+    forged_attempts = json.loads(
+        (forged_archive_dir / "verification-attempts.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    forged_attempts["attempts"][-1] = forged_verification
+    (forged_archive_dir / "verification-attempts.json").write_text(
+        json.dumps(forged_attempts) + "\n", encoding="utf-8"
+    )
+    forged_approvals = json.loads(
+        (forged_archive_dir / "approvals.json").read_text(encoding="utf-8")
+    )
+    forged_approvals["approvals"][-1]["digest"] = forged_closing
+    (forged_archive_dir / "approvals.json").write_text(
+        json.dumps(forged_approvals) + "\n", encoding="utf-8"
+    )
+    forged_finalization = json.loads(
+        (forged_archive_dir / "finalization.json").read_text(encoding="utf-8")
+    )
+    forged_finalization["closing_digest"] = forged_closing
+    forged_finalization["finalization_digest"] = module.finalization_digest(
+        forged_finalization
+    )
+    (forged_archive_dir / "finalization.json").write_text(
+        json.dumps(forged_finalization) + "\n", encoding="utf-8"
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "forged archive evidence")
+    forged_archive = git(repository, "rev-parse", "HEAD")
+    assert not module.metadata_only_edge(repository, metadata, forged_archive)
+
+    git(repository, "switch", "-c", "self-reviewed-archive", metadata)
+    git(repository, "cherry-pick", "-n", archive)
+    self_reviewed_dir = (
+        repository / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
+    )
+    self_review = json.loads(
+        (self_reviewed_dir / "review.json").read_text(encoding="utf-8")
+    )
+    self_review["reviewer"] = "Scope owner"
+    self_review["implementation_commit"] = metadata
+    (self_reviewed_dir / "review.json").write_text(
+        json.dumps(self_review, indent=2) + "\n", encoding="utf-8"
+    )
+    self_review_attempts = json.loads(
+        (self_reviewed_dir / "review-attempts.json").read_text(encoding="utf-8")
+    )
+    self_review_attempts["reviews"].append(self_review)
+    (self_reviewed_dir / "review-attempts.json").write_text(
+        json.dumps(self_review_attempts) + "\n", encoding="utf-8"
+    )
+    self_review_finalization = json.loads(
+        (self_reviewed_dir / "finalization.json").read_text(encoding="utf-8")
+    )
+    self_review_finalization["review_digest"] = __import__("hashlib").sha256(
+        module.compact_json(self_review)
+    ).hexdigest()
+    self_review_finalization["finalization_digest"] = module.finalization_digest(
+        self_review_finalization
+    )
+    (self_reviewed_dir / "finalization.json").write_text(
+        json.dumps(self_review_finalization) + "\n", encoding="utf-8"
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "self-reviewed archive evidence")
+    self_reviewed_archive = git(repository, "rev-parse", "HEAD")
+    assert not module.metadata_only_edge(repository, metadata, self_reviewed_archive)
+    git(repository, "switch", "main")
 
     git(repository, "switch", "-c", "bad-archive", metadata)
     bad_archive_dir = (

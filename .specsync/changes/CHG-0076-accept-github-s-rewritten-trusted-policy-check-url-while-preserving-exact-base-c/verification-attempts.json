@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1785630740,
+      "commit": "a8d97e11f9dd482486b49644ea2a0eb872ce7d55",
+      "contract_digest": "d04eae7428183bd15a88f020db6988499dcff74e388c8b90499a64911c2039b4",
+      "execution_digest": "3734bcf0e99063638f67ecc277f781fd0cfab9b0d72bcbc7437e29349d187985",
+      "workspace_digest": "956869a596bd1d0ed4f946d817e5b859462c667ded252ca635789c89f9a63616",
+      "passed": false,
+      "commands": [
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1785631277,
+      "commit": "a8d97e11f9dd482486b49644ea2a0eb872ce7d55",
+      "contract_digest": "d04eae7428183bd15a88f020db6988499dcff74e388c8b90499a64911c2039b4",
+      "execution_digest": "3734bcf0e99063638f67ecc277f781fd0cfab9b0d72bcbc7437e29349d187985",
+      "workspace_digest": "956869a596bd1d0ed4f946d817e5b859462c667ded252ca635789c89f9a63616",
+      "passed": true,
+      "commands": [
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

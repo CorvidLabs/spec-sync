@@ -63,3 +63,10 @@ the committed lifecycle limit with a one-entry overflow sentinel. Focused tests 
 manifest entry and all tracked descendants, omitted-descendant and forged-missing attacks, 257
 sequence updates, overflow, malformed configured bounds, and broad `.specsync` scopes that exclude
 volatile lifecycle workspaces while retaining the legacy baseline.
+
+CI reproduction trigger: the 257-update sequence fixture crossed Git's loose-object threshold on
+Ubuntu and background auto-maintenance raced the still-running temporary repository, making a valid
+commit intermittently unreadable. Durable invariant: stress fixtures that deliberately create many
+Git objects must disable automatic garbage collection and maintenance inside their isolated test
+repository. The focused fixture configures both controls before creating sequence history; product
+repositories and production behavior are unchanged.

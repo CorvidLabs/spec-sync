@@ -668,6 +668,11 @@ with tempfile.TemporaryDirectory() as temporary:
     git(sequence_repository, "init", "-b", "main")
     git(sequence_repository, "config", "user.email", "test@example.com")
     git(sequence_repository, "config", "user.name", "Test")
+    # This fixture intentionally creates enough loose objects to trigger Git's
+    # background auto-maintenance on CI. Keep the isolated repository stable
+    # while the bounded-history assertion is still writing commits.
+    git(sequence_repository, "config", "gc.auto", "0")
+    git(sequence_repository, "config", "maintenance.auto", "false")
     sequence_path = sequence_repository / ".specsync/change-sequence.json"
     sequence_path.parent.mkdir()
     initial_sequence = {

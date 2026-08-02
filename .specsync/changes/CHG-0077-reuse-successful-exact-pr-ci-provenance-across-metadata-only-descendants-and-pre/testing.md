@@ -44,6 +44,8 @@ artifact: testing
   `.specsync/archive/legacy-baseline.json` as the explicit compatibility exception.
 - Reconstruct valid sequence evidence after 257 updates under the committed 1000-entry bound; reject
   one-entry overflow and missing, boolean, zero, or greater-than-1000 configured limits.
+- Disable Git auto-GC and auto-maintenance in the 257-update temporary repository so the stress
+  fixture cannot race a background repack on hosted Ubuntu runners.
 
 ## Completion
 

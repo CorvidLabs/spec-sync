@@ -5,8 +5,8 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Add rewritten-URL and moved-tip characterization fixtures.
-- [ ] Implement bounded exact-provenance workflow-run discovery.
-- [ ] Add fail-closed mismatch and ambiguity coverage.
+- [x] Add rewritten-URL and moved-tip characterization fixtures.
+- [x] Implement bounded exact-provenance workflow-run discovery.
+- [x] Add fail-closed mismatch and ambiguity coverage.
 - [ ] Verify the protected policy tests and archive-only PR #491 path.
 - [ ] Obtain one independent scoped review before finalization.

@@ -70,7 +70,27 @@ with tempfile.TemporaryDirectory() as temporary:
         "conclusion": "success",
         "app": {"id": 15368, "slug": "github-actions"},
         "external_id": f"specsync-trusted-policy:{base}:{head}",
-        "details_url": "https://github.com/CorvidLabs/spec-sync/actions/runs/9001",
+        "details_url": "https://github.com/CorvidLabs/spec-sync/runs/20",
+    }
+    runs_endpoint = (
+        "repos/CorvidLabs/spec-sync/actions/runs?event=pull_request_target"
+        f"&head_sha={head}&per_page=100"
+    )
+    run = {
+        "id": 9001,
+        "event": "pull_request_target",
+        "status": "completed",
+        "conclusion": "success",
+        "path": WORKFLOW,
+        "head_sha": head,
+        "repository": {"full_name": "CorvidLabs/spec-sync"},
+        "pull_requests": [
+            {
+                "number": 480,
+                "base": {"sha": base},
+                "head": {"sha": head},
+            }
+        ],
     }
     fixture = {
         "repos/CorvidLabs/spec-sync/commits/"
@@ -81,26 +101,118 @@ with tempfile.TemporaryDirectory() as temporary:
             "name": "GitHub Actions",
             "owner": {"login": "github"},
         },
-        "repos/CorvidLabs/spec-sync/actions/runs/9001": {
-            "id": 9001,
-            "event": "pull_request_target",
-            "status": "completed",
-            "conclusion": "success",
-            "path": WORKFLOW,
-            "head_sha": base,
-            "repository": {"full_name": "CorvidLabs/spec-sync"},
-            "pull_requests": [{"number": 480, "head": {"sha": head}}],
-        },
+        runs_endpoint: {"total_count": 1, "workflow_runs": [run]},
     }
 
     passed = run_verifier(repository, base, head, fixture)
     assert passed.returncode == 0, passed.stderr
 
+    workflow_details = copy.deepcopy(fixture)
+    workflow_details[
+        f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"
+    ]["check_runs"][0]["details_url"] = (
+        "https://github.com/CorvidLabs/spec-sync/actions/runs/9001"
+    )
+    passed = run_verifier(repository, base, head, workflow_details)
+    assert passed.returncode == 0, passed.stderr
+
+    wrong_workflow_details = copy.deepcopy(workflow_details)
+    wrong_workflow_details[
+        f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"
+    ]["check_runs"][0]["details_url"] = (
+        "https://github.com/CorvidLabs/spec-sync/actions/runs/9999"
+    )
+    rejected = run_verifier(repository, base, head, wrong_workflow_details)
+    assert rejected.returncode != 0
+    assert "names a different workflow run" in rejected.stderr
+
+    (repository / "README.md").write_text("archive child\n", encoding="utf-8")
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "archive child")
+    descendant = git(repository, "rev-parse", "HEAD")
+    moved_tip = copy.deepcopy(fixture)
+    moved_tip[runs_endpoint]["workflow_runs"][0]["pull_requests"][0]["head"][
+        "sha"
+    ] = descendant
+    passed = run_verifier(repository, base, head, moved_tip)
+    assert passed.returncode == 0, passed.stderr
+
     wrong_event = copy.deepcopy(fixture)
-    wrong_event["repos/CorvidLabs/spec-sync/actions/runs/9001"]["event"] = "pull_request"
+    wrong_event[runs_endpoint]["workflow_runs"][0]["event"] = "pull_request"
     rejected = run_verifier(repository, base, head, wrong_event)
     assert rejected.returncode != 0
     assert "not base-controlled" in rejected.stderr
+
+    wrong_details = copy.deepcopy(fixture)
+    wrong_details[
+        f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"
+    ]["check_runs"][0]["details_url"] = "https://attacker.invalid/runs/20"
+    rejected = run_verifier(repository, base, head, wrong_details)
+    assert rejected.returncode != 0
+    assert "not a recognized GitHub check or workflow run" in rejected.stderr
+
+    wrong_app = copy.deepcopy(fixture)
+    wrong_app[f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"][
+        "check_runs"
+    ][0]["app"]["id"] = 999
+    rejected = run_verifier(repository, base, head, wrong_app)
+    assert rejected.returncode != 0
+    assert "not from GitHub Actions" in rejected.stderr
+
+    wrong_path = copy.deepcopy(fixture)
+    wrong_path[runs_endpoint]["workflow_runs"][0]["path"] = ".github/workflows/ci.yml"
+    rejected = run_verifier(repository, base, head, wrong_path)
+    assert rejected.returncode != 0
+    assert "missing or ambiguous" in rejected.stderr
+
+    wrong_repository = copy.deepcopy(fixture)
+    wrong_repository[runs_endpoint]["workflow_runs"][0]["repository"][
+        "full_name"
+    ] = "CorvidLabs/other"
+    rejected = run_verifier(repository, base, head, wrong_repository)
+    assert rejected.returncode != 0
+    assert "belongs to another repository" in rejected.stderr
+
+    wrong_candidate = copy.deepcopy(fixture)
+    wrong_candidate[runs_endpoint]["workflow_runs"][0]["head_sha"] = base
+    rejected = run_verifier(repository, base, head, wrong_candidate)
+    assert rejected.returncode != 0
+    assert "exact candidate revision" in rejected.stderr
+
+    wrong_pr = copy.deepcopy(fixture)
+    wrong_pr[runs_endpoint]["workflow_runs"][0]["pull_requests"][0]["number"] = 481
+    rejected = run_verifier(repository, base, head, wrong_pr)
+    assert rejected.returncode != 0
+    assert "exact PR and base revision" in rejected.stderr
+
+    wrong_base = copy.deepcopy(fixture)
+    wrong_base[runs_endpoint]["workflow_runs"][0]["pull_requests"][0]["base"][
+        "sha"
+    ] = head
+    rejected = run_verifier(repository, base, head, wrong_base)
+    assert rejected.returncode != 0
+    assert "exact PR and base revision" in rejected.stderr
+
+    unsuccessful_run = copy.deepcopy(fixture)
+    unsuccessful_run[runs_endpoint]["workflow_runs"][0]["conclusion"] = "failure"
+    rejected = run_verifier(repository, base, head, unsuccessful_run)
+    assert rejected.returncode != 0
+    assert "workflow run is not successful" in rejected.stderr
+
+    ambiguous_runs = copy.deepcopy(fixture)
+    ambiguous_runs[runs_endpoint] = {
+        "total_count": 2,
+        "workflow_runs": [run, {**run, "id": 9002}],
+    }
+    rejected = run_verifier(repository, base, head, ambiguous_runs)
+    assert rejected.returncode != 0
+    assert "missing or ambiguous" in rejected.stderr
+
+    incomplete_lookup = copy.deepcopy(fixture)
+    incomplete_lookup[runs_endpoint]["total_count"] = 2
+    rejected = run_verifier(repository, base, head, incomplete_lookup)
+    assert rejected.returncode != 0
+    assert "incomplete or exceeds its bound" in rejected.stderr
 
     stale_success = copy.deepcopy(fixture)
     stale_success[

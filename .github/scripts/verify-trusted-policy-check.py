@@ -202,36 +202,85 @@ try:
     if external_match is None:
         raise ValueError("check lacks the exact trusted revision binding")
     trusted = external_match.group(1)
+    if trusted != base:
+        raise ValueError("check is not bound to the exact PR base revision")
+
+    check_id = int(check.get("id", 0))
+    if check_id <= 0:
+        raise ValueError("check has no valid GitHub identity")
     details = str(check.get("details_url") or "")
-    details_match = re.fullmatch(
+    workflow_details = re.fullmatch(
         rf"{re.escape(server_url)}/{re.escape(repository)}/actions/runs/([0-9]+)",
         details,
     )
-    if details_match is None:
-        raise ValueError("check details URL is not an exact workflow run")
-    run_id = int(details_match.group(1))
-    run = api(f"repos/{repository}/actions/runs/{run_id}")
-    if run.get("id") != run_id:
-        raise ValueError("wrong workflow run ID")
+    canonical_check_details = f"{server_url}/{repository}/runs/{check_id}"
+    if workflow_details is None and details != canonical_check_details:
+        raise ValueError("check details URL is not a recognized GitHub check or workflow run")
+
+    runs_endpoint = (
+        f"repos/{repository}/actions/runs?event=pull_request_target"
+        f"&head_sha={candidate}&per_page=100"
+    )
+    runs_payload = api(runs_endpoint)
+    runs = runs_payload.get("workflow_runs")
+    total_count = runs_payload.get("total_count")
+    if (
+        not isinstance(runs, list)
+        or not isinstance(total_count, int)
+        or isinstance(total_count, bool)
+        or total_count != len(runs)
+        or total_count > 100
+    ):
+        raise ValueError("workflow run lookup is incomplete or exceeds its bound")
+
+    policy_runs = [
+        run
+        for run in runs
+        if isinstance(run, dict)
+        and str(run.get("path") or "").split("@", 1)[0] == WORKFLOW_PATH
+    ]
+    if len(policy_runs) != 1:
+        raise ValueError("workflow run lookup is missing or ambiguous")
+    run = policy_runs[0]
+    run_id = int(run.get("id", 0))
+    if run_id <= 0:
+        raise ValueError("workflow run has no valid GitHub identity")
+    if workflow_details is not None and int(workflow_details.group(1)) != run_id:
+        raise ValueError("check details URL names a different workflow run")
     if run.get("event") != "pull_request_target":
         raise ValueError("workflow run is not base-controlled")
     if run.get("status") != "completed" or run.get("conclusion") != "success":
         raise ValueError("workflow run is not successful")
-    if str(run.get("path") or "").split("@", 1)[0] != WORKFLOW_PATH:
-        raise ValueError("workflow run has the wrong path")
     if (run.get("repository") or {}).get("full_name") != repository:
         raise ValueError("workflow run belongs to another repository")
-    if run.get("head_sha") != trusted:
-        raise ValueError("workflow run does not use the bound trusted revision")
+    if run.get("head_sha") != trusted and run.get("head_sha") != candidate:
+        raise ValueError("workflow run is unrelated to the trusted or candidate revision")
+    if run.get("head_sha") != candidate:
+        raise ValueError("workflow run does not use the exact candidate revision")
     pull_requests = run.get("pull_requests") or []
     matching_prs = [
         item
         for item in pull_requests
         if item.get("number") == pull_request
-        and (item.get("head") or {}).get("sha") == candidate
+        and (item.get("base") or {}).get("sha") == trusted
+        and (
+            (item.get("head") or {}).get("sha") == candidate
+            or git(
+                root,
+                "merge-base",
+                "--is-ancestor",
+                candidate,
+                str((item.get("head") or {}).get("sha") or ""),
+                check=False,
+            ).returncode
+            == 0
+        )
     ]
     if len(matching_prs) != 1:
-        raise ValueError("workflow run is not bound to the exact PR head")
+        raise ValueError("workflow run is not bound to the exact PR and base revision")
+    pull_head = str((matching_prs[0].get("head") or {}).get("sha") or "")
+    if re.fullmatch(r"[0-9a-f]{40}", pull_head) is None:
+        raise ValueError("workflow run has no exact PR head revision")
     if git(root, "rev-parse", "--verify", f"{trusted}^{{commit}}").stdout.strip() != trusted:
         raise ValueError("trusted workflow revision is unavailable")
     if git(root, "merge-base", "--is-ancestor", trusted, candidate, check=False).returncode != 0:

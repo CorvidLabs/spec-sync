@@ -19,3 +19,9 @@ artifact: testing
 - `bash .github/scripts/test-lifecycle-workflows.sh`
 - `specsync check --strict`
 - PR #491 archive-integrity and required CI gates on the exact final child
+
+## Results
+
+- The focused fixture suite passes.
+- A live read-only verification of PR #491 parent `b117382` resolves and authenticates trusted
+  policy run `30724416401` at base revision `0ea95ce5`, reproducing and fixing the hosted failure.

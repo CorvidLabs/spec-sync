@@ -1,6 +1,6 @@
 ---
 id: CHG-0076-accept-github-s-rewritten-trusted-policy-check-url-while-preserving-exact-base-c
-state: draft
+state: approved
 type: bug_fix
 base_commit: 505b01d9b919b0aa18516961e67c1a52ab88e815
 ---

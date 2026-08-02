@@ -21,3 +21,9 @@ workflow run to the same repository, candidate SHA, trusted revision, workflow p
 
 This is a protected verifier correction only. It does not weaken the trusted-policy rule, alter the
 workflow, or expand CHG-0074's product behavior.
+
+## Implementation status
+
+The verifier now accepts only GitHub's canonical check URL or the requested workflow URL, then
+independently queries a bounded exact-candidate run set and requires one matching successful
+base-controlled policy run. PR #491's previously rejected parent now verifies successfully.

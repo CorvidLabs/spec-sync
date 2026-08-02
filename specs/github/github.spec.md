@@ -1,6 +1,6 @@
 ---
 module: github
-version: 17
+version: 19
 status: stable
 files:
   - src/github.rs
@@ -84,6 +84,12 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
     `release` environment. Final
     tagging or upload fails unless every platform result, freshly resolved tag, actual checkout, and
     packaged artifact remains bound to that unchanged candidate.
+15. Review/archive metadata descendants may reuse required CI only from one nearest successful
+    first-parent product ancestor. The current child must pass the lifecycle classifier and every
+    skipped child must be an exact historical scoped-review pair; every reused check remains
+    exact-SHA, same-PR, expected-workflow, and official-Actions bound. Lookup stops at that first
+    product boundary even when its evidence is missing or unsuccessful. The helper and its focused
+    test may change only with the separately protected CI workflow.
 
 ## Behavioral Examples
 
@@ -131,6 +137,13 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 - **Then** promotion may create `v6.0.0` at that SHA and publish artifacts; any missing, failed, stale,
   mixed-SHA, or replaced-marker evidence fails closed
 
+### Scenario: Finalize after review metadata
+
+- **Given** one product tip has green CI and a later child contains only valid scoped-review metadata
+- **When** a same-PR archive child is finalized without waiting for duplicate product checks
+- **Then** the archive gate reuses the product tip's authenticated checks and refuses to cross any
+  intervening product-code edge
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -156,6 +169,7 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | RC marker is lightweight, malformed, moved, or has conflicting workflow history | Qualification and promotion fail; a fresh annotated RC marker is required |
 | Platform evidence is missing, unsuccessful, or bound to another tag/SHA | Final tag creation and release upload are refused |
 | Immutable RC/final tag rulesets are absent, inactive, incomplete, or grant a forbidden bypass | RC qualification and promotion fail before final-tag creation |
+| Metadata ancestry contains code, a merge-only side parent, exceeds 32 first parents, or has foreign/malformed/unsuccessful evidence | Reuse stops and the archive/Trust gate fails closed instead of borrowing older checks |
 
 ## Dependencies
 
@@ -201,3 +215,5 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-08-01 | CHG-0074-simplify-specsync-ci-to-one-expensive-suite-authority-with-residual-trust-identi: Simplify SpecSync CI to one expensive-suite authority with residual Trust identity gates, preserving full local verification and documenting the 95% confidence model |
 | 2026-08-01 | CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida: Bind cross-platform release qualification, final tagging, and publication to one immutable RC commit while making Ubuntu the ordinary-PR integration authority |
 | 2026-08-01 | CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida: Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows |
+| 2026-08-02 | CHG-0077: Reuse authenticated product-tip CI across bounded metadata-only descendants and prevent cancelled republications from poisoning an earlier exact-SHA success |
+| 2026-08-02 | CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre: Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result |

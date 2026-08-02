@@ -224,9 +224,16 @@ with tempfile.TemporaryDirectory() as temporary:
             "conclusion": "failure",
         }
     )
-    rejected = run_verifier(repository, base, head, stale_success)
+    passed = run_verifier(repository, base, head, stale_success)
+    assert passed.returncode == 0, passed.stderr
+
+    unsuccessful_only = copy.deepcopy(fixture)
+    unsuccessful_only[
+        f"repos/CorvidLabs/spec-sync/commits/{head}/check-runs?per_page=100"
+    ]["check_runs"][0]["conclusion"] = "cancelled"
+    rejected = run_verifier(repository, base, head, unsuccessful_only)
     assert rejected.returncode != 0
-    assert "latest check is not successful" in rejected.stderr
+    assert "no successful check exists" in rejected.stderr
 
     wrong_revision = copy.deepcopy(fixture)
     wrong_revision[

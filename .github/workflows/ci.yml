@@ -130,6 +130,28 @@ jobs:
               ;;
           esac
 
+          if [[ "$force_full" != "true" ]]; then
+            python3 - "$base" "$HEAD_SHA" <<'PY'
+          import subprocess
+          import sys
+
+          base, head = sys.argv[1:]
+          changed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", "--no-renames", "-z", base, head]
+              ).split(b"\0")
+          )
+          provenance_helpers = {
+              b".github/scripts/reuse-check-from-ancestors.py",
+              b".github/scripts/test-reuse-check-from-ancestors.py",
+          }
+          if changed & provenance_helpers and b".github/workflows/ci.yml" not in changed:
+              raise SystemExit(
+                  "CI provenance helpers may change only with the protected CI workflow"
+              )
+          PY
+          fi
+
           if [[ -n "${output:-}" ]]; then
             :
           elif [[ "$force_full" == "true" ]]; then
@@ -143,6 +165,7 @@ jobs:
         run: |
           .github/scripts/test-classify-ci-paths.sh
           .github/scripts/test-lifecycle-workflows.sh
+          python3 .github/scripts/test-reuse-check-from-ancestors.py
           python3 .github/scripts/test-validate-release-candidate.py
 
   archive-integrity:

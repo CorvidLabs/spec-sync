@@ -10,6 +10,7 @@ spec: github.spec.md
 | Release version surfaces | `ruby --version` then `PYENV_VERSION=3.10.20 python3 -S .github/scripts/validate-release-version.py` | Pinned hosted Ruby and the declared lifecycle preflight provide Psych; maintained YAML syntax, Cargo, lockfile, Action default, every current root/site YAML Action step (including case-insensitive, indented, metadata-bearing, backtick, or tilde fences), structurally parsed block/flow workflow steps, named/nested/quoted keys, mixed-case repositories, non-version moving refs, and block/flow `with` inputs, packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages or Python 3.11-only modules |
 | Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI each contain exactly one expected `setup-bun` Action ref with the supported exact Bun version under that step's `with` mapping; structural parsing covers block/flow mappings, quoted keys, arbitrary valid list-marker spacing, and `uses` after other keys, while mixed-case repositories, moving refs, duplicates, unexpected jobs, and missing inputs fail without Python site packages |
 | Immutable RC evidence | `python3 .github/scripts/test-validate-release-candidate.py` | Exactly one successful Ubuntu, macOS, and Windows record must share the expected annotated RC identity, candidate SHA, schema, and Fledge lane; missing, duplicate, malformed, failed, cancelled, or mixed identity evidence fails closed |
+| Metadata-descendant provenance | `python3 .github/scripts/test-reuse-check-from-ancestors.py` and `python3 .github/scripts/test-verify-trusted-policy-check.py` | First-parent bounds, second-parent exclusion, exact historical scoped-review edges, metadata-check skipping, terminal product boundaries, exact check/run identity, complete check lookup, foreign and malformed rejection, unsuccessful-only failure, and success preference over newer cancellation/failure |
 
 ## Coverage Gaps
 
@@ -73,6 +74,9 @@ spec: github.spec.md
 | Immutable RC qualification | Ubuntu, macOS, and Windows run `fledge lanes run release-candidate` for the same resolved SHA | Parse the release matrix and validate fixture evidence for all three platforms |
 | Candidate content or marker changes | Prior platform evidence cannot authorize promotion or upload | Change the expected SHA/tag in validator fixtures and require failure; conflicting workflow history also fails |
 | Final publication | Final tag and artifacts use the already-qualified candidate SHA | Require authorization before promotion and independent final-tag/checkout identity checks before upload |
+| Review/archive child follows a green product tip | Reuse required checks without rerunning the product matrix | Require one shared product ancestor and CI run; reject foreign app/PR/repository/workflow/SHA evidence |
+| Intervening child changes product code | Older green evidence cannot authorize the new tip | Stop before the non-review/non-archive edge and fail closed |
+| Newer exact-SHA policy result is cancelled after a success | Cancellation from moved-tip republication does not erase prior authenticated success | Keep the successful and unsuccessful-only fixtures in `test-verify-trusted-policy-check.py` |
 
 ## Reviewer Checklist
 

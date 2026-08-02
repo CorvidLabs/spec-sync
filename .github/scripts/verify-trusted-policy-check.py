@@ -182,12 +182,20 @@ matches = sorted(
 )
 if not matches:
     raise SystemExit(f"{CHECK_NAME} has no check on the exact candidate")
-check = matches[0]
+# Prefer an authenticated success for this exact SHA. A newer cancelled or
+# failed republication can be caused by a moved PR tip and must not poison an
+# earlier successful result for the unchanged candidate.
+successful_matches = [
+    check
+    for check in matches
+    if check.get("status") == "completed" and check.get("conclusion") == "success"
+]
+check = successful_matches[0] if successful_matches else matches[0]
 try:
     if check.get("head_sha") != candidate:
         raise ValueError("wrong candidate SHA")
     if check.get("status") != "completed" or check.get("conclusion") != "success":
-        raise ValueError("latest check is not successful")
+        raise ValueError("no successful check exists for the exact candidate")
     app = check.get("app") or {}
     if (
         app.get("id") != github_actions.get("id")

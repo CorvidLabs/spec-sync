@@ -54,3 +54,5 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [ ] Finish binding Ubuntu/macOS/Windows release qualification and publication to one immutable
   annotated RC tag while making Ubuntu the ordinary-PR integration authority (CHG-0075); the
   dedicated release App and production rulesets still require provisioning and live proof
+- [x] Reuse authenticated required checks across bounded review/archive metadata descendants without
+  crossing code edges or allowing cancelled republications to poison exact-SHA success (CHG-0077)

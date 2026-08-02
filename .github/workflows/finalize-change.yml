@@ -71,18 +71,41 @@ jobs:
             printf 'parent_tree=%s\n' "$(git rev-parse "$parent_sha^{tree}")"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Require base-trusted lifecycle policy
+      - name: Require base-trusted lifecycle policy (parent or product ancestor)
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ steps.child.outputs.parent_sha }}
+          PARENT_SHA: ${{ steps.child.outputs.parent_sha }}
           GIT_ROOT: ${{ github.workspace }}
-        run: .github/scripts/verify-trusted-policy-check.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Exact parent first, then first-parent ancestors (product tip).
+          # Prevents cancel-poison when review/archive tips move PR head.
+          errors=""
+          previous=""
+          while IFS= read -r sha; do
+            if [[ -n "$previous" ]]; then
+              if ! python3 .github/scripts/reuse-check-from-ancestors.py \
+                  --check-metadata-edge "$sha" "$previous"; then
+                echo "Trusted-policy ancestry stopped before $previous." >&2
+                break
+              fi
+            fi
+            if HEAD_SHA="$sha" python3 .github/scripts/verify-trusted-policy-check.py; then
+              echo "Trusted policy verified for candidate $sha"
+              exit 0
+            fi
+            errors="${errors} ${sha}"
+            previous="$sha"
+          done < <(git rev-list --first-parent -n 32 "${PARENT_SHA}")
+          echo "Trusted policy not reusable for parent chain:${errors}" >&2
+          exit 1
 
-      - name: Require green checks on the implementation parent
+      - name: Require green checks on the implementation parent (ancestor-aware)
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -90,158 +113,46 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PARENT_SHA: ${{ steps.child.outputs.parent_sha }}
           CHANGE_ID: ${{ inputs.change_id }}
+          GIT_ROOT: ${{ github.workspace }}
         shell: bash
         run: |
           set -euo pipefail
+          # Walk first-parent ancestors so review/archive tips can reuse product-tip
+          # provenance (fixes multi-tip ship thrash / "tip dance").
+          export START_SHA="${PARENT_SHA}"
+          export CHILD_KIND="archive"
+          export MAX_ANCESTORS=32
 
-          checks_file="${RUNNER_TEMP}/specsync-parent-checks.json"
-          fetched=false
-          for attempt in 1 2 3; do
-            if gh api \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "repos/${REPOSITORY}/commits/${PARENT_SHA}/check-runs?per_page=100" \
-                > "$checks_file"; then
-              fetched=true
-              break
-            fi
-            echo "Parent check lookup failed (attempt ${attempt}/3)." >&2
-            sleep "$attempt"
-          done
-          if [[ "$fetched" != "true" ]]; then
-            echo "Unable to read parent check results after three attempts." >&2
+          export OUTPUT_FORMAT=env
+          export CHECK_NAME="SpecSync implementation ready"
+          export WORKFLOW_PATH=".github/workflows/ci.yml"
+          export REQUIRE_RUN_SUCCESS="false"
+          implementation="$(python3 .github/scripts/reuse-check-from-ancestors.py)"
+
+          export CHECK_NAME="SpecSync scoped review"
+          export WORKFLOW_PATH=".github/workflows/ci.yml"
+          export REQUIRE_RUN_SUCCESS="false"
+          review="$(python3 .github/scripts/reuse-check-from-ancestors.py)"
+
+          export CHECK_NAME="trust"
+          export WORKFLOW_PATH=".github/workflows/trust.yml"
+          export REQUIRE_RUN_SUCCESS="true"
+          trust="$(python3 .github/scripts/reuse-check-from-ancestors.py)"
+
+          implementation_ancestor="$(sed -n 's/^ancestor_sha=//p' <<<"$implementation")"
+          implementation_run="$(sed -n 's/^workflow_run_id=//p' <<<"$implementation")"
+          review_ancestor="$(sed -n 's/^ancestor_sha=//p' <<<"$review")"
+          review_run="$(sed -n 's/^workflow_run_id=//p' <<<"$review")"
+          trust_ancestor="$(sed -n 's/^ancestor_sha=//p' <<<"$trust")"
+          if [[ -z "$implementation_ancestor" \
+              || "$implementation_ancestor" != "$review_ancestor" \
+              || "$implementation_ancestor" != "$trust_ancestor" \
+              || "$implementation_run" != "$review_run" ]]; then
+            echo "Required checks do not share one product ancestor and CI run." >&2
             exit 1
           fi
 
-          export CHECKS_FILE="$checks_file"
-          python3 - <<'PY'
-          import json
-          import os
-          import re
-          import subprocess
-
-          parent = os.environ["PARENT_SHA"]
-          repository = os.environ["REPOSITORY"]
-          server_url = os.environ["SERVER_URL"].rstrip("/")
-          pull_request = int(os.environ["PR_NUMBER"])
-
-          with open(os.environ["CHECKS_FILE"], encoding="utf-8") as handle:
-              runs = json.load(handle).get("check_runs", [])
-
-          def api(endpoint: str) -> dict:
-              output = subprocess.check_output(
-                  [
-                      "gh",
-                      "api",
-                      "-H",
-                      "Accept: application/vnd.github+json",
-                      "-H",
-                      "X-GitHub-Api-Version: 2022-11-28",
-                      endpoint,
-                  ],
-                  text=True,
-              )
-              return json.loads(output)
-
-          github_actions_app = api("apps/github-actions")
-          if (
-              github_actions_app.get("slug") != "github-actions"
-              or github_actions_app.get("name") != "GitHub Actions"
-              or (github_actions_app.get("owner") or {}).get("login") != "github"
-          ):
-              raise SystemExit("could not resolve the official GitHub Actions app")
-
-          def proven_check(
-              name: str,
-              workflow_path: str,
-              require_run_success: bool,
-          ) -> int:
-              errors = []
-              matches = sorted(
-                  (run for run in runs if run.get("name") == name),
-                  key=lambda run: int(run.get("id", 0)),
-                  reverse=True,
-              )
-              for check in matches:
-                  try:
-                      if check.get("head_sha") != parent:
-                          raise ValueError("check head SHA does not match the parent")
-                      if (
-                          check.get("status") != "completed"
-                          or check.get("conclusion") != "success"
-                      ):
-                          raise ValueError(
-                              "check is not successful: "
-                              f"{check.get('status')}/{check.get('conclusion')}"
-                          )
-                      app = check.get("app") or {}
-                      if (
-                          app.get("id") != github_actions_app.get("id")
-                          or app.get("slug") != github_actions_app.get("slug")
-                      ):
-                          raise ValueError("check was not created by GitHub Actions")
-                      details_url = str(check.get("details_url") or "")
-                      pattern = (
-                          rf"^{re.escape(server_url)}/{re.escape(repository)}"
-                          r"/actions/runs/([0-9]+)/job/[0-9]+$"
-                      )
-                      match = re.fullmatch(pattern, details_url)
-                      if match is None:
-                          raise ValueError("check details URL is not a GitHub Actions job")
-                      run_id = int(match.group(1))
-                      workflow_run = api(
-                          f"repos/{repository}/actions/runs/{run_id}"
-                      )
-                      if workflow_run.get("id") != run_id:
-                          raise ValueError("resolved workflow run has the wrong ID")
-                      if workflow_run.get("head_sha") != parent:
-                          raise ValueError("resolved workflow run has the wrong head SHA")
-                      if workflow_run.get("event") != "pull_request":
-                          raise ValueError("resolved workflow run is not a pull-request run")
-                      if workflow_run.get("status") != "completed":
-                          raise ValueError("resolved workflow run is not completed")
-                      if require_run_success and workflow_run.get("conclusion") != "success":
-                          raise ValueError("resolved workflow run is not successful")
-                      if str(workflow_run.get("path") or "").split("@", 1)[0] != workflow_path:
-                          raise ValueError("resolved workflow run has the wrong workflow path")
-                      if (workflow_run.get("repository") or {}).get("full_name") != repository:
-                          raise ValueError("resolved workflow run belongs to another repository")
-                      if not any(
-                          item.get("number") == pull_request
-                          for item in workflow_run.get("pull_requests") or []
-                      ):
-                          raise ValueError("resolved workflow run is not bound to this PR")
-                      return run_id
-                  except (
-                      json.JSONDecodeError,
-                      subprocess.CalledProcessError,
-                      TypeError,
-                      ValueError,
-                  ) as error:
-                      errors.append(f"check {check.get('id')}: {error}")
-              detail = "; ".join(errors) if errors else "no matching check runs"
-              raise SystemExit(f"{name} has no proven result: {detail}")
-
-          implementation_run = proven_check(
-              "SpecSync implementation ready",
-              ".github/workflows/ci.yml",
-              False,
-          )
-          review_run = proven_check(
-              "SpecSync scoped review",
-              ".github/workflows/ci.yml",
-              False,
-          )
-          if implementation_run != review_run:
-              raise SystemExit(
-                  "implementation and scoped-review checks came from different CI runs"
-              )
-          proven_check("trust", ".github/workflows/trust.yml", True)
-          print(
-              "Implementation parent checks are green and provenance-bound to "
-              f"PR #{pull_request}, parent {parent}, and their exact Actions runs."
-          )
-          PY
+          echo "Implementation-parent provenance green at ${implementation_ancestor}."
 
       - name: Validate archive integrity and parent binding
         env:

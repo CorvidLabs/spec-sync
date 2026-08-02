@@ -90,6 +90,16 @@ spec: github.spec.md
   that caps commit history, parents, time, and streamed output and rejects post-introduction archive
   rewrites. It inspects every bounded archive-path-touching commit and readable parent, so
   rewrite→restore history is not reduced to a clean final tree.
+- **Metadata-descendant provenance reuse**: review/archive children walk a hard-bounded first-parent
+  chain and may reuse only one nearest product ancestor. The current child passes the existing
+  lifecycle classifier; each historical child crossed by the helper must contain exactly one
+  change's scoped-review pair. Metadata-child republications are skipped, and the first product
+  boundary is terminal even when it has no reusable evidence; code edges and second parents are
+  never crossed. Required CI couples helper/test changes to `ci.yml`; because every workflow change
+  is base-policy protected, later PR-controlled helper edits cannot silently weaken reuse. The
+  official GitHub Actions app, exact SHA, PR, repository, workflow, run, and success identities stay
+  mandatory. Exact-SHA trusted-policy selection prefers an authenticated success over a newer
+  cancellation/failure caused by a moved tip, but unsuccessful-only evidence still fails.
 
 ## Key Files
 
@@ -106,6 +116,8 @@ spec: github.spec.md
 - `.github/workflows/release.yml` and `.github/scripts/validate-release-candidate.py` - Resolve an
   annotated RC marker, qualify its exact SHA through one Fledge lane on three platforms, and refuse
   final tagging/publication when evidence identities diverge
+- `.github/scripts/reuse-check-from-ancestors.py` - Authenticate bounded first-parent CI reuse while
+  refusing to cross non-lifecycle metadata edges
 
 ## Current Status
 
@@ -136,3 +148,8 @@ only the protected default branch, and promotion independently checks the workfl
 job then
 re-resolves tags and actual checkout after builds and revalidates original platform evidence plus
 package hashes.
+
+CHG-0077 repairs the finalization tip dance reproduced by PR #492: a review child no longer orphans
+the green product tip, and a later cancelled/failed policy republication no longer poisons an earlier
+authenticated success for the same SHA. The repair does not add a command, lifecycle state, approval,
+or alternate archive path.

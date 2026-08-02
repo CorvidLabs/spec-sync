@@ -70,3 +70,41 @@ commit intermittently unreadable. Durable invariant: stress fixtures that delibe
 Git objects must disable automatic garbage collection and maintenance inside their isolated test
 repository. The focused fixture configures both controls before creating sequence history; product
 repositories and production behavior are unchanged.
+
+Fourth review trigger: archive reconstruction assumed review evidence was always present before
+finalization, treated every tracked file in a spec directory as module-owned, and ignored audited
+owner corrections. Those assumptions rejected valid workflow-v2 archives or reconstructed a
+different manifest from the native lifecycle. Durable invariant: the reusable-check verifier must
+mirror the native finalizer's generated review pair, canonical companion allowlist, exact-delivery
+fallback, and signed owner-correction ledger. Focused fixtures cover finalization-generated review
+evidence, a noncanonical `retired.md` spec companion, and a corrected canonical co-owner.
+
+Adversarial follow-up trigger: accepting correction fields structurally was insufficient because an
+out-of-scope, duplicate, reserved, or non-owning correction could still manufacture ownership, and a
+finalization-generated review ledger may contain a prior block before its final pass. Root cause:
+the helper recognized the artifact shapes without replaying all native semantic validators. Durable
+invariant: correction records must satisfy the native bounds, canonical identity, original-scope,
+unique-pair, unaffected-module, regular-blob, and canonical-source ownership rules; every generated
+review attempt must be valid and independent, with the projection equal to the final attempt.
+Focused regressions cover malformed correction classes and a valid block-to-pass generated ledger.
+
+Final review trigger: Git stores symlinks as blobs, so a blob-only correction check could treat a
+symlink or a source-looking file under docs/tests as canonical production ownership. Durable
+invariant: corrected paths must use a regular-file mode, a supported source extension, a configured
+source directory, and no governed test/fixture segment; canonical specs must also be regular blobs.
+The regression fixture covers both symlink and non-production source claims.
+
+Config-review trigger: accepting JSON and TOML source-directory spellings interchangeably could
+honor a key that native SpecSync ignores, while assuming `src` when native performs auto-detection
+could assign a different ownership boundary. Durable invariant: historical ownership reads only the
+format-specific committed key (`source_dirs` for TOML, `sourceDirs` for JSON) and fails closed when
+explicit committed source roots are unavailable. Fully signed negative manifests ensure the
+symlink/non-production regressions exercise those guards rather than path-set mismatch.
+
+Input-authentication trigger: Git can store configuration and registry paths as symlinks, and the
+first historical parser accepted their blob payloads even though native path loading would not treat
+a dangling link as the same file. Registry resolution also bypassed native name/mapping semantics and
+the configured `specs_dir` fallback. Durable invariant: historical config/registry inputs must be
+regular blobs; mapped registries require a nonempty consistent identity, unique supported mapping
+shapes, and safe paths when resolved; unmapped modules use the committed configured specs directory.
+Fixtures cover dangling config/registry links, nameless mapped registries, and custom-spec fallback.

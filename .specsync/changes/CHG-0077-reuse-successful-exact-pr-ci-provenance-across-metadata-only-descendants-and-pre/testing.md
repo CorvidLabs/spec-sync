@@ -46,6 +46,19 @@ artifact: testing
   one-entry overflow and missing, boolean, zero, or greater-than-1000 configured limits.
 - Disable Git auto-GC and auto-maintenance in the 257-update temporary repository so the stress
   fixture cannot race a background repack on hosted Ubuntu runners.
+- Accept an archive child that generates the review pair during finalization when its parent has no
+  review files, while still rejecting a partial pair.
+- Assign module ownership only to the canonical spec and standard companion allowlist; retain exact
+  delivery ownership for extra tracked files in the same directory.
+- Reconstruct valid audited acceptance-owner corrections and reject malformed correction ledgers.
+- Reject duplicate, out-of-scope, already-affected, non-owning, noncanonical, reserved-owner,
+  malformed-path, symlink, non-production, and over-limit owner-correction ledgers.
+- Parse only format-native source-directory keys and fail closed when committed source roots would
+  require native auto-detection; use fully signed symlink/non-production manifests to isolate guards.
+- Require regular committed config/registry blobs, reject nameless mapped registries, and resolve an
+  unmapped corrected owner through the committed custom `specs_dir` fallback.
+- Accept a valid finalization-generated review history containing an earlier block followed by the
+  final independent pass; validate every attempt and require the projection to equal the last one.
 
 ## Completion
 

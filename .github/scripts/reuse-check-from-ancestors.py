@@ -30,12 +30,247 @@ import struct
 import subprocess
 import sys
 import tomllib
+import unicodedata
 from pathlib import Path
 
 
 MAX_ANCESTORS = 32
 LIMITS_PATH = Path(__file__).with_name("lifecycle-validation-limits.json")
 LEGACY_BASELINE_PATH = ".specsync/archive/legacy-baseline.json"
+CANONICAL_SPEC_COMPANIONS = {
+    "requirements.md",
+    "tasks.md",
+    "context.md",
+    "testing.md",
+    "design.md",
+}
+MAX_ACCEPTANCE_OWNER_CORRECTIONS = 1024
+MAX_ACCEPTANCE_PATH_BYTES = 4096
+MAX_ACCEPTANCE_OWNER_BYTES = 256
+REGULAR_FILE_MODES = {"100644", "100755"}
+SOURCE_EXTENSIONS = {
+    "R", "bash", "c", "cc", "cjs", "clj", "cljc", "cljs", "cpp", "cr",
+    "cs", "cts", "cxx", "d", "dart", "el", "erl", "ex", "exs", "fs",
+    "fsi", "fsx", "go", "groovy", "gvy", "h", "hpp", "hs", "java", "js",
+    "jsx", "kt", "kts", "lisp", "lsp", "lua", "m", "mjs", "ml", "mli",
+    "mm", "mts", "nim", "php", "pl", "pl6", "pm", "pm6", "ps1", "py",
+    "r", "rb", "rs", "scala", "scm", "sh", "swift", "ts", "tsx", "vala",
+    "yaml", "yml",
+}
+
+
+def portable_project_path_valid(path: object) -> bool:
+    return (
+        isinstance(path, str)
+        and bool(path)
+        and len(path.encode()) <= MAX_ACCEPTANCE_PATH_BYTES
+        and not path.startswith(("/", "\\"))
+        and not path.endswith("/")
+        and "\\" not in path
+        and not (
+            len(path) >= 2 and path[0].isascii() and path[0].isalpha() and path[1] == ":"
+        )
+        and all(part not in {"", ".", ".."} for part in path.split("/"))
+        and not any(unicodedata.category(character) == "Cc" for character in path)
+    )
+
+
+def path_matches_scope(path: str, scope: str) -> bool:
+    scope = scope.replace("\\", "/").rstrip("/")
+    return scope == "." or path == scope or path.startswith(f"{scope}/")
+
+
+def module_name_valid(module: object) -> bool:
+    if (
+        not isinstance(module, str)
+        or not module
+        or len(module.encode()) > MAX_ACCEPTANCE_OWNER_BYTES
+        or len(module.encode()) + len(".spec.md") > 255
+        or module != module.strip()
+        or module.endswith(".")
+        or any(character in module for character in '/\\<>:"|?*')
+        or any(unicodedata.category(character) == "Cc" for character in module)
+        or module in {".", ".."}
+    ):
+        return False
+    basename = module.split(".", 1)[0].upper()
+    return basename not in {"CON", "PRN", "AUX", "NUL"} and not (
+        len(basename) == 4
+        and basename[:3] in {"COM", "LPT"}
+        and basename[3] in "123456789"
+    )
+
+
+def spec_source_paths(root: Path, revision: str, spec_path: str) -> set[str] | None:
+    try:
+        frontmatter = git_bytes(root, revision, spec_path).decode("utf-8").split(
+            "---", 2
+        )[1]
+    except (IndexError, OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        return None
+    files_block = re.search(
+        r"(?ms)^files:\s*\n((?:[ \t]+-[^\n]*(?:\n|$))*)", frontmatter
+    )
+    if files_block is None:
+        return set()
+    sources: set[str] = set()
+    for raw in re.findall(r"(?m)^[ \t]+-\s*(.+?)\s*$", files_block.group(1)):
+        source = raw.strip("'\"")
+        if not portable_project_path_valid(source):
+            return None
+        sources.add(source)
+    return sources
+
+
+def configured_layout(
+    root: Path,
+    revision: str,
+    revision_tree: dict[str, tuple[str, str, str]] | None = None,
+) -> tuple[str, set[str] | None] | None:
+    revision_tree = revision_tree or revision_entries(root, revision)
+    candidates = (
+        (".specsync/config.toml", "toml"),
+        (".specsync/config.json", "json"),
+        (".specsync.toml", "toml"),
+        ("specsync.json", "json"),
+    )
+    for path, kind in candidates:
+        entry = revision_tree.get(path)
+        if entry is None:
+            continue
+        if entry[0] not in REGULAR_FILE_MODES or entry[1] != "blob":
+            return None
+        try:
+            raw = git_bytes(root, revision, path).decode("utf-8")
+        except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
+            return None
+        try:
+            config = tomllib.loads(raw) if kind == "toml" else json.loads(raw)
+        except (tomllib.TOMLDecodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(config, dict):
+            return None
+        specs_dir = config.get("specs_dir" if kind == "toml" else "specsDir", "specs")
+        if not portable_project_path_valid(specs_dir):
+            return None
+        source_dirs = config.get("source_dirs" if kind == "toml" else "sourceDirs")
+        if source_dirs is None:
+            # Native loading falls back to manifest-aware and filesystem scanning.
+            # Historical verification has only committed tree evidence, so it must
+            # fail closed rather than guess a source root that native did not select.
+            return specs_dir, None
+        if not isinstance(source_dirs, list) or any(
+            not isinstance(source, str) or not source.strip("/")
+            for source in source_dirs
+        ):
+            return None
+        return specs_dir, {source.strip("/") for source in source_dirs}
+    return "specs", None
+
+
+def configured_source_dirs(root: Path, revision: str) -> set[str] | None:
+    layout = configured_layout(root, revision)
+    return layout[1] if layout is not None else None
+
+
+def registry_specs_at_revision(
+    root: Path,
+    revision: str,
+    revision_tree: dict[str, tuple[str, str, str]],
+) -> dict[str, str] | None:
+    path = next(
+        (
+            candidate
+            for candidate in (".specsync/registry.toml", "specsync-registry.toml")
+            if candidate in revision_tree
+        ),
+        None,
+    )
+    if path is None:
+        return {}
+    mode, object_type, _object_id = revision_tree[path]
+    if mode not in REGULAR_FILE_MODES or object_type != "blob":
+        return None
+    try:
+        registry = tomllib.loads(git_bytes(root, revision, path).decode("utf-8"))
+    except (
+        OSError,
+        subprocess.SubprocessError,
+        UnicodeDecodeError,
+        tomllib.TOMLDecodeError,
+    ):
+        return None
+    if not isinstance(registry, dict):
+        return None
+    top_name = registry.get("name")
+    nested_registry = registry.get("registry")
+    if top_name is not None and (not isinstance(top_name, str) or not top_name):
+        return None
+    nested_name = None
+    if nested_registry is not None:
+        if not isinstance(nested_registry, dict):
+            return None
+        nested_name = nested_registry.get("name")
+        if nested_name is not None and (
+            not isinstance(nested_name, str) or not nested_name
+        ):
+            return None
+    if top_name is not None and nested_name is not None and top_name != nested_name:
+        return None
+    name = nested_name or top_name or ""
+    mappings: dict[str, str] = {}
+
+    def add_mapping(module: object, spec_path: object) -> bool:
+        if (
+            not isinstance(module, str)
+            or not module
+            or module in mappings
+            or not isinstance(spec_path, str)
+            or not spec_path
+        ):
+            return False
+        mappings[module] = spec_path
+        return True
+
+    specs = registry.get("specs")
+    if specs is not None:
+        if not isinstance(specs, dict):
+            return None
+        for module, spec_path in specs.items():
+            if not add_mapping(module, spec_path):
+                return None
+    modules = registry.get("modules")
+    if modules is not None:
+        if isinstance(modules, list):
+            for item in modules:
+                if (
+                    not isinstance(item, dict)
+                    or "name" not in item
+                    or "spec" not in item
+                    or not add_mapping(item["name"], item["spec"])
+                ):
+                    return None
+        elif not (isinstance(modules, dict) and not modules and not name and not mappings):
+            return None
+    if not name:
+        return {} if not mappings else None
+    return mappings
+
+
+def path_is_production_source(path: str, source_dirs: set[str]) -> bool:
+    extension = Path(path).suffix.removeprefix(".")
+    governed_test = (
+        path.startswith(("tests/", "test/", "Tests/"))
+        or "/tests/" in path
+        or "/test/" in path
+        or "/fixtures/" in path
+        or "/__fixtures__/" in path
+    )
+    in_source_dir = any(
+        source == "." or path == source or path.startswith(f"{source}/")
+        for source in source_dirs
+    )
+    return extension in SOURCE_EXTENSIONS and in_source_dir and not governed_test
 
 
 def required(name: str) -> str:
@@ -444,32 +679,38 @@ def acceptance_manifest_matches_commit(
                 )
 
     affected_specs = state.get("affected_specs", [])
-    if not isinstance(affected_specs, list):
+    corrections = state.get("acceptance_owner_corrections", [])
+    if (
+        not isinstance(affected_specs, list)
+        or any(not isinstance(module, str) for module in affected_specs)
+        or not isinstance(corrections, list)
+        or len(corrections) > MAX_ACCEPTANCE_OWNER_CORRECTIONS
+    ):
         return False
     owners_by_path: dict[str, set[str]] = {}
-    specs: dict = {}
-    if affected_specs:
-        try:
-            registry = tomllib.loads(
-                git_bytes(root, revision, ".specsync/registry.toml").decode("utf-8")
-            )
-        except (
-            KeyError,
-            OSError,
-            subprocess.SubprocessError,
-            UnicodeDecodeError,
-            tomllib.TOMLDecodeError,
-        ):
+    specs: dict[str, str] = {}
+    specs_dir = "specs"
+    source_dirs: set[str] | None = set()
+    if affected_specs or corrections:
+        layout = configured_layout(root, revision, revision_objects)
+        loaded_specs = registry_specs_at_revision(root, revision, revision_objects)
+        if layout is None or loaded_specs is None:
             return False
-        loaded_specs = registry.get("specs")
-        if not isinstance(loaded_specs, dict):
-            return False
+        specs_dir, source_dirs = layout
         specs = loaded_specs
     for module in affected_specs:
         if not isinstance(module, str):
             return False
-        spec_path = specs.get(module, f"specs/{module}/{module}.spec.md")
-        if not isinstance(spec_path, str) or spec_path not in revision_tree:
+        spec_path = specs.get(
+            module, f"{specs_dir}/{module}/{module}.spec.md"
+        )
+        if (
+            not isinstance(spec_path, str)
+            or not portable_project_path_valid(spec_path)
+            or spec_path not in revision_tree
+            or revision_tree[spec_path][0] not in REGULAR_FILE_MODES
+            or revision_tree[spec_path][1] != "blob"
+        ):
             return False
         spec_dir = str(Path(spec_path).parent)
         companion_prefix = f"{spec_dir}/"
@@ -477,22 +718,82 @@ def acceptance_manifest_matches_commit(
             path for path in revision_tree if path.startswith(companion_prefix)
         }
         expected_paths.update(companion_entries)
-        for path in companion_entries:
+        canonical_owned = {spec_path} | {
+            (Path(spec_dir) / name).as_posix()
+            for name in CANONICAL_SPEC_COMPANIONS
+        }
+        for path in companion_entries & canonical_owned:
             owners_by_path.setdefault(path, set()).add(module)
-        try:
-            frontmatter = git_bytes(root, revision, spec_path).decode("utf-8").split(
-                "---", 2
-            )[1]
-        except (IndexError, OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        sources = spec_source_paths(root, revision, spec_path)
+        if sources is None:
             return False
-        files_block = re.search(
-            r"(?ms)^files:\s*\n((?:[ \t]+-[^\n]*(?:\n|$))*)", frontmatter
-        )
-        if files_block is not None:
-            for raw in re.findall(r"(?m)^[ \t]+-\s*(.+?)\s*$", files_block.group(1)):
-                source = raw.strip("'\"")
-                if source:
-                    owners_by_path.setdefault(source, set()).add(module)
+        for source in sources:
+            owners_by_path.setdefault(source, set()).add(module)
+    correction_keys = {
+        "schema_version",
+        "sequence",
+        "path",
+        "module",
+        "actor",
+        "reason",
+        "timestamp",
+    }
+    exact_pairs: set[tuple[str, str]] = set()
+    corrected_module_sources: dict[str, set[str]] = {}
+    if corrections and source_dirs is None:
+        return False
+    for index, correction in enumerate(corrections, start=1):
+        path = correction.get("path") if isinstance(correction, dict) else None
+        module = correction.get("module") if isinstance(correction, dict) else None
+        pair = (path, module)
+        if (
+            not isinstance(correction, dict)
+            or correction.keys() != correction_keys
+            or correction.get("schema_version") != 1
+            or correction.get("sequence") != index
+            or not portable_project_path_valid(path)
+            or not module_name_valid(module)
+            or not isinstance(correction.get("actor"), str)
+            or not correction["actor"].strip()
+            or correction["actor"] != correction["actor"].strip()
+            or not isinstance(correction.get("reason"), str)
+            or not correction["reason"].strip()
+            or correction["reason"] != correction["reason"].strip()
+            or isinstance(correction.get("timestamp"), bool)
+            or not isinstance(correction.get("timestamp"), int)
+            or not 0 <= correction["timestamp"] < 2**64
+            or not any(path_matches_scope(path, scope) for scope in affected_paths)
+            or module in affected_specs
+            or pair in exact_pairs
+        ):
+            return False
+        exact_pairs.add(pair)
+        if module not in corrected_module_sources:
+            corrected_spec = specs.get(
+                module, f"{specs_dir}/{module}/{module}.spec.md"
+            )
+            if (
+                not isinstance(corrected_spec, str)
+                or not portable_project_path_valid(corrected_spec)
+                or corrected_spec not in revision_tree
+                or revision_tree[corrected_spec][0] not in REGULAR_FILE_MODES
+                or revision_tree[corrected_spec][1] != "blob"
+            ):
+                return False
+            corrected_sources = spec_source_paths(root, revision, corrected_spec)
+            if corrected_sources is None:
+                return False
+            corrected_module_sources[module] = corrected_sources
+        tree_entry = revision_tree.get(path)
+        if (
+            tree_entry is None
+            or tree_entry[1] != "blob"
+            or tree_entry[0] not in REGULAR_FILE_MODES
+            or not path_is_production_source(path, source_dirs or set())
+            or path not in corrected_module_sources[module]
+        ):
+            return False
+        owners_by_path.setdefault(path, set()).add(module)
     expected_paths = {
         path
         for path in expected_paths
@@ -743,10 +1044,15 @@ def definition_approver(approvals: dict, contract_digest: object) -> str | None:
     if not isinstance(items, list) or not isinstance(contract_digest, str):
         return None
     for item in reversed(items):
+        if not isinstance(item, dict) or item.get("gate") != "definition":
+            continue
+        definition_pair = item.get("definition_pair")
+        pair_matches = isinstance(definition_pair, dict) and contract_digest in {
+            definition_pair.get("current_digest"),
+            definition_pair.get("legacy_digest"),
+        }
         if (
-            isinstance(item, dict)
-            and item.get("gate") == "definition"
-            and item.get("digest") == contract_digest
+            (item.get("digest") == contract_digest or pair_matches)
             and isinstance(item.get("actor"), str)
         ):
             return item["actor"].strip()
@@ -772,6 +1078,67 @@ def definition_approver(approvals: dict, contract_digest: object) -> str | None:
     return None
 
 
+def scoped_review_attempt_valid(
+    attempt: object, change_id: str, approvals: dict
+) -> bool:
+    expected_keys = {
+        "schema_version",
+        "change_id",
+        "reviewer",
+        "provenance",
+        "verdict",
+        "implementation_commit",
+        "contract_digest",
+        "workspace_digest",
+        "timestamp",
+    }
+    if isinstance(attempt, dict) and "execution_digest" in attempt:
+        expected_keys.add("execution_digest")
+    reviewer = attempt.get("reviewer") if isinstance(attempt, dict) else None
+    canonical_reviewer = reviewer.strip() if isinstance(reviewer, str) else ""
+    implementation_commit = (
+        attempt.get("implementation_commit") if isinstance(attempt, dict) else None
+    )
+    timestamp = attempt.get("timestamp") if isinstance(attempt, dict) else None
+    approver = (
+        definition_approver(approvals, attempt.get("contract_digest"))
+        if isinstance(attempt, dict)
+        else None
+    )
+    return (
+        isinstance(attempt, dict)
+        and attempt.keys() == expected_keys
+        and attempt.get("schema_version") == 2
+        and attempt.get("change_id") == change_id
+        and isinstance(reviewer, str)
+        and 1 <= len(canonical_reviewer) <= 128
+        and canonical_reviewer.isascii()
+        and all(
+            character.isalnum() or character in " ._:@/-"
+            for character in canonical_reviewer
+        )
+        and attempt.get("verdict") in {"pass", "block"}
+        and attempt.get("provenance")
+        == {
+            "schema_version": 1,
+            "provider": "github_actions_check",
+            "required_check": "SpecSync scoped review",
+        }
+        and isinstance(implementation_commit, str)
+        and isinstance(attempt.get("contract_digest"), str)
+        and (
+            attempt.get("execution_digest") is None
+            or isinstance(attempt.get("execution_digest"), str)
+        )
+        and isinstance(attempt.get("workspace_digest"), str)
+        and isinstance(timestamp, int)
+        and not isinstance(timestamp, bool)
+        and 0 <= timestamp < 2**64
+        and approver is not None
+        and reviewer.casefold() != approver.casefold()
+    )
+
+
 def canonical_archive_transition(
     root: Path,
     parent: str,
@@ -794,6 +1161,17 @@ def canonical_archive_transition(
     try:
         active_entries = tree_entries(root, parent, active_root)
         archive_entries = tree_entries(root, child, archive_root)
+        parent_review_names = active_entries.keys() & {
+            "review.json",
+            "review-attempts.json",
+        }
+        if parent_review_names not in (
+            set(),
+            {"review.json", "review-attempts.json"},
+        ):
+            return False
+        if not parent_review_names:
+            generated |= {"review.json", "review-attempts.json"}
         if archive_entries.keys() != active_entries.keys() | generated:
             return False
         for relative, entry in active_entries.items():
@@ -936,17 +1314,38 @@ def canonical_archive_transition(
             != finalization.get("finalization_digest")
         ):
             return False
-        parent_review = json_object_at(root, parent, f"{active_root}/review.json")
         review = json_object_at(root, child, f"{archive_root}/review.json")
-        parent_reviews = json_object_at(
-            root, parent, f"{active_root}/review-attempts.json"
-        )
         archived_reviews = json_object_at(
             root, child, f"{archive_root}/review-attempts.json"
         )
+        if parent_review_names:
+            parent_review = json_object_at(
+                root, parent, f"{active_root}/review.json"
+            )
+            parent_reviews = json_object_at(
+                root, parent, f"{active_root}/review-attempts.json"
+            )
+        else:
+            parent_review = None
+            parent_reviews = {"schema_version": 1, "reviews": []}
         parent_review_items = parent_reviews.get("reviews")
         archived_review_items = archived_reviews.get("reviews")
-        review_unchanged = review == parent_review and archived_reviews == parent_reviews
+        review_ledger_valid = (
+            archived_reviews.keys() == {"schema_version", "reviews"}
+            and archived_reviews.get("schema_version") == 1
+            and isinstance(archived_review_items, list)
+            and bool(archived_review_items)
+            and archived_review_items[-1] == review
+            and all(
+                scoped_review_attempt_valid(attempt, change_id, parent_approvals)
+                for attempt in archived_review_items
+            )
+        )
+        review_unchanged = (
+            parent_review is not None
+            and review == parent_review
+            and archived_reviews == parent_reviews
+        )
         review_appended = (
             parent_reviews.keys() == archived_reviews.keys()
             and parent_reviews.get("schema_version") == 1
@@ -954,11 +1353,13 @@ def canonical_archive_transition(
             and isinstance(archived_review_items, list)
             and archived_review_items == parent_review_items + [review]
         )
+        review_generated = not parent_review_names and review_ledger_valid
         review_commit = str(review.get("implementation_commit") or "")
         review_digest = hashlib.sha256(compact_json(review)).hexdigest()
         approver = definition_approver(parent_approvals, review.get("contract_digest"))
         if (
-            not (review_unchanged or review_appended)
+            not review_ledger_valid
+            or not (review_unchanged or review_appended or review_generated)
             or review.get("schema_version") != 2
             or review.get("change_id") != change_id
             or review.get("verdict") != "pass"
@@ -974,7 +1375,7 @@ def canonical_archive_transition(
                 "required_check": "SpecSync scoped review",
             }
             or re.fullmatch(r"[0-9a-f]{40}", review_commit) is None
-            or review_appended
+            or (review_appended or review_generated)
             and review_commit != parent
             or finalization["review_digest"] != review_digest
             or finalization["contract_digest"] != review.get("contract_digest")

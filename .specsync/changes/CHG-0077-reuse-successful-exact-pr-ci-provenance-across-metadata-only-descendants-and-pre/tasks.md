@@ -19,3 +19,8 @@ artifact: tasks
   adversarial fixtures, real-history compatibility checks, and an independent PASS review.
 - [x] Preserve non-file directory manifest entries and align sequence reconstruction with the
   canonical lifecycle-history bound.
+- [x] Mirror generated review evidence, canonical companion ownership, and audited owner corrections
+  during historical archive reconstruction.
+- [x] Mirror the native owner-correction semantic validators and multi-attempt generated review
+  ledger rules after adversarial review.
+- [x] Reject symlink and non-production corrected ownership while requiring regular canonical specs.

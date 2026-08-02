@@ -36,6 +36,331 @@ assert "CI provenance helpers may change only with the protected CI workflow" in
 assert str(SCRIPT.relative_to(ROOT)) in ci_workflow
 assert str(Path(__file__).resolve().relative_to(ROOT)) in ci_workflow
 
+
+def signed_entry(
+    path: str,
+    kind: str,
+    mode: int,
+    payload: bytes,
+    owners: list[str] | None = None,
+) -> dict:
+    entry = {
+        "path": path,
+        "kind": kind,
+        "mode": mode,
+        "payload_digest": __import__("hashlib").sha256(payload).hexdigest(),
+        "entry_digest": "",
+        "owners": owners or ["@exact:delivery"],
+    }
+    entry["entry_digest"] = module.acceptance_entry_digest(entry)
+    return entry
+
+
+with tempfile.TemporaryDirectory() as temporary:
+    ownership_repository = Path(temporary)
+    git(ownership_repository, "init", "-b", "main")
+    git(ownership_repository, "config", "user.email", "test@example.com")
+    git(ownership_repository, "config", "user.name", "Test")
+    (ownership_repository / ".specsync").mkdir()
+    (ownership_repository / ".specsync/config.toml").write_text(
+        'specs_dir = "custom-specs"\nsource_dirs = ["src"]\n', encoding="utf-8"
+    )
+    (ownership_repository / ".specsync/registry.toml").write_text(
+        '[registry]\nname = "ownership-fixture"\n\n'
+        '[specs]\nfoo = "specs/foo/foo.spec.md"\nbar = "specs/bar/bar.spec.md"\n'
+        'baz = "specs/baz/baz.spec.md"\n'
+        'linkowner = "specs/linkowner/linkowner.spec.md"\n',
+        encoding="utf-8",
+    )
+    (ownership_repository / "specs/foo").mkdir(parents=True)
+    (ownership_repository / "specs/bar").mkdir(parents=True)
+    (ownership_repository / "specs/baz").mkdir(parents=True)
+    (ownership_repository / "specs/linkowner").mkdir(parents=True)
+    (ownership_repository / "custom-specs/fallback").mkdir(parents=True)
+    (ownership_repository / "src").mkdir()
+    foo_spec = (
+        "---\nmodule: foo\nversion: 1\nstatus: stable\nfiles:\n"
+        "  - src/foo.rs\n---\n\n# Foo\n"
+    )
+    bar_spec = (
+        "---\nmodule: bar\nversion: 1\nstatus: stable\nfiles:\n"
+        "  - src/foo.rs\n  - src/link.rs\n  - docs/foo.rs\n---\n\n# Bar\n"
+    )
+    baz_spec = (
+        "---\nmodule: baz\nversion: 1\nstatus: stable\nfiles:\n"
+        "  - src/baz.rs\n---\n\n# Baz\n"
+    )
+    (ownership_repository / "specs/foo/foo.spec.md").write_text(
+        foo_spec, encoding="utf-8"
+    )
+    (ownership_repository / "specs/foo/requirements.md").write_text(
+        "# Requirements\n", encoding="utf-8"
+    )
+    (ownership_repository / "specs/foo/retired.md").write_text(
+        "# Retired\n", encoding="utf-8"
+    )
+    (ownership_repository / "specs/bar/bar.spec.md").write_text(
+        bar_spec, encoding="utf-8"
+    )
+    (ownership_repository / "specs/baz/baz.spec.md").write_text(
+        baz_spec, encoding="utf-8"
+    )
+    (ownership_repository / "specs/linkowner/linkowner.spec.md").symlink_to(
+        "../bar/bar.spec.md"
+    )
+    (ownership_repository / "custom-specs/fallback/fallback.spec.md").write_text(
+        "---\nmodule: fallback\nversion: 1\nstatus: stable\nfiles:\n"
+        "  - src/foo.rs\n---\n\n# Fallback\n",
+        encoding="utf-8",
+    )
+    (ownership_repository / "src/foo.rs").write_text(
+        "pub fn foo() {}\n", encoding="utf-8"
+    )
+    (ownership_repository / "src/link.rs").symlink_to("foo.rs")
+    (ownership_repository / "src/baz.rs").write_text(
+        "pub fn baz() {}\n", encoding="utf-8"
+    )
+    (ownership_repository / "docs").mkdir()
+    (ownership_repository / "docs/foo.rs").write_text(
+        "pub fn documented_foo() {}\n", encoding="utf-8"
+    )
+    git(ownership_repository, "add", ".")
+    git(ownership_repository, "commit", "-m", "ownership fixture")
+    ownership_commit = git(ownership_repository, "rev-parse", "HEAD")
+    ownership_state = {
+        "id": "CHG-0001-ownership",
+        "affected_specs": ["foo"],
+        "affected_paths": ["specs/foo", "src/foo.rs"],
+        "acceptance_owner_corrections": [
+            {
+                "schema_version": 1,
+                "sequence": 1,
+                "path": "src/foo.rs",
+                "module": "bar",
+                "actor": "Independent reviewer",
+                "reason": "Restore the audited canonical co-owner",
+                "timestamp": 1,
+            }
+        ],
+    }
+    ownership_manifest = {
+        "schema_version": 1,
+        "entries": [
+            signed_entry("specs/foo", "non_file", 0, b""),
+            signed_entry(
+                "specs/foo/foo.spec.md",
+                "file",
+                0o100644,
+                foo_spec.encode(),
+                ["foo"],
+            ),
+            signed_entry(
+                "specs/foo/requirements.md",
+                "file",
+                0o100644,
+                b"# Requirements\n",
+                ["foo"],
+            ),
+            signed_entry(
+                "specs/foo/retired.md",
+                "file",
+                0o100644,
+                b"# Retired\n",
+            ),
+            signed_entry(
+                "src/foo.rs",
+                "file",
+                0o100644,
+                b"pub fn foo() {}\n",
+                ["bar", "foo"],
+            ),
+        ],
+    }
+
+    def ownership_manifest_with(entry: dict) -> dict:
+        candidate = copy.deepcopy(ownership_manifest)
+        candidate["entries"].append(entry)
+        candidate["entries"].sort(key=lambda item: item["path"])
+        return candidate
+    assert module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        ownership_manifest,
+        ownership_state,
+    )
+    fallback_state = copy.deepcopy(ownership_state)
+    fallback_state["acceptance_owner_corrections"][0]["module"] = "fallback"
+    fallback_manifest = copy.deepcopy(ownership_manifest)
+    fallback_source = next(
+        entry for entry in fallback_manifest["entries"] if entry["path"] == "src/foo.rs"
+    )
+    fallback_source["owners"] = ["fallback", "foo"]
+    fallback_source["entry_digest"] = module.acceptance_entry_digest(fallback_source)
+    assert module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        fallback_manifest,
+        fallback_state,
+    )
+    forged_extra_owner = copy.deepcopy(ownership_manifest)
+    retired = next(
+        entry
+        for entry in forged_extra_owner["entries"]
+        if entry["path"] == "specs/foo/retired.md"
+    )
+    retired["owners"] = ["foo"]
+    retired["entry_digest"] = module.acceptance_entry_digest(retired)
+    assert not module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        forged_extra_owner,
+        ownership_state,
+    )
+    malformed_correction = copy.deepcopy(ownership_state)
+    malformed_correction["acceptance_owner_corrections"][0]["timestamp"] = -1
+    assert not module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        ownership_manifest,
+        malformed_correction,
+    )
+    invalid_corrections = []
+
+    duplicate_correction = copy.deepcopy(ownership_state)
+    duplicate_correction["acceptance_owner_corrections"].append(
+        {
+            **duplicate_correction["acceptance_owner_corrections"][0],
+            "sequence": 2,
+        }
+    )
+    invalid_corrections.append((duplicate_correction, ownership_manifest))
+
+    out_of_scope = copy.deepcopy(ownership_state)
+    out_of_scope["acceptance_owner_corrections"][0]["path"] = "src/baz.rs"
+    out_of_scope["acceptance_owner_corrections"][0]["module"] = "baz"
+    invalid_corrections.append((out_of_scope, ownership_manifest))
+
+    affected_module = copy.deepcopy(ownership_state)
+    affected_module["acceptance_owner_corrections"][0]["module"] = "foo"
+    invalid_corrections.append((affected_module, ownership_manifest))
+
+    non_owning_module = copy.deepcopy(ownership_state)
+    non_owning_module["acceptance_owner_corrections"][0]["module"] = "baz"
+    invalid_corrections.append((non_owning_module, ownership_manifest))
+
+    noncanonical_actor = copy.deepcopy(ownership_state)
+    noncanonical_actor["acceptance_owner_corrections"][0]["actor"] += " "
+    invalid_corrections.append((noncanonical_actor, ownership_manifest))
+
+    reserved_owner = copy.deepcopy(ownership_state)
+    reserved_owner["acceptance_owner_corrections"][0]["module"] = "@exact:delivery"
+    invalid_corrections.append((reserved_owner, ownership_manifest))
+
+    malformed_path = copy.deepcopy(ownership_state)
+    malformed_path["acceptance_owner_corrections"][0]["path"] = "src/../foo.rs"
+    invalid_corrections.append((malformed_path, ownership_manifest))
+
+    symlink_source = copy.deepcopy(ownership_state)
+    symlink_source["affected_paths"].append("src/link.rs")
+    symlink_source["acceptance_owner_corrections"][0]["path"] = "src/link.rs"
+    symlink_manifest = ownership_manifest_with(
+        signed_entry("src/link.rs", "symlink", 0o120000, b"foo.rs", ["bar"])
+    )
+    invalid_corrections.append((symlink_source, symlink_manifest))
+
+    nonproduction_source = copy.deepcopy(ownership_state)
+    nonproduction_source["affected_paths"].append("docs/foo.rs")
+    nonproduction_source["acceptance_owner_corrections"][0]["path"] = "docs/foo.rs"
+    nonproduction_manifest = ownership_manifest_with(
+        signed_entry(
+            "docs/foo.rs",
+            "file",
+            0o100644,
+            b"pub fn documented_foo() {}\n",
+            ["bar"],
+        )
+    )
+    invalid_corrections.append((nonproduction_source, nonproduction_manifest))
+
+    symlink_spec = copy.deepcopy(ownership_state)
+    symlink_spec["acceptance_owner_corrections"][0]["module"] = "linkowner"
+    invalid_corrections.append((symlink_spec, ownership_manifest))
+
+    oversized_ledger = copy.deepcopy(ownership_state)
+    oversized_ledger["acceptance_owner_corrections"] = [
+        {
+            **ownership_state["acceptance_owner_corrections"][0],
+            "sequence": sequence,
+            "module": f"owner-{sequence}",
+        }
+        for sequence in range(1, module.MAX_ACCEPTANCE_OWNER_CORRECTIONS + 2)
+    ]
+    invalid_corrections.append((oversized_ledger, ownership_manifest))
+
+    for invalid_state, candidate_manifest in invalid_corrections:
+        assert not module.acceptance_manifest_matches_commit(
+            ownership_repository,
+            ownership_commit,
+            candidate_manifest,
+            invalid_state,
+        )
+
+    (ownership_repository / ".specsync/config.toml").write_text(
+        'sourceDirs = ["docs"]\n', encoding="utf-8"
+    )
+    git(ownership_repository, "add", ".specsync/config.toml")
+    git(ownership_repository, "commit", "-m", "wrong TOML source-dir key")
+    wrong_key_commit = git(ownership_repository, "rev-parse", "HEAD")
+    assert module.configured_source_dirs(ownership_repository, wrong_key_commit) is None
+
+    (ownership_repository / ".specsync/config.toml").unlink()
+    (ownership_repository / ".specsync/config.toml").symlink_to(
+        'source_dirs = ["docs"]'
+    )
+    git(ownership_repository, "add", ".specsync/config.toml")
+    git(ownership_repository, "commit", "-m", "symlinked source-dir config")
+    symlink_config_commit = git(ownership_repository, "rev-parse", "HEAD")
+    assert module.configured_source_dirs(ownership_repository, symlink_config_commit) is None
+
+    (ownership_repository / ".specsync/config.toml").unlink()
+    git(ownership_repository, "add", ".specsync/config.toml")
+    git(ownership_repository, "commit", "-m", "missing source-dir config")
+    missing_config_commit = git(ownership_repository, "rev-parse", "HEAD")
+    assert module.configured_source_dirs(ownership_repository, missing_config_commit) is None
+
+    (ownership_repository / ".specsync/registry.toml").write_text(
+        '[specs]\nbar = "specs/bar/bar.spec.md"\n', encoding="utf-8"
+    )
+    git(ownership_repository, "add", ".specsync/registry.toml")
+    git(ownership_repository, "commit", "-m", "nameless mapped registry")
+    nameless_registry_commit = git(ownership_repository, "rev-parse", "HEAD")
+    nameless_tree = module.revision_entries(
+        ownership_repository, nameless_registry_commit
+    )
+    assert (
+        module.registry_specs_at_revision(
+            ownership_repository, nameless_registry_commit, nameless_tree
+        )
+        is None
+    )
+
+    (ownership_repository / ".specsync/registry.toml").unlink()
+    (ownership_repository / ".specsync/registry.toml").symlink_to(
+        'name = "fixture"'
+    )
+    git(ownership_repository, "add", ".specsync/registry.toml")
+    git(ownership_repository, "commit", "-m", "symlinked registry")
+    symlink_registry_commit = git(ownership_repository, "rev-parse", "HEAD")
+    symlink_registry_tree = module.revision_entries(
+        ownership_repository, symlink_registry_commit
+    )
+    assert (
+        module.registry_specs_at_revision(
+            ownership_repository, symlink_registry_commit, symlink_registry_tree
+        )
+        is None
+    )
+
 with tempfile.TemporaryDirectory() as temporary:
     repository = Path(temporary)
     git(repository, "init", "-b", "main")
@@ -156,18 +481,6 @@ with tempfile.TemporaryDirectory() as temporary:
         archived_change.replace("state: verifying\n", "state: archived\n"),
         encoding="utf-8",
     )
-    def signed_entry(path: str, kind: str, mode: int, payload: bytes) -> dict:
-        entry = {
-            "path": path,
-            "kind": kind,
-            "mode": mode,
-            "payload_digest": __import__("hashlib").sha256(payload).hexdigest(),
-            "entry_digest": "",
-            "owners": ["@exact:delivery"],
-        }
-        entry["entry_digest"] = module.acceptance_entry_digest(entry)
-        return entry
-
     acceptance_manifest = {
         "schema_version": 1,
         "entries": [
@@ -271,6 +584,92 @@ with tempfile.TemporaryDirectory() as temporary:
     assert module.metadata_only_edge(repository, metadata, archive)
     assert module.metadata_parent(repository, archive) == metadata
     assert not module.metadata_only_edge(repository, first, product)
+
+    git(repository, "switch", "-c", "generated-review-archive", product)
+    generated_active_dir = repository / ".specsync/changes/CHG-0001-test"
+    generated_archive_dir = (
+        repository / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
+    )
+    generated_archive_dir.parent.mkdir(parents=True, exist_ok=True)
+    git(repository, "mv", str(generated_active_dir), str(generated_archive_dir))
+    (generated_archive_dir / "state.json").write_text(
+        json.dumps(archived_state) + "\n", encoding="utf-8"
+    )
+    (generated_archive_dir / "accepted-state.json").write_text(
+        json.dumps(accepted_state) + "\n", encoding="utf-8"
+    )
+    generated_change = (generated_archive_dir / "change.md").read_text(
+        encoding="utf-8"
+    )
+    (generated_archive_dir / "change.md").write_text(
+        generated_change.replace("state: verifying\n", "state: archived\n"),
+        encoding="utf-8",
+    )
+    (generated_archive_dir / "review.json").write_text(
+        json.dumps(review, indent=2) + "\n", encoding="utf-8"
+    )
+    blocked_review = {
+        **review,
+        "reviewer": "Earlier independent reviewer",
+        "verdict": "block",
+        "timestamp": 0,
+    }
+    (generated_archive_dir / "review-attempts.json").write_text(
+        json.dumps({"schema_version": 1, "reviews": [blocked_review, review]})
+        + "\n",
+        encoding="utf-8",
+    )
+    generated_verification = {
+        **verification,
+        "commit": product,
+        "acceptance_input_digest": module.acceptance_manifest_digest(
+            acceptance_manifest
+        ),
+        "acceptance_manifest": acceptance_manifest,
+    }
+    (generated_archive_dir / "verification.json").write_text(
+        json.dumps(generated_verification) + "\n", encoding="utf-8"
+    )
+    (generated_archive_dir / "verification-attempts.json").write_text(
+        json.dumps({"schema_version": 1, "attempts": [generated_verification]})
+        + "\n",
+        encoding="utf-8",
+    )
+    generated_finalization = {
+        "schema_version": 2,
+        "change_id": "CHG-0001-test",
+        "implementation_commit": product,
+        "implementation_tree": git(repository, "rev-parse", f"{product}^{{tree}}"),
+        "contract_digest": "1" * 64,
+        "workspace_digest": "3" * 64,
+        "closing_digest": module.closing_digest(
+            "CHG-0001-test", generated_verification
+        ),
+        "review_digest": __import__("hashlib").sha256(
+            module.compact_json(review)
+        ).hexdigest(),
+        "finalization_digest": "",
+        "timestamp": 2,
+    }
+    generated_finalization["finalization_digest"] = module.finalization_digest(
+        generated_finalization
+    )
+    (generated_archive_dir / "finalization.json").write_text(
+        json.dumps(generated_finalization) + "\n", encoding="utf-8"
+    )
+    generated_approvals = copy.deepcopy(approvals)
+    generated_approvals["approvals"][-1]["digest"] = generated_finalization[
+        "closing_digest"
+    ]
+    (generated_archive_dir / "approvals.json").write_text(
+        json.dumps(generated_approvals) + "\n", encoding="utf-8"
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "archive with generated review evidence")
+    generated_review_archive = git(repository, "rev-parse", "HEAD")
+    assert module.metadata_only_edge(
+        repository, product, generated_review_archive
+    )
 
     git(repository, "switch", "-c", "tampered-archive", metadata)
     git(repository, "cherry-pick", "-n", archive)

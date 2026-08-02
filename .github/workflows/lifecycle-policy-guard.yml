@@ -67,7 +67,7 @@ jobs:
           import re
           import sys
 
-          pattern = re.compile(rb'^(action\.(yml|yaml)|\.github/workflows/[^/]*\.(yml|yaml)|\.github/actions(/[^/]*)*|\.github/scripts/(classify-ci-paths|test-classify-ci-paths|test-lifecycle-workflows)\.sh|\.github/scripts/(lifecycle-validation-limits\.json|(test-)?verify-(archive-introduction|trusted-policy-check)\.py)|\.specsync/workflow-v2-baseline\.json)$')
+          pattern = re.compile(rb'^(fledge\.toml|action\.(yml|yaml)|\.github/workflows/[^/]*\.(yml|yaml)|\.github/actions(/[^/]*)*|\.github/scripts/(classify-ci-paths|test-classify-ci-paths|test-lifecycle-workflows)\.sh|\.github/scripts/(lifecycle-validation-limits\.json|(test-)?verify-(archive-introduction|trusted-policy-check)\.py|(test-)?validate-release-candidate\.py)|\.specsync/workflow-v2-baseline\.json)$')
           paths = pathlib.Path(sys.argv[1]).read_bytes().split(b"\0")
           protected = [path for path in paths if path and pattern.fullmatch(path)]
           payload = b"\0".join(protected) + (b"\0" if protected else b"")

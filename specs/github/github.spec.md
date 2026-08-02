@@ -1,6 +1,6 @@
 ---
 module: github
-version: 15
+version: 17
 status: stable
 files:
   - src/github.rs
@@ -76,6 +76,14 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 13. Hosted verification assigns expensive signals to one authority: CI owns the product suite,
     while Trust binds the release binary to the strict contract, risk decision, and provenance
     without invoking the full local verification lane a second time.
+14. Ordinary product pull requests use Ubuntu as the authoritative integration platform. Release
+    qualification runs one named Fledge lane on Ubuntu, macOS, and Windows for an annotated RC tag's
+    exact commit. Active tag rulesets allow humans to create a new RC marker but forbid its update or
+    deletion, allow only a dedicated release GitHub App to create a final tag, and forbid every actor
+    from updating or deleting final tags. The App's private key is available only in the protected
+    `release` environment. Final
+    tagging or upload fails unless every platform result, freshly resolved tag, actual checkout, and
+    packaged artifact remains bound to that unchanged candidate.
 
 ## Behavioral Examples
 
@@ -116,6 +124,13 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 - **Then** it checks the release binary, contract, risk, and provenance without re-running the full
   local `verify` lane or `cargo test`
 
+### Scenario: Promote an immutable release candidate
+
+- **Given** annotated tag `v6.0.0-rc.1` resolves to one merged commit with valid archive binding
+- **When** the same `release-candidate` Fledge lane succeeds on Ubuntu, macOS, and Windows for that SHA
+- **Then** promotion may create `v6.0.0` at that SHA and publish artifacts; any missing, failed, stale,
+  mixed-SHA, or replaced-marker evidence fails closed
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -138,6 +153,9 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | Issue listing still has a next page after 100 pages | Entire listing fails instead of truncating |
 | Archive child changes code/spec/tests or rewrites immutable package evidence | Archive-only validation fails; it never skips the product matrix on an unproven diff |
 | Release commit lacks a successful merge-bound archive check | Release validation fails before building artifacts |
+| RC marker is lightweight, malformed, moved, or has conflicting workflow history | Qualification and promotion fail; a fresh annotated RC marker is required |
+| Platform evidence is missing, unsuccessful, or bound to another tag/SHA | Final tag creation and release upload are refused |
+| Immutable RC/final tag rulesets are absent, inactive, incomplete, or grant a forbidden bypass | RC qualification and promotion fail before final-tag creation |
 
 ## Dependencies
 
@@ -181,3 +199,5 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-07-30 | CHG-0068 adversarial hardening: Preserve NUL filename boundaries in trusted-policy matching |
 | 2026-07-30 | CHG-0068 review hardening: Reject archive rewrite-then-restore history |
 | 2026-08-01 | CHG-0074-simplify-specsync-ci-to-one-expensive-suite-authority-with-residual-trust-identi: Simplify SpecSync CI to one expensive-suite authority with residual Trust identity gates, preserving full local verification and documenting the 95% confidence model |
+| 2026-08-01 | CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida: Bind cross-platform release qualification, final tagging, and publication to one immutable RC commit while making Ubuntu the ordinary-PR integration authority |
+| 2026-08-01 | CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida: Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows |

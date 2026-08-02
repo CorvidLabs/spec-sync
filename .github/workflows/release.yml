@@ -3,37 +3,193 @@ name: Release
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      rc_tag:
+        description: Immutable annotated RC tag to promote after qualification
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
   actions: read
   checks: read
+  deployments: read
+
+concurrency:
+  group: specsync-release-${{ inputs.rc_tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  validate:
+  resolve:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.resolve.outputs.mode }}
+      rc_tag: ${{ steps.resolve.outputs.rc_tag }}
+      final_tag: ${{ steps.resolve.outputs.final_tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      candidate_sha: ${{ steps.resolve.outputs.candidate_sha }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
-      - name: Validate release tag
+      - name: Resolve immutable release candidate
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          REQUESTED_RC_TAG: ${{ inputs.rc_tag }}
+          PUSH_CREATED: ${{ github.event.created }}
+          PUSH_FORCED: ${{ github.event.forced }}
+          REPOSITORY: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          RELEASE_APP_ID: ${{ vars.SPECSYNC_RELEASE_APP_ID }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            expected_workflow_ref="${REPOSITORY}/.github/workflows/release.yml@refs/heads/${DEFAULT_BRANCH}"
+            if [[ "$WORKFLOW_REF" != "$expected_workflow_ref" ]]; then
+              echo "::error::Promotion must be dispatched from ${DEFAULT_BRANCH}"
+              exit 1
+            fi
+            mode="promote"
+            rc_tag="$REQUESTED_RC_TAG"
+            git fetch --force origin "refs/tags/${rc_tag}:refs/tags/${rc_tag}"
+          elif [[ "$REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-rc\.([0-9]+)$ ]]; then
+            mode="qualify"
+            rc_tag="$REF_NAME"
+            if [[ "$PUSH_CREATED" != "true" || "$PUSH_FORCED" == "true" ]]; then
+              echo "::error::RC qualification requires a newly created, non-forced tag ref"
+              exit 1
+            fi
+          else
+            echo "::error::Unsupported release event/ref: ${EVENT_NAME}/${REF_NAME}"
+            exit 1
+          fi
+
+          candidate_file="${RUNNER_TEMP}/specsync-rc-candidate.json"
+          candidate_manifest="${RUNNER_TEMP}/specsync-rc-Cargo.toml"
+          git show "refs/tags/${rc_tag}^{commit}:Cargo.toml" > "$candidate_manifest"
+          python3 .github/scripts/validate-release-candidate.py candidate \
+            --repository . --cargo-toml "$candidate_manifest" \
+            --rc-tag "$rc_tag" > "$candidate_file"
+          candidate_sha="$(jq -r '.candidate_sha' "$candidate_file")"
+          version="$(jq -r '.package_version' "$candidate_file")"
+          expected_final_tag="$(jq -r '.final_tag' "$candidate_file")"
+          final_tag="$expected_final_tag"
+
+          rulesets_file="${RUNNER_TEMP}/specsync-rulesets.json"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${REPOSITORY}/rulesets?includes_parents=true" > "$rulesets_file"
+          resolve_ruleset() {
+            local ruleset_name="$1"
+            local output_file="$2"
+            local ruleset_ids=()
+            mapfile -t ruleset_ids < <(
+              jq -r --arg name "$ruleset_name" \
+                '.[] | select(.name == $name) | .id' "$rulesets_file"
+            )
+            if [[ "${#ruleset_ids[@]}" -ne 1 ]]; then
+              echo "::error::Repository requires exactly one ${ruleset_name} ruleset"
+              exit 1
+            fi
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${REPOSITORY}/rulesets/${ruleset_ids[0]}?includes_parents=true" \
+              > "$output_file"
+          }
+          final_creation_ruleset_file="${RUNNER_TEMP}/specsync-final-creation-ruleset.json"
+          final_immutability_ruleset_file="${RUNNER_TEMP}/specsync-final-immutability-ruleset.json"
+          rc_ruleset_file="${RUNNER_TEMP}/specsync-rc-tag-ruleset.json"
+          resolve_ruleset "SpecSync final tag creation" "$final_creation_ruleset_file"
+          resolve_ruleset "SpecSync immutable final tags" "$final_immutability_ruleset_file"
+          resolve_ruleset "SpecSync immutable RC tags" "$rc_ruleset_file"
+          python3 .github/scripts/validate-release-candidate.py rulesets \
+            --final-creation-ruleset-json "$final_creation_ruleset_file" \
+            --final-immutability-ruleset-json "$final_immutability_ruleset_file" \
+            --rc-ruleset-json "$rc_ruleset_file" \
+            --release-app-id "$RELEASE_APP_ID"
+
+          environment_file="${RUNNER_TEMP}/specsync-release-environment.json"
+          branch_policies_file="${RUNNER_TEMP}/specsync-release-branch-policies.json"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${REPOSITORY}/environments/release" > "$environment_file"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${REPOSITORY}/environments/release/deployment-branch-policies?per_page=100" \
+            > "$branch_policies_file"
+          python3 .github/scripts/validate-release-candidate.py environment \
+            --environment-json "$environment_file" \
+            --branch-policies-json "$branch_policies_file" \
+            --default-branch "$DEFAULT_BRANCH"
+
+          # A deleted/recreated or force-moved tag leaves release-workflow runs
+          # with more than one head SHA. Refuse that tag name permanently.
+          runs_file="${RUNNER_TEMP}/specsync-rc-runs.json"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${REPOSITORY}/actions/workflows/release.yml/runs?event=push&branch=${rc_tag}&per_page=100" \
+            > "$runs_file"
+          if ! jq -e --arg sha "$candidate_sha" \
+              '(.total_count <= 100) and all(.workflow_runs[]; .head_sha == $sha)' \
+              "$runs_file" >/dev/null; then
+            echo "::error::${rc_tag} has excessive or conflicting candidate workflow history"
+            exit 1
+          fi
+
+          {
+            echo "mode=${mode}"
+            echo "rc_tag=${rc_tag}"
+            echo "final_tag=${final_tag}"
+            echo "version=${version}"
+            echo "candidate_sha=${candidate_sha}"
+          } >> "$GITHUB_OUTPUT"
+
+  validate:
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.candidate_sha }}
+
+      - name: Validate candidate source and merged archive binding
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
+          RELEASE_COMMIT: ${{ needs.resolve.outputs.candidate_sha }}
+          TAG_VERSION: ${{ needs.resolve.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
           PACKAGE_VERSION="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "specsync") | .version')"
           if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
             echo "::error::Tag version $TAG_VERSION does not match Cargo package version $PACKAGE_VERSION"
             exit 1
           fi
-          release_commit="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          release_commit="$(git rev-parse "${RELEASE_COMMIT}^{commit}")"
+          if [ "$(git rev-parse HEAD)" != "$release_commit" ]; then
+            echo "::error::Checkout is not the resolved release candidate"
+            exit 1
+          fi
           git fetch origin main
           if ! git merge-base --is-ancestor "$release_commit" origin/main; then
             echo "::error::Release commit is not integrated into origin/main"
@@ -268,9 +424,9 @@ jobs:
                       raise ValueError("details URL does not identify the resolved run")
                   if workflow_run.get("head_sha") != release_commit:
                       raise ValueError("workflow run has the wrong head SHA")
-                  if workflow_run.get("event") != "pull_request_target":
+                  if workflow_run.get("event") != "pull_request":
                       raise ValueError(
-                          "workflow run is not for a trusted pull-request target"
+                          "workflow run is not for the merged pull request"
                       )
                   if (
                       workflow_run.get("status") != "completed"
@@ -471,8 +627,391 @@ jobs:
               )
           PY
 
+  qualify:
+    needs: [resolve, validate]
+    if: needs.resolve.outputs.mode == 'qualify'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu
+            os: ubuntu-latest
+            fledge_asset: fledge-linux-x86_64
+            fledge_sha256: bebbd9b9f377468b377ee1e177aef96992ee8f8d9f075f9fe2323153f2e165ec
+          - platform: macos
+            os: macos-14
+            fledge_asset: fledge-macos-x86_64
+            fledge_sha256: 5c52a05710918d8bf566546fdaa8f32792b169bbefad46addb6009837f7819d2
+          - platform: windows
+            os: windows-latest
+            fledge_asset: fledge-windows-x86_64.exe
+            fledge_sha256: 2349f2c24c40929fb7317627cb40915fe5ac33b697e5876020b8b8e6e3b69a47
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.resolve.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@451ce45ce31d200b52705aadd15ce75018b006de # 1.89.0
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
+
+      - name: Prepare Windows integration shell
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "C:/Program Files/Git/bin" >> "$GITHUB_PATH"
+          bash_path="C:/Progra~1/Git/bin/bash.exe"
+          if [[ ! -x "$bash_path" ]]; then
+            bash_path="C:/Program Files/Git/bin/bash.exe"
+          fi
+          echo "SPECSYNC_BASH=${bash_path}" >> "$GITHUB_ENV"
+          curl -fsSL -o /usr/bin/jq.exe \
+            https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-windows-amd64.exe
+          jq_digest="$(sha256sum /usr/bin/jq.exe | awk '{print $1}')"
+          if [[ "$jq_digest" != "7451fbbf37feffb9bf262bd97c54f0da558c63f0748e64152dd87b0a07b6d6ab" ]]; then
+            echo "::error::jq checksum mismatch: ${jq_digest}"
+            exit 1
+          fi
+
+      - name: Install pinned Fledge (Unix)
+        if: runner.os != 'Windows'
+        env:
+          ASSET: ${{ matrix.fledge_asset }}
+          EXPECTED_SHA256: ${{ matrix.fledge_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/CorvidLabs/fledge/releases/download/v1.7.2"
+          curl -fsSL -o "${RUNNER_TEMP}/${ASSET}" "${base}/${ASSET}"
+          actual_sha256="$(shasum -a 256 "${RUNNER_TEMP}/${ASSET}" | awk '{print $1}')"
+          if [[ "$actual_sha256" != "$EXPECTED_SHA256" ]]; then
+            echo "::error::Fledge checksum mismatch: ${actual_sha256}"
+            exit 1
+          fi
+          chmod +x "${RUNNER_TEMP}/${ASSET}"
+          mv "${RUNNER_TEMP}/${ASSET}" "${RUNNER_TEMP}/fledge"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Install pinned Fledge (Windows)
+        if: runner.os == 'Windows'
+        env:
+          ASSET: ${{ matrix.fledge_asset }}
+          EXPECTED_SHA256: ${{ matrix.fledge_sha256 }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $base = "https://github.com/CorvidLabs/fledge/releases/download/v1.7.2"
+          $binary = Join-Path $env:RUNNER_TEMP $env:ASSET
+          Invoke-WebRequest "$base/$env:ASSET" -OutFile $binary
+          $actual = (Get-FileHash $binary -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $env:EXPECTED_SHA256) {
+            throw "Fledge checksum mismatch: expected $env:EXPECTED_SHA256, got $actual"
+          }
+          Copy-Item $binary (Join-Path $env:RUNNER_TEMP "fledge.exe")
+          $env:RUNNER_TEMP | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Run immutable release-candidate lane
+        env:
+          SPECSYNC_BASH: ${{ runner.os == 'Windows' && 'C:\Progra~1\Git\bin\bash.exe' || '' }}
+        run: fledge lanes run release-candidate
+
+      - name: Write SHA-bound platform evidence
+        if: always()
+        shell: python
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
+          CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_sha }}
+          PACKAGE_VERSION: ${{ needs.resolve.outputs.version }}
+          WORKFLOW_REVISION: ${{ github.workflow_sha }}
+          OUTCOME: ${{ job.status }}
+        run: |
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path("qualification-evidence")
+          output.mkdir(exist_ok=True)
+          record = {
+              "schema_version": 1,
+              "platform": os.environ["PLATFORM"],
+              "rc_tag": os.environ["RC_TAG"],
+              "candidate_sha": os.environ["CANDIDATE_SHA"],
+              "lane": "release-candidate",
+              "outcome": os.environ["OUTCOME"],
+              "package_version": os.environ["PACKAGE_VERSION"],
+              "workflow_revision": os.environ["WORKFLOW_REVISION"],
+          }
+          (output / f"{record['platform']}.json").write_text(
+              json.dumps(record, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+      - name: Upload platform evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rc-evidence-${{ matrix.platform }}
+          path: qualification-evidence/${{ matrix.platform }}.json
+          if-no-files-found: error
+          overwrite: true
+
+  record-qualification:
+    needs: [resolve, validate, qualify]
+    if: always() && needs.resolve.outputs.mode == 'qualify'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.resolve.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Download platform evidence
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: rc-evidence-*
+          path: qualification-evidence
+          merge-multiple: true
+
+      - name: Validate exact platform evidence
+        if: always()
+        id: verify
+        continue-on-error: true
+        run: |
+          PYTHONNOUSERSITE=1 python3 -I .github/scripts/validate-release-candidate.py evidence \
+            --rc-tag "${{ needs.resolve.outputs.rc_tag }}" \
+            --candidate-sha "${{ needs.resolve.outputs.candidate_sha }}" \
+            --evidence-dir qualification-evidence
+
+      - name: Publish immutable candidate gate
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+          RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
+          CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_sha }}
+          VERIFY_OUTCOME: ${{ steps.verify.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          conclusion="failure"
+          summary="One or more required platform qualifications failed or produced invalid evidence."
+          if [[ "$VERIFY_OUTCOME" == "success" && \
+                "${{ needs.validate.result }}" == "success" && \
+                "${{ needs.qualify.result }}" == "success" ]]; then
+            conclusion="success"
+            summary="Ubuntu, macOS, and Windows passed the release-candidate lane for the exact immutable candidate SHA."
+          fi
+          gh api --method POST "repos/${REPOSITORY}/check-runs" \
+            -f name="SpecSync release candidate" \
+            -f head_sha="$CANDIDATE_SHA" \
+            -f status="completed" \
+            -f conclusion="$conclusion" \
+            -f external_id="specsync-rc:${RC_TAG}:${CANDIDATE_SHA}" \
+            -f details_url="${SERVER_URL}/${REPOSITORY}/actions/runs/${RUN_ID}" \
+            -f "output[title]=${RC_TAG} platform qualification" \
+            -f "output[summary]=${summary}"
+          if [[ "$conclusion" != "success" ]]; then
+            exit 1
+          fi
+
+  authorize-release:
+    needs: [resolve, validate]
+    if: needs.resolve.outputs.mode == 'promote'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      qualification_run_id: ${{ steps.authorize.outputs.qualification_run_id }}
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.resolve.outputs.candidate_sha }}
+
+      - name: Verify exact successful RC gate
+        id: authorize
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
+          FINAL_TAG: ${{ needs.resolve.outputs.final_tag }}
+          CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          checks_file="${RUNNER_TEMP}/specsync-rc-checks.json"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${REPOSITORY}/commits/${CANDIDATE_SHA}/check-runs?per_page=100" \
+            > "$checks_file"
+          check_file="${RUNNER_TEMP}/specsync-rc-check.json"
+          jq -e \
+            --arg head "$CANDIDATE_SHA" \
+            --arg external "specsync-rc:${RC_TAG}:${CANDIDATE_SHA}" \
+            '
+              [
+                .check_runs[]
+                | select(.name == "SpecSync release candidate")
+                | select(.head_sha == $head)
+                | select(.external_id == $external)
+                | select(.app.slug == "github-actions")
+              ]
+              | sort_by(.id)
+              | last
+            ' "$checks_file" > "$check_file"
+          if ! jq -e '.status == "completed" and .conclusion == "success"' \
+              "$check_file" >/dev/null; then
+            echo "::error::The newest exact RC gate is not successful"
+            exit 1
+          fi
+          details_url="$(jq -r '.details_url' "$check_file")"
+          details_prefix="${SERVER_URL}/${REPOSITORY}/actions/runs/"
+          if [[ "$details_url" != "$details_prefix"* ]]; then
+            echo "::error::RC gate does not identify a repository Actions run"
+            exit 1
+          fi
+          run_id="${details_url#"$details_prefix"}"
+          run_file="${RUNNER_TEMP}/specsync-rc-run.json"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${REPOSITORY}/actions/runs/${run_id}" > "$run_file"
+          jq -e \
+            --arg head "$CANDIDATE_SHA" \
+            --arg rc "$RC_TAG" \
+            --arg repository "$REPOSITORY" \
+            '
+              .head_sha == $head
+              and .head_branch == $rc
+              and .event == "push"
+              and .status == "completed"
+              and .conclusion == "success"
+              and ((.path | split("@")[0]) == ".github/workflows/release.yml")
+              and .repository.full_name == $repository
+            ' "$run_file" >/dev/null
+
+          gh run download "$run_id" --repo "$REPOSITORY" \
+            --pattern 'rc-evidence-*' --dir qualification-evidence
+          mapfile -t evidence_files < <(
+            find qualification-evidence -type f -name '*.json' -print | sort
+          )
+          if [[ "${#evidence_files[@]}" -ne 3 ]]; then
+            echo "::error::RC workflow did not retain exactly three platform evidence records"
+            exit 1
+          fi
+          evidence_arguments=()
+          for evidence_file in "${evidence_files[@]}"; do
+            evidence_arguments+=(--evidence "$evidence_file")
+          done
+
+          validator_mode="promote"
+          validator_extra=()
+          if git show-ref --verify --quiet "refs/tags/${FINAL_TAG}"; then
+            validator_mode="release"
+            validator_extra=(--checkout-sha "$(git rev-parse HEAD)")
+          fi
+          python3 .github/scripts/validate-release-candidate.py "$validator_mode" \
+            --repository . \
+            --rc-tag "$RC_TAG" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --final-tag "$FINAL_TAG" \
+            --lane release-candidate \
+            "${validator_extra[@]}" \
+            "${evidence_arguments[@]}"
+          echo "qualification_run_id=${run_id}" >> "$GITHUB_OUTPUT"
+
+  promote:
+    needs: [resolve, validate, authorize-release]
+    if: needs.resolve.outputs.mode == 'promote'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: release
+    permissions:
+      contents: read
+    steps:
+      - name: Mint repository-scoped release app token
+        id: release-app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.SPECSYNC_RELEASE_APP_ID }}
+          private-key: ${{ secrets.SPECSYNC_RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.candidate_sha }}
+
+      - name: Create final tag from qualified candidate
+        env:
+          FINAL_TAG: ${{ needs.resolve.outputs.final_tag }}
+          RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
+          CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_sha }}
+          RELEASE_APP_TOKEN: ${{ steps.release-app-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$RELEASE_APP_TOKEN" ]]; then
+            echo "::error::The release environment could not mint a release app token"
+            exit 1
+          fi
+          release_remote="https://github.com/${REPOSITORY}.git"
+          # The credential-helper child shell expands the masked token; this shell must not.
+          # shellcheck disable=SC2016
+          credential_helper='credential.helper=!f() { test "$1" = get || exit 0; printf "%s\n" "username=x-access-token" "password=$RELEASE_APP_TOKEN"; }; f'
+          git_release() {
+            GIT_TERMINAL_PROMPT=0 git -c "$credential_helper" "$@"
+          }
+
+          if git_release ls-remote --exit-code --tags "$release_remote" \
+              "refs/tags/${FINAL_TAG}" >/dev/null 2>&1; then
+            git_release fetch --force "$release_remote" \
+              "refs/tags/${FINAL_TAG}:refs/tags/${FINAL_TAG}"
+            if [[ "$(git rev-parse "refs/tags/${FINAL_TAG}^{commit}")" != "$CANDIDATE_SHA" ]]; then
+              echo "::error::${FINAL_TAG} already points at a different commit"
+              exit 1
+            fi
+            echo "${FINAL_TAG} already identifies the qualified candidate; continuing idempotently."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$FINAL_TAG" "$CANDIDATE_SHA" \
+              -m "Release ${FINAL_TAG} from qualified ${RC_TAG}"
+            git_release push "$release_remote" "refs/tags/${FINAL_TAG}"
+          fi
+
   build:
-    needs: validate
+    needs: [resolve, validate, authorize-release, promote]
+    if: >-
+      always()
+      && needs.validate.result == 'success'
+      && needs.authorize-release.result == 'success'
+      && needs.resolve.outputs.mode == 'promote'
+      && needs.promote.result == 'success'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -497,9 +1036,11 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact: specsync-windows-x86_64.exe
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.resolve.outputs.candidate_sha }}
 
-      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: dtolnay/rust-toolchain@451ce45ce31d200b52705aadd15ce75018b006de # 1.89.0
         with:
           targets: ${{ matrix.target }}
 
@@ -518,7 +1059,7 @@ jobs:
           echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
           echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
@@ -554,8 +1095,11 @@ jobs:
         shell: python
         env:
           ARTIFACT: ${{ matrix.artifact }}
+          CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_sha }}
+          RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
         run: |
           import hashlib
+          import json
           import os
           from pathlib import Path
 
@@ -570,9 +1114,21 @@ jobs:
               raise SystemExit(
                   f"invalid checksum file {checksum}: expected LF-only SHA-256 record"
               )
+          provenance = {
+              "archive": archive.name,
+              "artifact": os.environ["ARTIFACT"],
+              "candidate_sha": os.environ["CANDIDATE_SHA"],
+              "rc_tag": os.environ["RC_TAG"],
+              "schema_version": 1,
+              "sha256": digest,
+          }
+          Path(f"{os.environ['ARTIFACT']}.provenance.json").write_text(
+              json.dumps(provenance, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -580,23 +1136,124 @@ jobs:
             ${{ matrix.artifact }}.tar.gz.sha256
             ${{ matrix.artifact }}.zip
             ${{ matrix.artifact }}.zip.sha256
+            ${{ matrix.artifact }}.provenance.json
+          overwrite: true
 
   release:
-    needs: build
+    needs: [resolve, authorize-release, promote, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.candidate_sha }}
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
 
+      - name: Revalidate downloaded artifact identity and checksums
+        run: |
+          PYTHONNOUSERSITE=1 python3 -I .github/scripts/validate-release-candidate.py artifacts \
+            --candidate-sha "${{ needs.resolve.outputs.candidate_sha }}" \
+            --rc-tag "${{ needs.resolve.outputs.rc_tag }}" \
+            --artifact-dir artifacts
+
+      - name: Re-resolve tags, checkout, and original platform evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
+          FINAL_TAG: ${{ needs.resolve.outputs.final_tag }}
+          CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_sha }}
+          QUALIFICATION_RUN_ID: ${{ needs.authorize-release.outputs.qualification_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$QUALIFICATION_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::Promotion has no authenticated qualification run"
+            exit 1
+          fi
+          git fetch --force origin \
+            "refs/tags/${RC_TAG}:refs/tags/${RC_TAG}" \
+            "refs/tags/${FINAL_TAG}:refs/tags/${FINAL_TAG}"
+          gh run download "$QUALIFICATION_RUN_ID" --repo "$REPOSITORY" \
+            --pattern 'rc-evidence-*' --dir qualification-evidence-final
+          mapfile -t evidence_files < <(
+            find qualification-evidence-final -type f -name '*.json' -print | sort
+          )
+          if [[ "${#evidence_files[@]}" -ne 3 ]]; then
+            echo "::error::Release requires exactly three original platform evidence records"
+            exit 1
+          fi
+          evidence_arguments=()
+          for evidence_file in "${evidence_files[@]}"; do
+            evidence_arguments+=(--evidence "$evidence_file")
+          done
+          unset GH_TOKEN
+          PYTHONNOUSERSITE=1 python3 -I .github/scripts/validate-release-candidate.py release \
+            --repository . \
+            --rc-tag "$RC_TAG" \
+            --candidate-sha "$CANDIDATE_SHA" \
+            --final-tag "$FINAL_TAG" \
+            --checkout-sha "$(git rev-parse HEAD)" \
+            --lane release-candidate \
+            "${evidence_arguments[@]}"
+
+      - name: Refuse an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          FINAL_TAG: ${{ needs.resolve.outputs.final_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_lookup="${RUNNER_TEMP}/specsync-release-lookup.txt"
+          release_error="${RUNNER_TEMP}/specsync-release-lookup-error.txt"
+          release_status=""
+          for attempt in 1 2 3; do
+            set +e
+            gh api --include \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${REPOSITORY}/releases/tags/${FINAL_TAG}" \
+              > "$release_lookup" 2> "$release_error"
+            lookup_exit=$?
+            set -e
+            release_status="$(
+              sed -n '1s/^HTTP\/[^ ]* \([0-9][0-9][0-9]\).*/\1/p' "$release_lookup"
+            )"
+            if [[ "$release_status" == "200" ]]; then
+              echo "::error::Release ${FINAL_TAG} already exists; immutable assets cannot be replaced"
+              exit 1
+            fi
+            if [[ "$release_status" == "404" ]]; then
+              break
+            fi
+            echo "Release lookup attempt ${attempt}/3 failed with HTTP ${release_status:-unknown} (exit ${lookup_exit})."
+            if [[ "$attempt" != "3" ]]; then
+              sleep 5
+            fi
+          done
+          if [[ "$release_status" != "404" ]]; then
+            echo "::error::Cannot prove release ${FINAL_TAG} is absent; refusing publication"
+            exit 1
+          fi
+
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
+          tag_name: ${{ needs.resolve.outputs.final_tag }}
+          target_commitish: ${{ needs.resolve.outputs.candidate_sha }}
           generate_release_notes: true
+          overwrite_files: false
+          fail_on_unmatched_files: true
           files: |
             artifacts/**/*.tar.gz
             artifacts/**/*.zip

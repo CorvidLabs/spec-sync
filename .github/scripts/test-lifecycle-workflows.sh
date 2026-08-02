@@ -75,11 +75,13 @@ require(
     "trusted lifecycle policy must inspect the exact candidate as Git objects",
 )
 require(
+    r"fledge.*?toml.*?"
     r"action\\\.\(yml\|yaml\).*?"
     r"\\\.github/workflows/\[\^/\]\*\\\.\(yml\|yaml\).*?"
     r"\\\.github/actions\(/\[\^/\]\*\)\*.*?"
     r"classify-ci-paths.*?"
     r"lifecycle-validation-limits.*?"
+    r"validate-release-candidate.*?"
     r"workflow-v2-baseline",
     trusted_policy,
     "trusted lifecycle policy must protect all workflow/action definitions, classifiers, and limits",
@@ -92,6 +94,13 @@ if protected_pattern_match is None:
     raise SystemExit("trusted lifecycle policy has no extractable protected-path pattern")
 protected_pattern = protected_pattern_match.group(1)
 protected_regex = re.compile(protected_pattern.encode())
+for protected_path in (
+    b"fledge.toml",
+    b".github/scripts/validate-release-candidate.py",
+    b".github/scripts/test-validate-release-candidate.py",
+):
+    if protected_regex.fullmatch(protected_path) is None:
+        raise SystemExit(f"trusted policy does not protect {protected_path!r}")
 with tempfile.TemporaryDirectory() as directory:
     fixture = Path(directory)
 

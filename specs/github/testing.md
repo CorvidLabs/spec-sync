@@ -9,6 +9,7 @@ spec: github.spec.md
 | `src/github.rs` | cargo test github:: | Focused source coverage includes URL parsing, injected prepare/fetch orchestration, per-spec attribution, cap-before-provider, full deadlines, post-404 access revalidation, strict single/list response parsing, raw-page bounds, validation of every issue/PR item before filtering, open-only state, exact URL identity, raw duplicate rejection, requested-repository/query-bound Link pagination, malformed/transport errors, and no-provider-subprocess guards. |
 | Release version surfaces | `ruby --version` then `PYENV_VERSION=3.10.20 python3 -S .github/scripts/validate-release-version.py` | Pinned hosted Ruby and the declared lifecycle preflight provide Psych; maintained YAML syntax, Cargo, lockfile, Action default, every current root/site YAML Action step (including case-insensitive, indented, metadata-bearing, backtick, or tilde fences), structurally parsed block/flow workflow steps, named/nested/quoted keys, mixed-case repositories, non-version moving refs, and block/flow `with` inputs, packaged consumer, Trust candidate, checkout contract, and changelog agree without Python site packages or Python 3.11-only modules |
 | Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI each contain exactly one expected `setup-bun` Action ref with the supported exact Bun version under that step's `with` mapping; structural parsing covers block/flow mappings, quoted keys, arbitrary valid list-marker spacing, and `uses` after other keys, while mixed-case repositories, moving refs, duplicates, unexpected jobs, and missing inputs fail without Python site packages |
+| Immutable RC evidence | `python3 .github/scripts/test-validate-release-candidate.py` | Exactly one successful Ubuntu, macOS, and Windows record must share the expected annotated RC identity, candidate SHA, schema, and Fledge lane; missing, duplicate, malformed, failed, cancelled, or mixed identity evidence fails closed |
 
 ## Coverage Gaps
 
@@ -68,6 +69,10 @@ spec: github.spec.md
 | Workflow setup-bun step uses flow mapping syntax | The YAML-equivalent setup-bun step remains in runtime-pin validation scope | Add `{ uses: oven-sh/setup-bun@main }` and require the runtime validator to fail |
 | YAML fence uses tildes | The rendered workflow example remains in release validation scope | Convert a public YAML example to a tilde fence, substitute a moving spec-sync ref, and require the release validator to fail |
 | Exact Action release fails a platform smoke test | Floating `v5` remains unchanged | Compare refs before and after the failed promotion attempt |
+| Ordinary product PR | Ubuntu owns the integration test job; macOS and Windows are not scheduled | Parse `.github/workflows/ci.yml` and require one Ubuntu test authority without an OS matrix |
+| Immutable RC qualification | Ubuntu, macOS, and Windows run `fledge lanes run release-candidate` for the same resolved SHA | Parse the release matrix and validate fixture evidence for all three platforms |
+| Candidate content or marker changes | Prior platform evidence cannot authorize promotion or upload | Change the expected SHA/tag in validator fixtures and require failure; conflicting workflow history also fails |
+| Final publication | Final tag and artifacts use the already-qualified candidate SHA | Require authorization before promotion and independent final-tag/checkout identity checks before upload |
 
 ## Reviewer Checklist
 

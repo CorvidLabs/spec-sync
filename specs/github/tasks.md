@@ -51,3 +51,6 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Bind v2 finalization to execution/review verdict evidence and preserve v1/fork-safe CI routes
 - [x] Authenticate review check provenance and append-only attempts, share CI limits, and preserve
   exact archive-tree binding across squash/rebase integration
+- [ ] Finish binding Ubuntu/macOS/Windows release qualification and publication to one immutable
+  annotated RC tag while making Ubuntu the ordinary-PR integration authority (CHG-0075); the
+  dedicated release App and production rulesets still require provisioning and live proof

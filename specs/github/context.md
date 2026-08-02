@@ -103,6 +103,9 @@ spec: github.spec.md
 - `fledge.toml` and `.trust.toml` - Keep full local verification separate from hosted Trust's
   residual lifecycle prerequisite
 - `docs/ci-confidence.md` - CI/Trust ownership, confidence tiers, and protected Tier B follow-up
+- `.github/workflows/release.yml` and `.github/scripts/validate-release-candidate.py` - Resolve an
+  annotated RC marker, qualify its exact SHA through one Fledge lane on three platforms, and refuse
+  final tagging/publication when evidence identities diverge
 
 ## Current Status
 
@@ -118,3 +121,18 @@ Live network paths remain integration-only. The 5.1.1 release
 candidate adds deterministic Action/runtime distribution checks, while
 external exact/floating ref smoke tests remain publication-time gates.
 The 5.2.0 release promotion follows REQ-github-004: Action default and consumer pins move to the exact version through the accepted release change, and the floating v5 ref advances only after exact-version artifacts pass Linux/macOS/Windows verification.
+
+CHG-0075 moves routine integration authority to Ubuntu and reserves macOS/Windows spend for one
+immutable release candidate. The RC tag—not the movable staging branch—is the release identity.
+Qualification records tag, SHA, platform, lane, and outcome; promotion re-resolves the marker and
+accepts only an official successful release-workflow check for the same unchanged SHA. Release
+archive provenance must match the actual post-merge `pull_request` workflow event. Matching release
+tags use three active policies: humans may create RC markers but cannot update/delete them, only
+the dedicated CorvidLabs release GitHub App may create final tags, and no actor may update/delete
+final tags. The App's private key is
+available only to the protected `release` environment's promotion job, which mints a short-lived,
+repository-scoped installation token and disables checkout credentials. The environment admits
+only the protected default branch, and promotion independently checks the workflow ref. The upload
+job then
+re-resolves tags and actual checkout after builds and revalidates original platform evidence plus
+package hashes.

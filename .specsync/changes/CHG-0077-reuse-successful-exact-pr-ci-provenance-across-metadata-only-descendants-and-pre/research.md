@@ -49,3 +49,11 @@ reuse or fail, and checks republished on metadata children or older product comm
   (CHG-0076). Therefore the cancel-poison repair filters canonical-URL candidates to successful
   matching policy runs rather than requiring one publication of any conclusion; an explicit workflow
   URL still selects only its named run.
+- Historical archive traversal cannot trust labels alone. The final matcher derives the complete
+  affected path/spec set, validates canonical owners, authenticates payload bytes with one bounded
+  Git object reader, reconstructs historical sequence evidence, and reproduces every signed digest.
+  Review attempts added during finalization must bind the exact parent and remain independent from
+  the scope approver.
+- Successful policy publications are tried newest-first, but the fallback is bounded to eight
+  candidates and 30 seconds total so malformed republications cannot create unbounded process/API
+  amplification.

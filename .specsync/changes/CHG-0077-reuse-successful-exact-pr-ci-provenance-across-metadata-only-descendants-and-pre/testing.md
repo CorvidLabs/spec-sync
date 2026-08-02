@@ -31,6 +31,12 @@ artifact: testing
   rejecting multiple successful matching runs as ambiguous.
 - Preserve a successful publication when a later attempt of the same workflow run fails or is
   cancelled, and reject mismatched or unavailable run-attempt identity.
+- Reject altered, omitted, extra, self-consistently forged, or self-reviewed historical archive
+  evidence; authenticate sequence-ledger history and keep Git payload reads bounded to 64 MiB.
+- Accept the CHG-0074 through CHG-0077 workflow-v2 archive shapes already present in repository
+  history, including review evidence added during finalization and separately committed review.
+- Authenticate an older valid successful policy publication when a newer successful publication is
+  malformed, and fail fast above eight candidates.
 
 ## Completion
 

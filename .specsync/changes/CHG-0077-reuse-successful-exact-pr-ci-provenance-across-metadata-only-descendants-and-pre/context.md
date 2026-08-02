@@ -45,3 +45,11 @@ workflow-v2 archive edges require an exact parent commit/tree finalization bindi
 checks must authenticate their exact successful job and selected check identity; canonical rewritten
 policy-check URLs remain valid only when exactly one successful matching policy run exists. Focused
 fixtures cover each finding and the earlier CHG-0076 URL-rewrite compatibility case.
+
+Second review trigger: two newer findings showed that an earlier archive edge could preserve only
+its parent/tree labels while altering moved bytes, and that a newer malformed successful policy
+publication could poison an older authenticated success. The archive matcher now reconstructs the
+complete expected manifest, canonical ownership, acceptance/closing/review/finalization digests,
+bounded sequence history, and exact Git payloads before traversal. It rejects altered, omitted,
+extra, forged, or self-reviewed evidence while accepting five real workflow-v2 archive shapes.
+Policy publication fallback authenticates each success under an eight-candidate, 30-second bound.

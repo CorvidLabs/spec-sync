@@ -15,3 +15,5 @@ artifact: tasks
 - [x] Prepare the independent scoped-review and same-PR finalization evidence requirements.
 - [x] Resolve PR #494 P1 findings for prior archive traversal, exact job/check binding, and
   successful policy-run disambiguation without regressing CHG-0076 canonical URLs.
+- [x] Resolve follow-up archive-integrity and successful-publication selection findings with
+  adversarial fixtures, real-history compatibility checks, and an independent PASS review.

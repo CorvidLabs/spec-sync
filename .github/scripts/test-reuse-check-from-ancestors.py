@@ -46,6 +46,9 @@ with tempfile.TemporaryDirectory() as temporary:
     git(repository, "commit", "-m", "a")
     first = git(repository, "rev-parse", "HEAD")
     (repository / "b.txt").write_text("b\n", encoding="utf-8")
+    commands_dir = repository / "commands"
+    commands_dir.mkdir()
+    (commands_dir / "hello.txt").write_text("hello\n", encoding="utf-8")
     review_dir = repository / ".specsync/changes/CHG-0001-test"
     (review_dir / "deltas").mkdir(parents=True)
     (review_dir / "change.md").write_text(
@@ -58,7 +61,7 @@ with tempfile.TemporaryDirectory() as temporary:
         "id": "CHG-0001-test",
         "state": "verifying",
         "updated_at": 1,
-        "affected_paths": ["a.txt"],
+        "affected_paths": ["a.txt", "commands"],
     }
     (review_dir / "state.json").write_text(
         json.dumps(state) + "\n", encoding="utf-8"
@@ -157,7 +160,21 @@ with tempfile.TemporaryDirectory() as temporary:
     acceptance_entry["entry_digest"] = module.acceptance_entry_digest(
         acceptance_entry
     )
-    acceptance_manifest = {"schema_version": 1, "entries": [acceptance_entry]}
+    non_file_entry = {
+        "path": "commands",
+        "kind": "non_file",
+        "mode": 0,
+        "payload_digest": __import__("hashlib").sha256(b"").hexdigest(),
+        "entry_digest": "",
+        "owners": ["@exact:delivery"],
+    }
+    non_file_entry["entry_digest"] = module.acceptance_entry_digest(
+        non_file_entry
+    )
+    acceptance_manifest = {
+        "schema_version": 1,
+        "entries": [acceptance_entry, non_file_entry],
+    }
     archived_verification = {
         **verification,
         "commit": metadata,
@@ -611,5 +628,59 @@ with tempfile.TemporaryDirectory() as temporary:
     for rejected_fixture in mutations:
         status, _ = run_case(rejected_fixture)
         assert status == 1
+
+with tempfile.TemporaryDirectory() as temporary:
+    sequence_repository = Path(temporary) / "sequence-repository"
+    sequence_repository.mkdir()
+    git(sequence_repository, "init", "-b", "main")
+    git(sequence_repository, "config", "user.email", "test@example.com")
+    git(sequence_repository, "config", "user.name", "Test")
+    sequence_path = sequence_repository / ".specsync/change-sequence.json"
+    sequence_path.parent.mkdir()
+    initial_sequence = {
+        "schema_version": 1,
+        "sequence": 1,
+        "id": "CHG-0001-test",
+        "acknowledged_collisions": [],
+    }
+    initial_bytes = (json.dumps(initial_sequence, indent=2) + "\n").encode()
+    sequence_path.write_bytes(initial_bytes)
+    git(sequence_repository, "add", ".")
+    git(sequence_repository, "commit", "-m", "sequence 1")
+    for sequence in range(2, 259):
+        sequence_path.write_text(
+            json.dumps({**initial_sequence, "sequence": sequence}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        git(sequence_repository, "add", ".")
+        git(sequence_repository, "commit", "-m", f"sequence {sequence}")
+    sequence_head = git(sequence_repository, "rev-parse", "HEAD")
+    assert module.historical_sequence_payload(
+        sequence_repository, sequence_head, {"id": "CHG-0001-test"}
+    ) == initial_bytes
+
+    original_limits_path = module.LIMITS_PATH
+    limits_path = Path(temporary) / "lifecycle-validation-limits.json"
+    module.LIMITS_PATH = limits_path
+    try:
+        limits_path.write_text(
+            json.dumps({"scoped_review_max_descendants": 2}) + "\n",
+            encoding="utf-8",
+        )
+        assert module.historical_sequence_payload(
+            sequence_repository, sequence_head, {"id": "CHG-0001-test"}
+        ) is None
+        for invalid_limit in (None, True, 0, 1001):
+            limits_path.write_text(
+                json.dumps({"scoped_review_max_descendants": invalid_limit}) + "\n",
+                encoding="utf-8",
+            )
+            assert module.sequence_history_limit() is None
+        limits_path.unlink()
+        assert module.sequence_history_limit() is None
+        limits_path.write_text("{not-json}\n", encoding="utf-8")
+        assert module.sequence_history_limit() is None
+    finally:
+        module.LIMITS_PATH = original_limits_path
 
 print("reuse-check-from-ancestors tests passed")

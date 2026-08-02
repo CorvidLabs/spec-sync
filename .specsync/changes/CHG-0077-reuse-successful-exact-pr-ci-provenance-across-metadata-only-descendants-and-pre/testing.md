@@ -37,6 +37,10 @@ artifact: testing
   history, including review evidence added during finalization and separately committed review.
 - Authenticate an older valid successful policy publication when a newer successful publication is
   malformed, and fail fast above eight candidates.
+- Accept an exact covered-directory `non_file` manifest entry while keeping directory objects out of
+  ordinary affected-file and archive-copy discovery.
+- Reconstruct valid sequence evidence after 257 updates under the committed 1000-entry bound; reject
+  one-entry overflow and missing, boolean, zero, or greater-than-1000 configured limits.
 
 ## Completion
 

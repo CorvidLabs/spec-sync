@@ -34,6 +34,7 @@ from pathlib import Path
 
 
 MAX_ANCESTORS = 32
+LIMITS_PATH = Path(__file__).with_name("lifecycle-validation-limits.json")
 
 
 def required(name: str) -> str:
@@ -162,7 +163,7 @@ def git_bytes(root: Path, revision: str, path: str) -> bytes:
 
 def revision_entries(root: Path, revision: str) -> dict[str, tuple[str, str, str]]:
     output = subprocess.check_output(
-        ["git", "ls-tree", "-r", "-z", revision],
+        ["git", "ls-tree", "-r", "-t", "-z", revision],
         cwd=root,
         timeout=30,
     )
@@ -188,7 +189,7 @@ def tree_entries(
     return {
         path[len(prefix) :]: entry
         for path, entry in revision_entries(root, revision).items()
-        if path.startswith(prefix)
+        if path.startswith(prefix) and entry[1] != "tree"
     }
 
 
@@ -397,7 +398,12 @@ def acceptance_manifest_matches_commit(
         not isinstance(path, str) for path in affected_paths
     ):
         return False
-    revision_tree = revision_entries(root, revision)
+    revision_objects = revision_entries(root, revision)
+    revision_tree = {
+        path: entry
+        for path, entry in revision_objects.items()
+        if entry[1] != "tree"
+    }
     expected_paths: set[str] = set()
     for path in affected_paths:
         if path.endswith("/"):
@@ -494,19 +500,24 @@ def acceptance_manifest_matches_commit(
         }:
             return False
         kind = entry["kind"]
+        is_non_file = kind in {"non_file", "non-file"}
         if kind == "missing":
             if path in revision_tree or entry["payload_digest"] != hashlib.sha256(
                 b""
             ).hexdigest():
                 return False
             continue
-        tree_entry = revision_tree.get(path)
+        tree_entry = (
+            revision_objects.get(path)
+            if is_non_file
+            else revision_tree.get(path)
+        )
         if tree_entry is None:
             return False
         mode, object_type, object_id = tree_entry
-        if int(mode, 8) != entry["mode"]:
+        if not is_non_file and int(mode, 8) != entry["mode"]:
             return False
-        if kind == "non_file":
+        if is_non_file:
             if object_type != "tree":
                 return False
             payload = b""
@@ -542,8 +553,18 @@ def historical_sequence_payload(
         return None
     if current["sequence"] <= sequence:
         return git_bytes(root, revision, path)
-    commits = git(root, "rev-list", "--max-count=257", revision, "--", path).splitlines()
-    if len(commits) > 256:
+    history_limit = sequence_history_limit()
+    if history_limit is None:
+        return None
+    commits = git(
+        root,
+        "rev-list",
+        f"--max-count={history_limit + 1}",
+        revision,
+        "--",
+        path,
+    ).splitlines()
+    if len(commits) > history_limit:
         return None
     for commit in commits:
         try:
@@ -573,6 +594,25 @@ def historical_sequence_payload(
         ],
     }
     return (json.dumps(historical, indent=2) + "\n").encode()
+
+
+def sequence_history_limit() -> int | None:
+    try:
+        limits = json.loads(LIMITS_PATH.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    value = (
+        limits.get("scoped_review_max_descendants")
+        if isinstance(limits, dict)
+        else None
+    )
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or not 1 <= value <= 1000
+    ):
+        return None
+    return value
 
 
 def semantic_succession_digest(evidence: object) -> str | None:

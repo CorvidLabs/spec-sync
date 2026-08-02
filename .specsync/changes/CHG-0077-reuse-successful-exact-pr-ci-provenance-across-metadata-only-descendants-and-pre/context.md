@@ -53,3 +53,11 @@ complete expected manifest, canonical ownership, acceptance/closing/review/final
 bounded sequence history, and exact Git payloads before traversal. It rejects altered, omitted,
 extra, forged, or self-reviewed evidence while accepting five real workflow-v2 archive shapes.
 Policy publication fallback authenticates each success under an eight-candidate, 30-second bound.
+
+Third review trigger: valid acceptance manifests may contain `non_file` directory inputs, while the
+archive matcher originally enumerated only recursive file entries. It also reconstructed sequence
+history with a private 256-commit limit instead of the canonical configured limit. Durable invariant:
+archive traversal must authenticate tracked directory objects as zero-mode, empty-payload non-file
+entries without adding directory nodes to file discovery, and every bounded history query must use
+the committed lifecycle limit with a one-entry overflow sentinel. Focused tests cover a real directory
+manifest entry, 257 sequence updates, overflow, and malformed configured bounds.

@@ -17,3 +17,5 @@ artifact: tasks
   successful policy-run disambiguation without regressing CHG-0076 canonical URLs.
 - [x] Resolve follow-up archive-integrity and successful-publication selection findings with
   adversarial fixtures, real-history compatibility checks, and an independent PASS review.
+- [x] Preserve non-file directory manifest entries and align sequence reconstruction with the
+  canonical lifecycle-history bound.

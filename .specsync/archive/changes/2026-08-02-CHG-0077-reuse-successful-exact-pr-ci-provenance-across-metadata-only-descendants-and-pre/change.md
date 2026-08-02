@@ -1,6 +1,6 @@
 ---
 id: CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre
-state: accepted
+state: archived
 type: feature
 base_commit: 7b6b10d1f54fd1fc32e9bbe936cf23ab39958e0b
 ---

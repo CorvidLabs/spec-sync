@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre",
+  "slug": "reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre",
+  "title": "Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result",
+  "description": "Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "7b6b10d1f54fd1fc32e9bbe936cf23ab39958e0b",
+  "created_at": 1785635069,
+  "updated_at": 1785689062,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/scripts/reuse-check-from-ancestors.py",
+    ".github/scripts/test-reuse-check-from-ancestors.py",
+    ".github/scripts/verify-trusted-policy-check.py",
+    ".github/scripts/test-verify-trusted-policy-check.py",
+    ".github/workflows/lifecycle-policy-guard.yml",
+    ".github/workflows/trust.yml",
+    ".github/workflows/finalize-change.yml",
+    ".github/workflows/ci.yml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A review-only or archive-only metadata descendant reuses the nearest successful first-parent product CI evidence only when the check is successful, GitHub-Actions-authored, bound to the same pull request and exact ancestor SHA, and produced by the expected workflow; later cancelled or failed checks or workflow reruns cannot override an earlier successful exact-SHA trusted-policy result whose immutable run attempt is authenticated; missing, foreign, stale, wrong-workflow, non-ancestor, or ambiguous evidence fails closed; focused tests reproduce PR #492's orphan-parent and cancel-poison failures and pass after the repair."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

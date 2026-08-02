@@ -20,70 +20,11 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Classify an exact metadata-only child
-        id: child
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          {
-            echo "reuse=false"
-            echo "kind=implementation"
-            echo "parent_sha="
-          } >> "$GITHUB_OUTPUT"
-          if [[ "$EVENT_NAME" != "pull_request" ]]; then
-            exit 0
-          fi
-          parent_line="$(git rev-list --parents -n 1 "$HEAD_SHA")"
-          if [[ "$(wc -w <<<"$parent_line" | tr -d ' ')" != "2" ]]; then
-            exit 0
-          fi
-          parent_sha="$(git rev-parse "${HEAD_SHA}^")"
-          classification="$(
-            git diff --name-status -z -M "$parent_sha" "$HEAD_SHA" \
-              | .github/scripts/classify-ci-paths.sh \
-                  "$GITHUB_WORKSPACE" false name-status
-          )"
-          if grep -Fxq "review_only=true" <<<"$classification"; then
-            kind=review
-          elif grep -Fxq "archive_only=true" <<<"$classification"; then
-            kind=archive
-          else
-            exit 0
-          fi
-          {
-            echo "reuse=true"
-            echo "kind=$kind"
-            echo "parent_sha=$parent_sha"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Reuse trust provenance from first-parent ancestors
-        if: steps.child.outputs.reuse == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          SERVER_URL: ${{ github.server_url }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          START_SHA: ${{ steps.child.outputs.parent_sha }}
-          CHECK_NAME: trust
-          WORKFLOW_PATH: .github/workflows/trust.yml
-          REQUIRE_RUN_SUCCESS: "true"
-          MAX_ANCESTORS: "32"
-          GIT_ROOT: ${{ github.workspace }}
-          CHILD_KIND: ${{ steps.child.outputs.kind }}
-        shell: bash
-        run: python3 .github/scripts/reuse-check-from-ancestors.py
-
       - uses: dtolnay/rust-toolchain@1.89.0
-        if: steps.child.outputs.reuse != 'true'
         with:
           components: rustfmt, clippy
 
       - name: Package SpecSync release candidate for Trust
-        if: steps.child.outputs.reuse != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -100,7 +41,6 @@ jobs:
       # Trust revalidates this checksum-protected runner-local mirror before
       # exercising the pull-request binary as the immutable contract gate.
       - name: CorvidLabs Trust gate
-        if: steps.child.outputs.reuse != 'true'
         id: trust
         uses: CorvidLabs/trust@a239f78658e5ad0f12fa230f494890e40c6e4d7b # v1.1.1
         with:

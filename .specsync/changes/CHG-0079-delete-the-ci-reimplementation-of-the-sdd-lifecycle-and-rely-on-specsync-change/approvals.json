@@ -1,0 +1,39 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785702337,
+      "digest": "cdafa14a7ae2d85f5daf2e2345f33d64d6ea3b00467fde90e804d5976d0001e5",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0079-delete-the-ci-reimplementation-of-the-sdd-lifecycle-and-rely-on-specsync-change",
+        "title": "Delete the CI reimplementation of the SDD lifecycle and rely on specsync change audit, removing the separate-archive-tip constraint",
+        "description": "Delete the CI reimplementation of the SDD lifecycle and rely on specsync change audit, removing the separate-archive-tip constraint",
+        "kind": "refactor",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts",
+          ".github/workflows",
+          ".specsync",
+          "specs/github"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "The CI reimplementation of lifecycle rules is deleted (reuse-check-from-ancestors, verify-archive-introduction, verify-trusted-policy-check, test-lifecycle-workflows, finalize-change.yml, post-merge-archive.yml, lifecycle-policy-guard.yml); ci.yml runs specsync change audit --strict as the single lifecycle authority; the Required CI gate no longer fails a green implementation PR demanding a separate archive-tip commit; trust.yml no longer consumes ancestor reuse; remaining validators (classify-ci-paths, validate-workflow-runtime-pins, validate-release-candidate) still pass; lifecycle-validation-limits.json is retained because src/change.rs reads it"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

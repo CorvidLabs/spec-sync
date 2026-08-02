@@ -1,6 +1,6 @@
 ---
 module: github
-version: 21
+version: 22
 status: stable
 files:
   - src/github.rs
@@ -222,3 +222,4 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-08-02 | CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre: Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result |
 | 2026-08-02 | CHG-0077 review hardening: Traverse parent-bound workflow-v2 archives, bind reusable job checks to exact jobs, and ignore unsuccessful policy republications without rejecting GitHub-rewritten check URLs |
 | 2026-08-02 | CHG-0077 late review hardening: Match native manifest spelling, empty-manifest, and unsigned timestamp semantics without tracking interpreter bytecode |
+| 2026-08-02 | CHG-0079-delete-the-ci-reimplementation-of-the-sdd-lifecycle-and-rely-on-specsync-change: Delete the CI reimplementation of the SDD lifecycle and rely on specsync change audit, removing the separate-archive-tip constraint |

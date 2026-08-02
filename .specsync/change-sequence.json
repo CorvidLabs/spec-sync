@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 77,
-  "id": "CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre",
+  "sequence": 79,
+  "id": "CHG-0079-delete-the-ci-reimplementation-of-the-sdd-lifecycle-and-rely-on-specsync-change",
   "acknowledged_collisions": [
     {
       "sequence": 16,

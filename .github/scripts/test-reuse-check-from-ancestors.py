@@ -76,11 +76,16 @@ with tempfile.TemporaryDirectory() as temporary:
     (ownership_repository / "specs/bar").mkdir(parents=True)
     (ownership_repository / "specs/baz").mkdir(parents=True)
     (ownership_repository / "specs/linkowner").mkdir(parents=True)
+    (ownership_repository / "specs/flow").mkdir(parents=True)
+    (ownership_repository / "specs/scalar").mkdir(parents=True)
+    (ownership_repository / "specs/commented").mkdir(parents=True)
+    (ownership_repository / "specs/interrupted").mkdir(parents=True)
     (ownership_repository / "custom-specs/fallback").mkdir(parents=True)
     (ownership_repository / "src").mkdir()
     foo_spec = (
         "---\nmodule: foo\nversion: 1\nstatus: stable\nfiles:\n"
-        "  - src/foo.rs\n---\n\n# Foo\n"
+        "  - src/foo.rs\n  - docs/foo.rs\n  - tests/foo.rs\n"
+        "  - specsync-registry.toml\n---\n\n# Foo\n"
     )
     bar_spec = (
         "---\nmodule: bar\nversion: 1\nstatus: stable\nfiles:\n"
@@ -108,6 +113,26 @@ with tempfile.TemporaryDirectory() as temporary:
     (ownership_repository / "specs/linkowner/linkowner.spec.md").symlink_to(
         "../bar/bar.spec.md"
     )
+    (ownership_repository / "specs/flow/flow.spec.md").write_text(
+        "---\nmodule: flow\nversion: 1\nstatus: stable\n"
+        "files: [src/foo.rs, 'src/baz.rs']\n---\n\n# Flow\n",
+        encoding="utf-8",
+    )
+    (ownership_repository / "specs/scalar/scalar.spec.md").write_text(
+        "---\nmodule: scalar\nversion: 1\nstatus: stable\n"
+        "files: src/foo.rs\n---\n\n# Scalar\n",
+        encoding="utf-8",
+    )
+    (ownership_repository / "specs/commented/commented.spec.md").write_text(
+        "---\nmodule: commented\nversion: 1\nstatus: stable\nfiles:\n"
+        "  - src/foo.rs # canonical source\n---\n\n# Commented\n",
+        encoding="utf-8",
+    )
+    (ownership_repository / "specs/interrupted/interrupted.spec.md").write_text(
+        "---\nmodule: interrupted\nversion: 1\nstatus: stable\nfiles:\n"
+        "  - src/foo.rs\n  # list terminator\n  - src/baz.rs\n---\n\n# Interrupted\n",
+        encoding="utf-8",
+    )
     (ownership_repository / "custom-specs/fallback/fallback.spec.md").write_text(
         "---\nmodule: fallback\nversion: 1\nstatus: stable\nfiles:\n"
         "  - src/foo.rs\n---\n\n# Fallback\n",
@@ -124,9 +149,30 @@ with tempfile.TemporaryDirectory() as temporary:
     (ownership_repository / "docs/foo.rs").write_text(
         "pub fn documented_foo() {}\n", encoding="utf-8"
     )
+    (ownership_repository / "docs/good-link").symlink_to("foo.rs")
+    (ownership_repository / "docs/bad-link").symlink_to("/tmp/outside")
+    (ownership_repository / "tests").mkdir()
+    (ownership_repository / "tests/foo.rs").write_text(
+        "#[test]\nfn foo_works() {}\n", encoding="utf-8"
+    )
+    (ownership_repository / "specsync-registry.toml").write_text(
+        '[registry]\nname = "secondary"\n', encoding="utf-8"
+    )
     git(ownership_repository, "add", ".")
     git(ownership_repository, "commit", "-m", "ownership fixture")
     ownership_commit = git(ownership_repository, "rev-parse", "HEAD")
+    assert module.spec_source_paths(
+        ownership_repository, ownership_commit, "specs/flow/flow.spec.md"
+    ) == {"src/foo.rs", "src/baz.rs"}
+    assert module.spec_source_paths(
+        ownership_repository, ownership_commit, "specs/scalar/scalar.spec.md"
+    ) == {"src/foo.rs"}
+    assert module.spec_source_paths(
+        ownership_repository, ownership_commit, "specs/commented/commented.spec.md"
+    ) == {"src/foo.rs"}
+    assert module.spec_source_paths(
+        ownership_repository, ownership_commit, "specs/interrupted/interrupted.spec.md"
+    ) == {"src/foo.rs"}
     ownership_state = {
         "id": "CHG-0001-ownership",
         "affected_specs": ["foo"],
@@ -215,6 +261,169 @@ with tempfile.TemporaryDirectory() as temporary:
         ownership_commit,
         forged_extra_owner,
         ownership_state,
+    )
+    test_state = copy.deepcopy(ownership_state)
+    test_state["affected_paths"].append("tests/foo.rs")
+    test_manifest = ownership_manifest_with(
+        signed_entry(
+            "tests/foo.rs",
+            "file",
+            0o100644,
+            b"#[test]\nfn foo_works() {}\n",
+            ["@exact:test"],
+        )
+    )
+    assert module.acceptance_manifest_matches_commit(
+        ownership_repository, ownership_commit, test_manifest, test_state
+    )
+    forged_test_owner = copy.deepcopy(test_manifest)
+    forged_test_entry = next(
+        entry for entry in forged_test_owner["entries"] if entry["path"] == "tests/foo.rs"
+    )
+    forged_test_entry["owners"] = ["@exact:delivery"]
+    forged_test_entry["entry_digest"] = module.acceptance_entry_digest(forged_test_entry)
+    assert not module.acceptance_manifest_matches_commit(
+        ownership_repository, ownership_commit, forged_test_owner, test_state
+    )
+    delivery_state = copy.deepcopy(ownership_state)
+    delivery_state["affected_paths"].append("docs/foo.rs")
+    delivery_manifest = ownership_manifest_with(
+        signed_entry(
+            "docs/foo.rs",
+            "file",
+            0o100644,
+            b"pub fn documented_foo() {}\n",
+            ["@exact:delivery"],
+        )
+    )
+    assert module.acceptance_manifest_matches_commit(
+        ownership_repository, ownership_commit, delivery_manifest, delivery_state
+    )
+    forged_delivery_owner = copy.deepcopy(delivery_manifest)
+    forged_delivery_entry = next(
+        entry
+        for entry in forged_delivery_owner["entries"]
+        if entry["path"] == "docs/foo.rs"
+    )
+    forged_delivery_entry["owners"] = ["foo"]
+    forged_delivery_entry["entry_digest"] = module.acceptance_entry_digest(
+        forged_delivery_entry
+    )
+    assert not module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        forged_delivery_owner,
+        delivery_state,
+    )
+    protected_registry_state = copy.deepcopy(ownership_state)
+    protected_registry_state["affected_paths"].append("specsync-registry.toml")
+    protected_registry_manifest = ownership_manifest_with(
+        signed_entry(
+            "specsync-registry.toml",
+            "file",
+            0o100644,
+            b'[registry]\nname = "secondary"\n',
+            ["@exact:delivery"],
+        )
+    )
+    assert module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        protected_registry_manifest,
+        protected_registry_state,
+    )
+    forged_registry_owner = copy.deepcopy(protected_registry_manifest)
+    forged_registry_entry = next(
+        entry
+        for entry in forged_registry_owner["entries"]
+        if entry["path"] == "specsync-registry.toml"
+    )
+    forged_registry_entry["owners"] = ["foo"]
+    forged_registry_entry["entry_digest"] = module.acceptance_entry_digest(
+        forged_registry_entry
+    )
+    assert not module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        forged_registry_owner,
+        protected_registry_state,
+    )
+    unowned_source_state = copy.deepcopy(ownership_state)
+    unowned_source_state["affected_paths"].append("src/baz.rs")
+    unowned_source_manifest = ownership_manifest_with(
+        signed_entry(
+            "src/baz.rs",
+            "file",
+            0o100644,
+            b"pub fn baz() {}\n",
+            ["@exact:delivery"],
+        )
+    )
+    assert not module.acceptance_manifest_matches_commit(
+        ownership_repository,
+        ownership_commit,
+        unowned_source_manifest,
+        unowned_source_state,
+    )
+    good_link_state = copy.deepcopy(ownership_state)
+    good_link_state["affected_paths"].append("docs/good-link")
+    good_link_manifest = ownership_manifest_with(
+        signed_entry("docs/good-link", "symlink", 0o120000, b"foo.rs")
+    )
+    assert module.acceptance_manifest_matches_commit(
+        ownership_repository, ownership_commit, good_link_manifest, good_link_state
+    )
+    bad_link_state = copy.deepcopy(ownership_state)
+    bad_link_state["affected_paths"].append("docs/bad-link")
+    bad_link_manifest = ownership_manifest_with(
+        signed_entry("docs/bad-link", "symlink", 0o120000, b"/tmp/outside")
+    )
+    assert not module.acceptance_manifest_matches_commit(
+        ownership_repository, ownership_commit, bad_link_manifest, bad_link_state
+    )
+
+    successor_entry = next(
+        entry for entry in ownership_manifest["entries"] if entry["path"] == "src/foo.rs"
+    )
+    predecessor_digest = "a" * 64
+    succession_state = copy.deepcopy(ownership_state)
+    succession_state["supersedes"] = [
+        {
+            "predecessor_id": "CHG-0000-predecessor",
+            "obligations": [
+                {
+                    "path": "src/foo.rs",
+                    "module": "foo",
+                    "predecessor_entry_digest": predecessor_digest,
+                }
+            ],
+        }
+    ]
+    succession = {
+        "schema_version": 1,
+        "tuples": [
+            {
+                "predecessor_id": "CHG-0000-predecessor",
+                "path": "src/foo.rs",
+                "module": "foo",
+                "predecessor_entry_digest": predecessor_digest,
+                "successor_entry_digest": successor_entry["entry_digest"],
+            }
+        ],
+    }
+    assert module.semantic_succession_matches_state(
+        succession, succession_state, ownership_manifest
+    )
+    assert not module.semantic_succession_matches_state(
+        None, succession_state, ownership_manifest
+    )
+    forged_succession = copy.deepcopy(succession)
+    forged_succession["tuples"] = []
+    assert not module.semantic_succession_matches_state(
+        forged_succession, succession_state, ownership_manifest
+    )
+    assert module.semantic_succession_matches_state(
+        None, ownership_state, ownership_manifest
     )
     malformed_correction = copy.deepcopy(ownership_state)
     malformed_correction["acceptance_owner_corrections"][0]["timestamp"] = -1
@@ -460,6 +669,57 @@ with tempfile.TemporaryDirectory() as temporary:
     git(repository, "add", ".")
     git(repository, "commit", "-m", "review metadata")
     metadata = git(repository, "rev-parse", "HEAD")
+
+    git(repository, "switch", "-c", "forged-review-metadata")
+    forged_review = copy.deepcopy(review)
+    forged_review["workspace_digest"] = "4" * 64
+    (review_dir / "review.json").write_text(
+        json.dumps(forged_review, indent=2) + "\n", encoding="utf-8"
+    )
+    (review_dir / "review-attempts.json").write_text(
+        json.dumps({"schema_version": 1, "reviews": [review, forged_review]}) + "\n",
+        encoding="utf-8",
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "forge review evidence")
+    forged_review_commit = git(repository, "rev-parse", "HEAD")
+    assert not module.metadata_only_edge(repository, metadata, forged_review_commit)
+    git(repository, "switch", "main")
+
+    git(repository, "switch", "-c", "multi-review-append", metadata)
+    blocked_review = {**review, "verdict": "block", "timestamp": 2}
+    passed_review = {**review, "timestamp": 3}
+    (review_dir / "review.json").write_text(
+        json.dumps(passed_review, indent=2) + "\n", encoding="utf-8"
+    )
+    (review_dir / "review-attempts.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "reviews": [review, blocked_review, passed_review],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "append multiple review attempts")
+    multi_review_commit = git(repository, "rev-parse", "HEAD")
+    assert not module.metadata_only_edge(repository, metadata, multi_review_commit)
+    git(repository, "switch", "main")
+
+    git(repository, "switch", "-c", "symlink-review-metadata", product)
+    (review_dir / "review.json").symlink_to(json.dumps(review, separators=(",", ":")))
+    (review_dir / "review-attempts.json").symlink_to(
+        json.dumps(
+            {"schema_version": 1, "reviews": [review]}, separators=(",", ":")
+        )
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "symlink review evidence")
+    symlink_review_commit = git(repository, "rev-parse", "HEAD")
+    assert not module.metadata_only_edge(repository, product, symlink_review_commit)
+    git(repository, "switch", "main")
 
     archive_dir = (
         repository
@@ -837,17 +1097,12 @@ with tempfile.TemporaryDirectory() as temporary:
     git(repository, "switch", "-c", "evil-main", product)
     git(repository, "merge", "--no-ff", "evil-review", "-m", "evil metadata merge")
     evil_merge = git(repository, "rev-parse", "HEAD")
-    assert module.metadata_only_edge(repository, product, evil_merge)
-    try:
-        module.metadata_parent(repository, evil_merge)
-    except ValueError as error:
-        assert "merge commit" in str(error)
-    else:
-        raise AssertionError("accepted a scoped-review merge commit")
+    assert not module.metadata_only_edge(repository, product, evil_merge)
+    assert module.metadata_parent(repository, evil_merge) is None
     try:
         module.check_metadata_edge_cli(repository, product, evil_merge)
     except SystemExit as error:
-        assert "merge commit" in str(error)
+        assert "not an exact lifecycle metadata child" in str(error)
     else:
         raise AssertionError("CLI accepted a scoped-review merge commit")
     git(repository, "switch", "main")

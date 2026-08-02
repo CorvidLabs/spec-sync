@@ -24,3 +24,5 @@ artifact: tasks
 - [x] Mirror the native owner-correction semantic validators and multi-attempt generated review
   ledger rules after adversarial review.
 - [x] Reject symlink and non-production corrected ownership while requiring regular canonical specs.
+- [x] Close the final five adversarial traversal gaps for exact owners, frontmatter forms, symlink
+  targets, review-only metadata authentication, and semantic-succession obligations.

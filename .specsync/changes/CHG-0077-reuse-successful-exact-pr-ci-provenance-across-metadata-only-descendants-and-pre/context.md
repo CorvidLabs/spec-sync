@@ -108,3 +108,19 @@ the configured `specs_dir` fallback. Durable invariant: historical config/regist
 regular blobs; mapped registries require a nonempty consistent identity, unique supported mapping
 shapes, and safe paths when resolved; unmapped modules use the committed configured specs directory.
 Fixtures cover dangling config/registry links, nameless mapped registries, and custom-spec fallback.
+
+Final adversarial-review trigger: five remaining trust-boundary gaps let historical traversal accept
+reserved-owner substitutions, miss native-supported `files` frontmatter forms, hash invalid symlink
+targets, skip unauthenticated review-pair contents, or omit signed supersession obligations. Root
+cause: the historical verifier mirrored artifact shape without replaying the final native semantic
+checks. Durable invariant: every traversed edge must reconstruct the native owner, source, symlink,
+review-ledger, and one-to-one semantic-succession rules from committed bytes. Focused regressions now
+cover test/delivery owner substitution, unowned production source, flow/scalar/commented source lists,
+portable and absolute symlink targets, forged review pairs, and missing or altered succession tuples.
+Independent re-review tightened the same invariant: reserved test/delivery classification precedes
+module ownership, a blank/comment terminates a native block list, and both review files must be
+regular committed blobs. Fixtures cover module-listed test/docs paths, an interrupted list, and a
+semantically valid review pair stored as symlinks.
+The last parity pass added the protected root `specsync-registry.toml` to delivery precedence and
+kept native review history semantics: first appearance may contain collapsed history, but each later
+review-only edge appends exactly one attempt. Regressions cover both cases.

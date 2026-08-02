@@ -59,6 +59,19 @@ artifact: testing
   unmapped corrected owner through the committed custom `specs_dir` fallback.
 - Accept a valid finalization-generated review history containing an earlier block followed by the
   final independent pass; validate every attempt and require the projection to equal the last one.
+- Require native reserved-owner classification for governed tests and delivery inputs, and reject
+  unowned production source even when a forged manifest labels it exact delivery.
+- Parse block, flow-list, scalar, and inline-comment `files` frontmatter forms exactly enough to
+  reconstruct native source ownership.
+- Validate committed symlink target bytes against native portability rules before archive traversal.
+- Authenticate review-only projection/ledger contents, strict append history, evidence digests, and
+  reviewer independence before skipping the edge.
+- Require semantic-succession evidence to match every approved supersedes obligation one-to-one and
+  bind each successor digest and module owner to the reconstructed manifest.
+- Preserve native precedence when specs list test/docs paths, stop a block list at comments/blanks,
+  and reject otherwise-valid review projection/ledger JSON stored as Git symlinks.
+- Preserve exact-delivery precedence for root `specsync-registry.toml` and reject a review-only edge
+  that appends multiple attempts after a committed ledger.
 
 ## Completion
 

@@ -108,19 +108,69 @@ def spec_source_paths(root: Path, revision: str, spec_path: str) -> set[str] | N
         )[1]
     except (IndexError, OSError, subprocess.SubprocessError, UnicodeDecodeError):
         return None
-    files_block = re.search(
-        r"(?ms)^files:\s*\n((?:[ \t]+-[^\n]*(?:\n|$))*)", frontmatter
-    )
-    if files_block is None:
-        return set()
+    files: list[str] | None = None
+    lines = frontmatter.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        stripped = line.strip()
+        index += 1
+        if not stripped or stripped.startswith("#") or ":" not in line:
+            continue
+        key, raw_value = line.split(":", 1)
+        if key.strip() != "files":
+            continue
+        if files is not None:
+            return None
+        value = strip_yaml_comment(raw_value.strip())
+        if value == "[]":
+            files = []
+        elif value.startswith("["):
+            if not value.endswith("]"):
+                return None
+            files = []
+            for raw in value[1:-1].split(","):
+                item = raw.strip()
+                if not item:
+                    continue
+                if item[:1] in {"'", '"'}:
+                    if len(item) < 2 or item[-1] != item[0]:
+                        return None
+                    item = item[1:-1]
+                files.append(item)
+        elif value.startswith("{"):
+            return None
+        elif value:
+            files = [value]
+        else:
+            files = []
+            while index < len(lines):
+                candidate = lines[index]
+                candidate_stripped = candidate.strip()
+                if not candidate_stripped or candidate_stripped.startswith("#"):
+                    break
+                if not candidate.lstrip().startswith("- "):
+                    break
+                item = strip_yaml_comment(candidate.lstrip()[2:].strip())
+                files.append(item)
+                index += 1
     sources: set[str] = set()
-    for raw in re.findall(r"(?m)^[ \t]+-\s*(.+?)\s*$", files_block.group(1)):
-        source = raw.strip("'\"")
+    for source in files or []:
         if not portable_project_path_valid(source):
             return None
         sources.add(source)
     return sources
 
+
+def strip_yaml_comment(value: str) -> str:
+    if value.startswith(("'", '"', "[")):
+        return value
+    marker = value.find(" #")
+    if marker >= 0:
+        after = value[marker + 2 :]
+        if not after or after.startswith(" "):
+            return value[:marker].rstrip()
+    return value
 
 def configured_layout(
     root: Path,
@@ -259,18 +309,77 @@ def registry_specs_at_revision(
 
 def path_is_production_source(path: str, source_dirs: set[str]) -> bool:
     extension = Path(path).suffix.removeprefix(".")
-    governed_test = (
+    in_source_dir = any(
+        source == "." or path == source or path.startswith(f"{source}/")
+        for source in source_dirs
+    )
+    return (
+        extension in SOURCE_EXTENSIONS
+        and in_source_dir
+        and not path_is_governed_test_or_fixture(path)
+    )
+
+
+def path_is_governed_test_or_fixture(path: str) -> bool:
+    return (
         path.startswith(("tests/", "test/", "Tests/"))
         or "/tests/" in path
         or "/test/" in path
         or "/fixtures/" in path
         or "/__fixtures__/" in path
     )
-    in_source_dir = any(
-        source == "." or path == source or path.startswith(f"{source}/")
-        for source in source_dirs
+
+
+def path_is_recognized_delivery_metadata(path: str) -> bool:
+    root_delivery_files = {
+        ".trust.toml",
+        "AGENTS.md",
+        "Cargo.lock",
+        "Cargo.toml",
+        "LICENSE",
+        "Package.resolved",
+        "Package.swift",
+        "README.md",
+        "action.yaml",
+        "action.yml",
+        "bun.lock",
+        "bun.lockb",
+        "fledge.toml",
+        "go.mod",
+        "go.sum",
+        "package-lock.json",
+        "package.json",
+        "pnpm-lock.yaml",
+        "pyproject.toml",
+        "requirements.txt",
+        "specsync-registry.toml",
+        "uv.lock",
+        "yarn.lock",
+    }
+    return (
+        path.startswith((".github/", ".specsync/", "docs/"))
+        or "/" not in path
+        and path in root_delivery_files
     )
-    return extension in SOURCE_EXTENSIONS and in_source_dir and not governed_test
+
+
+def portable_symlink_target_valid(payload: bytes) -> bool:
+    try:
+        target = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return (
+        bool(target)
+        and not target.startswith("/")
+        and "\\" not in target
+        and not any(unicodedata.category(character) == "Cc" for character in target)
+        and not (
+            len(target) >= 2
+            and target[0].isascii()
+            and target[0].isalpha()
+            and target[1] == ":"
+        )
+    )
 
 
 def required(name: str) -> str:
@@ -361,7 +470,12 @@ def diff_records(
     return records
 
 
-def review_metadata_only_edge(records: list[tuple[str, tuple[str, ...]]]) -> bool:
+def review_metadata_only_edge(
+    root: Path,
+    parent: str,
+    child: str,
+    records: list[tuple[str, tuple[str, ...]]],
+) -> bool:
     if len(records) != 2 or any(
         status not in {"A", "M"} or len(paths) != 1 for status, paths in records
     ):
@@ -376,7 +490,85 @@ def review_metadata_only_edge(records: list[tuple[str, tuple[str, ...]]]) -> boo
         return False
     change_ids = {match.group(1) for match in matched if match is not None}
     names = {match.group(2) for match in matched if match is not None}
-    return len(change_ids) == 1 and names == {"review.json", "review-attempts.json"}
+    if len(change_ids) != 1 or names != {"review.json", "review-attempts.json"}:
+        return False
+    change_id = next(iter(change_ids))
+    change_root = f".specsync/changes/{change_id}"
+    review_path = f"{change_root}/review.json"
+    attempts_path = f"{change_root}/review-attempts.json"
+    try:
+        child_entries = revision_entries(root, child)
+        if any(
+            child_entries.get(path, (None, None, None))[:2]
+            not in {(mode, "blob") for mode in REGULAR_FILE_MODES}
+            for path in (review_path, attempts_path)
+        ):
+            return False
+        approvals = json_object_at(root, child, f"{change_root}/approvals.json")
+        verification = json_object_at(root, child, f"{change_root}/verification.json")
+        review = json_object_at(root, child, review_path)
+        attempts = json_object_at(root, child, attempts_path)
+        reviews = attempts.get("reviews")
+        if (
+            attempts.keys() != {"schema_version", "reviews"}
+            or attempts.get("schema_version") != 1
+            or not isinstance(reviews, list)
+            or not reviews
+            or reviews[-1] != review
+            or not all(
+                scoped_review_attempt_valid(attempt, change_id, approvals)
+                for attempt in reviews
+            )
+            or review.get("contract_digest") != verification.get("contract_digest")
+            or review.get("execution_digest") != verification.get("execution_digest")
+            or review.get("workspace_digest") != verification.get("workspace_digest")
+            or any(
+                not digest_is_sha256(review.get(name))
+                for name in ("contract_digest", "workspace_digest")
+            )
+            or review.get("execution_digest") is not None
+            and not digest_is_sha256(review.get("execution_digest"))
+        ):
+            return False
+        parent_has_review = git_object_exists(root, parent, review_path)
+        parent_has_attempts = git_object_exists(root, parent, attempts_path)
+        if parent_has_review != parent_has_attempts:
+            return False
+        if not parent_has_review:
+            return review.get("implementation_commit") == parent
+        parent_entries = revision_entries(root, parent)
+        if any(
+            parent_entries.get(path, (None, None, None))[:2]
+            not in {(mode, "blob") for mode in REGULAR_FILE_MODES}
+            for path in (review_path, attempts_path)
+        ):
+            return False
+        parent_review = json_object_at(root, parent, review_path)
+        parent_attempts = json_object_at(root, parent, attempts_path)
+        parent_reviews = parent_attempts.get("reviews")
+        parent_metadata_parent = metadata_parent(root, parent)
+        expected_implementation = (
+            parent_review.get("implementation_commit")
+            if parent_metadata_parent is not None
+            else parent
+        )
+        return (
+            parent_attempts.keys() == {"schema_version", "reviews"}
+            and parent_attempts.get("schema_version") == 1
+            and isinstance(parent_reviews, list)
+            and bool(parent_reviews)
+            and parent_reviews[-1] == parent_review
+            and reviews == parent_reviews + [review]
+            and review.get("implementation_commit") == expected_implementation
+        )
+    except (
+        json.JSONDecodeError,
+        OSError,
+        subprocess.SubprocessError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
+        return False
 
 
 def git_object_exists(root: Path, revision: str, path: str) -> bool:
@@ -689,14 +881,14 @@ def acceptance_manifest_matches_commit(
         return False
     owners_by_path: dict[str, set[str]] = {}
     specs: dict[str, str] = {}
-    specs_dir = "specs"
-    source_dirs: set[str] | None = set()
+    layout = configured_layout(root, revision, revision_objects)
+    if layout is None:
+        return False
+    specs_dir, source_dirs = layout
     if affected_specs or corrections:
-        layout = configured_layout(root, revision, revision_objects)
         loaded_specs = registry_specs_at_revision(root, revision, revision_objects)
-        if layout is None or loaded_specs is None:
+        if loaded_specs is None:
             return False
-        specs_dir, source_dirs = layout
         specs = loaded_specs
     for module in affected_specs:
         if not isinstance(module, str):
@@ -813,14 +1005,27 @@ def acceptance_manifest_matches_commit(
     for entry in entries:
         path = entry["path"]
         expected_owners = sorted(owners_by_path.get(path, set()))
-        if expected_owners:
+        if path_is_governed_test_or_fixture(path):
+            if entry["owners"] != ["@exact:test"]:
+                return False
+        elif path_is_recognized_delivery_metadata(path):
+            if entry["owners"] != ["@exact:delivery"]:
+                return False
+        elif expected_owners:
             if entry["owners"] != expected_owners:
                 return False
-        elif len(entry["owners"]) != 1 or entry["owners"][0] not in {
-            "@exact:test",
-            "@exact:delivery",
-        }:
-            return False
+        else:
+            source_extension = Path(path).suffix.removeprefix(".") in SOURCE_EXTENSIONS
+            unowned_production_source = (
+                source_extension
+                and not path_is_governed_test_or_fixture(path)
+                and (
+                    source_dirs is None
+                    or path_is_production_source(path, source_dirs)
+                )
+            )
+            if unowned_production_source or entry["owners"] != ["@exact:delivery"]:
+                return False
         kind = entry["kind"]
         is_non_file = kind in {"non_file", "non-file"}
         if kind == "missing":
@@ -852,6 +1057,8 @@ def acceptance_manifest_matches_commit(
                 return False
             payload = blob_payloads.get(object_id)
             if payload is None:
+                return False
+            if kind == "symlink" and not portable_symlink_target_valid(payload):
                 return False
         if path == ".specsync/change-sequence.json":
             payload = historical_sequence_payload(root, revision, state)
@@ -988,6 +1195,8 @@ def semantic_succession_digest(evidence: object) -> str | None:
             match is None
             or previous is not None
             and previous >= key
+            or not portable_project_path_valid(item.get("path"))
+            or not module_name_valid(item.get("module"))
             or not digest_is_sha256(item.get("predecessor_entry_digest"))
             or not digest_is_sha256(item.get("successor_entry_digest"))
         ):
@@ -1004,6 +1213,75 @@ def semantic_succession_digest(evidence: object) -> str | None:
             ]
         )
     return framed_digest("specsync.semantic-succession.v1", frames)
+
+
+def semantic_succession_matches_state(
+    evidence: object, state: dict, manifest: dict
+) -> bool:
+    expected: set[tuple[str, str, str, str]] = set()
+    supersedes = state.get("supersedes", [])
+    if not isinstance(supersedes, list):
+        return False
+    for edge in supersedes:
+        predecessor = edge.get("predecessor_id") if isinstance(edge, dict) else None
+        obligations = edge.get("obligations") if isinstance(edge, dict) else None
+        if (
+            not isinstance(predecessor, str)
+            or re.fullmatch(r"CHG-[0-9]+-.+", predecessor) is None
+            or not isinstance(obligations, list)
+        ):
+            return False
+        for obligation in obligations:
+            if not isinstance(obligation, dict):
+                return False
+            item = (
+                predecessor,
+                obligation.get("path"),
+                obligation.get("module"),
+                obligation.get("predecessor_entry_digest"),
+            )
+            if (
+                not portable_project_path_valid(item[1])
+                or not module_name_valid(item[2])
+                or not digest_is_sha256(item[3])
+                or item in expected
+            ):
+                return False
+            expected.add(item)
+    if not expected:
+        return evidence is None
+    if semantic_succession_digest(evidence) is None or not isinstance(evidence, dict):
+        return False
+    tuples = evidence.get("tuples")
+    entries = manifest.get("entries") if isinstance(manifest, dict) else None
+    if not isinstance(tuples, list) or not isinstance(entries, list):
+        return False
+    entries_by_path = {
+        entry.get("path"): entry for entry in entries if isinstance(entry, dict)
+    }
+    actual: set[tuple[str, str, str, str]] = set()
+    for item in tuples:
+        if not isinstance(item, dict):
+            return False
+        obligation = (
+            item.get("predecessor_id"),
+            item.get("path"),
+            item.get("module"),
+            item.get("predecessor_entry_digest"),
+        )
+        successor = entries_by_path.get(item.get("path"))
+        if (
+            obligation in actual
+            or obligation not in expected
+            or not isinstance(successor, dict)
+            or item.get("module") not in successor.get("owners", [])
+            or item.get("successor_entry_digest") != successor.get("entry_digest")
+            or item.get("successor_entry_digest")
+            == item.get("predecessor_entry_digest")
+        ):
+            return False
+        actual.add(obligation)
+    return actual == expected
 
 
 def compact_json(value: object) -> bytes:
@@ -1125,12 +1403,13 @@ def scoped_review_attempt_valid(
             "required_check": "SpecSync scoped review",
         }
         and isinstance(implementation_commit, str)
-        and isinstance(attempt.get("contract_digest"), str)
+        and re.fullmatch(r"[0-9a-f]{40}", implementation_commit) is not None
+        and digest_is_sha256(attempt.get("contract_digest"))
         and (
             attempt.get("execution_digest") is None
-            or isinstance(attempt.get("execution_digest"), str)
+            or digest_is_sha256(attempt.get("execution_digest"))
         )
-        and isinstance(attempt.get("workspace_digest"), str)
+        and digest_is_sha256(attempt.get("workspace_digest"))
         and isinstance(timestamp, int)
         and not isinstance(timestamp, bool)
         and 0 <= timestamp < 2**64
@@ -1254,6 +1533,11 @@ def canonical_archive_transition(
             != archived_verification.get("acceptance_input_digest")
             or not isinstance(manifest, dict)
             or not acceptance_manifest_matches_commit(root, parent, manifest, parent_state)
+            or not semantic_succession_matches_state(
+                archived_verification.get("semantic_succession"),
+                parent_state,
+                manifest,
+            )
             or archived_verification.get("passed") is not True
         ):
             return False
@@ -1495,9 +1779,9 @@ def metadata_only_edge(root: Path, parent: str, child: str) -> bool:
     records = diff_records(root, parent, child)
     if records is None:
         return False
-    return review_metadata_only_edge(records) or archive_metadata_only_edge(
+    return review_metadata_only_edge(
         root, parent, child, records
-    )
+    ) or archive_metadata_only_edge(root, parent, child, records)
 
 
 def metadata_parent(root: Path, child: str) -> str | None:

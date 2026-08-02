@@ -69,3 +69,10 @@ reuse or fail, and checks republished on metadata children or older product comm
   committed `scoped_review_max_descendants` limit (currently 1000). The helper now reads that
   canonical value, validates it as a non-boolean integer in `1..=1000`, requests one overflow
   sentinel, and fails closed on invalid configuration or excess history.
+- Late-review trigger: hosted review compared historical parsing against native serde and found an
+  unsupported `non-file` alias, unbounded terminal timestamps, rejection of valid zero-entry
+  manifests, and a tracked CPython cache. Root cause: the helper mirrored digest framing but not the
+  complete native wire-domain and the focused loader allowed bytecode output. Durable invariant:
+  historical acceptance and archive parsing accepts exactly native enum spellings and u64 JSON
+  timestamps, preserves fully filtered empty manifests, and never emits tracked interpreter state.
+  Focused regressions exercise each boundary through the actual manifest and archive-edge paths.

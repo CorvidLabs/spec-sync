@@ -100,6 +100,9 @@ spec: github.spec.md
   official GitHub Actions app, exact SHA, PR, repository, workflow, run, and success identities stay
   mandatory. Exact-SHA trusted-policy selection prefers an authenticated success over a newer
   cancellation/failure caused by a moved tip, but unsuccessful-only evidence still fails.
+  Historical archive replay mirrors native serialization exactly: enum spellings are not aliased,
+  lifecycle timestamps are non-boolean unsigned 64-bit integers, and a fully volatile delivery
+  scope may legitimately produce a zero-entry acceptance manifest.
 
 ## Key Files
 
@@ -161,3 +164,7 @@ selection treated failed republications as ambiguity. The invariant is now expli
 archive edges carry exact parent commit/tree finalization proof; reusable job evidence names and
 authenticates one exact successful job; and GitHub-rewritten policy check URLs retain CHG-0076
 compatibility while only successful matching policy runs participate in canonical-URL disambiguation.
+Late review then found three native-parity edges plus a generated-artifact leak. The verifier now
+rejects the unsupported `non-file` spelling and out-of-range lifecycle timestamps, accepts native
+zero-entry manifests, and the focused loader disables bytecode generation so interpreter-specific
+cache files cannot enter or dirty the change.

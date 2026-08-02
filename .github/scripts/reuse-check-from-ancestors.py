@@ -1006,6 +1006,10 @@ def digest_is_sha256(value: object) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
+def u64_json_integer(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value < 2**64
+
+
 def framed_digest(domain: str, frames: list[tuple[str, bytes]]) -> str:
     digest = hashlib.sha256()
 
@@ -1058,7 +1062,7 @@ def acceptance_manifest_digest(manifest: dict) -> str | None:
     ) != 1:
         return None
     entries = manifest.get("entries")
-    if not isinstance(entries, list) or not 1 <= len(entries) <= 100_000:
+    if not isinstance(entries, list) or len(entries) > 100_000:
         return None
     frames: list[tuple[str, bytes]] = [("schema-version", struct.pack(">I", 1))]
     previous_path: str | None = None
@@ -1069,7 +1073,6 @@ def acceptance_manifest_digest(manifest: dict) -> str | None:
         "gitlink": {0o160000},
         "missing": {0},
         "non_file": {0},
-        "non-file": {0},
     }
     for entry in entries:
         if not isinstance(entry, dict) or entry.keys() != {
@@ -1102,7 +1105,7 @@ def acceptance_manifest_digest(manifest: dict) -> str | None:
             or not digest_is_sha256(entry.get("payload_digest"))
             or not digest_is_sha256(entry.get("entry_digest"))
             or entry["entry_digest"] != acceptance_entry_digest(entry)
-            or kind in {"missing", "non_file", "non-file"}
+            or kind in {"missing", "non_file"}
             and entry["payload_digest"] != empty_digest
             or not isinstance(owners, list)
             or not 1 <= len(owners) <= 1024
@@ -1352,7 +1355,7 @@ def acceptance_manifest_matches_commit(
             if unowned_production_source or entry["owners"] != ["@exact:delivery"]:
                 return False
         kind = entry["kind"]
-        is_non_file = kind in {"non_file", "non-file"}
+        is_non_file = kind == "non_file"
         if kind == "missing":
             if path in revision_objects or entry["payload_digest"] != hashlib.sha256(
                 b""
@@ -1962,9 +1965,9 @@ def canonical_archive_transition(
             or parent_state.get("state") != "verifying"
             or archived_state.get("state") != "archived"
             or accepted_state.get("state") != "accepted"
-            or not isinstance(parent_state.get("updated_at"), int)
-            or not isinstance(accepted_state.get("updated_at"), int)
-            or not isinstance(archived_state.get("updated_at"), int)
+            or not u64_json_integer(parent_state.get("updated_at"))
+            or not u64_json_integer(accepted_state.get("updated_at"))
+            or not u64_json_integer(archived_state.get("updated_at"))
             or accepted_state["updated_at"] < parent_state["updated_at"]
             or archived_state["updated_at"] < accepted_state["updated_at"]
         ):
@@ -2084,7 +2087,7 @@ def canonical_archive_transition(
             != archived_verification.get("workspace_digest")
             or finalization.get("closing_digest")
             != closing_digest(change_id, archived_verification)
-            or not isinstance(finalization.get("timestamp"), int)
+            or not u64_json_integer(finalization.get("timestamp"))
             or finalization["timestamp"] < accepted_state["updated_at"]
             or finalization["timestamp"] > archived_state["updated_at"]
             or finalization_digest(finalization)
@@ -2165,7 +2168,7 @@ def canonical_archive_transition(
             or closing.get("actor") != "specsync:finalization"
             or closing.get("digest") != finalization["closing_digest"]
             or closing.get("note") != "Same-PR finalization closing digest"
-            or not isinstance(closing.get("timestamp"), int)
+            or not u64_json_integer(closing.get("timestamp"))
             or closing["timestamp"] < accepted_state["updated_at"]
             or closing["timestamp"] > archived_state["updated_at"]
         ):

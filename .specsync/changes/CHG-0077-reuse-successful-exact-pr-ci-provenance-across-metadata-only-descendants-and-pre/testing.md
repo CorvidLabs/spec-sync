@@ -80,6 +80,9 @@ artifact: testing
   overrides, and reconstruct succession entries for aggregate-only legacy predecessor evidence.
 - Accept colonless/commented Gradle settings and portable symlink predecessor entries.
 - Mask triple-quoted Gradle literals and nested block comments before effective-path parsing.
+- Reject the unsupported `non-file` manifest spelling, accept valid zero-entry native manifests,
+  and reject boolean, negative, or overflowing archive lifecycle timestamps.
+- Disable focused-test bytecode generation and keep interpreter-specific caches out of the tree.
 
 ## Completion
 

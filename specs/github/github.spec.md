@@ -1,6 +1,6 @@
 ---
 module: github
-version: 20
+version: 21
 status: stable
 files:
   - src/github.rs
@@ -91,7 +91,8 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
     job check remains exact-SHA, same-PR, expected-workflow, official-Actions, exact-job, and
     selected-check bound. Lookup stops at that first product boundary even when its evidence is
     missing or unsuccessful. The helper and its focused test may change only with the separately
-    protected CI workflow.
+    protected CI workflow. Historical lifecycle parsing accepts only native serialized enum
+    spellings and unsigned-64-bit timestamps while preserving valid zero-entry acceptance manifests.
 
 ## Behavioral Examples
 
@@ -220,3 +221,4 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-08-02 | CHG-0077: Reuse authenticated product-tip CI across bounded metadata-only descendants and prevent cancelled republications from poisoning an earlier exact-SHA success |
 | 2026-08-02 | CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre: Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result |
 | 2026-08-02 | CHG-0077 review hardening: Traverse parent-bound workflow-v2 archives, bind reusable job checks to exact jobs, and ignore unsuccessful policy republications without rejecting GitHub-rewritten check URLs |
+| 2026-08-02 | CHG-0077 late review hardening: Match native manifest spelling, empty-manifest, and unsigned timestamp semantics without tracking interpreter bytecode |

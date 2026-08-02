@@ -8,9 +8,12 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
+
+sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / ".github/scripts/reuse-check-from-ancestors.py"
@@ -54,6 +57,20 @@ def signed_entry(
     }
     entry["entry_digest"] = module.acceptance_entry_digest(entry)
     return entry
+
+
+empty_manifest = {"schema_version": 1, "entries": []}
+assert module.acceptance_manifest_digest(empty_manifest) is not None
+assert module.u64_json_integer(0)
+assert module.u64_json_integer(2**64 - 1)
+assert not module.u64_json_integer(True)
+assert not module.u64_json_integer(-1)
+assert not module.u64_json_integer(2**64)
+unsupported_non_file = {
+    "schema_version": 1,
+    "entries": [signed_entry("commands", "non-file", 0, b"")],
+}
+assert module.acceptance_manifest_digest(unsupported_non_file) is None
 
 
 with tempfile.TemporaryDirectory() as temporary:
@@ -812,6 +829,14 @@ with tempfile.TemporaryDirectory() as temporary:
     git(repository, "add", ".")
     git(repository, "commit", "-m", "b")
     product = git(repository, "rev-parse", "HEAD")
+    volatile_only_state = {
+        **state,
+        "affected_paths": [".specsync/hashes.json"],
+        "affected_specs": [],
+    }
+    assert module.acceptance_manifest_matches_commit(
+        repository, product, empty_manifest, volatile_only_state
+    )
     review = {
         "schema_version": 2,
         "change_id": "CHG-0001-test",
@@ -1013,6 +1038,44 @@ with tempfile.TemporaryDirectory() as temporary:
     assert module.metadata_only_edge(repository, metadata, archive)
     assert module.metadata_parent(repository, archive) == metadata
     assert not module.metadata_only_edge(repository, first, product)
+
+    git(repository, "switch", "-c", "out-of-range-archive-timestamps", metadata)
+    git(repository, "cherry-pick", "-n", archive)
+    out_of_range_archive_dir = (
+        repository / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
+    )
+    for state_name in ("state.json", "accepted-state.json"):
+        state_record = json.loads(
+            (out_of_range_archive_dir / state_name).read_text(encoding="utf-8")
+        )
+        state_record["updated_at"] = 2**64
+        (out_of_range_archive_dir / state_name).write_text(
+            json.dumps(state_record) + "\n", encoding="utf-8"
+        )
+    out_of_range_finalization = json.loads(
+        (out_of_range_archive_dir / "finalization.json").read_text(encoding="utf-8")
+    )
+    out_of_range_finalization["timestamp"] = 2**64
+    out_of_range_finalization["finalization_digest"] = module.finalization_digest(
+        out_of_range_finalization
+    )
+    (out_of_range_archive_dir / "finalization.json").write_text(
+        json.dumps(out_of_range_finalization) + "\n", encoding="utf-8"
+    )
+    out_of_range_approvals = json.loads(
+        (out_of_range_archive_dir / "approvals.json").read_text(encoding="utf-8")
+    )
+    out_of_range_approvals["approvals"][-1]["timestamp"] = 2**64
+    (out_of_range_archive_dir / "approvals.json").write_text(
+        json.dumps(out_of_range_approvals) + "\n", encoding="utf-8"
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "out-of-range archive timestamps")
+    out_of_range_archive = git(repository, "rev-parse", "HEAD")
+    assert not module.metadata_only_edge(
+        repository, metadata, out_of_range_archive
+    )
+    git(repository, "switch", "main")
 
     git(repository, "switch", "-c", "generated-review-archive", product)
     generated_active_dir = repository / ".specsync/changes/CHG-0001-test"

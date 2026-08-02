@@ -61,4 +61,5 @@ archive traversal must authenticate tracked directory objects as zero-mode, empt
 entries without adding directory nodes to file discovery, and every bounded history query must use
 the committed lifecycle limit with a one-entry overflow sentinel. Focused tests cover a real directory
 manifest entry and all tracked descendants, omitted-descendant and forged-missing attacks, 257
-sequence updates, overflow, and malformed configured bounds.
+sequence updates, overflow, malformed configured bounds, and broad `.specsync` scopes that exclude
+volatile lifecycle workspaces while retaining the legacy baseline.

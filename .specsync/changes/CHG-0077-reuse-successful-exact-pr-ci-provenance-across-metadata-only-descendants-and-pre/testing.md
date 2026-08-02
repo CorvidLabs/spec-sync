@@ -40,6 +40,8 @@ artifact: testing
 - Accept an exact covered-directory `non_file` manifest entry while keeping directory objects out of
   ordinary affected-file and archive-copy discovery; require every tracked descendant and reject an
   existing directory self-consistently re-signed as `missing`.
+- Mirror volatile-input filtering for broad `.specsync` scopes while retaining
+  `.specsync/archive/legacy-baseline.json` as the explicit compatibility exception.
 - Reconstruct valid sequence evidence after 257 updates under the committed 1000-entry bound; reject
   one-entry overflow and missing, boolean, zero, or greater-than-1000 configured limits.
 

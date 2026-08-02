@@ -35,6 +35,7 @@ from pathlib import Path
 
 MAX_ANCESTORS = 32
 LIMITS_PATH = Path(__file__).with_name("lifecycle-validation-limits.json")
+LEGACY_BASELINE_PATH = ".specsync/archive/legacy-baseline.json"
 
 
 def required(name: str) -> str:
@@ -492,6 +493,11 @@ def acceptance_manifest_matches_commit(
                 source = raw.strip("'\"")
                 if source:
                     owners_by_path.setdefault(source, set()).add(module)
+    expected_paths = {
+        path
+        for path in expected_paths
+        if not project_input_is_volatile(path) or path == LEGACY_BASELINE_PATH
+    }
     if expected_paths != set(by_path):
         return False
 
@@ -553,6 +559,29 @@ def acceptance_manifest_matches_commit(
         if hashlib.sha256(payload).hexdigest() != entry["payload_digest"]:
             return False
     return True
+
+
+def project_input_is_volatile(path: str) -> bool:
+    prefixes = (
+        ".git/",
+        "target/",
+        "node_modules/",
+        "site/node_modules/",
+        "site/dist/",
+        "site/.astro/",
+        ".specsync/changes/",
+        ".specsync/archive/",
+    )
+    if any(
+        path == prefix.removesuffix("/") or path.startswith(prefix)
+        for prefix in prefixes
+    ):
+        return True
+    return path in {
+        ".specsync/hashes.json",
+        ".specsync/change.lock",
+        ".specsync/change-transaction.json",
+    }
 
 
 def historical_sequence_payload(

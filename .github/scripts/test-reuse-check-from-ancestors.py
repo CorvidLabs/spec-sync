@@ -51,6 +51,13 @@ with tempfile.TemporaryDirectory() as temporary:
     (commands_dir / "hello.txt").write_text("hello\n", encoding="utf-8")
     review_dir = repository / ".specsync/changes/CHG-0001-test"
     (review_dir / "deltas").mkdir(parents=True)
+    legacy_baseline = repository / ".specsync/archive/legacy-baseline.json"
+    legacy_baseline.parent.mkdir(parents=True)
+    legacy_baseline.write_text("{}\n", encoding="utf-8")
+    archived_noise = repository / ".specsync/archive/changes/old/state.json"
+    archived_noise.parent.mkdir(parents=True)
+    archived_noise.write_text("{}\n", encoding="utf-8")
+    (repository / ".specsync/sdd.json").write_text("{}\n", encoding="utf-8")
     (review_dir / "change.md").write_text(
         "---\nid: CHG-0001-test\nstate: verifying\n---\n# Change\n",
         encoding="utf-8",
@@ -61,7 +68,7 @@ with tempfile.TemporaryDirectory() as temporary:
         "id": "CHG-0001-test",
         "state": "verifying",
         "updated_at": 1,
-        "affected_paths": ["a.txt", "commands"],
+        "affected_paths": [".specsync", "a.txt", "commands"],
     }
     (review_dir / "state.json").write_text(
         json.dumps(state) + "\n", encoding="utf-8"
@@ -133,7 +140,7 @@ with tempfile.TemporaryDirectory() as temporary:
         repository
         / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
     )
-    archive_dir.parent.mkdir(parents=True)
+    archive_dir.parent.mkdir(parents=True, exist_ok=True)
     git(repository, "mv", str(review_dir), str(archive_dir))
     metadata_tree = git(repository, "rev-parse", f"{metadata}^{{tree}}")
     archived_state = {**state, "state": "archived", "updated_at": 3}
@@ -149,42 +156,33 @@ with tempfile.TemporaryDirectory() as temporary:
         archived_change.replace("state: verifying\n", "state: archived\n"),
         encoding="utf-8",
     )
-    acceptance_entry = {
-        "path": "a.txt",
-        "kind": "file",
-        "mode": 0o100644,
-        "payload_digest": __import__("hashlib").sha256(b"a\n").hexdigest(),
-        "entry_digest": "",
-        "owners": ["@exact:delivery"],
-    }
-    acceptance_entry["entry_digest"] = module.acceptance_entry_digest(
-        acceptance_entry
-    )
-    non_file_entry = {
-        "path": "commands",
-        "kind": "non_file",
-        "mode": 0,
-        "payload_digest": __import__("hashlib").sha256(b"").hexdigest(),
-        "entry_digest": "",
-        "owners": ["@exact:delivery"],
-    }
-    non_file_entry["entry_digest"] = module.acceptance_entry_digest(
-        non_file_entry
-    )
-    descendant_entry = {
-        "path": "commands/hello.txt",
-        "kind": "file",
-        "mode": 0o100644,
-        "payload_digest": __import__("hashlib").sha256(b"hello\n").hexdigest(),
-        "entry_digest": "",
-        "owners": ["@exact:delivery"],
-    }
-    descendant_entry["entry_digest"] = module.acceptance_entry_digest(
-        descendant_entry
-    )
+    def signed_entry(path: str, kind: str, mode: int, payload: bytes) -> dict:
+        entry = {
+            "path": path,
+            "kind": kind,
+            "mode": mode,
+            "payload_digest": __import__("hashlib").sha256(payload).hexdigest(),
+            "entry_digest": "",
+            "owners": ["@exact:delivery"],
+        }
+        entry["entry_digest"] = module.acceptance_entry_digest(entry)
+        return entry
+
     acceptance_manifest = {
         "schema_version": 1,
-        "entries": [acceptance_entry, non_file_entry, descendant_entry],
+        "entries": [
+            signed_entry(".specsync", "non_file", 0, b""),
+            signed_entry(
+                ".specsync/archive/legacy-baseline.json",
+                "file",
+                0o100644,
+                b"{}\n",
+            ),
+            signed_entry(".specsync/sdd.json", "file", 0o100644, b"{}\n"),
+            signed_entry("a.txt", "file", 0o100644, b"a\n"),
+            signed_entry("commands", "non_file", 0, b""),
+            signed_entry("commands/hello.txt", "file", 0o100644, b"hello\n"),
+        ],
     }
     omitted_descendant = copy.deepcopy(acceptance_manifest)
     omitted_descendant["entries"].pop()
@@ -193,7 +191,11 @@ with tempfile.TemporaryDirectory() as temporary:
         repository, metadata, omitted_descendant, state
     )
     forged_missing_directory = copy.deepcopy(acceptance_manifest)
-    forged_directory_entry = forged_missing_directory["entries"][1]
+    forged_directory_entry = next(
+        entry
+        for entry in forged_missing_directory["entries"]
+        if entry["path"] == "commands"
+    )
     forged_directory_entry["kind"] = "missing"
     forged_directory_entry["entry_digest"] = module.acceptance_entry_digest(
         forged_directory_entry
@@ -302,7 +304,11 @@ with tempfile.TemporaryDirectory() as temporary:
     forged_verification = json.loads(
         (forged_archive_dir / "verification.json").read_text(encoding="utf-8")
     )
-    forged_entry = forged_verification["acceptance_manifest"]["entries"][0]
+    forged_entry = next(
+        entry
+        for entry in forged_verification["acceptance_manifest"]["entries"]
+        if entry["path"] == "a.txt"
+    )
     forged_entry["payload_digest"] = __import__("hashlib").sha256(
         b"forged\n"
     ).hexdigest()
@@ -388,7 +394,7 @@ with tempfile.TemporaryDirectory() as temporary:
         repository
         / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
     )
-    bad_archive_dir.parent.mkdir(parents=True)
+    bad_archive_dir.parent.mkdir(parents=True, exist_ok=True)
     git(repository, "mv", str(review_dir), str(bad_archive_dir))
     (bad_archive_dir / "state.json").write_text(
         '{"workflow_version":2,"id":"CHG-0001-test","state":"archived"}\n',

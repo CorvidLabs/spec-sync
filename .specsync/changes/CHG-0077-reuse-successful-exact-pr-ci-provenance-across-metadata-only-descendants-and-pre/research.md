@@ -62,6 +62,9 @@ reuse or fail, and checks republished on metadata children or older product comm
   in the same bounded inventory, excludes them from ordinary file discovery, expands the directory
   scope to every tracked descendant, and authenticates the explicit non-file entry as a tree with
   the signed zero mode and empty payload. Existing tree objects cannot be represented as `missing`.
+  Directory expansion applies Rust's final volatile-input filter, so broad scopes do not require
+  active/archive lifecycle workspaces, hashes, locks, or transaction journals; the legacy adoption
+  baseline remains the sole archive exception.
 - Sequence-ledger reconstruction used a hard-coded 256-commit ceiling while Rust accepts the
   committed `scoped_review_max_descendants` limit (currently 1000). The helper now reads that
   canonical value, validates it as a non-boolean integer in `1..=1000`, requests one overflow

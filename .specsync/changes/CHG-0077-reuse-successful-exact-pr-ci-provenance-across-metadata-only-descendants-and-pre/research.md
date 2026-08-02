@@ -36,3 +36,16 @@ review pairs while walking, and requires implementation-ready, scoped-review, an
 converge on one product ancestor; the two CI checks must also resolve to one workflow run.
 The first non-review commit is a terminal product boundary: its own exact checks either authorize
 reuse or fail, and checks republished on metadata children or older product commits cannot substitute.
+
+## PR #494 review findings
+
+- Separate workflow-v2 archive commits are lifecycle metadata, but the original walker treated the
+  first prior archive as a product boundary. Historical archive traversal now requires the archived
+  state plus finalization evidence bound to the exact parent commit and tree.
+- A generic Actions check can present a run-level URL without proving that the named required job
+  succeeded. Reuse now requires an exact job URL and authenticates the job's run, SHA, name,
+  conclusion, and selected check-run identity.
+- GitHub may rewrite a custom policy check's requested workflow URL to a canonical check URL
+  (CHG-0076). Therefore the cancel-poison repair filters canonical-URL candidates to successful
+  matching policy runs rather than requiring one publication of any conclusion; an explicit workflow
+  URL still selects only its named run.

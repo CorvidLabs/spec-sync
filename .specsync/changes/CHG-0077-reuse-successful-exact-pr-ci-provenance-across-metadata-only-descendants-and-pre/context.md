@@ -36,3 +36,12 @@ Metadata-child check republications are skipped, and the first product boundary 
 older product commits. Focused tests bind those invariants alongside second-parent, complete-lookup,
 and hard-limit cases. Required CI also couples both helper paths to its own protected workflow, so a
 later PR cannot weaken the PR-controlled script without triggering the base policy boundary.
+
+PR #494 review trigger: three P1 findings arrived after the first finalization. The implementation
+recognized only review-pair ancestors, accepted generic run-level check URLs, and selected policy
+runs from all publications instead of excluding later unsuccessful republications. Root cause:
+historical metadata and check/run identity were modeled too coarsely. Durable invariant: prior
+workflow-v2 archive edges require an exact parent commit/tree finalization binding; generic reusable
+checks must authenticate their exact successful job and selected check identity; canonical rewritten
+policy-check URLs remain valid only when exactly one successful matching policy run exists. Focused
+fixtures cover each finding and the earlier CHG-0076 URL-rewrite compatibility case.

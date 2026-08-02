@@ -24,6 +24,11 @@ artifact: testing
 - Prefer a successful trusted-policy check for the exact SHA over newer cancelled or failed checks.
 - Preserve failure when no authenticated success exists.
 - Confirm review/archive metadata-only classification and product-matrix skipping remain exact.
+- Traverse a prior workflow-v2 archive only when its state and finalization bind the exact parent
+  commit/tree; reject a mismatched binding.
+- Reject reusable job checks with run-only URLs, wrong job names, or another check-run identity.
+- Preserve canonical rewritten trusted-policy URLs while ignoring later failed/cancelled runs and
+  rejecting multiple successful matching runs as ambiguous.
 
 ## Completion
 

@@ -247,14 +247,24 @@ try:
         if isinstance(run, dict)
         and str(run.get("path") or "").split("@", 1)[0] == WORKFLOW_PATH
     ]
+    if workflow_details is not None:
+        named_run_id = int(workflow_details.group(1))
+        policy_runs = [run for run in policy_runs if run.get("id") == named_run_id]
+    elif len(policy_runs) > 1:
+        # GitHub rewrites custom-check details URLs to /runs/<check-id>. In that
+        # case, ignore later failed/cancelled publications and require one unique
+        # successful policy run for the selected successful exact-SHA check.
+        policy_runs = [
+            run
+            for run in policy_runs
+            if run.get("status") == "completed" and run.get("conclusion") == "success"
+        ]
     if len(policy_runs) != 1:
         raise ValueError("workflow run lookup is missing or ambiguous")
     run = policy_runs[0]
     run_id = int(run.get("id", 0))
     if run_id <= 0:
         raise ValueError("workflow run has no valid GitHub identity")
-    if workflow_details is not None and int(workflow_details.group(1)) != run_id:
-        raise ValueError("check details URL names a different workflow run")
     if run.get("event") != "pull_request_target":
         raise ValueError("workflow run is not base-controlled")
     if run.get("status") != "completed" or run.get("conclusion") != "success":

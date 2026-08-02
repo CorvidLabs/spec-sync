@@ -19,5 +19,13 @@ Trusted-policy verification sorts exact-SHA checks newest-first but accepts the 
 success even if a newer matching publication was cancelled or failed. If no authenticated success
 exists, it reports the rejected candidates and fails closed.
 
+Historical metadata traversal recognizes both exact scoped-review pairs and workflow-v2 archive
+moves. An archive edge is eligible only when one active change becomes its matching dated archive,
+the archived state matches that change, and `finalization.json` binds the exact parent commit/tree.
+Generic reusable checks must name a workflow job and bind that job's run, SHA, name, successful
+conclusion, and check-run identity. Trusted-policy custom checks remain on their dedicated verifier:
+an explicit workflow URL selects that run, while GitHub's canonical rewritten URL requires one unique
+successful matching policy run and ignores later failed/cancelled publications.
+
 No CLI command, lifecycle state, approval count, artifact layout, or merge behavior changes. The
 existing `change status` and `change finalize` path remains authoritative.

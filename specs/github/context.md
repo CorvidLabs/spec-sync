@@ -153,3 +153,11 @@ CHG-0077 repairs the finalization tip dance reproduced by PR #492: a review chil
 the green product tip, and a later cancelled/failed policy republication no longer poisons an earlier
 authenticated success for the same SHA. The repair does not add a command, lifecycle state, approval,
 or alternate archive path.
+
+PR #494 review exposed three same-contract gaps before merge. Historical traversal recognized only
+review pairs, so separately finalized workflow-v2 changes formed a false product boundary. Generic
+check reuse also accepted run-level URLs without proving an exact job/check binding, and policy-run
+selection treated failed republications as ambiguity. The invariant is now explicit: historical
+archive edges carry exact parent commit/tree finalization proof; reusable job evidence names and
+authenticates one exact successful job; and GitHub-rewritten policy check URLs retain CHG-0076
+compatibility while only successful matching policy runs participate in canonical-URL disambiguation.

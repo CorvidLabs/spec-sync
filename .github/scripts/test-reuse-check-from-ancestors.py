@@ -56,11 +56,61 @@ with tempfile.TemporaryDirectory() as temporary:
     git(repository, "commit", "-m", "review metadata")
     metadata = git(repository, "rev-parse", "HEAD")
 
+    archive_dir = (
+        repository
+        / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
+    )
+    archive_dir.parent.mkdir(parents=True)
+    git(repository, "mv", str(review_dir), str(archive_dir))
+    metadata_tree = git(repository, "rev-parse", f"{metadata}^{{tree}}")
+    (archive_dir / "state.json").write_text(
+        '{"workflow_version":2,"id":"CHG-0001-test","state":"archived"}\n',
+        encoding="utf-8",
+    )
+    (archive_dir / "finalization.json").write_text(
+        (
+            '{"schema_version":2,"change_id":"CHG-0001-test",'
+            f'"implementation_commit":"{metadata}",'
+            f'"implementation_tree":"{metadata_tree}"}}\n'
+        ),
+        encoding="utf-8",
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "archive metadata")
+    archive = git(repository, "rev-parse", "HEAD")
+
     chain = module.first_parent_chain(repository, metadata, 10)
     assert chain == [metadata, product, first]
     assert module.first_parent_chain(repository, metadata, 2) == [metadata, product]
     assert module.metadata_only_edge(repository, product, metadata)
+    assert module.metadata_only_edge(repository, metadata, archive)
+    assert module.metadata_parent(repository, archive) == metadata
     assert not module.metadata_only_edge(repository, first, product)
+
+    git(repository, "switch", "-c", "bad-archive", metadata)
+    bad_archive_dir = (
+        repository
+        / ".specsync/archive/changes/2026-08-02-CHG-0001-test"
+    )
+    bad_archive_dir.parent.mkdir(parents=True)
+    git(repository, "mv", str(review_dir), str(bad_archive_dir))
+    (bad_archive_dir / "state.json").write_text(
+        '{"workflow_version":2,"id":"CHG-0001-test","state":"archived"}\n',
+        encoding="utf-8",
+    )
+    (bad_archive_dir / "finalization.json").write_text(
+        (
+            '{"schema_version":2,"change_id":"CHG-0001-test",'
+            f'"implementation_commit":"{product}",'
+            f'"implementation_tree":"{metadata_tree}"}}\n'
+        ),
+        encoding="utf-8",
+    )
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "bad archive metadata")
+    bad_archive = git(repository, "rev-parse", "HEAD")
+    assert not module.metadata_only_edge(repository, metadata, bad_archive)
+    git(repository, "switch", "main")
     with contextlib.redirect_stdout(io.StringIO()):
         module.check_metadata_edge_cli(repository, product, metadata)
 
@@ -73,7 +123,7 @@ with tempfile.TemporaryDirectory() as temporary:
     git(repository, "merge", "--no-ff", "side", "-m", "merge side")
     merge = git(repository, "rev-parse", "HEAD")
     merge_chain = module.first_parent_chain(repository, merge, 10)
-    assert merge_chain[:2] == [merge, metadata]
+    assert merge_chain[:2] == [merge, archive]
     assert second_parent not in merge_chain
 
     git(repository, "switch", "-c", "evil-review", product)
@@ -130,6 +180,15 @@ with tempfile.TemporaryDirectory() as temporary:
         "repository": {"full_name": "CorvidLabs/spec-sync"},
         "pull_requests": [{"number": 42}],
     }
+    job = {
+        "id": 10,
+        "run_id": 9001,
+        "head_sha": product,
+        "name": "trust",
+        "status": "completed",
+        "conclusion": "success",
+        "check_run_url": "https://api.github.com/repos/CorvidLabs/spec-sync/check-runs/20",
+    }
     metadata_check = {
         **check,
         "id": 21,
@@ -158,6 +217,7 @@ with tempfile.TemporaryDirectory() as temporary:
         checks_endpoint: {"total_count": 1, "check_runs": [check]},
         "repos/CorvidLabs/spec-sync/actions/runs/9001": run,
         "repos/CorvidLabs/spec-sync/actions/runs/9002": metadata_run,
+        "repos/CorvidLabs/spec-sync/actions/jobs/10": job,
     }
     environment = {
         "REPOSITORY": "CorvidLabs/spec-sync",
@@ -177,6 +237,7 @@ with tempfile.TemporaryDirectory() as temporary:
         *,
         metadata_edge: bool = True,
         max_ancestors: str = "3",
+        start_sha: str = metadata,
     ) -> tuple[int, str]:
         prior_environment = os.environ.copy()
         prior_api = module.api
@@ -185,6 +246,7 @@ with tempfile.TemporaryDirectory() as temporary:
         try:
             os.environ.update(environment)
             os.environ["MAX_ANCESTORS"] = max_ancestors
+            os.environ["START_SHA"] = start_sha
             def fixture_api(endpoint: str):
                 if endpoint in candidate_fixture:
                     return candidate_fixture[endpoint]
@@ -194,9 +256,9 @@ with tempfile.TemporaryDirectory() as temporary:
 
             module.api = fixture_api
             module.metadata_only_edge = (
-                lambda _root, parent, child: metadata_edge
-                and parent == product
-                and child == metadata
+                prior_edge
+                if metadata_edge
+                else lambda _root, _parent, _child: False
             )
             with contextlib.redirect_stdout(output):
                 try:
@@ -211,6 +273,10 @@ with tempfile.TemporaryDirectory() as temporary:
             module.metadata_only_edge = prior_edge
 
     status, output = run_case(fixture)
+    assert status == 0
+    assert f"ancestor {product}" in output
+
+    status, output = run_case(fixture, start_sha=archive)
     assert status == 0
     assert f"ancestor {product}" in output
 
@@ -267,6 +333,19 @@ with tempfile.TemporaryDirectory() as temporary:
         "details_url"
     ] = "https://attacker.invalid/actions/runs/9001/job/10"
     mutations.append(wrong_details)
+    run_level_details = copy.deepcopy(fixture)
+    run_level_details[checks_endpoint]["check_runs"][0][
+        "details_url"
+    ] = "https://github.com/CorvidLabs/spec-sync/actions/runs/9001"
+    mutations.append(run_level_details)
+    wrong_job_name = copy.deepcopy(fixture)
+    wrong_job_name["repos/CorvidLabs/spec-sync/actions/jobs/10"]["name"] = "other"
+    mutations.append(wrong_job_name)
+    wrong_job_check = copy.deepcopy(fixture)
+    wrong_job_check["repos/CorvidLabs/spec-sync/actions/jobs/10"][
+        "check_run_url"
+    ] = "https://api.github.com/repos/CorvidLabs/spec-sync/check-runs/999"
+    mutations.append(wrong_job_check)
     unsuccessful = copy.deepcopy(fixture)
     unsuccessful[checks_endpoint]["check_runs"][0]["conclusion"] = "cancelled"
     mutations.append(unsuccessful)

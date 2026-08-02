@@ -124,7 +124,7 @@ with tempfile.TemporaryDirectory() as temporary:
     )
     rejected = run_verifier(repository, base, head, wrong_workflow_details)
     assert rejected.returncode != 0
-    assert "names a different workflow run" in rejected.stderr
+    assert "missing or ambiguous" in rejected.stderr
 
     (repository / "README.md").write_text("archive child\n", encoding="utf-8")
     git(repository, "add", ".")
@@ -199,14 +199,11 @@ with tempfile.TemporaryDirectory() as temporary:
     assert rejected.returncode != 0
     assert "workflow run is not successful" in rejected.stderr
 
-    ambiguous_runs = copy.deepcopy(fixture)
-    ambiguous_runs[runs_endpoint] = {
-        "total_count": 2,
-        "workflow_runs": [run, {**run, "id": 9002}],
-    }
-    rejected = run_verifier(repository, base, head, ambiguous_runs)
+    malformed_selected_run = copy.deepcopy(fixture)
+    malformed_selected_run[runs_endpoint]["workflow_runs"][0]["id"] = 0
+    rejected = run_verifier(repository, base, head, malformed_selected_run)
     assert rejected.returncode != 0
-    assert "missing or ambiguous" in rejected.stderr
+    assert "valid GitHub identity" in rejected.stderr
 
     incomplete_lookup = copy.deepcopy(fixture)
     incomplete_lookup[runs_endpoint]["total_count"] = 2
@@ -222,10 +219,24 @@ with tempfile.TemporaryDirectory() as temporary:
             **check,
             "id": 21,
             "conclusion": "failure",
+            "details_url": "https://github.com/CorvidLabs/spec-sync/actions/runs/9002",
         }
     )
+    stale_success[runs_endpoint] = {
+        "total_count": 2,
+        "workflow_runs": [run, {**run, "id": 9002, "conclusion": "failure"}],
+    }
     passed = run_verifier(repository, base, head, stale_success)
     assert passed.returncode == 0, passed.stderr
+
+    ambiguous_successes = copy.deepcopy(fixture)
+    ambiguous_successes[runs_endpoint] = {
+        "total_count": 2,
+        "workflow_runs": [run, {**run, "id": 9002}],
+    }
+    rejected = run_verifier(repository, base, head, ambiguous_successes)
+    assert rejected.returncode != 0
+    assert "missing or ambiguous" in rejected.stderr
 
     unsuccessful_only = copy.deepcopy(fixture)
     unsuccessful_only[

@@ -1,6 +1,6 @@
 ---
 module: github
-version: 19
+version: 20
 status: stable
 files:
   - src/github.rs
@@ -86,10 +86,12 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
     packaged artifact remains bound to that unchanged candidate.
 15. Review/archive metadata descendants may reuse required CI only from one nearest successful
     first-parent product ancestor. The current child must pass the lifecycle classifier and every
-    skipped child must be an exact historical scoped-review pair; every reused check remains
-    exact-SHA, same-PR, expected-workflow, and official-Actions bound. Lookup stops at that first
-    product boundary even when its evidence is missing or unsuccessful. The helper and its focused
-    test may change only with the separately protected CI workflow.
+    skipped child must be either an exact historical scoped-review pair or an authenticated
+    workflow-v2 archive move whose finalization binds its exact parent commit and tree. Every reused
+    job check remains exact-SHA, same-PR, expected-workflow, official-Actions, exact-job, and
+    selected-check bound. Lookup stops at that first product boundary even when its evidence is
+    missing or unsuccessful. The helper and its focused test may change only with the separately
+    protected CI workflow.
 
 ## Behavioral Examples
 
@@ -217,3 +219,4 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-08-01 | CHG-0075-bind-release-candidate-validation-and-final-publication-to-one-immutable-candida: Bind release-candidate validation and final publication to one immutable candidate SHA across Ubuntu macOS and Windows |
 | 2026-08-02 | CHG-0077: Reuse authenticated product-tip CI across bounded metadata-only descendants and prevent cancelled republications from poisoning an earlier exact-SHA success |
 | 2026-08-02 | CHG-0077-reuse-successful-exact-pr-ci-provenance-across-metadata-only-descendants-and-pre: Reuse successful exact-PR CI provenance across metadata-only descendants and prevent later cancelled or failed republishing from poisoning an earlier successful exact-SHA result |
+| 2026-08-02 | CHG-0077 review hardening: Traverse parent-bound workflow-v2 archives, bind reusable job checks to exact jobs, and ignore unsuccessful policy republications without rejecting GitHub-rewritten check URLs |

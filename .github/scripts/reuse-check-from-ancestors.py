@@ -3,13 +3,13 @@
 
 Used by review_only / archive_only tips so agents need not push and wait on
 every intermediate metadata tip. Starting at HEAD^, it skips only exact
-scoped-review metadata pairs, then accepts evidence only at the first product
-boundary when the check is:
+scoped-review pairs or parent-bound workflow-v2 archive moves, then accepts
+evidence only at the first product boundary when the check is:
 
 - named exactly CHECK_NAME
 - completed/success
 - authored by the official GitHub Actions app
-- bound to a successful (when required) pull_request workflow run on this PR
+- bound to its exact successful job in a qualifying pull_request workflow run
 - head_sha equal to the ancestor under consideration
 
 Environment:
@@ -86,13 +86,9 @@ def first_parent_chain(root: Path, start: str, limit: int) -> list[str]:
     return chain
 
 
-def metadata_only_edge(root: Path, parent: str, child: str) -> bool:
-    """Return whether parent..child is exactly one scoped-review metadata update.
-
-    The current review/archive child is classified by classify-ci-paths.sh before
-    this helper runs. Only earlier review children need to be crossed here; use
-    the historical diff itself so classification does not depend on checkout HEAD.
-    """
+def diff_records(
+    root: Path, parent: str, child: str
+) -> list[tuple[str, tuple[str, ...]]] | None:
     try:
         name_status = subprocess.check_output(
             ["git", "diff", "--name-status", "-z", "-M", parent, child],
@@ -105,20 +101,37 @@ def metadata_only_edge(root: Path, parent: str, child: str) -> bool:
     try:
         fields = name_status.decode("utf-8").split("\0")
     except UnicodeDecodeError:
-        return False
-    if fields and fields[-1] == "":
-        fields.pop()
-    if len(fields) != 4:
-        return False
-    records = [(fields[0], fields[1]), (fields[2], fields[3])]
-    if any(status not in {"A", "M"} for status, _path in records):
+        return None
+    if not fields or fields[-1] != "":
+        return None
+    fields.pop()
+    records: list[tuple[str, tuple[str, ...]]] = []
+    index = 0
+    while index < len(fields):
+        status = fields[index]
+        index += 1
+        path_count = 2 if status.startswith(("R", "C")) else 1
+        if not status or index + path_count > len(fields):
+            return None
+        paths = tuple(fields[index : index + path_count])
+        if any(not path for path in paths):
+            return None
+        records.append((status, paths))
+        index += path_count
+    return records
+
+
+def review_metadata_only_edge(records: list[tuple[str, tuple[str, ...]]]) -> bool:
+    if len(records) != 2 or any(
+        status not in {"A", "M"} or len(paths) != 1 for status, paths in records
+    ):
         return False
 
     pattern = re.compile(
         r"^\.specsync/changes/(CHG-[0-9]{4,}-.+)/"
         r"(review(?:-attempts)?\.json)$"
     )
-    matched = [pattern.fullmatch(path) for _status, path in records]
+    matched = [pattern.fullmatch(paths[0]) for _status, paths in records]
     if any(match is None for match in matched):
         return False
     change_ids = {match.group(1) for match in matched if match is not None}
@@ -126,12 +139,123 @@ def metadata_only_edge(root: Path, parent: str, child: str) -> bool:
     return len(change_ids) == 1 and names == {"review.json", "review-attempts.json"}
 
 
+def git_object_exists(root: Path, revision: str, path: str) -> bool:
+    return subprocess.run(
+        ["git", "cat-file", "-e", f"{revision}:{path}"],
+        cwd=root,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    ).returncode == 0
+
+
+def archive_metadata_only_edge(
+    root: Path,
+    parent: str,
+    child: str,
+    records: list[tuple[str, tuple[str, ...]]],
+) -> bool:
+    active_pattern = re.compile(
+        r"^\.specsync/changes/(?P<change>CHG-[0-9]{4,}-.+)/(?P<relative>.+)$"
+    )
+    archive_pattern = re.compile(
+        r"^\.specsync/archive/changes/"
+        r"(?P<dated>[0-9]{4}-[0-9]{2}-[0-9]{2}-(?P<change>CHG-[0-9]{4,}-.+?))/"
+        r"(?P<relative>.+)$"
+    )
+    change_id: str | None = None
+    archive_dir: str | None = None
+    active_seen = False
+    archive_seen = False
+
+    def bind(match: re.Match[str] | None, *, archive: bool) -> bool:
+        nonlocal change_id, archive_dir, active_seen, archive_seen
+        if match is None:
+            return False
+        candidate_id = match.group("change")
+        candidate_dir = match.groupdict().get("dated")
+        if change_id is not None and candidate_id != change_id:
+            return False
+        if archive and archive_dir is not None and candidate_dir != archive_dir:
+            return False
+        change_id = candidate_id
+        if archive:
+            archive_dir = candidate_dir
+            archive_seen = True
+        else:
+            active_seen = True
+        return True
+
+    for status, paths in records:
+        kind = status[:1]
+        if kind == "R" and len(paths) == 2:
+            active = active_pattern.fullmatch(paths[0])
+            archive = archive_pattern.fullmatch(paths[1])
+            if (
+                not bind(active, archive=False)
+                or not bind(archive, archive=True)
+                or active is None
+                or archive is None
+                or active.group("relative") != archive.group("relative")
+            ):
+                return False
+        elif kind == "D" and len(paths) == 1:
+            if not bind(active_pattern.fullmatch(paths[0]), archive=False):
+                return False
+        elif kind == "A" and len(paths) == 1:
+            if not bind(archive_pattern.fullmatch(paths[0]), archive=True):
+                return False
+        else:
+            return False
+
+    if not active_seen or not archive_seen or change_id is None or archive_dir is None:
+        return False
+    active_root = f".specsync/changes/{change_id}"
+    archive_root = f".specsync/archive/changes/{archive_dir}"
+    if (
+        not git_object_exists(root, parent, active_root)
+        or git_object_exists(root, parent, archive_root)
+        or git_object_exists(root, child, active_root)
+        or not git_object_exists(root, child, archive_root)
+    ):
+        return False
+    try:
+        state = json.loads(git(root, "show", f"{child}:{archive_root}/state.json"))
+        finalization = json.loads(
+            git(root, "show", f"{child}:{archive_root}/finalization.json")
+        )
+        parent_tree = git(root, "rev-parse", f"{parent}^{{tree}}")
+    except (json.JSONDecodeError, subprocess.CalledProcessError):
+        return False
+    return (
+        isinstance(state, dict)
+        and state.get("workflow_version") == 2
+        and state.get("id") == change_id
+        and state.get("state") == "archived"
+        and isinstance(finalization, dict)
+        and finalization.get("schema_version") == 2
+        and finalization.get("change_id") == change_id
+        and finalization.get("implementation_commit") == parent
+        and finalization.get("implementation_tree") == parent_tree
+    )
+
+
+def metadata_only_edge(root: Path, parent: str, child: str) -> bool:
+    """Authenticate one historical review-only or workflow-v2 archive-only edge."""
+    records = diff_records(root, parent, child)
+    if records is None:
+        return False
+    return review_metadata_only_edge(records) or archive_metadata_only_edge(
+        root, parent, child, records
+    )
+
+
 def metadata_parent(root: Path, child: str) -> str | None:
     parents = commit_parents(root, child)
     if not parents or not metadata_only_edge(root, parents[0], child):
         return None
     if len(parents) != 1:
-        raise ValueError("scoped-review metadata child is a merge commit")
+        raise ValueError("lifecycle metadata child is a merge commit")
     return parents[0]
 
 
@@ -141,8 +265,8 @@ def check_metadata_edge_cli(root: Path, parent: str, child: str) -> None:
     except ValueError as error:
         raise SystemExit(str(error)) from error
     if resolved_parent != parent:
-        raise SystemExit(f"{child} is not an exact scoped-review metadata child")
-    print(f"Verified scoped-review metadata edge {parent}..{child}.")
+        raise SystemExit(f"{child} is not an exact lifecycle metadata child")
+    print(f"Verified lifecycle metadata edge {parent}..{child}.")
 
 
 def positive_bounded_limit(raw: str) -> int:
@@ -202,7 +326,7 @@ def main() -> None:
             errors.append(f"stopped at {ancestor}: {error}")
             break
         if parent is not None:
-            errors.append(f"skipped scoped-review metadata child {ancestor}")
+            errors.append(f"skipped lifecycle metadata child {ancestor}")
             if index + 1 == len(chain) or chain[index + 1] != parent:
                 errors.append("ancestor search limit exhausted before the product boundary")
                 break
@@ -248,16 +372,25 @@ def main() -> None:
                     or app.get("slug") != github_actions_app.get("slug")
                 ):
                     raise ValueError("check is not from GitHub Actions")
+                check_id = check.get("id")
+                if (
+                    not isinstance(check_id, int)
+                    or isinstance(check_id, bool)
+                    or check_id <= 0
+                ):
+                    raise ValueError("check has no valid GitHub identity")
                 details_url = str(check.get("details_url") or "")
-                # trust jobs use .../runs/ID/job/JOB; policy uses .../runs/ID
                 match = re.fullmatch(
                     rf"{re.escape(server_url)}/{re.escape(repository)}"
-                    r"/actions/runs/([0-9]+)(?:/job/[0-9]+)?",
+                    r"/actions/runs/([0-9]+)/job/([0-9]+)",
                     details_url,
                 )
                 if match is None:
-                    raise ValueError("invalid GitHub Actions details URL")
+                    raise ValueError("check does not name an exact GitHub Actions job")
                 run_id = int(match.group(1))
+                job_id = int(match.group(2))
+                if run_id <= 0 or job_id <= 0:
+                    raise ValueError("check has no valid workflow run or job identity")
                 workflow_run = api(f"repos/{repository}/actions/runs/{run_id}")
                 if not isinstance(workflow_run, dict):
                     raise ValueError("malformed workflow run")
@@ -286,6 +419,24 @@ def main() -> None:
                     raise ValueError("workflow run has malformed pull-request bindings")
                 if not any(item.get("number") == pull_request for item in pull_requests):
                     raise ValueError("workflow run is not bound to this PR")
+                job = api(f"repos/{repository}/actions/jobs/{job_id}")
+                if not isinstance(job, dict) or job.get("id") != job_id:
+                    raise ValueError("malformed workflow job")
+                if job.get("run_id") != run_id or job.get("head_sha") != ancestor:
+                    raise ValueError("workflow job has the wrong run or head SHA")
+                if job.get("name") != check_name:
+                    raise ValueError("workflow job has the wrong name")
+                if job.get("status") != "completed" or job.get("conclusion") != "success":
+                    raise ValueError("workflow job is not successful")
+                api_base = (
+                    "https://api.github.com"
+                    if server_url == "https://github.com"
+                    else f"{server_url}/api/v3"
+                )
+                if job.get("check_run_url") != (
+                    f"{api_base}/repos/{repository}/check-runs/{check_id}"
+                ):
+                    raise ValueError("workflow job is not bound to the selected check")
                 if os.environ.get("OUTPUT_FORMAT", "human") == "env":
                     print(f"ancestor_sha={ancestor}")
                     print(f"workflow_run_id={run_id}")

@@ -219,28 +219,18 @@ Acceptance Criteria
 
 ### REQ-github-008
 
-Review-only and archive-only descendants SHALL reuse successful CI provenance from the nearest
-eligible first-parent product ancestor without allowing later unsuccessful republication or unrelated
-GitHub evidence to authorize the change.
+SpecSync SHALL be the single authority on lifecycle coherence in hosted verification. CI SHALL prove
+lifecycle correctness by invoking the product rather than by re-deriving lifecycle rules from Git
+commit topology, and SHALL NOT require a separate archive-tip commit before merge.
 
 Acceptance Criteria
 
-- Reuse walks at most 32 first parents. The current child must classify as exact review/archive
-  metadata, and traversal stops before any earlier child that is neither exactly one same-change
-  `review.json` plus `review-attempts.json` update nor a matching workflow-v2 archive move whose
-  finalization binds the exact parent commit and tree.
-- Metadata-child check republications are not treated as fresh product evidence, and a product
-  boundary with no eligible success cannot borrow an older product commit's checks.
-- The provenance helper and its focused test cannot change without also changing the separately
-  protected required-CI workflow.
-- Implementation-ready, scoped-review, and Trust evidence share one product ancestor; the two CI
-  checks share one workflow run.
-- Every reusable job check is successful, exact-SHA-bound, GitHub-Actions-authored, bound to the same
-  pull request and repository, produced by the expected workflow, and linked to its exact successful
-  workflow job and selected check identity.
-- A newer cancelled or failed trusted-policy publication does not override an earlier authenticated
-  success for the same exact SHA, including a failed rerun of the same workflow run; the successful
-  publication remains bound to its immutable run attempt even when GitHub rewrites its display URL.
-- Missing, foreign, stale, wrong-workflow, second-parent, malformed, unsuccessful-only, over-limit,
-  or ambiguous evidence fails closed.
-- Eligible metadata descendants do not rerun the full product matrix.
+- The pull-request CI workflow runs `specsync change audit --strict` and fails closed on its result.
+- No workflow or script in `.github/` reimplements archive introduction, archive integrity,
+  post-merge archive binding, or metadata-descendant provenance.
+- A green implementation pull request is mergeable without pushing an additional archive-move commit;
+  the required aggregate gate does not fail a passing implementation to demand one.
+- Lifecycle rules that CI no longer checks are either proven by `specsync change audit --strict` and
+  the Rust suite over `src/change.rs`, or recorded as deliberately dropped.
+- Protected-path authorization is enforced by CODEOWNERS and branch protection rather than by a
+  repository-specific policy script that has no passing path for any pull request touching it.

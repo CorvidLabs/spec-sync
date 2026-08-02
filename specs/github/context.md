@@ -119,8 +119,8 @@ spec: github.spec.md
 - `.github/workflows/release.yml` and `.github/scripts/validate-release-candidate.py` - Resolve an
   annotated RC marker, qualify its exact SHA through one Fledge lane on three platforms, and refuse
   final tagging/publication when evidence identities diverge
-- `.github/scripts/reuse-check-from-ancestors.py` - Authenticate bounded first-parent CI reuse while
-  refusing to cross non-lifecycle metadata edges
+- `specsync change audit --strict` in CI - SpecSync is the single authority on lifecycle coherence.
+  CI does not reimplement lifecycle rules against commit topology
 
 ## Current Status
 

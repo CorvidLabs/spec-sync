@@ -1,6 +1,6 @@
 ---
 module: github
-version: 14
+version: 15
 status: stable
 files:
   - src/github.rs
@@ -73,6 +73,9 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 12. Archive introduction verification checks every bounded path-touching commit and readable parent
     against the exact introduction tree, rejecting deletion or rewrite even when final bytes are
     restored.
+13. Hosted verification assigns expensive signals to one authority: CI owns the product suite,
+    while Trust binds the release binary to the strict contract, risk decision, and provenance
+    without invoking the full local verification lane a second time.
 
 ## Behavioral Examples
 
@@ -105,6 +108,13 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 - **Given** an implementation parent has green required CI and scoped review
 - **When** its only child moves the matching active package into the dated archive with valid finalization evidence
 - **Then** required CI runs the lightweight archive-integrity lane without repeating product tests or scoped review
+
+### Scenario: Trust validates identity without repeating CI tests
+
+- **Given** GitHub CI owns formatting, linting, product tests, strict spec coverage, and audit
+- **When** the Trust lifecycle runs for the same product tip
+- **Then** it checks the release binary, contract, risk, and provenance without re-running the full
+  local `verify` lane or `cargo test`
 
 ## Error Cases
 
@@ -170,3 +180,4 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-07-30 | CHG-0068 adversarial hardening: Protect root Action manifests from optimized trust reuse |
 | 2026-07-30 | CHG-0068 adversarial hardening: Preserve NUL filename boundaries in trusted-policy matching |
 | 2026-07-30 | CHG-0068 review hardening: Reject archive rewrite-then-restore history |
+| 2026-08-01 | CHG-0074-simplify-specsync-ci-to-one-expensive-suite-authority-with-residual-trust-identi: Simplify SpecSync CI to one expensive-suite authority with residual Trust identity gates, preserving full local verification and documenting the 95% confidence model |

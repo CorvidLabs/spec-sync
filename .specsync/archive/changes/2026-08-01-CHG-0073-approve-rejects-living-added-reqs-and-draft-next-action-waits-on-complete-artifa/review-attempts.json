@@ -32,6 +32,38 @@
       "execution_digest": "ccf5fb9a066c478344c84bf1fa3f1e7e2087882a89f820ea41b55b881d6d4b10",
       "workspace_digest": "c7c77d0ee4f3cee9a55824be8bcc28d525d064ba7a5da0726607ba92bf622283",
       "timestamp": 1785603972
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0073-approve-rejects-living-added-reqs-and-draft-next-action-waits-on-complete-artifa",
+      "reviewer": "Ohm",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "6a0956fbe53669aa9a7bc564fd472e0952a70f2a",
+      "contract_digest": "83601613808f75a7ca0550a4f9566c835b943bebd7a61b53587b77eaefa11f53",
+      "execution_digest": "43ac93c221045e4fd2b7571d5bac1b05715a66c54a6d4d53997cc911a9e1f057",
+      "workspace_digest": "5b2ee5cca0f72cbd13dcc5ae664cd04099a5ea6f508ef9021269e252af971dac",
+      "timestamp": 1785621014
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0073-approve-rejects-living-added-reqs-and-draft-next-action-waits-on-complete-artifa",
+      "reviewer": "Ohm",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "5a2547ec2f8fc516c2dc28bc04f84346dec62971",
+      "contract_digest": "83601613808f75a7ca0550a4f9566c835b943bebd7a61b53587b77eaefa11f53",
+      "execution_digest": "43ac93c221045e4fd2b7571d5bac1b05715a66c54a6d4d53997cc911a9e1f057",
+      "workspace_digest": "5b2ee5cca0f72cbd13dcc5ae664cd04099a5ea6f508ef9021269e252af971dac",
+      "timestamp": 1785627934
     }
   ]
 }

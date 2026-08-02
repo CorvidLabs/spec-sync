@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "OXLEIF",
+      "timestamp": 1785629458,
+      "digest": "d04eae7428183bd15a88f020db6988499dcff74e388c8b90499a64911c2039b4",
+      "note": "User approved digest d04eae7428183bd15a88f020db6988499dcff74e388c8b90499a64911c2039b4.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0076-accept-github-s-rewritten-trusted-policy-check-url-while-preserving-exact-base-c",
+        "title": "Accept GitHub's rewritten trusted-policy check URL while preserving exact base-controlled workflow provenance",
+        "description": "Accept GitHub's rewritten trusted-policy check URL while preserving exact base-controlled workflow provenance",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-verify-trusted-policy-check.py",
+          ".github/scripts/verify-trusted-policy-check.py",
+          ".specsync/change-sequence.json"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "This corrects the protected verifier to satisfy the existing trusted-policy contract; it does not change the public CI policy or lifecycle workflow.",
+        "acceptance_criteria": [
+          "The verifier accepts the successful official GitHub Actions trusted-policy check even when GitHub rewrites its details URL, independently authenticates one successful base-controlled pull_request_target workflow run by exact candidate SHA, repository, workflow path, trusted revision, and PR number, and rejects mismatched app, event, path, repository, candidate, revision, PR, unsuccessful, missing, or ambiguous provenance. Focused fixtures reproduce the rewritten URL and moved-PR-tip behavior."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1785631576,
+      "digest": "f552df6e86b7937519a4b6fcf62dd3195ab98a2e46c03b84cada42dff004b10b",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1785630740,
+      "commit": "a8d97e11f9dd482486b49644ea2a0eb872ce7d55",
+      "contract_digest": "d04eae7428183bd15a88f020db6988499dcff74e388c8b90499a64911c2039b4",
+      "execution_digest": "3734bcf0e99063638f67ecc277f781fd0cfab9b0d72bcbc7437e29349d187985",
+      "workspace_digest": "956869a596bd1d0ed4f946d817e5b859462c667ded252ca635789c89f9a63616",
+      "passed": false,
+      "commands": [
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1785631277,
+      "commit": "a8d97e11f9dd482486b49644ea2a0eb872ce7d55",
+      "contract_digest": "d04eae7428183bd15a88f020db6988499dcff74e388c8b90499a64911c2039b4",
+      "execution_digest": "3734bcf0e99063638f67ecc277f781fd0cfab9b0d72bcbc7437e29349d187985",
+      "workspace_digest": "956869a596bd1d0ed4f946d817e5b859462c667ded252ca635789c89f9a63616",
+      "passed": true,
+      "commands": [
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1785631277,
+      "commit": "d1bd5f38d4f59d4266fc6f9a845f4269c2ee9ad1",
+      "contract_digest": "d04eae7428183bd15a88f020db6988499dcff74e388c8b90499a64911c2039b4",
+      "execution_digest": "3734bcf0e99063638f67ecc277f781fd0cfab9b0d72bcbc7437e29349d187985",
+      "workspace_digest": "956869a596bd1d0ed4f946d817e5b859462c667ded252ca635789c89f9a63616",
+      "acceptance_input_digest": "d2cae3f508d375acc87658c1cf50c844c78f83c942295010502e19be47288d3c",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".github/scripts/test-verify-trusted-policy-check.py",
+            "kind": "file",
+            "mode": 33261,
+            "payload_digest": "7cb28d1222ea847aea69efbc83a6751d4b27ee1168174980c8460966627233c8",
+            "entry_digest": "d7d5895702e9def5a3f7ae64839401e0ba0fe4f4fba91684d4ff68bc878634df",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".github/scripts/verify-trusted-policy-check.py",
+            "kind": "file",
+            "mode": 33261,
+            "payload_digest": "927392607a75adf6f3ae38a4dc92ce967504d7c00d093d41883fb6f3750b7521",
+            "entry_digest": "db157d1da8f175999e089b7a8ec5668198a4137c1e047ebad4208bb2bbb68ee4",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".specsync/change-sequence.json",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5c21287e721415b0808da1dbc6f303f9473c9c6568dca8d2fc43c673aeac7b7d",
+            "entry_digest": "12072000ec09137383d371c8daa839429cfc2cbc76142210b51cfac25233728f",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/github/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6ba9554c4ce312a2b88c35a3bc23301194f8eb686ca0bcdf9152bf1305288db8",
+            "entry_digest": "4c0783a7143da27d553af371a5d1065595b938c48459531c1e200310b9d8d990",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/github.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "156646b4097a2969f20c73b9033060638a9216f28730524d3884cae0f7e5da0d",
+            "entry_digest": "d99a44b4b34d82a13fa084fa4f47faab0231891c8e7aba83f954cd4f34a26655",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a26c7a57105f06078d4d3deccfb9987aa891cbec037a5d2fa65d78d5af292715",
+            "entry_digest": "a9968738d1ac7275f47bf42df8c4cbd925ec5340edc381a9c642926ba26721b4",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ae07e58f99686f2e63b8eb6c806b15aa807a140bce70f2bc12506530662e4987",
+            "entry_digest": "5280b1ac3a230da44e711ce32ec17f1b5d1f4a57399cb158bfa734dd61a1c2ea",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dfe4c9957cf27e66e6bf361c62b8ea066a14b7aff97ea066e7350a2c4758c3ea",
+            "entry_digest": "0d827370a16f27aef25e7988369d6bcbff5798ea9054b14824c74c30221ed2a9",
+            "owners": [
+              "github"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

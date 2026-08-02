@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 73,
-  "id": "CHG-0073-approve-rejects-living-added-reqs-and-draft-next-action-waits-on-complete-artifa",
+  "sequence": 76,
+  "id": "CHG-0076-accept-github-s-rewritten-trusted-policy-check-url-while-preserving-exact-base-c",
   "acknowledged_collisions": [
     {
       "sequence": 16,

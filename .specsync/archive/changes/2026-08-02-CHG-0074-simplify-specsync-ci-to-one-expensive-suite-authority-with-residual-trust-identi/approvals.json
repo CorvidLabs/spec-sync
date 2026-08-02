@@ -1,0 +1,49 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "OXLEIF",
+      "timestamp": 1785608878,
+      "digest": "3f6c3bc6aaf1bffef82fee470b3a88c57c9127422f5a407fe1bbef0e40d4db81",
+      "note": "Approved digest 3f6c3bc6aaf1bffef82fee470b3a88c57c9127422f5a407fe1bbef0e40d4db81",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0074-simplify-specsync-ci-to-one-expensive-suite-authority-with-residual-trust-identi",
+        "title": "Simplify SpecSync CI to one expensive-suite authority with residual Trust identity gates, preserving full local verification and documenting the 95% confidence model",
+        "description": "Simplify SpecSync CI to one expensive-suite authority with residual Trust identity gates, preserving full local verification and documenting the 95% confidence model",
+        "kind": "operations",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          ".trust.toml",
+          "AGENTS.md",
+          "CONTRIBUTING.md",
+          "docs/ci-confidence.md",
+          "fledge.toml",
+          "specs/github/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Trust lifecycle no longer invokes the full verify lane or cargo test; fledge keeps a full local verify lane and adds a fast trust-lifecycle lane; docs assign each confidence signal to one authority, describe the current protected-workflow boundary and Tier B multi-OS plan, and quantify expected Trust/product-tip wall-clock improvement; fledge lanes run trust-lifecycle and strict spec validation pass; this PR contains no protected workflow files or unrelated ship-status/#486 history."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1785628845,
+      "digest": "02bf8a658d2198179ba2c2ebf50cd386e912ffbdd856136cef96e0f6014d334a",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

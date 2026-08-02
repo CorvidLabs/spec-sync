@@ -1,6 +1,6 @@
 ---
 id: CHG-0073-approve-rejects-living-added-reqs-and-draft-next-action-waits-on-complete-artifa
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 109164ad9faccb598ae7e8caf7a2d488722cc237
 ---

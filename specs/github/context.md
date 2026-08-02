@@ -100,6 +100,9 @@ spec: github.spec.md
 - `.github/scripts/validate-release-version.py` - Current package, Action, docs, CI consumer, and
   Trust candidate version consistency
 - `.github/scripts/validate-workflow-runtime-pins.py` - Exact hosted Bun runtime enforcement
+- `fledge.toml` and `.trust.toml` - Keep full local verification separate from hosted Trust's
+  residual lifecycle prerequisite
+- `docs/ci-confidence.md` - CI/Trust ownership, confidence tiers, and protected Tier B follow-up
 
 ## Current Status
 

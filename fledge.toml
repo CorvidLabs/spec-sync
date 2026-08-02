@@ -66,14 +66,22 @@ steps = [{ parallel = ["fmt", "lint"] }, "check-types"]
 description = "MANDATORY before every git push — fast: fmt + types + path/spec coverage"
 steps = ["pre-push"]
 
+# Full local confidence. GitHub CI owns the multi-OS suite; do not point
+# .trust.toml lifecycle at this lane on CI (that was a duplicate suite).
 [lanes.verify]
-description = "Required Trust gate for the SpecSync repository (slower: + clippy + full test + release build)"
+description = "Full local verification (fmt/lint/types + test + release build + strict specs)"
 steps = [
   { parallel = ["fmt", "lint", "check-types"] },
   "test",
   "build",
   "spec-check",
 ]
+
+# Used by .trust.toml [lifecycle] for the GitHub Trust action only.
+# CI already ran tests/clippy/spec-check; Trust must not re-run them.
+[lanes.trust-lifecycle]
+description = "Trust GitHub lifecycle — no duplicate cargo test (CI is authority)"
+steps = ["check-types"]
 
 [lanes.repo]
 description = "Full repository validation, including docs and editor extension"

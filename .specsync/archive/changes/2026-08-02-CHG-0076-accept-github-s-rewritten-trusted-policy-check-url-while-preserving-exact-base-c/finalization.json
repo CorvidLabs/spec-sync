@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0076-accept-github-s-rewritten-trusted-policy-check-url-while-preserving-exact-base-c",
+  "implementation_commit": "d1bd5f38d4f59d4266fc6f9a845f4269c2ee9ad1",
+  "implementation_tree": "bb7fe0a42e2708b1d0a0b41877d4b96249a78d65",
+  "contract_digest": "d04eae7428183bd15a88f020db6988499dcff74e388c8b90499a64911c2039b4",
+  "workspace_digest": "956869a596bd1d0ed4f946d817e5b859462c667ded252ca635789c89f9a63616",
+  "closing_digest": "f552df6e86b7937519a4b6fcf62dd3195ab98a2e46c03b84cada42dff004b10b",
+  "review_digest": "e521da95ffe61b021e5ae712bc04a02a7d153409fced9ed52cfff40216245f8a",
+  "finalization_digest": "753cc117867fce0a299074e7a7c3802b304cfe7e0ffee092b07a5792304d7255",
+  "timestamp": 1785631576
+}

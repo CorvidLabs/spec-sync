@@ -59,8 +59,9 @@ reuse or fail, and checks republished on metadata children or older product comm
   amplification.
 - Recursive `git ls-tree` output omits directory objects even though Rust legitimately records a
   covered directory without a trailing slash as `non_file`. The matcher now requests tree objects
-  in the same bounded inventory, excludes them from ordinary file discovery, and authenticates an
-  explicit non-file entry as a tree with the signed zero mode and empty payload.
+  in the same bounded inventory, excludes them from ordinary file discovery, expands the directory
+  scope to every tracked descendant, and authenticates the explicit non-file entry as a tree with
+  the signed zero mode and empty payload. Existing tree objects cannot be represented as `missing`.
 - Sequence-ledger reconstruction used a hard-coded 256-commit ceiling while Rust accepts the
   committed `scoped_review_max_descendants` limit (currently 1000). The helper now reads that
   canonical value, validates it as a non-boolean integer in `1..=1000`, requests one overflow

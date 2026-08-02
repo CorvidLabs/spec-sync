@@ -171,10 +171,37 @@ with tempfile.TemporaryDirectory() as temporary:
     non_file_entry["entry_digest"] = module.acceptance_entry_digest(
         non_file_entry
     )
+    descendant_entry = {
+        "path": "commands/hello.txt",
+        "kind": "file",
+        "mode": 0o100644,
+        "payload_digest": __import__("hashlib").sha256(b"hello\n").hexdigest(),
+        "entry_digest": "",
+        "owners": ["@exact:delivery"],
+    }
+    descendant_entry["entry_digest"] = module.acceptance_entry_digest(
+        descendant_entry
+    )
     acceptance_manifest = {
         "schema_version": 1,
-        "entries": [acceptance_entry, non_file_entry],
+        "entries": [acceptance_entry, non_file_entry, descendant_entry],
     }
+    omitted_descendant = copy.deepcopy(acceptance_manifest)
+    omitted_descendant["entries"].pop()
+    assert module.acceptance_manifest_digest(omitted_descendant) is not None
+    assert not module.acceptance_manifest_matches_commit(
+        repository, metadata, omitted_descendant, state
+    )
+    forged_missing_directory = copy.deepcopy(acceptance_manifest)
+    forged_directory_entry = forged_missing_directory["entries"][1]
+    forged_directory_entry["kind"] = "missing"
+    forged_directory_entry["entry_digest"] = module.acceptance_entry_digest(
+        forged_directory_entry
+    )
+    assert module.acceptance_manifest_digest(forged_missing_directory) is not None
+    assert not module.acceptance_manifest_matches_commit(
+        repository, metadata, forged_missing_directory, state
+    )
     archived_verification = {
         **verification,
         "commit": metadata,

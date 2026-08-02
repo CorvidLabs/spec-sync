@@ -414,6 +414,13 @@ def acceptance_manifest_matches_commit(
             )
         else:
             expected_paths.add(path)
+            if revision_objects.get(path, (None, None, None))[1] == "tree":
+                prefix = f"{path}/"
+                expected_paths.update(
+                    candidate
+                    for candidate in revision_tree
+                    if candidate.startswith(prefix)
+                )
     supersedes = state.get("supersedes", [])
     if not isinstance(supersedes, list):
         return False
@@ -425,7 +432,15 @@ def acceptance_manifest_matches_commit(
                 obligation.get("path"), str
             ):
                 return False
-            expected_paths.add(obligation["path"])
+            obligation_path = obligation["path"]
+            expected_paths.add(obligation_path)
+            if revision_objects.get(obligation_path, (None, None, None))[1] == "tree":
+                prefix = f"{obligation_path}/"
+                expected_paths.update(
+                    candidate
+                    for candidate in revision_tree
+                    if candidate.startswith(prefix)
+                )
 
     affected_specs = state.get("affected_specs", [])
     if not isinstance(affected_specs, list):
@@ -502,7 +517,7 @@ def acceptance_manifest_matches_commit(
         kind = entry["kind"]
         is_non_file = kind in {"non_file", "non-file"}
         if kind == "missing":
-            if path in revision_tree or entry["payload_digest"] != hashlib.sha256(
+            if path in revision_objects or entry["payload_digest"] != hashlib.sha256(
                 b""
             ).hexdigest():
                 return False

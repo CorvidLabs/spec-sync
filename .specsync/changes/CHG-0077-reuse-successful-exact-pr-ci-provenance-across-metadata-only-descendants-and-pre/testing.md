@@ -38,7 +38,8 @@ artifact: testing
 - Authenticate an older valid successful policy publication when a newer successful publication is
   malformed, and fail fast above eight candidates.
 - Accept an exact covered-directory `non_file` manifest entry while keeping directory objects out of
-  ordinary affected-file and archive-copy discovery.
+  ordinary affected-file and archive-copy discovery; require every tracked descendant and reject an
+  existing directory self-consistently re-signed as `missing`.
 - Reconstruct valid sequence evidence after 257 updates under the committed 1000-entry bound; reject
   one-entry overflow and missing, boolean, zero, or greater-than-1000 configured limits.
 

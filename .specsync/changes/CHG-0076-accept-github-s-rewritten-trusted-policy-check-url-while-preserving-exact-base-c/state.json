@@ -7,10 +7,11 @@
   "title": "Accept GitHub's rewritten trusted-policy check URL while preserving exact base-controlled workflow provenance",
   "description": "Accept GitHub's rewritten trusted-policy check URL while preserving exact base-controlled workflow provenance",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "implementing",
+  "canonical_applied": true,
   "base_commit": "505b01d9b919b0aa18516961e67c1a52ab88e815",
   "created_at": 1785629351,
-  "updated_at": 1785629458,
+  "updated_at": 1785629751,
   "affected_specs": [
     "github"
   ],

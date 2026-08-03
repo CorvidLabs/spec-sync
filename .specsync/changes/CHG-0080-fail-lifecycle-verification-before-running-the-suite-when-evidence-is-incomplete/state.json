@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0080-fail-lifecycle-verification-before-running-the-suite-when-evidence-is-incomplete",
+  "slug": "fail-lifecycle-verification-before-running-the-suite-when-evidence-is-incomplete",
+  "title": "Fail lifecycle verification before running the suite when evidence is incomplete, make already-applied ADDED deltas converge, and reject duplicate change ordinals from one base",
+  "description": "Fail lifecycle verification before running the suite when evidence is incomplete, make already-applied ADDED deltas converge, and reject duplicate change ordinals from one base",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "07a044a3e33987630ee8d53c000e71ca89074962",
+  "created_at": 1785711176,
+  "updated_at": 1785772569,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "specs/change",
+    ".specsync"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Verification refuses to start when acceptance or requirement evidence is incomplete, naming the change testing.md and its Requirement evidence table rather than verification.json; command failures name the failing command and exit code; an ADDED delta whose block is already present with byte-identical content converges instead of erroring, while present-but-different still errors and directs the author to MODIFIED; two distinct changes claiming the same CHG-NNNN ordinal from the same base commit are rejected at approve and in change audit, while differing or unknown base commits never raise a collision"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

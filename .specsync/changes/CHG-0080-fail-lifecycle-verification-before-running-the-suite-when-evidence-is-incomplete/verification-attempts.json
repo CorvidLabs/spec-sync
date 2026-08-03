@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1785717068,
+      "commit": "07a044a3e33987630ee8d53c000e71ca89074962",
+      "contract_digest": "91381dca6e8fac1294fbc737b0bed251def33fdee7623dcaf10f0193cfb2147b",
+      "execution_digest": "d673d5eff02d1ef608276c33dc885054c0f43c6cf5a95f5457959fb0d7dc6a2c",
+      "workspace_digest": "cff7bd1bbe80c7aa6ce8b51324249481298b39e14a472c71f0a80da176299243",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-049"
+      ]
+    },
+    {
+      "timestamp": 1785771233,
+      "commit": "3607d03027ddaeb6bbf12d4cf47b1b3d42cffca6",
+      "contract_digest": "91381dca6e8fac1294fbc737b0bed251def33fdee7623dcaf10f0193cfb2147b",
+      "execution_digest": "d673d5eff02d1ef608276c33dc885054c0f43c6cf5a95f5457959fb0d7dc6a2c",
+      "workspace_digest": "2134158f3a255093eca1ddec599b5635b976362d8ace6d0093e4a1d5f41fb88f",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-049"
+      ]
+    },
+    {
+      "timestamp": 1785771439,
+      "commit": "3607d03027ddaeb6bbf12d4cf47b1b3d42cffca6",
+      "contract_digest": "91381dca6e8fac1294fbc737b0bed251def33fdee7623dcaf10f0193cfb2147b",
+      "execution_digest": "d673d5eff02d1ef608276c33dc885054c0f43c6cf5a95f5457959fb0d7dc6a2c",
+      "workspace_digest": "cff7bd1bbe80c7aa6ce8b51324249481298b39e14a472c71f0a80da176299243",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-049"
+      ]
+    },
+    {
+      "timestamp": 1785772566,
+      "commit": "3607d03027ddaeb6bbf12d4cf47b1b3d42cffca6",
+      "contract_digest": "91381dca6e8fac1294fbc737b0bed251def33fdee7623dcaf10f0193cfb2147b",
+      "execution_digest": "d673d5eff02d1ef608276c33dc885054c0f43c6cf5a95f5457959fb0d7dc6a2c",
+      "workspace_digest": "cff7bd1bbe80c7aa6ce8b51324249481298b39e14a472c71f0a80da176299243",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-049"
+      ]
+    }
+  ]
+}

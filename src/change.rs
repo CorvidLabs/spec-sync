@@ -2362,6 +2362,16 @@ pub fn verify_change_with_strict(
         return Err(error);
     }
     let _lock = acquire_project_lock(root)?;
+    verify_change_locked(root, id, strict)
+}
+
+/// Verification body without lock acquisition.
+///
+/// The caller MUST already hold the project lock. Acceptance re-records evidence
+/// while holding its own lock, and `acquire_project_lock` is a non-reentrant
+/// `flock`, so calling the public entry point from there would block forever
+/// rather than fail.
+fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<VerificationRecord, String> {
     let mut record = load_change(root, id)?;
     require_state(
         &record,

@@ -1,6 +1,6 @@
 ---
 id: CHG-0080-fail-lifecycle-verification-before-running-the-suite-when-evidence-is-incomplete
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 07a044a3e33987630ee8d53c000e71ca89074962
 ---

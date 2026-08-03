@@ -16,6 +16,22 @@
       "execution_digest": "d673d5eff02d1ef608276c33dc885054c0f43c6cf5a95f5457959fb0d7dc6a2c",
       "workspace_digest": "cff7bd1bbe80c7aa6ce8b51324249481298b39e14a472c71f0a80da176299243",
       "timestamp": 1785781046
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0080-fail-lifecycle-verification-before-running-the-suite-when-evidence-is-incomplete",
+      "reviewer": "specsync-ci",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "9a3b1f03a276b833084efc6b6a572af608ab0bef",
+      "contract_digest": "91381dca6e8fac1294fbc737b0bed251def33fdee7623dcaf10f0193cfb2147b",
+      "execution_digest": "d673d5eff02d1ef608276c33dc885054c0f43c6cf5a95f5457959fb0d7dc6a2c",
+      "workspace_digest": "cff7bd1bbe80c7aa6ce8b51324249481298b39e14a472c71f0a80da176299243",
+      "timestamp": 1785783674
     }
   ]
 }

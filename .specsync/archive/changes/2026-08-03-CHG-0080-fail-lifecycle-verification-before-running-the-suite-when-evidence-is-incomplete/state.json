@@ -7,11 +7,11 @@
   "title": "Fail lifecycle verification before running the suite when evidence is incomplete, make already-applied ADDED deltas converge, and reject duplicate change ordinals from one base",
   "description": "Fail lifecycle verification before running the suite when evidence is incomplete, make already-applied ADDED deltas converge, and reject duplicate change ordinals from one base",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "07a044a3e33987630ee8d53c000e71ca89074962",
   "created_at": 1785711176,
-  "updated_at": 1785780437,
+  "updated_at": 1785784293,
   "affected_specs": [
     "change"
   ],

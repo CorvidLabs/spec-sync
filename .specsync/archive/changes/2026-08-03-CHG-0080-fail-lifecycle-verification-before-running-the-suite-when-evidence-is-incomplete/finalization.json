@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0080-fail-lifecycle-verification-before-running-the-suite-when-evidence-is-incomplete",
+  "implementation_commit": "9a3b1f03a276b833084efc6b6a572af608ab0bef",
+  "implementation_tree": "5535e84ff6cbe6058ed64318633518554006029d",
+  "contract_digest": "91381dca6e8fac1294fbc737b0bed251def33fdee7623dcaf10f0193cfb2147b",
+  "workspace_digest": "cff7bd1bbe80c7aa6ce8b51324249481298b39e14a472c71f0a80da176299243",
+  "closing_digest": "20b19535e3c241091d62137e18c05269659cbefbff76a8519c9a0c79777d4c81",
+  "review_digest": "777237750f3101b110c4c4cb10fc91b5080e58ed27ce999fabb277834b567a79",
+  "finalization_digest": "4e6ff4bc475386c772c49d2a475f599cd5a357c80af44c6993c11713134da2f6",
+  "timestamp": 1785784138
+}

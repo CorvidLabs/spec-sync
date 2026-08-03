@@ -10933,6 +10933,21 @@ fn record_git_stage_zero_entry(
     Ok(())
 }
 
+/// Exact candidate match, or a descendant of a directory pathspec candidate.
+///
+/// `git ls-files` with `:(top,literal)dir` expands to every index path under
+/// `dir/`. Candidates often include directory scopes (e.g. `.specsync` in
+/// `affected_paths`) while the evidence set only wants exact candidate roots;
+/// expanded children are therefore in-scope for the query but are not recorded
+/// unless they are themselves candidates.
+fn git_path_matches_candidate_scope(candidates: &BTreeSet<String>, path: &str) -> bool {
+    candidates.contains(path)
+        || candidates.iter().any(|candidate| {
+            path.strip_prefix(candidate.as_str())
+                .is_some_and(|suffix| suffix.starts_with('/'))
+        })
+}
+
 fn inspect_git_candidates(
     root: &Path,
     candidates: &BTreeSet<String>,
@@ -10984,8 +10999,14 @@ fn inspect_git_candidates(
             let path = std::str::from_utf8(&record[tab + 1..])
                 .map_err(|_| "non-UTF-8 scoped Git index path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !git_path_matches_candidate_scope(candidates, &path) {
                 return Err(format!("Git returned an out-of-scope index path `{path}`"));
+            }
+            // Directory pathspecs expand to children; only exact candidates are
+            // evidence roots. Skip expanded descendants so volatile trees under a
+            // directory scope (e.g. `.specsync/archive/`) do not fail inspection.
+            if !candidates.contains(&path) {
+                continue;
             }
             if stage != "0" {
                 return Err(format!(
@@ -11056,10 +11077,13 @@ fn inspect_git_candidates(
             let path =
                 std::str::from_utf8(path).map_err(|_| "non-UTF-8 Git diff path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !git_path_matches_candidate_scope(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope modified path `{path}`"
                 ));
+            }
+            if !candidates.contains(&path) {
+                continue;
             }
             modified.insert(path);
         }
@@ -11081,10 +11105,13 @@ fn inspect_git_candidates(
             let path = std::str::from_utf8(&record[2..])
                 .map_err(|_| "non-UTF-8 Git visibility path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !git_path_matches_candidate_scope(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope visibility path `{path}`"
                 ));
+            }
+            if !candidates.contains(&path) {
+                continue;
             }
             if tag.is_ascii_lowercase() {
                 return Err(format!(
@@ -11123,10 +11150,13 @@ fn inspect_git_candidates(
             let path = std::str::from_utf8(&record[2..])
                 .map_err(|_| "non-UTF-8 Git fsmonitor path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !git_path_matches_candidate_scope(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope fsmonitor path `{path}`"
                 ));
+            }
+            if !candidates.contains(&path) {
+                continue;
             }
             if record[0].is_ascii_lowercase() && fs::symlink_metadata(root.join(&path)).is_ok() {
                 return Err(format!(
@@ -18658,6 +18688,49 @@ mod tests {
         // Windows cannot materialize either candidate; the dirty literalX.txt
         // control proves that Git did not expand the `*` candidate as a pathspec.
         assert!(paths.is_empty());
+    }
+
+    #[test]
+
+    fn directory_pathspec_candidates_do_not_fail_on_expanded_children() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        quiet_git(root, &["config", "user.email", "test@example.com"]);
+        quiet_git(root, &["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join(".specsync/archive/changes/legacy")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join(".specsync/config.json"), "{}\n").unwrap();
+        fs::write(
+            root.join(".specsync/archive/changes/legacy/state.json"),
+            "{}\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/change.rs"), "fn main() {}\n").unwrap();
+        quiet_git(root, &["add", "."]);
+        quiet_git(root, &["commit", "-m", "seed directory pathspec tree"]);
+
+        // Directory scopes such as `.specsync` expand under `:(top,literal)` to
+        // every index child, including volatile archive paths that are not exact
+        // evidence candidates.
+        let candidates = BTreeSet::from([
+            ".specsync".to_string(),
+            ".specsync/config.json".to_string(),
+            "src/change.rs".to_string(),
+        ]);
+        let evidence = git_evidence(root, &candidates).unwrap();
+        assert!(evidence.entries.contains_key(".specsync/config.json"));
+        assert!(evidence.entries.contains_key("src/change.rs"));
+        assert!(
+            !evidence
+                .entries
+                .contains_key(".specsync/archive/changes/legacy/state.json"),
+            "expanded archive children must not become evidence roots"
+        );
+        assert_eq!(
+            evidence.entry(".specsync").unwrap().kind,
+            AcceptanceInputKind::NonFile
+        );
     }
 
     #[test]

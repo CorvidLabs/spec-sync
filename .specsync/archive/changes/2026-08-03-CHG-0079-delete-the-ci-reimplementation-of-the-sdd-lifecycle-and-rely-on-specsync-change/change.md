@@ -1,6 +1,6 @@
 ---
 id: CHG-0079-delete-the-ci-reimplementation-of-the-sdd-lifecycle-and-rely-on-specsync-change
-state: implementing
+state: archived
 type: refactor
 base_commit: 8c58aa29a7ccf7e369b33ff8244549505360ca6f
 ---

@@ -7,11 +7,11 @@
   "title": "Delete the CI reimplementation of the SDD lifecycle and rely on specsync change audit, removing the separate-archive-tip constraint",
   "description": "Delete the CI reimplementation of the SDD lifecycle and rely on specsync change audit, removing the separate-archive-tip constraint",
   "kind": "refactor",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "8c58aa29a7ccf7e369b33ff8244549505360ca6f",
   "created_at": 1785702130,
-  "updated_at": 1785781013,
+  "updated_at": 1785784908,
   "affected_specs": [
     "github"
   ],

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0079-delete-the-ci-reimplementation-of-the-sdd-lifecycle-and-rely-on-specsync-change",
+  "implementation_commit": "9a3b1f03a276b833084efc6b6a572af608ab0bef",
+  "implementation_tree": "5535e84ff6cbe6058ed64318633518554006029d",
+  "contract_digest": "cdafa14a7ae2d85f5daf2e2345f33d64d6ea3b00467fde90e804d5976d0001e5",
+  "workspace_digest": "cff7bd1bbe80c7aa6ce8b51324249481298b39e14a472c71f0a80da176299243",
+  "closing_digest": "d7f36ad47c37ee12028280448b5919e4a61af46ebf7e9e01d507ecfa4201bef8",
+  "review_digest": "40de83b01e22b85ffa0e15e5a5e248cc70fff8245d53ca2e0e0fdc4e32767817",
+  "finalization_digest": "76434c2d667058b37b50c7d24017a7c4244aa8e24acc1bff8f768c9133149542",
+  "timestamp": 1785784908
+}

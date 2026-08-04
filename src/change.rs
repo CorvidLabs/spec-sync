@@ -2597,9 +2597,36 @@ pub fn reopen_change(
     let mut record = load_change(root, id)?;
     require_state(
         &record,
-        &[ChangeState::Accepted],
+        &[ChangeState::Accepted, ChangeState::Archived],
         "reopen accepted evidence",
     )?;
+    // `finalize` performs accept and archive in one command, so `Accepted` is never
+    // observable and a change is Archived by the time anyone needs to recover it.
+    // Reopen therefore has to un-archive first: the rest of this function writes to
+    // the *active* directory, so reopening in place would leave two directories
+    // claiming one change ID in disagreeing states.
+    //
+    // The origin is audited rather than silent: the ReopenRecord below carries
+    // `from_state`, so a reopen out of the archive is distinguishable from a reopen
+    // of a still-accepted change without inventing a new event type.
+    let reopened_from = record.state;
+    if record.state == ChangeState::Archived {
+        let archived_location = find_change_dir(root, id)?;
+        let active = change_dir(root, &record.id);
+        if active.exists() {
+            return Err(format!(
+                "cannot un-archive {}: an active change directory already exists at {}",
+                record.id,
+                portable_project_path(root, &active)
+            ));
+        }
+        if let Some(parent) = active.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        rename_durable(&archived_location, &active)
+            .map_err(|error| format!("failed to un-archive {}: {error}", record.id))?;
+        record = load_change(root, id)?;
+    }
     let actor = actor.trim();
     if actor.is_empty() {
         return Err("reopen requires a non-empty human actor passed with --actor".into());
@@ -2678,7 +2705,7 @@ pub fn reopen_change(
         actor: actor.to_string(),
         reason: reason.to_string(),
         timestamp: now(),
-        from_state: ChangeState::Accepted,
+        from_state: reopened_from,
         to_state: ChangeState::Verifying,
         superseded_approval,
         prior_verification,

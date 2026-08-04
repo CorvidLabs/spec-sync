@@ -1534,12 +1534,25 @@ fn list_changes_uncached(root: &Path) -> Result<Vec<ChangeRecord>, String> {
             )
         })?;
         let path = entry.path().join("state.json");
-        let content = fs::read_to_string(&path).map_err(|error| {
-            format!(
-                "failed to read active change state {}: {error}",
-                path.display()
-            )
-        })?;
+        // Git cannot track empty directories, so switching to a branch without this
+        // change leaves a husk behind — typically just an empty `deltas/`. Treating
+        // that husk as a corrupt change made `change new` fail outright on any
+        // branch that did not contain an earlier change, which is an ordinary
+        // branching pattern and blocked the first command in the workflow.
+        //
+        // A directory with no `state.json` is not an active change *here*. Skip it.
+        // Every other read error still fails closed: an unreadable state.json is a
+        // real problem and must not be silently ignored.
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "failed to read active change state {}: {error}",
+                    path.display()
+                ));
+            }
+        };
         let record = serde_json::from_str(&content)
             .map_err(|error| format!("invalid active change state {}: {error}", path.display()))?;
         validate_loaded_change(&record, &expected_id, &path)?;
@@ -1647,6 +1660,15 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                         && error.kind() == std::io::ErrorKind::NotFound
                         && is_positive_legacy_tombstone(&entry.path()) =>
                 {
+                    continue;
+                }
+                // Git cannot track empty directories, so checking out a branch
+                // without this change leaves a husk behind — typically just an
+                // empty `deltas/`. Treating it as a corrupt change made
+                // `change new` fail outright on any branch that did not contain
+                // an earlier change, which is an ordinary branching pattern.
+                // A directory with no `state.json` is not an active change here.
+                Err(error) if !archived && error.kind() == std::io::ErrorKind::NotFound => {
                     continue;
                 }
                 Err(error) => {

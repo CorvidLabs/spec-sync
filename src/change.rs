@@ -14176,6 +14176,25 @@ fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, 
     })
 }
 
+/// Accepted acceptance-input entries for a change, or an empty list when it has no
+/// verification evidence yet.
+///
+/// `change supersede --digest` requires a `specsync.acceptance-entry.v1` digest and
+/// nothing emitted one, so the only way to obtain it was to open
+/// `verification.json`, walk `acceptance_manifest.entries`, match on `path`, and
+/// read `entry_digest` by hand — at the moment a recovery has already gone wrong.
+/// Exposing the entries lets `change show --json` answer the question the CLI asks.
+///
+/// Missing or unreadable evidence yields an empty list rather than an error: this
+/// is a lookup for machine consumers, not a gate.
+pub fn acceptance_entries(root: &Path, record: &ChangeRecord) -> Vec<AcceptanceInputEntryV1> {
+    load_verification(root, record)
+        .ok()
+        .and_then(|verification| verification.acceptance_manifest)
+        .map(|manifest| manifest.entries)
+        .unwrap_or_default()
+}
+
 fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationRecord, String> {
     let path = find_change_dir(root, &record.id)?.join("verification.json");
     let content =

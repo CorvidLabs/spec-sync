@@ -3111,9 +3111,21 @@ fn latest_reopen_for_owner_correction<'a>(
     let reopening = approvals.reopenings.last().ok_or_else(|| {
         "acceptance owner correction requires an audited reopen event".to_string()
     })?;
+    // REQ-change-033 requires the target be "verifying through an audited reopen"
+    // and does not constrain the origin state. Since `finalize` performs accept and
+    // archive in one command, a change needing owner correction is Archived by the
+    // time anyone reaches it, and its reopen legitimately records `from_state:
+    // archived`. Accepting only `Accepted` here would make the requirement
+    // unsatisfiable through the guided path.
+    //
+    // The substantive guarantees are unchanged and checked below: the reopen must
+    // reference trusted closing evidence, and no metadata correction may follow it.
     if reopening.schema_version != 1
         || reopening.change_id != record.id
-        || reopening.from_state != ChangeState::Accepted
+        || !matches!(
+            reopening.from_state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
         || reopening.to_state != ChangeState::Verifying
     {
         return Err("latest audited reopen event is invalid for owner correction".into());

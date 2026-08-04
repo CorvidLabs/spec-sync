@@ -190,10 +190,12 @@ Acceptance Criteria
 
 - Normal verification-commit ancestry remains mandatory proof and uses identical local and CI semantics.
 - Every intervening commit is inspected against every parent with NUL-delimited portable paths; a net tree diff cannot hide a governed change and later revert.
-- Only `state.json`, `verification.json`, `verification-attempts.json`, `review.json`, and
-  `review-attempts.json` beneath canonical active-change IDs may follow verification without
+- Only `state.json`, `change.md`, `verification.json`, `verification-attempts.json`, `review.json`,
+  and `review-attempts.json` beneath canonical active-change IDs may follow verification without
   invalidating it; archive, approvals, tasks, definitions, sequence, hashes, locks, configuration,
-  policy, specs, source, tests, build, and cache paths are rejected.
+  policy, specs, source, tests, build, and cache paths are rejected. `change.md` is admitted as a
+  pure rendering of the `state.json` record written by the same transitions, so it conveys nothing
+  `state.json` cannot already convey.
 - Matching effective contract and project-input digests plus consistent state, verification, and latest-attempt evidence remain mandatory.
 - A squash fallback for accepted closing evidence still requires matching scoped inputs and an unchanged accepted workspace integrated on the remote default branch.
 - Unintegrated heads, changed scoped inputs, stale contracts, mismatched closing approvals, nonancestor evidence, and ambiguous merges fail closed.

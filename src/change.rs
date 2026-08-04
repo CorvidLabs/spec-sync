@@ -16284,6 +16284,12 @@ fn supported_verification_persistence_id(path: &str) -> Result<String, String> {
     if !matches!(
         parts[3],
         "state.json"
+            // `change.md` is `change_markdown_content(record)` — a pure function of
+            // the ChangeRecord that `state.json` already carries, written by the
+            // same transitions. Permitting it widens nothing: anything it could
+            // express, `state.json` can already change. Excluding it meant every
+            // lifecycle transition produced a commit the review gate refused.
+            | "change.md"
             | "verification.json"
             | "verification-attempts.json"
             | SCOPED_REVIEW_FILE
@@ -28226,6 +28232,9 @@ mod tests {
         let id = "CHG-0001-harden-verification";
         for name in [
             "state.json",
+            // REQ-change-016 admits change.md as a pure rendering of the state.json
+            // record, written by the same transitions.
+            "change.md",
             "verification.json",
             "verification-attempts.json",
             SCOPED_REVIEW_FILE,
@@ -28241,7 +28250,6 @@ mod tests {
             ".specsync/archive/changes/CHG-0001-harden-verification/state.json",
             ".specsync/changes/CHG-0001-harden-verification/approvals.json",
             ".specsync/changes/CHG-0001-harden-verification/tasks.md",
-            ".specsync/changes/CHG-0001-harden-verification/change.md",
             ".specsync/changes/CHG-0001-harden-verification/state.json/nested",
             ".specsync/change-sequence.json",
             ".specsync/hashes.json",

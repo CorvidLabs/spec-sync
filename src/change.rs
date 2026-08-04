@@ -15244,20 +15244,22 @@ fn artifact_template(root: &Path, artifact: &ArtifactKind, record: &ChangeRecord
         .file_name()
         .trim_end_matches(".md")
         .replace('-', " ");
-    // Context is where a change explains itself, and it is the only artifact whose
-    // value outlives the change. Prompt for the things a later reader actually
-    // needs — what was surprising, what was tried and abandoned, what to do
-    // differently — rather than leaving a bare heading that invites a restatement
-    // of the title. Everything else keeps the generic scaffold.
+    // Context is the change's own working record: what led here, and what a later
+    // agent picking this up mid-flight needs to know. Prompt for that.
+    //
+    // Lessons belong somewhere else. They are folded into the *spec's* companion
+    // context at archival, by the agent, drawn from the change's commits and PR —
+    // so a module accumulates what was learned about it across every change that
+    // touched it. A per-change lessons file would die with the change, which is the
+    // opposite of the point. See docs/6-0-findings.md.
     //
     // Prompts are HTML comments so they guide without counting as content: the
     // artifact must still read as incomplete until an author writes something.
     let prompt = match artifact {
         ArtifactKind::Context => concat!(
             "<!-- What led here: the problem, and how it was noticed. -->\n\n",
-            "<!-- What was surprising: anything that turned out not to work the way it looked. -->\n\n",
-            "<!-- What was tried and abandoned, and why. Dead ends are worth more than they cost. -->\n\n",
-            "<!-- What a later reader should do differently. -->\n\n",
+            "<!-- What a session picking this up mid-flight needs to know: constraints,\n",
+            "     prior attempts, anything already ruled out. -->\n\n",
         ),
         _ => "",
     };

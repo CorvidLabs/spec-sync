@@ -33,6 +33,41 @@
           "public_contract": "yes"
         }
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1785865641,
+      "digest": "f36859125eaed0731093c4a4985c6f70684d89025b3871d1444bbabceff4389a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0081-make-a-fresh-project-usable-out-of-the-box-stop-a-leftover-directory-from-block",
+        "title": "Make a fresh project usable out of the box, stop a leftover directory from blocking change new, and extract a lock-free verification body",
+        "description": "Make a fresh project usable out of the box, stop a leftover directory from blocking change new, and extract a lock-free verification body",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync",
+          "specs/change",
+          "src/change.rs",
+          "src/commands/change.rs",
+          "src/commands/init.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "specsync init detects a test command for go.mod, pyproject.toml/pytest.ini and package.json in addition to Cargo, bun, Swift and fledge, and warns at init time naming the file and an example when none is detected rather than silently writing an empty list; a change directory containing no state.json is skipped as not-active-here by both active-change read paths instead of failing closed, so change new succeeds on a branch that does not contain an earlier change and audit --strict no longer reports the sequence ledger as uncovered, while every other read error still fails closed; verify_change_with_strict acquires the project lock and delegates to a lock-free verify_change_locked documented as requiring the caller to hold it, with no behaviour change"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
     }
   ],
   "reopenings": []

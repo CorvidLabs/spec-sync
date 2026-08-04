@@ -1,6 +1,6 @@
 ---
 id: CHG-0081-make-a-fresh-project-usable-out-of-the-box-stop-a-leftover-directory-from-block
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: 9e431ec5f0d21e8e2f14dc52d512a71566447cf4
 ---

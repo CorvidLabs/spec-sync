@@ -25,6 +25,13 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/ci.yml'
       - '.github/workflows/pages.yml'
+      # `Required CI gate` is a required status check, so any path that cannot
+      # trigger this workflow can never report it and blocks its PR forever.
+      # Documentation-only changes hit that: the gate sat "Expected — waiting for
+      # status to be reported" with nothing able to report it. Every mergeable
+      # path must reach the gate; `classify` decides what work actually runs.
+      - 'docs/**'
+      - '*.md'
       - '.github/workflows/finalize-change.yml'
       - '.github/workflows/lifecycle-policy-guard.yml'
       - '.github/workflows/post-merge-archive.yml'
@@ -51,6 +58,13 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/ci.yml'
       - '.github/workflows/pages.yml'
+      # `Required CI gate` is a required status check, so any path that cannot
+      # trigger this workflow can never report it and blocks its PR forever.
+      # Documentation-only changes hit that: the gate sat "Expected — waiting for
+      # status to be reported" with nothing able to report it. Every mergeable
+      # path must reach the gate; `classify` decides what work actually runs.
+      - 'docs/**'
+      - '*.md'
       - '.github/workflows/finalize-change.yml'
       - '.github/workflows/lifecycle-policy-guard.yml'
       - '.github/workflows/post-merge-archive.yml'

@@ -15244,11 +15244,29 @@ fn artifact_template(root: &Path, artifact: &ArtifactKind, record: &ChangeRecord
         .file_name()
         .trim_end_matches(".md")
         .replace('-', " ");
+    // Context is where a change explains itself, and it is the only artifact whose
+    // value outlives the change. Prompt for the things a later reader actually
+    // needs — what was surprising, what was tried and abandoned, what to do
+    // differently — rather than leaving a bare heading that invites a restatement
+    // of the title. Everything else keeps the generic scaffold.
+    //
+    // Prompts are HTML comments so they guide without counting as content: the
+    // artifact must still read as incomplete until an author writes something.
+    let prompt = match artifact {
+        ArtifactKind::Context => concat!(
+            "<!-- What led here: the problem, and how it was noticed. -->\n\n",
+            "<!-- What was surprising: anything that turned out not to work the way it looked. -->\n\n",
+            "<!-- What was tried and abandoned, and why. Dead ends are worth more than they cost. -->\n\n",
+            "<!-- What a later reader should do differently. -->\n\n",
+        ),
+        _ => "",
+    };
     format!(
-        "---\nchange: {}\nartifact: {}\n---\n\n# {}\n\n<!-- TODO: complete this artifact or remove it from selected_artifacts before approval. -->\n",
+        "---\nchange: {}\nartifact: {}\n---\n\n# {}\n\n{}<!-- TODO: complete this artifact or remove it from selected_artifacts before approval. -->\n",
         record.id,
         title,
-        title_from_description(&title)
+        title_from_description(&title),
+        prompt
     )
 }
 

@@ -6595,6 +6595,15 @@ pub fn detect_verification_commands(root: &Path) -> Vec<String> {
     if root.join("fledge.toml").exists() {
         return vec!["fledge run test".into()];
     }
+    if root.join("go.mod").exists() {
+        return vec!["go test ./...".into()];
+    }
+    if root.join("pyproject.toml").exists() || root.join("pytest.ini").exists() {
+        return vec!["pytest".into()];
+    }
+    if root.join("package.json").exists() {
+        return vec!["npm test".into()];
+    }
     Vec::new()
 }
 

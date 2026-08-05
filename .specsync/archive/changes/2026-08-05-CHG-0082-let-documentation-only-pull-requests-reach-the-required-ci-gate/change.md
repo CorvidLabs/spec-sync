@@ -1,6 +1,6 @@
 ---
 id: CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 2f0667477708bfdffcb5b242e8f54df8e0d751a8
 ---

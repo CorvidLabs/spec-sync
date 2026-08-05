@@ -1,6 +1,6 @@
 ---
 id: CHG-0083-let-finalize-work-in-a-repository-that-has-archived-a-change
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 406065acf16525575d5ae560ee2c8dea344f2685
 ---

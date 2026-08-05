@@ -485,9 +485,14 @@ fn print_record(
             let summary = change::summarize_change_with_strict(root, record, strict);
             let effective_definition = change::effective_change_definition(root, record)?;
             let corrections = change::correction_history(root, record)?;
+            // `change supersede --digest` needs a specsync.acceptance-entry.v1
+            // digest and nothing emitted one, so callers had to read
+            // verification.json by hand. Surface the entries here.
+            let acceptance_entries = change::acceptance_entries(root, record);
             print_json(&serde_json::json!({
                 "change": record,
                 "effective_definition": effective_definition,
+                "acceptance_entries": acceptance_entries,
                 "corrections": corrections,
                 "summary": summary,
                 "questions": questions,

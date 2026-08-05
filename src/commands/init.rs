@@ -1,3 +1,12 @@
+/// Shown when `init` cannot infer a verification command for the project.
+///
+/// Without one, `.specsync/sdd.json` carries an empty list and every lifecycle
+/// command fails closed on it. Naming the file and a concrete example here turns
+/// a later opaque failure into a task the user can finish immediately.
+const UNDETECTED_VERIFICATION_WARNING: &str = "No test command was detected for this project, so \
+`.specsync/sdd.json` has an empty `verification_commands` list. Lifecycle commands will fail until \
+you add one, for example: \"verification_commands\": [\"make test\"]";
+
 use colored::Colorize;
 use dialoguer::{Confirm, Input};
 use serde::Serialize;
@@ -175,14 +184,20 @@ fn execute_init(root: &Path, repair: bool) -> Result<InitReport, Box<InitReport>
         return Err(Box::new(InitReport::failure(e, None, None)));
     }
 
-    if let Err(error) =
-        crate::change::write_default_policy(root, crate::change::detect_verification_commands(root))
-    {
+    let detected = crate::change::detect_verification_commands(root);
+    let undetected_verification = detected.is_empty();
+    if let Err(error) = crate::change::write_default_policy(root, detected) {
         return Err(Box::new(InitReport::failure(error, None, None)));
     }
 
     let mut restored = Vec::new();
     let mut warnings = Vec::new();
+    // An empty verification command list is written silently and only surfaces
+    // later, when a lifecycle command fails naming a file the user has never
+    // opened. Say it here, while they are still looking at init output.
+    if undetected_verification {
+        warnings.push(UNDETECTED_VERIFICATION_WARNING.to_string());
+    }
     // Ensure .specsync/hashes.json is gitignored (hash cache is local-only)
     match ensure_hashes_gitignored(root) {
         Ok(true) => restored.push(".gitignore entry (.specsync/hashes.json)".to_string()),
@@ -500,7 +515,12 @@ fn repair_layout(
 
     // sdd.json — write_default_policy is a no-op when the file exists.
     let had_policy = root.join(".specsync/sdd.json").is_file();
-    crate::change::write_default_policy(root, crate::change::detect_verification_commands(root))?;
+    let detected = crate::change::detect_verification_commands(root);
+    let undetected_verification = !had_policy && detected.is_empty();
+    crate::change::write_default_policy(root, detected)?;
+    if undetected_verification {
+        warnings.push(UNDETECTED_VERIFICATION_WARNING.to_string());
+    }
     if !had_policy && root.join(".specsync/sdd.json").is_file() {
         restored.push(".specsync/sdd.json".to_string());
     }

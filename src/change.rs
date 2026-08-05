@@ -1534,12 +1534,25 @@ fn list_changes_uncached(root: &Path) -> Result<Vec<ChangeRecord>, String> {
             )
         })?;
         let path = entry.path().join("state.json");
-        let content = fs::read_to_string(&path).map_err(|error| {
-            format!(
-                "failed to read active change state {}: {error}",
-                path.display()
-            )
-        })?;
+        // Git cannot track empty directories, so switching to a branch without this
+        // change leaves a husk behind — typically just an empty `deltas/`. Treating
+        // that husk as a corrupt change made `change new` fail outright on any
+        // branch that did not contain an earlier change, which is an ordinary
+        // branching pattern and blocked the first command in the workflow.
+        //
+        // A directory with no `state.json` is not an active change *here*. Skip it.
+        // Every other read error still fails closed: an unreadable state.json is a
+        // real problem and must not be silently ignored.
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(format!(
+                    "failed to read active change state {}: {error}",
+                    path.display()
+                ));
+            }
+        };
         let record = serde_json::from_str(&content)
             .map_err(|error| format!("invalid active change state {}: {error}", path.display()))?;
         validate_loaded_change(&record, &expected_id, &path)?;
@@ -1647,6 +1660,15 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                         && error.kind() == std::io::ErrorKind::NotFound
                         && is_positive_legacy_tombstone(&entry.path()) =>
                 {
+                    continue;
+                }
+                // Git cannot track empty directories, so checking out a branch
+                // without this change leaves a husk behind — typically just an
+                // empty `deltas/`. Treating it as a corrupt change made
+                // `change new` fail outright on any branch that did not contain
+                // an earlier change, which is an ordinary branching pattern.
+                // A directory with no `state.json` is not an active change here.
+                Err(error) if !archived && error.kind() == std::io::ErrorKind::NotFound => {
                     continue;
                 }
                 Err(error) => {
@@ -2362,6 +2384,16 @@ pub fn verify_change_with_strict(
         return Err(error);
     }
     let _lock = acquire_project_lock(root)?;
+    verify_change_locked(root, id, strict)
+}
+
+/// Verification body without lock acquisition.
+///
+/// The caller MUST already hold the project lock. Acceptance re-records evidence
+/// while holding its own lock, and `acquire_project_lock` is a non-reentrant
+/// `flock`, so calling the public entry point from there would block forever
+/// rather than fail.
+fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<VerificationRecord, String> {
     let mut record = load_change(root, id)?;
     require_state(
         &record,
@@ -2565,9 +2597,36 @@ pub fn reopen_change(
     let mut record = load_change(root, id)?;
     require_state(
         &record,
-        &[ChangeState::Accepted],
+        &[ChangeState::Accepted, ChangeState::Archived],
         "reopen accepted evidence",
     )?;
+    // `finalize` performs accept and archive in one command, so `Accepted` is never
+    // observable and a change is Archived by the time anyone needs to recover it.
+    // Reopen therefore has to un-archive first: the rest of this function writes to
+    // the *active* directory, so reopening in place would leave two directories
+    // claiming one change ID in disagreeing states.
+    //
+    // The origin is audited rather than silent: the ReopenRecord below carries
+    // `from_state`, so a reopen out of the archive is distinguishable from a reopen
+    // of a still-accepted change without inventing a new event type.
+    let reopened_from = record.state;
+    if record.state == ChangeState::Archived {
+        let archived_location = find_change_dir(root, id)?;
+        let active = change_dir(root, &record.id);
+        if active.exists() {
+            return Err(format!(
+                "cannot un-archive {}: an active change directory already exists at {}",
+                record.id,
+                portable_project_path(root, &active)
+            ));
+        }
+        if let Some(parent) = active.parent() {
+            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        rename_durable(&archived_location, &active)
+            .map_err(|error| format!("failed to un-archive {}: {error}", record.id))?;
+        record = load_change(root, id)?;
+    }
     let actor = actor.trim();
     if actor.is_empty() {
         return Err("reopen requires a non-empty human actor passed with --actor".into());
@@ -2646,7 +2705,7 @@ pub fn reopen_change(
         actor: actor.to_string(),
         reason: reason.to_string(),
         timestamp: now(),
-        from_state: ChangeState::Accepted,
+        from_state: reopened_from,
         to_state: ChangeState::Verifying,
         superseded_approval,
         prior_verification,
@@ -3052,9 +3111,21 @@ fn latest_reopen_for_owner_correction<'a>(
     let reopening = approvals.reopenings.last().ok_or_else(|| {
         "acceptance owner correction requires an audited reopen event".to_string()
     })?;
+    // REQ-change-033 requires the target be "verifying through an audited reopen"
+    // and does not constrain the origin state. Since `finalize` performs accept and
+    // archive in one command, a change needing owner correction is Archived by the
+    // time anyone reaches it, and its reopen legitimately records `from_state:
+    // archived`. Accepting only `Accepted` here would make the requirement
+    // unsatisfiable through the guided path.
+    //
+    // The substantive guarantees are unchanged and checked below: the reopen must
+    // reference trusted closing evidence, and no metadata correction may follow it.
     if reopening.schema_version != 1
         || reopening.change_id != record.id
-        || reopening.from_state != ChangeState::Accepted
+        || !matches!(
+            reopening.from_state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
         || reopening.to_state != ChangeState::Verifying
     {
         return Err("latest audited reopen event is invalid for owner correction".into());
@@ -6584,6 +6655,15 @@ pub fn detect_verification_commands(root: &Path) -> Vec<String> {
     }
     if root.join("fledge.toml").exists() {
         return vec!["fledge run test".into()];
+    }
+    if root.join("go.mod").exists() {
+        return vec!["go test ./...".into()];
+    }
+    if root.join("pyproject.toml").exists() || root.join("pytest.ini").exists() {
+        return vec!["pytest".into()];
+    }
+    if root.join("package.json").exists() {
+        return vec!["npm test".into()];
     }
     Vec::new()
 }
@@ -14096,6 +14176,25 @@ fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, 
     })
 }
 
+/// Accepted acceptance-input entries for a change, or an empty list when it has no
+/// verification evidence yet.
+///
+/// `change supersede --digest` requires a `specsync.acceptance-entry.v1` digest and
+/// nothing emitted one, so the only way to obtain it was to open
+/// `verification.json`, walk `acceptance_manifest.entries`, match on `path`, and
+/// read `entry_digest` by hand — at the moment a recovery has already gone wrong.
+/// Exposing the entries lets `change show --json` answer the question the CLI asks.
+///
+/// Missing or unreadable evidence yields an empty list rather than an error: this
+/// is a lookup for machine consumers, not a gate.
+pub fn acceptance_entries(root: &Path, record: &ChangeRecord) -> Vec<AcceptanceInputEntryV1> {
+    load_verification(root, record)
+        .ok()
+        .and_then(|verification| verification.acceptance_manifest)
+        .map(|manifest| manifest.entries)
+        .unwrap_or_default()
+}
+
 fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationRecord, String> {
     let path = find_change_dir(root, &record.id)?.join("verification.json");
     let content =
@@ -15145,11 +15244,31 @@ fn artifact_template(root: &Path, artifact: &ArtifactKind, record: &ChangeRecord
         .file_name()
         .trim_end_matches(".md")
         .replace('-', " ");
+    // Context is the change's own working record: what led here, and what a later
+    // agent picking this up mid-flight needs to know. Prompt for that.
+    //
+    // Lessons belong somewhere else. They are folded into the *spec's* companion
+    // context at archival, by the agent, drawn from the change's commits and PR —
+    // so a module accumulates what was learned about it across every change that
+    // touched it. A per-change lessons file would die with the change, which is the
+    // opposite of the point. See docs/6-0-findings.md.
+    //
+    // Prompts are HTML comments so they guide without counting as content: the
+    // artifact must still read as incomplete until an author writes something.
+    let prompt = match artifact {
+        ArtifactKind::Context => concat!(
+            "<!-- What led here: the problem, and how it was noticed. -->\n\n",
+            "<!-- What a session picking this up mid-flight needs to know: constraints,\n",
+            "     prior attempts, anything already ruled out. -->\n\n",
+        ),
+        _ => "",
+    };
     format!(
-        "---\nchange: {}\nartifact: {}\n---\n\n# {}\n\n<!-- TODO: complete this artifact or remove it from selected_artifacts before approval. -->\n",
+        "---\nchange: {}\nartifact: {}\n---\n\n# {}\n\n{}<!-- TODO: complete this artifact or remove it from selected_artifacts before approval. -->\n",
         record.id,
         title,
-        title_from_description(&title)
+        title_from_description(&title),
+        prompt
     )
 }
 
@@ -16165,6 +16284,12 @@ fn supported_verification_persistence_id(path: &str) -> Result<String, String> {
     if !matches!(
         parts[3],
         "state.json"
+            // `change.md` is `change_markdown_content(record)` — a pure function of
+            // the ChangeRecord that `state.json` already carries, written by the
+            // same transitions. Permitting it widens nothing: anything it could
+            // express, `state.json` can already change. Excluding it meant every
+            // lifecycle transition produced a commit the review gate refused.
+            | "change.md"
             | "verification.json"
             | "verification-attempts.json"
             | SCOPED_REVIEW_FILE
@@ -28107,6 +28232,9 @@ mod tests {
         let id = "CHG-0001-harden-verification";
         for name in [
             "state.json",
+            // REQ-change-016 admits change.md as a pure rendering of the state.json
+            // record, written by the same transitions.
+            "change.md",
             "verification.json",
             "verification-attempts.json",
             SCOPED_REVIEW_FILE,
@@ -28122,7 +28250,6 @@ mod tests {
             ".specsync/archive/changes/CHG-0001-harden-verification/state.json",
             ".specsync/changes/CHG-0001-harden-verification/approvals.json",
             ".specsync/changes/CHG-0001-harden-verification/tasks.md",
-            ".specsync/changes/CHG-0001-harden-verification/change.md",
             ".specsync/changes/CHG-0001-harden-verification/state.json/nested",
             ".specsync/change-sequence.json",
             ".specsync/hashes.json",

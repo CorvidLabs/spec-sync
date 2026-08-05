@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 83,
-  "id": "CHG-0083-let-finalize-work-in-a-repository-that-has-archived-a-change",
+  "sequence": 84,
+  "id": "CHG-0084-give-the-change-module-canonical-ownership-of-its-cli-wiring",
   "acknowledged_collisions": [
     {
       "sequence": 16,

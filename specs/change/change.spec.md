@@ -4,6 +4,7 @@ version: 58
 status: active
 files:
   - src/change.rs
+  - src/commands/change.rs
 db_tables: []
 tracks: []
 depends_on:

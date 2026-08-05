@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude",
+      "timestamp": 1785936732,
+      "digest": "dbdb28be2c2324aa9e650fd39ce04b58b656490ab07986f1a531291bd91b9479",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0084-give-the-change-module-canonical-ownership-of-its-cli-wiring",
+        "title": "Give the change module canonical ownership of its CLI wiring",
+        "description": "Give the change module canonical ownership of its CLI wiring",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "specs/change/change.spec.md claims src/commands/change.rs, so finalize resolves canonical ownership for the change module's CLI wiring"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

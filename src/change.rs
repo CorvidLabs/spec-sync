@@ -3108,10 +3108,19 @@ fn latest_reopen_for_owner_correction<'a>(
     record: &ChangeRecord,
     approvals: &'a ApprovalLedger,
     corrections: &CorrectionLedger,
-) -> Result<&'a ReopenRecord, String> {
-    let reopening = approvals.reopenings.last().ok_or_else(|| {
-        "acceptance owner correction requires an audited reopen event".to_string()
-    })?;
+) -> Result<Option<&'a ReopenRecord>, String> {
+    let Some(reopening) = approvals.reopenings.last() else {
+        // A change can reach Verifying without ever closing — that is where one
+        // waits for finalize. It has no reopen because nothing reopened it, and
+        // demanding one closed every exit: finalize refuses the unowned path,
+        // reopen accepts only Accepted/Archived, and declaring the owning module
+        // would force a semantic delta for a spec the change does not alter.
+        //
+        // The reopen exists to prove the definition has not drifted since the
+        // change last closed. A never-closed change carries the equivalent
+        // guarantee in its own definition approval, checked by the caller.
+        return Ok(None);
+    };
     // REQ-change-033 requires the target be "verifying through an audited reopen"
     // and does not constrain the origin state. Since `finalize` performs accept and
     // archive in one command, a change needing owner correction is Archived by the
@@ -3151,7 +3160,7 @@ fn latest_reopen_for_owner_correction<'a>(
                 .into(),
         );
     }
-    Ok(reopening)
+    Ok(Some(reopening))
 }
 
 #[allow(dead_code)] // Public one-entry wrapper; batch path is used by the CLI adapter.
@@ -3214,15 +3223,25 @@ pub fn add_acceptance_owner_corrections(
     let reopening = latest_reopen_for_owner_correction(&record, &approvals, &metadata_corrections)?;
     let mut original = record.clone();
     original.acceptance_owner_corrections.clear();
-    if !definition_digest_matches(
-        root,
-        &original,
-        &reopening.prior_verification.contract_digest,
-    )? {
-        return Err(
-            "cannot correct an owner after the reopened definition changed; restore the accepted definition or use a successor change"
-                .into(),
-        );
+    match reopening {
+        Some(reopening) => {
+            if !definition_digest_matches(
+                root,
+                &original,
+                &reopening.prior_verification.contract_digest,
+            )? {
+                return Err(
+                    "cannot correct an owner after the reopened definition changed; restore the accepted definition or use a successor change"
+                        .into(),
+                );
+            }
+        }
+        None => {
+            // Never closed, so there is no reopened definition to compare against.
+            // The equivalent guarantee is that the definition still matches the
+            // approval it is being corrected under.
+            ensure_definition_approval_valid(root, &original)?;
+        }
     }
 
     let timestamp = now();
@@ -24292,8 +24311,13 @@ mod tests {
         verify_change(root, &record.id).unwrap();
 
         // Deliberately no accept and no reopen: the change sits at Verifying,
-        // exactly where a reviewed change waits for finalize.
+        // exactly where a reviewed change waits for finalize. `check` materializes
+        // the delta before verifying, so a change that reached this point has its
+        // canonical application recorded — which is what the real stranded changes
+        // look like, and what distinguishes this from a draft.
         record = load_change(root, &record.id).unwrap();
+        record.canonical_applied = true;
+        save_change(root, &record).unwrap();
         assert_eq!(record.state, ChangeState::Verifying);
 
         let corrected = add_acceptance_owner_correction(

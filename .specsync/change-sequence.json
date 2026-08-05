@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 81,
-  "id": "CHG-0081-make-a-fresh-project-usable-out-of-the-box-stop-a-leftover-directory-from-block",
+  "sequence": 82,
+  "id": "CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate",
   "acknowledged_collisions": [
     {
       "sequence": 16,

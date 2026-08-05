@@ -7,11 +7,11 @@
   "title": "Let finalize work in a repository that has archived a change",
   "description": "Let finalize work in a repository that has archived a change",
   "kind": "bug_fix",
-  "state": "accepted",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "406065acf16525575d5ae560ee2c8dea344f2685",
   "created_at": 1785903218,
-  "updated_at": 1785906745,
+  "updated_at": 1785907022,
   "affected_specs": [
     "change"
   ],

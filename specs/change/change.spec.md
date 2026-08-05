@@ -1,6 +1,6 @@
 ---
 module: change
-version: 58
+version: 59
 status: active
 files:
   - src/change.rs
@@ -107,6 +107,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
+| `cmd_change` | `root: &Path, action: ChangeAction, format: OutputFormat, strict: bool` | `()` | Dispatch one change-lifecycle subcommand, rendering results in the selected output format |
 | `load_policy` | `root: &Path` | `Option<SddPolicy>` | Load `.specsync/sdd.json`; absence leaves existing projects unenforced |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
 | `create_change` | `root: &Path, request: CreateChangeRequest` | `Result<ChangeRecord, String>` | Create a sequential draft workspace and adaptive artifacts |
@@ -348,3 +349,4 @@ Acceptance Criteria
 | 2026-08-03 | CHG-0080-fail-lifecycle-verification-before-running-the-suite-when-evidence-is-incomplete: Fail lifecycle verification before running the suite when evidence is incomplete, make already-applied ADDED deltas converge, and reject duplicate change ordinals from one base |
 | 2026-08-04 | CHG-0081-make-a-fresh-project-usable-out-of-the-box-stop-a-leftover-directory-from-block: Make a fresh project usable out of the box, stop a leftover directory from blocking change new, and extract a lock-free verification body |
 | 2026-08-05 | CHG-0083-let-finalize-work-in-a-repository-that-has-archived-a-change: Let finalize work in a repository that has archived a change |
+| 2026-08-05 | CHG-0084-give-the-change-module-canonical-ownership-of-its-cli-wiring: Give the change module canonical ownership of its CLI wiring |

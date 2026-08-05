@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 84,
-  "id": "CHG-0084-give-the-change-module-canonical-ownership-of-its-cli-wiring",
+  "sequence": 85,
+  "id": "CHG-0085-resolve-canonical-ownership-at-approve-and-free-never-closed-changes",
   "acknowledged_collisions": [
     {
       "sequence": 16,

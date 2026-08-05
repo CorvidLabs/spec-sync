@@ -1,30 +1,15 @@
 {
-  "timestamp": 1785941998,
-  "commit": "9bf0ad09597606c12a0e81261549458e50cdd9e5",
+  "timestamp": 1785949902,
+  "commit": "9d1879f157a2f345bf78fe97a8b346754dd73d0b",
   "contract_digest": "f36859125eaed0731093c4a4985c6f70684d89025b3871d1444bbabceff4389a",
-  "execution_digest": "8ad18c927cc0d6a0c0f11228db31e9ef6e1d5d63b4c689165f33020e21ca68d1",
-  "workspace_digest": "8ca08067230ff983a77671f3f25632fd1a20858f349df73ff8bdd45ba2d0c6b1",
-  "passed": true,
+  "execution_digest": "4df0b97f5d0bca0385fb916d65c6ef91370b3d293060848f529f1e5bb9dfae46",
+  "workspace_digest": "ff2d1185314dd9343b07f03c3f77494941ce13dcc203efb661ea57d6166750fc",
+  "passed": false,
   "commands": [
     {
       "command": "cargo test change::",
-      "success": true,
-      "exit_code": 0
-    },
-    {
-      "command": "cargo test",
-      "success": true,
-      "exit_code": 0
-    },
-    {
-      "command": "python3 -S .github/scripts/validate-release-version.py",
-      "success": true,
-      "exit_code": 0
-    },
-    {
-      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
-      "success": true,
-      "exit_code": 0
+      "success": false,
+      "exit_code": 101
     }
   ],
   "requirement_ids": [

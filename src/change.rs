@@ -11013,6 +11013,24 @@ fn record_git_stage_zero_entry(
     Ok(())
 }
 
+/// Is `path` inside the requested candidate scope?
+///
+/// A candidate naming a directory expands under `:(top,literal)` to every tracked
+/// file beneath it, so those files were requested just as much as an exact
+/// candidate was. Rejecting them made `finalize` fail in any repository that had
+/// ever archived a change — every project past its first — while passing on the
+/// fresh fixtures the suite is built on.
+///
+/// Compares at the path separator so `a/b` cannot be admitted by `a/bc`.
+fn candidate_scope_admits(candidates: &BTreeSet<String>, path: &str) -> bool {
+    candidates.contains(path)
+        || candidates.iter().any(|candidate| {
+            path.len() > candidate.len()
+                && path.as_bytes()[candidate.len()] == b'/'
+                && path.starts_with(candidate.as_str())
+        })
+}
+
 fn inspect_git_candidates(
     root: &Path,
     candidates: &BTreeSet<String>,
@@ -11064,7 +11082,7 @@ fn inspect_git_candidates(
             let path = std::str::from_utf8(&record[tab + 1..])
                 .map_err(|_| "non-UTF-8 scoped Git index path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !candidate_scope_admits(candidates, &path) {
                 return Err(format!("Git returned an out-of-scope index path `{path}`"));
             }
             if stage != "0" {
@@ -11136,7 +11154,7 @@ fn inspect_git_candidates(
             let path =
                 std::str::from_utf8(path).map_err(|_| "non-UTF-8 Git diff path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !candidate_scope_admits(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope modified path `{path}`"
                 ));
@@ -11161,7 +11179,7 @@ fn inspect_git_candidates(
             let path = std::str::from_utf8(&record[2..])
                 .map_err(|_| "non-UTF-8 Git visibility path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !candidate_scope_admits(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope visibility path `{path}`"
                 ));
@@ -11203,7 +11221,7 @@ fn inspect_git_candidates(
             let path = std::str::from_utf8(&record[2..])
                 .map_err(|_| "non-UTF-8 Git fsmonitor path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !candidate_scope_admits(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope fsmonitor path `{path}`"
                 ));
@@ -19446,6 +19464,35 @@ mod tests {
         })
         .unwrap_err();
         assert!(error.contains("candidate state changed"), "{error}");
+    }
+
+    // `finalize` supplies archived-change paths as extra candidates. A candidate
+    // naming a directory expands under `:(top,literal)` to every tracked file
+    // beneath it, and the scope guard rejected the first expansion because the
+    // candidate set holds only the directory. The effect was that finalize failed
+    // in any repository that had ever archived a change — every project past its
+    // first — while passing on the fresh fixtures the suite is built on.
+    #[test]
+    fn a_directory_candidate_admits_the_files_it_expands_to() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        let archived = ".specsync/archive/changes/2026-01-01-CHG-0001-old";
+        fs::create_dir_all(root.join(archived)).unwrap();
+        fs::write(root.join(archived).join("approvals.json"), "{}\n").unwrap();
+        fs::write(root.join(archived).join("state.json"), "{}\n").unwrap();
+        fs::write(root.join("tracked.txt"), "tracked\n").unwrap();
+        quiet_git(root, &["add", "-A"]);
+
+        let mut extra = BTreeSet::new();
+        extra.insert(archived.to_string());
+
+        let result = stable_discovered_evidence(root, None, &extra, false);
+        assert!(
+            result.is_ok(),
+            "directory candidate rejected its own expansion: {}",
+            result.unwrap_err()
+        );
     }
 
     #[test]

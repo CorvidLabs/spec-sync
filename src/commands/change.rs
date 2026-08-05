@@ -317,7 +317,14 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             }
             Ok(())
         }),
-        ChangeAction::Check { id } => {
+        ChangeAction::Check { id, commit, push } if commit || push => {
+            if push && !commit {
+                Err("--push requires --commit".to_string())
+            } else {
+                run_checked_commit(root, id.as_deref(), strict, push, format)
+            }
+        }
+        ChangeAction::Check { id, .. } => {
             // Scoped verification only — project integrity is `change audit`.
             let display_id = id.clone().unwrap_or_else(|| "open change".into());
             if !matches!(format, OutputFormat::Json) {
@@ -795,4 +802,106 @@ mod tests {
             );
         }
     }
+}
+
+/// Perform the verify-commit-verify-commit sequence `change check` otherwise
+/// requires an author to remember.
+///
+/// `change check` materializes the approved delta into the working tree and
+/// anchors verification at the commit that predates it. Committing therefore
+/// stales the evidence just recorded, and the only way to reach a state CI
+/// accepts is to verify again against the committed tree. Nothing said so, and
+/// the failure surfaced only in CI — as four red checks reporting one cause.
+///
+/// SpecSync still does not commit by default; this runs only under `--commit`.
+///
+/// Nothing is committed unless verification passes: a half-committed lifecycle is
+/// worse than none.
+fn run_checked_commit(
+    root: &std::path::Path,
+    id: Option<&str>,
+    strict: bool,
+    push: bool,
+    format: OutputFormat,
+) -> Result<(), String> {
+    let quiet = matches!(format, OutputFormat::Json);
+    let say = |message: &str| {
+        if !quiet {
+            println!("{message}");
+        }
+    };
+
+    let verify = |label: &str| -> Result<Option<String>, String> {
+        say(label);
+        let record = if strict {
+            change::check_change_with_strict(root, id, true)?
+        } else {
+            change::check_change(root, id)?
+        };
+        Ok(record.map(|record| record.commit.unwrap_or_default()))
+    };
+
+    // First pass: materialize the approved delta and verify the working tree.
+    verify("Checking (1/2): verifying the materialized tree…")?;
+
+    let resolved = id
+        .map(str::to_string)
+        .or_else(|| {
+            change::list_changes(root)
+                .into_iter()
+                .find(|record| record.canonical_applied)
+                .map(|record| record.id)
+        })
+        .ok_or_else(|| "cannot resolve a change to commit".to_string())?;
+
+    git_commit_all(root, &format!("chore(lifecycle): materialize {resolved}"))?;
+    say("Committed the materialized spec.");
+
+    // Second pass: re-anchor against the committed tree. Evidence files live under
+    // `.specsync/changes/`, which is excluded from the project-input digest, so
+    // committing them cannot stale this result.
+    verify("Checking (2/2): re-verifying against the committed tree…")?;
+    git_commit_all(
+        root,
+        &format!("chore(lifecycle): record {resolved} verification"),
+    )?;
+    say("Committed the verification evidence.");
+
+    if push {
+        run_git(root, &["push"])?;
+        say("Pushed.");
+    }
+    say("Verified, committed, and consistent with the committed tree.");
+    Ok(())
+}
+
+fn run_git(root: &std::path::Path, args: &[&str]) -> Result<(), String> {
+    let output = std::process::Command::new("git")
+        .args(args)
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    if !output.status.success() {
+        return Err(format!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(())
+}
+
+/// Stage everything and commit, treating "nothing to commit" as success so the
+/// sequence stays idempotent when a pass produced no change.
+fn git_commit_all(root: &std::path::Path, message: &str) -> Result<(), String> {
+    run_git(root, &["add", "-A"])?;
+    let status = std::process::Command::new("git")
+        .args(["diff", "--cached", "--quiet"])
+        .current_dir(root)
+        .status()
+        .map_err(|error| format!("failed to inspect staged changes: {error}"))?;
+    if status.success() {
+        return Ok(());
+    }
+    run_git(root, &["commit", "-m", message])
 }

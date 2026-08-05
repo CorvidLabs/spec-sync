@@ -754,15 +754,16 @@ Acceptance Criteria
 
 ### REQ-change-052
 
-The change module SHALL hold canonical ownership of its command-line wiring so
-that acceptance inputs touching that wiring resolve to a single owning spec.
+The change module SHALL hold canonical ownership of its own logic, leaving each
+command wiring module the sole canonical owner of its own file.
 
 Acceptance Criteria
 
-- `specs/change/change.spec.md` lists `src/commands/change.rs` among its files.
-- A change whose acceptance inputs include `src/commands/change.rs` resolves
-  deterministic canonical ownership at finalize.
-- No other spec claims the same path, so ownership stays single-valued.
+- `specs/change/change.spec.md` lists `src/change.rs` and does not list
+  `src/commands/change.rs`.
+- `specs/cmd_change/cmd_change.spec.md` remains the sole claimant of
+  `src/commands/change.rs`.
+- No source file is claimed by two specs.
 
 ### REQ-change-053
 

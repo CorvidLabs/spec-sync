@@ -1,6 +1,6 @@
 ---
 id: CHG-0086-return-src-commands-change-rs-to-its-sole-canonical-owner
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 8657252d962340931fe27a82fe4adb4b4f0c88e1
 ---

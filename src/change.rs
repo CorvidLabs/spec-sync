@@ -3434,9 +3434,23 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     if record.affected_paths.is_empty() {
         return Ok(());
     }
+    // Ownership is resolved by searching the change's own declared specs, so a
+    // change that declares none has no set to resolve against and would be
+    // rejected unconditionally rather than accurately. Those are still enforced
+    // at finalize, which resolves against full delivery evidence.
+    if record.affected_specs.is_empty() {
+        return Ok(());
+    }
     let evidence = acceptance_owner_spec_evidence(root, record)?;
     let mut unowned = Vec::new();
     for path in &record.affected_paths {
+        // Only paths that already exist. A change routinely declares a file it is
+        // about to create, and ownership for a file that does not exist yet cannot
+        // be resolved — the owning spec may well be claiming it in this change's
+        // own delta. Those are still enforced at finalize, once the file is real.
+        if !root.join(path).exists() {
+            continue;
+        }
         if production_source_lacks_canonical_owner_with_evidence(root, record, path, &evidence)? {
             unowned.push(path.as_str());
         }
@@ -24263,18 +24277,28 @@ mod tests {
         )
         .unwrap();
 
-        // The record declares src/lib.rs but names no spec that owns it.
+        // `legacy` owns src/lib.rs but not src/orphan.rs. The change declares
+        // `legacy` and touches both — the shape CHG-0081 was stuck in, where a
+        // change edits a file belonging to a module it never declared.
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn owned() {}\n").unwrap();
+        fs::write(root.join("src/orphan.rs"), "pub fn unowned() {}\n").unwrap();
+
         let mut record = completed_no_spec_record(root);
-        record.affected_specs.clear();
-        record.affected_paths = vec!["src/lib.rs".into()];
+        record.affected_specs = vec!["legacy".into()];
+        record.affected_paths = vec!["src/lib.rs".into(), "src/orphan.rs".into()];
         save_change(root, &record).unwrap();
         write_change_markdown(root, &record).unwrap();
 
         let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
             .expect_err("approve must reject a path no declared module owns");
         assert!(
-            error.contains("src/lib.rs") && error.to_lowercase().contains("own"),
-            "error should name the path and the ownership problem: {error}"
+            error.contains("src/orphan.rs") && error.to_lowercase().contains("own"),
+            "error should name the unowned path and the ownership problem: {error}"
+        );
+        assert!(
+            !error.contains("src/lib.rs"),
+            "the owned path must not be reported as a problem: {error}"
         );
         assert!(
             error.contains("--spec") || error.contains("files:"),

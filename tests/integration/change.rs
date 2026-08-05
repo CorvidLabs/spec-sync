@@ -122,6 +122,16 @@ fn verification_freshness_status_and_check_are_environment_independent() {
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    // Production source has to belong to some spec. A file owned by nothing is
+    // the state that used to pass approve and every check, then fail at finalize
+    // with no way forward, so a fixture that omits ownership no longer describes
+    // a project a change can be completed in.
+    fs::create_dir_all(root.join("specs/lib")).unwrap();
+    fs::write(
+        root.join("specs/lib/lib.spec.md"),
+        "---\nmodule: lib\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Lib\n\n## Purpose\n\nLibrary entry point.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
     fs::write(
         root.join(".specsync/sdd.json"),
         serde_json::to_vec_pretty(&serde_json::json!({

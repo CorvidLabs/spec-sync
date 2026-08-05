@@ -66,6 +66,115 @@
       "requirement_ids": [
         "REQ-change-051"
       ]
+    },
+    {
+      "timestamp": 1785905908,
+      "commit": "9baf7ec7ae987c481c4dd1d1bf725f0eb00c8a33",
+      "contract_digest": "3b2a5d7b4bb1de682fbb7fee2a75532b4e197a4ba866778b30c60fe939a56e3c",
+      "execution_digest": "d42b2278f976818d1ab0ad90b428fd9adb73efef642e211db98e0d36deda455d",
+      "workspace_digest": "5c0d8351ffb74166a5fa3c11540ff47107b46ec94526163b51dfa258891c97d1",
+      "acceptance_input_digest": "a4afb5fbb779de3108bc109f7521966ce3424603091f5e0411f8a0849f40f68d",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".specsync/change-sequence.json",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1a740791498657d545be8cd0668b4a8b848960fea9f2921cca08b4641e12d854",
+            "entry_digest": "50f19b1d9f567c047ffd8089f4abfd5d8417f9383c4563eb27caca2b4f43b69f",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/change/change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "38d0ecc429a9e451f8ae98236bb927136a04221f3c5941f942fcdbec8fb833c3",
+            "entry_digest": "71c8a8799c8e950376a2cabac49d0608d482920de192773f3eace2742d36fc28",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "53264f9e044a325eeaaf9bbab9ce4ec7fb81234c5de1da9d1c0c456deabb4bc2",
+            "entry_digest": "56a342417525f9c38a2fd5a5a3c7cf8152d368293c20779a903bcaa522752d9f",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a333a80b30131bd0d0bc80b5e0ef6e449b9adb4f1a312e9d63c686c551adc4a3",
+            "entry_digest": "5873aedb2ab3b7c7f256225e4525d85212cfcf298885888a62f416b0663b3d59",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6577ef2ded2ab188315517e2efb10c3d0d8fb1cfd8886851006dcb4537b19d6c",
+            "entry_digest": "8ee88b74fea6b2bf11ee576dce8e0c3625ac30118dbebf5a9ae3b5ef879a33fc",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b75180bfc29c3bd53742535c06bc4372aa5a1d11ce08ea774aebb9c6312a3d37",
+            "entry_digest": "38ceb53dac77e42ee875c8144d961cf291ca67a9f06e7ee16a342b4ea86bed55",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "996b01f8e12d35a6a4cb5882392a3496d8df2527c858085a87b329879f81dd01",
+            "entry_digest": "74252a044f086ff5e9a90cce911052648ee197f0e4530260ff6147479e3c8115",
+            "owners": [
+              "change"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-051"
+      ]
     }
   ]
 }

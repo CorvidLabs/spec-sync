@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0083-let-finalize-work-in-a-repository-that-has-archived-a-change",
+  "implementation_commit": "9baf7ec7ae987c481c4dd1d1bf725f0eb00c8a33",
+  "implementation_tree": "0c9f90ebf13cb03735025f90af524a9251ef2226",
+  "contract_digest": "3b2a5d7b4bb1de682fbb7fee2a75532b4e197a4ba866778b30c60fe939a56e3c",
+  "workspace_digest": "5c0d8351ffb74166a5fa3c11540ff47107b46ec94526163b51dfa258891c97d1",
+  "closing_digest": "ae1b23d18fdc5164696ccc27cb7a6a37856798fcb0c7c3c4f4c746658e3acdd0",
+  "review_digest": "c6691526c4bcf5b1f6f8f19ae05518d6544f97f19f1135a21d336e50742c00c6",
+  "finalization_digest": "caec4441a5dd439e8f4f57543e68689819021ca585fb66df79d7f25237696e20",
+  "timestamp": 1785906745
+}

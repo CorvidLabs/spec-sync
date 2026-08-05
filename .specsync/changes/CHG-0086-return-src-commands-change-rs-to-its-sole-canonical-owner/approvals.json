@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude",
+      "timestamp": 1785963118,
+      "digest": "1577e18eb92827963b692295c43a74fac487d5755c6d729c9ea5c761a185d256",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0086-return-src-commands-change-rs-to-its-sole-canonical-owner",
+        "title": "Return src/commands/change.rs to its sole canonical owner",
+        "description": "Return src/commands/change.rs to its sole canonical owner",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/change/change.spec.md"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "cmd_change is the sole canonical owner of src/commands/change.rs and no source file is claimed by two specs"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

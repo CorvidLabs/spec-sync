@@ -4,7 +4,6 @@ version: 60
 status: active
 files:
   - src/change.rs
-  - src/commands/change.rs
 db_tables: []
 tracks: []
 depends_on:
@@ -107,7 +106,6 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
-| `cmd_change` | `root: &Path, action: ChangeAction, format: OutputFormat, strict: bool` | `()` | Dispatch one change-lifecycle subcommand, rendering results in the selected output format |
 | `load_policy` | `root: &Path` | `Option<SddPolicy>` | Load `.specsync/sdd.json`; absence leaves existing projects unenforced |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
 | `create_change` | `root: &Path, request: CreateChangeRequest` | `Result<ChangeRecord, String>` | Create a sequential draft workspace and adaptive artifacts |

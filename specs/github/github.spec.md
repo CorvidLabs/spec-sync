@@ -1,6 +1,6 @@
 ---
 module: github
-version: 22
+version: 23
 status: stable
 files:
   - src/github.rs
@@ -49,50 +49,8 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 
 ## Invariants
 
-1. Read/list/verify operations require `GITHUB_TOKEN` and execute only in-process REST requests.
-2. GitHub issue verification confirms repository access before and after apparent absence.
-3. Verification globally deduplicates no more than 100 issue IDs per batch and bounds REST operation
-   and complete-batch time.
-4. Authentication, repository, transport, timeout, and malformed-provider failures are
-   inconclusive errors rather than successful empty or not_found results.
-5. Legacy `gh` issue reads fail closed without process spawning; `gh` is reserved for explicit
-   issue creation.
-6. Issue listing rejects provider pages above 100 entries before parsing any item, strictly
-   validates every raw issue/pull-request item as open with exact URL identity before filtering,
-   rejects duplicate raw identities within/across pages, paginates at most 100 pages, binds next
-   links to the requested repository issues endpoint and query semantics, and rejects malformed
-   links and cap truncation.
-7. Direct issue details are issue-only and reject pull-request markers.
-8. A positive archive-only CI classification requires one single-parent exact active-to-dated-archive move; name-only or malformed archive diffs select the full lane.
-9. Archive-only validation reuses successful required checks and one schema-v2 passing independent review with append-only attempts and authenticated GitHub Actions provenance from the implementation parent, while release validation requires a successful merge-bound archive check.
-10. Legacy workflow-v1 archive moves stay on the historical full-validation path, and fork PRs run the same read-only scoped review while suppressing only write decorations.
-11. Post-merge publication runs from immutable base-controlled code for forks, and the trusted
-    policy guard rejects every changed workflow, root or nested local Action definition, or
-    workflow-v2 baseline with rename-safe, NUL-record-safe path discovery rather than an enumerated
-    subset; privileged executable Actions use full commit SHAs.
-12. Archive introduction verification checks every bounded path-touching commit and readable parent
-    against the exact introduction tree, rejecting deletion or rewrite even when final bytes are
-    restored.
-13. Hosted verification assigns expensive signals to one authority: CI owns the product suite,
-    while Trust binds the release binary to the strict contract, risk decision, and provenance
-    without invoking the full local verification lane a second time.
-14. Ordinary product pull requests use Ubuntu as the authoritative integration platform. Release
-    qualification runs one named Fledge lane on Ubuntu, macOS, and Windows for an annotated RC tag's
-    exact commit. Active tag rulesets allow humans to create a new RC marker but forbid its update or
-    deletion, allow only a dedicated release GitHub App to create a final tag, and forbid every actor
-    from updating or deleting final tags. The App's private key is available only in the protected
-    `release` environment. Final
-    tagging or upload fails unless every platform result, freshly resolved tag, actual checkout, and
-    packaged artifact remains bound to that unchanged candidate.
-15. Review/archive metadata descendants may reuse required CI only from one nearest successful
-    first-parent product ancestor. The current child must pass the lifecycle classifier and every
-    skipped child must be either an exact historical scoped-review pair or an authenticated
-    workflow-v2 archive move whose finalization binds its exact parent commit and tree. Every reused
-    job check remains exact-SHA, same-PR, expected-workflow, official-Actions, exact-job, and
-    selected-check bound. Lookup stops at that first product boundary even when its evidence is
-    missing or unsuccessful. The helper and its focused test may change only with the separately
-    protected CI workflow. Historical lifecycle parsing accepts only native serialized enum
-    spellings and unsigned-64-bit timestamps while preserving valid zero-entry acceptance manifests.
+Every path that can be merged can reach the required CI gate; a path the CI
+workflow cannot trigger can never report the gate and blocks its pull request.
 
 ## Behavioral Examples
 
@@ -223,3 +181,4 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | 2026-08-02 | CHG-0077 review hardening: Traverse parent-bound workflow-v2 archives, bind reusable job checks to exact jobs, and ignore unsuccessful policy republications without rejecting GitHub-rewritten check URLs |
 | 2026-08-02 | CHG-0077 late review hardening: Match native manifest spelling, empty-manifest, and unsigned timestamp semantics without tracking interpreter bytecode |
 | 2026-08-02 | CHG-0079-delete-the-ci-reimplementation-of-the-sdd-lifecycle-and-rely-on-specsync-change: Delete the CI reimplementation of the SDD lifecycle and rely on specsync change audit, removing the separate-archive-tip constraint |
+| 2026-08-04 | CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate: Let documentation-only pull requests reach the required CI gate |

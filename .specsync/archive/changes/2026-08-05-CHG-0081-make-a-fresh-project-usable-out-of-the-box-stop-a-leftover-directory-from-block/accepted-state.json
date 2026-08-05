@@ -7,11 +7,11 @@
   "title": "Make a fresh project usable out of the box, stop a leftover directory from blocking change new, and extract a lock-free verification body",
   "description": "Make a fresh project usable out of the box, stop a leftover directory from blocking change new, and extract a lock-free verification body",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "9e431ec5f0d21e8e2f14dc52d512a71566447cf4",
   "created_at": 1785815760,
-  "updated_at": 1785957928,
+  "updated_at": 1785957953,
   "affected_specs": [
     "change"
   ],

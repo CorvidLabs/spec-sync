@@ -7,10 +7,11 @@
   "title": "Resolve canonical ownership at approve and free never-closed changes",
   "description": "Resolve canonical ownership at approve and free never-closed changes",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "2a9375f4fceb0d22766f1172bed9c7f152399a47",
   "created_at": 1785959467,
-  "updated_at": 1785959604,
+  "updated_at": 1785960693,
   "affected_specs": [
     "change"
   ],

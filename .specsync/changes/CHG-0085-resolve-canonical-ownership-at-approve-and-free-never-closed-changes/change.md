@@ -1,6 +1,6 @@
 ---
 id: CHG-0085-resolve-canonical-ownership-at-approve-and-free-never-closed-changes
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 2a9375f4fceb0d22766f1172bed9c7f152399a47
 ---

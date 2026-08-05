@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0084-give-the-change-module-canonical-ownership-of-its-cli-wiring",
+  "implementation_commit": "2b27658d1321116844c4d3fd01eaac5a3e10bb68",
+  "implementation_tree": "9c0aeb3699e61a2a832da0f361aff23b8b47198a",
+  "contract_digest": "dbdb28be2c2324aa9e650fd39ce04b58b656490ab07986f1a531291bd91b9479",
+  "workspace_digest": "8ca08067230ff983a77671f3f25632fd1a20858f349df73ff8bdd45ba2d0c6b1",
+  "closing_digest": "fa16cb304e611c2b62d568ec1c78a1ec8e9ae15b080f12d76158b4ffb8b3a782",
+  "review_digest": "121bc5e21ab7a39924774c72b90fc6787a19f86aa13fff613fe4af32b81cedb7",
+  "finalization_digest": "c0af69b2435a2a5c04aff2617c244e5b26416065387720b9e76c7ce63d69024d",
+  "timestamp": 1785939663
+}

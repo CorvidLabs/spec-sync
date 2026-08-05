@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate",
+  "slug": "let-documentation-only-pull-requests-reach-the-required-ci-gate",
+  "title": "Let documentation-only pull requests reach the required CI gate",
+  "description": "Let documentation-only pull requests reach the required CI gate",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "2f0667477708bfdffcb5b242e8f54df8e0d751a8",
+  "created_at": 1785887338,
+  "updated_at": 1785959419,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".specsync"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A pull request touching only docs/** or top-level *.md triggers the CI workflow, so the required Required CI gate context reports instead of waiting forever; classify still decides what work runs; test-classify-ci-paths.sh and validate-workflow-runtime-pins.py pass; a docs-only diff classifies without disturbing archive_only or review_only"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

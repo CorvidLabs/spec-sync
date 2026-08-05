@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0083-let-finalize-work-in-a-repository-that-has-archived-a-change",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "9baf7ec7ae987c481c4dd1d1bf725f0eb00c8a33",
+  "contract_digest": "3b2a5d7b4bb1de682fbb7fee2a75532b4e197a4ba866778b30c60fe939a56e3c",
+  "execution_digest": "d42b2278f976818d1ab0ad90b428fd9adb73efef642e211db98e0d36deda455d",
+  "workspace_digest": "5c0d8351ffb74166a5fa3c11540ff47107b46ec94526163b51dfa258891c97d1",
+  "timestamp": 1785906733
+}

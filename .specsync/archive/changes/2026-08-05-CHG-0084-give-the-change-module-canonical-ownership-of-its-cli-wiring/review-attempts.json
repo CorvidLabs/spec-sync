@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0084-give-the-change-module-canonical-ownership-of-its-cli-wiring",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "1f448950889a596c936122e2718f8696e5bccf4c",
+      "contract_digest": "dbdb28be2c2324aa9e650fd39ce04b58b656490ab07986f1a531291bd91b9479",
+      "execution_digest": "524efaeed02588f2ca16acb9ed0d9bf5fff61a9f41ace8c0a990398c5f4f62c7",
+      "workspace_digest": "8ca08067230ff983a77671f3f25632fd1a20858f349df73ff8bdd45ba2d0c6b1",
+      "timestamp": 1785939651
+    }
+  ]
+}

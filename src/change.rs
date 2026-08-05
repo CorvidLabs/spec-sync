@@ -2178,6 +2178,7 @@ fn approve_definition_with_projection(
     let prior_state = record.state;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
+    validate_declared_path_ownership(root, &record)?;
     if portable_v501 {
         append_portable_definition_approval_v501(root, &record, actor, note)?;
     } else {
@@ -3107,10 +3108,19 @@ fn latest_reopen_for_owner_correction<'a>(
     record: &ChangeRecord,
     approvals: &'a ApprovalLedger,
     corrections: &CorrectionLedger,
-) -> Result<&'a ReopenRecord, String> {
-    let reopening = approvals.reopenings.last().ok_or_else(|| {
-        "acceptance owner correction requires an audited reopen event".to_string()
-    })?;
+) -> Result<Option<&'a ReopenRecord>, String> {
+    let Some(reopening) = approvals.reopenings.last() else {
+        // A change can reach Verifying without ever closing — that is where one
+        // waits for finalize. It has no reopen because nothing reopened it, and
+        // demanding one closed every exit: finalize refuses the unowned path,
+        // reopen accepts only Accepted/Archived, and declaring the owning module
+        // would force a semantic delta for a spec the change does not alter.
+        //
+        // The reopen exists to prove the definition has not drifted since the
+        // change last closed. A never-closed change carries the equivalent
+        // guarantee in its own definition approval, checked by the caller.
+        return Ok(None);
+    };
     // REQ-change-033 requires the target be "verifying through an audited reopen"
     // and does not constrain the origin state. Since `finalize` performs accept and
     // archive in one command, a change needing owner correction is Archived by the
@@ -3150,7 +3160,7 @@ fn latest_reopen_for_owner_correction<'a>(
                 .into(),
         );
     }
-    Ok(reopening)
+    Ok(Some(reopening))
 }
 
 #[allow(dead_code)] // Public one-entry wrapper; batch path is used by the CLI adapter.
@@ -3213,15 +3223,25 @@ pub fn add_acceptance_owner_corrections(
     let reopening = latest_reopen_for_owner_correction(&record, &approvals, &metadata_corrections)?;
     let mut original = record.clone();
     original.acceptance_owner_corrections.clear();
-    if !definition_digest_matches(
-        root,
-        &original,
-        &reopening.prior_verification.contract_digest,
-    )? {
-        return Err(
-            "cannot correct an owner after the reopened definition changed; restore the accepted definition or use a successor change"
-                .into(),
-        );
+    match reopening {
+        Some(reopening) => {
+            if !definition_digest_matches(
+                root,
+                &original,
+                &reopening.prior_verification.contract_digest,
+            )? {
+                return Err(
+                    "cannot correct an owner after the reopened definition changed; restore the accepted definition or use a successor change"
+                        .into(),
+                );
+            }
+        }
+        None => {
+            // Never closed, so there is no reopened definition to compare against.
+            // The equivalent guarantee is that the definition still matches the
+            // approval it is being corrected under.
+            ensure_definition_approval_valid(root, &original)?;
+        }
     }
 
     let timestamp = now();
@@ -3397,6 +3417,57 @@ fn acceptance_owner_spec_evidence(
     } else {
         git_regular_file_evidence(root, &candidates)
     }
+}
+
+/// Reject declared paths that no declared module canonically owns.
+///
+/// Ownership is knowable the moment a path is declared, but was previously
+/// resolved only while building the acceptance manifest at finalize. A change
+/// naming a path owned by a module it does not declare therefore passed approve
+/// and every check, was reviewed, and failed at the terminal step — into a state
+/// with no exit, since `correct-owner` is scoped to already-applied changes and
+/// `reopen` accepts only Accepted/Archived.
+///
+/// Every offending path is reported together: discovering them one per
+/// verification pass is what made the original failure expensive.
+fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    if record.affected_paths.is_empty() {
+        return Ok(());
+    }
+    // Ownership is resolved by searching the change's own declared specs, so a
+    // change that declares none has no set to resolve against and would be
+    // rejected unconditionally rather than accurately. Those are still enforced
+    // at finalize, which resolves against full delivery evidence.
+    if record.affected_specs.is_empty() {
+        return Ok(());
+    }
+    let evidence = acceptance_owner_spec_evidence(root, record)?;
+    let mut unowned = Vec::new();
+    for path in &record.affected_paths {
+        // Only paths that already exist. A change routinely declares a file it is
+        // about to create, and ownership for a file that does not exist yet cannot
+        // be resolved — the owning spec may well be claiming it in this change's
+        // own delta. Those are still enforced at finalize, once the file is real.
+        if !root.join(path).exists() {
+            continue;
+        }
+        if production_source_lacks_canonical_owner_with_evidence(root, record, path, &evidence)? {
+            unowned.push(path.as_str());
+        }
+    }
+    if unowned.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "no declared module canonically owns {}: {}. Declare the owning module with `--spec`, \
+         or add the path to an owning spec's `files:` list",
+        if unowned.len() == 1 {
+            "this affected path"
+        } else {
+            "these affected paths"
+        },
+        unowned.join(", ")
+    ))
 }
 
 fn production_source_lacks_canonical_owner_with_evidence(
@@ -11013,6 +11084,24 @@ fn record_git_stage_zero_entry(
     Ok(())
 }
 
+/// Is `path` inside the requested candidate scope?
+///
+/// A candidate naming a directory expands under `:(top,literal)` to every tracked
+/// file beneath it, so those files were requested just as much as an exact
+/// candidate was. Rejecting them made `finalize` fail in any repository that had
+/// ever archived a change — every project past its first — while passing on the
+/// fresh fixtures the suite is built on.
+///
+/// Compares at the path separator so `a/b` cannot be admitted by `a/bc`.
+fn candidate_scope_admits(candidates: &BTreeSet<String>, path: &str) -> bool {
+    candidates.contains(path)
+        || candidates.iter().any(|candidate| {
+            path.len() > candidate.len()
+                && path.as_bytes()[candidate.len()] == b'/'
+                && path.starts_with(candidate.as_str())
+        })
+}
+
 fn inspect_git_candidates(
     root: &Path,
     candidates: &BTreeSet<String>,
@@ -11064,7 +11153,7 @@ fn inspect_git_candidates(
             let path = std::str::from_utf8(&record[tab + 1..])
                 .map_err(|_| "non-UTF-8 scoped Git index path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !candidate_scope_admits(candidates, &path) {
                 return Err(format!("Git returned an out-of-scope index path `{path}`"));
             }
             if stage != "0" {
@@ -11136,7 +11225,7 @@ fn inspect_git_candidates(
             let path =
                 std::str::from_utf8(path).map_err(|_| "non-UTF-8 Git diff path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !candidate_scope_admits(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope modified path `{path}`"
                 ));
@@ -11161,7 +11250,7 @@ fn inspect_git_candidates(
             let path = std::str::from_utf8(&record[2..])
                 .map_err(|_| "non-UTF-8 Git visibility path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !candidate_scope_admits(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope visibility path `{path}`"
                 ));
@@ -11203,7 +11292,7 @@ fn inspect_git_candidates(
             let path = std::str::from_utf8(&record[2..])
                 .map_err(|_| "non-UTF-8 Git fsmonitor path".to_string())?;
             let path = strict_portable_relative_path(path)?;
-            if !candidates.contains(&path) {
+            if !candidate_scope_admits(candidates, &path) {
                 return Err(format!(
                     "Git returned an out-of-scope fsmonitor path `{path}`"
                 ));
@@ -17050,6 +17139,24 @@ mod tests {
         completed_record_with_workflow(root, false)
     }
 
+    /// Make the `auth` spec claim `src/auth.rs`, as a real project would.
+    ///
+    /// `completed_record` declares spec `auth` and path `src/auth.rs`, so any test
+    /// that approves it needs the spec to own that path — otherwise the fixture
+    /// describes a change that could never finalize. Applied per-test rather than
+    /// in the shared fixture, since tests asserting exact path-coverage sets are
+    /// sensitive to extra files existing.
+    fn ensure_auth_spec_owns_its_source(root: &Path) {
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+    }
+
     fn completed_record_with_workflow(root: &Path, legacy: bool) -> ChangeRecord {
         ensure_test_verification_policy(root);
         let mut record = create_change(
@@ -19446,6 +19553,35 @@ mod tests {
         })
         .unwrap_err();
         assert!(error.contains("candidate state changed"), "{error}");
+    }
+
+    // `finalize` supplies archived-change paths as extra candidates. A candidate
+    // naming a directory expands under `:(top,literal)` to every tracked file
+    // beneath it, and the scope guard rejected the first expansion because the
+    // candidate set holds only the directory. The effect was that finalize failed
+    // in any repository that had ever archived a change — every project past its
+    // first — while passing on the fresh fixtures the suite is built on.
+    #[test]
+    fn a_directory_candidate_admits_the_files_it_expands_to() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        quiet_git(root, &["init", "-b", "main"]);
+        let archived = ".specsync/archive/changes/2026-01-01-CHG-0001-old";
+        fs::create_dir_all(root.join(archived)).unwrap();
+        fs::write(root.join(archived).join("approvals.json"), "{}\n").unwrap();
+        fs::write(root.join(archived).join("state.json"), "{}\n").unwrap();
+        fs::write(root.join("tracked.txt"), "tracked\n").unwrap();
+        quiet_git(root, &["add", "-A"]);
+
+        let mut extra = BTreeSet::new();
+        extra.insert(archived.to_string());
+
+        let result = stable_discovered_evidence(root, None, &extra, false);
+        assert!(
+            result.is_ok(),
+            "directory candidate rejected its own expansion: {}",
+            result.unwrap_err()
+        );
     }
 
     #[test]
@@ -22341,6 +22477,7 @@ mod tests {
     #[test]
     fn stale_definition_approval_is_rejected() {
         let temp = TempDir::new().unwrap();
+        ensure_auth_spec_owns_its_source(temp.path());
         let mut record = completed_record(temp.path());
         for artifact in &record.selected_artifacts {
             fs::write(
@@ -24117,6 +24254,108 @@ mod tests {
     }
 
     // Verifies REQ-change-033.
+    #[test]
+    // Canonical ownership is knowable the moment a path is declared, but was
+    // enforced only when building the acceptance manifest at finalize. A change
+    // declaring a path owned by a module it does not name therefore passed
+    // `approve` and every `check`, was reviewed, and only then failed — into a
+    // state with no exit, since `correct-owner` is scoped to already-applied
+    // changes and `reopen` takes only Accepted/Archived.
+    //
+    // Rejecting at approve costs two seconds instead of several verification
+    // passes and a reviewer's signature, and keeps the unrecoverable state
+    // unreachable.
+    #[test]
+    fn approve_rejects_a_declared_path_owned_by_an_undeclared_module() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::create_dir_all(root.join("specs/legacy")).unwrap();
+        fs::write(
+            root.join("specs/legacy/legacy.spec.md"),
+            "---\nmodule: legacy\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Legacy\n\n## Purpose\n\nLegacy owner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+
+        // `legacy` owns src/lib.rs but not src/orphan.rs. The change declares
+        // `legacy` and touches both — the shape CHG-0081 was stuck in, where a
+        // change edits a file belonging to a module it never declared.
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn owned() {}\n").unwrap();
+        fs::write(root.join("src/orphan.rs"), "pub fn unowned() {}\n").unwrap();
+
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs = vec!["legacy".into()];
+        record.affected_paths = vec!["src/lib.rs".into(), "src/orphan.rs".into()];
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+
+        let error = approve_definition(root, &record.id, Some("Reviewer".into()), None)
+            .expect_err("approve must reject a path no declared module owns");
+        assert!(
+            error.contains("src/orphan.rs") && error.to_lowercase().contains("own"),
+            "error should name the unowned path and the ownership problem: {error}"
+        );
+        assert!(
+            !error.contains("src/lib.rs"),
+            "the owned path must not be reported as a problem: {error}"
+        );
+        assert!(
+            error.contains("--spec") || error.contains("files:"),
+            "error should say how to resolve it, not just that it failed: {error}"
+        );
+    }
+
+    // A change that reaches Verifying without ever closing has no reopen event,
+    // because nothing ever closed it. Owner correction demanded one, so a change
+    // whose acceptance inputs touch a file owned by an undeclared module could
+    // neither finalize (ownership unresolved) nor be corrected (no reopen) nor be
+    // reopened (reopen takes only Accepted/Archived). Every exit was closed.
+    //
+    // The reopen exists to prove the definition has not drifted since the change
+    // last closed. A never-closed change carries that same guarantee in its own
+    // verification evidence, so the correction is admissible without one.
+    #[test]
+    fn never_closed_verifying_change_corrects_an_owner_without_a_reopen() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        fs::create_dir_all(root.join("specs/legacy")).unwrap();
+        fs::write(
+            root.join("specs/legacy/legacy.spec.md"),
+            "---\nmodule: legacy\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Legacy\n\n## Purpose\n\nLegacy owner.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let mut record = completed_no_spec_record(root);
+        record.affected_specs = vec!["legacy".into()];
+        save_change(root, &record).unwrap();
+        write_change_markdown(root, &record).unwrap();
+        record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        record = start_implementation(root, &record.id).unwrap();
+        verify_change(root, &record.id).unwrap();
+
+        // Deliberately no accept and no reopen: the change sits at Verifying,
+        // exactly where a reviewed change waits for finalize. `check` materializes
+        // the delta before verifying, so a change that reached this point has its
+        // canonical application recorded — which is what the real stranded changes
+        // look like, and what distinguishes this from a draft.
+        record = load_change(root, &record.id).unwrap();
+        record.canonical_applied = true;
+        save_change(root, &record).unwrap();
+        assert_eq!(record.state, ChangeState::Verifying);
+
+        let corrected = add_acceptance_owner_correction(
+            root,
+            &record.id,
+            "src/lib.rs".into(),
+            "change".into(),
+            "Release reviewer".into(),
+            "The definition omitted the canonical owner of an affected path".into(),
+        )
+        .expect("a never-closed verifying change has no reopen to reference");
+        assert_eq!(corrected.acceptance_owner_corrections.len(), 1);
+    }
+
     #[test]
     fn reopened_change_adds_exact_canonical_owner_without_replaying_delivery() {
         let temp = TempDir::new().unwrap();
@@ -26633,6 +26872,7 @@ mod tests {
     #[test]
     fn project_principles_are_part_of_the_approval_digest() {
         let temp = TempDir::new().unwrap();
+        ensure_auth_spec_owns_its_source(temp.path());
         let root = temp.path();
         fs::write(
             root.join("PRINCIPLES.md"),

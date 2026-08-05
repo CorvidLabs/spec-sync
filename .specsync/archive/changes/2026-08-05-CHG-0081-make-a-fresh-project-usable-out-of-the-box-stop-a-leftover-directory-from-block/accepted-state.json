@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0081-make-a-fresh-project-usable-out-of-the-box-stop-a-leftover-directory-from-block",
+  "slug": "make-a-fresh-project-usable-out-of-the-box-stop-a-leftover-directory-from-block",
+  "title": "Make a fresh project usable out of the box, stop a leftover directory from blocking change new, and extract a lock-free verification body",
+  "description": "Make a fresh project usable out of the box, stop a leftover directory from blocking change new, and extract a lock-free verification body",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "9e431ec5f0d21e8e2f14dc52d512a71566447cf4",
+  "created_at": 1785815760,
+  "updated_at": 1785957953,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    ".specsync",
+    "specs/change",
+    "src/change.rs",
+    "src/commands/change.rs",
+    "src/commands/init.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "specsync init detects a test command for go.mod, pyproject.toml/pytest.ini and package.json in addition to Cargo, bun, Swift and fledge, and warns at init time naming the file and an example when none is detected rather than silently writing an empty list; a change directory containing no state.json is skipped as not-active-here by both active-change read paths instead of failing closed, so change new succeeds on a branch that does not contain an earlier change and audit --strict no longer reports the sequence ledger as uncovered, while every other read error still fails closed; verify_change_with_strict acquires the project lock and delegates to a lock-free verify_change_locked documented as requiring the caller to hold it, with no behaviour change"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "acceptance_owner_corrections": [
+    {
+      "schema_version": 1,
+      "sequence": 1,
+      "path": "src/commands/init.rs",
+      "module": "cmd_init",
+      "actor": "0xLeif",
+      "reason": "the definition omitted cmd_init as canonical owner of src/commands/init.rs",
+      "timestamp": 1785949253
+    }
+  ],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

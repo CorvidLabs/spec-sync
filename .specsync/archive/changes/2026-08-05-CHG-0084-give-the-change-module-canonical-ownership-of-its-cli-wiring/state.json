@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0084-give-the-change-module-canonical-ownership-of-its-cli-wiring",
+  "slug": "give-the-change-module-canonical-ownership-of-its-cli-wiring",
+  "title": "Give the change module canonical ownership of its CLI wiring",
+  "description": "Give the change module canonical ownership of its CLI wiring",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "e59a5a575f40a9426777696dc5988ef3365843d2",
+  "created_at": 1785936625,
+  "updated_at": 1785939820,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "specs/change/change.spec.md claims src/commands/change.rs, so finalize resolves canonical ownership for the change module's CLI wiring"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

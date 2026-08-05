@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0083-let-finalize-work-in-a-repository-that-has-archived-a-change",
+  "slug": "let-finalize-work-in-a-repository-that-has-archived-a-change",
+  "title": "Let finalize work in a repository that has archived a change",
+  "description": "Let finalize work in a repository that has archived a change",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "406065acf16525575d5ae560ee2c8dea344f2685",
+  "created_at": 1785903218,
+  "updated_at": 1785907022,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "finalize succeeds in a repository containing archived changes; the four Git scope guards admit the files a directory candidate expands to"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

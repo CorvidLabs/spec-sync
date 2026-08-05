@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 82,
-  "id": "CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate",
+  "sequence": 86,
+  "id": "CHG-0086-return-src-commands-change-rs-to-its-sole-canonical-owner",
   "acknowledged_collisions": [
     {
       "sequence": 16,

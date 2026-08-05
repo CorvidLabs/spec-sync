@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0081-make-a-fresh-project-usable-out-of-the-box-stop-a-leftover-directory-from-block",
+  "reviewer": "claude",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "83637001d0809a3a4ba6c566bdcaf4cf3dea1bd0",
+  "contract_digest": "f36859125eaed0731093c4a4985c6f70684d89025b3871d1444bbabceff4389a",
+  "execution_digest": "4df0b97f5d0bca0385fb916d65c6ef91370b3d293060848f529f1e5bb9dfae46",
+  "workspace_digest": "c211371428401c7b8a8abf6f9827f360ff5cb728d9852aea449a4e7626196ca1",
+  "timestamp": 1785957937
+}

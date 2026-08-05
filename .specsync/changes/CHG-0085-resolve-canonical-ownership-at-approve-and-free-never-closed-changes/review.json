@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0085-resolve-canonical-ownership-at-approve-and-free-never-closed-changes",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "2f371a728a6fad493a6b681b3e1dabfc93ddabc1",
+  "contract_digest": "9c86bf8579d0ce22043c0b85c0531fd8ae8fbb168cef56faf4e55c50aed83068",
+  "execution_digest": "23b2116e1bedcdcedb49789fe441e0fffce0b878619b5e2c29000df623678114",
+  "workspace_digest": "a3687ab0dbfece614aae8d54edaf2ffa56e1a9603eea590bbd7f0a1b15aa5e31",
+  "timestamp": 1785961771
+}

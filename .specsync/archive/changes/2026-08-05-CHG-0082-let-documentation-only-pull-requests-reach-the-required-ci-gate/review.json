@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate",
+  "reviewer": "claude",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "82cac9859dbf7c5cddd29610e26b3f3c1427b1aa",
+  "contract_digest": "473057299419941459bbae90d60d3c648a40034e8cbf24ceceb7b2b29038e3bc",
+  "execution_digest": "389a88f79ba6bde5f8e1d48498f0024837de45b377390248e9f4653ea8bc30b8",
+  "workspace_digest": "c211371428401c7b8a8abf6f9827f360ff5cb728d9852aea449a4e7626196ca1",
+  "timestamp": 1785959250
+}

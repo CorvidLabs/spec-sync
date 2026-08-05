@@ -1,0 +1,38 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude",
+      "timestamp": 1785959604,
+      "digest": "9c86bf8579d0ce22043c0b85c0531fd8ae8fbb168cef56faf4e55c50aed83068",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0085-resolve-canonical-ownership-at-approve-and-free-never-closed-changes",
+        "title": "Resolve canonical ownership at approve and free never-closed changes",
+        "description": "Resolve canonical ownership at approve and free never-closed changes",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "approve rejects declared paths no declared module owns, reporting all of them together; a never-closed verifying change corrects an owner without a reopen"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

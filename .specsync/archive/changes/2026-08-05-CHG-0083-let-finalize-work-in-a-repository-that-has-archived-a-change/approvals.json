@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude",
+      "timestamp": 1785903564,
+      "digest": "3b2a5d7b4bb1de682fbb7fee2a75532b4e197a4ba866778b30c60fe939a56e3c",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0083-let-finalize-work-in-a-repository-that-has-archived-a-change",
+        "title": "Let finalize work in a repository that has archived a change",
+        "description": "Let finalize work in a repository that has archived a change",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "finalize succeeds in a repository containing archived changes; the four Git scope guards admit the files a directory candidate expands to"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1785906745,
+      "digest": "ae1b23d18fdc5164696ccc27cb7a6a37856798fcb0c7c3c4f4c746658e3acdd0",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

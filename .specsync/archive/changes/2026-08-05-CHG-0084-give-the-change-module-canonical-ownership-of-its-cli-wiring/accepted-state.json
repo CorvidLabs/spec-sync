@@ -7,11 +7,11 @@
   "title": "Give the change module canonical ownership of its CLI wiring",
   "description": "Give the change module canonical ownership of its CLI wiring",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "e59a5a575f40a9426777696dc5988ef3365843d2",
   "created_at": 1785936625,
-  "updated_at": 1785939631,
+  "updated_at": 1785939663,
   "affected_specs": [
     "change"
   ],

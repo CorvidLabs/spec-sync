@@ -1,6 +1,6 @@
 ---
 id: CHG-0084-give-the-change-module-canonical-ownership-of-its-cli-wiring
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e59a5a575f40a9426777696dc5988ef3365843d2
 ---

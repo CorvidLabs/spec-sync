@@ -220,7 +220,15 @@ jobs:
           print(c if isinstance(c, str) and len(c) == 40 else '')
           " 2>/dev/null)
             [ -n "$commit" ] || continue
-            git cat-file -e "${commit}^{commit}" 2>/dev/null || continue
+            # A commit this clone does not have is the squash-merge case, not a
+            # shallow-clone case: checkout above uses fetch-depth 0, so every
+            # reachable commit is present. An absent one was squashed away, which
+            # is precisely the orphaned evidence this job exists to catch.
+            if ! git cat-file -e "${commit}^{commit}" 2>/dev/null; then
+              echo "::error::${dir%/} verification commit ${commit:0:8} is not in this repository — the change was merged before it was finalized, and the squash discarded the commit its evidence points at" >&2
+              stale=1
+              continue
+            fi
             if ! git merge-base --is-ancestor "$commit" HEAD 2>/dev/null; then
               echo "::error::${dir%/} verification commit ${commit:0:8} is not an ancestor of HEAD — the change was very likely merged before it was finalized" >&2
               stale=1

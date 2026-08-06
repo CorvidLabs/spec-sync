@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0085-resolve-canonical-ownership-at-approve-and-free-never-closed-changes",
+  "slug": "resolve-canonical-ownership-at-approve-and-free-never-closed-changes",
+  "title": "Resolve canonical ownership at approve and free never-closed changes",
+  "description": "Resolve canonical ownership at approve and free never-closed changes",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "2a9375f4fceb0d22766f1172bed9c7f152399a47",
+  "created_at": 1785959467,
+  "updated_at": 1785986657,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "tests/integration/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "approve rejects declared paths no declared module owns, reporting all of them together; a never-closed verifying change corrects an owner without a reopen"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

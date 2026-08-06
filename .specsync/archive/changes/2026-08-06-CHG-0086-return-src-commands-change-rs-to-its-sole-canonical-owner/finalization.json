@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0086-return-src-commands-change-rs-to-its-sole-canonical-owner",
+  "implementation_commit": "ba4e58999fe857115c5c7e88a82ee3c3d27fbe1a",
+  "implementation_tree": "dcaec1f944b6c571cc2a2f50d2fae2fadd7f4820",
+  "contract_digest": "1577e18eb92827963b692295c43a74fac487d5755c6d729c9ea5c761a185d256",
+  "workspace_digest": "3a86e2790ebe46eb59024dc4bef8093fb6a72fb4973cc1623dc10b6e134b6f53",
+  "closing_digest": "f390ac99a63f6e8fcc0e54ff4438b854df967ccd69ca573cda5ecb41e1db2a73",
+  "review_digest": "ed6b03efb42b0e3e62fcde9000482927a493230ac2e91ab4692101dce97ac2e0",
+  "finalization_digest": "7d2292f0269e6d3ae5318f27c99f41383d7a2756d6ee708fab0cff18d10e1ffb",
+  "timestamp": 1785983019
+}

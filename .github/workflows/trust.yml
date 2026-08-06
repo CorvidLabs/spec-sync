@@ -7,23 +7,18 @@ on:
 
 permissions:
   contents: read
-  actions: read
-  checks: read
 
 jobs:
   trust:
-    name: trust
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-
       - uses: dtolnay/rust-toolchain@1.89.0
         with:
           components: rustfmt, clippy
-
       - name: Package SpecSync release candidate for Trust
         shell: bash
         run: |
@@ -38,11 +33,19 @@ jobs:
             cd "$mirror"
             sha256sum "$binary.tar.gz" > "$binary.tar.gz.sha256"
           )
+      # Decide cheaply before the contract gate runs the suite. `change audit
+      # --strict` validates evidence freshness, canonical ownership and delta
+      # coverage without executing verification_commands, and every failing pull
+      # request this cycle was already decided by it. Without this the gate spent
+      # ~9m30s reaching the same verdict a few seconds of auditing gives.
+      - name: Audit the lifecycle before the contract gate
+        run: ./target/release/specsync change audit --strict
+
       # Trust revalidates this checksum-protected runner-local mirror before
       # exercising the pull-request binary as the immutable contract gate.
       - name: CorvidLabs Trust gate
         id: trust
         uses: CorvidLabs/trust@a239f78658e5ad0f12fa230f494890e40c6e4d7b # v1.1.1
         with:
-          specsync-version: "6.0.0"
+          specsync-version: "5.2.0"
           specsync-download-base-url: file://${{ runner.temp }}/specsync-trust-mirror

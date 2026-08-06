@@ -1,6 +1,6 @@
 ---
 id: CHG-0087-decide-pull-requests-in-seconds-instead-of-minutes
-state: approved
+state: implementing
 type: bug_fix
 base_commit: e847ab19f66a7f8720a63ed9c19fa496087a0bff
 ---

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0087-decide-pull-requests-in-seconds-instead-of-minutes",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "7dd82e67ec49e9bcd07d10ad7b5cde80e418412b",
+  "contract_digest": "345e138795c184289d40a90a508ba701079a846e374542d86c738dc7474253ab",
+  "execution_digest": "c8e492939846e982def28e34ab79c8ffd02e22e82979f904b07fe86ce1ee93cb",
+  "workspace_digest": "c7f9bebd07f55d0d1db6feba39761d89bcd5991be2127f25f1987580bccdb66b",
+  "timestamp": 1786026999
+}

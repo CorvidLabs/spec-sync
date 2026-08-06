@@ -7,11 +7,11 @@
   "title": "Decide pull requests in seconds instead of minutes",
   "description": "Decide pull requests in seconds instead of minutes",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "e847ab19f66a7f8720a63ed9c19fa496087a0bff",
   "created_at": 1785987264,
-  "updated_at": 1785989813,
+  "updated_at": 1786027009,
   "affected_specs": [
     "github"
   ],

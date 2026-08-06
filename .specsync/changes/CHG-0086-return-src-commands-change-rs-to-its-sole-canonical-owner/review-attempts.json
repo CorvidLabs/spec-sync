@@ -32,6 +32,22 @@
       "execution_digest": "5c2524e12bb5916a3279445c527efcc54e0d837beba7dda2711ddaeca7576d1f",
       "workspace_digest": "3a86e2790ebe46eb59024dc4bef8093fb6a72fb4973cc1623dc10b6e134b6f53",
       "timestamp": 1785974404
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0086-return-src-commands-change-rs-to-its-sole-canonical-owner",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "c4855b7f4fe5229aa47d188e72e20b745e9e0aee",
+      "contract_digest": "1577e18eb92827963b692295c43a74fac487d5755c6d729c9ea5c761a185d256",
+      "execution_digest": "5c2524e12bb5916a3279445c527efcc54e0d837beba7dda2711ddaeca7576d1f",
+      "workspace_digest": "3a86e2790ebe46eb59024dc4bef8093fb6a72fb4973cc1623dc10b6e134b6f53",
+      "timestamp": 1785980530
     }
   ]
 }

@@ -2,6 +2,7 @@ name: CI
 
 permissions:
   contents: read
+  actions: read
   pull-requests: write
   checks: write
 
@@ -24,6 +25,16 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/ci.yml'
       - '.github/workflows/pages.yml'
+      # `Required CI gate` is a required status check, so any path that cannot
+      # trigger this workflow can never report it and blocks its PR forever.
+      # Documentation-only changes hit that: the gate sat "Expected — waiting for
+      # status to be reported" with nothing able to report it. Every mergeable
+      # path must reach the gate; `classify` decides what work actually runs.
+      - 'docs/**'
+      - '*.md'
+      - '.github/workflows/finalize-change.yml'
+      - '.github/workflows/lifecycle-policy-guard.yml'
+      - '.github/workflows/post-merge-archive.yml'
       - '.github/workflows/release.yml'
       - '.github/workflows/trust.yml'
       - 'CHANGELOG.md'
@@ -47,6 +58,16 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/ci.yml'
       - '.github/workflows/pages.yml'
+      # `Required CI gate` is a required status check, so any path that cannot
+      # trigger this workflow can never report it and blocks its PR forever.
+      # Documentation-only changes hit that: the gate sat "Expected — waiting for
+      # status to be reported" with nothing able to report it. Every mergeable
+      # path must reach the gate; `classify` decides what work actually runs.
+      - 'docs/**'
+      - '*.md'
+      - '.github/workflows/finalize-change.yml'
+      - '.github/workflows/lifecycle-policy-guard.yml'
+      - '.github/workflows/post-merge-archive.yml'
       - '.github/workflows/release.yml'
       - '.github/workflows/trust.yml'
       - 'CHANGELOG.md'
@@ -67,13 +88,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      archive-only: ${{ steps.paths.outputs.archive_only }}
+      archive_only: ${{ steps.paths.outputs.archive_only }}
+      legacy_archive_only: ${{ steps.paths.outputs.legacy_archive_only }}
+      archive_change_id: ${{ steps.paths.outputs.archive_change_id }}
+      archive_dir: ${{ steps.paths.outputs.archive_dir }}
+      archive_workflow_version: ${{ steps.paths.outputs.archive_workflow_version }}
+      review_only: ${{ steps.paths.outputs.review_only }}
+      review_change_id: ${{ steps.paths.outputs.review_change_id }}
+      review_required: ${{ steps.paths.outputs.review_required }}
+      review_required_change_id: ${{ steps.paths.outputs.review_required_change_id }}
       full: ${{ steps.paths.outputs.full }}
       site: ${{ steps.paths.outputs.site }}
       vscode: ${{ steps.paths.outputs.vscode }}
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Classify changed paths
         id: paths
@@ -81,6 +111,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -89,6 +120,18 @@ jobs:
           case "$EVENT_NAME" in
             pull_request)
               base="origin/$BASE_REF"
+              parent_line="$(git rev-list --parents -n 1 "$HEAD_SHA")"
+              if [[ "$(wc -w <<<"$parent_line" | tr -d ' ')" == "2" ]]; then
+                parent="$(git rev-parse "$HEAD_SHA^")"
+                child_output="$(
+                  git diff --name-status -z -M "$parent" "$HEAD_SHA" \
+                    | .github/scripts/classify-ci-paths.sh \
+                        "$GITHUB_WORKSPACE" false name-status "$parent"
+                )"
+                if grep -Eq '^(archive_only|legacy_archive_only|review_only)=true$' <<<"$child_output"; then
+                  output="$child_output"
+                fi
+              fi
               ;;
             push)
               base="$BEFORE_SHA"
@@ -101,15 +144,41 @@ jobs:
               ;;
           esac
 
-          if [[ "$force_full" == "true" ]]; then
+          if [[ "$force_full" != "true" ]]; then
+            python3 - "$base" "$HEAD_SHA" <<'PY'
+          import subprocess
+          import sys
+
+          base, head = sys.argv[1:]
+          changed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", "--no-renames", "-z", base, head]
+              ).split(b"\0")
+          )
+          provenance_helpers = {
+              b".github/scripts/reuse-check-from-ancestors.py",
+              b".github/scripts/test-reuse-check-from-ancestors.py",
+          }
+          if changed & provenance_helpers and b".github/workflows/ci.yml" not in changed:
+              raise SystemExit(
+                  "CI provenance helpers may change only with the protected CI workflow"
+              )
+          PY
+          fi
+
+          if [[ -n "${output:-}" ]]; then
+            :
+          elif [[ "$force_full" == "true" ]]; then
             output="$(printf '' | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE" true)"
           else
-            output="$(git diff --name-only -z "$base" "$GITHUB_SHA" | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE")"
+            output="$(git diff --name-only -z "$base" "$HEAD_SHA" | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE")"
           fi
 
           printf '%s\n' "$output" | tee -a "$GITHUB_OUTPUT"
-      - name: Test classifier
-        run: .github/scripts/test-classify-ci-paths.sh
+      - name: Test lifecycle CI routing
+        run: |
+          .github/scripts/test-classify-ci-paths.sh
+          python3 .github/scripts/test-validate-release-candidate.py
 
   preflight:
     name: Lifecycle preflight
@@ -123,17 +192,16 @@ jobs:
       # Every failing pull request this cycle failed for one reason: a change
       # merged before it was finalized stayed active, and its verification
       # commit stopped being an ancestor of HEAD. `trust` spent 9m31s, `test`
-      # 3m56s and `audit` 3m08s reaching that verdict.
+      # 3m56s and `audit` 3m08s reaching a verdict available in 4 seconds.
       #
-      # Ancestry is decidable with git alone, so this runs in seconds and needs
-      # no Rust toolchain. It is deliberately a fast FAIL, never a fast pass:
-      # anything it cannot decide with certainty is left to `change audit
-      # --strict`, which remains authoritative.
+      # Ancestry is decidable with git alone, so this needs no Rust toolchain.
+      # It is deliberately a fast FAIL and never a fast pass: anything it cannot
+      # decide with certainty is left to `change audit --strict` below.
       - name: Reject stale verification evidence
         # GitHub's default shell is `bash --noprofile --norc -eo pipefail {0}`,
-        # so errexit is already on and `set +e` inside the body cannot be relied
-        # on. This step decides its own exit status, and a crash while reading
-        # one evidence file must skip that file rather than fail the build.
+        # so errexit is already on and the body cannot turn it off. This step
+        # owns its exit status, and a crash reading one evidence file must skip
+        # that file rather than fail the build silently.
         shell: bash {0}
         run: |
           set -uo pipefail
@@ -151,9 +219,7 @@ jobs:
               c = None
           print(c if isinstance(c, str) and len(c) == 40 else '')
           " 2>/dev/null)
-            # No recorded commit means not yet verified; that is the real gate's call.
             [ -n "$commit" ] || continue
-            # An unknown object means shallow history or a rewritten branch, not a defect.
             git cat-file -e "${commit}^{commit}" 2>/dev/null || continue
             if ! git merge-base --is-ancestor "$commit" HEAD 2>/dev/null; then
               echo "::error::${dir%/} verification commit ${commit:0:8} is not an ancestor of HEAD — the change was very likely merged before it was finalized" >&2
@@ -180,24 +246,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build specsync
         run: cargo build
-      # `change audit --strict` validates evidence freshness, canonical
-      # ownership and delta coverage without executing verification_commands.
-      # Every failing pull request this cycle was already decided here — stale
-      # evidence from a change merged before it was finalized — while `trust`
-      # (9m31s), `test` (3m56s) and `spec-check` ran to completion alongside it.
-      # Gating on this spends seconds to decide, instead of ~17 minutes of
-      # runner time producing the same verdict.
+      # Authoritative: validates evidence freshness, canonical ownership and
+      # delta coverage without executing verification_commands.
       - name: Audit the lifecycle
         run: cargo run --quiet -- change audit --strict
 
   test:
     needs: [classify, lifecycle-gate]
     if: needs.classify.outputs.full == 'true'
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    # Ordinary development has one authoritative integration platform. The
+    # immutable release-candidate workflow qualifies the exact candidate SHA on
+    # Ubuntu, macOS, and Windows before any final tag can be created.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.89.0
@@ -243,7 +304,18 @@ jobs:
       - name: Install tarpaulin
         run: cargo install cargo-tarpaulin --version 0.35.2 --locked --no-default-features
       - name: Run coverage
-        run: cargo tarpaulin --skip-clean --fail-under 50
+        # Ptrace can abort this special-file/process-spawning suite with
+        # munmap/ECHILD failures. LLVM instrumentation preserves the full test
+        # set and 50% gate without relying on ptrace trap delivery.
+        run: >-
+          cargo tarpaulin
+          --engine llvm
+          --follow-exec
+          --post-test-delay 10
+          --skip-clean
+          --fail-under 50
+          --
+          --test-threads 1
 
   site:
     needs: classify
@@ -290,6 +362,7 @@ jobs:
 
   validate-action:
     needs: classify
+    if: needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -400,7 +473,7 @@ jobs:
       - name: Run the packaged action in the clean consumer
         uses: ./
         with:
-          version: '5.2.0'
+          version: '6.0.0'
           download-base-url: 'http://127.0.0.1:8765'
           root: ${{ runner.temp }}/consumer
           strict: 'true'
@@ -409,6 +482,7 @@ jobs:
 
   spec-check:
     needs: [classify, lifecycle-gate]
+    if: needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -449,12 +523,19 @@ jobs:
           # Fail the step if check fails
           cargo run -- check --strict --require-coverage 100 --force
 
-  ci-gate:
-    name: Required CI gate
+      # SpecSync is the single authority on lifecycle coherence. This replaces
+      # the archive-integrity, archive-introduction, and post-merge-binding
+      # validators that previously reimplemented these rules against commit
+      # topology.
+      - name: Audit lifecycle coherence
+        run: cargo run -- change audit --strict
+
+  implementation-gate:
+    name: SpecSync implementation ready
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: always()
-    needs: [classify, preflight, lifecycle-gate, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
+    if: ${{ always() }}
+    needs: [classify, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
     steps:
       - name: Require every selected gate
         env:
@@ -468,13 +549,38 @@ jobs:
             esac
           done
 
+  ci-gate:
+    name: Required CI gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs: [classify, implementation-gate]
+    steps:
+      # One aggregate context, suitable for a required status check. Lifecycle
+      # coherence is proven by `specsync change audit --strict` in spec-check,
+      # not by inspecting commit topology.
+      - name: Require the implementation gate
+        env:
+          IMPLEMENTATION_RESULT: ${{ needs.implementation-gate.result }}
+        run: |
+          if [[ "$IMPLEMENTATION_RESULT" != "success" ]]; then
+            echo "Implementation gate ended with: $IMPLEMENTATION_RESULT" >&2
+            exit 1
+          fi
+
   corvid-pet:
+    name: SpecSync scoped review
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Fork pull requests receive a read-only token, so the mascot cannot post
-    # its approval review there. The required CI gate remains authoritative.
-    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-    needs: [test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
+    # This is the one independent, implementation-scoped review. A proven
+    # archive-only child reuses the green result on its parent and never runs
+    # the reviewer a second time. Forks run the same read-only review without
+    # attempting a comment or review write.
+    if: ${{ always() && github.event_name == 'pull_request' && needs.classify.outputs.review_required == 'true' }}
+    needs: [classify, preflight, lifecycle-gate, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
 
@@ -546,7 +652,8 @@ jobs:
           mode: pr-comment
           event: auto
           pet-name: Corvin
-          review-on-pr: "true"
+          comment-on-pr: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'true' || 'false' }}
+          review-on-pr: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'true' || 'false' }}
           context: ${{ steps.status.outputs.context }}
           job-status: ${{ steps.status.outputs.result }}
 

@@ -180,8 +180,79 @@ jobs:
           .github/scripts/test-classify-ci-paths.sh
           python3 .github/scripts/test-validate-release-candidate.py
 
+  preflight:
+    name: Lifecycle preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      # Every failing pull request this cycle failed for one reason: a change
+      # merged before it was finalized stayed active, and its verification
+      # commit stopped being an ancestor of HEAD. `trust` spent 9m31s, `test`
+      # 3m56s and `audit` 3m08s reaching a verdict available in 4 seconds.
+      #
+      # Ancestry is decidable with git alone, so this needs no Rust toolchain.
+      # It is deliberately a fast FAIL and never a fast pass: anything it cannot
+      # decide with certainty is left to `change audit --strict` below.
+      - name: Reject stale verification evidence
+        # GitHub's default shell is `bash --noprofile --norc -eo pipefail {0}`,
+        # so errexit is already on and the body cannot turn it off. This step
+        # owns its exit status, and a crash reading one evidence file must skip
+        # that file rather than fail the build silently.
+        shell: bash {0}
+        run: |
+          set -uo pipefail
+          stale=0
+          shopt -s nullglob
+          for dir in .specsync/changes/*/; do
+            evidence="${dir}verification.json"
+            [ -f "$evidence" ] || continue
+            commit=$(python3 -c "
+          import json, sys
+          try:
+              d = json.load(open('$evidence'))
+              c = d.get('commit') if isinstance(d, dict) else None
+          except Exception:
+              c = None
+          print(c if isinstance(c, str) and len(c) == 40 else '')
+          " 2>/dev/null)
+            [ -n "$commit" ] || continue
+            git cat-file -e "${commit}^{commit}" 2>/dev/null || continue
+            if ! git merge-base --is-ancestor "$commit" HEAD 2>/dev/null; then
+              echo "::error::${dir%/} verification commit ${commit:0:8} is not an ancestor of HEAD — the change was very likely merged before it was finalized" >&2
+              stale=1
+            fi
+          done
+          if [ "$stale" -ne 0 ]; then
+            echo "Run 'specsync change check <ID>' then review and finalize before merging." >&2
+            exit 1
+          fi
+          echo "No stale verification evidence."
+
+  lifecycle-gate:
+    name: Lifecycle gate
+    needs: [classify, preflight]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Build specsync
+        run: cargo build
+      # Authoritative: validates evidence freshness, canonical ownership and
+      # delta coverage without executing verification_commands.
+      - name: Audit the lifecycle
+        run: cargo run --quiet -- change audit --strict
+
   test:
-    needs: classify
+    needs: [classify, lifecycle-gate]
     if: needs.classify.outputs.full == 'true'
     # Ordinary development has one authoritative integration platform. The
     # immutable release-candidate workflow qualifies the exact candidate SHA on
@@ -209,7 +280,7 @@ jobs:
       - run: cargo fmt --check
 
   audit:
-    needs: classify
+    needs: [classify, lifecycle-gate]
     if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -222,7 +293,7 @@ jobs:
         run: cargo audit
 
   coverage:
-    needs: classify
+    needs: [classify, lifecycle-gate]
     if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -410,7 +481,7 @@ jobs:
           lifecycle-enforce: 'true'
 
   spec-check:
-    needs: classify
+    needs: [classify, lifecycle-gate]
     if: needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -506,7 +577,7 @@ jobs:
     # the reviewer a second time. Forks run the same read-only review without
     # attempting a comment or review write.
     if: ${{ always() && github.event_name == 'pull_request' && needs.classify.outputs.review_required == 'true' }}
-    needs: [classify, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
+    needs: [classify, preflight, lifecycle-gate, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
     permissions:
       contents: read
       pull-requests: write

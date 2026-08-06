@@ -38,6 +38,12 @@ jobs:
             cd "$mirror"
             sha256sum "$binary.tar.gz" > "$binary.tar.gz.sha256"
           )
+      # Decide cheaply before the contract gate runs the suite. Every failing
+      # pull request this cycle was already decided by this audit, while the
+      # gate spent ~9m30s reaching the same verdict.
+      - name: Audit the lifecycle before the contract gate
+        run: ./target/release/specsync change audit --strict
+
       # Trust revalidates this checksum-protected runner-local mirror before
       # exercising the pull-request binary as the immutable contract gate.
       - name: CorvidLabs Trust gate

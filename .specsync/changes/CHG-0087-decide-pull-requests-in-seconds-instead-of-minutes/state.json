@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0087-decide-pull-requests-in-seconds-instead-of-minutes",
+  "slug": "decide-pull-requests-in-seconds-instead-of-minutes",
+  "title": "Decide pull requests in seconds instead of minutes",
+  "description": "Decide pull requests in seconds instead of minutes",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "e847ab19f66a7f8720a63ed9c19fa496087a0bff",
+  "created_at": 1785987264,
+  "updated_at": 1785989813,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/trust.yml",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a pull request whose active change has orphaned verification evidence fails in seconds without a build, and the expensive jobs do not run"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

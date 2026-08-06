@@ -1,0 +1,38 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude",
+      "timestamp": 1785987399,
+      "digest": "345e138795c184289d40a90a508ba701079a846e374542d86c738dc7474253ab",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0087-decide-pull-requests-in-seconds-instead-of-minutes",
+        "title": "Decide pull requests in seconds instead of minutes",
+        "description": "Decide pull requests in seconds instead of minutes",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          ".specsync/change-sequence.json"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a pull request whose active change has orphaned verification evidence fails in seconds without a build, and the expensive jobs do not run"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -1,0 +1,70 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude",
+      "timestamp": 1786031797,
+      "digest": "d417a40b94216b5509e7030a1db8ae6083c471788639eeadf5e4c9737c6fe98b",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0088-catch-verification-evidence-a-squash-merge-discarded",
+        "title": "Catch verification evidence a squash merge discarded",
+        "description": "Catch verification evidence a squash merge discarded",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".specsync/change-sequence.json"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "the preflight fails when an active change's verification commit is absent from the repository, which is what a squash merge leaves behind"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786059466,
+      "digest": "37270a10e9a76b45c2ec150ab5ba80fa11289b88bffa4b0134f4d3d2cc8ccd43",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0088-catch-verification-evidence-a-squash-merge-discarded",
+        "title": "Catch verification evidence a squash merge discarded",
+        "description": "Catch verification evidence a squash merge discarded",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".specsync/change-sequence.json"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "the error names re-check as the remedy rather than only blaming squash merges",
+          "the preflight fails when an active change's verification commit is absent from the repository or not an ancestor of HEAD (orphaned by squash merge, rebase, amend, or force-push)"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

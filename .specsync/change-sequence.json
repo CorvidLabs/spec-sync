@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 87,
-  "id": "CHG-0087-decide-pull-requests-in-seconds-instead-of-minutes",
+  "sequence": 88,
+  "id": "CHG-0088-catch-verification-evidence-a-squash-merge-discarded",
   "acknowledged_collisions": [
     {
       "sequence": 16,

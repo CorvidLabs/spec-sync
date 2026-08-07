@@ -629,32 +629,32 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         .join(".specsync/changes")
         .join(&record.id)
         .join("verification.json");
-    let (verification_commit, verification_present, verification_ancestor) =
-        if verification_path.is_file() {
-            let raw = fs::read_to_string(&verification_path)
-                .map_err(|error| format!("failed to read {}: {error}", verification_path.display()))?;
-            let value: serde_json::Value = serde_json::from_str(&raw).map_err(|error| {
-                format!("invalid verification.json for {}: {error}", record.id)
-            })?;
-            let commit = value
-                .get("commit")
-                .and_then(|value| value.as_str())
-                .map(str::to_owned);
-            match commit {
-                Some(commit) if commit.len() == 40 => {
-                    let present = git_commit_present(root, &commit)?;
-                    let ancestor = if present {
-                        git_is_ancestor(root, &commit, "HEAD")?
-                    } else {
-                        false
-                    };
-                    (Some(commit), present, ancestor)
-                }
-                _ => (None, false, false),
+    let (verification_commit, verification_present, verification_ancestor) = if verification_path
+        .is_file()
+    {
+        let raw = fs::read_to_string(&verification_path)
+            .map_err(|error| format!("failed to read {}: {error}", verification_path.display()))?;
+        let value: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|error| format!("invalid verification.json for {}: {error}", record.id))?;
+        let commit = value
+            .get("commit")
+            .and_then(|value| value.as_str())
+            .map(str::to_owned);
+        match commit {
+            Some(commit) if commit.len() == 40 => {
+                let present = git_commit_present(root, &commit)?;
+                let ancestor = if present {
+                    git_is_ancestor(root, &commit, "HEAD")?
+                } else {
+                    false
+                };
+                (Some(commit), present, ancestor)
             }
-        } else {
-            (None, false, false)
-        };
+            _ => (None, false, false),
+        }
+    } else {
+        (None, false, false)
+    };
 
     let review_path = root
         .join(".specsync/changes")
@@ -756,7 +756,11 @@ fn print_ship_status(
                 } else {
                     "ancestor of HEAD"
                 };
-                println!("  Verification: {} ({})", &commit[..8.min(commit.len())], tip);
+                println!(
+                    "  Verification: {} ({})",
+                    &commit[..8.min(commit.len())],
+                    tip
+                );
             } else {
                 println!("  Verification: none");
             }

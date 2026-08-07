@@ -710,6 +710,28 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         }
     }
 
+    // Ordering rules from multi-change dogfood (#487): always surface while active.
+    if record.state != ChangeState::Archived {
+        if !warnings
+            .iter()
+            .any(|warning| warning.contains("merge the PR before finalize"))
+        {
+            warnings.push(
+                "do not merge the PR while this change is still active — merging first orphans verification evidence and strands the change"
+                    .to_string(),
+            );
+        }
+        warnings.push(
+            "review then ship without an intermediate commit — committing between review and finalize stales the scoped review workspace digest"
+                .to_string(),
+        );
+    }
+
+    let sibling_active_ids = sibling_active_change_ids(root, &record.id);
+    if !sibling_active_ids.is_empty() {
+        warnings.extend(multi_active_ordering_warnings(&sibling_active_ids));
+    }
+
     let ready_to_finalize = record.state == ChangeState::Verifying
         && verification_present
         && verification_ancestor
@@ -739,10 +761,18 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         });
 
     let ship_next = if ready_to_finalize {
-        format!(
-            "run `specsync change ship {}` (or finalize without intermediate commits), push the archive tip, wait for CI, then merge the PR",
-            record.id
-        )
+        if sibling_active_ids.is_empty() {
+            format!(
+                "run `specsync change ship {}` (or finalize without intermediate commits), push the archive tip, wait for CI, then merge the PR",
+                record.id
+            )
+        } else {
+            format!(
+                "run `specsync change ship {}` without an intermediate commit after review; then re-check siblings ({}) before merge — never merge while any change is active",
+                record.id,
+                sibling_active_ids.join(", ")
+            )
+        }
     } else if !blockers.is_empty() {
         blockers[0].clone()
     } else {
@@ -775,9 +805,33 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         "ready_to_finalize": ready_to_finalize,
         "blockers": blockers,
         "warnings": warnings,
+        "sibling_active_ids": sibling_active_ids,
         "lifecycle_next": lifecycle_next,
         "ship_next": ship_next,
     }))
+}
+
+fn sibling_active_change_ids(root: &Path, id: &str) -> Vec<String> {
+    change::list_changes(root)
+        .into_iter()
+        .filter(|record| record.id != id && record.state != ChangeState::Archived)
+        .map(|record| record.id)
+        .collect()
+}
+
+/// Warnings when more than one change is active on the same branch/PR.
+fn multi_active_ordering_warnings(sibling_ids: &[String]) -> Vec<String> {
+    if sibling_ids.is_empty() {
+        return Vec::new();
+    }
+    vec![
+        format!(
+            "other active changes remain ({}): finalize one at a time — archiving this change immediately stales sibling verification",
+            sibling_ids.join(", ")
+        ),
+        "do not batch reviews across changes — each review binds a workspace digest; recording another review first stales the prior one".to_string(),
+        "do not merge the PR while any SDD change is still active — merge only after every change on the PR is archived".to_string(),
+    ]
 }
 
 fn ship_stages(
@@ -1135,22 +1189,46 @@ fn run_ship(
         return Ok(());
     }
 
+    let siblings_before = report
+        .get("sibling_active_ids")
+        .and_then(|value| value.as_array())
+        .map(|ids| {
+            ids.iter()
+                .filter_map(|value| value.as_str().map(str::to_owned))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
     // Finalize mutates the workspace; drop the read scope by ending this block first.
     let path = change::finalize_change(root, &record.id)?;
+    let next = if siblings_before.is_empty() {
+        "commit if needed, push the archive tip, wait for CI, then merge the PR".to_string()
+    } else {
+        format!(
+            "commit if needed, push the archive tip, wait for CI; then re-run `change check --commit` on remaining active changes ({}) — do not merge while any change is active",
+            siblings_before.join(", ")
+        )
+    };
     match format {
         OutputFormat::Json => print_json(&serde_json::json!({
             "id": record.id,
             "status": "finalized",
             "archived": path,
             "tip_class": "archive_only",
-            "next": "commit if needed, push the archive tip, wait for CI, then merge the PR",
+            "sibling_active_ids": siblings_before,
+            "next": next,
         })),
         _ => {
             println!("{} {} finalized on this PR", "✓".green(), record.id);
             println!("  Archive: {}", path.display());
-            println!(
-                "  Next: push this archive tip, wait for CI (archive_only reuses product trust), then merge the PR — do not merge before finalize"
-            );
+            println!("  Next: {next}");
+            if !siblings_before.is_empty() {
+                println!(
+                    "  {}",
+                    "Warning: sibling active changes still need their own check → review → ship cycle (archive tips stale them)."
+                        .yellow()
+                );
+            }
         }
     }
     Ok(())
@@ -1486,6 +1564,18 @@ mod tests {
             ]),
             "product"
         );
+    }
+
+    #[test]
+    fn multi_active_ordering_warnings_encode_four_rules() {
+        assert!(multi_active_ordering_warnings(&[]).is_empty());
+        let warnings = multi_active_ordering_warnings(&["CHG-0002-sibling".into()]);
+        assert_eq!(warnings.len(), 3);
+        let joined = warnings.join(" ");
+        assert!(joined.contains("finalize one at a time"), "{joined}");
+        assert!(joined.contains("do not batch reviews"), "{joined}");
+        assert!(joined.contains("still active"), "{joined}");
+        assert!(joined.contains("CHG-0002-sibling"), "{joined}");
     }
 }
 

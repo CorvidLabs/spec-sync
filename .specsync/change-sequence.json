@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 92,
-  "id": "CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents",
+  "sequence": 93,
+  "id": "CHG-0093-encode-ship-multi-active-ordering-rules-and-agents-happy-path",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -14373,9 +14373,20 @@ fn uncovered_meaningful_paths(
     if adoption_bootstrap_covers_policy(root) {
         changed.remove(POLICY_PATH);
     }
-    let covered: Vec<&str> = records
+    // Same-PR finalize archives the covering change before merge. Product paths
+    // remain in the delivery vs base, but the archive package is on the tip.
+    // Count only archived records whose package appears in this delivery — not
+    // every historical archive (that would silently cover unrelated later PRs).
+    let delivery_archives = archived_records_in_delivery(root, &changed)?;
+    let mut covering: Vec<&ChangeRecord> = records.iter().collect();
+    for archived in &delivery_archives {
+        if !covering.iter().any(|record| record.id == archived.id) {
+            covering.push(archived);
+        }
+    }
+    let covered: Vec<&str> = covering
         .iter()
-        .filter(|record| record_is_delivering(record))
+        .filter(|record| record_owns_path_coverage(record))
         .flat_map(|record| record.affected_paths.iter().map(String::as_str))
         .collect();
     let uncovered = changed
@@ -14383,12 +14394,59 @@ fn uncovered_meaningful_paths(
         .filter(|path| path_is_meaningful_for_root(root, path, policy))
         .filter(|path| {
             !covered.iter().any(|scope| path_matches_scope(path, scope))
-                && !records
+                && !covering
                     .iter()
                     .any(|record| record_covers_project_path(root, record, path))
         })
         .collect();
     Ok(uncovered)
+}
+
+/// Archived packages that appear under the current delivery diff (PR vs base, or
+/// local dirty tree including staged archive paths).
+fn archived_records_in_delivery(
+    root: &Path,
+    changed_paths: &BTreeSet<String>,
+) -> Result<Vec<ChangeRecord>, String> {
+    let prefix = format!("{ARCHIVE_PATH}/");
+    let mut dir_names = BTreeSet::new();
+    for path in changed_paths {
+        let Some(rest) = path.strip_prefix(&prefix) else {
+            continue;
+        };
+        let Some(dir) = rest.split('/').next() else {
+            continue;
+        };
+        if !dir.is_empty() {
+            dir_names.insert(dir.to_string());
+        }
+    }
+    if dir_names.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut records = Vec::new();
+    for dir in dir_names {
+        let state_path = root.join(ARCHIVE_PATH).join(&dir).join("state.json");
+        if !state_path.is_file() {
+            continue;
+        }
+        let content = fs::read_to_string(&state_path).map_err(|error| {
+            format!(
+                "failed to read delivery archive state {}: {error}",
+                state_path.display()
+            )
+        })?;
+        let record: ChangeRecord = serde_json::from_str(&content).map_err(|error| {
+            format!(
+                "invalid delivery archive state {}: {error}",
+                state_path.display()
+            )
+        })?;
+        if record.state == ChangeState::Archived {
+            records.push(record);
+        }
+    }
+    Ok(records)
 }
 
 fn record_is_delivering(record: &ChangeRecord) -> bool {
@@ -14398,8 +14456,13 @@ fn record_is_delivering(record: &ChangeRecord) -> bool {
     )
 }
 
+/// Active delivery states plus archived packages (same-PR finalize tips).
+fn record_owns_path_coverage(record: &ChangeRecord) -> bool {
+    record_is_delivering(record) || record.state == ChangeState::Archived
+}
+
 fn record_covers_path(record: &ChangeRecord, path: &str) -> bool {
-    record_is_delivering(record)
+    record_owns_path_coverage(record)
         && record
             .affected_paths
             .iter()
@@ -14407,7 +14470,7 @@ fn record_covers_path(record: &ChangeRecord, path: &str) -> bool {
 }
 
 fn record_covers_project_path(root: &Path, record: &ChangeRecord, path: &str) -> bool {
-    if !record_is_delivering(record) {
+    if !record_owns_path_coverage(record) {
         return false;
     }
     if record
@@ -23653,6 +23716,144 @@ mod tests {
         assert_eq!(
             uncovered_meaningful_paths(root, &SddPolicy::default(), &[]).unwrap(),
             vec!["src/lib.rs"]
+        );
+    }
+
+    fn minimal_archived_record(id: &str, affected_paths: Vec<String>) -> ChangeRecord {
+        ChangeRecord {
+            schema_version: 1,
+            workflow_version: 2,
+            workflow_origin_version: Some(2),
+            id: id.into(),
+            slug: "archive".into(),
+            title: "Archive fixture".into(),
+            description: "fixture".into(),
+            kind: ChangeKind::Feature,
+            state: ChangeState::Archived,
+            canonical_applied: true,
+            correction_count: 0,
+            base_commit: None,
+            created_at: 1,
+            updated_at: 1,
+            affected_specs: Vec::new(),
+            affected_paths,
+            no_spec_change: true,
+            no_spec_change_rationale: Some("fixture".into()),
+            acceptance_criteria: vec!["fixture".into()],
+            selected_artifacts: Vec::new(),
+            dependencies: Vec::new(),
+            supersedes: Vec::new(),
+            acceptance_owner_corrections: Vec::new(),
+            legacy_archive_baseline_digest: None,
+            answers: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn same_pr_archived_change_covers_delivery_paths_with_zero_actives() {
+        // Mirrors product Lifecycle gate after `change ship` on the same PR:
+        // product paths remain in the base...HEAD delivery, actives are empty,
+        // but the archive package is on the tip and must still cover.
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-m", "base"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ]);
+        git(&["switch", "-c", "feature"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn feature() {}\n").unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "product tip"]);
+
+        assert_eq!(
+            uncovered_meaningful_paths(root, &SddPolicy::default(), &[]).unwrap(),
+            vec!["src/lib.rs"]
+        );
+
+        let archived = minimal_archived_record("CHG-0001-same-pr-archive", vec!["src/".into()]);
+        let archive_dir = root
+            .join(ARCHIVE_PATH)
+            .join("2026-08-07-CHG-0001-same-pr-archive");
+        fs::create_dir_all(&archive_dir).unwrap();
+        fs::write(
+            archive_dir.join("state.json"),
+            serde_json::to_string_pretty(&archived).unwrap(),
+        )
+        .unwrap();
+        git(&["add", ARCHIVE_PATH]);
+        git(&["commit", "-m", "archive tip"]);
+
+        let uncovered = uncovered_meaningful_paths(root, &SddPolicy::default(), &[]).unwrap();
+        assert!(
+            uncovered.is_empty(),
+            "delivery archive must cover product paths with zero actives; got {uncovered:?}"
+        );
+    }
+
+    #[test]
+    fn historical_archive_not_in_delivery_does_not_cover_unrelated_paths() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        // Historical archive already on main — not part of this feature delivery.
+        let historical = minimal_archived_record("CHG-0000-old", vec!["src/".into()]);
+        let archive_dir = root.join(ARCHIVE_PATH).join("2026-01-01-CHG-0000-old");
+        fs::create_dir_all(&archive_dir).unwrap();
+        fs::write(
+            archive_dir.join("state.json"),
+            serde_json::to_string_pretty(&historical).unwrap(),
+        )
+        .unwrap();
+        git(&["add", "README.md", ARCHIVE_PATH]);
+        git(&["commit", "-m", "base with old archive"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ]);
+        git(&["switch", "-c", "feature"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn feature() {}\n").unwrap();
+        git(&["add", "src/lib.rs"]);
+        git(&["commit", "-m", "uncovered feature"]);
+
+        assert_eq!(
+            uncovered_meaningful_paths(root, &SddPolicy::default(), &[]).unwrap(),
+            vec!["src/lib.rs"],
+            "archives outside the delivery must not cover new product paths"
         );
     }
 

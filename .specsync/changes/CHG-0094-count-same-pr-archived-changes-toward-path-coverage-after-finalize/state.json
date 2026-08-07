@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0094-count-same-pr-archived-changes-toward-path-coverage-after-finalize",
+  "slug": "count-same-pr-archived-changes-toward-path-coverage-after-finalize",
+  "title": "Count same-PR archived changes toward path coverage after finalize",
+  "description": "count same-PR archived changes toward path coverage after finalize",
+  "kind": "feature",
+  "state": "approved",
+  "base_commit": "d6eb2fa43c0fa7f1a1703e994cf2286bd2679120",
+  "created_at": 1786123879,
+  "updated_at": 1786124428,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": "After change ship on the same PR, Lifecycle gate fails path coverage because zero actives remain while product paths are still in the delivery diff. Archived packages in that diff must still cover their affected_paths.",
+  "acceptance_criteria": [
+    "audit and CI path coverage treat archived changes present in the current PR delivery as covering their affected_paths so same-PR finalize archive tips do not fail Lifecycle gate with zero actives"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

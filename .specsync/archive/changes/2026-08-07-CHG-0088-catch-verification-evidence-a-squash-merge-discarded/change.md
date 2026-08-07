@@ -1,6 +1,6 @@
 ---
 id: CHG-0088-catch-verification-evidence-a-squash-merge-discarded
-state: verifying
+state: archived
 type: bug_fix
 base_commit: 176719bb6acde18ca96fa2eadba53fd11faa00ed
 ---

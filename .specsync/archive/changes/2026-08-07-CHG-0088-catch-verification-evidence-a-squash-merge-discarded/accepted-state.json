@@ -7,11 +7,11 @@
   "title": "Catch verification evidence a squash merge discarded",
   "description": "Catch verification evidence a squash merge discarded",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "176719bb6acde18ca96fa2eadba53fd11faa00ed",
   "created_at": 1786031683,
-  "updated_at": 1786060783,
+  "updated_at": 1786071179,
   "affected_specs": [
     "github"
   ],

@@ -7,10 +7,11 @@
   "title": "Encode ship multi-active ordering rules and AGENTS happy path",
   "description": "encode ship multi-active ordering rules and AGENTS happy path",
   "kind": "feature",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "b36809a7d673261e1d4b39a55728bce6eb492427",
   "created_at": 1786117581,
-  "updated_at": 1786118042,
+  "updated_at": 1786118061,
   "affected_specs": [
     "cmd_change"
   ],

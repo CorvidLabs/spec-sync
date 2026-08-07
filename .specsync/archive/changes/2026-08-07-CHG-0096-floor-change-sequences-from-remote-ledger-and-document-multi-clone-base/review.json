@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0096-floor-change-sequences-from-remote-ledger-and-document-multi-clone-base",
+  "reviewer": "Independent Sequence Floor",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "bc4721e91b5a14756b77e1bc0084ccf5b7535670",
+  "contract_digest": "d7b7ce6f8fd6e270d1c708b28277932ca7db0eee3f8361743bb6e6e1c4554a65",
+  "execution_digest": "24163403d39bca3268119db6b4f9d1217d051557ca2e88d124cf7d5c4df8b872",
+  "workspace_digest": "48de2113cf6c6779a89f5d9f5941d99b5cefbeae25d2beb51fb7f27b53e4283c",
+  "timestamp": 1786145704
+}

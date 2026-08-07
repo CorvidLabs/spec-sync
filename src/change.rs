@@ -16880,6 +16880,12 @@ fn maximum_observed_sequence(root: &Path) -> Result<u64, String> {
     if let Some(ledger) = load_change_sequence_ledger(root)? {
         maximum = maximum.max(ledger.sequence);
     }
+    // Prefer the remote default-branch ledger high-water when the clone has fetched it.
+    // Concurrent clones that have not fetched each other still need SPECSYNC_SEQUENCE_BASE
+    // (or post-merge renumber); this only floors agents who lag behind origin.
+    if let Some(remote) = remote_sequence_high_water(root) {
+        maximum = maximum.max(remote);
+    }
     // Multi-agent / multi-clone: set SPECSYNC_SEQUENCE_BASE to a disjoint high-water
     // (e.g. agent A=100, agent B=200) so parallel clones do not mint the same CHG-NNNN.
     if let Ok(base) = std::env::var("SPECSYNC_SEQUENCE_BASE") {
@@ -16899,6 +16905,36 @@ fn maximum_observed_sequence(root: &Path) -> Result<u64, String> {
         }
     }
     Ok(maximum)
+}
+
+/// Best-effort high-water from `origin/*` default-branch `.specsync/change-sequence.json`.
+///
+/// Missing remotes or missing ledgers return `None` (local-only allocation).
+fn remote_sequence_high_water(root: &Path) -> Option<u64> {
+    let candidates = git_output(
+        root,
+        &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    )
+    .into_iter()
+    .chain(["origin/main".into(), "origin/master".into()])
+    .collect::<Vec<_>>();
+    for remote in candidates {
+        let remote = remote.trim();
+        if remote.is_empty() {
+            continue;
+        }
+        let spec = format!("{remote}:{SEQUENCE_PATH}");
+        let Some(raw) = git_output(root, &["show", &spec]) else {
+            continue;
+        };
+        let Ok(ledger) = serde_json::from_str::<ChangeSequenceLedger>(&raw) else {
+            continue;
+        };
+        if ledger.schema_version == 1 {
+            return Some(ledger.sequence);
+        }
+    }
+    None
 }
 
 fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
@@ -23622,6 +23658,79 @@ mod tests {
         assert!(
             error.contains("artifact is incomplete"),
             "expected incomplete artifact, got {error}"
+        );
+    }
+
+    #[test]
+    fn maximum_observed_sequence_floors_on_remote_ledger() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let ledger = ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: 42,
+            id: "CHG-0042-remote-high-water".into(),
+            acknowledged_collisions: Vec::new(),
+        };
+        fs::write(
+            root.join(SEQUENCE_PATH),
+            serde_json::to_string_pretty(&ledger).unwrap(),
+        )
+        .unwrap();
+        fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "base with remote ledger"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ]);
+        // Local working tree has no active changes and a stale/low ledger deleted.
+        fs::remove_file(root.join(SEQUENCE_PATH)).unwrap();
+        assert_eq!(maximum_observed_sequence(root).unwrap(), 42);
+        assert_eq!(next_change_id(root, "feature").unwrap(), "CHG-0043-feature");
+    }
+
+    #[test]
+    fn sequence_base_env_raises_high_water() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join(CHANGES_PATH)).unwrap();
+        // SAFETY: single-threaded test; env is restored before the test ends.
+        unsafe {
+            std::env::set_var("SPECSYNC_SEQUENCE_BASE", "200");
+        }
+        let maximum = maximum_observed_sequence(root).unwrap();
+        unsafe {
+            std::env::remove_var("SPECSYNC_SEQUENCE_BASE");
+        }
+        assert_eq!(maximum, 199);
+        assert_eq!(
+            {
+                unsafe {
+                    std::env::set_var("SPECSYNC_SEQUENCE_BASE", "200");
+                }
+                let id = next_change_id(root, "agent-b").unwrap();
+                unsafe {
+                    std::env::remove_var("SPECSYNC_SEQUENCE_BASE");
+                }
+                id
+            },
+            "CHG-0200-agent-b"
         );
     }
 

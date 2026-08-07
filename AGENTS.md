@@ -42,6 +42,15 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync migrate 5.0` | Backfill 5.0.1-era reopening digest fields idempotently (the remediation `check` prints for missing-field ledgers) |
 
 
+### Multi-clone / multi-agent sequence IDs
+
+Concurrent clones can mint the same `CHG-NNNN` if they share a sequence high-water and have not fetched each other.
+
+- Prefer **`SPECSYNC_SEQUENCE_BASE=<N>`** per agent with disjoint ranges (e.g. agent A `100`, agent B `200`).
+- After **`git fetch`**, `change new` also floors on the remote default branch’s `.specsync/change-sequence.json` when present.
+- True simultaneous `change new` without BASE still collides until merge; renumber or acknowledge the collision (see `change status` freeze guidance).
+
+
 ## Shipping a change (happy path)
 
 Do **not** merge a PR while any SDD change is still active. Squash-merge without finalize strands the workspace and orphans verification.

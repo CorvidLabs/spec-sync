@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0096-floor-change-sequences-from-remote-ledger-and-document-multi-clone-base",
+  "implementation_commit": "bc4721e91b5a14756b77e1bc0084ccf5b7535670",
+  "implementation_tree": "4815665f58abd52d600d1746c9077d5a09a9f31d",
+  "contract_digest": "d7b7ce6f8fd6e270d1c708b28277932ca7db0eee3f8361743bb6e6e1c4554a65",
+  "workspace_digest": "48de2113cf6c6779a89f5d9f5941d99b5cefbeae25d2beb51fb7f27b53e4283c",
+  "closing_digest": "625298101ae6cd2d4e4b2de77fbb3d7e78e896515dd411d354383c650b6ba706",
+  "review_digest": "16b1e58fac5cbb031335fa2f08188ea241bfbffac2bf3eb29cf56d37d9970fbb",
+  "finalization_digest": "c83204761d7a79e23a0120c4c34c1941c400d29b6fdb271062db993b515b0275",
+  "timestamp": 1786145714
+}

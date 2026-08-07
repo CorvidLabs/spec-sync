@@ -386,10 +386,18 @@ pub enum ChangeAction {
         /// Optional change ID
         id: Option<String>,
     },
-    /// Report whether an active change is shippable (evidence tip, review, merge risk)
+    /// Report ship readiness: tip class, trust guidance, stages, and merge risk
     ShipStatus {
         /// Optional change ID; when omitted, report every active change
         id: Option<String>,
+    },
+    /// Preflight ship readiness and finalize when the change is ready
+    Ship {
+        /// Optional change ID; required unless exactly one active change exists
+        id: Option<String>,
+        /// Only report; never finalize even when ready
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Record the mandatory definition approval
     Approve {
@@ -497,7 +505,9 @@ pub enum ChangeAction {
         /// Change ID
         id: String,
     },
-    /// Finalize and archive the reviewed change on its existing pull request
+    /// Finalize and archive the reviewed change on its existing pull request.
+    /// Writes an archive tip for the same PR — merge only after finalize; merging first
+    /// orphans verification evidence.
     Finalize {
         /// Change ID
         id: String,
@@ -884,6 +894,33 @@ mod tests {
             finalize.command,
             Some(Command::Change {
                 action: ChangeAction::Finalize { id }
+            }) if id == "CHG-0001-passkeys"
+        ));
+
+        let ship_status =
+            Cli::try_parse_from(["specsync", "change", "ship-status", "CHG-0001-passkeys"]).unwrap();
+        assert!(matches!(
+            ship_status.command,
+            Some(Command::Change {
+                action: ChangeAction::ShipStatus { id: Some(id) }
+            }) if id == "CHG-0001-passkeys"
+        ));
+
+        let ship = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "ship",
+            "CHG-0001-passkeys",
+            "--dry-run",
+        ])
+        .unwrap();
+        assert!(matches!(
+            ship.command,
+            Some(Command::Change {
+                action: ChangeAction::Ship {
+                    id: Some(id),
+                    dry_run: true,
+                }
             }) if id == "CHG-0001-passkeys"
         ));
     }

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents",
+  "slug": "complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents",
+  "title": "Complete buttery ship status tip class and ship preflight for agents",
+  "description": "complete buttery ship status tip class and ship preflight for agents",
+  "kind": "feature",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "6f2a7c829bcb1823a9bf2b580d780f4a11005dcc",
+  "created_at": 1786108905,
+  "updated_at": 1786109461,
+  "affected_specs": [
+    "cli_args",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/cli.rs",
+    "src/commands/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "ship-status reports tip_class product|review_only|archive_only|other plus trust guidance and ship stages; change ship preflights and finalizes when ready; next_action after verify points at ship-status/ship; sandbox drill 027 PASS"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

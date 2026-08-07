@@ -1,6 +1,6 @@
 ---
 id: CHG-0095-reject-hash-todo-artifact-headings-at-approve
-state: approved
+state: implementing
 type: feature
 base_commit: 547386ad362be171d430c4c2636392da6a789d6f
 ---

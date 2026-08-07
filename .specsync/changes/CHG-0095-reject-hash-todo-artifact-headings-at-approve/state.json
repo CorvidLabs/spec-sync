@@ -7,10 +7,11 @@
   "title": "Reject hash TODO artifact headings at approve",
   "description": "reject hash TODO artifact headings at approve",
   "kind": "feature",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "547386ad362be171d430c4c2636392da6a789d6f",
   "created_at": 1786133301,
-  "updated_at": 1786134037,
+  "updated_at": 1786135164,
   "affected_specs": [
     "change"
   ],

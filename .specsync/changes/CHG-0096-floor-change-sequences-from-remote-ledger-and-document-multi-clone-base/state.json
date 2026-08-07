@@ -7,10 +7,11 @@
   "title": "Floor change sequences from remote ledger and document multi-clone BASE",
   "description": "floor change sequences from remote ledger and document multi-clone BASE",
   "kind": "feature",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "a679cf733296759cea216aaf72f355570bb14ef0",
   "created_at": 1786141413,
-  "updated_at": 1786141707,
+  "updated_at": 1786142845,
   "affected_specs": [
     "change"
   ],

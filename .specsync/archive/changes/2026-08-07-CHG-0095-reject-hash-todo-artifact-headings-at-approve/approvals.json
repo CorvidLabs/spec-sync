@@ -1,0 +1,114 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif",
+      "timestamp": 1786133759,
+      "digest": "c8d7a38cd78e11c4f7d33353c5cd5bf697dd78b90eb68bdaa9c87caaf1e50c93",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0095-reject-hash-todo-artifact-headings-at-approve",
+        "title": "Reject hash TODO artifact headings at approve",
+        "description": "reject hash TODO artifact headings at approve",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "src/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "Sandbox #22 / product #495: plain markdown TODO headings pass approve while HTML TODO comments reject. Align placeholder detection.",
+        "acceptance_criteria": [
+          "artifact bodies that are only markdown TODO headings or bare TODO placeholders fail validate_artifacts and approve; HTML TODO still fails; real prose still passes; next_action lists incomplete artifacts"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "Leif",
+      "timestamp": 1786133944,
+      "digest": "c8d7a38cd78e11c4f7d33353c5cd5bf697dd78b90eb68bdaa9c87caaf1e50c93",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0095-reject-hash-todo-artifact-headings-at-approve",
+        "title": "Reject hash TODO artifact headings at approve",
+        "description": "reject hash TODO artifact headings at approve",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "src/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "Sandbox #22 / product #495: plain markdown TODO headings pass approve while HTML TODO comments reject. Align placeholder detection.",
+        "acceptance_criteria": [
+          "artifact bodies that are only markdown TODO headings or bare TODO placeholders fail validate_artifacts and approve; HTML TODO still fails; real prose still passes; next_action lists incomplete artifacts"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "Leif",
+      "timestamp": 1786134037,
+      "digest": "c8d7a38cd78e11c4f7d33353c5cd5bf697dd78b90eb68bdaa9c87caaf1e50c93",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0095-reject-hash-todo-artifact-headings-at-approve",
+        "title": "Reject hash TODO artifact headings at approve",
+        "description": "reject hash TODO artifact headings at approve",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "src/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "Sandbox #22 / product #495: plain markdown TODO headings pass approve while HTML TODO comments reject. Align placeholder detection.",
+        "acceptance_criteria": [
+          "artifact bodies that are only markdown TODO headings or bare TODO placeholders fail validate_artifacts and approve; HTML TODO still fails; real prose still passes; next_action lists incomplete artifacts"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786137942,
+      "digest": "e4cdf5cdbccfb22d4c7bb0869abe3905c94591962b21bb0e3e3bf24690ff6217",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

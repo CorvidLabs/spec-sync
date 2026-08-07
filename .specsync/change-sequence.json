@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 94,
-  "id": "CHG-0094-count-same-pr-archived-changes-toward-path-coverage-after-finalize",
+  "sequence": 95,
+  "id": "CHG-0095-reject-hash-todo-artifact-headings-at-approve",
   "acknowledged_collisions": [
     {
       "sequence": 16,

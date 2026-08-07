@@ -5965,11 +5965,7 @@ pub fn summarize_change_with_strict(
                     let relative = format!("{CHANGES_PATH}/{}/{}", record.id, artifact.file_name());
                     let path = root.join(&relative);
                     match fs::read_to_string(path) {
-                        Ok(content)
-                            if !content.contains("<!-- TODO") && !content.trim().is_empty() =>
-                        {
-                            None
-                        }
+                        Ok(content) if !artifact_content_is_incomplete(&content) => None,
                         _ => Some(relative),
                     }
                 })
@@ -7054,11 +7050,77 @@ fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> 
     for artifact in &effective.selected_artifacts {
         let path = dir.join(artifact.file_name());
         let content = read_bounded_change_text(&path, "artifact")?;
-        if content.contains("<!-- TODO") || content.trim().is_empty() {
+        if artifact_content_is_incomplete(&content) {
             return Err(format!("artifact is incomplete: {}", path.display()));
         }
     }
     Ok(())
+}
+
+/// True when an artifact body is empty or only placeholder TODO content.
+///
+/// Treats HTML `<!-- TODO` comments, bare `TODO` lines, and markdown headings
+/// that are only `TODO` / `TODO: …` as incomplete (product #495 / sandbox #22).
+/// Real prose or checklist items make the artifact complete even if a TODO remains
+/// elsewhere — except HTML TODO comments, which always mark incomplete.
+fn artifact_content_is_incomplete(content: &str) -> bool {
+    if content.contains("<!-- TODO") {
+        return true;
+    }
+    let body = strip_yaml_frontmatter(content);
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    let mut saw_non_empty = false;
+    for line in body.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        saw_non_empty = true;
+        if is_placeholder_todo_line(line) {
+            continue;
+        }
+        return false;
+    }
+    saw_non_empty || trimmed.is_empty()
+}
+
+fn strip_yaml_frontmatter(content: &str) -> &str {
+    let Some(rest) = content.strip_prefix("---") else {
+        return content;
+    };
+    let rest = rest
+        .strip_prefix('\n')
+        .or_else(|| rest.strip_prefix("\r\n"))
+        .unwrap_or(rest);
+    if let Some(end) = rest.find("\n---\n") {
+        return &rest[end + "\n---\n".len()..];
+    }
+    if let Some(end) = rest.find("\n---\r\n") {
+        return &rest[end + "\n---\r\n".len()..];
+    }
+    if let Some(end) = rest.find("\r\n---\r\n") {
+        return &rest[end + "\r\n---\r\n".len()..];
+    }
+    content
+}
+
+fn is_placeholder_todo_line(line: &str) -> bool {
+    let mut text = line.trim();
+    while let Some(stripped) = text.strip_prefix('#') {
+        text = stripped.trim_start();
+    }
+    let lower = text.to_ascii_lowercase();
+    lower == "todo"
+        || lower.starts_with("todo:")
+        || lower.starts_with("todo ")
+        || lower == "[ ] todo"
+        || lower.starts_with("- [ ] todo")
+        || lower.starts_with("* [ ] todo")
+        || lower == "- todo"
+        || lower == "* todo"
 }
 
 fn read_bounded_change_text(path: &Path, kind: &str) -> Result<String, String> {
@@ -23511,6 +23573,56 @@ mod tests {
         .unwrap();
         let error = validate_artifacts(temp.path(), &record).unwrap_err();
         assert!(error.contains("exceeds") && error.contains("byte limit"));
+    }
+
+    #[test]
+    fn artifact_content_rejects_hash_todo_headings_and_html_todos() {
+        assert!(artifact_content_is_incomplete(""));
+        assert!(artifact_content_is_incomplete("   \n  "));
+        assert!(artifact_content_is_incomplete("# TODO\n"));
+        assert!(artifact_content_is_incomplete("## TODO: fill me\n"));
+        assert!(artifact_content_is_incomplete("TODO\n"));
+        assert!(artifact_content_is_incomplete(
+            "---\nchange: CHG-1\nartifact: context\n---\n\n# TODO\n"
+        ));
+        assert!(artifact_content_is_incomplete(
+            "---\nchange: CHG-1\nartifact: context\n---\n\n# Context\n\n<!-- TODO: fill -->\n"
+        ));
+        // Checkbox-only TODO body (no real section prose) is incomplete.
+        assert!(artifact_content_is_incomplete(
+            "---\nchange: CHG-1\nartifact: tasks\n---\n\n- [ ] TODO\n"
+        ));
+        // A real section heading with only TODO checkbox under it still has a non-placeholder
+        // heading line — that is allowed; HTML TODO / pure `# TODO` bodies are the filed gap.
+        assert!(!artifact_content_is_incomplete(
+            "---\nchange: CHG-1\nartifact: context\n---\n\n# Context\n\nReal prose for the change.\n"
+        ));
+        assert!(!artifact_content_is_incomplete(
+            "---\nchange: CHG-1\nartifact: tasks\n---\n\n# Tasks\n\n- [x] Ship the fix\n"
+        ));
+    }
+
+    #[test]
+    fn validate_artifacts_rejects_hash_todo_body() {
+        let temp = TempDir::new().unwrap();
+        let record = completed_no_spec_record(temp.path());
+        let dir = change_dir(temp.path(), &record.id);
+        for artifact in &record.selected_artifacts {
+            fs::write(
+                dir.join(artifact.file_name()),
+                format!(
+                    "---\nchange: {}\nartifact: {}\n---\n\n# TODO\n",
+                    record.id,
+                    artifact.file_name().trim_end_matches(".md")
+                ),
+            )
+            .unwrap();
+        }
+        let error = validate_artifacts(temp.path(), &record).unwrap_err();
+        assert!(
+            error.contains("artifact is incomplete"),
+            "expected incomplete artifact, got {error}"
+        );
     }
 
     #[test]

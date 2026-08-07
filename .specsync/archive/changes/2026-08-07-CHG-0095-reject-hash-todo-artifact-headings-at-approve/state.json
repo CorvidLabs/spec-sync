@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0095-reject-hash-todo-artifact-headings-at-approve",
+  "slug": "reject-hash-todo-artifact-headings-at-approve",
+  "title": "Reject hash TODO artifact headings at approve",
+  "description": "reject hash TODO artifact headings at approve",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "547386ad362be171d430c4c2636392da6a789d6f",
+  "created_at": 1786133301,
+  "updated_at": 1786138109,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": "Sandbox #22 / product #495: plain markdown TODO headings pass approve while HTML TODO comments reject. Align placeholder detection.",
+  "acceptance_criteria": [
+    "artifact bodies that are only markdown TODO headings or bare TODO placeholders fail validate_artifacts and approve; HTML TODO still fails; real prose still passes; next_action lists incomplete artifacts"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

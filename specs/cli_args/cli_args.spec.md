@@ -137,4 +137,8 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-07-30 | CHG-0068: Add a discoverable optional `change review --verdict pass|block` conclusion |
 | 2026-07-30 | CHG-0068: Clarify reviewer text as a stable claim while hosted check provenance authenticates the append-only review trail |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+<<<<<<< HEAD
 | 2026-08-07 | CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires: Add change check --commit to perform the sequence it requires |
+=======
+| 2026-08-07 | CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning: Add change ship-status for local ship readiness and merge-before-finalize warning |
+>>>>>>> b8418e97 (feat(change): add change ship-status for local ship readiness)

@@ -1,7 +1,12 @@
 {
   "schema_version": 1,
+<<<<<<< HEAD
   "sequence": 89,
   "id": "CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires",
+=======
+  "sequence": 91,
+  "id": "CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning",
+>>>>>>> b8418e97 (feat(change): add change ship-status for local ship readiness)
   "acknowledged_collisions": [
     {
       "sequence": 16,

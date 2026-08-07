@@ -78,7 +78,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
         ChangeAction::ShipStatus { id } => {
             let _scope = change::begin_change_read_scope(root);
             if let Some(id) = id {
-                change::load_change(root, &id).and_then(|record| print_ship_status(root, &record, format))
+                change::load_change(root, &id)
+                    .and_then(|record| print_ship_status(root, &record, format))
             } else {
                 let records = change::list_changes(root);
                 if records.is_empty() {
@@ -104,6 +105,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 }
             }
         }
+        ChangeAction::Ship { id, dry_run } => run_ship(root, id.as_deref(), dry_run, format),
         ChangeAction::Approve {
             id,
             actor,
@@ -608,22 +610,24 @@ fn text_mode_next_action(
         }
         ChangeState::Verifying => {
             format!(
-                "run `specsync change check {id}` (or check --commit), then independent review and finalize before merging — merging first orphans verification evidence"
+                "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — independent review then finalize before merging; merging first orphans verification evidence"
             )
         }
         ChangeState::Accepted if record.workflow_version >= 2 => {
-            format!("run `specsync change finalize {id}`")
+            format!("run `specsync change ship {id}` or `specsync change finalize {id}`")
         }
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
         ChangeState::Archived => "no further action".into(),
     }
 }
 
-/// Local ship readiness for one change: verification tip health, review presence,
-/// and the merge-before-finalize trap. Does not query GitHub check-runs.
+/// Ship readiness for one change: HEAD tip class, verification tip health, review,
+/// trust guidance for staged product → review → archive tips, and the merge-before-finalize trap.
+/// Does not query GitHub check-runs (local/offline safe).
 fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
     let questions = change::next_questions(record);
     let lifecycle_next = text_mode_next_action(root, record, &questions);
+    let tip = classify_head_tip(root)?;
 
     let verification_path = root
         .join(".specsync/changes")
@@ -672,12 +676,12 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             blockers.push("no verification evidence recorded yet".to_string());
         } else if !verification_present {
             blockers.push(
-                "verification commit is not in this repository (orphaned by squash merge, rebase, amend, or force-push); re-run change check"
+                "verification commit is not in this repository (orphaned by squash merge, rebase, amend, or force-push); re-run change check --commit"
                     .to_string(),
             );
         } else if !verification_ancestor {
             blockers.push(
-                "verification commit is not an ancestor of HEAD; re-run change check before review/finalize"
+                "verification commit is not an ancestor of HEAD; re-run change check --commit before review/finalize"
                     .to_string(),
             );
         }
@@ -692,6 +696,18 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                     .to_string(),
             );
         }
+        if tip.tip_class == "archive_only" && record.state != ChangeState::Archived {
+            warnings.push(
+                "HEAD looks like an archive-only tip while this change is still active — push product/review tips first, then finalize"
+                    .to_string(),
+            );
+        }
+        if tip.tip_class == "review_only" && !review_present {
+            warnings.push(
+                "HEAD looks like a review-only tip but no scoped review is recorded for this change"
+                    .to_string(),
+            );
+        }
     }
 
     let ready_to_finalize = record.state == ChangeState::Verifying
@@ -700,20 +716,58 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         && review_present
         && blockers.is_empty();
 
+    let stages = ship_stages(
+        record,
+        &tip,
+        verification_commit.as_deref(),
+        verification_present,
+        verification_ancestor,
+        review_present,
+        ready_to_finalize,
+    );
+
+    let current_stage = stages
+        .iter()
+        .find(|stage| stage.get("status").and_then(|value| value.as_str()) == Some("current"))
+        .cloned()
+        .unwrap_or_else(|| {
+            serde_json::json!({
+                "id": "unknown",
+                "status": "current",
+                "action": lifecycle_next.clone(),
+            })
+        });
+
     let ship_next = if ready_to_finalize {
         format!(
-            "run `specsync change finalize {}` without intermediate commits, then merge the PR",
+            "run `specsync change ship {}` (or finalize without intermediate commits), push the archive tip, wait for CI, then merge the PR",
             record.id
         )
     } else if !blockers.is_empty() {
         blockers[0].clone()
     } else {
-        lifecycle_next.clone()
+        current_stage
+            .get("action")
+            .and_then(|value| value.as_str())
+            .unwrap_or(lifecycle_next.as_str())
+            .to_string()
     };
+
+    let trust = serde_json::json!({
+        "status": "local_guidance",
+        "parent_sha": tip.parent_sha,
+        "guidance": "After pushing a product tip, wait for trust + SpecSync implementation ready (and required product checks) to succeed before pushing a review_only or archive_only tip. Review/archive tips reuse trust from a green product parent — do not push them while product trust is still running or cancelled.",
+    });
 
     Ok(serde_json::json!({
         "id": record.id,
         "state": record.state,
+        "tip_class": tip.tip_class,
+        "tip_sha": tip.tip_sha,
+        "parent_sha": tip.parent_sha,
+        "trust": trust,
+        "stages": stages,
+        "current_stage": current_stage,
         "verification_commit": verification_commit,
         "verification_present": verification_present,
         "verification_ancestor_of_head": verification_ancestor,
@@ -724,6 +778,176 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         "lifecycle_next": lifecycle_next,
         "ship_next": ship_next,
     }))
+}
+
+fn ship_stages(
+    record: &ChangeRecord,
+    tip: &HeadTip,
+    verification_commit: Option<&str>,
+    verification_present: bool,
+    verification_ancestor: bool,
+    review_present: bool,
+    ready_to_finalize: bool,
+) -> Vec<serde_json::Value> {
+    let id = record.id.as_str();
+    let verified = verification_present && verification_ancestor && verification_commit.is_some();
+    let mut stages = Vec::new();
+
+    let product_done = verified
+        && matches!(
+            record.state,
+            ChangeState::Verifying | ChangeState::Accepted | ChangeState::Archived
+        );
+    stages.push(serde_json::json!({
+        "id": "product_tip",
+        "title": "Product tip (full CI)",
+        "status": if product_done { "done" } else { "current" },
+        "sha": verification_commit,
+        "action": if product_done {
+            "product verification evidence is on an ancestor of HEAD".to_string()
+        } else {
+            format!("run `specsync change check {id} --commit`, push the product tip, wait for trust + implementation ready")
+        },
+    }));
+
+    let review_status = if review_present {
+        "done"
+    } else if product_done {
+        "current"
+    } else {
+        "pending"
+    };
+    stages.push(serde_json::json!({
+        "id": "review_tip",
+        "title": "Review tip (trust reuse from product parent)",
+        "status": review_status,
+        "action": if review_present {
+            "scoped review is recorded".to_string()
+        } else if product_done {
+            format!(
+                "record independent review: `specsync change review {id} --reviewer <other>` then push a review_only tip if CI requires it; wait for trust reuse"
+            )
+        } else {
+            "complete product tip first".to_string()
+        },
+    }));
+
+    let archive_status = if record.state == ChangeState::Archived {
+        "done"
+    } else if ready_to_finalize {
+        "current"
+    } else {
+        "pending"
+    };
+    stages.push(serde_json::json!({
+        "id": "archive_tip",
+        "title": "Archive tip (finalize on the same PR)",
+        "status": archive_status,
+        "action": if record.state == ChangeState::Archived {
+            "change is archived; merge the PR".to_string()
+        } else if ready_to_finalize {
+            format!(
+                "run `specsync change ship {id}` (or finalize), push the archive tip, wait for CI, then merge"
+            )
+        } else {
+            "complete product tip and independent review first".to_string()
+        },
+    }));
+
+    stages.push(serde_json::json!({
+        "id": "merge",
+        "title": "Merge the PR",
+        "status": if record.state == ChangeState::Archived { "current" } else { "pending" },
+        "action": "merge only after finalize — merging an unfinalized change orphans verification evidence",
+        "head_tip_class": tip.tip_class,
+    }));
+
+    stages
+}
+
+#[derive(Debug, Clone)]
+struct HeadTip {
+    tip_class: String,
+    tip_sha: Option<String>,
+    parent_sha: Option<String>,
+}
+
+/// Classify HEAD the way CI tip lanes roughly do: archive_only, review_only, product, or other.
+fn classify_head_tip(root: &Path) -> Result<HeadTip, String> {
+    let tip_sha = git_rev_parse(root, "HEAD").ok();
+    let parent_sha = tip_sha
+        .as_ref()
+        .and_then(|_| git_rev_parse(root, "HEAD^").ok());
+
+    let paths = if let Some(tip) = tip_sha.as_ref() {
+        if let Some(parent) = parent_sha.as_ref() {
+            git_diff_name_only(root, parent, tip).unwrap_or_default()
+        } else {
+            git_show_name_only(root, tip).unwrap_or_default()
+        }
+    } else {
+        Vec::new()
+    };
+
+    // Dirty working tree paths also count as product when present.
+    let mut dirty = git_status_name_only(root).unwrap_or_default();
+    let mut all_paths = paths;
+    all_paths.append(&mut dirty);
+    all_paths.sort();
+    all_paths.dedup();
+
+    let tip_class = classify_paths(&all_paths).to_string();
+    Ok(HeadTip {
+        tip_class,
+        tip_sha,
+        parent_sha,
+    })
+}
+
+fn classify_paths(paths: &[String]) -> &'static str {
+    if paths.is_empty() {
+        return "other";
+    }
+    let mut has_archive = false;
+    let mut has_review = false;
+    let mut has_product = false;
+    for path in paths {
+        if path.starts_with(".specsync/archive/changes/") {
+            has_archive = true;
+            continue;
+        }
+        if path.starts_with(".specsync/changes/")
+            && (path.ends_with("/review.json")
+                || path.ends_with("/review-attempts.json")
+                || path.ends_with("review.json")
+                || path.ends_with("review-attempts.json"))
+        {
+            has_review = true;
+            continue;
+        }
+        // Lifecycle metadata alone is not a full product tip.
+        if path == ".specsync/change-sequence.json"
+            || path.starts_with(".specsync/changes/")
+                && (path.ends_with("/verification.json")
+                    || path.ends_with("/verification-attempts.json")
+                    || path.ends_with("/state.json")
+                    || path.ends_with("/approvals.json"))
+        {
+            continue;
+        }
+        has_product = true;
+    }
+    if has_product {
+        "product"
+    } else if has_archive && !has_review {
+        "archive_only"
+    } else if has_review && !has_archive {
+        "review_only"
+    } else if has_archive && has_review {
+        "product"
+    } else {
+        "other"
+    }
 }
 
 fn print_ship_status(
@@ -739,15 +963,22 @@ fn print_ship_status(
         }
         _ => {
             println!(
-                "{}  {}  ({})",
+                "{}  {}  tip={}  ({})",
                 report["id"].as_str().unwrap_or("?"),
                 report["state"].as_str().unwrap_or("?"),
+                report["tip_class"].as_str().unwrap_or("?"),
                 if report["ready_to_finalize"].as_bool() == Some(true) {
                     "ready to finalize".green().to_string()
                 } else {
                     "not ready".yellow().to_string()
                 }
             );
+            if let Some(sha) = report["tip_sha"].as_str() {
+                println!("  HEAD: {}", &sha[..8.min(sha.len())]);
+            }
+            if let Some(parent) = report["parent_sha"].as_str() {
+                println!("  Parent: {}", &parent[..8.min(parent.len())]);
+            }
             if let Some(commit) = report["verification_commit"].as_str() {
                 let tip = if report["verification_present"].as_bool() != Some(true) {
                     "absent from repository"
@@ -772,6 +1003,30 @@ fn print_ship_status(
                     "missing"
                 }
             );
+            if let Some(guidance) = report
+                .pointer("/trust/guidance")
+                .and_then(|value| value.as_str())
+            {
+                println!("  Trust: {guidance}");
+            }
+            if let Some(stages) = report["stages"].as_array() {
+                println!("  Stages:");
+                for stage in stages {
+                    let id = stage
+                        .get("id")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or("?");
+                    let status = stage
+                        .get("status")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or("?");
+                    let action = stage
+                        .get("action")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or("");
+                    println!("    - [{status}] {id}: {action}");
+                }
+            }
             if let Some(blockers) = report["blockers"].as_array() {
                 for blocker in blockers {
                     if let Some(text) = blocker.as_str() {
@@ -794,6 +1049,113 @@ fn print_ship_status(
     }
 }
 
+fn run_ship(
+    root: &Path,
+    id: Option<&str>,
+    dry_run: bool,
+    format: OutputFormat,
+) -> Result<(), String> {
+    let record =
+        match id {
+            Some(id) => change::load_change(root, id)?,
+            None => {
+                let records = change::list_changes(root);
+                match records.as_slice() {
+                    [] => return Err("no active change to ship; pass an explicit change id".into()),
+                    [single] => single.clone(),
+                    _ => return Err(
+                        "multiple active changes; pass an explicit id: `specsync change ship <ID>`"
+                            .into(),
+                    ),
+                }
+            }
+        };
+
+    if record.state == ChangeState::Archived {
+        let report = ship_status_report(root, &record)?;
+        match format {
+            OutputFormat::Json => print_json(&serde_json::json!({
+                "id": record.id,
+                "status": "already_archived",
+                "report": report,
+            })),
+            _ => {
+                println!(
+                    "{} {} is already archived — merge the PR on GitHub",
+                    "✓".green(),
+                    record.id
+                );
+            }
+        }
+        return Ok(());
+    }
+
+    let report = ship_status_report(root, &record)?;
+    let ready = report["ready_to_finalize"].as_bool() == Some(true);
+    let tip_class = report["tip_class"].as_str().unwrap_or("other");
+
+    if !ready {
+        match format {
+            OutputFormat::Json => print_json(&serde_json::json!({
+                "id": record.id,
+                "status": "blocked",
+                "tip_class": tip_class,
+                "report": report,
+            })),
+            _ => {
+                let _ = print_ship_status(root, &record, format);
+                println!(
+                    "{} ship blocked — resolve blockers above, then re-run `specsync change ship {}`",
+                    "✗".red(),
+                    record.id
+                );
+            }
+        }
+        return Err(format!("change {} is not ready to ship", record.id));
+    }
+
+    if dry_run {
+        match format {
+            OutputFormat::Json => print_json(&serde_json::json!({
+                "id": record.id,
+                "status": "ready",
+                "dry_run": true,
+                "tip_class": tip_class,
+                "report": report,
+                "next": format!("run `specsync change ship {}` without --dry-run to finalize", record.id),
+            })),
+            _ => {
+                let _ = print_ship_status(root, &record, format);
+                println!(
+                    "{} ready to finalize (dry-run) — re-run without --dry-run to ship",
+                    "✓".green()
+                );
+            }
+        }
+        return Ok(());
+    }
+
+    // Finalize mutates the workspace; drop the read scope by ending this block first.
+    let path = change::finalize_change(root, &record.id)?;
+    match format {
+        OutputFormat::Json => print_json(&serde_json::json!({
+            "id": record.id,
+            "status": "finalized",
+            "archived": path,
+            "tip_class": "archive_only",
+            "next": "commit if needed, push the archive tip, wait for CI, then merge the PR",
+        })),
+        _ => {
+            println!("{} {} finalized on this PR", "✓".green(), record.id);
+            println!("  Archive: {}", path.display());
+            println!(
+                "  Next: push this archive tip, wait for CI (archive_only reuses product trust), then merge the PR — do not merge before finalize"
+            );
+        }
+    }
+    Ok(())
+}
+
 fn git_commit_present(root: &Path, commit: &str) -> Result<bool, String> {
     let output = std::process::Command::new("git")
         .args(["cat-file", "-e", &format!("{commit}^{{commit}}")])
@@ -810,6 +1172,75 @@ fn git_is_ancestor(root: &Path, maybe_ancestor: &str, tip: &str) -> Result<bool,
         .output()
         .map_err(|error| format!("git merge-base failed: {error}"))?;
     Ok(output.status.success())
+}
+
+fn git_rev_parse(root: &Path, rev: &str) -> Result<String, String> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--verify", rev])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("git rev-parse failed: {error}"))?;
+    if !output.status.success() {
+        return Err(format!("git rev-parse {rev} failed"));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn git_diff_name_only(root: &Path, from: &str, to: &str) -> Result<Vec<String>, String> {
+    let output = std::process::Command::new("git")
+        .args(["diff", "--name-only", from, to])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("git diff failed: {error}"))?;
+    if !output.status.success() {
+        return Err("git diff --name-only failed".into());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
+fn git_show_name_only(root: &Path, commit: &str) -> Result<Vec<String>, String> {
+    let output = std::process::Command::new("git")
+        .args(["show", "--pretty=format:", "--name-only", commit])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("git show failed: {error}"))?;
+    if !output.status.success() {
+        return Err("git show --name-only failed".into());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
+fn git_status_name_only(root: &Path) -> Result<Vec<String>, String> {
+    let output = std::process::Command::new("git")
+        .args(["status", "--porcelain", "-z"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("git status failed: {error}"))?;
+    if !output.status.success() {
+        return Err("git status failed".into());
+    }
+    // Porcelain -z: XY path\0, renames have extra path.
+    let mut paths = Vec::new();
+    for entry in output.stdout.split(|byte| *byte == 0) {
+        if entry.len() < 4 {
+            continue;
+        }
+        let text = String::from_utf8_lossy(entry);
+        // "XY path" or "R  old\0new" handled loosely: take path after first three bytes.
+        let path = text.get(3..).unwrap_or("").trim();
+        if !path.is_empty() {
+            paths.push(path.to_string());
+        }
+    }
+    Ok(paths)
 }
 
 fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, strict: bool) {
@@ -1025,6 +1456,36 @@ mod tests {
                 "{surface} text recommended premature approval: {next}"
             );
         }
+    }
+
+    #[test]
+    fn classify_paths_distinguishes_product_review_and_archive_tips() {
+        assert_eq!(classify_paths(&[]), "other");
+        assert_eq!(
+            classify_paths(&["src/commands/change.rs".into()]),
+            "product"
+        );
+        assert_eq!(
+            classify_paths(&[
+                ".specsync/changes/CHG-0001-demo/review.json".into(),
+                ".specsync/changes/CHG-0001-demo/review-attempts.json".into(),
+            ]),
+            "review_only"
+        );
+        assert_eq!(
+            classify_paths(&[
+                ".specsync/archive/changes/2026-08-07-CHG-0001-demo/state.json".into(),
+                ".specsync/archive/changes/2026-08-07-CHG-0001-demo/finalization.json".into(),
+            ]),
+            "archive_only"
+        );
+        assert_eq!(
+            classify_paths(&[
+                "src/cli.rs".into(),
+                ".specsync/changes/CHG-0001-demo/review.json".into(),
+            ]),
+            "product"
+        );
     }
 }
 

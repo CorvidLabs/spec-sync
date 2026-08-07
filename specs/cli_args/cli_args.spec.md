@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 18
+version: 19
 status: stable
 files:
   - src/cli.rs
@@ -139,3 +139,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-07 | CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires: Add change check --commit to perform the sequence it requires |
 | 2026-08-07 | CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning: Add change ship-status for local ship readiness and merge-before-finalize warning |
+| 2026-08-07 | CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents: Complete buttery ship status tip class and ship preflight for agents |

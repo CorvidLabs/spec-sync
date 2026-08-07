@@ -1976,7 +1976,11 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
         status.contains("Corrections: 1 recorded"),
         "expected correction count summary in text status, got:\n{status}"
     );
-    assert!(status.contains(&format!("Next: run `specsync change check {id}`")));
+    assert!(
+        status.contains(&format!("specsync change check {id}"))
+            && (status.contains("ship-status") || status.contains("ship ")),
+        "expected verifying next_action to name check and ship guidance, got:\n{status}"
+    );
     let status_json = specsync()
         .args([
             "--root",

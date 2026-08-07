@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires",
+  "implementation_commit": "101f2d21d27227c8c3e6cda693ad07322c0ce92f",
+  "implementation_tree": "3c612fa0b36b41eac9920768ac08093f230f9fbc",
+  "contract_digest": "65f74e5f7e128c775d1836c6265149febe2172bb5bf34c74645f283b5ee2fe1d",
+  "workspace_digest": "9e75c0dc930138d938829ca80418bd0df81868d0ec7bcec08f1dbe82e7768daf",
+  "closing_digest": "016a56eadae389ca07dfffd9e88e27a569febf28a93adadd5255b3639c944027",
+  "review_digest": "bc47a1960dad17cb5c7688206acfab0a18a9da521c20710b390524296067a303",
+  "finalization_digest": "4f5bf673156897327a0a9e183c99baef3fde0a729a6c552deb5ec9dd9a46844d",
+  "timestamp": 1786074648
+}

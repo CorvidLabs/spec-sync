@@ -501,6 +501,13 @@ pub enum ChangeAction {
     Check {
         /// Optional change ID; inferred when exactly one change is being implemented
         id: Option<String>,
+        /// Commit the materialized spec and the resulting evidence, verifying again
+        /// in between so the recorded evidence matches the committed tree
+        #[arg(long)]
+        commit: bool,
+        /// Push after committing; requires --commit
+        #[arg(long)]
+        push: bool,
     },
     /// Audit active change workspaces and living SDD policy/spec coherence
     Audit,
@@ -801,8 +808,29 @@ mod tests {
         assert!(matches!(
             check.command,
             Some(Command::Change {
-                action: ChangeAction::Check { id: Some(id) }
+                action: ChangeAction::Check { id: Some(id), commit: false, push: false }
             }) if id == "CHG-0001-passkeys"
+        ));
+
+        // --commit and --push are opt-in; plain `change check` must stay unchanged.
+        let committing = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "check",
+            "CHG-0001-passkeys",
+            "--commit",
+            "--push",
+        ])
+        .unwrap();
+        assert!(matches!(
+            committing.command,
+            Some(Command::Change {
+                action: ChangeAction::Check {
+                    commit: true,
+                    push: true,
+                    ..
+                }
+            })
         ));
 
         let review = Cli::try_parse_from([

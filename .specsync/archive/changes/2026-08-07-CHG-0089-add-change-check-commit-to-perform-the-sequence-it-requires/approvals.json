@@ -1,0 +1,114 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786060984,
+      "digest": "65f74e5f7e128c775d1836c6265149febe2172bb5bf34c74645f283b5ee2fe1d",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires",
+        "title": "Add change check --commit to perform the sequence it requires",
+        "description": "add change check --commit to perform the sequence it requires",
+        "kind": "feature",
+        "affected_specs": [
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check --commit materializes, re-verifies, and records verification evidence; --push requires --commit; failed first verification commits nothing"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786061088,
+      "digest": "65f74e5f7e128c775d1836c6265149febe2172bb5bf34c74645f283b5ee2fe1d",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires",
+        "title": "Add change check --commit to perform the sequence it requires",
+        "description": "add change check --commit to perform the sequence it requires",
+        "kind": "feature",
+        "affected_specs": [
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check --commit materializes, re-verifies, and records verification evidence; --push requires --commit; failed first verification commits nothing"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786061197,
+      "digest": "65f74e5f7e128c775d1836c6265149febe2172bb5bf34c74645f283b5ee2fe1d",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires",
+        "title": "Add change check --commit to perform the sequence it requires",
+        "description": "add change check --commit to perform the sequence it requires",
+        "kind": "feature",
+        "affected_specs": [
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check --commit materializes, re-verifies, and records verification evidence; --push requires --commit; failed first verification commits nothing"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786074647,
+      "digest": "016a56eadae389ca07dfffd9e88e27a569febf28a93adadd5255b3639c944027",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

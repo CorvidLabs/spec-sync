@@ -1,6 +1,6 @@
 ---
 module: change
-version: 62
+version: 64
 status: active
 files:
   - src/change.rs
@@ -351,3 +351,5 @@ Acceptance Criteria
 | 2026-08-05 | CHG-0085-resolve-canonical-ownership-at-approve-and-free-never-closed-changes: Resolve canonical ownership at approve and free never-closed changes |
 | 2026-08-05 | CHG-0086-return-src-commands-change-rs-to-its-sole-canonical-owner: Return src/commands/change.rs to its sole canonical owner |
 | 2026-08-07 | CHG-0090-harden-approve-ownership-skips-and-correct-owner-provenance-comments: Harden approve ownership skips and correct-owner provenance comments |
+| 2026-08-07 | CHG-0094-count-same-pr-archived-changes-toward-path-coverage-after-finalize: Count same-PR archived packages toward path coverage after finalize |
+| 2026-08-07 | CHG-0094-count-same-pr-archived-changes-toward-path-coverage-after-finalize: Count same-PR archived changes toward path coverage after finalize |

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0094-count-same-pr-archived-changes-toward-path-coverage-after-finalize",
+  "reviewer": "Independent Path Coverage",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "10faaef592763c4caaf66592a340406f240a2a99",
+  "contract_digest": "38ca21a0b3b5914ffa230894842ebc875e728eebdb15f6d2eab77b4cdcd98c87",
+  "execution_digest": "dd64f3e48fcaa95b35ffddfcb214e5e5db9fa4947f8388354f5886628c1d4456",
+  "workspace_digest": "687b4801936d5b3bbec9b83c7e463dd8e83617b98860dc4ba13011d375f8b076",
+  "timestamp": 1786128237
+}

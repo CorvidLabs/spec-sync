@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0094-count-same-pr-archived-changes-toward-path-coverage-after-finalize",
+  "implementation_commit": "10faaef592763c4caaf66592a340406f240a2a99",
+  "implementation_tree": "a5d8531c34761ee6688294e9ca954527e9e024f0",
+  "contract_digest": "38ca21a0b3b5914ffa230894842ebc875e728eebdb15f6d2eab77b4cdcd98c87",
+  "workspace_digest": "687b4801936d5b3bbec9b83c7e463dd8e83617b98860dc4ba13011d375f8b076",
+  "closing_digest": "1ab35573c286a6ec224521f87ccaa2e5f98bee85b3f3dc1793a7913fe6edc5bf",
+  "review_digest": "efa324dcdae680d314b1e30ffa0256c4809d8bcb84d9090e4df9258b83fa0d6b",
+  "finalization_digest": "b6873468f17125e8d07fe7e32986e0be52e6009ecd7ee01c3d9db23d94a59de4",
+  "timestamp": 1786128247
+}

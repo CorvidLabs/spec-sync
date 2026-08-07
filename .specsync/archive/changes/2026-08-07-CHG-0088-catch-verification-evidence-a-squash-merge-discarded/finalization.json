@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0088-catch-verification-evidence-a-squash-merge-discarded",
+  "implementation_commit": "83ae6f39047a04f7fdba2630db05e8d98c979e64",
+  "implementation_tree": "b6a50c9218610da60e234afb9ec05147174b33c9",
+  "contract_digest": "37270a10e9a76b45c2ec150ab5ba80fa11289b88bffa4b0134f4d3d2cc8ccd43",
+  "workspace_digest": "e0e1c428d2631010559d24b8a3bfefb3dcc8b1b41fb22efc35351663099f5515",
+  "closing_digest": "0745581dd5cf60cb421c9c88629c7fa14281dbf3a8b0539ea953070075df449b",
+  "review_digest": "8cdd70b50fc801e1ba8c34e50f780bff65a8c8967dbecb2b8a16ea43673ef87e",
+  "finalization_digest": "484ea4fa22f168c21bcc70da8fc569435541888904d896a0501d32836176318d",
+  "timestamp": 1786071179
+}

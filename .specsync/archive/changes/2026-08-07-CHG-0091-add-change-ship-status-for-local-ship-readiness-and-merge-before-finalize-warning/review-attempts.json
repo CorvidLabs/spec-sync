@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning",
+      "reviewer": "independent-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "75ffd6c14c8ea94e956ca1209d1cd3cd3b1596bc",
+      "contract_digest": "c9a3c69e1753f6ba702362ed9c2e905ec6c24fdcc1ce6bedc8c2f4340a81e2e0",
+      "execution_digest": "92d85f2666c5159bba1783bb5bf451fa349ececd5c86ea0dd20f29430b624d57",
+      "workspace_digest": "f302eebc7356f6e18bc7e53b32b9caed0d9efd5574ca30dad4ba9d07fabdfdb2",
+      "timestamp": 1786075669
+    }
+  ]
+}

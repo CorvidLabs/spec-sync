@@ -1,6 +1,6 @@
 ---
 id: CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning
-state: implementing
+state: archived
 type: feature
 base_commit: 5fdd245bd9f25c0366f0c52bcffe636087722e1b
 ---

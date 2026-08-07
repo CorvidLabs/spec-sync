@@ -7,11 +7,11 @@
   "title": "Add change ship-status for local ship readiness and merge-before-finalize warning",
   "description": "add change ship-status for local ship readiness and merge-before-finalize warning",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "5fdd245bd9f25c0366f0c52bcffe636087722e1b",
   "created_at": 1786062735,
-  "updated_at": 1786075663,
+  "updated_at": 1786075678,
   "affected_specs": [
     "cli_args",
     "cmd_change"

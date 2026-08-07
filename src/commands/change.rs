@@ -538,25 +538,13 @@ fn print_record(
         }
         _ => {
             // Text mode must not invoke digest-bearing loaders into cleartext sinks
-            // (CodeQL rust/cleartext-logging). Human output uses interview/state only.
-            let id = record.id.clone();
-            let title = record.title.clone();
-            let state = record.state.as_str().to_owned();
-            println!("{} {}", id.bold(), title);
-            println!("  State: {state}");
-            println!(
-                "  Next: {}",
-                text_mode_next_action(root, record, &questions)
-            );
-            if !record.answers.is_empty() {
-                let answer_summary = record
-                    .answers
-                    .iter()
-                    .map(|(field, value)| format!("{field}={value}"))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                println!("  Answers: {answer_summary}");
-            }
+            // (CodeQL rust/cleartext-logging / alert #58). Human output uses interview
+            // identity/state only; digests and correction ledgers stay JSON-only.
+            // `text_mode_next_action` uses lightweight artifact file reads only.
+            print_change_text_identity(record);
+            let next = text_mode_next_action(root, record, &questions);
+            println!("  Next: {next}");
+            print_change_text_answers(record);
             if record.correction_count > 0 {
                 println!(
                     "  Corrections: {} recorded (use --json for the audit ledger)",
@@ -581,6 +569,32 @@ fn print_record(
         }
     }
     Ok(())
+}
+
+/// Print only non-sensitive identity fields for human text sinks.
+///
+/// Digests / correction ledgers must not flow into `println!` (CodeQL
+/// `rust/cleartext-logging`). Callers must not pass values produced by
+/// `effective_change_definition` / `correction_history` into this path.
+fn print_change_text_identity(record: &ChangeRecord) {
+    let id = record.id.as_str();
+    let title = record.title.as_str();
+    let state = record.state.as_str();
+    println!("{} {}", id.bold(), title);
+    println!("  State: {state}");
+}
+
+fn print_change_text_answers(record: &ChangeRecord) {
+    if record.answers.is_empty() {
+        return;
+    }
+    let answer_summary = record
+        .answers
+        .iter()
+        .map(|(field, value)| format!("{field}={value}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    println!("  Answers: {answer_summary}");
 }
 
 /// Human next-step string from interview/state and lightweight artifact completeness.

@@ -7039,15 +7039,29 @@ fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
             )
 }
 
-/// Lightweight artifact completeness for human next-action guidance (no digests).
+/// Lightweight artifact completeness for human next-action guidance.
+///
+/// Uses the **persisted** `selected_artifacts` list only — does **not** load
+/// correction ledgers or digests. That keeps text-mode `change status` free of
+/// `validate_trusted_correction_history` (CodeQL `rust/cleartext-logging`).
+/// Definition approve still calls [`validate_artifacts`], which re-checks against
+/// the effective (correction-applied) selection.
 pub fn artifacts_complete_for_guidance(root: &Path, record: &ChangeRecord) -> bool {
-    validate_artifacts(root, record).is_ok()
+    validate_artifact_bodies(root, &record.id, &record.selected_artifacts).is_ok()
 }
 
 fn validate_artifacts(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    let dir = find_change_dir(root, &record.id)?;
     let effective = effective_change_definition(root, record)?;
-    for artifact in &effective.selected_artifacts {
+    validate_artifact_bodies(root, &record.id, &effective.selected_artifacts)
+}
+
+fn validate_artifact_bodies(
+    root: &Path,
+    id: &str,
+    selected: &[ArtifactKind],
+) -> Result<(), String> {
+    let dir = find_change_dir(root, id)?;
+    for artifact in selected {
         let path = dir.join(artifact.file_name());
         let content = read_bounded_change_text(&path, "artifact")?;
         if artifact_content_is_incomplete(&content) {

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0093-encode-ship-multi-active-ordering-rules-and-agents-happy-path",
+  "implementation_commit": "3cb71b0c344d90f17dcaa8b2e618489dd2f3dcb3",
+  "implementation_tree": "32d7e35d4f81dc4a125cebe0646fae8a6ce8ae62",
+  "contract_digest": "7e8c4f70e38e70be3a6cd4ca7fa0e38cda3c9ead52464eeec8ba5de3ae8bc504",
+  "workspace_digest": "90731db9c07ecf1069e8513f966170c8742999c3eb1367546afde040aa6d63ce",
+  "closing_digest": "dc4a35f713f50ed995e7d0d366bfe198dd9ee2b8cc13e2e74695bb9c677db2bb",
+  "review_digest": "c25166a87c2551aa961c8576a5cfd6b05b883fb0dc92d3841b2e1c173d452362",
+  "finalization_digest": "d96ce631514c64b1970df829dcfdd0d147147fc7c6ad1e57eed5c0d8e5fac8f5",
+  "timestamp": 1786119314
+}

@@ -48,6 +48,30 @@
         "REQ-cli-args-011",
         "REQ-cmd-change-007"
       ]
+    },
+    {
+      "timestamp": 1786075661,
+      "commit": "8f097e364f18536e53ea2127dd21828d1098e811",
+      "contract_digest": "c9a3c69e1753f6ba702362ed9c2e905ec6c24fdcc1ce6bedc8c2f4340a81e2e0",
+      "execution_digest": "92d85f2666c5159bba1783bb5bf451fa349ececd5c86ea0dd20f29430b624d57",
+      "workspace_digest": "f302eebc7356f6e18bc7e53b32b9caed0d9efd5574ca30dad4ba9d07fabdfdb2",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-args-011",
+        "REQ-cmd-change-007"
+      ]
     }
   ]
 }

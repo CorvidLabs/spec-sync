@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires",
+  "slug": "add-change-check-commit-to-perform-the-sequence-it-requires",
+  "title": "Add change check --commit to perform the sequence it requires",
+  "description": "add change check --commit to perform the sequence it requires",
+  "kind": "feature",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "45b1c3436d17c3d9015c9afc7d959a1ed7b94d29",
+  "created_at": 1786060126,
+  "updated_at": 1786061221,
+  "affected_specs": [
+    "cli_args",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/cli.rs",
+    "src/commands/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change check --commit materializes, re-verifies, and records verification evidence; --push requires --commit; failed first verification commits nothing"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

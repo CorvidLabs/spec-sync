@@ -1,0 +1,24 @@
+{
+  "timestamp": 1786061219,
+  "commit": "45b1c3436d17c3d9015c9afc7d959a1ed7b94d29",
+  "contract_digest": "65f74e5f7e128c775d1836c6265149febe2172bb5bf34c74645f283b5ee2fe1d",
+  "execution_digest": "45653fc33c23bde885b0f4bd7f8869214b17ccaa4779051083e791f20e608579",
+  "workspace_digest": "e385e17de44d9060df4b8b95dd7d78eae711475b39ee47b3204ef424db59391c",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test cli::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test commands::change::",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-cli-args-010",
+    "REQ-cmd-change-check-scoped-001"
+  ]
+}

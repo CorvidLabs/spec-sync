@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 88,
-  "id": "CHG-0088-catch-verification-evidence-a-squash-merge-discarded",
+  "sequence": 89,
+  "id": "CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires",
   "acknowledged_collisions": [
     {
       "sequence": 16,

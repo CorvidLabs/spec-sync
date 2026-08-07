@@ -7,11 +7,11 @@
   "title": "Harden approve ownership skips and correct-owner provenance comments",
   "description": "harden approve ownership skips and correct-owner provenance comments",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "5fdd245bd9f25c0366f0c52bcffe636087722e1b",
   "created_at": 1786060994,
-  "updated_at": 1786084560,
+  "updated_at": 1786084732,
   "affected_specs": [
     "change"
   ],

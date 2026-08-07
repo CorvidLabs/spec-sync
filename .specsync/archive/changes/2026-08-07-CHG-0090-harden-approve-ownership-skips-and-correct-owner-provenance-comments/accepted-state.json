@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0090-harden-approve-ownership-skips-and-correct-owner-provenance-comments",
+  "slug": "harden-approve-ownership-skips-and-correct-owner-provenance-comments",
+  "title": "Harden approve ownership skips and correct-owner provenance comments",
+  "description": "harden approve ownership skips and correct-owner provenance comments",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "5fdd245bd9f25c0366f0c52bcffe636087722e1b",
+  "created_at": 1786060994,
+  "updated_at": 1786084576,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "empty affected_specs without no_spec_change fails ownership validation at approve; never-closed correct-owner comments state weaker provenance not equivalence"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

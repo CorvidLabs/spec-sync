@@ -1,6 +1,6 @@
 ---
 id: CHG-0090-harden-approve-ownership-skips-and-correct-owner-provenance-comments
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 5fdd245bd9f25c0366f0c52bcffe636087722e1b
 ---

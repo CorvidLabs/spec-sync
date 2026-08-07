@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0090-harden-approve-ownership-skips-and-correct-owner-provenance-comments",
+  "implementation_commit": "a928e726eb350b2dcaf7692b1798df9ee020dd75",
+  "implementation_tree": "9de86b84af3fcebd39380937b7ff953a3b66db4e",
+  "contract_digest": "9f7164b703a41a6f71ca2d24eecd8ea602934d7dd12bf39c47ab4eaf74d4c150",
+  "workspace_digest": "3aafcb5162fb8e094728f093c08fd6e2355d596dc8110722399fdd3e5e04372c",
+  "closing_digest": "089dc529cc0740710d5bd43ff3fdf684021710d95438da21aa91901ec2fdbbbd",
+  "review_digest": "9bb4735ac8b51341d43cf4e17b51c9e8e40f8103b9ddd475f4a44d041b12d115",
+  "finalization_digest": "646e07e944d0d98df3b9df3dfb8a370a30abbd57f16afcf8c3f314ca6da0b5a3",
+  "timestamp": 1786084576
+}

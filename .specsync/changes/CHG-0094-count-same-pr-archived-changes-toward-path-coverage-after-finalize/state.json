@@ -7,10 +7,11 @@
   "title": "Count same-PR archived changes toward path coverage after finalize",
   "description": "count same-PR archived changes toward path coverage after finalize",
   "kind": "feature",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "d6eb2fa43c0fa7f1a1703e994cf2286bd2679120",
   "created_at": 1786123879,
-  "updated_at": 1786124428,
+  "updated_at": 1786125603,
   "affected_specs": [
     "change"
   ],

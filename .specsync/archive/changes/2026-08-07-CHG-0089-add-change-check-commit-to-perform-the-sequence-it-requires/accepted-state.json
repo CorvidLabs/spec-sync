@@ -7,11 +7,11 @@
   "title": "Add change check --commit to perform the sequence it requires",
   "description": "add change check --commit to perform the sequence it requires",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "45b1c3436d17c3d9015c9afc7d959a1ed7b94d29",
   "created_at": 1786060126,
-  "updated_at": 1786072688,
+  "updated_at": 1786074648,
   "affected_specs": [
     "cli_args",
     "cmd_change"

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents",
+  "implementation_commit": "61d5fc4ce894251446d10bf068f69eec4deb98cd",
+  "implementation_tree": "e5e5543e8ab3ae09ff85f47066f7426b60855e95",
+  "contract_digest": "e540df99e93663c0007a899531374a055dac32804ac7994c94595f071e62e614",
+  "workspace_digest": "d3cc0b2aed8ae2c4f79f87fe124bae26ab5ae87f62f425916902616c18374f5f",
+  "closing_digest": "a9f30d359aca8fd872f356672a975fc32482c0a6ceac657ec81ac5344bb7c387",
+  "review_digest": "9d484fb92a2691a80b8b75da932744a60e246acc23b18741f3d6f28a1a47cb3e",
+  "finalization_digest": "b4accf80a50d9d8f6a5a4942fefd7fedb943033b3f6ef83c2ee23615e92d26c4",
+  "timestamp": 1786117383
+}

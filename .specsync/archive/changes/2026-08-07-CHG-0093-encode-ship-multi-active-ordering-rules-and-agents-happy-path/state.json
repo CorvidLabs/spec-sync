@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0093-encode-ship-multi-active-ordering-rules-and-agents-happy-path",
+  "slug": "encode-ship-multi-active-ordering-rules-and-agents-happy-path",
+  "title": "Encode ship multi-active ordering rules and AGENTS happy path",
+  "description": "encode ship multi-active ordering rules and AGENTS happy path",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "b36809a7d673261e1d4b39a55728bce6eb492427",
+  "created_at": 1786117581,
+  "updated_at": 1786119468,
+  "affected_specs": [
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    "Agents.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_change/requirements.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": "Surface the four ship ordering rules from #487 dogfood so agents stop batching review/finalize and merging with active changes",
+  "acceptance_criteria": [
+    "ship-status and ship warn when other active changes exist; finalize-one-at-a-time and review+ship atomic rules appear in CLI output; Agents.md documents the ship happy path and the four ordering rules"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

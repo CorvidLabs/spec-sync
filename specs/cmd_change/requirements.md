@@ -130,16 +130,19 @@ change without requiring GitHub check-run queries:
 - trust guidance for staged product → review → archive tips
 - ordered ship stages with concrete next actions
 - blockers, warnings (including merge-before-finalize), and `ship_next`
+- sibling active change ids and multi-active ordering warnings when present
 
 Acceptance Criteria
 
 - JSON includes `tip_class`, `tip_sha`, `parent_sha`, `trust`, `stages`,
   `verification_present`, `verification_ancestor_of_head`, `review_present`,
-  `ready_to_finalize`, `blockers`, `warnings`, and `ship_next`.
+  `ready_to_finalize`, `blockers`, `warnings`, `sibling_active_ids`, and `ship_next`.
 - Tip class is derived from the paths changed in HEAD relative to its first parent
   (or working-tree vs HEAD when HEAD is not a useful tip).
 - An absent or non-ancestor verification commit is a blocker naming re-check.
-- A verifying change always warns not to merge before finalize.
+- A non-archived change always warns not to merge while the change is still active.
+- When other active changes exist, warnings name finalize-one-at-a-time, do-not-batch-reviews,
+  and do-not-merge-with-active-changes rules.
 
 ### REQ-cmd-change-008
 
@@ -153,4 +156,6 @@ Acceptance Criteria
   is already archived and nothing remains).
 - Exit code non-zero when blockers remain.
 - Text and JSON outputs name the current tip class and next ship stage.
+- When sibling active changes remain after finalize, next guidance names them and
+  requires their own check → review → ship cycle before merge.
 

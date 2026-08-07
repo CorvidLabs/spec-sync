@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0093-encode-ship-multi-active-ordering-rules-and-agents-happy-path",
+      "reviewer": "Independent Ship Follow-up",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "3cb71b0c344d90f17dcaa8b2e618489dd2f3dcb3",
+      "contract_digest": "7e8c4f70e38e70be3a6cd4ca7fa0e38cda3c9ead52464eeec8ba5de3ae8bc504",
+      "execution_digest": "2c4e2090c205a60aa7e403fde8f09f04a1286f05b0a3d19e8e0a96e38b28b3d1",
+      "workspace_digest": "90731db9c07ecf1069e8513f966170c8742999c3eb1367546afde040aa6d63ce",
+      "timestamp": 1786119303
+    }
+  ]
+}

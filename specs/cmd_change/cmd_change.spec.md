@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 16
+version: 18
 status: active
 files:
   - src/commands/change.rs
@@ -114,3 +114,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-07 | CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires: Add change check --commit to perform the sequence it requires |
 | 2026-08-07 | CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning: Add change ship-status for local ship readiness and merge-before-finalize warning |
 | 2026-08-07 | CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents: Complete buttery ship status tip class and ship preflight for agents |
+| 2026-08-07 | CHG-0093-encode-ship-multi-active-ordering-rules-and-agents-happy-path: Encode multi-active ship ordering warnings and Agents.md happy path |
+| 2026-08-07 | CHG-0093-encode-ship-multi-active-ordering-rules-and-agents-happy-path: Encode ship multi-active ordering rules and AGENTS happy path |

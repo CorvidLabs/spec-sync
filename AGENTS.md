@@ -31,12 +31,39 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync change new <desc>` | Create a draft SDD change with the deterministic interview |
 | `specsync change approve/check/finalize <id>` | Drive the single workflow: one scope approval, targeted verification, scoped PR review, and same-PR finalization |
 | `specsync change status [id]` | Show current gates and exactly one explicit next action |
+| `specsync change ship-status [id]` | Local ship readiness: tip class, stages, trust guidance, blockers, multi-active ordering warnings |
+| `specsync change ship [id]` | Preflight ship readiness and finalize when ready (`--dry-run` supported) |
 | `specsync change reopen <id>` | Re-verify stale accepted evidence (audited, append-only) |
 | `specsync change correct-owner <id>` | Append audited exact owner corrections (single `--path/--spec`, or batch: repeated flags, `--manifest`, `--all-missing`) |
 | `specsync change finalize <id>` | Validate current review/evidence and move the package into the dated archive in the same PR; GitHub performs the merge |
 | `specsync change check [id]` | Scoped verification for one change (materialize + targeted tests); not archive history |
+| `specsync change check [id] --commit` | Verify and commit the materialize → verify sequence CI accepts |
 | `specsync change audit` | Project health over active workspaces and living specs (archives are history) |
 | `specsync migrate 5.0` | Backfill 5.0.1-era reopening digest fields idempotently (the remediation `check` prints for missing-field ledgers) |
+
+
+## Shipping a change (happy path)
+
+Do **not** merge a PR while any SDD change is still active. Squash-merge without finalize strands the workspace and orphans verification.
+
+```text
+1. change approve <id> --actor <human>
+2. implement + keep affected_paths / Public API tables current
+3. change check <id> --commit          # product tip evidence on an ancestor of HEAD
+4. push product tip → wait for trust + implementation ready (when CI requires it)
+5. change review <id> --reviewer <other-than-approver>
+6. change ship <id>                    # or finalize; do NOT commit between review and ship
+7. commit archive tip if needed, push, wait for CI, then merge on GitHub
+```
+
+Use `change ship-status <id>` any time you are unsure which tip stage you are on.
+
+### Four ordering rules (violations cost a full re-verify cycle)
+
+1. **Review + ship are one step** — recording review binds a workspace digest; committing before finalize stales the review. Ship with the tree still dirty after review.
+2. **Finalize one change at a time** — archiving writes under `.specsync/archive/`, which immediately stales every other active change. Sequential only.
+3. **Do not batch reviews** — review A then review B before committing invalidates A.
+4. **Never merge with active changes** — merge only after every change on the PR is archived. If you merge first, open a finalize follow-up on main (re-anchor with `check --commit`, review, ship).
 
 
 ## Before pushing (MANDATORY — keep it FAST)

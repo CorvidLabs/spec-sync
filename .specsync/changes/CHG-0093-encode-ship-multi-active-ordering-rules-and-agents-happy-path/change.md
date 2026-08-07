@@ -1,6 +1,6 @@
 ---
 id: CHG-0093-encode-ship-multi-active-ordering-rules-and-agents-happy-path
-state: draft
+state: approved
 type: feature
 base_commit: b36809a7d673261e1d4b39a55728bce6eb492427
 ---

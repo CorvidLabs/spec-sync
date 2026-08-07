@@ -1,8 +1,6 @@
-# Delta: cmd_change
-
 ## MODIFIED
 
-### REQ-cmd-change-007
+### REQUIREMENT REQ-cmd-change-007
 
 `specsync change ship-status` SHALL report local ship readiness for an active
 change without requiring GitHub check-run queries:
@@ -27,7 +25,7 @@ Acceptance Criteria
 - When other active changes exist, warnings name finalize-one-at-a-time, do-not-batch-reviews,
   and do-not-merge-with-active-changes rules.
 
-### REQ-cmd-change-008
+### REQUIREMENT REQ-cmd-change-008
 
 `specsync change ship [ID]` SHALL run ship preflight for one change and, when
 `ready_to_finalize` is true, perform finalize. When not ready it SHALL exit

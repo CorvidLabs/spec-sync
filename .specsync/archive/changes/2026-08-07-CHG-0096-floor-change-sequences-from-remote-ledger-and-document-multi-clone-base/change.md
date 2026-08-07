@@ -1,6 +1,6 @@
 ---
 id: CHG-0096-floor-change-sequences-from-remote-ledger-and-document-multi-clone-base
-state: implementing
+state: archived
 type: feature
 base_commit: a679cf733296759cea216aaf72f355570bb14ef0
 ---

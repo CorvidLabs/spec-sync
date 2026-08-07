@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0096-floor-change-sequences-from-remote-ledger-and-document-multi-clone-base",
+  "slug": "floor-change-sequences-from-remote-ledger-and-document-multi-clone-base",
+  "title": "Floor change sequences from remote ledger and document multi-clone BASE",
+  "description": "floor change sequences from remote ledger and document multi-clone BASE",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "a679cf733296759cea216aaf72f355570bb14ef0",
+  "created_at": 1786141413,
+  "updated_at": 1786145886,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "Agents.md",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": "Sandbox #10: multi-clone change new collides on sequence. Floor from remote high-water when available; document SPECSYNC_SEQUENCE_BASE for concurrent fleets.",
+  "acceptance_criteria": [
+    "maximum_observed_sequence floors on remote default-branch change-sequence ledger when readable; SPECSYNC_SEQUENCE_BASE still raises high-water; Agents.md documents multi-clone; unit test for remote floor"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

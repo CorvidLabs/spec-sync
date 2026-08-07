@@ -1,6 +1,6 @@
 ---
 id: CHG-0094-count-same-pr-archived-changes-toward-path-coverage-after-finalize
-state: implementing
+state: archived
 type: feature
 base_commit: d6eb2fa43c0fa7f1a1703e994cf2286bd2679120
 ---

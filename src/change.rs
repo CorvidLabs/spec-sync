@@ -3116,9 +3116,11 @@ fn latest_reopen_for_owner_correction<'a>(
         // reopen accepts only Accepted/Archived, and declaring the owning module
         // would force a semantic delta for a spec the change does not alter.
         //
-        // The reopen exists to prove the definition has not drifted since the
-        // change last closed. A never-closed change carries the equivalent
-        // guarantee in its own definition approval, checked by the caller.
+        // The reopen path proves the definition still matches *closing*
+        // verification. A never-closed change has no closing snapshot; the caller
+        // instead requires a currently valid definition approval. That is the
+        // necessary substitute for reachability, not audit-equivalent provenance
+        // to an Accepted→reopen cycle.
         return Ok(None);
     };
     // REQ-change-033 requires the target be "verifying through an audited reopen"
@@ -3237,9 +3239,9 @@ pub fn add_acceptance_owner_corrections(
             }
         }
         None => {
-            // Never closed, so there is no reopened definition to compare against.
-            // The equivalent guarantee is that the definition still matches the
-            // approval it is being corrected under.
+            // Never closed: no reopened closing snapshot exists. Require a live
+            // definition approval so corrections cannot run under a drifted def.
+            // Weaker provenance than Accepted→reopen; necessary for the guided path.
             ensure_definition_approval_valid(root, &original)?;
         }
     }
@@ -3434,11 +3436,18 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     if record.affected_paths.is_empty() {
         return Ok(());
     }
-    // Ownership is resolved by searching the change's own declared specs, so a
-    // change that declares none has no set to resolve against and would be
-    // rejected unconditionally rather than accurately. Those are still enforced
-    // at finalize, which resolves against full delivery evidence.
+    // Ownership is resolved against the change's declared specs. Empty specs
+    // reach here only for justified `no_spec_change` work (validate_definition
+    // already rejects empty specs without that flag). There is then no owner set
+    // to resolve against; finalize still enforces production ownership against
+    // full delivery evidence for that class.
     if record.affected_specs.is_empty() {
+        if !record.no_spec_change {
+            return Err(
+                "affected specs are required for path ownership validation unless no_spec_change is justified"
+                    .into(),
+            );
+        }
         return Ok(());
     }
     let evidence = acceptance_owner_spec_evidence(root, record)?;
@@ -24312,9 +24321,9 @@ mod tests {
     // neither finalize (ownership unresolved) nor be corrected (no reopen) nor be
     // reopened (reopen takes only Accepted/Archived). Every exit was closed.
     //
-    // The reopen exists to prove the definition has not drifted since the change
-    // last closed. A never-closed change carries that same guarantee in its own
-    // verification evidence, so the correction is admissible without one.
+    // The reopen proves definition match against closing verification. A
+    // never-closed change substitutes a live definition approval so the guided
+    // path stays reachable (weaker provenance, not audit-equivalent).
     #[test]
     fn never_closed_verifying_change_corrects_an_owner_without_a_reopen() {
         let temp = TempDir::new().unwrap();

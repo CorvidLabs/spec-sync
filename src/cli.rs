@@ -898,7 +898,8 @@ mod tests {
         ));
 
         let ship_status =
-            Cli::try_parse_from(["specsync", "change", "ship-status", "CHG-0001-passkeys"]).unwrap();
+            Cli::try_parse_from(["specsync", "change", "ship-status", "CHG-0001-passkeys"])
+                .unwrap();
         assert!(matches!(
             ship_status.command,
             Some(Command::Change {

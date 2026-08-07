@@ -1,6 +1,6 @@
 ---
 id: CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents
-state: implementing
+state: verifying
 type: feature
 base_commit: 6f2a7c829bcb1823a9bf2b580d780f4a11005dcc
 ---

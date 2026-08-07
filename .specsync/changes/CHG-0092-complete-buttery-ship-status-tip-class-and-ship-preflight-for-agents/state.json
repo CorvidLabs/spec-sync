@@ -11,15 +11,16 @@
   "canonical_applied": true,
   "base_commit": "6f2a7c829bcb1823a9bf2b580d780f4a11005dcc",
   "created_at": 1786108905,
-  "updated_at": 1786109467,
+  "updated_at": 1786110524,
   "affected_specs": [
     "cli_args",
     "cmd_change"
   ],
   "affected_paths": [
+    ".specsync/change-sequence.json",
     "src/cli.rs",
     "src/commands/change.rs",
-    ".specsync/change-sequence.json"
+    "tests/integration/change.rs"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,

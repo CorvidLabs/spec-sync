@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0095-reject-hash-todo-artifact-headings-at-approve",
+  "implementation_commit": "d541ced4931851baeeecb296c59b807523e77b0b",
+  "implementation_tree": "88905a2d016a7a581f4b0c4e93543d9e545e8748",
+  "contract_digest": "c8d7a38cd78e11c4f7d33353c5cd5bf697dd78b90eb68bdaa9c87caaf1e50c93",
+  "workspace_digest": "da6c1d192cf4d3c3b4eee2ad336b439b88a07c98da788df71ddf6f417d560d22",
+  "closing_digest": "e4cdf5cdbccfb22d4c7bb0869abe3905c94591962b21bb0e3e3bf24690ff6217",
+  "review_digest": "0258cdd670e9384735fba5c732ef5096d72c520888b5241847f8c766b0ef2fbc",
+  "finalization_digest": "5ace990af7cb5ad33e8646407a0c592646447f3b9908be41664394e078d41be9",
+  "timestamp": 1786137942
+}

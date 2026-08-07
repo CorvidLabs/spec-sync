@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 95,
-  "id": "CHG-0095-reject-hash-todo-artifact-headings-at-approve",
+  "sequence": 96,
+  "id": "CHG-0096-floor-change-sequences-from-remote-ledger-and-document-multi-clone-base",
   "acknowledged_collisions": [
     {
       "sequence": 16,

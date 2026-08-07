@@ -220,9 +220,17 @@ jobs:
           print(c if isinstance(c, str) and len(c) == 40 else '')
           " 2>/dev/null)
             [ -n "$commit" ] || continue
-            git cat-file -e "${commit}^{commit}" 2>/dev/null || continue
+            # fetch-depth: 0 above means every commit reachable from this ref is
+            # present. Absence is orphaned evidence (squash merge of an
+            # unfinalized change, or a force-push/rebase/amend that dropped the
+            # recorded tip). Either way the active change must be re-checked.
+            if ! git cat-file -e "${commit}^{commit}" 2>/dev/null; then
+              echo "::error::${dir%/} verification commit ${commit:0:8} is not in this repository — re-run 'specsync change check' (evidence was orphaned by a squash merge, rebase, amend, or force-push)" >&2
+              stale=1
+              continue
+            fi
             if ! git merge-base --is-ancestor "$commit" HEAD 2>/dev/null; then
-              echo "::error::${dir%/} verification commit ${commit:0:8} is not an ancestor of HEAD — the change was very likely merged before it was finalized" >&2
+              echo "::error::${dir%/} verification commit ${commit:0:8} is not an ancestor of HEAD — re-run 'specsync change check' then review and finalize before merging" >&2
               stale=1
             fi
           done

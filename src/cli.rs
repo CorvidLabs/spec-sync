@@ -386,6 +386,11 @@ pub enum ChangeAction {
         /// Optional change ID
         id: Option<String>,
     },
+    /// Report whether an active change is shippable (evidence tip, review, merge risk)
+    ShipStatus {
+        /// Optional change ID; when omitted, report every active change
+        id: Option<String>,
+    },
     /// Record the mandatory definition approval
     Approve {
         /// Change ID

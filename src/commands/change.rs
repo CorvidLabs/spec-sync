@@ -75,6 +75,35 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 Ok(())
             }
         }
+        ChangeAction::ShipStatus { id } => {
+            let _scope = change::begin_change_read_scope(root);
+            if let Some(id) = id {
+                change::load_change(root, &id).and_then(|record| print_ship_status(root, &record, format))
+            } else {
+                let records = change::list_changes(root);
+                if records.is_empty() {
+                    match format {
+                        OutputFormat::Json => print_json(&serde_json::json!({ "changes": [] })),
+                        _ => println!("No active SDD changes."),
+                    }
+                    Ok(())
+                } else if matches!(format, OutputFormat::Json) {
+                    records
+                        .iter()
+                        .map(|record| ship_status_report(root, record))
+                        .collect::<Result<Vec<_>, _>>()
+                        .map(|reports| {
+                            print_json(&serde_json::json!({ "changes": reports }));
+                        })
+                } else {
+                    records.iter().try_for_each(|record| {
+                        print_ship_status(root, record, format)?;
+                        println!();
+                        Ok(())
+                    })
+                }
+            }
+        }
         ChangeAction::Approve {
             id,
             actor,
@@ -578,7 +607,9 @@ fn text_mode_next_action(
             format!("run `specsync change check {id}`")
         }
         ChangeState::Verifying => {
-            format!("run `specsync change check {id}` or finalize when ready")
+            format!(
+                "run `specsync change check {id}` (or check --commit), then independent review and finalize before merging — merging first orphans verification evidence"
+            )
         }
         ChangeState::Accepted if record.workflow_version >= 2 => {
             format!("run `specsync change finalize {id}`")
@@ -586,6 +617,199 @@ fn text_mode_next_action(
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
         ChangeState::Archived => "no further action".into(),
     }
+}
+
+/// Local ship readiness for one change: verification tip health, review presence,
+/// and the merge-before-finalize trap. Does not query GitHub check-runs.
+fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
+    let questions = change::next_questions(record);
+    let lifecycle_next = text_mode_next_action(root, record, &questions);
+
+    let verification_path = root
+        .join(".specsync/changes")
+        .join(&record.id)
+        .join("verification.json");
+    let (verification_commit, verification_present, verification_ancestor) = if verification_path
+        .is_file()
+    {
+        let raw = fs::read_to_string(&verification_path)
+            .map_err(|error| format!("failed to read {}: {error}", verification_path.display()))?;
+        let value: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|error| format!("invalid verification.json for {}: {error}", record.id))?;
+        let commit = value
+            .get("commit")
+            .and_then(|value| value.as_str())
+            .map(str::to_owned);
+        match commit {
+            Some(commit) if commit.len() == 40 => {
+                let present = git_commit_present(root, &commit)?;
+                let ancestor = if present {
+                    git_is_ancestor(root, &commit, "HEAD")?
+                } else {
+                    false
+                };
+                (Some(commit), present, ancestor)
+            }
+            _ => (None, false, false),
+        }
+    } else {
+        (None, false, false)
+    };
+
+    let review_path = root
+        .join(".specsync/changes")
+        .join(&record.id)
+        .join("review.json");
+    let review_present = review_path.is_file();
+
+    let mut blockers = Vec::new();
+    let mut warnings = Vec::new();
+    if matches!(
+        record.state,
+        ChangeState::Verifying | ChangeState::Implementing | ChangeState::Approved
+    ) {
+        if verification_commit.is_none() {
+            blockers.push("no verification evidence recorded yet".to_string());
+        } else if !verification_present {
+            blockers.push(
+                "verification commit is not in this repository (orphaned by squash merge, rebase, amend, or force-push); re-run change check"
+                    .to_string(),
+            );
+        } else if !verification_ancestor {
+            blockers.push(
+                "verification commit is not an ancestor of HEAD; re-run change check before review/finalize"
+                    .to_string(),
+            );
+        }
+        if record.state == ChangeState::Verifying && !review_present {
+            warnings.push(
+                "no scoped review recorded yet; finalize requires independent review".to_string(),
+            );
+        }
+        if record.state == ChangeState::Verifying {
+            warnings.push(
+                "do not merge the PR before finalize — merging first orphans verification evidence and strands the change"
+                    .to_string(),
+            );
+        }
+    }
+
+    let ready_to_finalize = record.state == ChangeState::Verifying
+        && verification_present
+        && verification_ancestor
+        && review_present
+        && blockers.is_empty();
+
+    let ship_next = if ready_to_finalize {
+        format!(
+            "run `specsync change finalize {}` without intermediate commits, then merge the PR",
+            record.id
+        )
+    } else if !blockers.is_empty() {
+        blockers[0].clone()
+    } else {
+        lifecycle_next.clone()
+    };
+
+    Ok(serde_json::json!({
+        "id": record.id,
+        "state": record.state,
+        "verification_commit": verification_commit,
+        "verification_present": verification_present,
+        "verification_ancestor_of_head": verification_ancestor,
+        "review_present": review_present,
+        "ready_to_finalize": ready_to_finalize,
+        "blockers": blockers,
+        "warnings": warnings,
+        "lifecycle_next": lifecycle_next,
+        "ship_next": ship_next,
+    }))
+}
+
+fn print_ship_status(
+    root: &Path,
+    record: &ChangeRecord,
+    format: OutputFormat,
+) -> Result<(), String> {
+    let report = ship_status_report(root, record)?;
+    match format {
+        OutputFormat::Json => {
+            print_json(&report);
+            Ok(())
+        }
+        _ => {
+            println!(
+                "{}  {}  ({})",
+                report["id"].as_str().unwrap_or("?"),
+                report["state"].as_str().unwrap_or("?"),
+                if report["ready_to_finalize"].as_bool() == Some(true) {
+                    "ready to finalize".green().to_string()
+                } else {
+                    "not ready".yellow().to_string()
+                }
+            );
+            if let Some(commit) = report["verification_commit"].as_str() {
+                let tip = if report["verification_present"].as_bool() != Some(true) {
+                    "absent from repository"
+                } else if report["verification_ancestor_of_head"].as_bool() != Some(true) {
+                    "not ancestor of HEAD"
+                } else {
+                    "ancestor of HEAD"
+                };
+                println!(
+                    "  Verification: {} ({})",
+                    &commit[..8.min(commit.len())],
+                    tip
+                );
+            } else {
+                println!("  Verification: none");
+            }
+            println!(
+                "  Review: {}",
+                if report["review_present"].as_bool() == Some(true) {
+                    "recorded"
+                } else {
+                    "missing"
+                }
+            );
+            if let Some(blockers) = report["blockers"].as_array() {
+                for blocker in blockers {
+                    if let Some(text) = blocker.as_str() {
+                        println!("  Blocker: {}", text.red());
+                    }
+                }
+            }
+            if let Some(warnings) = report["warnings"].as_array() {
+                for warning in warnings {
+                    if let Some(text) = warning.as_str() {
+                        println!("  Warning: {}", text.yellow());
+                    }
+                }
+            }
+            if let Some(next) = report["ship_next"].as_str() {
+                println!("  Next: {next}");
+            }
+            Ok(())
+        }
+    }
+}
+
+fn git_commit_present(root: &Path, commit: &str) -> Result<bool, String> {
+    let output = std::process::Command::new("git")
+        .args(["cat-file", "-e", &format!("{commit}^{{commit}}")])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("git cat-file failed: {error}"))?;
+    Ok(output.status.success())
+}
+
+fn git_is_ancestor(root: &Path, maybe_ancestor: &str, tip: &str) -> Result<bool, String> {
+    let output = std::process::Command::new("git")
+        .args(["merge-base", "--is-ancestor", maybe_ancestor, tip])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("git merge-base failed: {error}"))?;
+    Ok(output.status.success())
 }
 
 fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, strict: bool) {

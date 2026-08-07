@@ -1,0 +1,80 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786063143,
+      "digest": "c9a3c69e1753f6ba702362ed9c2e905ec6c24fdcc1ce6bedc8c2f4340a81e2e0",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning",
+        "title": "Add change ship-status for local ship readiness and merge-before-finalize warning",
+        "description": "add change ship-status for local ship readiness and merge-before-finalize warning",
+        "kind": "feature",
+        "affected_specs": [
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change ship-status reports verification tip health, review presence, blockers, and merge-before-finalize warning; verifying next_action names the trap"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786063342,
+      "digest": "c9a3c69e1753f6ba702362ed9c2e905ec6c24fdcc1ce6bedc8c2f4340a81e2e0",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning",
+        "title": "Add change ship-status for local ship readiness and merge-before-finalize warning",
+        "description": "add change ship-status for local ship readiness and merge-before-finalize warning",
+        "kind": "feature",
+        "affected_specs": [
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change ship-status reports verification tip health, review presence, blockers, and merge-before-finalize warning; verifying next_action names the trap"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786075678,
+      "digest": "5a1f42139affd972728f4d13c3933af97e69f70ea867f2c88996aa2695c5bd90",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

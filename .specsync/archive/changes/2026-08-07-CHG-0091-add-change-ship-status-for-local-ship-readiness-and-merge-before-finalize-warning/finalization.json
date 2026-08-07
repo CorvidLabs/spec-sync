@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning",
+  "implementation_commit": "75ffd6c14c8ea94e956ca1209d1cd3cd3b1596bc",
+  "implementation_tree": "7cdadec9caa362bd898d1e721c12ade87d0bc91d",
+  "contract_digest": "c9a3c69e1753f6ba702362ed9c2e905ec6c24fdcc1ce6bedc8c2f4340a81e2e0",
+  "workspace_digest": "f302eebc7356f6e18bc7e53b32b9caed0d9efd5574ca30dad4ba9d07fabdfdb2",
+  "closing_digest": "5a1f42139affd972728f4d13c3933af97e69f70ea867f2c88996aa2695c5bd90",
+  "review_digest": "0a2259356231b18c47f449c177895649c65e3f715a8a90f831e3b4419b39ac66",
+  "finalization_digest": "b0767225ce00545f8411c408c05194e337aa43a0297aec944d90e9d429274027",
+  "timestamp": 1786075678
+}

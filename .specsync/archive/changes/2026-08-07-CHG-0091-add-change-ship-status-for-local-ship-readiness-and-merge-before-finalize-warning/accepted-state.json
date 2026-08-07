@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning",
+  "slug": "add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning",
+  "title": "Add change ship-status for local ship readiness and merge-before-finalize warning",
+  "description": "add change ship-status for local ship readiness and merge-before-finalize warning",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "5fdd245bd9f25c0366f0c52bcffe636087722e1b",
+  "created_at": 1786062735,
+  "updated_at": 1786075678,
+  "affected_specs": [
+    "cli_args",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/cli.rs",
+    "src/commands/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change ship-status reports verification tip health, review presence, blockers, and merge-before-finalize warning; verifying next_action names the trap"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

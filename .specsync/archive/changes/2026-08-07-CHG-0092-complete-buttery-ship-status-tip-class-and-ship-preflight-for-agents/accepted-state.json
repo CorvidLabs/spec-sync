@@ -7,11 +7,11 @@
   "title": "Complete buttery ship status tip class and ship preflight for agents",
   "description": "complete buttery ship status tip class and ship preflight for agents",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "6f2a7c829bcb1823a9bf2b580d780f4a11005dcc",
   "created_at": 1786108905,
-  "updated_at": 1786117362,
+  "updated_at": 1786117383,
   "affected_specs": [
     "cli_args",
     "cmd_change"

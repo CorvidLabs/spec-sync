@@ -21698,9 +21698,11 @@ mod tests {
         let cleanup_failure_result =
             reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest);
         FORCE_LEGACY_WORKTREE_REMOVE_FAILURE.set(false);
+        // Do not Debug-format the Result (CodeQL rust/cleartext-logging / alert #59):
+        // success embeds acceptance digests from trusted correction history.
         assert!(
             cleanup_failure_result.is_ok(),
-            "successful reconstruction must survive worktree cleanup failure: {cleanup_failure_result:?}"
+            "successful reconstruction must survive worktree cleanup failure"
         );
 
         commit_transition("repeat distinct legacy acceptance", true);

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha",
+  "implementation_commit": "0e8e0fc33fec3f168684502e305d5af02ee0cde5",
+  "implementation_tree": "794d6ebe2635c9d5e8d539255d4025034f9f11a9",
+  "contract_digest": "27d6e52b7aeaddc48115d551d7eb8fa184a06c21b738f1a153b7258a731fd1e8",
+  "workspace_digest": "52ba7c058c95f97f14ed2da2ba465e903f73329166d2a2a45eb75d24c8c7545c",
+  "closing_digest": "d9f60693c3f632942d1c15ebfe2314468d231206d62a8e2ed4fb5a18395b47af",
+  "review_digest": "164990515845dddfe22a9712e3010b0466de2837a8d4008108ce3b1d30ccfdc9",
+  "finalization_digest": "2163f5b68b542f08cad14cbf9ebdac2821cf265b5ec45d8cfe1a9f56818d825a",
+  "timestamp": 1786158725
+}

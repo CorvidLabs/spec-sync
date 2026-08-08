@@ -1,6 +1,6 @@
 ---
 id: CHG-0099-keep-successful-legacy-reconstruction-when-scratch-worktree-cleanup-fails-511
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 2b43f39ff73ed624c54996913b28ac698f60f9c3
 ---

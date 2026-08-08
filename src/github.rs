@@ -1128,6 +1128,154 @@ fn sanitize_github_markdown_text(input: &str) -> String {
     output
 }
 
+/// One GitHub Actions check-run (or legacy status context) for a commit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommitCheckRun {
+    pub name: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+}
+
+/// Aggregated check-run view for a commit SHA (ship-status live trust).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommitCheckSummary {
+    pub repo: String,
+    pub sha: String,
+    /// `green`, `pending`, `failed`, or `empty` (no check-runs returned).
+    pub overall: String,
+    pub check_runs: Vec<CommitCheckRun>,
+}
+
+/// Fetch check-runs for a commit via in-process GitHub REST (`GITHUB_TOKEN`).
+///
+/// Used by `change ship-status` to replace pure local guidance when online.
+/// Never spawns `gh`. Soft-fail at the call site if this returns Err.
+pub fn fetch_commit_check_summary(repo: &str, sha: &str) -> Result<CommitCheckSummary, String> {
+    validate_repo(repo)?;
+    let sha = sha.trim();
+    if sha.is_empty() {
+        return Err("commit SHA is required for check-run lookup".to_string());
+    }
+    if !sha.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(format!("invalid commit SHA `{sha}`"));
+    }
+    let token = std::env::var("GITHUB_TOKEN")
+        .map_err(|_| "GITHUB_TOKEN is required for in-process GitHub REST access".to_string())?;
+    verify_api_repository(repo, &token, GITHUB_COMMAND_DEADLINE)?;
+    let url = format!(
+        "{}/repos/{repo}/commits/{sha}/check-runs?per_page=100",
+        github_api_base()
+    );
+    let mut response = github_api_agent(GITHUB_COMMAND_DEADLINE)
+        .get(&url)
+        .header("Authorization", &format!("Bearer {token}"))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "specsync")
+        .call()
+        .map_err(|error| {
+            redact_token(
+                format!("GitHub check-runs request failed for {repo}@{sha}: {error}"),
+                &token,
+            )
+        })?;
+    if response.status() == 404 {
+        return Err(format!("commit `{sha}` not found in {repo} (check-runs)"));
+    }
+    if response.status() != 200 {
+        return Err(format!(
+            "GitHub check-runs API returned HTTP {} for {repo}@{sha}",
+            response.status()
+        ));
+    }
+    let body: serde_json::Value = response
+        .body_mut()
+        .read_json()
+        .map_err(|error| format!("Failed to parse GitHub check-runs response: {error}"))?;
+    parse_commit_check_summary(repo, sha, &body)
+}
+
+/// Pure parse + aggregate of a check-runs list payload (unit-testable).
+pub fn parse_commit_check_summary(
+    repo: &str,
+    sha: &str,
+    body: &serde_json::Value,
+) -> Result<CommitCheckSummary, String> {
+    let runs = body
+        .get("check_runs")
+        .and_then(|value| value.as_array())
+        .ok_or_else(|| "GitHub check-runs response missing check_runs array".to_string())?;
+    let mut check_runs = Vec::with_capacity(runs.len());
+    for run in runs {
+        let name = run
+            .get("name")
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if name.is_empty() {
+            return Err("GitHub check-runs response contains a check without a name".to_string());
+        }
+        let status = run
+            .get("status")
+            .and_then(|value| value.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let conclusion = run
+            .get("conclusion")
+            .and_then(|value| value.as_str())
+            .map(str::to_string);
+        check_runs.push(CommitCheckRun {
+            name,
+            status,
+            conclusion,
+        });
+    }
+    let overall = aggregate_check_runs(&check_runs).to_string();
+    Ok(CommitCheckSummary {
+        repo: repo.to_string(),
+        sha: sha.to_string(),
+        overall,
+        check_runs,
+    })
+}
+
+fn aggregate_check_runs(runs: &[CommitCheckRun]) -> &'static str {
+    if runs.is_empty() {
+        return "empty";
+    }
+    let mut pending = false;
+    for run in runs {
+        let status = run.status.to_ascii_lowercase();
+        if status != "completed" {
+            pending = true;
+            continue;
+        }
+        let conclusion = run.conclusion.as_deref().unwrap_or("").to_ascii_lowercase();
+        match conclusion.as_str() {
+            "success" | "neutral" | "skipped" => {}
+            "failure" | "cancelled" | "timed_out" | "action_required" | "startup_failure"
+            | "stale" => {
+                return "failed";
+            }
+            "" => pending = true,
+            _ => {
+                // Unknown conclusion: treat as failed-closed for ship readiness.
+                return "failed";
+            }
+        }
+    }
+    if pending { "pending" } else { "green" }
+}
+
+/// Whether a check name is trust-lane relevant for ship guidance (heuristic).
+pub fn is_trust_relevant_check_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.contains("trust")
+        || lower.contains("implementation ready")
+        || lower.contains("specsync trusted")
+        || lower.contains("required ci")
+}
+
 /// Create a GitHub issue for spec drift using `gh` CLI.
 pub fn create_drift_issue(
     repo: &str,
@@ -2357,5 +2505,55 @@ mod tests {
         assert!(error.contains("disabled"));
         assert!(error.contains("GITHUB_TOKEN"));
         assert!(error.contains("complete-tree subprocess containment"));
+    }
+
+    #[test]
+    fn parse_commit_check_summary_aggregates_green_pending_failed() {
+        let green = serde_json::json!({
+            "total_count": 2,
+            "check_runs": [
+                {"name": "trust", "status": "completed", "conclusion": "success"},
+                {"name": "SpecSync implementation ready", "status": "completed", "conclusion": "success"}
+            ]
+        });
+        let summary = parse_commit_check_summary("owner/repo", "abc", &green).unwrap();
+        assert_eq!(summary.overall, "green");
+        assert_eq!(summary.check_runs.len(), 2);
+        assert!(is_trust_relevant_check_name("trust"));
+        assert!(is_trust_relevant_check_name(
+            "SpecSync implementation ready"
+        ));
+
+        let pending = serde_json::json!({
+            "check_runs": [
+                {"name": "trust", "status": "in_progress", "conclusion": null}
+            ]
+        });
+        assert_eq!(
+            parse_commit_check_summary("owner/repo", "abc", &pending)
+                .unwrap()
+                .overall,
+            "pending"
+        );
+
+        let failed = serde_json::json!({
+            "check_runs": [
+                {"name": "trust", "status": "completed", "conclusion": "cancelled"}
+            ]
+        });
+        assert_eq!(
+            parse_commit_check_summary("owner/repo", "abc", &failed)
+                .unwrap()
+                .overall,
+            "failed"
+        );
+
+        let empty = serde_json::json!({"check_runs": []});
+        assert_eq!(
+            parse_commit_check_summary("owner/repo", "abc", &empty)
+                .unwrap()
+                .overall,
+            "empty"
+        );
     }
 }

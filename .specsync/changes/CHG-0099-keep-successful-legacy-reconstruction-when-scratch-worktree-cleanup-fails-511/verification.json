@@ -1,0 +1,31 @@
+{
+  "timestamp": 1786158497,
+  "commit": "d0b624ab1e367c11b7c507f96bb829e22d26ecb1",
+  "contract_digest": "8d7150104f60c3f874094c7979eba6bef1deb1fda098f7610a8db73a676c0d1d",
+  "execution_digest": "22b7937f1d23b7398ad10fca3568f8b109f4c8b1a754f4bc92eceec7d2bebb47",
+  "workspace_digest": "233227602cb941f2ba71c1933db4ae71d5013f02b0c84fc65029a41717d90168",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test change::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

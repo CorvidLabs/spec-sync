@@ -7,10 +7,11 @@
   "title": "Keep successful legacy reconstruction when scratch worktree cleanup fails (#511)",
   "description": "Keep successful legacy reconstruction when scratch worktree cleanup fails (#511)",
   "kind": "bug_fix",
-  "state": "implementing",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "2b43f39ff73ed624c54996913b28ac698f60f9c3",
   "created_at": 1786154221,
-  "updated_at": 1786154320,
+  "updated_at": 1786158498,
   "affected_specs": [
     "change"
   ],

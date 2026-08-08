@@ -637,7 +637,10 @@ fn text_mode_next_action(
 
 /// Ship readiness for one change: HEAD tip class, verification tip health, review,
 /// trust guidance for staged product → review → archive tips, and the merge-before-finalize trap.
-/// Does not query GitHub check-runs (local/offline safe).
+///
+/// When `GITHUB_TOKEN` is set and the git remote is a GitHub repo, queries check-runs for the
+/// parent (or tip) SHA. Offline / no-token stays on `local_guidance`. Force offline with
+/// `SPECSYNC_SHIP_LOCAL_GUIDANCE=1`.
 fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
     let questions = change::next_questions(record);
     let lifecycle_next = text_mode_next_action(root, record, &questions);
@@ -797,11 +800,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             .to_string()
     };
 
-    let trust = serde_json::json!({
-        "status": "local_guidance",
-        "parent_sha": tip.parent_sha,
-        "guidance": "After pushing a product tip, wait for trust + SpecSync implementation ready (and required product checks) to succeed before pushing a review_only or archive_only tip. Review/archive tips reuse trust from a green product parent — do not push them while product trust is still running or cancelled.",
-    });
+    let trust = build_ship_trust(root, &tip);
 
     Ok(serde_json::json!({
         "id": record.id,
@@ -831,6 +830,111 @@ fn sibling_active_change_ids(root: &Path, id: &str) -> Vec<String> {
         .filter(|record| record.id != id && record.state != ChangeState::Archived)
         .map(|record| record.id)
         .collect()
+}
+
+const SHIP_TRUST_LOCAL_GUIDANCE: &str = "After pushing a product tip, wait for trust + SpecSync implementation ready (and required product checks) to succeed before pushing a review_only or archive_only tip. Review/archive tips reuse trust from a green product parent — do not push them while product trust is still running or cancelled.";
+
+/// Live GitHub check-run trust when online; otherwise local guidance (never blocks ship-status).
+fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
+    let local = || {
+        serde_json::json!({
+            "status": "local_guidance",
+            "source": "local_guidance",
+            "parent_sha": tip.parent_sha,
+            "tip_sha": tip.tip_sha,
+            "guidance": SHIP_TRUST_LOCAL_GUIDANCE,
+        })
+    };
+
+    if std::env::var_os("SPECSYNC_SHIP_LOCAL_GUIDANCE").is_some() {
+        return local();
+    }
+    let token_ok = std::env::var("GITHUB_TOKEN")
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    if !token_ok {
+        return local();
+    }
+    let Some(repo) = crate::github::detect_repo(root) else {
+        return local();
+    };
+    // Prefer parent SHA: review/archive tips reuse trust from the product parent.
+    let query_sha = tip
+        .parent_sha
+        .as_deref()
+        .or(tip.tip_sha.as_deref())
+        .map(str::to_string);
+    let Some(query_sha) = query_sha else {
+        return serde_json::json!({
+            "status": "unavailable",
+            "source": "github_check_runs",
+            "repo": repo,
+            "parent_sha": tip.parent_sha,
+            "tip_sha": tip.tip_sha,
+            "guidance": SHIP_TRUST_LOCAL_GUIDANCE,
+            "error": "no commit SHA available for check-run lookup",
+        });
+    };
+
+    match crate::github::fetch_commit_check_summary(&repo, &query_sha) {
+        Ok(summary) => {
+            let checks: Vec<serde_json::Value> = summary
+                .check_runs
+                .iter()
+                .map(|run| {
+                    serde_json::json!({
+                        "name": run.name,
+                        "status": run.status,
+                        "conclusion": run.conclusion,
+                        "trust_relevant": crate::github::is_trust_relevant_check_name(&run.name),
+                    })
+                })
+                .collect();
+            let trust_relevant: Vec<serde_json::Value> = checks
+                .iter()
+                .filter(|check| check.get("trust_relevant").and_then(|v| v.as_bool()) == Some(true))
+                .cloned()
+                .collect();
+            let guidance = match summary.overall.as_str() {
+                "green" => format!(
+                    "GitHub check-runs on {query_sha:.8} are green — safe to push a review_only or archive_only tip that reuses this parent when CI trust-reuse is enabled."
+                ),
+                "pending" => format!(
+                    "GitHub check-runs on {query_sha:.8} are still pending — wait for trust + SpecSync implementation ready before pushing a review/archive tip."
+                ),
+                "failed" => format!(
+                    "GitHub check-runs on {query_sha:.8} failed or cancelled — do not push a review/archive tip until the product parent is green again."
+                ),
+                "empty" => format!(
+                    "No check-runs returned for {query_sha:.8} yet — wait for CI to start, or confirm the SHA was pushed to GitHub."
+                ),
+                other => format!(
+                    "GitHub check-runs on {query_sha:.8} reported status `{other}`. {SHIP_TRUST_LOCAL_GUIDANCE}"
+                ),
+            };
+            serde_json::json!({
+                "status": summary.overall,
+                "source": "github_check_runs",
+                "repo": summary.repo,
+                "sha": summary.sha,
+                "parent_sha": tip.parent_sha,
+                "tip_sha": tip.tip_sha,
+                "checks": checks,
+                "trust_relevant_checks": trust_relevant,
+                "guidance": guidance,
+            })
+        }
+        Err(error) => serde_json::json!({
+            "status": "unavailable",
+            "source": "github_check_runs",
+            "repo": repo,
+            "sha": query_sha,
+            "parent_sha": tip.parent_sha,
+            "tip_sha": tip.tip_sha,
+            "error": error,
+            "guidance": SHIP_TRUST_LOCAL_GUIDANCE,
+        }),
+    }
 }
 
 /// Warnings when more than one change is active on the same branch/PR.
@@ -1071,11 +1175,33 @@ fn print_ship_status(
                     "missing"
                 }
             );
-            if let Some(guidance) = report
-                .pointer("/trust/guidance")
-                .and_then(|value| value.as_str())
             {
-                println!("  Trust: {guidance}");
+                let status = report
+                    .pointer("/trust/status")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("?");
+                let source = report
+                    .pointer("/trust/source")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("?");
+                let sha = report
+                    .pointer("/trust/sha")
+                    .and_then(|value| value.as_str())
+                    .map(|s| format!(" @ {}", &s[..8.min(s.len())]))
+                    .unwrap_or_default();
+                println!("  Trust: {status} ({source}{sha})");
+                if let Some(guidance) = report
+                    .pointer("/trust/guidance")
+                    .and_then(|value| value.as_str())
+                {
+                    println!("    {guidance}");
+                }
+                if let Some(error) = report
+                    .pointer("/trust/error")
+                    .and_then(|value| value.as_str())
+                {
+                    println!("    lookup: {error}");
+                }
             }
             if let Some(stages) = report["stages"].as_array() {
                 println!("  Stages:");

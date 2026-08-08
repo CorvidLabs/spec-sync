@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha",
+  "slug": "ship-status-live-github-check-run-trust-for-product-parent-sha",
+  "title": "Ship-status live GitHub check-run trust for product parent SHA",
+  "description": "ship-status live GitHub check-run trust for product parent SHA",
+  "kind": "feature",
+  "state": "approved",
+  "base_commit": "2b43f39ff73ed624c54996913b28ac698f60f9c3",
+  "created_at": 1786153715,
+  "updated_at": 1786153935,
+  "affected_specs": [
+    "cmd_change",
+    "github"
+  ],
+  "affected_paths": [
+    "src/github.rs",
+    "src/commands/change.rs",
+    "AGENTS.md",
+    ".specsync/change-sequence.json",
+    "specs/cmd_change/requirements.md",
+    "specs/github/requirements.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "ship-status reports trust.status green|pending|failed|empty|unavailable from GitHub check-runs when GITHUB_TOKEN is set; falls back to local_guidance offline; unit tests cover aggregation"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

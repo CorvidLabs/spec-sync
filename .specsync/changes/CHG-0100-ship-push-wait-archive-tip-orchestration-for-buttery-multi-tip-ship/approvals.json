@@ -1,0 +1,41 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "grok",
+      "timestamp": 1786163842,
+      "digest": "d652a2ea69dc25692446d80590b322ac6e12ca3713f37e47d6552077068bd66a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship",
+        "title": "Ship --push --wait archive tip orchestration for buttery multi-tip ship",
+        "description": "ship --push --wait archive tip orchestration for buttery multi-tip ship",
+        "kind": "feature",
+        "affected_specs": [
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/cli_args/requirements.md",
+          "specs/cmd_change/requirements.md",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship --push commits archive tip and git push; ship --wait polls check-runs until green/failed/timeout; dry-run cannot combine with push/wait; offline no-token wait returns local_guidance"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

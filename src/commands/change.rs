@@ -105,7 +105,21 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 }
             }
         }
-        ChangeAction::Ship { id, dry_run } => run_ship(root, id.as_deref(), dry_run, format),
+        ChangeAction::Ship {
+            id,
+            dry_run,
+            push,
+            wait,
+            wait_timeout_secs,
+        } => run_ship(
+            root,
+            id.as_deref(),
+            dry_run,
+            push,
+            wait,
+            wait_timeout_secs,
+            format,
+        ),
         ChangeAction::Approve {
             id,
             actor,
@@ -1247,8 +1261,18 @@ fn run_ship(
     root: &Path,
     id: Option<&str>,
     dry_run: bool,
+    push: bool,
+    wait: bool,
+    wait_timeout_secs: u64,
     format: OutputFormat,
 ) -> Result<(), String> {
+    if wait && !push && !dry_run {
+        // Waiting without push still polls HEAD (already-pushed archive tips).
+    }
+    if dry_run && (push || wait) {
+        return Err("ship --dry-run cannot be combined with --push or --wait".into());
+    }
+
     let record =
         match id {
             Some(id) => change::load_change(root, id)?,
@@ -1267,6 +1291,50 @@ fn run_ship(
 
     if record.state == ChangeState::Archived {
         let report = ship_status_report(root, &record)?;
+        if push || wait {
+            let push_result = if push {
+                Some(ship_commit_and_push_archive(root, &record.id)?)
+            } else {
+                None
+            };
+            let wait_result = if wait {
+                Some(wait_for_head_check_runs(root, wait_timeout_secs, format)?)
+            } else {
+                None
+            };
+            match format {
+                OutputFormat::Json => print_json(&serde_json::json!({
+                    "id": record.id,
+                    "status": "already_archived",
+                    "report": report,
+                    "push": push_result,
+                    "wait": wait_result,
+                })),
+                _ => {
+                    println!(
+                        "{} {} is already archived",
+                        "✓".green(),
+                        record.id
+                    );
+                    if let Some(push_result) = push_result.as_ref() {
+                        println!("  Push: {push_result}");
+                    }
+                    if let Some(wait_result) = wait_result.as_ref() {
+                        println!(
+                            "  Wait: {}",
+                            wait_result
+                                .get("status")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("?")
+                        );
+                    }
+                    if !push && !wait {
+                        println!("  Next: merge the PR on GitHub");
+                    }
+                }
+            }
+            return Ok(());
+        }
         match format {
             OutputFormat::Json => print_json(&serde_json::json!({
                 "id": record.id,
@@ -1287,6 +1355,23 @@ fn run_ship(
     let report = ship_status_report(root, &record)?;
     let ready = report["ready_to_finalize"].as_bool() == Some(true);
     let tip_class = report["tip_class"].as_str().unwrap_or("other");
+    let trust_status = report
+        .pointer("/trust/status")
+        .and_then(|value| value.as_str())
+        .unwrap_or("local_guidance");
+
+    // Soft preflight: live trust is advisory unless --wait forces a green parent later.
+    if matches!(trust_status, "pending" | "failed" | "empty") {
+        match format {
+            OutputFormat::Json => {}
+            _ => {
+                println!(
+                    "{} parent/product tip trust is `{trust_status}` — prefer waiting for green CI before archive tip push (see ship-status trust)",
+                    "⚠".yellow()
+                );
+            }
+        }
+    }
 
     if !ready {
         match format {
@@ -1341,7 +1426,35 @@ fn run_ship(
 
     // Finalize mutates the workspace; drop the read scope by ending this block first.
     let path = change::finalize_change(root, &record.id)?;
-    let next = if siblings_before.is_empty() {
+
+    let mut push_result = None;
+    let mut wait_result = None;
+    if push {
+        push_result = Some(ship_commit_and_push_archive(root, &record.id)?);
+    }
+    if wait {
+        wait_result = Some(wait_for_head_check_runs(root, wait_timeout_secs, format)?);
+    }
+
+    let next = if push && wait {
+        if siblings_before.is_empty() {
+            "merge the PR on GitHub when Required CI is green".to_string()
+        } else {
+            format!(
+                "re-run `change check --commit` on remaining active changes ({}) before merge",
+                siblings_before.join(", ")
+            )
+        }
+    } else if push {
+        if siblings_before.is_empty() {
+            "wait for CI, then merge the PR (or re-run `change ship --wait`)".to_string()
+        } else {
+            format!(
+                "wait for CI; then re-run `change check --commit` on remaining active changes ({})",
+                siblings_before.join(", ")
+            )
+        }
+    } else if siblings_before.is_empty() {
         "commit if needed, push the archive tip, wait for CI, then merge the PR".to_string()
     } else {
         format!(
@@ -1356,11 +1469,25 @@ fn run_ship(
             "archived": path,
             "tip_class": "archive_only",
             "sibling_active_ids": siblings_before,
+            "push": push_result,
+            "wait": wait_result,
             "next": next,
         })),
         _ => {
             println!("{} {} finalized on this PR", "✓".green(), record.id);
             println!("  Archive: {}", path.display());
+            if let Some(push_result) = push_result.as_ref() {
+                println!("  Push: {push_result}");
+            }
+            if let Some(wait_result) = wait_result.as_ref() {
+                println!(
+                    "  Wait: {}",
+                    wait_result
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("?")
+                );
+            }
             println!("  Next: {next}");
             if !siblings_before.is_empty() {
                 println!(
@@ -1372,6 +1499,102 @@ fn run_ship(
         }
     }
     Ok(())
+}
+
+/// Commit archive package (if dirty) and push the current branch.
+fn ship_commit_and_push_archive(root: &Path, id: &str) -> Result<String, String> {
+    git_commit_all(
+        root,
+        &format!("chore(lifecycle): archive {id}"),
+    )?;
+    run_git(root, &["push"])?;
+    let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
+    Ok(format!("pushed archive tip {sha:.8}"))
+}
+
+/// Poll GitHub check-runs for HEAD until green, failed, empty, timeout, or offline.
+fn wait_for_head_check_runs(
+    root: &Path,
+    timeout_secs: u64,
+    format: OutputFormat,
+) -> Result<serde_json::Value, String> {
+    let quiet = matches!(format, OutputFormat::Json);
+    let say = |message: &str| {
+        if !quiet {
+            println!("{message}");
+        }
+    };
+
+    if std::env::var_os("SPECSYNC_SHIP_LOCAL_GUIDANCE").is_some() {
+        return Ok(serde_json::json!({
+            "status": "local_guidance",
+            "detail": "SPECSYNC_SHIP_LOCAL_GUIDANCE set; skipped wait",
+        }));
+    }
+    let token_ok = std::env::var("GITHUB_TOKEN")
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    if !token_ok {
+        return Ok(serde_json::json!({
+            "status": "local_guidance",
+            "detail": "GITHUB_TOKEN unset; cannot wait on check-runs",
+        }));
+    }
+    let Some(repo) = crate::github::detect_repo(root) else {
+        return Ok(serde_json::json!({
+            "status": "unavailable",
+            "detail": "no GitHub remote for check-run wait",
+        }));
+    };
+    let sha = git_rev_parse(root, "HEAD")?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs.max(1));
+    let mut last_overall = String::from("pending");
+    let mut polls = 0u32;
+    say(&format!(
+        "Waiting up to {timeout_secs}s for check-runs on {repo}@{sha:.8}…"
+    ));
+    while std::time::Instant::now() < deadline {
+        polls += 1;
+        let overall = match crate::github::fetch_commit_check_summary(&repo, &sha) {
+            Ok(summary) => {
+                say(&format!("  poll {polls}: {}", summary.overall));
+                match summary.overall.as_str() {
+                    "green" => {
+                        return Ok(serde_json::json!({
+                            "status": "green",
+                            "repo": repo,
+                            "sha": sha,
+                            "polls": polls,
+                            "checks": summary.check_runs.len(),
+                        }));
+                    }
+                    "failed" => {
+                        return Err(format!(
+                            "check-runs failed on {repo}@{sha:.8} after {polls} poll(s)"
+                        ));
+                    }
+                    "empty" | "pending" => summary.overall,
+                    other => {
+                        return Ok(serde_json::json!({
+                            "status": other,
+                            "repo": repo,
+                            "sha": sha,
+                            "polls": polls,
+                        }));
+                    }
+                }
+            }
+            Err(error) => {
+                say(&format!("  poll {polls}: unavailable ({error})"));
+                "unavailable".to_string()
+            }
+        };
+        last_overall = overall;
+        std::thread::sleep(std::time::Duration::from_secs(10));
+    }
+    Err(format!(
+        "timed out after {timeout_secs}s waiting for check-runs on {repo}@{sha:.8} (last={last_overall})"
+    ))
 }
 
 fn git_commit_present(root: &Path, commit: &str) -> Result<bool, String> {

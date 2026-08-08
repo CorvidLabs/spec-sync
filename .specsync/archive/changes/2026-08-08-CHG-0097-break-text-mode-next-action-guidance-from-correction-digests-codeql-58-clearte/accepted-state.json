@@ -7,11 +7,11 @@
   "title": "Break text-mode next-action guidance from correction digests (CodeQL #58 cleartext-logging)",
   "description": "Break text-mode next-action guidance from correction digests (CodeQL #58 cleartext-logging)",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "a4dfa9999398020c305b495e3656ff4306b188cc",
   "created_at": 1786146416,
-  "updated_at": 1786149261,
+  "updated_at": 1786149281,
   "affected_specs": [],
   "affected_paths": [
     "src/change.rs",

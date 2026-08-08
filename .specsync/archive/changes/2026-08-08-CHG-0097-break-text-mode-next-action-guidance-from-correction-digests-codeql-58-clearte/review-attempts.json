@@ -16,6 +16,22 @@
       "execution_digest": "6c76c7c84319b7939e65c4f508ea731bcd49bf155b935a77a3461a6e8f032e86",
       "workspace_digest": "0a15efd4c6059eb8e9e4d7018995e0544b28cb0d4bdbf5ada44d0484cfc66274",
       "timestamp": 1786148026
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0097-break-text-mode-next-action-guidance-from-correction-digests-codeql-58-clearte",
+      "reviewer": "Independent CodeQL Cleartext",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "8eb29b88719deab87ef9d9e761b06f6101ff69a7",
+      "contract_digest": "ade9b769fd51283542076b099074621e11ca45b4462e61fa70b24783610cb7f0",
+      "execution_digest": "94548c007ad9ffe35db1cf557ac09def771a9413c817fc4e3117afc222515bfe",
+      "workspace_digest": "0a15efd4c6059eb8e9e4d7018995e0544b28cb0d4bdbf5ada44d0484cfc66274",
+      "timestamp": 1786149271
     }
   ]
 }

@@ -1,6 +1,6 @@
 ---
 id: CHG-0097-break-text-mode-next-action-guidance-from-correction-digests-codeql-58-clearte
-state: verifying
+state: archived
 type: bug_fix
 base_commit: a4dfa9999398020c305b495e3656ff4306b188cc
 ---

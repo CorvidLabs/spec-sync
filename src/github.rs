@@ -1187,9 +1187,10 @@ pub fn fetch_commit_check_summary(repo: &str, sha: &str) -> Result<CommitCheckSu
             response.status()
         ));
     }
-    let body: serde_json::Value = response.body_mut().read_json().map_err(|error| {
-        format!("Failed to parse GitHub check-runs response: {error}")
-    })?;
+    let body: serde_json::Value = response
+        .body_mut()
+        .read_json()
+        .map_err(|error| format!("Failed to parse GitHub check-runs response: {error}"))?;
     parse_commit_check_summary(repo, sha, &body)
 }
 
@@ -1249,11 +1250,7 @@ fn aggregate_check_runs(runs: &[CommitCheckRun]) -> &'static str {
             pending = true;
             continue;
         }
-        let conclusion = run
-            .conclusion
-            .as_deref()
-            .unwrap_or("")
-            .to_ascii_lowercase();
+        let conclusion = run.conclusion.as_deref().unwrap_or("").to_ascii_lowercase();
         match conclusion.as_str() {
             "success" | "neutral" | "skipped" => {}
             "failure" | "cancelled" | "timed_out" | "action_required" | "startup_failure"
@@ -1267,11 +1264,7 @@ fn aggregate_check_runs(runs: &[CommitCheckRun]) -> &'static str {
             }
         }
     }
-    if pending {
-        "pending"
-    } else {
-        "green"
-    }
+    if pending { "pending" } else { "green" }
 }
 
 /// Whether a check name is trust-lane relevant for ship guidance (heuristic).
@@ -2527,7 +2520,9 @@ mod tests {
         assert_eq!(summary.overall, "green");
         assert_eq!(summary.check_runs.len(), 2);
         assert!(is_trust_relevant_check_name("trust"));
-        assert!(is_trust_relevant_check_name("SpecSync implementation ready"));
+        assert!(is_trust_relevant_check_name(
+            "SpecSync implementation ready"
+        ));
 
         let pending = serde_json::json!({
             "check_runs": [
@@ -2561,5 +2556,4 @@ mod tests {
             "empty"
         );
     }
-
 }

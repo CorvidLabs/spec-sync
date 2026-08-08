@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0099-keep-successful-legacy-reconstruction-when-scratch-worktree-cleanup-fails-511",
+  "slug": "keep-successful-legacy-reconstruction-when-scratch-worktree-cleanup-fails-511",
+  "title": "Keep successful legacy reconstruction when scratch worktree cleanup fails (#511)",
+  "description": "Keep successful legacy reconstruction when scratch worktree cleanup fails (#511)",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "2b43f39ff73ed624c54996913b28ac698f60f9c3",
+  "created_at": 1786154221,
+  "updated_at": 1786159797,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "No Public API or requirements change; best-effort cleanup of disposable worktree only. Living change.spec.md already documents reconstruct paths; behavior fix is internal fail-open on hygiene.",
+  "acceptance_criteria": [
+    "reconstruct_legacy_at_anchor returns Ok reconstruction even when git worktree remove fails; best-effort prune+rm cleanup; regression covered by legacy_reconstruction_deduplicates_identical_transitions_but_rejects_distinct_evidence with forced remove failure"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

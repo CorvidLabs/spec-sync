@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0098-upgrade-site-astro-to-7-2-0-fixing-dependabot-xss-alerts-12-14",
+  "reviewer": "Independent Astro XSS",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "fce394e29d87748e1430562eafdee4105282ec45",
+  "contract_digest": "f14ba338386f482ed0d78f0b60709308272fa15c12dd76160be93025a93d9d59",
+  "execution_digest": "a5a21a4a7ca8db686a96d608fbef07b44fa095656f5dc7658ef7929d75281a08",
+  "workspace_digest": "3fa7e135211504bdd49d7625146df98c0c5023fb6044c4a5a7054400ce8b7a4c",
+  "timestamp": 1786151289
+}

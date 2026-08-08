@@ -1,6 +1,6 @@
 ---
 module: github
-version: 24
+version: 25
 status: stable
 files:
   - src/github.rs
@@ -183,3 +183,4 @@ workflow cannot trigger can never report the gate and blocks its pull request.
 | 2026-08-02 | CHG-0079-delete-the-ci-reimplementation-of-the-sdd-lifecycle-and-rely-on-specsync-change: Delete the CI reimplementation of the SDD lifecycle and rely on specsync change audit, removing the separate-archive-tip constraint |
 | 2026-08-04 | CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate: Let documentation-only pull requests reach the required CI gate |
 | 2026-08-06 | CHG-0087-decide-pull-requests-in-seconds-instead-of-minutes: Decide pull requests in seconds instead of minutes |
+| 2026-08-08 | CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha: Ship-status live GitHub check-run trust for product parent SHA |

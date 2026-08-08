@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 18
+version: 19
 status: active
 files:
   - src/commands/change.rs
@@ -116,3 +116,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-07 | CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents: Complete buttery ship status tip class and ship preflight for agents |
 | 2026-08-07 | CHG-0093-encode-ship-multi-active-ordering-rules-and-agents-happy-path: Encode multi-active ship ordering warnings and Agents.md happy path |
 | 2026-08-07 | CHG-0093-encode-ship-multi-active-ordering-rules-and-agents-happy-path: Encode ship multi-active ordering rules and AGENTS happy path |
+| 2026-08-08 | CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha: Ship-status live GitHub check-run trust for product parent SHA |

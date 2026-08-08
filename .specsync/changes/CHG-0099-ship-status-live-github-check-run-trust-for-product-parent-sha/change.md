@@ -1,6 +1,6 @@
 ---
 id: CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha
-state: approved
+state: implementing
 type: feature
 base_commit: 2b43f39ff73ed624c54996913b28ac698f60f9c3
 ---

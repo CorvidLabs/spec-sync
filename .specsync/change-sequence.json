@@ -24,6 +24,13 @@
         "CHG-0049-document-the-verified-lifecycle-semantic-delta-format-and-surface-the-artifact-c",
         "CHG-0049-make-stale-accepted-change-verification-diagnostics-actionable-with-named-delive"
       ]
+    },
+    {
+      "sequence": 99,
+      "ids": [
+        "CHG-0099-keep-successful-legacy-reconstruction-when-scratch-worktree-cleanup-fails-511",
+        "CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha"
+      ]
     }
   ]
 }

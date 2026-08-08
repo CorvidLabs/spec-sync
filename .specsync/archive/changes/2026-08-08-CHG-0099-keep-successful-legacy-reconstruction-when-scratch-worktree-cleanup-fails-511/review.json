@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0099-keep-successful-legacy-reconstruction-when-scratch-worktree-cleanup-fails-511",
+  "reviewer": "Independent Legacy Reconstruction",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "e61741a89390e2875e05030a376649fc74fbd97b",
+  "contract_digest": "8d7150104f60c3f874094c7979eba6bef1deb1fda098f7610a8db73a676c0d1d",
+  "execution_digest": "22b7937f1d23b7398ad10fca3568f8b109f4c8b1a754f4bc92eceec7d2bebb47",
+  "workspace_digest": "233227602cb941f2ba71c1933db4ae71d5013f02b0c84fc65029a41717d90168",
+  "timestamp": 1786159620
+}

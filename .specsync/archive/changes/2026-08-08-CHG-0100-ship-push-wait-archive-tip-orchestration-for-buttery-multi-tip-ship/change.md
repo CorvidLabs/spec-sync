@@ -1,6 +1,6 @@
 ---
 id: CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship
-state: implementing
+state: archived
 type: feature
 base_commit: c6e76b34efd111b40a22ab16b6bc45be692dbe22
 ---

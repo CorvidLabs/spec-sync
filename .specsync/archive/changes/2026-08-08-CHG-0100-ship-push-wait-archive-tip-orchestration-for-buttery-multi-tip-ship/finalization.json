@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship",
+  "implementation_commit": "a4056ce31a0c9edf3a4b6c9914a0302919c8f3b8",
+  "implementation_tree": "a1a225417b2ea82c4af1c9dec3409ca3c4d22fe4",
+  "contract_digest": "d652a2ea69dc25692446d80590b322ac6e12ca3713f37e47d6552077068bd66a",
+  "workspace_digest": "648b2e517ac6631230f3aa19b1933667352dfa3e8be911ee16364fdf93bbe814",
+  "closing_digest": "a8f84d6ebe9412d0c05320268572db7e4305201f82acfffb18dae9d95fb488bc",
+  "review_digest": "db0b2cc5ec0f4d743b30d9481b1b2c4ad6c3e7cd24186746edcba585974c6ab6",
+  "finalization_digest": "f365c03219278fea7dfad20a465b587a23ae90b23c3dec47645fb4f4e654932d",
+  "timestamp": 1786164026
+}

@@ -3760,14 +3760,6 @@ pub fn effective_change_definition(
     validate_correction_records(record, &ledger.corrections)
 }
 
-/// Returns whether correction history is safe for a human text lifecycle view.
-///
-/// The text command layer needs a fail-closed integrity gate, but it must not receive
-/// correction values, ledger bytes, or digest-bearing error detail for cleartext output.
-pub(crate) fn correction_ledger_is_valid_for_text(root: &Path, record: &ChangeRecord) -> bool {
-    effective_change_definition(root, record).is_ok()
-}
-
 fn validate_trusted_correction_history(
     root: &Path,
     record: &ChangeRecord,
@@ -26367,11 +26359,11 @@ mod tests {
         let record = completed_no_spec_record(root);
         let ledger_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
 
-        assert!(correction_ledger_is_valid_for_text(root, &record));
+        assert!(effective_change_definition(root, &record).is_ok());
 
         fs::write(&ledger_path, "{ malformed correction ledger\n").unwrap();
 
-        assert!(!correction_ledger_is_valid_for_text(root, &record));
+        assert!(effective_change_definition(root, &record).is_err());
     }
 
     #[test]

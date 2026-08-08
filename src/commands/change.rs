@@ -651,7 +651,8 @@ fn text_mode_next_action(
 }
 
 fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    change::correction_ledger_is_valid_for_text(root, record)
+    change::effective_change_definition(root, record)
+        .is_ok()
         .then_some(())
         .ok_or_else(|| INVALID_CORRECTION_LEDGER_TEXT.to_string())
 }

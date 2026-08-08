@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship",
+  "slug": "ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship",
+  "title": "Ship --push --wait archive tip orchestration for buttery multi-tip ship",
+  "description": "ship --push --wait archive tip orchestration for buttery multi-tip ship",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "c6e76b34efd111b40a22ab16b6bc45be692dbe22",
+  "created_at": 1786163440,
+  "updated_at": 1786164195,
+  "affected_specs": [
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/cli.rs",
+    "src/commands/change.rs",
+    "specs/cmd_change/requirements.md",
+    "specs/cli_args/requirements.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "ship --push commits archive tip and git push; ship --wait polls check-runs until green/failed/timeout; dry-run cannot combine with push/wait; offline no-token wait returns local_guidance"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

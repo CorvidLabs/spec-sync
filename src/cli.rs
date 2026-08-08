@@ -398,6 +398,15 @@ pub enum ChangeAction {
         /// Only report; never finalize even when ready
         #[arg(long)]
         dry_run: bool,
+        /// After finalize, commit the archive tip if needed and `git push`
+        #[arg(long)]
+        push: bool,
+        /// After push (or when already pushed), poll GitHub check-runs until green/failed/timeout
+        #[arg(long)]
+        wait: bool,
+        /// Max seconds to wait for check-runs when `--wait` is set (default 900)
+        #[arg(long, default_value_t = 900)]
+        wait_timeout_secs: u64,
     },
     /// Record the mandatory definition approval
     Approve {
@@ -921,6 +930,33 @@ mod tests {
                 action: ChangeAction::Ship {
                     id: Some(id),
                     dry_run: true,
+                    push: false,
+                    wait: false,
+                    wait_timeout_secs: 900,
+                }
+            }) if id == "CHG-0001-passkeys"
+        ));
+
+        let ship_push = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "ship",
+            "CHG-0001-passkeys",
+            "--push",
+            "--wait",
+            "--wait-timeout-secs",
+            "120",
+        ])
+        .unwrap();
+        assert!(matches!(
+            ship_push.command,
+            Some(Command::Change {
+                action: ChangeAction::Ship {
+                    id: Some(id),
+                    dry_run: false,
+                    push: true,
+                    wait: true,
+                    wait_timeout_secs: 120,
                 }
             }) if id == "CHG-0001-passkeys"
         ));

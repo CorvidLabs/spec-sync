@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1786150086,
+      "digest": "f14ba338386f482ed0d78f0b60709308272fa15c12dd76160be93025a93d9d59",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0098-upgrade-site-astro-to-7-2-0-fixing-dependabot-xss-alerts-12-14",
+        "title": "Upgrade site Astro to 7.2.0 fixing Dependabot XSS alerts 12-14",
+        "description": "Upgrade site Astro to 7.2.0 fixing Dependabot XSS alerts 12-14",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "site/astro.config.mjs",
+          "site/bun.lock",
+          "site/package.json"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Docs site dependency security patch only; no product/runtime API or canonical module contract change",
+        "acceptance_criteria": [
+          "site/package.json and lock resolve astro >= 7.1.0 (7.2.0); Dependabot alerts 12, 13, and 14 for Astro XSS are remediated; bun test and bun run build succeed for the site; .md link rewrite still works via unified() processor"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

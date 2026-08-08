@@ -117,6 +117,45 @@
         "REQ-cmd-change-007",
         "REQ-github-010"
       ]
+    },
+    {
+      "timestamp": 1786158692,
+      "commit": "ccfdd88d2a7a3506a316612628a9cfc87c369763",
+      "contract_digest": "27d6e52b7aeaddc48115d551d7eb8fa184a06c21b738f1a153b7258a731fd1e8",
+      "execution_digest": "9c97c3345016db79d0d7479a16cf5f500c547e00323ada7392298e04f491bd13",
+      "workspace_digest": "52ba7c058c95f97f14ed2da2ba465e903f73329166d2a2a45eb75d24c8c7545c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "bash .github/scripts/test-classify-ci-paths.sh",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-change-007",
+        "REQ-github-010"
+      ]
     }
   ]
 }

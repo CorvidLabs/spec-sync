@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "a4dfa9999398020c305b495e3656ff4306b188cc",
   "created_at": 1786146416,
-  "updated_at": 1786147999,
+  "updated_at": 1786148667,
   "affected_specs": [],
   "affected_paths": [
     "src/change.rs",
@@ -29,6 +29,26 @@
     "tasks"
   ],
   "dependencies": [],
+  "acceptance_owner_corrections": [
+    {
+      "schema_version": 1,
+      "sequence": 1,
+      "path": "src/change.rs",
+      "module": "change",
+      "actor": "leif",
+      "reason": "no-spec-change delivery of production sources still needs exact canonical owners for acceptance inputs; src/change.rs is owned by change, src/commands/change.rs by cmd_change",
+      "timestamp": 1786148067
+    },
+    {
+      "schema_version": 1,
+      "sequence": 2,
+      "path": "src/commands/change.rs",
+      "module": "cmd_change",
+      "actor": "leif",
+      "reason": "no-spec-change delivery of production sources still needs exact canonical owners for acceptance inputs; src/change.rs is owned by change, src/commands/change.rs by cmd_change",
+      "timestamp": 1786148067
+    }
+  ],
   "answers": {
     "architecture_risk": "no",
     "public_contract": "no"

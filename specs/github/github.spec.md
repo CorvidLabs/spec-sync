@@ -37,6 +37,9 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | `verify_spec_issues` | `repo: &str, spec_path: &str, implements: &[u64], tracks: &[u64]` | `IssueVerification` | Verify all issue references from a spec's frontmatter |
 | `verify_issue_batch` | `repo: &str, references: &[(String, Vec<u64>, Vec<u64>)]` | `Vec<IssueVerification>` | Crate-visible in-process REST verification for one globally deduplicated/capped project batch |
 | `list_issues` | `repo: &str, label: Option<&str>` | `Result<Vec<GitHubIssue>, String>` | List open issues through strict in-process REST pagination; requires `GITHUB_TOKEN` and skips pull requests |
+| `fetch_commit_check_summary` | `repo: &str, sha: &str` | `Result<CommitCheckSummary, String>` | Fetch GitHub Actions check-runs for a commit and aggregate overall trust status; requires `GITHUB_TOKEN` |
+| `parse_commit_check_summary` | `repo: &str, sha: &str, body: &Value` | `Result<CommitCheckSummary, String>` | Pure parse + aggregate of a check-runs JSON payload (unit-testable) |
+| `is_trust_relevant_check_name` | `name: &str` | `bool` | Heuristic: whether a check name is trust-lane relevant for ship guidance |
 | `create_drift_issue` | `repo: &str, spec_path: &str, errors: &[String], labels: &[String]` | `Result<GitHubIssue, String>` | Create a "Spec drift detected" issue with validation errors |
 
 #### Exported Structs
@@ -46,6 +49,8 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 | `GitHubIssue` | Issue metadata — `number: u64`, `title: String`, `state: String`, `labels: Vec<String>`, `url: String` |
 | `GitHubIssueDetails` | Crate-visible validated issue metadata plus body used by the importer |
 | `IssueVerification` | Per-spec result — `spec_path: String`, `valid: Vec<GitHubIssue>`, `closed: Vec<GitHubIssue>`, `not_found: Vec<u64>`, `errors: Vec<String>` |
+| `CommitCheckRun` | One check-run — `name`, `status`, optional `conclusion` |
+| `CommitCheckSummary` | Aggregated check-runs for a SHA — `repo`, `sha`, `overall` (`green`/`pending`/`failed`/`empty`), `check_runs` |
 
 ## Invariants
 

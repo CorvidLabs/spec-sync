@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 98,
-  "id": "CHG-0098-upgrade-site-astro-to-7-2-0-fixing-dependabot-xss-alerts-12-14",
+  "sequence": 99,
+  "id": "CHG-0099-keep-successful-legacy-reconstruction-when-scratch-worktree-cleanup-fails-511",
   "acknowledged_collisions": [
     {
       "sequence": 16,

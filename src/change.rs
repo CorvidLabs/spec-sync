@@ -1,7 +1,7 @@
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
@@ -53,6 +53,9 @@ thread_local! {
     static TRANSACTION_WRITE_FAILURE_INDEX: RefCell<Option<usize>> = const { RefCell::new(None) };
     static TRANSACTION_AFTER_JOURNAL_HOOK: RefCell<Option<Box<dyn FnOnce()>>> =
         RefCell::new(None);
+    /// When true, `reconstruct_legacy_at_anchor` pretends `git worktree remove` failed.
+    /// Product #511: cleanup hygiene must not discard a successful reconstruction.
+    static FORCE_LEGACY_WORKTREE_REMOVE_FAILURE: Cell<bool> = const { Cell::new(false) };
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -11884,18 +11887,39 @@ fn reconstruct_legacy_at_anchor(
         .map_err(|error| format!("failed to canonicalize historical evidence: {error}"))?;
         Ok((key, manifest))
     })();
-    let removed = Command::new("git")
-        .args([
-            "worktree",
-            "remove",
-            "--force",
-            tree.to_string_lossy().as_ref(),
-        ])
-        .current_dir(root)
-        .output();
-    if !removed.is_ok_and(|output| output.status.success()) {
-        let _ = fs::remove_dir_all(&temporary);
-        return Err("failed to remove legacy reconstruction workspace".into());
+    // Best-effort cleanup of the disposable scratch worktree. A successful
+    // reconstruction must never be discarded because hygiene cleanup failed
+    // (product #511 / flaky CI under worktree contention).
+    let force_remove_failure = {
+        #[cfg(test)]
+        {
+            FORCE_LEGACY_WORKTREE_REMOVE_FAILURE.get()
+        }
+        #[cfg(not(test))]
+        {
+            false
+        }
+    };
+    let removed = if force_remove_failure {
+        None
+    } else {
+        Command::new("git")
+            .args([
+                "worktree",
+                "remove",
+                "--force",
+                tree.to_string_lossy().as_ref(),
+            ])
+            .current_dir(root)
+            .output()
+            .ok()
+    };
+    if !removed.is_some_and(|output| output.status.success()) {
+        // Reclaim the registration if remove failed; ignore further hygiene errors.
+        let _ = Command::new("git")
+            .args(["worktree", "prune"])
+            .current_dir(root)
+            .output();
     }
     let _ = fs::remove_dir_all(&temporary);
     result
@@ -21665,6 +21689,16 @@ mod tests {
         assert!(
             identical_result.is_ok(),
             "identical legacy reconstruction must succeed"
+        );
+
+        // Product #511: scratch worktree remove failure must not discard Ok(result).
+        FORCE_LEGACY_WORKTREE_REMOVE_FAILURE.set(true);
+        let cleanup_failure_result =
+            reconstruct_legacy_acceptance_manifest(root, &record, &signed_legacy_digest);
+        FORCE_LEGACY_WORKTREE_REMOVE_FAILURE.set(false);
+        assert!(
+            cleanup_failure_result.is_ok(),
+            "successful reconstruction must survive worktree cleanup failure: {cleanup_failure_result:?}"
         );
 
         commit_transition("repeat distinct legacy acceptance", true);

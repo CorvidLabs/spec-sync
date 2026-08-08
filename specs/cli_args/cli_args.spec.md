@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 19
+version: 20
 status: stable
 files:
   - src/cli.rs
@@ -140,3 +140,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-08-07 | CHG-0089-add-change-check-commit-to-perform-the-sequence-it-requires: Add change check --commit to perform the sequence it requires |
 | 2026-08-07 | CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning: Add change ship-status for local ship readiness and merge-before-finalize warning |
 | 2026-08-07 | CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents: Complete buttery ship status tip class and ship preflight for agents |
+| 2026-08-08 | CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship: Ship --push --wait archive tip orchestration for buttery multi-tip ship |

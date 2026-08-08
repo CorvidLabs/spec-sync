@@ -7,11 +7,11 @@
   "title": "Upgrade site Astro to 7.2.0 fixing Dependabot XSS alerts 12-14",
   "description": "Upgrade site Astro to 7.2.0 fixing Dependabot XSS alerts 12-14",
   "kind": "operations",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "27c87154b282de36ad4d19302bbf0d3f6726476c",
   "created_at": 1786149987,
-  "updated_at": 1786151277,
+  "updated_at": 1786151460,
   "affected_specs": [],
   "affected_paths": [
     "site/package.json",

@@ -1,6 +1,6 @@
 ---
 id: CHG-0098-upgrade-site-astro-to-7-2-0-fixing-dependabot-xss-alerts-12-14
-state: implementing
+state: archived
 type: operations
 base_commit: 27c87154b282de36ad4d19302bbf0d3f6726476c
 ---

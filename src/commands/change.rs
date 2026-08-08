@@ -10,6 +10,8 @@ use crate::change::{
 use crate::cli::ChangeAction;
 use crate::types::OutputFormat;
 
+const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
+
 pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, strict: bool) {
     let result = match action {
         ChangeAction::New {
@@ -57,8 +59,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             .and_then(|record| print_record(root, &record, format, false, strict)),
         ChangeAction::List => {
             let _scope = change::begin_change_read_scope(root);
-            print_records(root, &change::list_changes(root), format, strict);
-            Ok(())
+            print_records(root, &change::list_changes(root), format, strict)
         }
         ChangeAction::Show { id } => {
             let _scope = change::begin_change_read_scope(root);
@@ -71,8 +72,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 change::load_change(root, &id)
                     .and_then(|record| print_record(root, &record, format, false, strict))
             } else {
-                print_records(root, &change::list_changes(root), format, strict);
-                Ok(())
+                print_records(root, &change::list_changes(root), format, strict)
             }
         }
         ChangeAction::ShipStatus { id } => {
@@ -553,7 +553,8 @@ fn print_record(
         _ => {
             // Text mode must not invoke digest-bearing loaders into cleartext sinks
             // (CodeQL rust/cleartext-logging / alert #58). Human output uses interview
-            // identity/state only; digests and correction ledgers stay JSON-only.
+            // identity/state only; digests and correction-ledger details stay JSON-only.
+            ensure_text_correction_ledger_valid(root, record)?;
             // `text_mode_next_action` uses lightweight artifact file reads only.
             print_change_text_identity(record);
             let next = text_mode_next_action(root, record, &questions);
@@ -647,6 +648,12 @@ fn text_mode_next_action(
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
         ChangeState::Archived => "no further action".into(),
     }
+}
+
+fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    change::correction_ledger_is_valid_for_text(root, record)
+        .then_some(())
+        .ok_or_else(|| INVALID_CORRECTION_LEDGER_TEXT.to_string())
 }
 
 /// Ship readiness for one change: HEAD tip class, verification tip health, review,
@@ -1311,11 +1318,7 @@ fn run_ship(
                     "wait": wait_result,
                 })),
                 _ => {
-                    println!(
-                        "{} {} is already archived",
-                        "✓".green(),
-                        record.id
-                    );
+                    println!("{} {} is already archived", "✓".green(), record.id);
                     if let Some(push_result) = push_result.as_ref() {
                         println!("  Push: {push_result}");
                     }
@@ -1503,10 +1506,7 @@ fn run_ship(
 
 /// Commit archive package (if dirty) and push the current branch.
 fn ship_commit_and_push_archive(root: &Path, id: &str) -> Result<String, String> {
-    git_commit_all(
-        root,
-        &format!("chore(lifecycle): archive {id}"),
-    )?;
+    git_commit_all(root, &format!("chore(lifecycle): archive {id}"))?;
     run_git(root, &["push"])?;
     let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
     Ok(format!("pushed archive tip {sha:.8}"))
@@ -1684,7 +1684,12 @@ fn git_status_name_only(root: &Path) -> Result<Vec<String>, String> {
     Ok(paths)
 }
 
-fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, strict: bool) {
+fn print_records(
+    root: &Path,
+    records: &[ChangeRecord],
+    format: OutputFormat,
+    strict: bool,
+) -> Result<(), String> {
     match format {
         OutputFormat::Json => {
             let summaries: Vec<_> = records
@@ -1692,10 +1697,19 @@ fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, st
                 .map(|record| change::summarize_change_with_strict(root, record, strict))
                 .collect();
             print_json(&summaries);
+            Ok(())
         }
-        _ if records.is_empty() => println!("No active SDD changes."),
+        _ if records.is_empty() => {
+            println!("No active SDD changes.");
+            Ok(())
+        }
         _ => {
             // Text list view avoids digest-bearing summarize loaders (cleartext-logging).
+            // Preflight every record before printing any successful lifecycle projection.
+            // Otherwise a later invalid ledger would leave misleading earlier success rows.
+            for record in records {
+                ensure_text_correction_ledger_valid(root, record)?;
+            }
             for record in records {
                 let questions = change::next_questions(record);
                 let id = record.id.clone();
@@ -1704,6 +1718,7 @@ fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, st
                 let next = text_mode_next_action(root, record, &questions);
                 println!("{:<14}  {state:<13}  {title}  next: {next}", id.bold());
             }
+            Ok(())
         }
     }
 }
@@ -1897,6 +1912,38 @@ mod tests {
                 "{surface} text recommended premature approval: {next}"
             );
         }
+    }
+
+    // Verifies REQ-cmd-change-009.
+    #[test]
+    fn text_correction_ledger_gate_uses_a_safe_diagnostic() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        change::write_default_policy(root, Vec::new()).expect("write default policy");
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Protect text lifecycle views".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        let ledger_path = root
+            .join(".specsync/changes")
+            .join(&record.id)
+            .join("corrections.json");
+        fs::write(&ledger_path, "{ malformed correction ledger\\n")
+            .expect("write malformed ledger");
+
+        let error = ensure_text_correction_ledger_valid(root, &record).expect_err("invalid ledger");
+
+        assert_eq!(error, INVALID_CORRECTION_LEDGER_TEXT);
+        assert!(!error.contains("malformed correction ledger"));
     }
 
     #[test]

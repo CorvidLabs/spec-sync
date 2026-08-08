@@ -1,0 +1,101 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786207920,
+      "digest": "c4d177f9519687cd9bf552214822862da576e99d65b2a09c12e1472ea9b2e663",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786207999,
+      "digest": "c4d177f9519687cd9bf552214822862da576e99d65b2a09c12e1472ea9b2e663",
+      "note": null
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786211106,
+      "digest": "8bafab2d1997c74c5ef5e08cb22579294b364fbba3d6f448b6a5f9b10d03a1e2",
+      "note": "Approved revised command-module regression coverage and fixed sandbox #17 drill"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786211508,
+      "digest": "91cf314f83b324a0337d31d487f804148e34178b73132e4b27a123164caa6017",
+      "note": "Approved sandbox #17 fixed-drill evidence and lifecycle-blocker disposition"
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786211658,
+      "digest": "c4d177f9519687cd9bf552214822862da576e99d65b2a09c12e1472ea9b2e663",
+      "note": "Restored v2 metadata after an accidental v5.2 local CLI rewrite; approval recorded by the workspace 6.0 binary",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid",
+        "title": "Fail closed in text lifecycle views when a correction ledger is invalid",
+        "description": "Fail closed in text lifecycle views when a correction ledger is invalid",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "Sandbox issue #17 proves that text status and show can report a healthy-looking correction count while the machine-readable view rejects an invalid correction ledger.",
+        "acceptance_criteria": [
+          "Text change status, show, and list SHALL fail with a generic correction-ledger integrity diagnostic when corrections.json is invalid; the diagnostic SHALL not disclose ledger content or digests, while valid ledgers retain their current text output."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786211783,
+      "digest": "c4d177f9519687cd9bf552214822862da576e99d65b2a09c12e1472ea9b2e663",
+      "note": "Approved completed sandbox #17 and scoped-verification checklist evidence",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid",
+        "title": "Fail closed in text lifecycle views when a correction ledger is invalid",
+        "description": "Fail closed in text lifecycle views when a correction ledger is invalid",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "Sandbox issue #17 proves that text status and show can report a healthy-looking correction count while the machine-readable view rejects an invalid correction ledger.",
+        "acceptance_criteria": [
+          "Text change status, show, and list SHALL fail with a generic correction-ledger integrity diagnostic when corrections.json is invalid; the diagnostic SHALL not disclose ledger content or digests, while valid ledgers retain their current text output."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

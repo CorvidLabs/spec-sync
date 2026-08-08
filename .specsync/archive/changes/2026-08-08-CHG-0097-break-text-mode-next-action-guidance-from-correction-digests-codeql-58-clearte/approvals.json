@@ -1,0 +1,43 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1786146536,
+      "digest": "ade9b769fd51283542076b099074621e11ca45b4462e61fa70b24783610cb7f0",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0097-break-text-mode-next-action-guidance-from-correction-digests-codeql-58-clearte",
+        "title": "Break text-mode next-action guidance from correction digests (CodeQL #58 cleartext-logging)",
+        "description": "Break text-mode next-action guidance from correction digests (CodeQL #58 cleartext-logging)",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "No public API surface change: artifacts_complete_for_guidance already documented; implementation stops loading correction digests for human text sinks only",
+        "acceptance_criteria": [
+          "Text-mode change status/show/list next-action never loads correction digests or validate_trusted_correction_history; JSON mode still surfaces effective_definition and corrections; draft text surfaces require complete artifacts before approval; CodeQL cleartext-logging taint path from digests into println is broken"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786149281,
+      "digest": "c34fe8ceac257ab475135cbad8f6a99cbd7a4a6c362acf0f0687641f6514096c",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0097-break-text-mode-next-action-guidance-from-correction-digests-codeql-58-clearte",
+  "implementation_commit": "8eb29b88719deab87ef9d9e761b06f6101ff69a7",
+  "implementation_tree": "4ad2e8e36cf2f9142d2d9c1945aceed39a1326aa",
+  "contract_digest": "ade9b769fd51283542076b099074621e11ca45b4462e61fa70b24783610cb7f0",
+  "workspace_digest": "0a15efd4c6059eb8e9e4d7018995e0544b28cb0d4bdbf5ada44d0484cfc66274",
+  "closing_digest": "c34fe8ceac257ab475135cbad8f6a99cbd7a4a6c362acf0f0687641f6514096c",
+  "review_digest": "7e3ab3c3666e26b967b9e7708c3f892cc80eaaf7e463f8a125f2b90a60acd819",
+  "finalization_digest": "7cc8b48ec771a1b25e62552a60b68bb01bee73ee92e66c2311f092c5284fd111",
+  "timestamp": 1786149281
+}

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 96,
-  "id": "CHG-0096-floor-change-sequences-from-remote-ledger-and-document-multi-clone-base",
+  "sequence": 97,
+  "id": "CHG-0097-break-text-mode-next-action-guidance-from-correction-digests-codeql-58-clearte",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid",
+  "implementation_commit": "cc7b9ed889b4965ad77217a829e616d15b93f87f",
+  "implementation_tree": "03a527d84f2dbbeadd07fd23f2195c823542e61a",
+  "contract_digest": "c4d177f9519687cd9bf552214822862da576e99d65b2a09c12e1472ea9b2e663",
+  "workspace_digest": "04a1aff76f1d0dac1895224d986428d0b4ad3815d83a9fc8146e25a6f8f77242",
+  "closing_digest": "27ff2fd2171d4a103d10520848f1d9cfb35e70d2033cb147d2226c6d371bed48",
+  "review_digest": "3558be2c077c3ccab08da4e1cc471bd0d803b1a91d43dd35baaf3ffcf30b76ce",
+  "finalization_digest": "268cd35f435243212c18baa5e33195dd3003b757b522a629e2649ae729c8d89a",
+  "timestamp": 1786295865
+}

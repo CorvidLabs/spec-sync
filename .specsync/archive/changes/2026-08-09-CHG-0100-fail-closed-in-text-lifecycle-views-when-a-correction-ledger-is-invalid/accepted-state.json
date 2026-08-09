@@ -7,11 +7,11 @@
   "title": "Fail closed in text lifecycle views when a correction ledger is invalid",
   "description": "Fail closed in text lifecycle views when a correction ledger is invalid",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "c6e76b34efd111b40a22ab16b6bc45be692dbe22",
   "created_at": 1786206892,
-  "updated_at": 1786295854,
+  "updated_at": 1786295865,
   "affected_specs": [
     "change",
     "cmd_change"

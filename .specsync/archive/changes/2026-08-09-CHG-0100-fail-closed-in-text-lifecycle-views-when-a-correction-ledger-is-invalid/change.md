@@ -1,6 +1,6 @@
 ---
 id: CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid
-state: implementing
+state: archived
 type: bug_fix
 base_commit: c6e76b34efd111b40a22ab16b6bc45be692dbe22
 ---

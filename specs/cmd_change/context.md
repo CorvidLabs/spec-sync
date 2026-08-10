@@ -17,6 +17,7 @@ stored verdict and JSON emits the exact review record; reviewer independence, ev
 and finalization eligibility remain domain concerns. Reviewer text is a stable ASCII claim, every
 attempt is append-only, and hosted required-check provenance supplies authenticated merge trust.
 
-`answer`, `depend`, and `supersede` validate an existing change's correction-ledger health before
-calling their mutation-capable domain operations. This preserves the command adapter's thin role
-while ensuring a subsequent text/JSON projection cannot fail after persistence already occurred.
+`answer`, `depend`, and `supersede` delegate correction-ledger health enforcement to their
+mutation-capable domain operations, which reload and validate the ledger while holding the same
+project lock used for persistence. The command adapter retains only read-only rendering validation,
+so the thin-dispatch boundary is preserved and a lock-wait race cannot hide a persisted mutation.

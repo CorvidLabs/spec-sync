@@ -45,11 +45,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             id,
             question,
             answer,
-        } => ensure_existing_change_correction_ledger_valid(root, &id)
-            .and_then(|()| change::answer_question(root, &id, &question, &answer))
+        } => change::answer_question(root, &id, &question, &answer)
             .and_then(|record| print_record(root, &record, format, true, strict)),
-        ChangeAction::Depend { id, on } => ensure_existing_change_correction_ledger_valid(root, &id)
-            .and_then(|()| change::add_dependency(root, &id, &on))
+        ChangeAction::Depend { id, on } => change::add_dependency(root, &id, &on)
             .and_then(|record| print_record(root, &record, format, false, strict)),
         ChangeAction::Supersede {
             id,
@@ -57,17 +55,14 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             path,
             module,
             digest,
-        } => ensure_existing_change_correction_ledger_valid(root, &id)
-            .and_then(|()| {
-                change::add_supersedes_obligation(
-                    root,
-                    &id,
-                    &predecessor,
-                    &path,
-                    &module,
-                    &digest,
-                )
-            })
+        } => change::add_supersedes_obligation(
+            root,
+            &id,
+            &predecessor,
+            &path,
+            &module,
+            &digest,
+        )
             .and_then(|record| print_record(root, &record, format, false, strict)),
         ChangeAction::List => {
             let _scope = change::begin_change_read_scope(root);
@@ -667,11 +662,6 @@ fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Re
         .is_ok()
         .then_some(())
         .ok_or_else(|| INVALID_CORRECTION_LEDGER_TEXT.to_string())
-}
-
-fn ensure_existing_change_correction_ledger_valid(root: &Path, id: &str) -> Result<(), String> {
-    let record = change::load_change(root, id)?;
-    ensure_text_correction_ledger_valid(root, &record)
 }
 
 /// Ship readiness for one change: HEAD tip class, verification tip health, review,

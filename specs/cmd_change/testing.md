@@ -14,4 +14,6 @@ CLI integration coverage validates creation, JSON schema, rationale errors, adop
 
 `REQ-cmd-change-010` is covered by an invalid-ledger CLI regression that invokes answer, depend,
 and supersede, requires the safe integrity diagnostic, and compares every lifecycle file
-byte-for-byte before and after each rejected mutation.
+byte-for-byte before and after each rejected mutation. The change-domain lock-race regression
+proves an answer mutation revalidates after acquiring the persistence lock when the ledger becomes
+invalid while it waits.

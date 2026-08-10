@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 pub const SDD_VERSION: &str = "5.0.0";
+const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
 const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
@@ -1960,7 +1961,7 @@ pub fn answer_question(
     answer: &str,
 ) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change(root, id)?;
+    let mut record = load_change_for_definition_mutation(root, id)?;
     require_state(&record, &[ChangeState::Draft], "answer interview questions")?;
     match question {
         "acceptance_criteria" => {
@@ -2021,7 +2022,7 @@ pub fn answer_question(
 
 pub fn add_dependency(root: &Path, id: &str, dependency: &str) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change(root, id)?;
+    let mut record = load_change_for_definition_mutation(root, id)?;
     require_state(
         &record,
         &[
@@ -2060,7 +2061,7 @@ pub fn add_supersedes_obligation(
     predecessor_entry_digest: &str,
 ) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change(root, id)?;
+    let mut record = load_change_for_definition_mutation(root, id)?;
     require_state(
         &record,
         &[ChangeState::Draft],
@@ -2128,6 +2129,18 @@ pub fn add_supersedes_obligation(
     record.updated_at = now();
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
+    Ok(record)
+}
+
+/// Load one existing definition only after its caller has acquired the project lock.
+///
+/// Answer, dependency, and supersession mutations share this path so correction-ledger
+/// validation and persistence are one serialized transaction. The fixed diagnostic keeps
+/// correction values, ledger bytes, and digests out of human command output.
+fn load_change_for_definition_mutation(root: &Path, id: &str) -> Result<ChangeRecord, String> {
+    let record = load_change(root, id)?;
+    effective_change_definition(root, &record)
+        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
     Ok(record)
 }
 
@@ -24737,7 +24750,6 @@ mod tests {
     }
 
     // Verifies REQ-change-033.
-    #[test]
     // Canonical ownership is knowable the moment a path is declared, but was
     // enforced only when building the acceptance manifest at finalize. A change
     // declaring a path owned by a module it does not name therefore passed
@@ -26364,6 +26376,43 @@ mod tests {
         fs::write(&ledger_path, "{ malformed correction ledger\n").unwrap();
 
         assert!(effective_change_definition(root, &record).is_err());
+    }
+
+    // Verifies REQ-change-057.
+    #[test]
+    fn mutation_rechecks_correction_ledger_after_lock_acquisition() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let record = completed_no_spec_record(root);
+        let ledger_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let change_path = change_dir(root, &record.id).join("change.md");
+
+        let project_lock = acquire_project_lock(root).unwrap();
+        let mutation_root = root.to_path_buf();
+        let mutation_id = record.id.clone();
+        let (started_sender, started_receiver) = std::sync::mpsc::channel();
+        let mutation = std::thread::spawn(move || {
+            started_sender.send(()).unwrap();
+            answer_question(
+                &mutation_root,
+                &mutation_id,
+                "acceptance_criteria",
+                "This mutation must not persist",
+            )
+        });
+
+        started_receiver.recv().unwrap();
+        fs::write(&ledger_path, "{ malformed correction ledger\n").unwrap();
+        let state_before = fs::read(&state_path).unwrap();
+        let change_before = fs::read(&change_path).unwrap();
+        drop(project_lock);
+
+        let error = mutation.join().unwrap().unwrap_err();
+        assert_eq!(error, INVALID_CORRECTION_LEDGER_TEXT);
+        assert_eq!(fs::read(&state_path).unwrap(), state_before);
+        assert_eq!(fs::read(&change_path).unwrap(), change_before);
     }
 
     #[test]

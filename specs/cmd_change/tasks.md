@@ -13,4 +13,4 @@ spec: cmd_change.spec.md
 - [x] Dispatch exact acceptance-owner correction with equivalent text and JSON projections
 - [x] Dispatch transactional batch correct-owner selection (paths/manifest/all-missing)
 - [x] Dispatch explicit pass/block scoped-review verdicts with equivalent text and JSON
-- [x] Guard answer, depend, and supersede against invalid correction ledgers before persistence
+- [x] Delegate answer, depend, and supersede to locked domain ledger validation before persistence

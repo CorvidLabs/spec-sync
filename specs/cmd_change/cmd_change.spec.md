@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 22
+version: 23
 status: active
 files:
   - src/commands/change.rs
@@ -31,8 +31,9 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 9. Finalize reports readiness for GitHub merge and never invokes an external merge API.
 10. Review renders the same explicit pass/block verdict and stable reviewer claim in text and JSON
     while domain policy preserves append-only attempts and hosted policy authenticates provenance.
-11. Existing-change mutations validate correction-ledger integrity before persistence so a later
-    rendering failure cannot conceal a mutation that already took effect.
+11. Existing-change mutations delegate to domain transactions that validate correction-ledger
+    integrity after acquiring the persistence lock, so neither rendering failure nor a lock-wait
+    race can conceal a mutation that already took effect.
 
 ## Public API
 
@@ -124,3 +125,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-08 | CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid: Fail closed in text lifecycle views when a correction ledger is invalid |
 | 2026-08-10 | CHG-0103: Validate correction-ledger integrity before existing-change mutations and increment the command contract version |
 | 2026-08-10 | CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif: Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version |
+| 2026-08-10 | CHG-0103: Delegate correction-ledger validation to locked change-domain mutations |

@@ -5,8 +5,8 @@ artifact: plan
 
 # Plan
 
-1. Add a shared pre-mutation correction-ledger health guard for existing changes.
-2. Apply it before answer, depend, and supersede domain mutations.
-3. Keep read-only renderer validation and add focused regression coverage.
-4. Increment and update the cmd_change contract and companions.
+1. Move the shared pre-mutation correction-ledger health guard into the locked change domain.
+2. Apply it after lock acquisition for answer, depend, and supersede mutations.
+3. Keep read-only renderer validation and add deterministic lock-race regression coverage.
+4. Increment and update the change and cmd_change contracts and companions.
 5. Run scoped lifecycle verification, review, and finalization.

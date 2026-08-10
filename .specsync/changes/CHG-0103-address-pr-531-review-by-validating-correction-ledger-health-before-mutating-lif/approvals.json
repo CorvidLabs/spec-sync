@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786378286,
+      "digest": "a89489510301e33ae4e7f2950eb924a67bd1aa579cb63854ffa16efcf4b53cf9",
+      "note": "Replace explicitly deleted unpublished CHG-1200 with natural CHG-0103; review-fix scope unchanged and authorized by maintainer",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif",
+        "title": "Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version",
+        "description": "Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version",
+        "kind": "feature",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/cmd_change/context.md",
+          "specs/cmd_change/tasks.md",
+          "specs/cmd_change/testing.md",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Mutating text commands reject an invalid correction ledger before persistence; read-only show, status, and list remain fail-closed; valid mutations retain existing behavior; the cmd_change contract version increments; focused regression and strict checks pass."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

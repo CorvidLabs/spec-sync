@@ -16,3 +16,7 @@ The command layer intentionally contains no lifecycle policy, keeping agent and 
 stored verdict and JSON emits the exact review record; reviewer independence, evidence freshness,
 and finalization eligibility remain domain concerns. Reviewer text is a stable ASCII claim, every
 attempt is append-only, and hosted required-check provenance supplies authenticated merge trust.
+
+`answer`, `depend`, and `supersede` validate an existing change's correction-ledger health before
+calling their mutation-capable domain operations. This preserves the command adapter's thin role
+while ensuring a subsequent text/JSON projection cannot fail after persistence already occurred.

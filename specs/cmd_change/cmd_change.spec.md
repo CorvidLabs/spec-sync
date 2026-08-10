@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 20
+version: 22
 status: active
 files:
   - src/commands/change.rs
@@ -31,6 +31,8 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 9. Finalize reports readiness for GitHub merge and never invokes an external merge API.
 10. Review renders the same explicit pass/block verdict and stable reviewer claim in text and JSON
     while domain policy preserves append-only attempts and hosted policy authenticates provenance.
+11. Existing-change mutations validate correction-ledger integrity before persistence so a later
+    rendering failure cannot conceal a mutation that already took effect.
 
 ## Public API
 
@@ -78,6 +80,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Invalid exact owner correction | Command reports the domain rejection and exits 1 without lifecycle mutation |
 | Invalid batch owner correction or empty discovery | Command reports the domain rejection and exits 1 without lifecycle mutation |
 | Scope approver records the scoped review, or the current verdict is blocking | Command reports the independent-review rejection and finalization remains blocked |
+| Invalid correction ledger before answer, depend, or supersede | Command emits the safe integrity diagnostic and leaves lifecycle files unchanged |
 
 ## Dependencies
 
@@ -119,3 +122,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-08 | CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha: Ship-status live GitHub check-run trust for product parent SHA |
 | 2026-08-08 | CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship: Ship --push --wait archive tip orchestration for buttery multi-tip ship |
 | 2026-08-08 | CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid: Fail closed in text lifecycle views when a correction ledger is invalid |
+| 2026-08-10 | CHG-0103: Validate correction-ledger integrity before existing-change mutations and increment the command contract version |
+| 2026-08-10 | CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif: Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version |

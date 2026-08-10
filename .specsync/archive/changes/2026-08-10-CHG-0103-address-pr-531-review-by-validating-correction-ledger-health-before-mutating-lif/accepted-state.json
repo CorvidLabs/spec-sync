@@ -7,11 +7,11 @@
   "title": "Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version",
   "description": "Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "801639111f891ea34d01078a20b9d8ac20668a61",
   "created_at": 1786377932,
-  "updated_at": 1786400382,
+  "updated_at": 1786402224,
   "affected_specs": [
     "change",
     "cmd_change"

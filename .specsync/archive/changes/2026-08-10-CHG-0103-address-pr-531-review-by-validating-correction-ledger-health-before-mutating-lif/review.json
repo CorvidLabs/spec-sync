@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif",
+  "reviewer": "github-actions",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "115e39e11a9ea5c8908a9a1bc30f0d9efa3658db",
+  "contract_digest": "2172a6d029c23b1686170e0bab2ad7f83b8705125ab82f7c78a8564b0f0ccde2",
+  "execution_digest": "33226108115e523f4aaa81694ec2d19dbf8d15b6480b755807e2db0e722d8bbd",
+  "workspace_digest": "376739e5ec3a55130ac14181b496c8365ec10c27d5e797041ebd65d4d7c8cd1c",
+  "timestamp": 1786402206
+}

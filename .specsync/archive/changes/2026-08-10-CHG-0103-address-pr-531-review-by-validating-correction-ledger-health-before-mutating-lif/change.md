@@ -1,6 +1,6 @@
 ---
 id: CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif
-state: verifying
+state: archived
 type: feature
 base_commit: 801639111f891ea34d01078a20b9d8ac20668a61
 ---

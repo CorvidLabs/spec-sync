@@ -46,9 +46,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             question,
             answer,
         } => change::answer_question_with_snapshot(root, &id, &question, &answer)
-            .and_then(|result| print_mutation_record(root, &result, format, true, strict)),
+            .and_then(|result| print_mutation_record(root, &id, &result, format, true, strict)),
         ChangeAction::Depend { id, on } => change::add_dependency_with_snapshot(root, &id, &on)
-            .and_then(|result| print_mutation_record(root, &result, format, false, strict)),
+            .and_then(|result| print_mutation_record(root, &id, &result, format, false, strict)),
         ChangeAction::Supersede {
             id,
             predecessor,
@@ -63,7 +63,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             &module,
             &digest,
         )
-            .and_then(|result| print_mutation_record(root, &result, format, false, strict)),
+        .and_then(|result| print_mutation_record(root, &id, &result, format, false, strict)),
         ChangeAction::List => {
             let _scope = change::begin_change_read_scope(root);
             print_records(root, &change::list_changes(root), format, strict)
@@ -567,18 +567,7 @@ fn print_record(
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
             print_change_text_answers(record);
-            if record.correction_count > 0 {
-                println!(
-                    "  Corrections: {} recorded (use --json for the audit ledger)",
-                    record.correction_count
-                );
-            }
-            if !record.acceptance_owner_corrections.is_empty() {
-                println!(
-                    "  Acceptance owner corrections: {} (use --json for details)",
-                    record.acceptance_owner_corrections.len()
-                );
-            }
+            print_change_text_correction_counts(record);
             if include_questions && !questions.is_empty() {
                 println!("\nInterview:");
                 for question in &questions {
@@ -595,6 +584,7 @@ fn print_record(
 
 fn print_mutation_record(
     root: &Path,
+    id: &str,
     result: &change::DefinitionMutationResult,
     format: OutputFormat,
     include_questions: bool,
@@ -627,17 +617,11 @@ fn print_mutation_record(
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
             print_change_text_answers(record);
-            if record.correction_count > 0 {
-                println!(
-                    "  Corrections: {} recorded (use --json for the audit ledger)",
-                    record.correction_count
-                );
-            }
-            if !record.acceptance_owner_corrections.is_empty() {
-                println!(
-                    "  Acceptance owner corrections: {} (use --json for details)",
-                    record.acceptance_owner_corrections.len()
-                );
+            // Keep correction-derived snapshot values out of the human sink. A state-only reload
+            // preserves the established counts without rereading corrections.json; failure is
+            // intentionally non-fatal because the mutation has already persisted successfully.
+            if let Ok(current) = change::load_change(root, id) {
+                print_change_text_correction_counts(&current);
             }
             if include_questions && !questions.is_empty() {
                 println!("\nInterview:");
@@ -664,6 +648,25 @@ fn print_change_text_identity(record: &ChangeRecord) {
     let state = record.state.as_str();
     println!("{} {}", id.bold(), title);
     println!("  State: {state}");
+}
+
+/// Print only non-sensitive correction counts from state.json for human text sinks.
+///
+/// Callers must source this record independently from correction-ledger validation results so
+/// correction values, ledger bytes, and digest material cannot flow into cleartext output.
+fn print_change_text_correction_counts(record: &ChangeRecord) {
+    if record.correction_count > 0 {
+        println!(
+            "  Corrections: {} recorded (use --json for the audit ledger)",
+            record.correction_count
+        );
+    }
+    if !record.acceptance_owner_corrections.is_empty() {
+        println!(
+            "  Acceptance owner corrections: {} (use --json for details)",
+            record.acceptance_owner_corrections.len()
+        );
+    }
 }
 
 fn print_change_text_answers(record: &ChangeRecord) {
@@ -2048,8 +2051,14 @@ mod tests {
             .expect("corrupt ledger after persistence");
 
         assert!(change::effective_change_definition(root, &result.change).is_err());
-        assert!(print_mutation_record(root, &result, OutputFormat::Text, true, false).is_ok());
-        assert!(print_mutation_record(root, &result, OutputFormat::Json, true, false).is_ok());
+        assert!(
+            print_mutation_record(root, &record.id, &result, OutputFormat::Text, true, false)
+                .is_ok()
+        );
+        assert!(
+            print_mutation_record(root, &record.id, &result, OutputFormat::Json, true, false)
+                .is_ok()
+        );
     }
 
     #[test]

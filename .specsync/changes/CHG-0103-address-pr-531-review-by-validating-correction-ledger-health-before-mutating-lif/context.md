@@ -25,3 +25,7 @@ interval, the command exited nonzero after already persisting the requested muta
 review caught that `REQ-change-057` had not been materialized into canonical requirements. The
 follow-up carries the validated effective definition and correction history out of the transaction
 for output and adds the missing canonical requirement block.
+
+Fresh CodeQL analysis then identified aggregate-snapshot taint reaching two text-only count sinks.
+Those counts are now loaded independently from `state.json` using the original command ID, while
+correction-derived snapshot values remain confined to the structured JSON branch.

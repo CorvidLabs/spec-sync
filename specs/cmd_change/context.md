@@ -22,4 +22,7 @@ mutation-capable domain operations, which reload and validate the ledger while h
 project lock used for persistence. Successful mutations return the validated effective definition
 and correction history used for output; the command adapter retains live ledger validation only on
 read-only rendering paths. This preserves the thin-dispatch boundary while preventing both the
-lock-wait race and a false post-persistence failure.
+lock-wait race and a false post-persistence failure. Human mutation output obtains its optional
+correction counts from a separate best-effort `state.json` reload keyed by the original command ID;
+the validated correction snapshot remains confined to JSON output so correction data cannot flow
+into cleartext sinks.

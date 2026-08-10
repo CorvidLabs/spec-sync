@@ -16,3 +16,4 @@ artifact: tasks
 - [x] Eliminate the post-persistence renderer reread with a validated mutation result.
 - [x] Materialize `REQ-change-057` into canonical requirements.
 - [x] Add deterministic text and JSON post-persistence rendering coverage.
+- [x] Break CodeQL cleartext taint from correction snapshots to text-only count output.

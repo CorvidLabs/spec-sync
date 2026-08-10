@@ -23,3 +23,7 @@ effective definition and ordered correction history validated inside the transac
 rendering consumes those values without a fallible live-ledger reread; read-only rendering keeps
 its existing live fail-closed gate. A deterministic command-unit regression corrupts the ledger
 after persistence and proves text and JSON output still complete from the validated snapshot.
+
+Text mutation output never receives correction-derived counts from that aggregate snapshot. It
+performs a non-fatal state-only reload keyed by the untainted command ID and prints only numeric
+counts from that record; JSON remains the sole sink for effective definitions and correction data.

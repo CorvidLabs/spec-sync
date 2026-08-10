@@ -29,3 +29,8 @@ for output and adds the missing canonical requirement block.
 Fresh CodeQL analysis then identified aggregate-snapshot taint reaching two text-only count sinks.
 Those counts are now loaded independently from `state.json` using the original command ID, while
 correction-derived snapshot values remain confined to the structured JSON branch.
+
+The next exact-head review found that JSON still recomputed `ChangeSummary` after releasing the
+domain lock and that the three documented record-returning mutation wrappers were compiled only in
+tests. The final repair captures normal and strict summaries inside the locked transaction and
+keeps the public wrappers in production while the CLI continues using richer crate-private results.

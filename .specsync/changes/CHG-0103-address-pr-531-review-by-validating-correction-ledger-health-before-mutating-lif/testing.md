@@ -20,7 +20,10 @@ the mutation without changing state or rendered change bytes.
 
 `commands::change::tests::mutation_output_uses_the_in_transaction_correction_snapshot` corrupts
 the ledger only after a successful answer mutation and proves both text and JSON output complete
-from the validated transaction result rather than returning a post-persistence error.
+from the validated transaction result rather than returning a post-persistence error. It asserts
+that a newly computed live summary reports invalid correction history while the locked normal and
+strict summaries remain valid. Normal production compilation and clippy cover the documented
+record-returning wrappers without `cfg(test)`.
 
 Scoped lifecycle verification runs `cargo test commands::change::`, followed by strict
 lifecycle/spec validation; the exact integration regression is also run explicitly before that gate.

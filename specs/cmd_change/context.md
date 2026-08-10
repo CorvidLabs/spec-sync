@@ -26,3 +26,8 @@ lock-wait race and a false post-persistence failure. Human mutation output obtai
 correction counts from a separate best-effort `state.json` reload keyed by the original command ID;
 the validated correction snapshot remains confined to JSON output so correction data cannot flow
 into cleartext sinks.
+
+Structured mutation rendering also selects the normal or explicit-strict summary captured by the
+domain operation before it released the project lock. It never recomputes correction health from a
+live ledger, so one response cannot contain a validated effective definition beside a contradictory
+invalid-correction summary.

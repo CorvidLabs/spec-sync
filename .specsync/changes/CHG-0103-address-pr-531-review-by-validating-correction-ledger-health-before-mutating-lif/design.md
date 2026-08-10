@@ -27,3 +27,9 @@ after persistence and proves text and JSON output still complete from the valida
 Text mutation output never receives correction-derived counts from that aggregate snapshot. It
 performs a non-fatal state-only reload keyed by the untainted command ID and prints only numeric
 counts from that record; JSON remains the sole sink for effective definitions and correction data.
+
+`DefinitionMutationResult` carries both ordinary and explicit-strict `ChangeSummary` projections,
+constructed after persistence and adaptive-artifact creation but before the project-lock guard is
+dropped. JSON selects one of those projections without touching the live correction ledger. The
+record-returning `answer_question`, `add_dependency`, and `add_supersedes_obligation` wrappers stay
+compiled as production domain APIs and delegate to the same locked snapshot implementations.

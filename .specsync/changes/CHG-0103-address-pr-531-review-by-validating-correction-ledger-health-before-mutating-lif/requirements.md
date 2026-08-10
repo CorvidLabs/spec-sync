@@ -17,8 +17,9 @@ Acceptance Criteria
 - A ledger that becomes invalid while a mutation waits for the project lock is rejected after lock
   acquisition and before persistence.
 - Read-only text show, status, and list views retain their existing fail-closed behavior.
-- Successful mutations render from the correction snapshot validated by the domain transaction and
-  cannot report a false failure because the ledger changes after persistence.
+- Successful mutations render effective definition, correction history, and the selected
+  normal/strict summary from the snapshot validated by the domain transaction; they cannot report
+  a false failure or contradictory JSON because the ledger changes after persistence.
 - Valid mutation and rendering behavior is unchanged.
 - The `cmd_change` canonical contract version is incremented.
 
@@ -34,4 +35,7 @@ Acceptance Criteria
 - A ledger corrupted while a mutation waits for the lock causes a deterministic safe failure and
   leaves every lifecycle file other than the external corruption byte-for-byte unchanged.
 - The safe diagnostic contains no correction value, ledger fragment, or digest.
+- Successful mutation machine projections, including normal and strict summaries, are built while
+  the project lock is held and remain internally consistent after the lock is released.
+- The documented record-returning mutation wrappers remain compiled in production builds.
 - Valid mutations retain their established state and output behavior.

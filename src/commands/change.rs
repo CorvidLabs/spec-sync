@@ -598,7 +598,14 @@ fn print_mutation_record(
     };
     match format {
         OutputFormat::Json => {
-            let summary = change::summarize_change_with_strict(root, record, strict);
+            // The summary was built while the domain mutation still held the project lock.
+            // Reusing it keeps the machine response consistent with the validated correction
+            // snapshot even if corrections.json changes after persistence.
+            let summary = if strict {
+                &result.strict_summary
+            } else {
+                &result.summary
+            };
             let acceptance_entries = change::acceptance_entries(root, record);
             print_json(&serde_json::json!({
                 "change": record,
@@ -2051,6 +2058,9 @@ mod tests {
             .expect("corrupt ledger after persistence");
 
         assert!(change::effective_change_definition(root, &result.change).is_err());
+        assert!(!change::summarize_change(root, &result.change).correction_valid);
+        assert!(result.summary.correction_valid);
+        assert!(result.strict_summary.correction_valid);
         assert!(
             print_mutation_record(root, &record.id, &result, OutputFormat::Text, true, false)
                 .is_ok()

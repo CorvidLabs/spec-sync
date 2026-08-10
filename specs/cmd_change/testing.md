@@ -18,5 +18,7 @@ byte-for-byte before and after each rejected mutation. The change-domain lock-ra
 proves an answer mutation revalidates after acquiring the persistence lock when the ledger becomes
 invalid while it waits. A command-unit regression then corrupts the ledger after a successful
 mutation and proves both text and JSON rendering succeed from the transaction snapshot instead of
-reporting a false failure after persistence. CodeQL enforces that correction-ledger-derived values
-remain confined to the JSON branch; text-only counts come from an independent state reload.
+reporting a false failure after persistence. It also proves a live summary becomes invalid after
+corruption while both transaction-captured normal/strict summaries remain valid. CodeQL enforces
+that correction-ledger-derived values remain confined to the JSON branch; text-only counts come
+from an independent state reload.

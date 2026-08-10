@@ -17,3 +17,5 @@ artifact: tasks
 - [x] Materialize `REQ-change-057` into canonical requirements.
 - [x] Add deterministic text and JSON post-persistence rendering coverage.
 - [x] Break CodeQL cleartext taint from correction snapshots to text-only count output.
+- [x] Capture normal/strict mutation summaries before releasing the project lock.
+- [x] Restore the documented record-returning domain wrappers to production builds.

@@ -999,6 +999,8 @@ pub(crate) struct DefinitionMutationResult {
     pub(crate) change: ChangeRecord,
     pub(crate) effective_definition: EffectiveChangeDefinition,
     pub(crate) corrections: Vec<CorrectionRecord>,
+    pub(crate) summary: ChangeSummary,
+    pub(crate) strict_summary: ChangeSummary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1960,7 +1962,8 @@ pub fn next_questions(record: &ChangeRecord) -> Vec<InterviewQuestion> {
     questions
 }
 
-#[cfg(test)]
+/// Answer one deterministic interview question after validating the existing definition ledger.
+#[allow(dead_code)]
 pub fn answer_question(
     root: &Path,
     id: &str,
@@ -2030,14 +2033,20 @@ pub(crate) fn answer_question_with_snapshot(
         }
     }
     record.updated_at = now();
-    let result = definition_mutation_result(record, corrections)?;
-    save_change(root, &result.change)?;
-    write_change_markdown(root, &result.change)?;
-    ensure_artifact_files(root, &result.change)?;
-    Ok(result)
+    let effective_definition = validate_definition_mutation(&record, &corrections)?;
+    save_change(root, &record)?;
+    write_change_markdown(root, &record)?;
+    ensure_artifact_files(root, &record)?;
+    Ok(definition_mutation_result(
+        root,
+        record,
+        effective_definition,
+        corrections,
+    ))
 }
 
-#[cfg(test)]
+/// Add an ordering dependency after validating the existing definition ledger.
+#[allow(dead_code)]
 pub fn add_dependency(root: &Path, id: &str, dependency: &str) -> Result<ChangeRecord, String> {
     add_dependency_with_snapshot(root, id, dependency).map(|result| result.change)
 }
@@ -2073,13 +2082,19 @@ pub(crate) fn add_dependency_with_snapshot(
         record.dependencies.sort();
     }
     record.updated_at = now();
-    let result = definition_mutation_result(record, corrections)?;
-    save_change(root, &result.change)?;
-    write_change_markdown(root, &result.change)?;
-    Ok(result)
+    let effective_definition = validate_definition_mutation(&record, &corrections)?;
+    save_change(root, &record)?;
+    write_change_markdown(root, &record)?;
+    Ok(definition_mutation_result(
+        root,
+        record,
+        effective_definition,
+        corrections,
+    ))
 }
 
-#[cfg(test)]
+/// Add one exact semantic-succession obligation after validating the definition ledger.
+#[allow(dead_code)]
 pub fn add_supersedes_obligation(
     root: &Path,
     id: &str,
@@ -2174,10 +2189,15 @@ pub(crate) fn add_supersedes_obligation_with_snapshot(
     validate_supersedes_edges(&record)?;
     validate_supersedes_semantics(root, &record)?;
     record.updated_at = now();
-    let result = definition_mutation_result(record, corrections)?;
-    save_change(root, &result.change)?;
-    write_change_markdown(root, &result.change)?;
-    Ok(result)
+    let effective_definition = validate_definition_mutation(&record, &corrections)?;
+    save_change(root, &record)?;
+    write_change_markdown(root, &record)?;
+    Ok(definition_mutation_result(
+        root,
+        record,
+        effective_definition,
+        corrections,
+    ))
 }
 
 /// Load one existing definition only after its caller has acquired the project lock.
@@ -2197,17 +2217,32 @@ fn load_change_for_definition_mutation(
     Ok((record, ledger.corrections))
 }
 
+fn validate_definition_mutation(
+    change: &ChangeRecord,
+    corrections: &[CorrectionRecord],
+) -> Result<EffectiveChangeDefinition, String> {
+    validate_correction_records(change, corrections)
+        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())
+}
+
+/// Build every machine-facing mutation projection before releasing the project lock.
 fn definition_mutation_result(
+    root: &Path,
     change: ChangeRecord,
+    effective_definition: EffectiveChangeDefinition,
     corrections: Vec<CorrectionRecord>,
-) -> Result<DefinitionMutationResult, String> {
-    let effective_definition = validate_correction_records(&change, &corrections)
-        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
-    Ok(DefinitionMutationResult {
+) -> DefinitionMutationResult {
+    let summary =
+        summarize_change_with_effective(root, &change, false, Some(&effective_definition));
+    let strict_summary =
+        summarize_change_with_effective(root, &change, true, Some(&effective_definition));
+    DefinitionMutationResult {
         change,
         effective_definition,
         corrections,
-    })
+        summary,
+        strict_summary,
+    }
 }
 
 pub fn approve_definition(
@@ -5997,10 +6032,18 @@ pub fn summarize_change_with_strict(
     record: &ChangeRecord,
     explicit_strict: bool,
 ) -> ChangeSummary {
-    let effective = effective_change_definition(root, record);
-    let correction_valid = effective.is_ok();
+    let effective = effective_change_definition(root, record).ok();
+    summarize_change_with_effective(root, record, explicit_strict, effective.as_ref())
+}
+
+fn summarize_change_with_effective(
+    root: &Path,
+    record: &ChangeRecord,
+    explicit_strict: bool,
+    effective: Option<&EffectiveChangeDefinition>,
+) -> ChangeSummary {
+    let correction_valid = effective.is_some();
     let corrected_fields = effective
-        .as_ref()
         .map(|definition| {
             definition
                 .answers
@@ -6040,7 +6083,6 @@ pub fn summarize_change_with_strict(
     };
     let artifacts_complete = validate_artifacts(root, record).is_ok();
     let incomplete_artifacts = effective
-        .as_ref()
         .map(|definition| {
             definition
                 .selected_artifacts

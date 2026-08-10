@@ -45,17 +45,17 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             id,
             question,
             answer,
-        } => change::answer_question(root, &id, &question, &answer)
-            .and_then(|record| print_record(root, &record, format, true, strict)),
-        ChangeAction::Depend { id, on } => change::add_dependency(root, &id, &on)
-            .and_then(|record| print_record(root, &record, format, false, strict)),
+        } => change::answer_question_with_snapshot(root, &id, &question, &answer)
+            .and_then(|result| print_mutation_record(root, &result, format, true, strict)),
+        ChangeAction::Depend { id, on } => change::add_dependency_with_snapshot(root, &id, &on)
+            .and_then(|result| print_mutation_record(root, &result, format, false, strict)),
         ChangeAction::Supersede {
             id,
             predecessor,
             path,
             module,
             digest,
-        } => change::add_supersedes_obligation(
+        } => change::add_supersedes_obligation_with_snapshot(
             root,
             &id,
             &predecessor,
@@ -63,7 +63,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             &module,
             &digest,
         )
-            .and_then(|record| print_record(root, &record, format, false, strict)),
+            .and_then(|result| print_mutation_record(root, &result, format, false, strict)),
         ChangeAction::List => {
             let _scope = change::begin_change_read_scope(root);
             print_records(root, &change::list_changes(root), format, strict)
@@ -563,6 +563,66 @@ fn print_record(
             // identity/state only; digests and correction-ledger details stay JSON-only.
             ensure_text_correction_ledger_valid(root, record)?;
             // `text_mode_next_action` uses lightweight artifact file reads only.
+            print_change_text_identity(record);
+            let next = text_mode_next_action(root, record, &questions);
+            println!("  Next: {next}");
+            print_change_text_answers(record);
+            if record.correction_count > 0 {
+                println!(
+                    "  Corrections: {} recorded (use --json for the audit ledger)",
+                    record.correction_count
+                );
+            }
+            if !record.acceptance_owner_corrections.is_empty() {
+                println!(
+                    "  Acceptance owner corrections: {} (use --json for details)",
+                    record.acceptance_owner_corrections.len()
+                );
+            }
+            if include_questions && !questions.is_empty() {
+                println!("\nInterview:");
+                for question in &questions {
+                    println!("  {} — {}", question.id.cyan(), question.prompt);
+                    if !question.choices.is_empty() {
+                        println!("    Choices: {}", question.choices.join(", "));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn print_mutation_record(
+    root: &Path,
+    result: &change::DefinitionMutationResult,
+    format: OutputFormat,
+    include_questions: bool,
+    strict: bool,
+) -> Result<(), String> {
+    let record = &result.change;
+    let questions = if include_questions {
+        change::next_questions(record)
+    } else {
+        Vec::new()
+    };
+    match format {
+        OutputFormat::Json => {
+            let summary = change::summarize_change_with_strict(root, record, strict);
+            let acceptance_entries = change::acceptance_entries(root, record);
+            print_json(&serde_json::json!({
+                "change": record,
+                "effective_definition": result.effective_definition,
+                "acceptance_entries": acceptance_entries,
+                "corrections": result.corrections,
+                "summary": summary,
+                "questions": questions,
+            }));
+        }
+        _ => {
+            // The domain operation validated correction history while holding the mutation lock.
+            // Do not turn successful persistence into a false command failure by rereading that
+            // ledger after the transaction has completed.
             print_change_text_identity(record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
@@ -1952,6 +2012,44 @@ mod tests {
 
         assert_eq!(error, INVALID_CORRECTION_LEDGER_TEXT);
         assert!(!error.contains("malformed correction ledger"));
+    }
+
+    // Verifies REQ-cmd-change-010.
+    #[test]
+    fn mutation_output_uses_the_in_transaction_correction_snapshot() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        change::write_default_policy(root, Vec::new()).expect("write default policy");
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Render one successful lifecycle mutation".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        let result = change::answer_question_with_snapshot(
+            root,
+            &record.id,
+            "acceptance_criteria",
+            "The successful mutation renders from its validated transaction snapshot",
+        )
+        .expect("persist mutation");
+        let ledger_path = root
+            .join(".specsync/changes")
+            .join(&record.id)
+            .join("corrections.json");
+        fs::write(&ledger_path, "{ malformed correction ledger\\n")
+            .expect("corrupt ledger after persistence");
+
+        assert!(change::effective_change_definition(root, &result.change).is_err());
+        assert!(print_mutation_record(root, &result, OutputFormat::Text, true, false).is_ok());
+        assert!(print_mutation_record(root, &result, OutputFormat::Json, true, false).is_ok());
     }
 
     #[test]

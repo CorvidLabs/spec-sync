@@ -13,3 +13,6 @@ artifact: tasks
 - [x] Add deterministic regression coverage for corruption while a mutation waits on the lock.
 - [x] Record the correction-ledger decision in the change-domain companions and contract.
 - [x] Renew verification and prepare the expanded scope for independent review.
+- [x] Eliminate the post-persistence renderer reread with a validated mutation result.
+- [x] Materialize `REQ-change-057` into canonical requirements.
+- [x] Add deterministic text and JSON post-persistence rendering coverage.

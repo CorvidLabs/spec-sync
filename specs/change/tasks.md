@@ -45,5 +45,6 @@ spec: change.spec.md
 - [x] Fail closed on missing adoption anchors, preserve append-only review attempts, recover partial
   terminal archive writes, share freshness limits, and authenticate squash-surviving v2 archives
 - [x] Validate correction-ledger health inside locked answer, dependency, and supersession mutations
+- [x] Return validated mutation snapshots so command rendering cannot fail after persistence
 
 - [x] Approve fails closed on ADDED of living REQ; draft next_action waits on complete artifacts (2026-08-01)

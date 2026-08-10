@@ -32,8 +32,8 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 10. Review renders the same explicit pass/block verdict and stable reviewer claim in text and JSON
     while domain policy preserves append-only attempts and hosted policy authenticates provenance.
 11. Existing-change mutations delegate to domain transactions that validate correction-ledger
-    integrity after acquiring the persistence lock, so neither rendering failure nor a lock-wait
-    race can conceal a mutation that already took effect.
+    integrity after acquiring the persistence lock and render from the returned validated snapshot,
+    so neither rendering failure nor a lock-wait race can conceal a mutation that already took effect.
 
 ## Public API
 
@@ -82,6 +82,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Invalid batch owner correction or empty discovery | Command reports the domain rejection and exits 1 without lifecycle mutation |
 | Scope approver records the scoped review, or the current verdict is blocking | Command reports the independent-review rejection and finalization remains blocked |
 | Invalid correction ledger before answer, depend, or supersede | Command emits the safe integrity diagnostic and leaves lifecycle files unchanged |
+| Correction ledger changes after a successful mutation | Command renders the transaction's validated snapshot and does not report a false failure after persistence |
 
 ## Dependencies
 
@@ -125,4 +126,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-08 | CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid: Fail closed in text lifecycle views when a correction ledger is invalid |
 | 2026-08-10 | CHG-0103: Validate correction-ledger integrity before existing-change mutations and increment the command contract version |
 | 2026-08-10 | CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif: Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version |
-| 2026-08-10 | CHG-0103: Delegate correction-ledger validation to locked change-domain mutations |
+| 2026-08-10 | CHG-0103: Delegate correction-ledger validation to locked change-domain mutations and render successful mutations from their validated transaction snapshots |

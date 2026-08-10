@@ -18,3 +18,10 @@ A fresh PR review found that a command-layer preflight still left a time-of-chec
 the ledger could change while the domain mutation waited for the project lock. The expanded fix
 therefore moves the authoritative validation into each mutation's locked domain transaction. It
 also records the original correction-ledger health decision in `specs/change/context.md`.
+
+A later exact-head review found one remaining post-transaction gap: the command renderer reread
+`corrections.json` after the domain operation released its lock. If the ledger changed in that
+interval, the command exited nonzero after already persisting the requested mutation. The same
+review caught that `REQ-change-057` had not been materialized into canonical requirements. The
+follow-up carries the validated effective definition and correction history out of the transaction
+for output and adds the missing canonical requirement block.

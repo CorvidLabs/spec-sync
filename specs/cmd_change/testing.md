@@ -16,4 +16,6 @@ CLI integration coverage validates creation, JSON schema, rationale errors, adop
 and supersede, requires the safe integrity diagnostic, and compares every lifecycle file
 byte-for-byte before and after each rejected mutation. The change-domain lock-race regression
 proves an answer mutation revalidates after acquiring the persistence lock when the ledger becomes
-invalid while it waits.
+invalid while it waits. A command-unit regression then corrupts the ledger after a successful
+mutation and proves both text and JSON rendering succeed from the transaction snapshot instead of
+reporting a false failure after persistence.

@@ -995,6 +995,12 @@ pub struct CorrectionResult {
     pub summary: ChangeSummary,
 }
 
+pub(crate) struct DefinitionMutationResult {
+    pub(crate) change: ChangeRecord,
+    pub(crate) effective_definition: EffectiveChangeDefinition,
+    pub(crate) corrections: Vec<CorrectionRecord>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CorrectionLedger {
@@ -1954,14 +1960,24 @@ pub fn next_questions(record: &ChangeRecord) -> Vec<InterviewQuestion> {
     questions
 }
 
+#[cfg(test)]
 pub fn answer_question(
     root: &Path,
     id: &str,
     question: &str,
     answer: &str,
 ) -> Result<ChangeRecord, String> {
+    answer_question_with_snapshot(root, id, question, answer).map(|result| result.change)
+}
+
+pub(crate) fn answer_question_with_snapshot(
+    root: &Path,
+    id: &str,
+    question: &str,
+    answer: &str,
+) -> Result<DefinitionMutationResult, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change_for_definition_mutation(root, id)?;
+    let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(&record, &[ChangeState::Draft], "answer interview questions")?;
     match question {
         "acceptance_criteria" => {
@@ -2014,15 +2030,25 @@ pub fn answer_question(
         }
     }
     record.updated_at = now();
-    save_change(root, &record)?;
-    write_change_markdown(root, &record)?;
-    ensure_artifact_files(root, &record)?;
-    Ok(record)
+    let result = definition_mutation_result(record, corrections)?;
+    save_change(root, &result.change)?;
+    write_change_markdown(root, &result.change)?;
+    ensure_artifact_files(root, &result.change)?;
+    Ok(result)
 }
 
+#[cfg(test)]
 pub fn add_dependency(root: &Path, id: &str, dependency: &str) -> Result<ChangeRecord, String> {
+    add_dependency_with_snapshot(root, id, dependency).map(|result| result.change)
+}
+
+pub(crate) fn add_dependency_with_snapshot(
+    root: &Path,
+    id: &str,
+    dependency: &str,
+) -> Result<DefinitionMutationResult, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change_for_definition_mutation(root, id)?;
+    let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(
         &record,
         &[
@@ -2047,11 +2073,13 @@ pub fn add_dependency(root: &Path, id: &str, dependency: &str) -> Result<ChangeR
         record.dependencies.sort();
     }
     record.updated_at = now();
-    save_change(root, &record)?;
-    write_change_markdown(root, &record)?;
-    Ok(record)
+    let result = definition_mutation_result(record, corrections)?;
+    save_change(root, &result.change)?;
+    write_change_markdown(root, &result.change)?;
+    Ok(result)
 }
 
+#[cfg(test)]
 pub fn add_supersedes_obligation(
     root: &Path,
     id: &str,
@@ -2060,8 +2088,27 @@ pub fn add_supersedes_obligation(
     module: &str,
     predecessor_entry_digest: &str,
 ) -> Result<ChangeRecord, String> {
+    add_supersedes_obligation_with_snapshot(
+        root,
+        id,
+        predecessor,
+        path,
+        module,
+        predecessor_entry_digest,
+    )
+    .map(|result| result.change)
+}
+
+pub(crate) fn add_supersedes_obligation_with_snapshot(
+    root: &Path,
+    id: &str,
+    predecessor: &str,
+    path: &str,
+    module: &str,
+    predecessor_entry_digest: &str,
+) -> Result<DefinitionMutationResult, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change_for_definition_mutation(root, id)?;
+    let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(
         &record,
         &[ChangeState::Draft],
@@ -2127,9 +2174,10 @@ pub fn add_supersedes_obligation(
     validate_supersedes_edges(&record)?;
     validate_supersedes_semantics(root, &record)?;
     record.updated_at = now();
-    save_change(root, &record)?;
-    write_change_markdown(root, &record)?;
-    Ok(record)
+    let result = definition_mutation_result(record, corrections)?;
+    save_change(root, &result.change)?;
+    write_change_markdown(root, &result.change)?;
+    Ok(result)
 }
 
 /// Load one existing definition only after its caller has acquired the project lock.
@@ -2137,11 +2185,29 @@ pub fn add_supersedes_obligation(
 /// Answer, dependency, and supersession mutations share this path so correction-ledger
 /// validation and persistence are one serialized transaction. The fixed diagnostic keeps
 /// correction values, ledger bytes, and digests out of human command output.
-fn load_change_for_definition_mutation(root: &Path, id: &str) -> Result<ChangeRecord, String> {
+fn load_change_for_definition_mutation(
+    root: &Path,
+    id: &str,
+) -> Result<(ChangeRecord, Vec<CorrectionRecord>), String> {
     let record = load_change(root, id)?;
-    effective_change_definition(root, &record)
+    let ledger = load_correction_ledger(root, &record)
         .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
-    Ok(record)
+    validate_correction_records(&record, &ledger.corrections)
+        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+    Ok((record, ledger.corrections))
+}
+
+fn definition_mutation_result(
+    change: ChangeRecord,
+    corrections: Vec<CorrectionRecord>,
+) -> Result<DefinitionMutationResult, String> {
+    let effective_definition = validate_correction_records(&change, &corrections)
+        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+    Ok(DefinitionMutationResult {
+        change,
+        effective_definition,
+        corrections,
+    })
 }
 
 pub fn approve_definition(

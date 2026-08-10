@@ -17,6 +17,8 @@ Acceptance Criteria
 - A ledger that becomes invalid while a mutation waits for the project lock is rejected after lock
   acquisition and before persistence.
 - Read-only text show, status, and list views retain their existing fail-closed behavior.
+- Successful mutations render from the correction snapshot validated by the domain transaction and
+  cannot report a false failure because the ledger changes after persistence.
 - Valid mutation and rendering behavior is unchanged.
 - The `cmd_change` canonical contract version is incremented.
 

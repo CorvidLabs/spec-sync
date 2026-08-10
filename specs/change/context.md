@@ -118,7 +118,10 @@ Correction-ledger health is a change-domain invariant, not command-rendering pol
 views map any invalid effective definition to one safe generic diagnostic, while existing-change
 definition mutations reload and validate the ledger only after acquiring the lifecycle project
 lock. Keeping validation and persistence in one locked transaction removes the command-layer
-time-of-check/time-of-use gap without exposing correction values, ledger bytes, or digests.
+time-of-check/time-of-use gap without exposing correction values, ledger bytes, or digests. Each
+successful mutation also returns its validated effective definition and correction history, so the
+command adapter never rereads that ledger after persistence and cannot turn success into a false
+nonzero result.
 
 Lifecycle transactions publish a versioned count/digest journal durably before any payload, then
 atomically replace payloads and clear the journal last. Backup reads distinguish not-found from all

@@ -12,4 +12,6 @@ Acceptance Criteria
 - A ledger corrupted while a mutation waits for the lock causes a deterministic safe failure and
   leaves every lifecycle file other than the external corruption byte-for-byte unchanged.
 - The safe diagnostic contains no correction value, ledger fragment, or digest.
+- A successful mutation returns the effective definition and correction history validated by its
+  transaction so command rendering does not reread the ledger and report failure after persistence.
 - Valid mutations retain their established state and output behavior.

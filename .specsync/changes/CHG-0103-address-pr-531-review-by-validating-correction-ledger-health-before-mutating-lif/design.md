@@ -17,3 +17,9 @@ compares them byte-for-byte afterward. A domain race fixture holds the project l
 mutation, corrupts the ledger while that mutation is blocked, releases the lock, and proves the
 mutation revalidates before persistence. This makes the atomic no-partial-mutation contract explicit
 without changing valid command output or JSON behavior.
+
+Successful mutation operations return an internal result containing the persisted record plus the
+effective definition and ordered correction history validated inside the transaction. Mutation
+rendering consumes those values without a fallible live-ledger reread; read-only rendering keeps
+its existing live fail-closed gate. A deterministic command-unit regression corrupts the ledger
+after persistence and proves text and JSON output still complete from the validated snapshot.

@@ -14,3 +14,4 @@ spec: cmd_change.spec.md
 - [x] Dispatch transactional batch correct-owner selection (paths/manifest/all-missing)
 - [x] Dispatch explicit pass/block scoped-review verdicts with equivalent text and JSON
 - [x] Delegate answer, depend, and supersede to locked domain ledger validation before persistence
+- [x] Render successful mutations from their validated domain transaction snapshots

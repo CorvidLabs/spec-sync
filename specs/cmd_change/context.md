@@ -19,5 +19,7 @@ attempt is append-only, and hosted required-check provenance supplies authentica
 
 `answer`, `depend`, and `supersede` delegate correction-ledger health enforcement to their
 mutation-capable domain operations, which reload and validate the ledger while holding the same
-project lock used for persistence. The command adapter retains only read-only rendering validation,
-so the thin-dispatch boundary is preserved and a lock-wait race cannot hide a persisted mutation.
+project lock used for persistence. Successful mutations return the validated effective definition
+and correction history used for output; the command adapter retains live ledger validation only on
+read-only rendering paths. This preserves the thin-dispatch boundary while preventing both the
+lock-wait race and a false post-persistence failure.

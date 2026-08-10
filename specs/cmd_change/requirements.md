@@ -199,13 +199,16 @@ Acceptance Criteria
 ### REQ-cmd-change-010
 
 Lifecycle commands that mutate an existing change and then render its record SHALL validate
-correction-ledger integrity before persisting the mutation.
+correction-ledger integrity before persistence and render from that validated transaction result.
 
 Acceptance Criteria
 
 - `answer`, `depend`, and `supersede` reject an invalid existing correction ledger before
   changing lifecycle files.
+- A ledger that becomes invalid while a mutation waits for the project lock is rejected after lock
+  acquisition and before persistence.
+- Successful mutation output uses the effective definition and correction history returned by the
+  domain transaction, so a later ledger change cannot produce a nonzero exit after persistence.
 - Read-only text show, status, and list views retain their existing fail-closed behavior.
 - Valid mutation and rendering behavior is unchanged.
 - The `cmd_change` canonical contract version is incremented.
-

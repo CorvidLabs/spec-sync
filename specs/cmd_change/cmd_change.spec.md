@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 23
+version: 24
 status: active
 files:
   - src/commands/change.rs
@@ -16,7 +16,7 @@ depends_on:
 
 ## Purpose
 
-Exposes the single one-approval SpecSync lifecycle through equivalent human-readable and structured JSON commands under `specsync change`.
+Exposes the single one-approval SpecSync lifecycle through equivalent human-readable and structured JSON commands under `specsync change`, including an explicit audited self-review exception for solo maintainers.
 
 ## Contract
 
@@ -128,3 +128,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-10 | CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif: Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version |
 | 2026-08-10 | CHG-0103: Delegate correction-ledger validation to locked change-domain mutations and render successful mutations from their validated transaction snapshots |
 | 2026-08-10 | CHG-0103: Select the normal/strict mutation summary captured under the domain transaction lock |
+| 2026-08-09 | CHG-0101-add-audited-solo-maintainer-self-review-override: Add audited solo-maintainer self-review override |

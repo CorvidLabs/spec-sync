@@ -635,28 +635,28 @@ Acceptance Criteria
 
 ### REQ-change-046
 
-Agent-authored changes SHALL receive one independent scoped review of implementation evidence before
-finalization.
+Agent-authored changes SHALL receive one current scoped review of implementation evidence before
+finalization. Independent review remains mandatory by default; a solo maintainer may use the
+explicit audited self-review exception only when its actor equals the scope approver and it records
+a non-empty reason.
 
 Acceptance Criteria
 
-- Review input contains only the change package, implementation diff, canonical semantic delta, and
-  targeted evidence.
-- The result binds the implementation parent commit, those input digests, an explicit pass/block
-  verdict, a stable reviewer claim distinct from the scope approver, and the exact required
-  GitHub Actions check whose authenticated result is proven again by finalization.
-- Every review attempt is append-only; `review.json` is only the latest projection and cannot erase
-  a prior blocking result.
-- Native review recording and finalization run the same every-parent verification-freshness
-  validator as project checking, and every persisted review attempt revalidates that its reviewer
-  is distinct from the scope approver bound to that attempt's contract digest.
-- Every intervening commit is inspected against every parent; any implementation change, including
-  change-then-revert history, stales the review, while the metadata/archive-only finalization commit
-  does not rerun or stale it. Native and hosted validators load the same committed descendant,
-  parent, output, and timeout limits.
-- Finalization fails when a required scoped review is missing or blocking.
-- Status states when review is needed and directs the user to open or update the PR so the configured
-  scoped-review check runs.
+- Ordinary review binds the implementation parent commit, governed input digests, an explicit
+  pass/block verdict, a stable reviewer claim distinct from the scope approver, and the exact
+  required GitHub Actions check whose authenticated result is proven again by finalization.
+- `--self-review --actor <scope-approver> --reason <reason>` records an explicit self-review mode,
+  stable actor, non-empty reason, pass/block verdict, and the same implementation/contract/
+  execution/workspace digest bindings in append-only review history.
+- Self-review evidence never represents itself as an independent review or as authenticated by the
+  required GitHub Actions review check; it replaces only the independent-identity requirement.
+- Every persisted review attempt revalidates mode-specific identity and provenance against the
+  scope approver bound to that attempt's contract digest; missing, malformed, mismatched, or
+  ambiguous self-review evidence fails closed.
+- Current passing review is still required for finalization; definition approval, verification,
+  product CI/trust, and every-parent freshness validation remain mandatory.
+- Existing v2 independent review evidence remains readable and valid.
+- Status distinguishes independent and self-review evidence and gives the applicable next action.
 
 ### REQ-change-audit-project-001
 

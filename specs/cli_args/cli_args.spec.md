@@ -32,7 +32,7 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | `HooksAction` | Sub-subcommand for `Hooks`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, copilot, agents, precommit, claude_code_hook) |
 | `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
-| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, Supersede, List, Show, Status, Approve, Check, Review with explicit pass/block verdict, Finalize, plus compatible historical repair/transition commands |
+| `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, Supersede, List, Show, Status, Approve, Check, Review with independent or explicit audited self-review inputs and pass/block verdict, Finalize, plus compatible historical repair/transition commands |
 
 ## Invariants
 
@@ -141,3 +141,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-08-07 | CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning: Add change ship-status for local ship readiness and merge-before-finalize warning |
 | 2026-08-07 | CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents: Complete buttery ship status tip class and ship preflight for agents |
 | 2026-08-08 | CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship: Ship --push --wait archive tip orchestration for buttery multi-tip ship |
+| 2026-08-09 | CHG-0101-add-audited-solo-maintainer-self-review-override: Add audited solo-maintainer self-review override |

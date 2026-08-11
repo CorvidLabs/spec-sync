@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0101-add-audited-solo-maintainer-self-review-override",
+  "slug": "add-audited-solo-maintainer-self-review-override",
+  "title": "Add audited solo-maintainer self-review override",
+  "description": "Add audited solo-maintainer self-review override",
+  "kind": "feature",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "f1e7d3abea2fed4f12da77a0c700e55d90bd2ad7",
+  "created_at": 1786232400,
+  "updated_at": 1786465105,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/commands/change.rs",
+    "src/cli.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The review command SHALL accept a solo-maintainer exception only when --self-review, --actor, and a non-empty --reason are supplied and the actor matches the approved scope approver; it SHALL persist the exception, actor, and reason in durable review evidence, visibly mark the status as self-reviewed, preserve ordinary independent-review enforcement by default, and reject malformed or mismatched identities."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

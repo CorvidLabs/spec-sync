@@ -14,7 +14,7 @@ depends_on:
 
 ## Purpose
 
-Provides the SpecSync verified spec-driven development lifecycle: one scope approval, targeted verification, one independent scoped review, same-PR finalization, and compatible audited recovery for historical evidence.
+Provides the SpecSync verified spec-driven development lifecycle: one scope approval, targeted verification, an independent review by default or an explicit audited solo-maintainer self-review, same-PR finalization, and compatible audited recovery for historical evidence.
 
 ## Contract
 
@@ -23,7 +23,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 3. Approved semantic deltas form the effective future contract, and `change check` materializes them into canonical specs before scoped review and finalization.
 4. Requirements use stable `REQ-<module>-<number>` IDs, normative SHALL statements, and acceptance criteria.
 5. Verification executes only project-configured commands without a shell and rejects direct or indirect entry into every lifecycle command surface.
-6. Verification and scoped-review evidence bind the implementation commit and governed inputs; a scoped review records an explicit pass/block verdict, must be independent from the scope approver, and stays fresh only when every descendant/parent edge changes supported lifecycle persistence.
+6. Verification and scoped-review evidence bind the implementation commit and governed inputs; a scoped review records an explicit pass/block verdict and is independent by default, while an explicit audited self-review is permitted only for the matching scope approver with a non-empty reason. Both stay fresh only when every descendant/parent edge changes supported lifecycle persistence.
 7. Invalid policy, unavailable coverage comparison, failed evidence, stale ordering gates, and protected sequence-ledger edits without lifecycle coverage fail closed.
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
 9. Approval validates complete module-scoped deltas, refuses `## ADDED` for requirement IDs already present in the living tree (agents must use `## MODIFIED`), corrupt state fails closed, and transactional same-PR finalization remains retryable before or after the archive-directory move.
@@ -91,10 +91,11 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `SemanticSuccessionTupleV1` | Exact predecessor, path, module, old-entry digest, and new-entry digest transition |
 | `SemanticSuccessionEvidenceV1` | Versioned sorted one-to-one closing evidence for approved supersedes obligations |
 | `VerificationRecord` | Commit-bound verification result with separate stable-scope and volatile-execution digests, commands, requirement coverage, and optional acceptance manifest/succession evidence |
-| `ScopedReviewVerdict` | Explicit passing or blocking conclusion for one independent scoped review |
-| `ScopedReviewProvenanceProvider` | External provider class that authenticates the required scoped-review result |
-| `ScopedReviewProvenanceV1` | Versioned required GitHub Actions check binding carried by review evidence |
-| `ScopedReviewRecord` | Stable reviewer claim, required-check provenance, explicit verdict, implementation commit, scope/execution/workspace digests, and review timestamp bound before finalization |
+| `ScopedReviewVerdict` | Explicit passing or blocking conclusion for one scoped review |
+| `ScopedReviewMode` | Independent-by-default or explicit audited self-review classification for review evidence |
+| `ScopedReviewProvenanceProvider` | Required GitHub check provenance for independent review or audited local provenance for self-review |
+| `ScopedReviewProvenanceV1` | Versioned provenance binding carried by review evidence |
+| `ScopedReviewRecord` | Mode-aware reviewer claim, optional self-review reason, provenance, verdict, implementation commit, scope/execution/workspace digests, and timestamp bound before finalization |
 | `FinalizationRecord` | Automated non-approval evidence binding implementation commit/tree, contract/workspace/closing/review digests, archive identity, and a domain-separated finalization digest |
 | `ChangeReadScope` | Crate-private invocation guard that owns one bounded read-only lifecycle snapshot |
 | `InterviewQuestion` | Stable deterministic question with choices and recommendation |
@@ -133,6 +134,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `check_change_with_strict` | `root, optional id, strict` | `Result<Option<VerificationRecord>, String>` | Run `check_change` with additive strict validators |
 | `record_scoped_review` | `root, id, reviewer` | `Result<ScopedReviewRecord, String>` | Record one independent implementation-scoped review bound to current governed inputs |
 | `record_scoped_review_with_verdict` | `root, id, reviewer, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit passing or blocking independent review; only a current passing verdict permits finalization |
+| `record_scoped_self_review` | `root, id, actor, reason` | `Result<ScopedReviewRecord, String>` | Record an explicit audited self-review only when actor matches the approved scope approver |
+| `record_scoped_self_review_with_verdict` | `root, id, actor, reason, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit audited passing or blocking self-review with durable reason and provenance |
 | `finalize_change` | `root, id` | `Result<PathBuf, String>` | Validate current verification/review evidence and transactionally produce the dated same-PR archive |
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
 | `correct_interview_metadata` | `root, id, field, value, actor, reason` | `Result<CorrectionResult, String>` | Append a supported accepted-metadata correction and return the effective audited view |
@@ -374,3 +377,4 @@ Acceptance Criteria
 | 2026-08-08 | CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid: Fail closed in text lifecycle views when a correction ledger is invalid |
 | 2026-08-10 | CHG-0103: Validate correction-ledger health inside locked existing-change definition mutations |
 | 2026-08-10 | CHG-0103: Keep documented mutation wrappers in production and capture normal/strict machine summaries inside the locked transaction |
+| 2026-08-09 | CHG-0101-add-audited-solo-maintainer-self-review-override: Add audited solo-maintainer self-review override |

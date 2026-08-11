@@ -161,20 +161,39 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
         ChangeAction::Review {
             id,
             reviewer,
+            self_review,
+            actor,
+            reason,
             verdict,
         } => change::ScopedReviewVerdict::parse(&verdict).and_then(|verdict| {
-            let result = if verdict == change::ScopedReviewVerdict::Pass {
-                change::record_scoped_review(root, &id, reviewer)
+            let result = if self_review {
+                let actor = actor.ok_or_else(|| "self-review requires --actor".to_string())?;
+                let reason = reason.ok_or_else(|| "self-review requires --reason".to_string())?;
+                if verdict == change::ScopedReviewVerdict::Pass {
+                    change::record_scoped_self_review(root, &id, actor, reason)
+                } else {
+                    change::record_scoped_self_review_with_verdict(root, &id, actor, reason, verdict)
+                }
             } else {
-                change::record_scoped_review_with_verdict(root, &id, reviewer, verdict)
+                let reviewer = reviewer.ok_or_else(|| "independent review requires --reviewer".to_string())?;
+                if verdict == change::ScopedReviewVerdict::Pass {
+                    change::record_scoped_review(root, &id, reviewer)
+                } else {
+                    change::record_scoped_review_with_verdict(root, &id, reviewer, verdict)
+                }
             };
             result.map(|review| {
                 match format {
                     OutputFormat::Json => print_json(&review),
                     _ => println!(
-                        "{} {} independent review recorded as {} at {}",
+                        "{} {} {} recorded as {} at {}",
                         "✓".green(),
                         review.change_id,
+                        if review.mode == change::ScopedReviewMode::SelfReview {
+                            "audited self-review"
+                        } else {
+                            "independent review"
+                        },
                         review.verdict.as_str(),
                         review.implementation_commit
                     ),
@@ -548,11 +567,13 @@ fn print_record(
             // digest and nothing emitted one, so callers had to read
             // verification.json by hand. Surface the entries here.
             let acceptance_entries = change::acceptance_entries(root, record);
+            let review = persisted_review_projection(root, record);
             print_json(&serde_json::json!({
                 "change": record,
                 "effective_definition": effective_definition,
                 "acceptance_entries": acceptance_entries,
                 "corrections": corrections,
+                "review": review,
                 "summary": summary,
                 "questions": questions,
             }));
@@ -568,6 +589,14 @@ fn print_record(
             println!("  Next: {next}");
             print_change_text_answers(record);
             print_change_text_correction_counts(record);
+            if persisted_review_projection(root, record)
+                .as_ref()
+                .and_then(|review| review.get("mode"))
+                .and_then(|mode| mode.as_str())
+                == Some("self_review")
+            {
+                println!("  Review: audited self-review recorded (use --json for audit details)");
+            }
             if include_questions && !questions.is_empty() {
                 println!("\nInterview:");
                 for question in &questions {
@@ -644,6 +673,15 @@ fn print_mutation_record(
     Ok(())
 }
 
+fn persisted_review_projection(root: &Path, record: &ChangeRecord) -> Option<serde_json::Value> {
+    let path = root
+        .join(".specsync/changes")
+        .join(&record.id)
+        .join("review.json");
+    let content = fs::read_to_string(path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
 /// Print only non-sensitive identity fields for human text sinks.
 ///
 /// Digests / correction ledgers must not flow into `println!` (CodeQL
@@ -716,7 +754,7 @@ fn text_mode_next_action(
         }
         ChangeState::Verifying => {
             format!(
-                "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — independent review then finalize before merging; merging first orphans verification evidence"
+                "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — scoped review then finalize before merging; merging first orphans verification evidence"
             )
         }
         ChangeState::Accepted if record.workflow_version >= 2 => {
@@ -776,11 +814,13 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         (None, false, false)
     };
 
-    let review_path = root
-        .join(".specsync/changes")
-        .join(&record.id)
-        .join("review.json");
-    let review_present = review_path.is_file();
+    let review = persisted_review_projection(root, record);
+    let review_present = review.is_some();
+    let review_mode = review
+        .as_ref()
+        .and_then(|review| review.get("mode"))
+        .and_then(|mode| mode.as_str())
+        .unwrap_or("independent");
 
     let mut blockers = Vec::new();
     let mut warnings = Vec::new();
@@ -803,7 +843,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         }
         if record.state == ChangeState::Verifying && !review_present {
             warnings.push(
-                "no scoped review recorded yet; finalize requires independent review".to_string(),
+                "no scoped review recorded yet; finalize requires a current scoped review"
+                    .to_string(),
             );
         }
         if record.state == ChangeState::Verifying {
@@ -861,6 +902,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         verification_present,
         verification_ancestor,
         review_present,
+        review_mode,
         ready_to_finalize,
     );
 
@@ -914,6 +956,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         "verification_present": verification_present,
         "verification_ancestor_of_head": verification_ancestor,
         "review_present": review_present,
+        "review_mode": review_mode,
         "ready_to_finalize": ready_to_finalize,
         "blockers": blockers,
         "warnings": warnings,
@@ -1058,6 +1101,7 @@ fn ship_stages(
     verification_present: bool,
     verification_ancestor: bool,
     review_present: bool,
+    review_mode: &str,
     ready_to_finalize: bool,
 ) -> Vec<serde_json::Value> {
     let id = record.id.as_str();
@@ -1093,10 +1137,14 @@ fn ship_stages(
         "title": "Review tip (trust reuse from product parent)",
         "status": review_status,
         "action": if review_present {
-            "scoped review is recorded".to_string()
+            if review_mode == "self_review" {
+                "audited self-review is recorded; product trust remains required".to_string()
+            } else {
+                "independent scoped review is recorded".to_string()
+            }
         } else if product_done {
             format!(
-                "record independent review: `specsync change review {id} --reviewer <other>` then push a review_only tip if CI requires it; wait for trust reuse"
+                "record independent review: `specsync change review {id} --reviewer <other>`; a solo maintainer may use `--self-review --actor <scope-approver> --reason <reason>`; then push a review_only tip if CI requires it and wait for trust reuse"
             )
         } else {
             "complete product tip first".to_string()
@@ -1121,7 +1169,7 @@ fn ship_stages(
                 "run `specsync change ship {id}` (or finalize), push the archive tip, wait for CI, then merge"
             )
         } else {
-            "complete product tip and independent review first".to_string()
+            "complete product tip and scoped review first".to_string()
         },
     }));
 
@@ -1269,7 +1317,11 @@ fn print_ship_status(
             println!(
                 "  Review: {}",
                 if report["review_present"].as_bool() == Some(true) {
-                    "recorded"
+                    if report["review_mode"].as_str() == Some("self_review") {
+                        "audited self-review recorded"
+                    } else {
+                        "independent review recorded"
+                    }
                 } else {
                     "missing"
                 }
@@ -2069,6 +2121,39 @@ mod tests {
             print_mutation_record(root, &record.id, &result, OutputFormat::Json, true, false)
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn persisted_review_projection_surfaces_self_review_mode_and_reason() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Render self-review status".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        let review_path = root
+            .join(".specsync/changes")
+            .join(&record.id)
+            .join("review.json");
+        fs::write(
+            review_path,
+            r#"{"mode":"self_review","reviewer":"Scope owner","reason":"solo maintainer"}"#,
+        )
+        .expect("write review");
+
+        let review = persisted_review_projection(root, &record).expect("review projection");
+        assert_eq!(review["mode"], "self_review");
+        assert_eq!(review["reviewer"], "Scope owner");
+        assert_eq!(review["reason"], "solo maintainer");
     }
 
     #[test]

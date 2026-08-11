@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1786236864,
+      "commit": "f1e7d3abea2fed4f12da77a0c700e55d90bd2ad7",
+      "contract_digest": "79b18af0eed956e2228558de70c74a06898b09aaae2d1da9042683d0329dd604",
+      "execution_digest": "8eef252b976d517ae513f35c3ad5ce46253c0f3371905aa6caa1475ef2db640b",
+      "workspace_digest": "3ec9bf779aa463e5690155e5ae7b5f92ae68a0cb7c737c4124c4ef242da838db",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-046",
+        "REQ-cli-args-009",
+        "REQ-cmd-change-005"
+      ]
+    },
+    {
+      "timestamp": 1786237311,
+      "commit": "f1e7d3abea2fed4f12da77a0c700e55d90bd2ad7",
+      "contract_digest": "79b18af0eed956e2228558de70c74a06898b09aaae2d1da9042683d0329dd604",
+      "execution_digest": "8eef252b976d517ae513f35c3ad5ce46253c0f3371905aa6caa1475ef2db640b",
+      "workspace_digest": "1ec1cca1b6c458fa7477660594bde045dd79fb71516fc8acd6dcf772dbfa1f76",
+      "passed": false,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": false,
+          "exit_code": 101
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-046",
+        "REQ-cli-args-009",
+        "REQ-cmd-change-005"
+      ]
+    },
+    {
+      "timestamp": 1786238800,
+      "commit": "f1e7d3abea2fed4f12da77a0c700e55d90bd2ad7",
+      "contract_digest": "79b18af0eed956e2228558de70c74a06898b09aaae2d1da9042683d0329dd604",
+      "execution_digest": "2be89351a8e613a829807a20e9424588735d794a1502aa3ed10619de5763963e",
+      "workspace_digest": "6fb79a64b1f40b83f6ae19bb712a640e3ce110fd8835e7e959f6a64421bd4b4a",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-046",
+        "REQ-cli-args-009",
+        "REQ-cmd-change-005"
+      ]
+    },
+    {
+      "timestamp": 1786465103,
+      "commit": "f3a65dc5577b0bc15d4ef45b796b3e7c4e81c44d",
+      "contract_digest": "79b18af0eed956e2228558de70c74a06898b09aaae2d1da9042683d0329dd604",
+      "execution_digest": "2be89351a8e613a829807a20e9424588735d794a1502aa3ed10619de5763963e",
+      "workspace_digest": "71f2d511b0d114df5fadc342ac430e814037df55a642b863dc59724e49334478",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-046",
+        "REQ-cli-args-009",
+        "REQ-cmd-change-005"
+      ]
+    }
+  ]
+}

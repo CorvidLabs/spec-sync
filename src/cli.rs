@@ -434,13 +434,22 @@ pub enum ChangeAction {
         /// Change ID
         id: String,
     },
-    /// Record one independent scoped review of the current implementation
+    /// Record an independent review, or an explicit audited self-review for a solo maintainer
     Review {
         /// Change ID
         id: String,
         /// Stable ASCII reviewer claim (the required GitHub check authenticates the review)
-        #[arg(long)]
-        reviewer: String,
+        #[arg(long, required_unless_present = "self_review", conflicts_with_all = ["self_review", "actor", "reason"])]
+        reviewer: Option<String>,
+        /// Record an audited solo-maintainer self-review instead of an independent review
+        #[arg(long, requires_all = ["actor", "reason"], conflicts_with = "reviewer")]
+        self_review: bool,
+        /// Stable ASCII actor claim; required only with --self-review and must match the scope approver
+        #[arg(long, requires = "self_review")]
+        actor: Option<String>,
+        /// Non-empty audit reason; required only with --self-review
+        #[arg(long, requires = "self_review")]
+        reason: Option<String>,
         /// Scoped review verdict
         #[arg(long, value_parser = ["pass", "block"], default_value = "pass")]
         verdict: String,
@@ -872,10 +881,16 @@ mod tests {
                 action: ChangeAction::Review {
                     id,
                     reviewer,
-                    verdict
+                    self_review,
+                    actor,
+                    reason,
+                    verdict,
                 }
             }) if id == "CHG-0001-passkeys"
-                && reviewer == "Independent agent"
+                && reviewer.as_deref() == Some("Independent agent")
+                && !self_review
+                && actor.is_none()
+                && reason.is_none()
                 && verdict == "pass"
         ));
 
@@ -896,6 +911,44 @@ mod tests {
                 action: ChangeAction::Review { verdict, .. }
             }) if verdict == "block"
         ));
+
+        let self_review = Cli::try_parse_from([
+            "specsync",
+            "change",
+            "review",
+            "CHG-0001-passkeys",
+            "--self-review",
+            "--actor",
+            "0xLeif",
+            "--reason",
+            "solo maintainer",
+        ])
+        .unwrap();
+        assert!(matches!(
+            self_review.command,
+            Some(Command::Change {
+                action: ChangeAction::Review {
+                    reviewer: None,
+                    self_review: true,
+                    actor: Some(actor),
+                    reason: Some(reason),
+                    verdict,
+                    ..
+                }
+            }) if actor == "0xLeif" && reason == "solo maintainer" && verdict == "pass"
+        ));
+        assert!(
+            Cli::try_parse_from([
+                "specsync",
+                "change",
+                "review",
+                "CHG-0001-passkeys",
+                "--self-review",
+                "--actor",
+                "0xLeif",
+            ])
+            .is_err()
+        );
 
         let finalize =
             Cli::try_parse_from(["specsync", "change", "finalize", "CHG-0001-passkeys"]).unwrap();

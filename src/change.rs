@@ -1060,7 +1060,11 @@ pub struct VerificationRecord {
 pub struct ScopedReviewRecord {
     pub schema_version: u32,
     pub change_id: String,
+    #[serde(default)]
+    pub mode: ScopedReviewMode,
     pub reviewer: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
     pub provenance: ScopedReviewProvenanceV1,
     pub verdict: ScopedReviewVerdict,
     pub implementation_commit: String,
@@ -1075,6 +1079,15 @@ pub struct ScopedReviewRecord {
 #[serde(rename_all = "snake_case")]
 pub enum ScopedReviewProvenanceProvider {
     GithubActionsCheck,
+    AuditedSelfReview,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScopedReviewMode {
+    #[default]
+    Independent,
+    SelfReview,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1128,9 +1141,18 @@ impl ScopedReviewVerdict {
 }
 
 fn scoped_review_provenance_valid(review: &ScopedReviewRecord) -> bool {
-    review.provenance.schema_version == 1
-        && review.provenance.provider == ScopedReviewProvenanceProvider::GithubActionsCheck
-        && review.provenance.required_check == SCOPED_REVIEW_REQUIRED_CHECK
+    match review.mode {
+        ScopedReviewMode::Independent => {
+            review.provenance.schema_version == 1
+                && review.provenance.provider == ScopedReviewProvenanceProvider::GithubActionsCheck
+                && review.provenance.required_check == SCOPED_REVIEW_REQUIRED_CHECK
+        }
+        ScopedReviewMode::SelfReview => {
+            review.provenance.schema_version == 1
+                && review.provenance.provider == ScopedReviewProvenanceProvider::AuditedSelfReview
+                && review.provenance.required_check == "self_review"
+        }
+    }
 }
 
 fn validate_scoped_reviewer_claim(reviewer: &str) -> Result<&str, String> {
@@ -1150,6 +1172,16 @@ fn validate_scoped_reviewer_claim(reviewer: &str) -> Result<&str, String> {
         );
     }
     Ok(reviewer)
+}
+
+fn validate_self_review_reason(reason: &str) -> Result<&str, String> {
+    let reason = reason.trim();
+    if reason.is_empty() || reason.len() > 1_024 || reason.chars().any(char::is_control) {
+        return Err(
+            "self-review reason must contain between 1 and 1024 non-control characters".into(),
+        );
+    }
+    Ok(reason)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -4769,10 +4801,10 @@ fn scoped_review_attempts_path(root: &Path, record: &ChangeRecord) -> PathBuf {
 fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReviewRecord, String> {
     let workspace = find_change_dir(root, &record.id)?;
     let path = workspace.join(SCOPED_REVIEW_FILE);
-    let content = fs::read_to_string(&path)
-        .map_err(|_| "independent scoped review evidence is missing".to_string())?;
+    let content =
+        fs::read_to_string(&path).map_err(|_| "scoped review evidence is missing".to_string())?;
     let review: ScopedReviewRecord = serde_json::from_str(&content)
-        .map_err(|error| format!("invalid independent scoped review evidence: {error}"))?;
+        .map_err(|error| format!("invalid scoped review evidence: {error}"))?;
     let attempts_path = workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE);
     let attempts: ScopedReviewAttemptLedger = serde_json::from_str(
         &fs::read_to_string(&attempts_path)
@@ -4836,21 +4868,45 @@ fn validate_scoped_review_ledger_contents(
             "scoped review projection does not match its append-only attempt history".into(),
         );
     }
-    let approvals = load_approvals(root, record)?;
     for attempt in &attempts.reviews {
-        if attempt.schema_version != 2
-            || attempt.change_id != record.id
-            || validate_scoped_reviewer_claim(&attempt.reviewer).is_err()
-            || !scoped_review_provenance_valid(attempt)
-        {
-            return Err("scoped review attempt history contains invalid evidence".into());
+        validate_scoped_review_record(root, record, attempt)?;
+    }
+    Ok(())
+}
+
+fn validate_scoped_review_record(
+    root: &Path,
+    record: &ChangeRecord,
+    review: &ScopedReviewRecord,
+) -> Result<(), String> {
+    if review.schema_version != 2
+        || review.change_id != record.id
+        || validate_scoped_reviewer_claim(&review.reviewer).is_err()
+        || !scoped_review_provenance_valid(review)
+    {
+        return Err("scoped review contains invalid evidence".into());
+    }
+    let approvals = load_approvals(root, record)?;
+    let scope_approver = definition_approver_for_review_contract(&approvals, review)?;
+    match review.mode {
+        ScopedReviewMode::Independent => {
+            if review.reason.is_some() {
+                return Err(
+                    "independent scoped review evidence cannot contain a self-review reason".into(),
+                );
+            }
+            if review.reviewer.eq_ignore_ascii_case(scope_approver) {
+                return Err(
+                    "scoped review attempt history contains a reviewer who is also the scope approver"
+                        .into(),
+                );
+            }
         }
-        let scope_approver = definition_approver_for_review_contract(&approvals, attempt)?;
-        if attempt.reviewer.eq_ignore_ascii_case(scope_approver) {
-            return Err(
-                "scoped review attempt history contains a reviewer who is also the scope approver"
-                    .into(),
-            );
+        ScopedReviewMode::SelfReview => {
+            if !review.reviewer.eq_ignore_ascii_case(scope_approver) {
+                return Err("self-review actor must match the scope approver".into());
+            }
+            validate_self_review_reason(review.reason.as_deref().unwrap_or_default())?;
         }
     }
     Ok(())
@@ -5195,10 +5251,7 @@ fn validate_finalization_evidence(
         );
     };
     let review = load_scoped_review(root, record)?;
-    if review.schema_version != 2
-        || review.change_id != record.id
-        || validate_scoped_reviewer_claim(&review.reviewer).is_err()
-        || !scoped_review_provenance_valid(&review)
+    if validate_scoped_review_record(root, record, &review).is_err()
         || review.verdict != ScopedReviewVerdict::Pass
         || review.contract_digest != verification.contract_digest
         || review.execution_digest != verification.execution_digest
@@ -5238,10 +5291,7 @@ fn scoped_review_is_current(
     record: &ChangeRecord,
     review: &ScopedReviewRecord,
 ) -> bool {
-    review.schema_version == 2
-        && review.change_id == record.id
-        && validate_scoped_reviewer_claim(&review.reviewer).is_ok()
-        && scoped_review_provenance_valid(review)
+    validate_scoped_review_record(root, record, review).is_ok()
         && review.verdict == ScopedReviewVerdict::Pass
         && review_commit_is_current(root, record, review)
         && definition_digest_matches(root, record, &review.contract_digest).unwrap_or(false)
@@ -5491,6 +5541,50 @@ pub fn record_scoped_review_with_verdict(
     reviewer: String,
     verdict: ScopedReviewVerdict,
 ) -> Result<ScopedReviewRecord, String> {
+    record_scoped_review_with_mode(
+        root,
+        id,
+        reviewer,
+        None,
+        ScopedReviewMode::Independent,
+        verdict,
+    )
+}
+
+pub fn record_scoped_self_review(
+    root: &Path,
+    id: &str,
+    actor: String,
+    reason: String,
+) -> Result<ScopedReviewRecord, String> {
+    record_scoped_self_review_with_verdict(root, id, actor, reason, ScopedReviewVerdict::Pass)
+}
+
+pub fn record_scoped_self_review_with_verdict(
+    root: &Path,
+    id: &str,
+    actor: String,
+    reason: String,
+    verdict: ScopedReviewVerdict,
+) -> Result<ScopedReviewRecord, String> {
+    record_scoped_review_with_mode(
+        root,
+        id,
+        actor,
+        Some(reason),
+        ScopedReviewMode::SelfReview,
+        verdict,
+    )
+}
+
+fn record_scoped_review_with_mode(
+    root: &Path,
+    id: &str,
+    reviewer: String,
+    reason: Option<String>,
+    mode: ScopedReviewMode,
+    verdict: ScopedReviewVerdict,
+) -> Result<ScopedReviewRecord, String> {
     let _lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Verifying], "record scoped review")?;
@@ -5501,11 +5595,26 @@ pub fn record_scoped_review_with_verdict(
     let scope_approver = effective_definition_approval(root, &record, &approvals)?
         .actor
         .trim();
-    if reviewer.eq_ignore_ascii_case(scope_approver) {
-        return Err(
-            "scoped review must be recorded by someone other than the scope approver".into(),
-        );
-    }
+    let reason = match mode {
+        ScopedReviewMode::Independent => {
+            if reason.is_some() {
+                return Err("independent scoped review cannot include a self-review reason".into());
+            }
+            if reviewer.eq_ignore_ascii_case(scope_approver) {
+                return Err(
+                    "scoped review must be recorded by someone other than the scope approver"
+                        .into(),
+                );
+            }
+            None
+        }
+        ScopedReviewMode::SelfReview => {
+            if !reviewer.eq_ignore_ascii_case(scope_approver) {
+                return Err("self-review actor must match the scope approver".into());
+            }
+            Some(validate_self_review_reason(reason.as_deref().unwrap_or_default())?.to_string())
+        }
+    };
     let current_commit = git_output(root, &["rev-parse", "HEAD"])
         .ok_or_else(|| "scoped review requires a committed implementation".to_string())?;
     validate_verification_for_commit_binding(
@@ -5552,11 +5661,19 @@ pub fn record_scoped_review_with_verdict(
     let review = ScopedReviewRecord {
         schema_version: 2,
         change_id: record.id.clone(),
+        mode,
         reviewer: reviewer.to_string(),
+        reason,
         provenance: ScopedReviewProvenanceV1 {
             schema_version: 1,
-            provider: ScopedReviewProvenanceProvider::GithubActionsCheck,
-            required_check: SCOPED_REVIEW_REQUIRED_CHECK.into(),
+            provider: match mode {
+                ScopedReviewMode::Independent => ScopedReviewProvenanceProvider::GithubActionsCheck,
+                ScopedReviewMode::SelfReview => ScopedReviewProvenanceProvider::AuditedSelfReview,
+            },
+            required_check: match mode {
+                ScopedReviewMode::Independent => SCOPED_REVIEW_REQUIRED_CHECK.into(),
+                ScopedReviewMode::SelfReview => "self_review".into(),
+            },
         },
         verdict,
         implementation_commit,
@@ -5624,7 +5741,7 @@ fn accept_change_with_gate(
         let review = load_scoped_review(root, &record)?;
         if !scoped_review_is_current(root, &record, &review) {
             return Err(
-                "independent scoped review is stale; open or update the PR so `SpecSync scoped review` can run"
+                "scoped review is stale; re-run `specsync change check` and record a current review before finalizing"
                     .into(),
             );
         }
@@ -18785,6 +18902,17 @@ mod tests {
         let error = record_scoped_review(root, &record.id, "Independent\u{200b} reviewer".into())
             .unwrap_err();
         assert!(error.contains("stable ASCII identity"), "{error}");
+        let error = record_scoped_self_review(
+            root,
+            &record.id,
+            "Other maintainer".into(),
+            "solo maintainer".into(),
+        )
+        .unwrap_err();
+        assert!(error.contains("must match the scope approver"), "{error}");
+        let error = record_scoped_self_review(root, &record.id, "Scope owner".into(), " ".into())
+            .unwrap_err();
+        assert!(error.contains("self-review reason"), "{error}");
         let blocked = record_scoped_review_with_verdict(
             root,
             &record.id,
@@ -18795,10 +18923,7 @@ mod tests {
         assert_eq!(blocked.verdict, ScopedReviewVerdict::Block);
         let reviewed_implementation = blocked.implementation_commit.clone();
         let error = finalize_change(root, &record.id).unwrap_err();
-        assert!(
-            error.contains("independent scoped review is stale"),
-            "{error}"
-        );
+        assert!(error.contains("scoped review is stale"), "{error}");
         let passed = record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
         assert_eq!(passed.verdict, ScopedReviewVerdict::Pass);
         assert_eq!(passed.implementation_commit, reviewed_implementation);
@@ -18809,6 +18934,22 @@ mod tests {
         assert_eq!(attempts.reviews.len(), 2);
         assert_eq!(attempts.reviews[0].verdict, ScopedReviewVerdict::Block);
         assert_eq!(attempts.reviews[1].verdict, ScopedReviewVerdict::Pass);
+
+        let self_review = record_scoped_self_review(
+            root,
+            &record.id,
+            "Scope owner".into(),
+            "solo maintainer".into(),
+        )
+        .unwrap();
+        assert_eq!(self_review.schema_version, 2);
+        assert_eq!(self_review.mode, ScopedReviewMode::SelfReview);
+        assert_eq!(self_review.reason.as_deref(), Some("solo maintainer"));
+        assert_eq!(
+            self_review.provenance.provider,
+            ScopedReviewProvenanceProvider::AuditedSelfReview
+        );
+        assert!(scoped_review_is_current(root, &record, &self_review));
     }
 
     #[test]
@@ -18943,7 +19084,7 @@ mod tests {
 
         let error = finalize_change(root, &record.id).unwrap_err();
 
-        assert!(error.contains("independent scoped review evidence is missing"));
+        assert!(error.contains("scoped review evidence is missing"));
         assert!(change_dir(root, &record.id).is_dir());
     }
 
@@ -24868,7 +25009,6 @@ mod tests {
     // Rejecting at approve costs two seconds instead of several verification
     // passes and a reviewer's signature, and keeps the unrecoverable state
     // unreachable.
-    #[test]
     fn approve_rejects_a_declared_path_owned_by_an_undeclared_module() {
         let temp = TempDir::new().unwrap();
         let root = temp.path();

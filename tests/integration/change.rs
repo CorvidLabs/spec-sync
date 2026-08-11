@@ -1235,6 +1235,91 @@ fn change_supersede_persists_an_exact_predecessor_obligation_through_the_cli() {
     );
 }
 
+// Verifies REQ-cmd-change-010.
+#[test]
+fn invalid_correction_ledger_blocks_mutating_commands_before_persistence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::write(root.join("README.md"), "Mutation ordering fixture.\n").unwrap();
+
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Protect lifecycle mutation ordering",
+            "--kind",
+            "documentation",
+            "--path",
+            "README.md",
+            "--no-spec-change",
+            "--rationale",
+            "Command ordering regression fixture",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+    let change_dir = root.join(".specsync/changes").join(id);
+    fs::write(
+        change_dir.join("corrections.json"),
+        "{ malformed correction ledger\n",
+    )
+    .unwrap();
+
+    let snapshot = || {
+        let mut files = change_dir
+            .read_dir()
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+            .map(|entry| {
+                (
+                    entry.file_name().to_string_lossy().into_owned(),
+                    fs::read(entry.path()).unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        files.sort_by(|left, right| left.0.cmp(&right.0));
+        files
+    };
+    let digest = "0".repeat(64);
+    let commands = [
+        vec!["change", "answer", id, "acceptance_criteria", "No mutation"],
+        vec!["change", "depend", id, id],
+        vec![
+            "change",
+            "supersede",
+            id,
+            id,
+            "--path",
+            "README.md",
+            "--spec",
+            "docs",
+            "--digest",
+            &digest,
+        ],
+    ];
+
+    for command in commands {
+        let before = snapshot();
+        specsync()
+            .args(["--root", root.to_str().unwrap()])
+            .args(command)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains(
+                "correction ledger integrity is invalid",
+            ));
+        assert_eq!(snapshot(), before, "failed command mutated lifecycle files");
+    }
+}
+
 #[test]
 fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
     let temp = TempDir::new().unwrap();

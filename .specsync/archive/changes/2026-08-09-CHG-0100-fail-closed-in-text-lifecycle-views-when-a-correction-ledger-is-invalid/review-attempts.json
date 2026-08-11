@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid",
+      "mode": "self_review",
+      "reviewer": "0xLeif",
+      "reason": "solo maintainer; user explicitly directed finalization after scoped re-verification",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "audited_self_review",
+        "required_check": "self_review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "962be181f12f2e4402a816864b3a990acabcc07c",
+      "contract_digest": "c4d177f9519687cd9bf552214822862da576e99d65b2a09c12e1472ea9b2e663",
+      "execution_digest": "28748b78494bf6150bea6e943230482d54fb04c34331768bca7b18dcd29ed7b7",
+      "workspace_digest": "04a1aff76f1d0dac1895224d986428d0b4ad3815d83a9fc8146e25a6f8f77242",
+      "timestamp": 1786294541
+    },
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid",
+      "mode": "self_review",
+      "reviewer": "0xLeif",
+      "reason": "solo maintainer; user explicitly directed finalization after scoped re-verification",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "audited_self_review",
+        "required_check": "self_review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "962be181f12f2e4402a816864b3a990acabcc07c",
+      "contract_digest": "c4d177f9519687cd9bf552214822862da576e99d65b2a09c12e1472ea9b2e663",
+      "execution_digest": "28748b78494bf6150bea6e943230482d54fb04c34331768bca7b18dcd29ed7b7",
+      "workspace_digest": "04a1aff76f1d0dac1895224d986428d0b4ad3815d83a9fc8146e25a6f8f77242",
+      "timestamp": 1786294548
+    }
+  ]
+}

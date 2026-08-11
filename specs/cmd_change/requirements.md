@@ -182,3 +182,34 @@ Acceptance Criteria
 - When sibling active changes remain after finalize, next guidance names them and
   requires their own check → review → ship cycle before merge.
 
+### REQ-cmd-change-009
+
+Text `specsync change show`, `specsync change status <id>`, and aggregate
+`specsync change status` SHALL fail closed before emitting a successful lifecycle projection
+when an active change has invalid correction-ledger health.
+
+Acceptance Criteria
+
+- Each affected text command exits non-zero and emits the same safe correction-ledger integrity
+  diagnostic.
+- No successful identity, answer, next-action, or correction-count output precedes that diagnostic.
+- JSON inspection retains its typed fail-closed behavior.
+- Valid active changes retain their existing text output and exit status.
+
+### REQ-cmd-change-010
+
+Lifecycle commands that mutate an existing change and then render its record SHALL validate
+correction-ledger integrity before persistence and render from that validated transaction result.
+
+Acceptance Criteria
+
+- `answer`, `depend`, and `supersede` reject an invalid existing correction ledger before
+  changing lifecycle files.
+- A ledger that becomes invalid while a mutation waits for the project lock is rejected after lock
+  acquisition and before persistence.
+- Successful mutation output uses the effective definition, correction history, and selected
+  normal/strict summary returned by the domain transaction, so a later ledger change cannot
+  produce a nonzero exit or contradictory JSON after persistence.
+- Read-only text show, status, and list views retain their existing fail-closed behavior.
+- Valid mutation and rendering behavior is unchanged.
+- The `cmd_change` canonical contract version is incremented.

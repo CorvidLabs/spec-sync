@@ -114,6 +114,21 @@ rejecting a first-reachable change that strips both version fields before its in
 Expected negative ancestry probes capture Git diagnostics internally, so unavailable historical
 objects affect evidence validity without leaking raw child-process fatal text into status output.
 
+Correction-ledger health is a change-domain invariant, not command-rendering policy. Read-only text
+views map any invalid effective definition to one safe generic diagnostic, while existing-change
+definition mutations reload and validate the ledger only after acquiring the lifecycle project
+lock. Keeping validation and persistence in one locked transaction removes the command-layer
+time-of-check/time-of-use gap without exposing correction values, ledger bytes, or digests. Each
+successful mutation also returns its validated effective definition and correction history, so the
+command adapter never rereads that ledger after persistence and cannot turn success into a false
+nonzero result.
+
+The richer command result also captures normal and explicit-strict `ChangeSummary` projections
+before releasing the lifecycle lock. Structured mutation output therefore cannot mix a validated
+effective definition with a later invalid-ledger summary. The original record-returning
+`answer_question`, `add_dependency`, and `add_supersedes_obligation` entry points remain compiled
+as production domain contracts; the CLI alone uses the richer crate-private snapshot variants.
+
 Lifecycle transactions publish a versioned count/digest journal durably before any payload, then
 atomically replace payloads and clear the journal last. Backup reads distinguish not-found from all
 other errors; malformed canonical journals fail closed without touching targets. Archive snapshots,

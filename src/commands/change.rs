@@ -10,6 +10,8 @@ use crate::change::{
 use crate::cli::ChangeAction;
 use crate::types::OutputFormat;
 
+const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
+
 pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, strict: bool) {
     let result = match action {
         ChangeAction::New {
@@ -43,22 +45,28 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             id,
             question,
             answer,
-        } => change::answer_question(root, &id, &question, &answer)
-            .and_then(|record| print_record(root, &record, format, true, strict)),
-        ChangeAction::Depend { id, on } => change::add_dependency(root, &id, &on)
-            .and_then(|record| print_record(root, &record, format, false, strict)),
+        } => change::answer_question_with_snapshot(root, &id, &question, &answer)
+            .and_then(|result| print_mutation_record(root, &id, &result, format, true, strict)),
+        ChangeAction::Depend { id, on } => change::add_dependency_with_snapshot(root, &id, &on)
+            .and_then(|result| print_mutation_record(root, &id, &result, format, false, strict)),
         ChangeAction::Supersede {
             id,
             predecessor,
             path,
             module,
             digest,
-        } => change::add_supersedes_obligation(root, &id, &predecessor, &path, &module, &digest)
-            .and_then(|record| print_record(root, &record, format, false, strict)),
+        } => change::add_supersedes_obligation_with_snapshot(
+            root,
+            &id,
+            &predecessor,
+            &path,
+            &module,
+            &digest,
+        )
+        .and_then(|result| print_mutation_record(root, &id, &result, format, false, strict)),
         ChangeAction::List => {
             let _scope = change::begin_change_read_scope(root);
-            print_records(root, &change::list_changes(root), format, strict);
-            Ok(())
+            print_records(root, &change::list_changes(root), format, strict)
         }
         ChangeAction::Show { id } => {
             let _scope = change::begin_change_read_scope(root);
@@ -71,8 +79,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 change::load_change(root, &id)
                     .and_then(|record| print_record(root, &record, format, false, strict))
             } else {
-                print_records(root, &change::list_changes(root), format, strict);
-                Ok(())
+                print_records(root, &change::list_changes(root), format, strict)
             }
         }
         ChangeAction::ShipStatus { id } => {
@@ -553,23 +560,75 @@ fn print_record(
         _ => {
             // Text mode must not invoke digest-bearing loaders into cleartext sinks
             // (CodeQL rust/cleartext-logging / alert #58). Human output uses interview
-            // identity/state only; digests and correction ledgers stay JSON-only.
+            // identity/state only; digests and correction-ledger details stay JSON-only.
+            ensure_text_correction_ledger_valid(root, record)?;
             // `text_mode_next_action` uses lightweight artifact file reads only.
             print_change_text_identity(record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
             print_change_text_answers(record);
-            if record.correction_count > 0 {
-                println!(
-                    "  Corrections: {} recorded (use --json for the audit ledger)",
-                    record.correction_count
-                );
+            print_change_text_correction_counts(record);
+            if include_questions && !questions.is_empty() {
+                println!("\nInterview:");
+                for question in &questions {
+                    println!("  {} — {}", question.id.cyan(), question.prompt);
+                    if !question.choices.is_empty() {
+                        println!("    Choices: {}", question.choices.join(", "));
+                    }
+                }
             }
-            if !record.acceptance_owner_corrections.is_empty() {
-                println!(
-                    "  Acceptance owner corrections: {} (use --json for details)",
-                    record.acceptance_owner_corrections.len()
-                );
+        }
+    }
+    Ok(())
+}
+
+fn print_mutation_record(
+    root: &Path,
+    id: &str,
+    result: &change::DefinitionMutationResult,
+    format: OutputFormat,
+    include_questions: bool,
+    strict: bool,
+) -> Result<(), String> {
+    let record = &result.change;
+    let questions = if include_questions {
+        change::next_questions(record)
+    } else {
+        Vec::new()
+    };
+    match format {
+        OutputFormat::Json => {
+            // The summary was built while the domain mutation still held the project lock.
+            // Reusing it keeps the machine response consistent with the validated correction
+            // snapshot even if corrections.json changes after persistence.
+            let summary = if strict {
+                &result.strict_summary
+            } else {
+                &result.summary
+            };
+            let acceptance_entries = change::acceptance_entries(root, record);
+            print_json(&serde_json::json!({
+                "change": record,
+                "effective_definition": result.effective_definition,
+                "acceptance_entries": acceptance_entries,
+                "corrections": result.corrections,
+                "summary": summary,
+                "questions": questions,
+            }));
+        }
+        _ => {
+            // The domain operation validated correction history while holding the mutation lock.
+            // Do not turn successful persistence into a false command failure by rereading that
+            // ledger after the transaction has completed.
+            print_change_text_identity(record);
+            let next = text_mode_next_action(root, record, &questions);
+            println!("  Next: {next}");
+            print_change_text_answers(record);
+            // Keep correction-derived snapshot values out of the human sink. A state-only reload
+            // preserves the established counts without rereading corrections.json; failure is
+            // intentionally non-fatal because the mutation has already persisted successfully.
+            if let Ok(current) = change::load_change(root, id) {
+                print_change_text_correction_counts(&current);
             }
             if include_questions && !questions.is_empty() {
                 println!("\nInterview:");
@@ -596,6 +655,25 @@ fn print_change_text_identity(record: &ChangeRecord) {
     let state = record.state.as_str();
     println!("{} {}", id.bold(), title);
     println!("  State: {state}");
+}
+
+/// Print only non-sensitive correction counts from state.json for human text sinks.
+///
+/// Callers must source this record independently from correction-ledger validation results so
+/// correction values, ledger bytes, and digest material cannot flow into cleartext output.
+fn print_change_text_correction_counts(record: &ChangeRecord) {
+    if record.correction_count > 0 {
+        println!(
+            "  Corrections: {} recorded (use --json for the audit ledger)",
+            record.correction_count
+        );
+    }
+    if !record.acceptance_owner_corrections.is_empty() {
+        println!(
+            "  Acceptance owner corrections: {} (use --json for details)",
+            record.acceptance_owner_corrections.len()
+        );
+    }
 }
 
 fn print_change_text_answers(record: &ChangeRecord) {
@@ -647,6 +725,13 @@ fn text_mode_next_action(
         ChangeState::Accepted => format!("run `specsync change archive {id}`"),
         ChangeState::Archived => "no further action".into(),
     }
+}
+
+fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    change::effective_change_definition(root, record)
+        .is_ok()
+        .then_some(())
+        .ok_or_else(|| INVALID_CORRECTION_LEDGER_TEXT.to_string())
 }
 
 /// Ship readiness for one change: HEAD tip class, verification tip health, review,
@@ -1311,11 +1396,7 @@ fn run_ship(
                     "wait": wait_result,
                 })),
                 _ => {
-                    println!(
-                        "{} {} is already archived",
-                        "✓".green(),
-                        record.id
-                    );
+                    println!("{} {} is already archived", "✓".green(), record.id);
                     if let Some(push_result) = push_result.as_ref() {
                         println!("  Push: {push_result}");
                     }
@@ -1503,10 +1584,7 @@ fn run_ship(
 
 /// Commit archive package (if dirty) and push the current branch.
 fn ship_commit_and_push_archive(root: &Path, id: &str) -> Result<String, String> {
-    git_commit_all(
-        root,
-        &format!("chore(lifecycle): archive {id}"),
-    )?;
+    git_commit_all(root, &format!("chore(lifecycle): archive {id}"))?;
     run_git(root, &["push"])?;
     let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
     Ok(format!("pushed archive tip {sha:.8}"))
@@ -1684,7 +1762,12 @@ fn git_status_name_only(root: &Path) -> Result<Vec<String>, String> {
     Ok(paths)
 }
 
-fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, strict: bool) {
+fn print_records(
+    root: &Path,
+    records: &[ChangeRecord],
+    format: OutputFormat,
+    strict: bool,
+) -> Result<(), String> {
     match format {
         OutputFormat::Json => {
             let summaries: Vec<_> = records
@@ -1692,10 +1775,19 @@ fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, st
                 .map(|record| change::summarize_change_with_strict(root, record, strict))
                 .collect();
             print_json(&summaries);
+            Ok(())
         }
-        _ if records.is_empty() => println!("No active SDD changes."),
+        _ if records.is_empty() => {
+            println!("No active SDD changes.");
+            Ok(())
+        }
         _ => {
             // Text list view avoids digest-bearing summarize loaders (cleartext-logging).
+            // Preflight every record before printing any successful lifecycle projection.
+            // Otherwise a later invalid ledger would leave misleading earlier success rows.
+            for record in records {
+                ensure_text_correction_ledger_valid(root, record)?;
+            }
             for record in records {
                 let questions = change::next_questions(record);
                 let id = record.id.clone();
@@ -1704,6 +1796,7 @@ fn print_records(root: &Path, records: &[ChangeRecord], format: OutputFormat, st
                 let next = text_mode_next_action(root, record, &questions);
                 println!("{:<14}  {state:<13}  {title}  next: {next}", id.bold());
             }
+            Ok(())
         }
     }
 }
@@ -1897,6 +1990,85 @@ mod tests {
                 "{surface} text recommended premature approval: {next}"
             );
         }
+    }
+
+    // Verifies REQ-cmd-change-009.
+    #[test]
+    fn text_correction_ledger_gate_uses_a_safe_diagnostic() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        change::write_default_policy(root, Vec::new()).expect("write default policy");
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Protect text lifecycle views".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        let ledger_path = root
+            .join(".specsync/changes")
+            .join(&record.id)
+            .join("corrections.json");
+        fs::write(&ledger_path, "{ malformed correction ledger\\n")
+            .expect("write malformed ledger");
+
+        let error = ensure_text_correction_ledger_valid(root, &record).expect_err("invalid ledger");
+
+        assert_eq!(error, INVALID_CORRECTION_LEDGER_TEXT);
+        assert!(!error.contains("malformed correction ledger"));
+    }
+
+    // Verifies REQ-cmd-change-010.
+    #[test]
+    fn mutation_output_uses_the_in_transaction_correction_snapshot() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        change::write_default_policy(root, Vec::new()).expect("write default policy");
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Render one successful lifecycle mutation".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        let result = change::answer_question_with_snapshot(
+            root,
+            &record.id,
+            "acceptance_criteria",
+            "The successful mutation renders from its validated transaction snapshot",
+        )
+        .expect("persist mutation");
+        let ledger_path = root
+            .join(".specsync/changes")
+            .join(&record.id)
+            .join("corrections.json");
+        fs::write(&ledger_path, "{ malformed correction ledger\\n")
+            .expect("corrupt ledger after persistence");
+
+        assert!(change::effective_change_definition(root, &result.change).is_err());
+        assert!(!change::summarize_change(root, &result.change).correction_valid);
+        assert!(result.summary.correction_valid);
+        assert!(result.strict_summary.correction_valid);
+        assert!(
+            print_mutation_record(root, &record.id, &result, OutputFormat::Text, true, false)
+                .is_ok()
+        );
+        assert!(
+            print_mutation_record(root, &record.id, &result, OutputFormat::Json, true, false)
+                .is_ok()
+        );
     }
 
     #[test]

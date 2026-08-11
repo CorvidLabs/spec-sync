@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 100,
-  "id": "CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship",
+  "sequence": 103,
+  "id": "CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif",
   "acknowledged_collisions": [
     {
       "sequence": 16,
@@ -30,6 +30,13 @@
       "ids": [
         "CHG-0099-keep-successful-legacy-reconstruction-when-scratch-worktree-cleanup-fails-511",
         "CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha"
+      ]
+    },
+    {
+      "sequence": 100,
+      "ids": [
+        "CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid",
+        "CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship"
       ]
     }
   ]

@@ -16,3 +16,18 @@ The command layer intentionally contains no lifecycle policy, keeping agent and 
 stored verdict and JSON emits the exact review record; reviewer independence, evidence freshness,
 and finalization eligibility remain domain concerns. Reviewer text is a stable ASCII claim, every
 attempt is append-only, and hosted required-check provenance supplies authenticated merge trust.
+
+`answer`, `depend`, and `supersede` delegate correction-ledger health enforcement to their
+mutation-capable domain operations, which reload and validate the ledger while holding the same
+project lock used for persistence. Successful mutations return the validated effective definition
+and correction history used for output; the command adapter retains live ledger validation only on
+read-only rendering paths. This preserves the thin-dispatch boundary while preventing both the
+lock-wait race and a false post-persistence failure. Human mutation output obtains its optional
+correction counts from a separate best-effort `state.json` reload keyed by the original command ID;
+the validated correction snapshot remains confined to JSON output so correction data cannot flow
+into cleartext sinks.
+
+Structured mutation rendering also selects the normal or explicit-strict summary captured by the
+domain operation before it released the project lock. It never recomputes correction health from a
+live ledger, so one response cannot contain a validated effective definition beside a contradictory
+invalid-correction summary.

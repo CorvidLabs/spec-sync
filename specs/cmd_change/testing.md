@@ -11,3 +11,14 @@ CLI integration coverage validates creation, JSON schema, rationale errors, adop
 `REQ-cmd-change-003` is covered by the reopened → correct-owner CLI integration flow. It asserts deterministic JSON persistence, equivalent human output, required audit inputs, exact path/spec ownership validation, next-gate guidance, and transactional rejection.
 
 `REQ-cmd-change-004` is covered by the batch correct-owner CLI integration flow. It asserts repeated-path batch success, atomic rejection when any entry is invalid, and deterministic JSON persistence of every appended correction.
+
+`REQ-cmd-change-010` is covered by an invalid-ledger CLI regression that invokes answer, depend,
+and supersede, requires the safe integrity diagnostic, and compares every lifecycle file
+byte-for-byte before and after each rejected mutation. The change-domain lock-race regression
+proves an answer mutation revalidates after acquiring the persistence lock when the ledger becomes
+invalid while it waits. A command-unit regression then corrupts the ledger after a successful
+mutation and proves both text and JSON rendering succeed from the transaction snapshot instead of
+reporting a false failure after persistence. It also proves a live summary becomes invalid after
+corruption while both transaction-captured normal/strict summaries remain valid. CodeQL enforces
+that correction-ledger-derived values remain confined to the JSON branch; text-only counts come
+from an independent state reload.

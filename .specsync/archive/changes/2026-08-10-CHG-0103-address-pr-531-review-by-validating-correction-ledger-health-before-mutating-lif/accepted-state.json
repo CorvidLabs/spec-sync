@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif",
+  "slug": "address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif",
+  "title": "Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version",
+  "description": "Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "801639111f891ea34d01078a20b9d8ac20668a61",
+  "created_at": 1786377932,
+  "updated_at": 1786402224,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/commands/change.rs",
+    "tests/integration/change.rs",
+    "specs/change/change.spec.md",
+    "specs/change/context.md",
+    "specs/change/requirements.md",
+    "specs/change/tasks.md",
+    "specs/change/testing.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_change/context.md",
+    "specs/cmd_change/requirements.md",
+    "specs/cmd_change/tasks.md",
+    "specs/cmd_change/testing.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Mutating text commands reject an invalid correction ledger before persistence; read-only show, status, and list remain fail-closed; valid mutations retain existing behavior; the cmd_change contract version increments; focused regression and strict checks pass.",
+    "Answer, depend, and supersede revalidate correction-ledger health while holding the same project lock used for persistence; the change-domain context and contract record that atomicity decision."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

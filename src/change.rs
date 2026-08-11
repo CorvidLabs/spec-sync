@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 pub const SDD_VERSION: &str = "5.0.0";
+const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
 const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
@@ -994,6 +995,14 @@ pub struct CorrectionResult {
     pub summary: ChangeSummary,
 }
 
+pub(crate) struct DefinitionMutationResult {
+    pub(crate) change: ChangeRecord,
+    pub(crate) effective_definition: EffectiveChangeDefinition,
+    pub(crate) corrections: Vec<CorrectionRecord>,
+    pub(crate) summary: ChangeSummary,
+    pub(crate) strict_summary: ChangeSummary,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CorrectionLedger {
@@ -1953,14 +1962,25 @@ pub fn next_questions(record: &ChangeRecord) -> Vec<InterviewQuestion> {
     questions
 }
 
+/// Answer one deterministic interview question after validating the existing definition ledger.
+#[allow(dead_code)]
 pub fn answer_question(
     root: &Path,
     id: &str,
     question: &str,
     answer: &str,
 ) -> Result<ChangeRecord, String> {
+    answer_question_with_snapshot(root, id, question, answer).map(|result| result.change)
+}
+
+pub(crate) fn answer_question_with_snapshot(
+    root: &Path,
+    id: &str,
+    question: &str,
+    answer: &str,
+) -> Result<DefinitionMutationResult, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change(root, id)?;
+    let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(&record, &[ChangeState::Draft], "answer interview questions")?;
     match question {
         "acceptance_criteria" => {
@@ -2013,15 +2033,31 @@ pub fn answer_question(
         }
     }
     record.updated_at = now();
+    let effective_definition = validate_definition_mutation(&record, &corrections)?;
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
     ensure_artifact_files(root, &record)?;
-    Ok(record)
+    Ok(definition_mutation_result(
+        root,
+        record,
+        effective_definition,
+        corrections,
+    ))
 }
 
+/// Add an ordering dependency after validating the existing definition ledger.
+#[allow(dead_code)]
 pub fn add_dependency(root: &Path, id: &str, dependency: &str) -> Result<ChangeRecord, String> {
+    add_dependency_with_snapshot(root, id, dependency).map(|result| result.change)
+}
+
+pub(crate) fn add_dependency_with_snapshot(
+    root: &Path,
+    id: &str,
+    dependency: &str,
+) -> Result<DefinitionMutationResult, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change(root, id)?;
+    let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(
         &record,
         &[
@@ -2046,11 +2082,19 @@ pub fn add_dependency(root: &Path, id: &str, dependency: &str) -> Result<ChangeR
         record.dependencies.sort();
     }
     record.updated_at = now();
+    let effective_definition = validate_definition_mutation(&record, &corrections)?;
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
-    Ok(record)
+    Ok(definition_mutation_result(
+        root,
+        record,
+        effective_definition,
+        corrections,
+    ))
 }
 
+/// Add one exact semantic-succession obligation after validating the definition ledger.
+#[allow(dead_code)]
 pub fn add_supersedes_obligation(
     root: &Path,
     id: &str,
@@ -2059,8 +2103,27 @@ pub fn add_supersedes_obligation(
     module: &str,
     predecessor_entry_digest: &str,
 ) -> Result<ChangeRecord, String> {
+    add_supersedes_obligation_with_snapshot(
+        root,
+        id,
+        predecessor,
+        path,
+        module,
+        predecessor_entry_digest,
+    )
+    .map(|result| result.change)
+}
+
+pub(crate) fn add_supersedes_obligation_with_snapshot(
+    root: &Path,
+    id: &str,
+    predecessor: &str,
+    path: &str,
+    module: &str,
+    predecessor_entry_digest: &str,
+) -> Result<DefinitionMutationResult, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change(root, id)?;
+    let (mut record, corrections) = load_change_for_definition_mutation(root, id)?;
     require_state(
         &record,
         &[ChangeState::Draft],
@@ -2126,9 +2189,60 @@ pub fn add_supersedes_obligation(
     validate_supersedes_edges(&record)?;
     validate_supersedes_semantics(root, &record)?;
     record.updated_at = now();
+    let effective_definition = validate_definition_mutation(&record, &corrections)?;
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
-    Ok(record)
+    Ok(definition_mutation_result(
+        root,
+        record,
+        effective_definition,
+        corrections,
+    ))
+}
+
+/// Load one existing definition only after its caller has acquired the project lock.
+///
+/// Answer, dependency, and supersession mutations share this path so correction-ledger
+/// validation and persistence are one serialized transaction. The fixed diagnostic keeps
+/// correction values, ledger bytes, and digests out of human command output.
+fn load_change_for_definition_mutation(
+    root: &Path,
+    id: &str,
+) -> Result<(ChangeRecord, Vec<CorrectionRecord>), String> {
+    let record = load_change(root, id)?;
+    let ledger = load_correction_ledger(root, &record)
+        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+    validate_correction_records(&record, &ledger.corrections)
+        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+    Ok((record, ledger.corrections))
+}
+
+fn validate_definition_mutation(
+    change: &ChangeRecord,
+    corrections: &[CorrectionRecord],
+) -> Result<EffectiveChangeDefinition, String> {
+    validate_correction_records(change, corrections)
+        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())
+}
+
+/// Build every machine-facing mutation projection before releasing the project lock.
+fn definition_mutation_result(
+    root: &Path,
+    change: ChangeRecord,
+    effective_definition: EffectiveChangeDefinition,
+    corrections: Vec<CorrectionRecord>,
+) -> DefinitionMutationResult {
+    let summary =
+        summarize_change_with_effective(root, &change, false, Some(&effective_definition));
+    let strict_summary =
+        summarize_change_with_effective(root, &change, true, Some(&effective_definition));
+    DefinitionMutationResult {
+        change,
+        effective_definition,
+        corrections,
+        summary,
+        strict_summary,
+    }
 }
 
 pub fn approve_definition(
@@ -5918,10 +6032,18 @@ pub fn summarize_change_with_strict(
     record: &ChangeRecord,
     explicit_strict: bool,
 ) -> ChangeSummary {
-    let effective = effective_change_definition(root, record);
-    let correction_valid = effective.is_ok();
+    let effective = effective_change_definition(root, record).ok();
+    summarize_change_with_effective(root, record, explicit_strict, effective.as_ref())
+}
+
+fn summarize_change_with_effective(
+    root: &Path,
+    record: &ChangeRecord,
+    explicit_strict: bool,
+    effective: Option<&EffectiveChangeDefinition>,
+) -> ChangeSummary {
+    let correction_valid = effective.is_some();
     let corrected_fields = effective
-        .as_ref()
         .map(|definition| {
             definition
                 .answers
@@ -5961,7 +6083,6 @@ pub fn summarize_change_with_strict(
     };
     let artifacts_complete = validate_artifacts(root, record).is_ok();
     let incomplete_artifacts = effective
-        .as_ref()
         .map(|definition| {
             definition
                 .selected_artifacts
@@ -24737,7 +24858,6 @@ mod tests {
     }
 
     // Verifies REQ-change-033.
-    #[test]
     // Canonical ownership is knowable the moment a path is declared, but was
     // enforced only when building the acceptance manifest at finalize. A change
     // declaring a path owned by a module it does not name therefore passed
@@ -26348,6 +26468,59 @@ mod tests {
             definition_digest(root, &record).unwrap(),
             definition_digest(second_root, &record).unwrap()
         );
+    }
+
+    // Verifies REQ-change-056.
+    #[test]
+    fn text_correction_ledger_health_hides_invalid_ledger_detail() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let record = completed_no_spec_record(root);
+        let ledger_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
+
+        assert!(effective_change_definition(root, &record).is_ok());
+
+        fs::write(&ledger_path, "{ malformed correction ledger\n").unwrap();
+
+        assert!(effective_change_definition(root, &record).is_err());
+    }
+
+    // Verifies REQ-change-057.
+    #[test]
+    fn mutation_rechecks_correction_ledger_after_lock_acquisition() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        write_default_policy(root, Vec::new()).unwrap();
+        let record = completed_no_spec_record(root);
+        let ledger_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
+        let state_path = change_dir(root, &record.id).join("state.json");
+        let change_path = change_dir(root, &record.id).join("change.md");
+
+        let project_lock = acquire_project_lock(root).unwrap();
+        let mutation_root = root.to_path_buf();
+        let mutation_id = record.id.clone();
+        let (started_sender, started_receiver) = std::sync::mpsc::channel();
+        let mutation = std::thread::spawn(move || {
+            started_sender.send(()).unwrap();
+            answer_question(
+                &mutation_root,
+                &mutation_id,
+                "acceptance_criteria",
+                "This mutation must not persist",
+            )
+        });
+
+        started_receiver.recv().unwrap();
+        fs::write(&ledger_path, "{ malformed correction ledger\n").unwrap();
+        let state_before = fs::read(&state_path).unwrap();
+        let change_before = fs::read(&change_path).unwrap();
+        drop(project_lock);
+
+        let error = mutation.join().unwrap().unwrap_err();
+        assert_eq!(error, INVALID_CORRECTION_LEDGER_TEXT);
+        assert_eq!(fs::read(&state_path).unwrap(), state_before);
+        assert_eq!(fs::read(&change_path).unwrap(), change_before);
     }
 
     #[test]

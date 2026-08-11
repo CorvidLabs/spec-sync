@@ -809,3 +809,35 @@ Acceptance Criteria
 - `SPECSYNC_SEQUENCE_BASE=N` makes the next allocated sequence at least `N`.
 - Simultaneous clones without BASE or a fetched remote high-water may still collide; post-merge sequence validation continues to fail closed on unacknowledged duplicates.
 
+### REQ-change-056
+
+The change domain SHALL expose correction-ledger health to text lifecycle inspection without
+returning correction values, ledger bytes, or digest material to a human output path.
+
+Acceptance Criteria
+
+- Malformed, unauthenticated, or otherwise invalid correction history produces a deterministic
+  invalid-health result.
+- The text-facing diagnostic is generic, names the correction ledger, and directs restoration
+  from trusted history.
+- The diagnostic contains no correction value, ledger fragment, or digest.
+- Valid correction history continues to permit normal text lifecycle inspection.
+
+### REQ-change-057
+
+Existing-change definition mutations SHALL validate correction-ledger integrity inside the same
+project-lock transaction that persists their state.
+
+Acceptance Criteria
+
+- `answer_question`, `add_dependency`, and `add_supersedes_obligation` acquire the project lock
+  before loading and validating the current correction ledger.
+- A ledger corrupted while a mutation waits for the lock causes a deterministic safe failure and
+  leaves every lifecycle file other than the external corruption byte-for-byte unchanged.
+- The safe diagnostic contains no correction value, ledger fragment, or digest.
+- A successful mutation returns the effective definition, correction history, and normal/strict
+  machine summaries validated by its transaction, so command rendering does not reread the ledger
+  or emit a contradictory result after persistence.
+- The documented `answer_question`, `add_dependency`, and `add_supersedes_obligation` wrappers
+  remain compiled in production while command-only snapshot variants carry the richer response.
+- Valid mutations retain their established state and output behavior.

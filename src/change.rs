@@ -2550,7 +2550,7 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
     }
     let mut commands = Vec::new();
     for configured in verification_commands {
-        let status = run_configured_command(root, &configured, ConfiguredCommandOutput::Inherit)?;
+        let status = run_configured_command(root, &configured)?;
         commands.push(CommandEvidence {
             command: configured,
             success: status.success(),
@@ -6299,7 +6299,7 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
 pub fn check_project(root: &Path) -> SddCheckReport {
     let _scope = ensure_change_read_scope(root);
     // Full integrity including archive terminal evidence — tests / rare callers.
-    check_project_with_command_output(root, ConfiguredCommandOutput::Inherit, true)
+    check_project_with_command_output(root, true)
 }
 
 /// Audit active change workspaces and living SDD policy/spec coherence.
@@ -6308,21 +6308,11 @@ pub fn check_project(root: &Path) -> SddCheckReport {
 /// living truth is active workspaces plus specs/policy.
 pub fn audit_project(root: &Path) -> SddCheckReport {
     let _scope = ensure_change_read_scope(root);
-    check_project_with_command_output(root, ConfiguredCommandOutput::Inherit, false)
-}
-
-/// Check SDD lifecycle state without allowing configured verification commands
-/// to write into a machine-consumed report stream.
-///
-/// Uses the active-only audit scope so PR comments and agents stay fast.
-pub(crate) fn check_project_quiet(root: &Path) -> SddCheckReport {
-    let _scope = ensure_change_read_scope(root);
-    check_project_with_command_output(root, ConfiguredCommandOutput::Suppress, false)
+    check_project_with_command_output(root, false)
 }
 
 fn check_project_with_command_output(
     root: &Path,
-    command_output: ConfiguredCommandOutput,
     include_archive_integrity: bool,
 ) -> SddCheckReport {
     if let Some(error) = crate::verification_recursion_error() {
@@ -6642,7 +6632,7 @@ fn check_project_with_command_output(
         let mut seen = BTreeSet::new();
         configured_commands.retain(|command| seen.insert(command.clone()));
         for configured in &configured_commands {
-            match run_configured_command(root, configured, command_output) {
+            match run_configured_command(root, configured) {
                 Ok(status) if status.success() => {}
                 Ok(status) => report.errors.push(format!(
                     "CI verification command `{configured}` failed with exit code {:?}",
@@ -14888,16 +14878,9 @@ fn normalize_project_path(relative: &str) -> Result<String, String> {
     Ok(normalized)
 }
 
-#[derive(Clone, Copy)]
-enum ConfiguredCommandOutput {
-    Inherit,
-    Suppress,
-}
-
 fn run_configured_command(
     root: &Path,
     configured: &str,
-    output: ConfiguredCommandOutput,
 ) -> Result<std::process::ExitStatus, String> {
     let parts = shell_words(configured)?;
     let (program, args) = parts
@@ -14908,9 +14891,6 @@ fn run_configured_command(
         .args(args)
         .current_dir(root)
         .env(crate::VERIFICATION_CONTEXT_ENV, configured);
-    if matches!(output, ConfiguredCommandOutput::Suppress) {
-        command.stdout(Stdio::null()).stderr(Stdio::null());
-    }
     command.status().map_err(|error| {
         format!("failed to run configured verification command `{configured}`: {error}")
     })

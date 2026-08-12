@@ -80,47 +80,6 @@ fn setup_active_change(root: &Path, verification_commands: &[&str]) -> PathBuf {
 }
 
 #[test]
-fn comment_reports_sdd_only_failures() {
-    let temp = TempDir::new().unwrap();
-    let root = setup_minimal_project(&temp);
-    fs::create_dir_all(root.join(".specsync")).unwrap();
-    fs::write(root.join(".specsync/sdd.json"), "{").unwrap();
-
-    specsync()
-        .arg("comment")
-        .arg("--root")
-        .arg(root)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("SpecSync: Failed"))
-        .stdout(predicate::str::contains(".specsync/sdd.json"))
-        .stdout(predicate::str::contains("invalid SDD policy"));
-}
-
-#[test]
-fn comment_reports_sdd_failures_when_no_specs_exist() {
-    let temp = TempDir::new().unwrap();
-    let root = temp.path();
-    fs::create_dir_all(root.join(".specsync")).unwrap();
-    fs::write(
-        root.join(".specsync/config.toml"),
-        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
-    )
-    .unwrap();
-    fs::write(root.join(".specsync/sdd.json"), "{").unwrap();
-
-    specsync()
-        .arg("comment")
-        .arg("--root")
-        .arg(root)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("SpecSync: Failed"))
-        .stdout(predicate::str::contains("invalid SDD policy"))
-        .stdout(predicate::str::contains("No spec files found").not());
-}
-
-#[test]
 fn ci_check_requires_persisted_verification_evidence() {
     let temp = TempDir::new().unwrap();
     let root = setup_minimal_project(&temp);

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 103,
-  "id": "CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif",
+  "sequence": 104,
+  "id": "CHG-0104-sever-specsync-check-and-comment-from-the-trust-layer-lifecycle-state-becomes-i",
   "acknowledged_collisions": [
     {
       "sequence": 16,

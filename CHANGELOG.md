@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING (exit codes): `specsync check` no longer fails because of SDD lifecycle state.**
+  Lifecycle state is now reported, not enforced: `check` prints the active-change count and
+  emits lifecycle findings as warnings on stderr, and its exit status is determined solely by
+  spec validation results, the effective enforcement mode, `--strict`, and `--require-coverage`.
+  A repository that was red *only* for lifecycle reasons — stale verification evidence, a
+  squash-orphaned evidence commit, a diverged sequence ledger — now exits 0.
+
+  Previously the lifecycle gate exited 1 unconditionally while the default enforcement mode
+  (`warn`) always exits 0, which made the lifecycle a stricter gate than the specs it guarded:
+  a repository with a deleted source file and undocumented exports passed `check`, while a
+  bookkeeping problem failed it. Every trust-layer failure also presented to users as "the
+  drift check is broken."
+
+  Lifecycle gating is unchanged and still available through the `change` verbs and
+  `specsync change audit`. **If CI relied on `specsync check` to block on lifecycle state, add
+  `specsync change audit --strict` to the pipeline.**
+
+- **`specsync comment` reports spec-check results only** — SDD lifecycle errors and warnings
+  are no longer folded into the reported totals (previously prefixed `.specsync/sdd.json:`)
+  and no longer decide whether the comment reports a pass.
+
 - **Mandatory local pre-push gate (fast)** — `fledge lanes run pre-push` / `./scripts/pre-push-gate.sh` runs fmt + cargo check + strict path/spec coverage with timing (target: ~seconds–2 min warm; no full test/clippy). Full suite remains `fledge lanes run verify` / CI.
 
 ### Fixed

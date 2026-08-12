@@ -1,6 +1,6 @@
 ---
 id: CHG-0105-make-drift-gate-by-default-flip-the-default-enforcement-mode-from-warn-to-stric
-state: implementing
+state: archived
 type: refactor
 base_commit: 3f121c9205420f6f75b2f4a082433c03cf1949a5
 ---

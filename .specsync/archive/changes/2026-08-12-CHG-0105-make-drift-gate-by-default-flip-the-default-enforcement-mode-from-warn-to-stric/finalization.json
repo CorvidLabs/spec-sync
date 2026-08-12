@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0105-make-drift-gate-by-default-flip-the-default-enforcement-mode-from-warn-to-stric",
+  "implementation_commit": "f6181163e31646a679afe4512104601023185ea3",
+  "implementation_tree": "f83a6ea6882bc5fd579b34b8f54c64ec5fa14c3c",
+  "contract_digest": "31549394e0e6b5f8f1c80517b331c3d67196f0c5f9565d2005e8d93f42902af2",
+  "workspace_digest": "b2fff5656b488c07f8b05f62a1c863b9dd9ca348804d1c815babc98598348e3c",
+  "closing_digest": "8ed77868976eeca3ecf42744277395bab089de1b3dc7764ba3058f3067f609b4",
+  "review_digest": "840ca7fb7a2cdf976613e5525103975feac0bf597ab86f231b9a6f06b20e4d9d",
+  "finalization_digest": "c3643855df7f45e5e4ea6c97ea212b60a469fd6ccfd8432fbc36c90805a6adf1",
+  "timestamp": 1786507104
+}

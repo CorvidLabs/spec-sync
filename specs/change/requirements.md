@@ -133,19 +133,19 @@ Acceptance Criteria
 
 ### REQ-change-013
 
-The lifecycle SHALL reject untrusted or corrupt persisted workspace identity, scope, approval, history, and verification evidence before using it, with one environment-independent verification-freshness decision.
+The lifecycle SHALL reject untrusted or corrupt persisted workspace identity, scope, approval, and
+verification evidence before using it, with one environment-independent verification-freshness
+decision.
 
 Acceptance Criteria
 
 - Loaded change IDs match their requested workspace and remain a single validated component.
 - Persisted affected spec names are validated before delta paths are constructed.
 - Unreadable or malformed historical tombstone deltas and approval ledgers fail closed.
-- Verifying workspaces require passed evidence, a matching effective contract digest, and a matching project-input digest in local and hosted checks.
-- A descendant verification commit remains current only when every intervening commit and every
-  parent edge changes exactly `state.json`, `verification.json`, `verification-attempts.json`,
-  `review.json`, or `review-attempts.json` under a canonical active-change ID and the persisted
-  state, verification, latest-attempt, and scoped-review evidence remains consistent.
-- Source-change-then-revert history, ambiguous merges, nonancestor history, malformed paths, and any broader volatile or lifecycle path fail closed.
+- Verifying workspaces require passed evidence, a matching effective contract digest, and a
+  matching project-input digest in local and hosted checks.
+- Freshness is decided by content equality alone; no commit ancestry, intervening-commit
+  inspection, or path allowlist participates in the decision.
 
 ### REQ-change-014
 
@@ -184,22 +184,24 @@ Acceptance Criteria
 
 ### REQ-change-016
 
-The lifecycle SHALL preserve accepted closing evidence and supported verifying evidence across repository-integrated commits without accepting unintegrated, altered, or historically tainted evidence.
+The lifecycle SHALL preserve accepted closing evidence across repository-integrated commits without
+accepting unintegrated or altered evidence, while verifying evidence SHALL be judged on content
+alone.
 
 Acceptance Criteria
 
-- Normal verification-commit ancestry remains mandatory proof and uses identical local and CI semantics.
-- Every intervening commit is inspected against every parent with NUL-delimited portable paths; a net tree diff cannot hide a governed change and later revert.
-- Only `state.json`, `change.md`, `verification.json`, `verification-attempts.json`, `review.json`,
-  and `review-attempts.json` beneath canonical active-change IDs may follow verification without
-  invalidating it; archive, approvals, tasks, definitions, sequence, hashes, locks, configuration,
-  policy, specs, source, tests, build, and cache paths are rejected. `change.md` is admitted as a
-  pure rendering of the `state.json` record written by the same transitions, so it conveys nothing
-  `state.json` cannot already convey.
-- Matching effective contract and project-input digests plus consistent state, verification, and latest-attempt evidence remain mandatory.
-- A squash fallback for accepted closing evidence still requires matching scoped inputs and an unchanged accepted workspace integrated on the remote default branch.
-- Unintegrated heads, changed scoped inputs, stale contracts, mismatched closing approvals, nonancestor evidence, and ambiguous merges fail closed.
-- Digest fields remain versioned, domain-separated, and length-framed; binary bytes, topology, and executable modes remain exact.
+- Verification currency does not depend on commit ancestry, on inspecting intervening commits, or
+  on restricting which paths may change after verification. Provenance of that kind is recorded by
+  `attest`, keyed to commit SHAs, and is outside this tool.
+- `verification.commit` is retained as an informational correlation key and is never a gate; a
+  squash merge that discards the recorded commit does not invalidate the evidence.
+- Matching effective contract and project-input digests plus consistent state, verification, and
+  latest-attempt evidence remain mandatory.
+- A squash fallback for accepted closing evidence still requires matching scoped inputs and an
+  unchanged accepted workspace integrated on the remote default branch.
+- Changed scoped inputs, stale contracts, and mismatched closing approvals fail closed.
+- Digest fields remain versioned, domain-separated, and length-framed; binary bytes, topology, and
+  executable modes remain exact.
 
 ### REQ-change-017
 

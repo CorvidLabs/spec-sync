@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Verification currency is a content question only.** Whether recorded verification evidence
+  is still current is now decided by three content equalities — the evidence passed, the plan
+  on disk is the plan that was verified, and the tree on disk is the tree that was verified.
+  The git-ancestry walk over descendants of the verification commit, and its `REQ-change-016`
+  path allowlist, are removed, as is the `merge-base --is-ancestor` binding between the
+  verification commit and the implementation. `verification.commit` is still recorded, but as
+  an informational correlation key rather than a gate.
+
+  Two long-standing failures dissolve as a result. **Squash merges no longer orphan
+  verification evidence** — the recorded commit is unreachable after a squash, so the ancestry
+  check could never pass again. And the lifecycle no longer instructs an author to make a
+  commit that its own gate then refuses (the allowlist forbade moving `approvals.json` and
+  `change-sequence.json` between verification and review).
+
+  **Reduced detection, stated plainly:** a source change followed by a revert no longer stales
+  evidence. The tree is byte-identical to the one that was verified, so the content answer is
+  "still current"; previously the ancestry walk saw the intermediate commit and staled it.
+  Detecting that work happened in between is a provenance question and belongs to `attest`,
+  which keys signed records to commit SHAs in git notes.
+
 - **BREAKING (exit codes): drift now gates by default.** The default enforcement mode changes
   from `warn` to `strict`, so a bare `specsync check` exits 1 on a validation error instead of
   reporting it and exiting 0. Warnings still pass unless `--strict` is supplied, and

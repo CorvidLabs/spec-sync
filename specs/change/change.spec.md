@@ -1,6 +1,6 @@
 ---
 module: change
-version: 71
+version: 72
 status: active
 files:
   - src/change.rs
@@ -374,3 +374,4 @@ Acceptance Criteria
 | 2026-08-10 | CHG-0103: Validate correction-ledger health inside locked existing-change definition mutations |
 | 2026-08-10 | CHG-0103: Keep documented mutation wrappers in production and capture normal/strict machine summaries inside the locked transaction |
 | 2026-08-12 | CHG-0104-sever-specsync-check-and-comment-from-the-trust-layer-lifecycle-state-becomes-i: Sever specsync check and comment from the trust layer: lifecycle state becomes informational and never affects exit status |
+| 2026-08-12 | CHG-0106-make-verification-currency-a-content-question-delete-the-git-ancestry-walk-the: Make verification currency a content question: delete the git-ancestry walk, the REQ-change-016 persistence allowlist, and the verification-commit ancestry binding |

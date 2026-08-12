@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0104-sever-specsync-check-and-comment-from-the-trust-layer-lifecycle-state-becomes-i",
+  "implementation_commit": "283f559426fb9ae9232c0f69362ebf3988e699b8",
+  "implementation_tree": "e6ff54c6e392f98906539d10aa733438c7e4bc9d",
+  "contract_digest": "94d72daafdf18e14084023f09bb77680191dbfaeaf09b259bdb30ef958a9e4b3",
+  "workspace_digest": "a0bdf963d8c4c6c6ad12a5b5f9f7d413e3382f1b26b215db05bdbdd97ea0fd74",
+  "closing_digest": "253bae05379325ec14829c1de85540e1777528b76f71b1535aeb432f05a9c671",
+  "review_digest": "3995320e4247f89dd9cca96f1dd5ef25c464864a8c4e1ba4e92c13d2ad890ad8",
+  "finalization_digest": "654e42f1874611555a005babc86f7ccfc396d081a9f4e5647f04bb4e130a3dce",
+  "timestamp": 1786503894
+}

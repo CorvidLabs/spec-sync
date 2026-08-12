@@ -1,6 +1,6 @@
 ---
 id: CHG-0104-sever-specsync-check-and-comment-from-the-trust-layer-lifecycle-state-becomes-i
-state: implementing
+state: archived
 type: refactor
 base_commit: f3a65dc5577b0bc15d4ef45b796b3e7c4e81c44d
 ---

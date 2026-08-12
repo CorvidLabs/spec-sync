@@ -1,6 +1,6 @@
 ---
 id: CHG-0106-make-verification-currency-a-content-question-delete-the-git-ancestry-walk-the
-state: implementing
+state: archived
 type: refactor
 base_commit: 4f8f6be812b87d95acdabc8ef0c238106f9061af
 ---

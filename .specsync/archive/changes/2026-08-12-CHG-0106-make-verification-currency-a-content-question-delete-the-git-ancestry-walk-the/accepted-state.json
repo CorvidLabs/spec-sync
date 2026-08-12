@@ -7,11 +7,11 @@
   "title": "Make verification currency a content question: delete the git-ancestry walk, the REQ-change-016 persistence allowlist, and the verification-commit ancestry binding",
   "description": "Make verification currency a content question: delete the git-ancestry walk, the REQ-change-016 persistence allowlist, and the verification-commit ancestry binding",
   "kind": "refactor",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "4f8f6be812b87d95acdabc8ef0c238106f9061af",
   "created_at": 1786509866,
-  "updated_at": 1786543955,
+  "updated_at": 1786543993,
   "affected_specs": [
     "change"
   ],

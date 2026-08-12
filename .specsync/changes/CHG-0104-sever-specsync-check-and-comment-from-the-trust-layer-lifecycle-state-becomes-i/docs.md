@@ -15,3 +15,8 @@ against source) is unchanged; only the extra gate is removed.
 
 Internal only: removing `check_project_quiet` and `ConfiguredCommandOutput` changes no
 public API and needs no user-facing documentation beyond the CHANGELOG entry above.
+
+The `change` spec's Public API table drops its `check_project_quiet` row. The bi-directional
+drift check caught this during verification — `effective contract 'change': Spec documents
+'check_project_quiet' but no matching export found in source` — which is the product
+detecting a spec/code divergence in its own delivery, exactly as intended.

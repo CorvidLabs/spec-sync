@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING (exit codes): drift now gates by default.** The default enforcement mode changes
+  from `warn` to `strict`, so a bare `specsync check` exits 1 on a validation error instead of
+  reporting it and exiting 0. Warnings still pass unless `--strict` is supplied, and
+  `--enforcement warn` restores the previous non-blocking behaviour.
+
+  Previously `warn` was the default and documented as "always exit 0 regardless of errors or
+  warnings", which meant a repository with a deleted source file and undocumented exports
+  passed `check`. Paired with the severing above, this moves the gate onto the thing the tool
+  exists to check. **Repositories with pre-existing spec errors will start failing; run
+  `specsync check` locally before upgrading, or set `--enforcement warn` while you clear them.**
+
 - **BREAKING (exit codes): `specsync check` no longer fails because of SDD lifecycle state.**
   Lifecycle state is now reported, not enforced: `check` prints the active-change count and
   emits lifecycle findings as warnings on stderr, and its exit status is determined solely by

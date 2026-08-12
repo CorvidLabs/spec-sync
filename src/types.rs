@@ -236,13 +236,15 @@ pub enum ParseMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 pub enum EnforcementMode {
-    /// Report violations but always exit 0 (default, non-blocking).
-    #[default]
+    /// Report violations but always exit 0 (non-blocking; opt in with
+    /// `--enforcement warn`).
     Warn,
     /// Exit 1 only if files without specs exist in the project.
     /// Existing specced files are not blocked even if they have errors.
     EnforceNew,
-    /// Exit 1 on any validation error (strictest mode).
+    /// Exit 1 on any validation error (default). Warnings still pass unless
+    /// `--strict` is given.
+    #[default]
     Strict,
 }
 

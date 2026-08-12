@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 104,
-  "id": "CHG-0104-sever-specsync-check-and-comment-from-the-trust-layer-lifecycle-state-becomes-i",
+  "sequence": 105,
+  "id": "CHG-0105-make-drift-gate-by-default-flip-the-default-enforcement-mode-from-warn-to-stric",
   "acknowledged_collisions": [
     {
       "sequence": 16,

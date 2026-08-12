@@ -723,7 +723,17 @@ Work in progress.
     fs::write(root.join("specs/draft-mod/draft-mod.spec.md"), draft_spec).unwrap();
 
     let assert = specsync()
-        .args(["check", "--root", root.to_str().unwrap()])
+        // Enforcement is pinned to warn: this fixture deliberately maps one source file
+        // from two specs, which is a real error (#508) that gates under the default
+        // strict enforcement. The assertion below is about the skipped-validation
+        // report, not the exit code.
+        .args([
+            "check",
+            "--enforcement",
+            "warn",
+            "--root",
+            root.to_str().unwrap(),
+        ])
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();

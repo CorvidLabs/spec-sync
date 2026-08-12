@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786541239,
+      "digest": "7cb7e1b9ccd3c3ea34a4fb78f3c885ec608ce4dce0b5cf65ab3bf2acfffc8651",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0106-make-verification-currency-a-content-question-delete-the-git-ancestry-walk-the",
+        "title": "Make verification currency a content question: delete the git-ancestry walk, the REQ-change-016 persistence allowlist, and the verification-commit ancestry binding",
+        "description": "Make verification currency a content question: delete the git-ancestry walk, the REQ-change-016 persistence allowlist, and the verification-commit ancestry binding",
+        "kind": "refactor",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Verification currency SHALL be decided by content equality alone — passed evidence, matching plan digest, matching project-input digest — with no git-ancestry walk, no persistence path allowlist, and no verification-commit ancestry binding; verification.commit SHALL remain recorded as an informational correlation key; squash-merged evidence SHALL no longer be orphaned; and REQ-change-013 and REQ-change-016 SHALL be updated so no living requirement describes the deleted history-trust behaviour."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786543993,
+      "digest": "119e1396eb4509bbc200868ee5c99c788c5862c366b5887663ee24ee1e14d61c",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

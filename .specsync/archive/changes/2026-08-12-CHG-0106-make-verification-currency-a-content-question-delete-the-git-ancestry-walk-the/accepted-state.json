@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0106-make-verification-currency-a-content-question-delete-the-git-ancestry-walk-the",
+  "slug": "make-verification-currency-a-content-question-delete-the-git-ancestry-walk-the",
+  "title": "Make verification currency a content question: delete the git-ancestry walk, the REQ-change-016 persistence allowlist, and the verification-commit ancestry binding",
+  "description": "Make verification currency a content question: delete the git-ancestry walk, the REQ-change-016 persistence allowlist, and the verification-commit ancestry binding",
+  "kind": "refactor",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "4f8f6be812b87d95acdabc8ef0c238106f9061af",
+  "created_at": 1786509866,
+  "updated_at": 1786543993,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Verification currency SHALL be decided by content equality alone — passed evidence, matching plan digest, matching project-input digest — with no git-ancestry walk, no persistence path allowlist, and no verification-commit ancestry binding; verification.commit SHALL remain recorded as an informational correlation key; squash-merged evidence SHALL no longer be orphaned; and REQ-change-013 and REQ-change-016 SHALL be updated so no living requirement describes the deleted history-trust behaviour."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

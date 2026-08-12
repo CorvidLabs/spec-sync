@@ -314,7 +314,17 @@ Auth module.
 
     // First --fix run: should add logout
     specsync()
-        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        // Enforcement pinned to warn: these fixtures are intentionally incomplete
+        // specs (missing required sections) so that --fix has something to repair.
+        // The assertion is about what --fix rewrote, not the exit code.
+        .args([
+            "check",
+            "--fix",
+            "--enforcement",
+            "warn",
+            "--root",
+            root.to_str().unwrap(),
+        ])
         .assert()
         .success();
 
@@ -326,7 +336,15 @@ Auth module.
 
     // Second --fix run: logout must not be duplicated
     specsync()
-        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        // Same reason as the first run: the fixture is deliberately incomplete.
+        .args([
+            "check",
+            "--fix",
+            "--enforcement",
+            "warn",
+            "--root",
+            root.to_str().unwrap(),
+        ])
         .assert()
         .success();
 
@@ -398,7 +416,17 @@ Utility helpers.
     fs::write(root.join("specs/utils/utils.spec.md"), spec).unwrap();
 
     specsync()
-        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        // Enforcement pinned to warn: these fixtures are intentionally incomplete
+        // specs (missing required sections) so that --fix has something to repair.
+        // The assertion is about what --fix rewrote, not the exit code.
+        .args([
+            "check",
+            "--fix",
+            "--enforcement",
+            "warn",
+            "--root",
+            root.to_str().unwrap(),
+        ])
         .assert()
         .success();
 

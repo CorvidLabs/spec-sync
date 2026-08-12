@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786500201,
+      "digest": "94d72daafdf18e14084023f09bb77680191dbfaeaf09b259bdb30ef958a9e4b3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0104-sever-specsync-check-and-comment-from-the-trust-layer-lifecycle-state-becomes-i",
+        "title": "Sever specsync check and comment from the trust layer: lifecycle state becomes informational and never affects exit status",
+        "description": "Sever specsync check and comment from the trust layer: lifecycle state becomes informational and never affects exit status",
+        "kind": "refactor",
+        "affected_specs": [
+          "change",
+          "cmd_check",
+          "cmd_comment"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/commands/check.rs",
+          "src/commands/comment.rs",
+          "tests/integration/check.rs",
+          "tests/integration/comment.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "specsync check SHALL NOT exit non-zero because of SDD lifecycle state; it SHALL report the active-change count and emit lifecycle findings as stderr warnings, with exit status determined solely by spec validation, enforcement mode, --strict, and --require-coverage; specsync comment SHALL report spec-check results only; the orphaned quiet-output SDD check path SHALL be removed rather than left dead; and the integration tests asserting the removed behavior SHALL be deleted rather than adapted."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786503894,
+      "digest": "253bae05379325ec14829c1de85540e1777528b76f71b1535aeb432f05a9c671",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

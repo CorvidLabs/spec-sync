@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0106-make-verification-currency-a-content-question-delete-the-git-ancestry-walk-the",
+  "reviewer": "opus-5-implementing-session",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "d24a8a343a7ca0658bdceda7df981f2424039a03",
+  "contract_digest": "7cb7e1b9ccd3c3ea34a4fb78f3c885ec608ce4dce0b5cf65ab3bf2acfffc8651",
+  "execution_digest": "07ffb251918c4fe436349710e108c4be1bf242b8199d664c0b9b51eb771b4910",
+  "workspace_digest": "5e4705d76ab48b532ee182fef5bfe1854c57eac30f9131afc99e54be66199064",
+  "timestamp": 1786543984
+}

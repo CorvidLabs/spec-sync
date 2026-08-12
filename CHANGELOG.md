@@ -9,6 +9,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Verification currency is a content question only.** Whether recorded verification evidence
+  is still current is now decided by three content equalities — the evidence passed, the plan
+  on disk is the plan that was verified, and the tree on disk is the tree that was verified.
+  The git-ancestry walk over descendants of the verification commit, and its `REQ-change-016`
+  path allowlist, are removed, as is the `merge-base --is-ancestor` binding between the
+  verification commit and the implementation. `verification.commit` is still recorded, but as
+  an informational correlation key rather than a gate.
+
+  Two long-standing failures dissolve as a result. **Squash merges no longer orphan
+  verification evidence** — the recorded commit is unreachable after a squash, so the ancestry
+  check could never pass again. And the lifecycle no longer instructs an author to make a
+  commit that its own gate then refuses (the allowlist forbade moving `approvals.json` and
+  `change-sequence.json` between verification and review).
+
+  **Reduced detection, stated plainly:** a source change followed by a revert no longer stales
+  evidence. The tree is byte-identical to the one that was verified, so the content answer is
+  "still current"; previously the ancestry walk saw the intermediate commit and staled it.
+  Detecting that work happened in between is a provenance question and belongs to `attest`,
+  which keys signed records to commit SHAs in git notes.
+
+- **BREAKING (exit codes): drift now gates by default.** The default enforcement mode changes
+  from `warn` to `strict`, so a bare `specsync check` exits 1 on a validation error instead of
+  reporting it and exiting 0. Warnings still pass unless `--strict` is supplied, and
+  `--enforcement warn` restores the previous non-blocking behaviour.
+
+  Previously `warn` was the default and documented as "always exit 0 regardless of errors or
+  warnings", which meant a repository with a deleted source file and undocumented exports
+  passed `check`. Paired with the severing above, this moves the gate onto the thing the tool
+  exists to check. **Repositories with pre-existing spec errors will start failing; run
+  `specsync check` locally before upgrading, or set `--enforcement warn` while you clear them.**
+
+- **BREAKING (exit codes): `specsync check` no longer fails because of SDD lifecycle state.**
+  Lifecycle state is now reported, not enforced: `check` prints the active-change count and
+  emits lifecycle findings as warnings on stderr, and its exit status is determined solely by
+  spec validation results, the effective enforcement mode, `--strict`, and `--require-coverage`.
+  A repository that was red *only* for lifecycle reasons — stale verification evidence, a
+  squash-orphaned evidence commit, a diverged sequence ledger — now exits 0.
+
+  Previously the lifecycle gate exited 1 unconditionally while the default enforcement mode
+  (`warn`) always exits 0, which made the lifecycle a stricter gate than the specs it guarded:
+  a repository with a deleted source file and undocumented exports passed `check`, while a
+  bookkeeping problem failed it. Every trust-layer failure also presented to users as "the
+  drift check is broken."
+
+  Lifecycle gating is unchanged and still available through the `change` verbs and
+  `specsync change audit`. **If CI relied on `specsync check` to block on lifecycle state, add
+  `specsync change audit --strict` to the pipeline.**
+
+- **`specsync comment` reports spec-check results only** — SDD lifecycle errors and warnings
+  are no longer folded into the reported totals (previously prefixed `.specsync/sdd.json:`)
+  and no longer decide whether the comment reports a pass.
+
 - **Mandatory local pre-push gate (fast)** — `fledge lanes run pre-push` / `./scripts/pre-push-gate.sh` runs fmt + cargo check + strict path/spec coverage with timing (target: ~seconds–2 min warm; no full test/clippy). Full suite remains `fledge lanes run verify` / CI.
 
 ### Fixed

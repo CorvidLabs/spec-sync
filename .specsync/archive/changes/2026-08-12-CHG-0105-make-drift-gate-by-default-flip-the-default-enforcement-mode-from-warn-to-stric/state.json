@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0105-make-drift-gate-by-default-flip-the-default-enforcement-mode-from-warn-to-stric",
+  "slug": "make-drift-gate-by-default-flip-the-default-enforcement-mode-from-warn-to-stric",
+  "title": "Make drift gate by default: flip the default enforcement mode from warn to strict so validation errors exit non-zero without an explicit flag",
+  "description": "Make drift gate by default: flip the default enforcement mode from warn to strict so validation errors exit non-zero without an explicit flag",
+  "kind": "refactor",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "3f121c9205420f6f75b2f4a082433c03cf1949a5",
+  "created_at": 1786505765,
+  "updated_at": 1786507285,
+  "affected_specs": [
+    "types"
+  ],
+  "affected_paths": [
+    "src/types.rs",
+    "tests/integration/config.rs",
+    "tests/integration/fix.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The default EnforcementMode SHALL be Strict, so that a validation error exits non-zero without an explicit flag; warnings SHALL continue to pass unless --strict is given; --enforcement warn SHALL remain available as the non-blocking opt-out; and the change SHALL be shipped separately from the trust-layer severing so the two exit-code changes remain independently bisectable."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

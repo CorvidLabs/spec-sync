@@ -33,38 +33,6 @@ fn check_valid_project_passes() {
 }
 
 #[test]
-fn sdd_failure_json_preserves_check_schema() {
-    let tmp = TempDir::new().unwrap();
-    let root = setup_minimal_project(&tmp);
-    fs::create_dir_all(root.join(".specsync")).unwrap();
-    fs::write(root.join(".specsync/sdd.json"), "{").unwrap();
-
-    let assert = specsync()
-        .arg("check")
-        .arg("--root")
-        .arg(&root)
-        .arg("--format")
-        .arg("json")
-        .assert()
-        .failure();
-    let value: serde_json::Value =
-        serde_json::from_slice(&assert.get_output().stdout).expect("single valid JSON result");
-    for key in [
-        "passed",
-        "errors",
-        "warnings",
-        "notices",
-        "stale",
-        "specs_checked",
-        "sdd",
-    ] {
-        assert!(value.get(key).is_some(), "missing JSON key {key}");
-    }
-    assert_eq!(value["passed"], false);
-    assert_eq!(value["notices"], serde_json::json!([]));
-}
-
-#[test]
 fn no_specs_json_preserves_empty_notices_channel() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

@@ -163,39 +163,27 @@ pub fn cmd_check(
     // Active workspaces + living specs only. Archives are history; full archive
     // integrity is not part of `specsync check` (use `change audit` / internal
     // check_project when a full historical walk is intentionally required).
+    // Lifecycle state is reported here, never enforced (REQ-cmd-check-004).
+    //
+    // `specsync check` is the bi-directional spec<->code drift check. Gating it on
+    // lifecycle state made every trust-layer failure — squash orphaning, ledger
+    // divergence, a stale evidence commit — present to the user as "the drift check
+    // is broken", and made the lifecycle a *stricter* gate than the specs it
+    // guarded: default enforcement is `warn`, which always exits 0, while this gate
+    // exited 1 unconditionally. Gating belongs to the `change` verbs and
+    // `specsync change audit`.
+    //
+    // Findings go to stderr in every format so machine consumers keep a signal
+    // without the stdout protocol being disturbed; the summary line is text-only.
     let sdd_report = crate::change::audit_project(root);
     if sdd_report.enabled {
-        for warning in &sdd_report.warnings {
-            if matches!(format, Text) {
-                eprintln!("{} {warning}", "warning:".yellow().bold());
-            }
+        for finding in sdd_report.warnings.iter().chain(sdd_report.errors.iter()) {
+            eprintln!("{} {finding}", "warning:".yellow().bold());
         }
-        if !sdd_report.errors.is_empty() {
-            match format {
-                Json => println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({
-                        "passed": false,
-                        "errors": sdd_report.errors,
-                        "warnings": sdd_report.warnings,
-                        "notices": [],
-                        "stale": [],
-                        "specs_checked": 0,
-                        "sdd": sdd_report,
-                    }))
-                    .unwrap_or_else(|_| "{\"passed\":false}".to_string())
-                ),
-                _ => {
-                    for error in &sdd_report.errors {
-                        eprintln!("{} {error}", "error:".red().bold());
-                    }
-                }
-            }
-            process::exit(1);
-        } else if matches!(format, Text) {
+        if matches!(format, Text) {
             println!(
-                "{} SDD lifecycle valid ({} active change(s))\n",
-                "✓".green(),
+                "{} {} active change(s)\n",
+                "•".dimmed(),
                 sdd_report.checked_changes
             );
         }

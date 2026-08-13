@@ -1,6 +1,6 @@
 ---
 id: CHG-0112-a-tree-with-source-and-no-specs-must-show-its-coverage-number-and-must-not-pass
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 22a6a49027b4d2569501f8b494e886a8a1628a49
 ---

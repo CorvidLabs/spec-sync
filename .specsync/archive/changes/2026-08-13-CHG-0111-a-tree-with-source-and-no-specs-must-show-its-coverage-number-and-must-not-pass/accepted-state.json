@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0111-a-tree-with-source-and-no-specs-must-show-its-coverage-number-and-must-not-pass",
+  "slug": "a-tree-with-source-and-no-specs-must-show-its-coverage-number-and-must-not-pass",
+  "title": "A tree with source and no specs must show its coverage number and must not pass strict validation",
+  "description": "A tree with source and no specs must show its coverage number and must not pass strict validation",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "c7977425ad791f6eef99af5a29032c55532f84fb",
+  "created_at": 1786638797,
+  "updated_at": 1786638996,
+  "affected_specs": [
+    "cmd_check"
+  ],
+  "affected_paths": [
+    "src/commands/check.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Running `specsync check` on a project with source files and an empty specs directory prints the coverage figures rather than omitting them, and `--strict` exits non-zero instead of reporting the tree clean. The machine-readable payload carries the source-file count and coverage percent so a consumer can distinguish a project with unmeasured source from an empty one. A project with no source files at all, whose specs have simply not been generated yet, continues to exit zero under `--strict`."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

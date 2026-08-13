@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0111-a-tree-with-source-and-no-specs-must-show-its-coverage-number-and-must-not-pass",
+  "implementation_commit": "65171b7bcfbf5d3e60fb916f00c9bcc8a22df649",
+  "implementation_tree": "3599c561d8cd4a958de7b98025de60e442733d45",
+  "contract_digest": "8637b839d523c78195b999088a14e9593df476fe22abc35d1064b5116f9bf782",
+  "workspace_digest": "f0b168dfff8ad5056b882256648111cbdac1c24886c0d60bda4284ac059f573b",
+  "closing_digest": "c77a4781f10e08abe1afcc8610151ae83ab457750ecd39041521340fc361ced2",
+  "review_digest": "957005aa417914acf50620eb465e0d8d0a5fc1a6aa889090fe23bbe58a382050",
+  "finalization_digest": "15b1ebdebd47fe9a4cb6e05f73e49830af0b8a1a98ee4333daaa98e4a2c872ed",
+  "timestamp": 1786638996
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0113-staleness-detection-must-refuse-a-repository-with-no-commits-instead-of-reportin",
+  "implementation_commit": "9105b49c12f464e497c5474cc4abcdb0a5f923ad",
+  "implementation_tree": "870a527621070a432b07c5466f634ab4da9470cc",
+  "contract_digest": "8952907175f90272577d2a66460b8118ad9c5c10e2af82dcdb1b0fc728092714",
+  "workspace_digest": "aed3636e99efee8bd48b0e565631f9d08fb1eb7b3cfe58de74f5af592c969e5c",
+  "closing_digest": "b7d1a3aeeeb66ff78d56183de222969836ea6b86e8a48e8ebc1a0ebcfefad64c",
+  "review_digest": "ec7ee999ff4ff908f26a3bbc32071194c2ad1fb30291f2ba029bfa8e21a8d0c1",
+  "finalization_digest": "a58e6e4f187b0da6328c867e9b05400d9762ccb9cb37adfc800aea948c1a70a2",
+  "timestamp": 1786644984
+}

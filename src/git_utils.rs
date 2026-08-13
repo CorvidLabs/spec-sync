@@ -61,6 +61,22 @@ pub fn is_git_repo(root: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Whether the repository has at least one commit.
+///
+/// A repository with an unborn `HEAD` is a git repository by every other test,
+/// but there is no history for anything to be newer or older than. Callers that
+/// decide staleness from history must treat it the same way they treat "not a
+/// git repository" rather than reporting everything current (#558) — it is the
+/// state `git init` leaves behind, which is where the quick start begins.
+pub fn has_commits(root: &Path) -> bool {
+    Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .current_dir(root)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
 /// Staleness info for a single spec relative to its source files.
 #[derive(Debug, Clone)]
 pub struct StaleInfo {

@@ -2,7 +2,9 @@ use colored::Colorize;
 use std::fs;
 use std::path::Path;
 
-use crate::git_utils::{StaleInfo, git_commits_since, git_last_commit_hash, is_git_repo};
+use crate::git_utils::{
+    StaleInfo, git_commits_since, git_last_commit_hash, has_commits, is_git_repo,
+};
 use crate::parser;
 use crate::types;
 
@@ -16,19 +18,35 @@ pub fn cmd_stale(
     only_status: &[String],
     enforcement: Option<types::EnforcementMode>,
 ) {
-    if !is_git_repo(root) {
+    // An unborn HEAD is a git repository by every other test, but nothing can
+    // be newer or older than a history that does not exist. Reporting every spec
+    // "up to date" there was an answer to a question that could not be asked —
+    // and it is the state `git init` leaves behind (#558). Handled alongside the
+    // no-repository case, which was already correct.
+    let missing_history = !is_git_repo(root) || !has_commits(root);
+    if missing_history {
+        let reason = if is_git_repo(root) {
+            "repository has no commits"
+        } else {
+            "not a git repository"
+        };
         match format {
             types::OutputFormat::Json => {
                 let output = serde_json::json!({
-                    "error": "not a git repository",
+                    "error": reason,
                     "stale_specs": [],
                 });
                 println!("{}", serde_json::to_string_pretty(&output).unwrap());
             }
             _ => {
                 eprintln!(
-                    "{} Not a git repository — staleness detection requires git history.",
-                    "Error:".red().bold()
+                    "{} {} — staleness detection requires git history.",
+                    "Error:".red().bold(),
+                    if reason == "repository has no commits" {
+                        "Repository has no commits"
+                    } else {
+                        "Not a git repository"
+                    }
                 );
             }
         }

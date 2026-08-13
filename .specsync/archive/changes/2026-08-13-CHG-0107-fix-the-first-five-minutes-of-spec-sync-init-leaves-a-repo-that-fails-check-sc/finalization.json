@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0107-fix-the-first-five-minutes-of-spec-sync-init-leaves-a-repo-that-fails-check-sc",
+  "implementation_commit": "96df1cff50798091d9cb7136b05e8ab1199471b5",
+  "implementation_tree": "50eadfb849d247546a7f9224db57f3bd616f6ec2",
+  "contract_digest": "02dcdcfaedf3f6ff46bee160fc09482c1615b299377265f7c88174cff35ec295",
+  "workspace_digest": "adfe8fb8d434ad7900cf5085c49b2fed66472f55b636ac384fb66da231739211",
+  "closing_digest": "cbab33f7e4a88045d659803087f6638eb276f18dbfe5ec4b6d193ac8353883d4",
+  "review_digest": "8c98c35c2adbeb651c5e8e2c67f852ddc784f79d4063eee04069ddd9e010da7d",
+  "finalization_digest": "1b90910709947f85aed9f60e3ef53d788afa03a093cd8015ee9f44eac7c48017",
+  "timestamp": 1786594597
+}

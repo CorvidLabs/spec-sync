@@ -7,11 +7,11 @@
   "title": "Fix the first five minutes of spec-sync: init leaves a repo that fails check, scaffold writes prose that check rejects, and a directory in files: makes check silently green",
   "description": "Fix the first five minutes of spec-sync: init leaves a repo that fails check, scaffold writes prose that check rejects, and a directory in files: makes check silently green",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "4ddf810ed39b56482ba96a0d209ee9216ef56fe9",
   "created_at": 1786579705,
-  "updated_at": 1786591938,
+  "updated_at": 1786594809,
   "affected_specs": [
     "change",
     "cmd_init",

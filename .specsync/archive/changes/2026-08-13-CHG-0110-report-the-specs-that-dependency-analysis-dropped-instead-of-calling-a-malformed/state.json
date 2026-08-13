@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0110-report-the-specs-that-dependency-analysis-dropped-instead-of-calling-a-malformed",
+  "slug": "report-the-specs-that-dependency-analysis-dropped-instead-of-calling-a-malformed",
+  "title": "Report the specs that dependency analysis dropped instead of calling a malformed graph valid",
+  "description": "Report the specs that dependency analysis dropped instead of calling a malformed graph valid",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "7bd6c0ac75ecf83bf680a303d3146709021423f1",
+  "created_at": 1786633417,
+  "updated_at": 1786635001,
+  "affected_specs": [
+    "deps"
+  ],
+  "affected_paths": [
+    "src/deps.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Running `specsync deps` against a spec whose frontmatter is malformed reports the defect with the same wording `specsync check` uses and exits non-zero, instead of treating the declaration as empty and printing that all dependency declarations are valid. A spec whose frontmatter cannot be parsed at all, and one that declares no module, are each reported as dropped from the analysis rather than skipped silently. A project whose specs are all well-formed continues to report a valid graph and exit zero."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

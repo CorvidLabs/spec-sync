@@ -104,14 +104,43 @@ fn build_dep_graph_checked(
             }
         };
 
+        let rel = spec_file
+            .strip_prefix(root)
+            .unwrap_or(spec_file)
+            .to_string_lossy()
+            .to_string();
+
+        // Every `continue` below drops a spec out of the graph. Silently, they
+        // made `deps` answer a question it had not asked: a malformed
+        // `depends_on` parsed to an empty list, contributed no edges, and the
+        // command then affirmatively reported "All dependency declarations are
+        // valid" over frontmatter that `check` rejects outright (#550). Absence
+        // of input is not absence of problems — say which specs were dropped.
         let parsed = match parse_frontmatter(&content) {
             Some(p) => p,
-            None => continue,
+            None => {
+                unreadable.push(format!(
+                    "{rel}: frontmatter could not be parsed; dependency analysis skipped this spec"
+                ));
+                continue;
+            }
         };
+
+        // A spec whose frontmatter parsed but whose `depends_on` is malformed
+        // would otherwise contribute an empty edge set indistinguishable from a
+        // module that genuinely declares nothing.
+        for error in &parsed.errors {
+            unreadable.push(format!("{rel}: {error}"));
+        }
 
         let module_name = match &parsed.frontmatter.module {
             Some(m) => m.clone(),
-            None => continue,
+            None => {
+                unreadable.push(format!(
+                    "{rel}: frontmatter declares no `module`; dependency analysis skipped this spec"
+                ));
+                continue;
+            }
         };
 
         let spec_path = spec_file

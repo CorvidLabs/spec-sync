@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0110-report-the-specs-that-dependency-analysis-dropped-instead-of-calling-a-malformed",
+  "implementation_commit": "bc1cf1602c8d76a2f54647e310fa143644f8f99e",
+  "implementation_tree": "e5ceefcdbfc90dc4d4e100e4620e63753762cae2",
+  "contract_digest": "e91cf09c49fb52e5da83a3f7af148f1590b3936e6e9315a21e49adde035e0197",
+  "workspace_digest": "2957b39d9e222d4b5c5029c15ddead6d7ece68408238856c31ddb49d608d305b",
+  "closing_digest": "995a7ffff34604d3679a2bb3a7596edcf57a8de3afe99b6884fda88fa7989813",
+  "review_digest": "291c25abd9797e922fba386703e9373ed4f11af24b6f335744f162a5e95b0739",
+  "finalization_digest": "b0f79b39500704d470b979f1701ce9e91a556e7fbf05a1514da4d8ca8f41e774",
+  "timestamp": 1786634798
+}

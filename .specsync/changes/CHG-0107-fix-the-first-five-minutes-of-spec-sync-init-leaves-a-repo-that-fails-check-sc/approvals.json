@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786580308,
+      "digest": "02dcdcfaedf3f6ff46bee160fc09482c1615b299377265f7c88174cff35ec295",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0107-fix-the-first-five-minutes-of-spec-sync-init-leaves-a-repo-that-fails-check-sc",
+        "title": "Fix the first five minutes of spec-sync: init leaves a repo that fails check, scaffold writes prose that check rejects, and a directory in files: makes check silently green",
+        "description": "Fix the first five minutes of spec-sync: init leaves a repo that fails check, scaffold writes prose that check rejects, and a directory in files: makes check silently green",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_init",
+          "cmd_issues",
+          "generator",
+          "validator"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/change.rs",
+          "src/commands/init.rs",
+          "src/commands/issues.rs",
+          "src/generator.rs",
+          "src/validator.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A repository initialized with `specsync init` passes `specsync check --strict` with exit 0 before any spec is authored. A module created with `specsync scaffold` passes `specsync check --strict` with exit 0 while its sections still hold generated placeholder prose, and a section a change actually authored then emptied still fails. A directory listed in a spec's `files:` block resolves to the source files beneath it for validation, coverage, and export extraction instead of being silently skipped, and an unresolvable directory reports an error rather than passing green."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -859,3 +859,52 @@ Acceptance Criteria
 - Verification command execution, failure reporting, and recursion refusal are otherwise
   unchanged.
 
+
+### REQ-change-060
+
+A bootstrap record SHALL exempt a path from lifecycle path coverage only when that exemption cannot
+be used to hide product delivery or later policy edits.
+
+Acceptance Criteria
+
+- A recorded path is honored only when it is a protected SDD path, is absent at the delivery
+  comparison base, its recorded base commit is an ancestor of `HEAD`, and its content still matches
+  the recorded digest.
+- A bootstrap record never exempts a path that is not a protected SDD path.
+- Editing a bootstrapped file revokes its own exemption and the normal change workflow applies from
+  that point on.
+- Bootstrap records written in the earlier single-path shape continue to be honored.
+
+### REQ-change-061
+
+The digest recorded for a bootstrapped policy SHALL pin the enforcement surface rather than the
+file's bytes.
+
+Acceptance Criteria
+
+- Every field that determines whether the coverage gate applies is covered by the digest.
+- Verification commands are excluded, so populating them as initialization instructs does not revoke
+  the bootstrap.
+- A policy file that cannot be parsed falls back to a digest of its bytes.
+
+### REQ-change-062
+
+Resolution of the delivery comparison base SHALL succeed in a repository containing a single commit.
+
+Acceptance Criteria
+
+- Both a range form and a bare commit reduce to a single commit through its merge base with `HEAD`.
+- No resolution path depends on a parent commit existing.
+
+### REQ-change-063
+
+An unfinished spec section SHALL gate on whether a change authored it, not on its content shape.
+
+Acceptance Criteria
+
+- A generated section no active change authored produces no fatal effective-contract finding.
+- A section an active change authored and then emptied remains fatal, through both the pending and
+  the applied delta paths.
+- Unknown authorship fails closed and exempts nothing.
+- Ignore configuration is applied through the project's ignore rules rather than re-derived.
+- Suppressions are reported as warnings rather than dropped silently.

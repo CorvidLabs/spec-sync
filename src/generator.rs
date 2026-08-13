@@ -522,7 +522,15 @@ Document this module's responsibility, inputs, outputs, and ownership boundaries
 }
 
 /// Find source files in a module directory.
-fn find_module_source_files(dir: &Path, config: &SpecSyncConfig, root: &Path) -> Vec<String> {
+///
+/// Shared with spec validation: a `files:` entry that resolves to a directory is
+/// rejected with a fix naming these same files, so the remedy a spec author is
+/// told to paste matches what generation would have written.
+pub(crate) fn find_module_source_files(
+    dir: &Path,
+    config: &SpecSyncConfig,
+    root: &Path,
+) -> Vec<String> {
     let mut results = Vec::new();
     if !dir.exists() {
         return results;

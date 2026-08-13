@@ -22,6 +22,14 @@ const LEGACY_BASELINE_PATH: &str = ".specsync/archive/legacy-baseline.json";
 const WORKFLOW_V2_BASELINE_PATH: &str = ".specsync/workflow-v2-baseline.json";
 const LOCK_PATH: &str = ".specsync/change.lock";
 const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
+const BOOTSTRAP_RECORD_PATH: &str = ".specsync/bootstrap.json";
+/// Protected SDD paths `specsync init` creates for a fresh project.
+const BOOTSTRAP_RECORD_CANDIDATES: [&str; 4] = [
+    ".specsync/config.toml",
+    ".specsync/config.json",
+    ".specsync/version",
+    POLICY_PATH,
+];
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
 const CORRECTIONS_FILE: &str = "corrections.json";
 const SCOPED_REVIEW_FILE: &str = "review.json";
@@ -2526,7 +2534,11 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     let records = list_changes_checked(root)?;
-    validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
+    // Verification has no non-error output channel; `specsync check` and
+    // `specsync change audit` run this same gate and report the suppressions.
+    if let Some(errors) = validate_effective_contracts(root, &records).error_text() {
+        return Err(errors);
+    }
     ensure_tasks_complete(root, &record)?;
     let policy = load_policy_checked(root)?.unwrap_or_default();
     let verification_commands = verification_commands_for_change(root, &policy, &record, strict)?;
@@ -5586,7 +5598,11 @@ fn accept_change_with_gate(
     ensure_no_delta_conflicts(root, &record)?;
     validate_delta_files(root, &record)?;
     let records = list_changes_checked(root)?;
-    validate_effective_contracts(root, &records).map_err(|errors| errors.join("; "))?;
+    // Same as verification: acceptance reports only failures, and the project
+    // surfaces report every suppression this gate applied.
+    if let Some(errors) = validate_effective_contracts(root, &records).error_text() {
+        return Err(errors);
+    }
     ensure_reopened_definition_unchanged(root, &record)?;
     let mut prepared = if record.canonical_applied {
         Vec::new()
@@ -6492,9 +6508,9 @@ fn check_project_with_command_output(
             }
         }
     }
-    if let Err(errors) = validate_effective_contracts(root, &records) {
-        report.errors.extend(errors);
-    }
+    let effective = validate_effective_contracts(root, &records);
+    report.warnings.extend(effective.suppressions);
+    report.errors.extend(effective.errors);
     let verifying_project_digest = if records
         .iter()
         .any(|record| record.state == ChangeState::Verifying)
@@ -6599,10 +6615,7 @@ fn check_project_with_command_output(
         match uncovered_meaningful_paths(root, &policy, &records) {
             Ok(paths) => {
                 if !paths.is_empty() {
-                    report.errors.push(format!(
-                        "meaningful changed paths are not covered by an active change: {}",
-                        paths.join(", ")
-                    ));
+                    report.errors.push(uncovered_paths_error(&policy, &paths));
                 }
             }
             Err(error) => report.errors.push(error),
@@ -6702,59 +6715,223 @@ fn adoption_bootstrap_record_for_content(
     let Some(base_commit) = git_output(root, &["rev-parse", "--verify", "HEAD"]) else {
         return Ok(None);
     };
-    let mut hasher = Sha256::new();
-    hasher.update(content);
     Ok(Some(serde_json::json!({
         "path": POLICY_PATH,
-        "digest": format!("{:x}", hasher.finalize()),
+        "digest": bootstrap_digest(POLICY_PATH, content),
         "base_commit": base_commit,
     })))
 }
 
-fn adoption_bootstrap_covers_policy(root: &Path) -> bool {
-    let Ok(content) = fs::read_to_string(root.join(".specsync/adoption-report.json")) else {
-        return false;
+/// Record the protected SDD files this bootstrap just created.
+///
+/// `specsync init` writes `.specsync/config.toml`, `.specsync/version`, and
+/// `.specsync/sdd.json`. All three are protected SDD paths, so the first commit
+/// after initialization used to land as uncovered meaningful delivery — a gate
+/// no change workspace could have satisfied, because none existed when the
+/// files were written. Recording them here lets the coverage gate recognize
+/// spec-sync's own output without weakening the guard on later edits.
+pub fn record_bootstrap_paths(root: &Path) -> Result<(), String> {
+    let Some(base_commit) = git_output(root, &["rev-parse", "--verify", "HEAD"]) else {
+        // Without Git evidence the coverage gate is disabled anyway
+        // (see `default_policy`), so there is nothing to exempt.
+        return Ok(());
     };
-    let Ok(report) = serde_json::from_str::<serde_json::Value>(&content) else {
-        return false;
+    let mut paths = Vec::new();
+    for candidate in BOOTSTRAP_RECORD_CANDIDATES {
+        let Ok(content) = fs::read(root.join(candidate)) else {
+            continue;
+        };
+        paths.push(serde_json::json!({
+            "path": candidate,
+            "digest": bootstrap_digest(candidate, &content),
+        }));
+    }
+    if paths.is_empty() {
+        return Ok(());
+    }
+    write_json(
+        &root.join(BOOTSTRAP_RECORD_PATH),
+        &serde_json::json!({
+            "version": 1,
+            "created_at": now(),
+            "base_commit": base_commit,
+            "paths": paths,
+        }),
+    )
+}
+
+/// Protected SDD paths a bootstrap record exempts from lifecycle path coverage.
+///
+/// The exemption is deliberately hard to forge. A recorded path is honored only
+/// when all four hold:
+///
+/// 1. it is a protected SDD path — a record can never exempt product source;
+/// 2. it is absent at the delivery comparison base, so a *modification* of an
+///    already-tracked policy file is never exempt, only its creation;
+/// 3. the recorded base commit is a real ancestor of `HEAD`; and
+/// 4. the file still hashes to the digest recorded when spec-sync wrote it
+///    (see [`bootstrap_digest`] for what the policy digest covers).
+///
+/// Editing a bootstrapped file therefore revokes its own exemption and the
+/// normal change workflow applies from that point on.
+fn bootstrap_exempt_paths(root: &Path, comparison_base: &str) -> BTreeSet<String> {
+    let mut exempt = BTreeSet::new();
+    let records = bootstrap_records(root);
+    if records.is_empty() {
+        return exempt;
+    }
+    let Some(base_commit) = comparison_base_commit(root, comparison_base) else {
+        return exempt;
     };
-    let Some(bootstrap) = report.get("bootstrap_policy") else {
-        return false;
-    };
-    if bootstrap.get("path").and_then(serde_json::Value::as_str) != Some(POLICY_PATH) {
+    for record in records {
+        if !is_protected_sdd_path(&record.path) {
+            continue;
+        }
+        if !commit_is_ancestor_of_head(root, &record.base_commit) {
+            continue;
+        }
+        if !project_path_is_absent_at(root, &base_commit, &record.path) {
+            continue;
+        }
+        if !project_path_matches_digest(root, &record.path, &record.digest) {
+            continue;
+        }
+        exempt.insert(record.path);
+    }
+    exempt
+}
+
+struct BootstrapRecord {
+    path: String,
+    digest: String,
+    base_commit: String,
+}
+
+/// Bootstrap records written by `specsync init` and by `change adopt`.
+///
+/// Adoption keeps its original single-path `bootstrap_policy` shape so reports
+/// written by earlier versions keep covering the policy they created.
+fn bootstrap_records(root: &Path) -> Vec<BootstrapRecord> {
+    let mut records = Vec::new();
+    if let Some(report) = read_json_value(root, ".specsync/adoption-report.json")
+        && let Some(bootstrap) = report.get("bootstrap_policy")
+        && let Some(record) = bootstrap_record_entry(bootstrap, bootstrap)
+    {
+        records.push(record);
+    }
+    if let Some(report) = read_json_value(root, BOOTSTRAP_RECORD_PATH)
+        && let Some(entries) = report.get("paths").and_then(serde_json::Value::as_array)
+    {
+        records.extend(
+            entries
+                .iter()
+                .filter_map(|entry| bootstrap_record_entry(entry, &report)),
+        );
+    }
+    records
+}
+
+fn bootstrap_record_entry(
+    entry: &serde_json::Value,
+    base_source: &serde_json::Value,
+) -> Option<BootstrapRecord> {
+    Some(BootstrapRecord {
+        path: entry.get("path")?.as_str()?.to_string(),
+        digest: entry.get("digest")?.as_str()?.to_string(),
+        base_commit: base_source.get("base_commit")?.as_str()?.to_string(),
+    })
+}
+
+fn read_json_value(root: &Path, relative: &str) -> Option<serde_json::Value> {
+    let content = fs::read_to_string(root.join(relative)).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+/// Resolve the single commit a delivery is compared against.
+///
+/// [`pull_request_diff_base`] yields either a `<ref>...HEAD` range or a bare
+/// commit; both reduce to the merge base with `HEAD`.
+fn comparison_base_commit(root: &Path, comparison_base: &str) -> Option<String> {
+    let left = comparison_base
+        .split("...")
+        .next()
+        .filter(|value| !value.is_empty())
+        .unwrap_or(comparison_base);
+    git_output(root, &["merge-base", left, "HEAD"]).or_else(|| {
+        git_output(
+            root,
+            &["rev-parse", "--verify", &format!("{left}^{{commit}}")],
+        )
+    })
+}
+
+fn commit_is_ancestor_of_head(root: &Path, commit: &str) -> bool {
+    if git_output(root, &["rev-parse", "--verify", commit]).is_none() {
         return false;
     }
-    let Some(base_commit) = bootstrap
-        .get("base_commit")
-        .and_then(serde_json::Value::as_str)
-    else {
-        return false;
-    };
-    if git_output(root, &["rev-parse", "--verify", base_commit]).is_none() {
-        return false;
-    }
-    let ancestor_status = Command::new("git")
-        .args(["merge-base", "--is-ancestor", base_commit, "HEAD"])
+    Command::new("git")
+        .args(["merge-base", "--is-ancestor", commit, "HEAD"])
         .current_dir(root)
         .stderr(Stdio::null())
-        .status();
-    if !ancestor_status.is_ok_and(|status| status.success()) {
-        return false;
-    }
-    let Ok(tree_path) = git_repo_relative_path(root, POLICY_PATH) else {
-        return false;
-    };
-    let object = format!("{base_commit}:{tree_path}");
-    if git_output_allow_empty(root, &["show", &object]).is_some() {
-        return false;
-    }
-    let Ok(policy) = fs::read(root.join(POLICY_PATH)) else {
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+fn project_path_is_absent_at(root: &Path, commit: &str, path: &str) -> bool {
+    let Ok(tree_path) = git_repo_relative_path(root, path) else {
         return false;
     };
+    git_output_allow_empty(root, &["show", &format!("{commit}:{tree_path}")]).is_none()
+}
+
+fn project_path_matches_digest(root: &Path, path: &str, digest: &str) -> bool {
+    let Ok(content) = fs::read(root.join(path)) else {
+        return false;
+    };
+    if bootstrap_digest(path, &content) == digest || content_digest(&content) == digest {
+        return true;
+    }
+    // `.specsync/config.toml` and `.specsync/version` are not covered by the
+    // JSON `eol=lf` attribute, so a Windows autocrlf checkout can rewrite the
+    // bytes without changing the content. Accept that rewrite rather than
+    // revoking the bootstrap on a platform that never edited the file.
+    let lf_only: Vec<u8> = content
+        .iter()
+        .copied()
+        .filter(|byte| *byte != b'\r')
+        .collect();
+    lf_only != content && content_digest(&lf_only) == digest
+}
+
+/// Digest recorded for one bootstrapped path.
+///
+/// The policy is pinned by its *enforcement surface*, not its bytes:
+/// `verification_commands` is cleared before hashing. `init` writes an empty
+/// list whenever it cannot detect a test command and tells the author to fill
+/// it in — pinning that field would revoke the bootstrap for doing exactly what
+/// the tool just asked for. Everything that decides whether the gate bites —
+/// `enabled`, `require_change_for_meaningful_files`, `meaningful_paths`,
+/// `ignored_paths`, custom artifacts, principles — stays pinned, and a policy
+/// that does not parse falls back to a byte digest.
+fn bootstrap_digest(path: &str, content: &[u8]) -> String {
+    if path == POLICY_PATH
+        && let Some(projection) = policy_enforcement_projection(content)
+    {
+        return content_digest(&projection);
+    }
+    content_digest(content)
+}
+
+fn policy_enforcement_projection(content: &[u8]) -> Option<Vec<u8>> {
+    let mut policy: SddPolicy = serde_json::from_slice(content).ok()?;
+    policy.verification_commands.clear();
+    serde_json::to_vec(&policy).ok()
+}
+
+fn content_digest(content: &[u8]) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(policy);
-    let current_digest = format!("{:x}", hasher.finalize());
-    bootstrap.get("digest").and_then(serde_json::Value::as_str) == Some(current_digest.as_str())
+    hasher.update(content);
+    format!("{:x}", hasher.finalize())
 }
 
 fn requirement_id_proposals(root: &Path) -> Vec<serde_json::Value> {
@@ -7301,7 +7478,64 @@ fn requirement_evidence_missing(root: &Path, record: &ChangeRecord, ids: &[Strin
         .collect()
 }
 
-fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result<(), Vec<String>> {
+/// The section name carried by a stub-section validator warning.
+///
+/// Deliberately coupled to the exact text `validator::validate_spec` emits for
+/// an unfinished section, the same way `SCAFFOLD_BOILERPLATE_PREFIXES` is
+/// coupled to the scaffold it detects. Classification is not reused here:
+/// `WarningCategory::classify` matches `requirements` first, so the stub warning
+/// for `## Requirements` never reaches its stub-section arm.
+fn stub_section_warning(warning: &str) -> Option<&str> {
+    warning
+        .strip_prefix("Section ## ")?
+        .strip_suffix(" contains only unfinished draft text")
+}
+
+/// Hard errors plus every suppression one effective-contract validation applied.
+///
+/// Suppressions are carried alongside errors rather than instead of them, so a
+/// module that both fails and suppresses still reports what it let through.
+#[derive(Debug, Default)]
+struct EffectiveContractOutcome {
+    errors: Vec<String>,
+    suppressions: Vec<String>,
+}
+
+impl EffectiveContractOutcome {
+    fn failed(error: String) -> Self {
+        Self {
+            errors: vec![error],
+            suppressions: Vec::new(),
+        }
+    }
+
+    /// Join the errors for gates whose only output channel is a failure string.
+    fn error_text(&self) -> Option<String> {
+        (!self.errors.is_empty()).then(|| self.errors.join("; "))
+    }
+}
+
+/// Validate every canonical contract with the active semantic deltas replayed.
+///
+/// Reports the suppressions applied, so no exemption is silent; `check_project`
+/// and `audit_project` surface them as warnings.
+///
+/// Every validator warning is promoted to a hard error here, which is what makes
+/// an emptied `## MODIFIED` block fatal — the stub warning is the only gate that
+/// sees a section a delta blanked out. Two suppressions are scoped narrowly
+/// around that:
+///
+/// - `.specsyncignore` and inline `<!-- specsync-ignore: … -->` directives, which
+///   apply at every other validation surface and now apply here as well.
+/// - Stub sections **no active change authored**. `specsync new` writes scaffold
+///   placeholders into `## Purpose` and `## Dependencies`, and the first change
+///   against a fresh module was blocked by text the tool itself generated. The
+///   applied `SpecSection` delta keys name exactly the sections a change is
+///   responsible for; anything else is pre-existing canonical text. Authorship
+///   is read from the delta file even when the delta is already applied to the
+///   canonical spec (`canonical_applied` while verifying, where nothing is
+///   replayed), and authorship that cannot be established suppresses nothing.
+fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> EffectiveContractOutcome {
     let active: Vec<&ChangeRecord> = records
         .iter()
         .filter(|record| {
@@ -7314,19 +7548,30 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
         })
         .collect();
     if active.is_empty() {
-        return Ok(());
+        return EffectiveContractOutcome::default();
     }
-    let active = dependency_ordered_changes(active)
-        .map_err(|error| vec![format!("effective contract ordering: {error}")])?;
+    let active = match dependency_ordered_changes(active) {
+        Ok(active) => active,
+        Err(error) => {
+            return EffectiveContractOutcome::failed(format!(
+                "effective contract ordering: {error}"
+            ));
+        }
+    };
     let mut modules = BTreeSet::new();
     for record in &active {
         modules.extend(record.affected_specs.iter().cloned());
     }
-    let temp = create_effective_contract_workspace().map_err(|error| vec![error])?;
+    let temp = match create_effective_contract_workspace() {
+        Ok(temp) => temp,
+        Err(error) => return EffectiveContractOutcome::failed(error),
+    };
     let config = crate::config::load_config(root);
     let schema_tables = crate::validator::get_schema_table_names(root, &config);
     let schema_columns = crate::commands::build_schema_columns(root, &config);
+    let ignore_rules = crate::ignore::IgnoreRules::load(root);
     let mut errors = Vec::new();
+    let mut suppressions = Vec::new();
     for module in modules {
         let canonical = match canonical_module_paths(root, &config.specs_dir, &module) {
             Ok((spec_path, _)) => spec_path,
@@ -7346,15 +7591,33 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
                 continue;
             }
         };
+        // Sections written by an active change, lowercased. A change owns every
+        // section its delta names, whether or not that delta is replayed here.
+        let mut authored_sections: BTreeSet<String> = BTreeSet::new();
+        // An unreadable delta leaves authorship unknown, which suppresses nothing.
+        let mut authorship_known = true;
         for record in &active {
-            if record.canonical_applied || !record.affected_specs.contains(&module) {
+            if !record.affected_specs.contains(&module) {
                 continue;
             }
-            let delta_path =
-                delta_path_checked(root, record, &module).map_err(|error| vec![error])?;
+            // An applied delta is already part of the canonical spec, so it is read
+            // for authorship only. Its absence is not a new hard error at this gate.
+            let applied = record.canonical_applied;
+            let delta_path = match delta_path_checked(root, record, &module) {
+                Ok(path) => path,
+                Err(_) if applied => {
+                    authorship_known = false;
+                    continue;
+                }
+                Err(error) => return EffectiveContractOutcome::failed(error),
+            };
             let delta = match read_bounded_change_text(&delta_path, "semantic delta") {
                 Ok(delta) => delta,
                 Err(error) => {
+                    if applied {
+                        authorship_known = false;
+                        continue;
+                    }
                     errors.push(format!(
                         "{} effective delta for `{module}`: {error}",
                         record.id
@@ -7368,6 +7631,10 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
                         .into_iter()
                         .filter(|item| item.target == DeltaTarget::SpecSection)
                     {
+                        authored_sections.insert(item.key.to_ascii_lowercase());
+                        if applied {
+                            continue;
+                        }
                         match apply_markdown_block(
                             &spec,
                             "## ",
@@ -7382,7 +7649,13 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
                         }
                     }
                 }
-                Err(error) => errors.push(format!("{} effective `{module}`: {error}", record.id)),
+                Err(error) => {
+                    if applied {
+                        authorship_known = false;
+                        continue;
+                    }
+                    errors.push(format!("{} effective `{module}`: {error}", record.id));
+                }
             }
         }
         let effective_dir = temp.join(&module);
@@ -7391,10 +7664,14 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
             continue;
         }
         let effective = effective_dir.join(format!("{module}.spec.md"));
+        let inline_ignores = crate::ignore::IgnoreRules::parse_inline(&spec);
         if let Err(error) = fs::write(&effective, spec) {
             errors.push(format!("failed to write effective contract: {error}"));
             continue;
         }
+        // Ignore rules are written against the canonical spec path, not the
+        // temporary effective copy this gate validates.
+        let spec_rel_path = portable_project_path(root, &canonical);
         let result = crate::validator::validate_spec(
             &effective,
             root,
@@ -7406,15 +7683,36 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Result
             result
                 .errors
                 .into_iter()
-                .chain(result.warnings)
                 .map(|error| format!("effective contract `{module}`: {error}")),
         );
+        for warning in result.warnings {
+            if let Some((category, source)) =
+                ignore_rules.suppression_source(&warning, &spec_rel_path, &inline_ignores)
+            {
+                suppressions.push(format!(
+                    "effective contract `{module}`: suppressed `{}` warning by {source} ignore rule: {warning}",
+                    category.as_str()
+                ));
+                continue;
+            }
+            if authorship_known
+                && let Some(section) = stub_section_warning(&warning)
+                && !authored_sections.contains(&section.to_ascii_lowercase())
+            {
+                suppressions.push(format!(
+                    "effective contract `{module}`: {warning}; no active change authored ## {section}, \
+                     so it is not blocking — complete it in {spec_rel_path} or suppress it with \
+                     `stub-section:{spec_rel_path}` in .specsyncignore"
+                ));
+                continue;
+            }
+            errors.push(format!("effective contract `{module}`: {warning}"));
+        }
     }
     let _ = fs::remove_dir_all(temp);
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
+    EffectiveContractOutcome {
+        errors,
+        suppressions,
     }
 }
 
@@ -14504,6 +14802,46 @@ fn record_verification_attempt(
     )
 }
 
+/// The coverage gate is the first hard failure most projects meet, and the way
+/// out of it — opening a change workspace, optionally without a spec change —
+/// is not discoverable from the bare list of paths. Name the command, and say
+/// why an `ignored_paths` entry did not apply when one appears to cover a
+/// reported path: protected SDD policy files and the configured specs tree are
+/// structurally meaningful and cannot be ignored away.
+fn uncovered_paths_error(policy: &SddPolicy, paths: &[String]) -> String {
+    let mut message = format!(
+        "meaningful changed paths are not covered by an active change: {}",
+        paths.join(", ")
+    );
+    let mut path_flags = String::new();
+    for path in paths {
+        path_flags.push_str(&format!(" --path {path}"));
+    }
+    message.push_str(&format!(
+        "\n  cover them: specsync change new \"<summary>\" --kind fix --spec <module>{path_flags}"
+    ));
+    message.push_str(
+        "\n  no spec text changes: add --no-spec-change --rationale \"<why>\" to that command",
+    );
+    let shadowed: Vec<&str> = paths
+        .iter()
+        .filter(|path| {
+            policy
+                .ignored_paths
+                .iter()
+                .any(|scope| path_matches_scope(path, scope))
+        })
+        .map(String::as_str)
+        .collect();
+    if !shadowed.is_empty() {
+        message.push_str(&format!(
+            "\n  note: an ignored_paths entry covers {}, but SDD policy files and the configured specs tree are always meaningful",
+            shadowed.join(", ")
+        ));
+    }
+    message
+}
+
 fn uncovered_meaningful_paths(
     root: &Path,
     policy: &SddPolicy,
@@ -14536,8 +14874,8 @@ fn uncovered_meaningful_paths(
             changed.extend(output.lines().map(str::to_string));
         }
     }
-    if adoption_bootstrap_covers_policy(root) {
-        changed.remove(POLICY_PATH);
+    for path in bootstrap_exempt_paths(root, &base) {
+        changed.remove(&path);
     }
     // Same-PR finalize archives the covering change before merge. Product paths
     // remain in the delivery vs base, but the archive package is on the tip.
@@ -14688,7 +15026,7 @@ fn pull_request_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
     if let Some(remote_default) = remote_default_ref(root) {
         return format!("{remote_default}...HEAD");
     }
-    recorded_diff_base(records)
+    recorded_diff_base(root, records)
 }
 
 fn remote_default_ref(root: &Path) -> Option<String> {
@@ -14704,12 +15042,23 @@ fn remote_default_ref(root: &Path) -> Option<String> {
         .map(str::to_string)
 }
 
-fn recorded_diff_base(records: &[ChangeRecord]) -> String {
+fn recorded_diff_base(root: &Path, records: &[ChangeRecord]) -> String {
     records
         .iter()
         .filter_map(|record| record.base_commit.clone())
         .next()
-        .unwrap_or_else(|| "HEAD~1...HEAD".into())
+        .unwrap_or_else(|| {
+            // `HEAD~1` does not resolve in a repository whose first commit is
+            // also its only one, and the resulting `git diff` failure reported
+            // the entire gate as broken ("unable to inspect changed paths").
+            // There is no earlier commit to review, so the committed delivery
+            // is empty and only the working tree is up for coverage.
+            if git_output(root, &["rev-parse", "--verify", "HEAD~1"]).is_some() {
+                "HEAD~1...HEAD".into()
+            } else {
+                "HEAD".into()
+            }
+        })
 }
 
 #[cfg(test)]
@@ -26234,7 +26583,11 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        assert!(validate_effective_contracts(temp.path(), &[record]).is_ok());
+        assert!(
+            validate_effective_contracts(temp.path(), &[record])
+                .errors
+                .is_empty()
+        );
     }
 
     #[test]
@@ -26254,7 +26607,11 @@ mod tests {
                 .is_err(),
             "the fixture must fail if an already-applied delta is replayed"
         );
-        assert!(validate_effective_contracts(root, &[record.clone()]).is_ok());
+        assert!(
+            validate_effective_contracts(root, &[record.clone()])
+                .errors
+                .is_empty()
+        );
 
         fs::write(
             root.join("specs/auth/auth.spec.md"),
@@ -26262,12 +26619,210 @@ mod tests {
         )
         .unwrap();
 
-        let errors = validate_effective_contracts(root, &[record]).unwrap_err();
+        let errors = validate_effective_contracts(root, &[record]).errors;
         assert!(
             errors
                 .iter()
                 .any(|error| error.contains("effective contract `auth`")),
             "{errors:?}"
+        );
+    }
+
+    /// The canonical spec a fresh `specsync new` leaves behind: real structure,
+    /// scaffold placeholder prose in `## Purpose` and `## Dependencies`.
+    fn write_scaffolded_auth_spec(root: &Path) {
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nDocument this module's responsibility, inputs, outputs, and ownership boundaries.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nList runtime dependencies and the specific symbols, services, or data they provide.\n\n## Legacy Notes\n\nRetained for compatibility.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+    }
+
+    // Verifies REQ-change-059. The content-loss path stays closed: a `## MODIFIED`
+    // block with an empty body blanks the section in the canonical spec, and the
+    // stub warning is the only gate that sees it.
+    #[test]
+    fn effective_contract_keeps_authored_emptied_section_fatal() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let delta = "## MODIFIED\n\n### SPEC SECTION Dependencies\n";
+        let mut record = completed_section_only_record(root, delta);
+        record.state = ChangeState::Approved;
+
+        let errors = validate_effective_contracts(root, &[record]).errors;
+
+        assert!(
+            errors.iter().any(|error| error
+                == "effective contract `auth`: Section ## Dependencies contains only unfinished draft text"),
+            "{errors:?}"
+        );
+    }
+
+    // Verifies REQ-change-059. Same content loss through the `canonical_applied`
+    // path, where the delta is never replayed: authorship comes from the delta
+    // file, so the emptied section stays fatal.
+    #[test]
+    fn effective_contract_keeps_applied_authored_emptied_section_fatal() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let delta = "## MODIFIED\n\n### SPEC SECTION Dependencies\n";
+        let mut record = completed_section_only_record(root, delta);
+        record.state = ChangeState::Verifying;
+        record.canonical_applied = true;
+        save_change(root, &record).unwrap();
+        let canonical = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+        let item = parse_delta(delta).unwrap().remove(0);
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            apply_markdown_block(&canonical, "## ", &item.key, &item.content, item.operation)
+                .unwrap(),
+        )
+        .unwrap();
+
+        let errors = validate_effective_contracts(root, &[record]).errors;
+
+        assert!(
+            errors.iter().any(|error| error
+                == "effective contract `auth`: Section ## Dependencies contains only unfinished draft text"),
+            "{errors:?}"
+        );
+    }
+
+    // Verifies REQ-change-059.
+    #[test]
+    fn effective_contract_exempts_stub_sections_no_active_change_authored() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nPasskey material never leaves the enclave.\n";
+        let mut record = completed_section_only_record(root, delta);
+        record.state = ChangeState::Approved;
+        write_scaffolded_auth_spec(root);
+
+        let outcome = validate_effective_contracts(root, &[record]);
+
+        assert!(outcome.errors.is_empty(), "{:?}", outcome.errors);
+        let suppressions = outcome.suppressions;
+        for section in ["Purpose", "Dependencies"] {
+            assert!(
+                suppressions.iter().any(|note| note.contains(&format!(
+                    "Section ## {section} contains only unfinished draft text"
+                )) && note
+                    .contains(&format!("no active change authored ## {section}"))),
+                "{suppressions:?}"
+            );
+        }
+        assert!(
+            !suppressions
+                .iter()
+                .any(|note| note.contains("## Invariants")),
+            "{suppressions:?}"
+        );
+    }
+
+    // Verifies REQ-change-059. Authorship that cannot be read exempts nothing.
+    #[test]
+    fn effective_contract_exempts_nothing_when_authorship_is_unknown() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nStable.\n";
+        let mut record = completed_section_only_record(root, delta);
+        record.state = ChangeState::Verifying;
+        record.canonical_applied = true;
+        save_change(root, &record).unwrap();
+        write_scaffolded_auth_spec(root);
+        fs::remove_file(delta_path(root, &record, "auth")).unwrap();
+
+        let errors = validate_effective_contracts(root, &[record]).errors;
+
+        assert!(
+            errors.iter().any(|error| error
+                == "effective contract `auth`: Section ## Purpose contains only unfinished draft text"),
+            "{errors:?}"
+        );
+    }
+
+    // Verifies REQ-change-059. `.specsyncignore` reaches this gate, and the
+    // suppression it grants is reported rather than silent.
+    #[test]
+    fn effective_contract_reports_ignore_rule_suppressions() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let delta = "## MODIFIED\n\n### SPEC SECTION Dependencies\n";
+        let mut record = completed_section_only_record(root, delta);
+        record.state = ChangeState::Approved;
+        fs::write(root.join(".specsyncignore"), "stub-section:specs/auth/\n").unwrap();
+
+        let outcome = validate_effective_contracts(root, &[record]);
+
+        assert!(outcome.errors.is_empty(), "{:?}", outcome.errors);
+        assert!(
+            outcome.suppressions.iter().any(|note| note.contains(
+                "suppressed `stub-section` warning by path ignore rule: Section ## Dependencies"
+            )),
+            "{:?}",
+            outcome.suppressions
+        );
+    }
+
+    // Verifies REQ-change-059. A module that fails still reports what it let
+    // through, so a suppression is never lost behind an unrelated error.
+    #[test]
+    fn effective_contract_reports_suppressions_alongside_errors() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        // Authors `## Dependencies` (emptied — fatal) and leaves the scaffolded
+        // `## Purpose` alone (suppressed).
+        let delta = "## MODIFIED\n\n### SPEC SECTION Dependencies\n";
+        let mut record = completed_section_only_record(root, delta);
+        record.state = ChangeState::Approved;
+        write_scaffolded_auth_spec(root);
+
+        let outcome = validate_effective_contracts(root, &[record]);
+
+        assert!(
+            outcome.errors.iter().any(|error| error
+                == "effective contract `auth`: Section ## Dependencies contains only unfinished draft text"),
+            "{:?}",
+            outcome.errors
+        );
+        assert!(
+            outcome
+                .suppressions
+                .iter()
+                .any(|note| note.contains("no active change authored ## Purpose")),
+            "{:?}",
+            outcome.suppressions
+        );
+    }
+
+    // Verifies REQ-change-059. Suppressions reach the surfaces that report them.
+    #[test]
+    fn project_check_reports_effective_contract_suppressions_as_warnings() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nPasskey material never leaves the enclave.\n";
+        let record = completed_section_only_record(root, delta);
+        approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+        write_scaffolded_auth_spec(root);
+
+        let report = check_project(root);
+
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("effective contract `auth`")
+                    && warning.contains("Section ## Purpose contains only unfinished draft text")),
+            "{:?}",
+            report.warnings
+        );
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|error| error.contains("unfinished draft text")),
+            "{:?}",
+            report.errors
         );
     }
 
@@ -28076,7 +28631,11 @@ mod tests {
         let mut second = first.clone();
         second.id = "CHG-0002-second".into();
         second.base_commit = Some("00000000".into());
-        assert_eq!(recorded_diff_base(&[first, second]), "ffffffff");
+        let temp = TempDir::new().unwrap();
+        assert_eq!(
+            recorded_diff_base(temp.path(), &[first, second]),
+            "ffffffff"
+        );
     }
 
     #[test]
@@ -28320,7 +28879,11 @@ mod tests {
 
         let mut effective_record = record;
         effective_record.state = ChangeState::Approved;
-        assert!(validate_effective_contracts(root, &[effective_record]).is_ok());
+        assert!(
+            validate_effective_contracts(root, &[effective_record])
+                .errors
+                .is_empty()
+        );
     }
 
     // Verifies REQ-change-041.
@@ -28437,7 +29000,7 @@ mod tests {
 
         let mut effective_record = record;
         effective_record.state = ChangeState::Approved;
-        let errors = validate_effective_contracts(root, &[effective_record]).unwrap_err();
+        let errors = validate_effective_contracts(root, &[effective_record]).errors;
         assert!(
             errors
                 .iter()
@@ -29124,6 +29687,93 @@ mod tests {
             uncovered_meaningful_paths(root, &changed, &[])
                 .unwrap()
                 .contains(&POLICY_PATH.to_string())
+        );
+    }
+
+    #[test]
+    fn bootstrap_records_exempt_only_newly_created_protected_paths() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-q", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "base\n").unwrap();
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "base"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+        write_json(&root.join(POLICY_PATH), &SddPolicy::default()).unwrap();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(root.join(".specsync/version"), "5.0.0\n").unwrap();
+        record_bootstrap_paths(root).unwrap();
+        let policy = SddPolicy::default();
+        assert!(
+            uncovered_meaningful_paths(root, &policy, &[])
+                .unwrap()
+                .is_empty(),
+            "a fresh bootstrap covers the protected files it created"
+        );
+
+        // A forged record cannot lend coverage to product source.
+        let digest = content_digest(b"forged\n");
+        fs::write(root.join("src/lib.rs"), "forged\n").unwrap();
+        let head = git_output(root, &["rev-parse", "--verify", "HEAD"]).unwrap();
+        write_json(
+            &root.join(BOOTSTRAP_RECORD_PATH),
+            &serde_json::json!({
+                "version": 1,
+                "base_commit": head,
+                "paths": [{"path": "src/lib.rs", "digest": digest}],
+            }),
+        )
+        .unwrap();
+        assert!(
+            uncovered_meaningful_paths(root, &policy, &[])
+                .unwrap()
+                .contains(&"src/lib.rs".to_string()),
+            "a bootstrap record must never exempt product source"
+        );
+
+        // Nor can it exempt a policy file that already exists at the base.
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "bootstrap"]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        fs::write(root.join(".specsync/version"), "5.0.1\n").unwrap();
+        record_bootstrap_paths(root).unwrap();
+        assert!(
+            uncovered_meaningful_paths(root, &policy, &[])
+                .unwrap()
+                .contains(&".specsync/version".to_string()),
+            "re-recording must not exempt an edit to an already-tracked policy file"
+        );
+    }
+
+    #[test]
+    fn uncovered_paths_error_names_the_escape_hatch_and_ignore_precedence() {
+        let policy = SddPolicy::default();
+        let message = uncovered_paths_error(
+            &policy,
+            &["src/lib.rs".to_string(), "specs/zzz/note.md".to_string()],
+        );
+        assert!(message.contains("specsync change new"));
+        assert!(message.contains("--path src/lib.rs"));
+        assert!(message.contains("--no-spec-change"));
+        assert!(
+            message.contains("an ignored_paths entry covers specs/zzz/note.md")
+                && message.contains("always meaningful")
+                && !message.contains("covers src/lib.rs"),
+            "only paths shadowed by an ignored_paths entry get the precedence note: {message}"
         );
     }
 

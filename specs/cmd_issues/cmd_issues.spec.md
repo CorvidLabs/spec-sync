@@ -1,6 +1,6 @@
 ---
 module: cmd_issues
-version: 11
+version: 12
 status: stable
 files:
   - src/commands/issues.rs
@@ -149,3 +149,4 @@ path replacement cannot redirect issue inspection or `--create` validation.
 | 2026-07-22 | CHG-0063 final agent-review follow-up: align retained ignored-directory behavior and reject special-file manifests as inconclusive |
 | 2026-07-23 | CHG-0063 retained-handle follow-up: use no-follow, non-blocking config/manifest acquisition and reject regular-file replacement or FIFO substitution between discovery and read |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-08-13 | CHG-0107-fix-the-first-five-minutes-of-spec-sync-init-leaves-a-repo-that-fails-check-sc: Fix the first five minutes of spec-sync: init leaves a repo that fails check, scaffold writes prose that check rejects, and a directory in files: makes check silently green |

@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 9
+version: 10
 status: stable
 files:
   - src/generator.rs
@@ -19,7 +19,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 
 ## Public API
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
@@ -28,6 +28,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | `generate_specs_for_unspecced_modules_paths` | `root, report, config` | `GenerationOutcome` | Generate local template specs without progress output for JSON/MCP callers |
 | `generate_companion_files_for_spec` | `spec_dir, module_name, design_enabled` | `()` | Generate companion files (tasks.md, context.md, requirements.md, testing.md, and design.md if enabled) alongside a spec |
 | `find_files_for_module` | `root, module_name, config` | `Vec<String>` | Find source files for a module by checking config definitions, subdirectories, then flat files |
+| `find_module_source_files` | `dir: &Path, config: &SpecSyncConfig, root: &Path` | `Vec<String>` | Source files beneath a module directory, honoring configured extensions and exclusions; shared with spec validation so a directory in `files:` is corrected with exactly what generation would have written |
 | `find_single_source_fallback` | `root, config` | `Option<String>` | Root-relative path of the project's only non-test source file (e.g. `src/lib.rs`), or `None` when there are zero or multiple candidates — fallback for `new`/`scaffold` when no name match exists |
 | `generate_spec` | `module_name, source_files, root, specs_dir` | `String` | Generate a spec from a template (custom or language-aware default) |
 | `generate_spec_from_custom_template` | `template_dir, module_name, source_files, root` | `String` | Generate a spec using files from a custom template directory |
@@ -35,7 +36,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | `collect_exports_for_files` | `root, source_files` | `Vec<String>` | Collect exported symbols across the given source files |
 | `populate_public_api_table` | `spec, exports` | `String` | Insert or refresh a Public API table from discovered export names |
 
-### Exported Types
+**Exported Types**
 
 | Type | Description |
 |------|-------------|
@@ -113,3 +114,4 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-08-13 | CHG-0107-fix-the-first-five-minutes-of-spec-sync-init-leaves-a-repo-that-fails-check-sc: Fix the first five minutes of spec-sync: init leaves a repo that fails check, scaffold writes prose that check rejects, and a directory in files: makes check silently green |

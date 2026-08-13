@@ -65,6 +65,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`stale` no longer reports every spec up to date in a repository with no commits**
+  (CorvidLabs/spec-sync#558). Staleness is decided against git history, and an unborn `HEAD`
+  has none — nothing can be newer or older than a history that does not exist. The command
+  reported `✓ All specs are up to date with their source files` and exited 0 having compared
+  nothing.
+
+  That state is not exotic: it is exactly what `git init` plus `specsync init` produces,
+  which is where the quick start begins, and it is common in CI for a freshly created
+  repository. The no-repository case was already handled correctly, so "no history to work
+  with" had been considered — an unborn `HEAD` simply was not recognised as an instance of
+  it. Both now report the same way, and distinguishably: `Repository has no commits` and
+  `Not a git repository`, in text and in the machine-readable payload.
+
 - **`check --strict` no longer exits 0 on a tree with source and zero specs**
   (CorvidLabs/spec-sync#560). A project with real source and an empty `specs/` passed
   strict validation silently, and the coverage footer `check` prints in every other path

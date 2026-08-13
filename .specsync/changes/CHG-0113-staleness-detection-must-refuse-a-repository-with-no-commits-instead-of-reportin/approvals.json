@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786643761,
+      "digest": "8952907175f90272577d2a66460b8118ad9c5c10e2af82dcdb1b0fc728092714",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0113-staleness-detection-must-refuse-a-repository-with-no-commits-instead-of-reportin",
+        "title": "Staleness detection must refuse a repository with no commits instead of reporting every spec current",
+        "description": "Staleness detection must refuse a repository with no commits instead of reporting every spec current",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_stale",
+          "git_utils"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/stale.rs",
+          "src/git_utils.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Running `specsync stale` in a git repository that has no commits reports that the repository has no commits and exits non-zero, instead of reporting every spec up to date. The same repository, once it has a single commit, reports staleness normally and exits zero. A directory that is not a git repository continues to report that distinctly, so the two reasons are told apart in both the text and machine-readable outputs."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

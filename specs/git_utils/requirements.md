@@ -37,3 +37,12 @@ Acceptance Criteria
 - Related tests remain green.
 - No intentional regression of SpecSync 6.0 lifecycle verbs.
 
+### REQ-git-utils-002
+
+Git helpers SHALL expose whether a repository has any history, distinctly from whether a
+path is a work tree.
+
+Acceptance Criteria
+- A repository with at least one commit reports that it has history.
+- A repository with an unborn HEAD reports that it does not, while still reporting as a work tree.
+- A path that is not a repository reports neither.

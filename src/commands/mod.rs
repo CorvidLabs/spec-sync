@@ -793,7 +793,20 @@ pub(super) fn run_validation_with_suppressions(
             .collect();
         let has_files_field = !result.errors.iter().any(|e| e.contains("files (must be"));
 
-        if file_errors.is_empty() && result.notices.is_empty() && has_files_field {
+        // Every check below infers success from the ABSENCE of errors in its
+        // category. When frontmatter cannot be parsed there are no inputs, so
+        // there are no errors, so each one reported a green line for work that
+        // never happened — and `✓ All required sections present` was not merely
+        // vacuous but false, on a spec missing six of them. Say "not checked",
+        // the same way the draft path already does (#553).
+        let frontmatter_invalid = !fm_errors.is_empty();
+
+        if frontmatter_invalid {
+            println!(
+                "  {} Source file check skipped (frontmatter invalid)",
+                "⊘".yellow()
+            );
+        } else if file_errors.is_empty() && result.notices.is_empty() && has_files_field {
             println!("  {} All source files exist", "✓".green());
         } else {
             for e in &file_errors {
@@ -815,6 +828,14 @@ pub(super) fn run_validation_with_suppressions(
             for e in &table_errors {
                 println!("  {} {e}", "✗".red());
             }
+        } else if frontmatter_invalid {
+            // Guarded on the PROJECT schema having tables, not on the spec's
+            // `db_tables:` being readable — which is why matching the shape of
+            // the other three checks missed this one entirely.
+            println!(
+                "  {} DB table check skipped (frontmatter invalid)",
+                "⊘".yellow()
+            );
         } else if !schema_input.table_names.is_empty() {
             println!("  {} All DB tables exist in schema", "✓".green());
         }
@@ -850,6 +871,11 @@ pub(super) fn run_validation_with_suppressions(
         if is_draft {
             println!(
                 "  {} Section validation skipped (status: draft)",
+                "⊘".yellow()
+            );
+        } else if frontmatter_invalid {
+            println!(
+                "  {} Section validation skipped (frontmatter invalid)",
                 "⊘".yellow()
             );
         } else if section_errors.is_empty() {
@@ -913,7 +939,12 @@ pub(super) fn run_validation_with_suppressions(
             .filter(|e| e.starts_with("Dependency spec"))
             .map(|s| s.as_str())
             .collect();
-        if dep_errors.is_empty() {
+        if frontmatter_invalid {
+            println!(
+                "  {} Dependency check skipped (frontmatter invalid)",
+                "⊘".yellow()
+            );
+        } else if dep_errors.is_empty() {
             println!("  {} All dependency specs exist", "✓".green());
         } else {
             for e in &dep_errors {

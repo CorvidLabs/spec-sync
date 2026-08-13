@@ -65,6 +65,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`deps` no longer reports a malformed dependency graph as valid**
+  (CorvidLabs/spec-sync#550). Frontmatter that `check` rejects with
+  `depends_on must be a YAML list, got a mapping` was parsed by `deps` into an *empty*
+  dependency list, contributing no edges — after which the command affirmatively printed
+  `✓ All dependency declarations are valid` and exited 0. Two commands, one tree, opposite
+  verdicts, and the wrong one came from the command specifically about dependencies.
+
+  The parser already returns those errors; `deps` discarded them. It now reports them with
+  the same wording `check` uses, so the two agree. Two further silent drops in the same
+  walk are now reported as well: a spec whose frontmatter cannot be parsed at all, and one
+  declaring no `module`. Both were skipped without a word, so a project could carry an
+  unparseable spec indefinitely with `deps` green and edges missing from both the graph and
+  the computed build order.
+
 - **`specsync init` no longer leaves a project failing its own coverage gate.** Initialization
   writes `.specsync/config.toml`, `.specsync/version`, and `.specsync/sdd.json` — all three are
   protected SDD paths, so the first commit after `specsync init` was reported as uncovered

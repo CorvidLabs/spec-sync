@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 108,
-  "id": "CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document",
+  "sequence": 109,
+  "id": "CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di",
   "acknowledged_collisions": [
     {
       "sequence": 16,

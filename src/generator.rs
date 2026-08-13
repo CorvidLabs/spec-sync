@@ -1570,6 +1570,7 @@ mod tests {
             loc_coverage_percent: 0,
             unspecced_file_loc: vec![("src/custom.rs".to_string(), 1)],
             missing_files: Vec::new(),
+            skipped_links: Vec::new(),
         };
         let mut config = SpecSyncConfig::default();
         config.modules.insert(

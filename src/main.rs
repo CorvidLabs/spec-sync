@@ -364,6 +364,7 @@ mod tests {
             loc_coverage_percent: 100,
             unspecced_file_loc: vec![],
             missing_files: vec![],
+            skipped_links: vec![],
         }
     }
 
@@ -392,6 +393,7 @@ mod tests {
             loc_coverage_percent: 0,
             unspecced_file_loc: vec![],
             missing_files: vec![],
+            skipped_links: vec![],
         }
     }
 

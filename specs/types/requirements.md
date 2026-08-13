@@ -63,3 +63,11 @@ Acceptance Criteria
 - Whether any mapped source file was present and readable is recorded.
 - Whether the spec's Public API names at least one symbol is recorded.
 - Both are recorded even when section and export validation are skipped.
+
+### REQ-types-006
+
+The coverage report SHALL carry the symlinked entries that discovery skipped.
+
+Acceptance Criteria
+- Skipped entries are reported in a deterministic order.
+- An inconclusive coverage result reports no skipped entries rather than omitting the field.

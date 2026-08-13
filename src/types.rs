@@ -215,6 +215,16 @@ pub struct CoverageReport {
     /// They count toward the coverage denominator but can never be covered,
     /// so a `--require-coverage` gate cannot pass vacuously over broken specs.
     pub missing_files: Vec<String>,
+    /// Symlinked entries discovery skipped rather than traversed (#546).
+    ///
+    /// Skipping loses nothing real — a link points either outside the root,
+    /// where it must not be followed, or inside it, where the target is already
+    /// counted under its real path. But it does shrink the denominator, so a
+    /// repo whose `src/vendor` is a link would report a *higher* percentage
+    /// than before: a number that improved because measurement stopped.
+    /// Reported alongside the coverage figures so the number is never read
+    /// without them.
+    pub skipped_links: Vec<String>,
 }
 
 /// Controls export extraction granularity.

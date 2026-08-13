@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 19
+version: 20
 status: stable
 files:
   - src/main.rs
@@ -321,7 +321,7 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 | config | `load_config`, `detect_source_dirs` |
 | cli_args | Clap parser types, command/action enums, and global argument projection |
 | parser | `parse_frontmatter` |
-| validator | `validate_spec`, `find_spec_files`, `compute_coverage`, `get_schema_table_names`, `is_cross_project_ref`, `parse_cross_project_ref` |
+| validator | `validate_spec`, `find_spec_files`, `compute_coverage` (whose report carries the symlinked entries discovery skipped), `get_schema_table_names`, `is_cross_project_ref`, `parse_cross_project_ref` |
 | exports | `has_extension`, `get_exported_symbols` (used by auto_fix_specs and cmd_diff) |
 | generator | `generate_specs_for_unspecced_modules`, `generate_specs_for_unspecced_modules_paths`, `generate_companion_files_for_spec` |
 | scoring | `score_spec`, `compute_project_score`, `SpecScore` |
@@ -377,3 +377,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-07-31 | CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle: Scoped change check, change audit, and agent pack for the two-verb lifecycle |
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-08-13 | CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di: A symlink under a source directory must be skipped and disclosed, never abort discovery |

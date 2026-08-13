@@ -47,6 +47,41 @@ pub fn print_coverage_line(coverage: &types::CoverageReport) {
         "LOC coverage:  {}/{} ({colored_loc_pct})",
         coverage.specced_loc, coverage.total_loc
     );
+    print_skipped_links(coverage);
+}
+
+/// How many skipped links are named before the rest are summarized.
+const SKIPPED_LINK_DISPLAY_LIMIT: usize = 5;
+
+/// Report symlinked entries discovery skipped (#546), immediately after the
+/// coverage figures.
+///
+/// Deliberately printed here rather than with the other findings: skipping a
+/// link shrinks the denominator, so these percentages can only be read honestly
+/// next to what was excluded from them. A repo that symlinks a vendored tree
+/// would otherwise see its coverage *rise* because measurement stopped.
+pub fn print_skipped_links(coverage: &types::CoverageReport) {
+    if coverage.skipped_links.is_empty() {
+        return;
+    }
+    let shown: Vec<&str> = coverage
+        .skipped_links
+        .iter()
+        .take(SKIPPED_LINK_DISPLAY_LIMIT)
+        .map(String::as_str)
+        .collect();
+    let remaining = coverage.skipped_links.len().saturating_sub(shown.len());
+    let listed = shown.join(", ");
+    let tail = if remaining > 0 {
+        format!("{listed}, and {remaining} more")
+    } else {
+        listed
+    };
+    println!(
+        "{} {} symlinked path(s) excluded from coverage (not traversed): {tail}",
+        "⚠".yellow(),
+        coverage.skipped_links.len()
+    );
 }
 
 pub fn print_coverage_report(coverage: &types::CoverageReport) {
@@ -150,6 +185,20 @@ pub fn print_check_markdown(
         "- **LOC:** {}/{} ({}%)",
         coverage.specced_loc, coverage.total_loc, coverage.loc_coverage_percent
     );
+    // Same reason as the text renderer: these percentages are measured over
+    // whatever was left after skipping links (#546), so the exclusion belongs
+    // with the numbers rather than in a separate section a reader may not reach.
+    if !coverage.skipped_links.is_empty() {
+        println!(
+            "- **Excluded (symlinks, not traversed):** {}",
+            coverage
+                .skipped_links
+                .iter()
+                .map(|link| format!("`{link}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
 }
 
 /// Print diff results as markdown. Each entry is (spec, changed_files, new_exports, removed_exports).
@@ -257,6 +306,7 @@ mod tests {
             loc_coverage_percent: loc_pct,
             unspecced_file_loc: Vec::new(),
             missing_files: Vec::new(),
+            skipped_links: Vec::new(),
         }
     }
 

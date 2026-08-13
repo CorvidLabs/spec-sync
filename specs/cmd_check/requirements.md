@@ -100,3 +100,11 @@ Acceptance Criteria
 - A project with no hash cache reports no requirements-drift warnings in any output format.
 - The warning count, the machine-readable staleness entries, and the review hint all follow the same condition.
 - Spec selection is unaffected: the same specs are re-validated whether or not a baseline exists.
+
+### REQ-cmd-check-006
+
+Machine-readable check output SHALL carry the skipped symlinked entries.
+
+Acceptance Criteria
+- The JSON payload includes the full list of skipped entries, not a truncated summary.
+- The field is present whenever the payload reports a result.

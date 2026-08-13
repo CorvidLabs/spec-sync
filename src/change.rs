@@ -14808,18 +14808,32 @@ fn record_verification_attempt(
 /// why an `ignored_paths` entry did not apply when one appears to cover a
 /// reported path: protected SDD policy files and the configured specs tree are
 /// structurally meaningful and cannot be ignored away.
+/// How many `--path` flags the coverage remediation spells out before
+/// summarizing the remainder.
+const UNCOVERED_PATH_FLAG_LIMIT: usize = 12;
+
 fn uncovered_paths_error(policy: &SddPolicy, paths: &[String]) -> String {
     let mut message = format!(
         "meaningful changed paths are not covered by an active change: {}",
         paths.join(", ")
     );
+    // One `--path` per file on one line is runnable but unreadable once a
+    // branch touches more than a handful: a wide refactor produced a single
+    // line over 8000 characters. Name enough to paste for the common case and
+    // say how to get the rest, rather than emitting a wall.
     let mut path_flags = String::new();
-    for path in paths {
+    for path in paths.iter().take(UNCOVERED_PATH_FLAG_LIMIT) {
         path_flags.push_str(&format!(" --path {path}"));
     }
+    let remaining = paths.len().saturating_sub(UNCOVERED_PATH_FLAG_LIMIT);
     message.push_str(&format!(
         "\n  cover them: specsync change new \"<summary>\" --kind fix --spec <module>{path_flags}"
     ));
+    if remaining > 0 {
+        message.push_str(&format!(
+            "\n  ... and {remaining} more path(s) — add a `--path` for each, or declare a covering prefix such as `--path src/`"
+        ));
+    }
     message.push_str(
         "\n  no spec text changes: add --no-spec-change --rationale \"<why>\" to that command",
     );

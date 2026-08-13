@@ -1,6 +1,6 @@
 ---
 module: hash_cache
-version: 5
+version: 6
 status: stable
 files:
   - src/hash_cache.rs
@@ -18,15 +18,15 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 ## Public API
 
-### Exported Structs
+**Exported Structs**
 
 | Type | Description |
 |------|-------------|
 | `HashCache` | Persistent file hash storage — maps relative paths to hex SHA-256 digests. Stored in `.specsync/hashes.json` |
 | `ChangeKind` | Enum classifying what changed: `Spec`, `Requirements`, `Companion`, `Source` |
-| `ChangeClassification` | Result for one spec — contains `spec_path: PathBuf` and `changes: Vec<ChangeKind>` |
+| `ChangeClassification` | Result for one spec — contains `spec_path: PathBuf`, `changes: Vec<ChangeKind>`, and `baseline_known: bool` recording whether the cache held a prior hash |
 
-### Exported Functions
+**Exported Functions**
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
@@ -34,9 +34,11 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | `save` | `&self, root: &Path` | `io::Result<()>` | HashCache: write to `.specsync/hashes.json` with pretty JSON |
 | `hash_file` | `path: &Path` | `Option<String>` | HashCache: compute SHA-256 of file in 8KB chunks; returns hex string |
 | `is_changed` | `&self, root: &Path, rel_path: &str` | `bool` | HashCache: true if file is new or hash differs from cached value |
+| `has_baseline` | `&self, rel_path: &str` | `bool` | HashCache: whether a prior hash exists, so "changed" can be told apart from "never seen" |
 | `update` | `&mut self, root: &Path, rel_path: &str` | `()` | HashCache: recompute and store hash for a file |
 | `prune` | `&mut self, root: &Path` | `()` | HashCache: remove entries for files that no longer exist on disk |
 | `has` | `&self, kind: ChangeKind` | `bool` | ChangeClassification: true if a specific change kind is present |
+| `reportable` | `&self, kind: &ChangeKind` | `bool` | ChangeClassification: whether the change was observed against a real baseline and so is worth reporting rather than merely acting on |
 | `classify_changes` | `root: &Path, spec_path: &Path, cache: &HashCache` | `ChangeClassification` | Check spec, companions, and source files for changes |
 | `classify_all_changes` | `root: &Path, spec_files: &[PathBuf], cache: &HashCache` | `Vec<ChangeClassification>` | Classify all specs, returns only those with changes |
 | `filter_unchanged` | `root: &Path, spec_files: &[PathBuf], cache: &HashCache` | `Vec<PathBuf>` | Return only specs with detected changes |
@@ -125,3 +127,4 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |

@@ -198,3 +198,12 @@ Acceptance Criteria
   generation applies, excludes configured exclude directories, and is truncated with a remainder
   count beyond a fixed limit.
 - Snapshot-based validation reports the same error without enumerating the ambient filesystem.
+
+### REQ-validator-011
+
+A mapped source file SHALL be recorded as present only when it resolved to a readable
+file.
+
+Acceptance Criteria
+- A mapping that is missing, planned, a directory, unreadable, or rejected for escaping the project root is not recorded as present.
+- The Public API symbol count is computed from the spec body regardless of status, so a skipped spec still reports whether it documents a contract.

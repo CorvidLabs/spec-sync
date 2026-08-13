@@ -2136,6 +2136,7 @@ fn validate_spec_content_internal(
                 }
             }
         } else if let Some(SourceSnapshot::Present(bytes)) = snapshot {
+            result.had_present_source = true;
             let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let is_supported = crate::types::Language::from_extension(ext).is_some();
             if is_supported && std::str::from_utf8(bytes).is_err() {
@@ -2147,6 +2148,7 @@ fn validate_spec_content_internal(
                 ));
             }
         } else if source_snapshots.is_none() && full_path.is_file() {
+            result.had_present_source = true;
             let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let is_supported = crate::types::Language::from_extension(ext).is_some();
             if is_supported {
@@ -2301,6 +2303,11 @@ fn validate_spec_content_internal(
             }
         }
     }
+
+    // Recorded even when export validation is skipped: a draft that documents
+    // a contract over source that exists is opting out of a check it could
+    // have passed, which is what separates it from an honest stub.
+    result.documents_contract = !crate::parser::get_spec_symbols(body).is_empty();
 
     // ─── Level 1.7: Empty-Draft Section Detection ───────────────────
     let stub_sections = find_stub_sections(body, &config.required_sections);

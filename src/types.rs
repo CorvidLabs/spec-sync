@@ -164,6 +164,22 @@ pub struct ValidationResult {
     /// Lets reporters surface checks that were skipped because of status
     /// (e.g. drafts skip section and export validation).
     pub status: Option<SpecStatus>,
+    /// Whether at least one mapped source file was present on disk.
+    ///
+    /// Separates the two very different meanings of `status: draft`. A draft
+    /// whose files do not exist yet is spec-first authoring — the spec is
+    /// written before the code, nothing could have been validated, and it
+    /// rightly passes. A draft whose files *do* exist skipped export and
+    /// section validation over real, present source that could have been
+    /// checked, which is the case where a green result measures nothing.
+    pub had_present_source: bool,
+    /// Whether the spec's Public API section names at least one symbol.
+    ///
+    /// A draft that documents a contract over source that is present is
+    /// asserting something checkable and opting out of the check. A draft with
+    /// an empty Public API is a genuine stub and claims nothing, so it is left
+    /// alone.
+    pub documents_contract: bool,
 }
 
 impl ValidationResult {
@@ -176,6 +192,8 @@ impl ValidationResult {
             export_summary: None,
             fixes: Vec::new(),
             status: None,
+            had_present_source: false,
+            documents_contract: false,
         }
     }
 }

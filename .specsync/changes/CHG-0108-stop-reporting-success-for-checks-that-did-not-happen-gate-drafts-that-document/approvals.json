@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786586269,
+      "digest": "5c484a65644ce5646109047297fa007f13575b62f78bf8f803c613d9963da756",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document",
+        "title": "Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally",
+        "description": "Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_check",
+          "commands",
+          "hash_cache",
+          "parser",
+          "types",
+          "validator"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/change.rs",
+          "src/commands/check.rs",
+          "src/commands/mod.rs",
+          "src/hash_cache.rs",
+          "src/parser.rs",
+          "src/types.rs",
+          "src/validator.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A spec that is `status: draft`, whose mapped source files exist, and whose Public API names at least one symbol produces a warning, so bare `specsync check` still exits 0 and `specsync check --strict` exits 1. A draft whose mapped files do not exist yet still passes `--strict` unchanged, and so does a draft with an empty Public API. A fresh clone with no hash cache reports no requirements-drift warnings, while a real edit to a companion against a known baseline still reports exactly one. A quoted entry in frontmatter resolves to the path inside the quotes for `files:`, `depends_on:`, `db_tables:` and scalars, an unterminated quote is a frontmatter error, and the hash cache keys the same path the parser resolved. The coverage-gate remediation names at most twelve paths and summarizes the rest."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

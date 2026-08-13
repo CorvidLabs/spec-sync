@@ -1,6 +1,6 @@
 ---
 module: types
-version: 7
+version: 8
 status: stable
 files:
   - src/types.rs
@@ -160,3 +160,4 @@ Core deterministic data structures and enums shared across the codebase: configu
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-12 | CHG-0105-make-drift-gate-by-default-flip-the-default-enforcement-mode-from-warn-to-stric: Make drift gate by default: flip the default enforcement mode from warn to strict so validation errors exit non-zero without an explicit flag |
+| 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |

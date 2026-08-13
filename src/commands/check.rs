@@ -333,7 +333,12 @@ pub fn cmd_check(
             .to_string_lossy()
             .to_string();
 
-        if classification.has(&ChangeKind::Requirements) {
+        // Reported only against a real baseline: a cold cache classifies every
+        // companion as changed so that everything is re-validated, but saying
+        // so out loud would put one warning per spec in every CI run, where the
+        // cache is always cold. Selection is unaffected — the spec is still
+        // re-validated either way.
+        if classification.reportable(&ChangeKind::Requirements) {
             if matches!(format, Text) {
                 println!(
                     "  {} {spec_rel}: requirements changed — spec may need re-validation",
@@ -349,7 +354,7 @@ pub fn cmd_check(
             requirements_stale_specs.push(classification.clone());
         }
 
-        if classification.has(&ChangeKind::Companion) && matches!(format, Text) {
+        if classification.reportable(&ChangeKind::Companion) && matches!(format, Text) {
             println!(
                 "  {} {spec_rel}: companion file updated (hash refreshed)",
                 "ℹ".cyan()

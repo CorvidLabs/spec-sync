@@ -18,6 +18,24 @@
       "requirement_ids": [
         "REQ-cmd-check-008"
       ]
+    },
+    {
+      "timestamp": 1786659635,
+      "commit": "298d7f6975194159f892652c929d3b5cca8a26ba",
+      "contract_digest": "eda3060ba77449de68697dc84f91caa0d8a944e2699200740a3daec6f7152cd6",
+      "execution_digest": "0e1eecb6e101f11fb2dfb4169c9274b9a0aafc3a36537b56bcecb061d24b13d0",
+      "workspace_digest": "bbc6c64449eb19155cfbe963479ae690f8283d60b8fa7afdb6acea21e2a3c0ea",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test commands::check::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-008"
+      ]
     }
   ]
 }

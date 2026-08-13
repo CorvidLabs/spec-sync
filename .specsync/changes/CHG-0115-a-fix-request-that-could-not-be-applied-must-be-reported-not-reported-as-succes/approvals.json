@@ -1,0 +1,38 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786659612,
+      "digest": "eda3060ba77449de68697dc84f91caa0d8a944e2699200740a3daec6f7152cd6",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0115-a-fix-request-that-could-not-be-applied-must-be-reported-not-reported-as-succes",
+        "title": "A fix request that could not be applied must be reported, not reported as success",
+        "description": "A fix request that could not be applied must be reported, not reported as success",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/check.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Running `specsync check --fix` against a spec file that cannot be written reports the path and the underlying error and exits non-zero, instead of exiting zero with no indication that nothing was written. A spec that cannot be read is reported the same way rather than skipped silently. A writable spec is still repaired and still exits zero, and `--fix --dry-run` against an unwritable spec still exits zero because it attempts no write."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 17
+version: 18
 status: stable
 files:
   - src/commands/check.rs
@@ -120,3 +120,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
 | 2026-08-13 | CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di: A symlink under a source directory must be skipped and disclosed, never abort discovery |
 | 2026-08-13 | CHG-0112-a-tree-with-source-and-no-specs-must-show-its-coverage-number-and-must-not-pass: A tree with source and no specs must show its coverage number and must not pass strict validation |
+| 2026-08-13 | CHG-0115-a-fix-request-that-could-not-be-applied-must-be-reported-not-reported-as-succes: A fix request that could not be applied must be reported, not reported as success |

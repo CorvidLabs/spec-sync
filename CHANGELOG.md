@@ -65,6 +65,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`check --fix` no longer reports success when it could not write**
+  (CorvidLabs/spec-sync#549). A spec file that was not writable produced exit 0, no error,
+  and nothing on stderr, while the byte-identical writable spec reported
+  `✓ … added 1 export(s)`. The user asked for a mutation and was handed a clean bill of
+  health instead.
+
+  The write error was discarded by an `if let Ok(())`. It is now reported with the path and
+  the OS error, and the command exits non-zero. The same applies to a spec `--fix` could not
+  read, which was previously skipped without a word.
+
+  `--fix --dry-run` on an unwritable spec still exits 0, because it writes nothing and so
+  fails at nothing.
+
 - **A scaffolded spec's sections can now be changed through the lifecycle**
   (CorvidLabs/spec-sync#564). `specsync scaffold` writes `### Structs & Enums`,
   `### Traits`, and `### Functions` inside `## Public API`, and `### Consumes` inside

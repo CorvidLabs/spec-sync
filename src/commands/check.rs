@@ -456,14 +456,31 @@ pub fn cmd_check(
             }
         }
 
-        let fixed = auto_fix_specs(root, &specs_to_validate, &config, dry_run);
-        if fixed > 0 && matches!(format, Text) {
+        let outcome = auto_fix_specs(root, &specs_to_validate, &config, dry_run);
+        if outcome.fixed > 0 && matches!(format, Text) {
             let verb = if dry_run {
                 "Would auto-add"
             } else {
                 "Auto-added"
             };
-            println!("{} {verb} exports to {fixed} spec(s)\n", "✓".green());
+            println!(
+                "{} {verb} exports to {} spec(s)\n",
+                "✓".green(),
+                outcome.fixed
+            );
+        }
+        // Reported on stderr in every format — a machine consumer asked for a
+        // mutation too, and `passed: true` must not be the only thing it sees.
+        if !outcome.failures.is_empty() {
+            for failure in &outcome.failures {
+                eprintln!("{} {failure}", "error:".red().bold());
+            }
+            eprintln!(
+                "{} --fix could not repair {} spec(s)",
+                "error:".red().bold(),
+                outcome.failures.len()
+            );
+            process::exit(1);
         }
     }
 
@@ -863,22 +880,40 @@ fn fix_near_miss_required_headers(content: &mut String, required_sections: &[Str
     modified
 }
 
+/// What `--fix` actually did, including what it could not do.
+struct AutoFixOutcome {
+    fixed: usize,
+    /// Specs `--fix` was asked to repair and could not. Never empty silently:
+    /// a mutation request that failed must not be reported as success.
+    failures: Vec<String>,
+}
+
 fn auto_fix_specs(
     root: &Path,
     spec_files: &[PathBuf],
     config: &types::SpecSyncConfig,
     dry_run: bool,
-) -> usize {
+) -> AutoFixOutcome {
     use crate::exports::get_exported_symbols_full;
     use crate::parser::{get_all_api_table_symbols, get_spec_symbols, parse_frontmatter};
 
     let mut fixed_count = 0;
+    let mut failures: Vec<String> = Vec::new();
     let sub_re = regex::Regex::new(r"(?m)^### ").unwrap();
 
     for spec_file in spec_files {
         let content = match fs::read_to_string(spec_file) {
             Ok(c) => c.replace("\r\n", "\n"),
-            Err(_) => continue,
+            Err(error) => {
+                // `--fix` is a mutation request. A spec it could not even read
+                // is one it definitely did not fix, and skipping silently
+                // reported success for work that never happened (#549).
+                failures.push(format!(
+                    "{}: could not be read, so it was not fixed: {error}",
+                    spec_file.strip_prefix(root).unwrap_or(spec_file).display()
+                ));
+                continue;
+            }
         };
 
         // First pass: fix near-miss required section headers (## level)
@@ -1126,16 +1161,31 @@ fn auto_fix_specs(
                 "✓".green(),
                 undocumented.len()
             );
-        } else if let Ok(()) = fs::write(spec_file, &new_content) {
-            fixed_count += 1;
+        } else {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
-            println!(
-                "  {} {rel}: added {} export(s)",
-                "✓".green(),
-                undocumented.len()
-            );
+            match fs::write(spec_file, &new_content) {
+                Ok(()) => {
+                    fixed_count += 1;
+                    println!(
+                        "  {} {rel}: added {} export(s)",
+                        "✓".green(),
+                        undocumented.len()
+                    );
+                }
+                // The one outcome `--fix` must never hide. Discarding this error
+                // meant a read-only spec produced exit 0 and a clean report,
+                // while the identical writable spec reported `added 1
+                // export(s)` — the user asked for a mutation and was told
+                // everything was fine (#549).
+                Err(error) => failures.push(format!(
+                    "{rel}: could not be written, so the fix was not applied: {error}"
+                )),
+            }
         }
     }
 
-    fixed_count
+    AutoFixOutcome {
+        fixed: fixed_count,
+        failures,
+    }
 }

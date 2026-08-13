@@ -207,3 +207,14 @@ file.
 Acceptance Criteria
 - A mapping that is missing, planned, a directory, unreadable, or rejected for escaping the project root is not recorded as present.
 - The Public API symbol count is computed from the spec body regardless of status, so a skipped spec still reports whether it documents a contract.
+
+### REQ-validator-012
+
+Source discovery SHALL skip a symlinked entry rather than failing the traversal.
+
+Acceptance Criteria
+- A symlinked entry met during source detection or the coverage walk is recorded and skipped, and discovery continues.
+- The entry is never traversed, so content beyond a link that leaves the project root is never read.
+- A symlink that is a configured source directory entry remains a hard failure, because silently skipping an explicitly configured tree would drop everything the author asked to measure.
+- Symlinks in the spec tree remain a hard failure.
+- Recorded paths are deduplicated and normalized to forward slashes.

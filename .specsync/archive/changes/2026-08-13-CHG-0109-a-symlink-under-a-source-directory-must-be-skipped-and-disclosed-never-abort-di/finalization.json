@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di",
+  "implementation_commit": "f3b6a3f8a5eac9b95148874db0bb30ef70d1e97f",
+  "implementation_tree": "b28a12b95422a94b6de28ca3db3d51ac2974e4df",
+  "contract_digest": "c65dbbf3cba9be740788febebb4b8a572e21f6b77d5a8b9bb445eff5b9f873a1",
+  "workspace_digest": "91af0124387e71cd31ebcc068c7cc4f40d4dec3c3a9ac538a4d3bd2ded2c3240",
+  "closing_digest": "bb51cd68c8f3e56684132f4a929759fefa5123fc975207d0f31504459454c8de",
+  "review_digest": "7b875cf88d2ebae64e9e617e1c21ab34135c2e694e3853126ad446d5da2ff62b",
+  "finalization_digest": "962b73dd076e6ced08c988bba8321fb060f00b830353b29b96d4fd3628270d16",
+  "timestamp": 1786628923
+}

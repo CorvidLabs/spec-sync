@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di",
+      "reviewer": "opus-5-implementing-session",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "f3b6a3f8a5eac9b95148874db0bb30ef70d1e97f",
+      "contract_digest": "c65dbbf3cba9be740788febebb4b8a572e21f6b77d5a8b9bb445eff5b9f873a1",
+      "execution_digest": "82fec44a0c11fe06cc16b7e301df2021681c2bb849d64a1e7f68c85638c282f0",
+      "workspace_digest": "91af0124387e71cd31ebcc068c7cc4f40d4dec3c3a9ac538a4d3bd2ded2c3240",
+      "timestamp": 1786628915
+    }
+  ]
+}

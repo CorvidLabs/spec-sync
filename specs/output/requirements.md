@@ -49,3 +49,12 @@ Acceptance Criteria
 - Planned mappings are separate from errors and warnings.
 - The notice section does not alter validation state or pass/fail decisions.
 
+### REQ-output-003
+
+Coverage output SHALL disclose skipped symlinked entries alongside the coverage figures.
+
+Acceptance Criteria
+- Text output names the skipped entries immediately after the coverage lines.
+- Markdown output names them within the coverage section.
+- A fixed number of entries are named explicitly and any remainder is summarized with a count.
+- Output with no skipped entries is unchanged.

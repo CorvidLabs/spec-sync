@@ -19,7 +19,7 @@ use cap_primitives::fs::FollowSymlinks;
 use cap_std::ambient_authority;
 use cap_std::fs::{Dir, Metadata, OpenOptions};
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs;
 #[cfg(debug_assertions)]
@@ -322,6 +322,21 @@ struct CoverageTraversalBudget {
     bytes: u64,
     charged_files: HashSet<PathBuf>,
     source_files: HashSet<PathBuf>,
+    /// Symlinked entries met during discovery, skipped rather than traversed.
+    ///
+    /// These walks run behind retained directory capabilities and use
+    /// `symlink_metadata` precisely so a link can never redirect discovery
+    /// outside the retained root, and that must not change. But aborting the
+    /// whole command on the first link bought no correctness: a link either
+    /// points outside the root, where it must not be followed anyway, or inside
+    /// it, where the target is already discovered under its real path and
+    /// following it would double-count. Skipping loses nothing (#546).
+    ///
+    /// Collected rather than discarded because skipping silently shrinks the
+    /// coverage denominator — a repo whose `src/vendor` is a link would report a
+    /// *higher* percentage after this change, a number that improved because
+    /// measurement stopped. Callers surface these next to the coverage line.
+    skipped_links: BTreeSet<String>,
 }
 
 impl CoverageTraversalBudget {
@@ -332,7 +347,18 @@ impl CoverageTraversalBudget {
             bytes: 0,
             charged_files: HashSet::new(),
             source_files: HashSet::new(),
+            skipped_links: BTreeSet::new(),
         }
+    }
+
+    /// Record a symlinked entry that discovery skipped instead of traversing.
+    ///
+    /// Normalized to forward slashes so the reported path is stable across
+    /// platforms, and deduplicated: the same link can be met by both the
+    /// source-detection scan and the coverage walk.
+    fn record_skipped_link(&mut self, relative: &Path) {
+        self.skipped_links
+            .insert(relative.to_string_lossy().replace('\\', "/"));
     }
 
     fn remaining_entries(&self) -> usize {
@@ -420,10 +446,8 @@ fn retained_source_dirs_by_scan(
             )
         })?;
         if coverage_metadata_is_link(&metadata) {
-            return Err(format!(
-                "Coverage source-detection path {} must not traverse a symlink or reparse point",
-                relative.display()
-            ));
+            budget.record_skipped_link(&relative);
+            continue;
         }
         if metadata.is_file() {
             if is_detectable_source_file(&root.join(&relative)) {
@@ -486,10 +510,8 @@ fn retained_directory_contains_source(
             )
         })?;
         if coverage_metadata_is_link(&metadata) {
-            return Err(format!(
-                "Coverage source-detection path {} must not traverse a symlink or reparse point",
-                child.display()
-            ));
+            budget.record_skipped_link(&child);
+            continue;
         }
         if metadata.is_file() && is_detectable_source_file(&root.join(&child)) {
             found = true;
@@ -1041,10 +1063,8 @@ where
             )
         })?;
         if coverage_metadata_is_link(&metadata) {
-            return Err(format!(
-                "Coverage source {} must not traverse a symlink or reparse point",
-                child.display()
-            ));
+            accumulator.budget.record_skipped_link(&child);
+            continue;
         }
         if metadata.is_dir() {
             if source_root {
@@ -1246,6 +1266,12 @@ fn open_retained_coverage_directory(
                 ));
             }
         };
+        // Deliberately still fatal, unlike the discovery walks (#546). This
+        // opens a path the project *configured* — a `source_dirs` entry — not
+        // one discovery happened to meet. Skipping an incidentally-encountered
+        // link loses nothing; skipping a configured source directory silently
+        // drops everything the author asked to be measured, which is the
+        // failure this whole change exists to prevent.
         if coverage_metadata_is_link(&before) {
             return Err(format!(
                 "Coverage source directory {} must not traverse a symlink or reparse point",
@@ -5024,6 +5050,7 @@ pub fn compute_coverage(
         loc_coverage_percent: 0,
         unspecced_file_loc: Vec::new(),
         missing_files: Vec::new(),
+        skipped_links: Vec::new(),
     })
 }
 
@@ -5230,6 +5257,7 @@ pub fn compute_coverage_checked(
         loc_coverage_percent,
         unspecced_file_loc,
         missing_files,
+        skipped_links: budget.skipped_links.iter().cloned().collect(),
     })
 }
 

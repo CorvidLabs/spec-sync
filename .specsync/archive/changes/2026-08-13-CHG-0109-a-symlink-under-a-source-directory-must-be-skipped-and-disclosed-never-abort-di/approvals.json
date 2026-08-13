@@ -1,0 +1,59 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786628872,
+      "digest": "c65dbbf3cba9be740788febebb4b8a572e21f6b77d5a8b9bb445eff5b9f873a1",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di",
+        "title": "A symlink under a source directory must be skipped and disclosed, never abort discovery",
+        "description": "A symlink under a source directory must be skipped and disclosed, never abort discovery",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cli",
+          "cmd_check",
+          "commands",
+          "comment",
+          "generator",
+          "output",
+          "types",
+          "validator"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/check.rs",
+          "src/commands/mod.rs",
+          "src/comment.rs",
+          "src/generator.rs",
+          "src/main.rs",
+          "src/output.rs",
+          "src/types.rs",
+          "src/validator.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A project containing a symlinked entry under a source directory completes `specsync check` normally — per-spec results, coverage figures, and a summary — instead of aborting with a single discovery error. Every skipped link is named in the text, markdown, and JSON outputs, so the coverage percentages are never read without what was excluded from them. Bare `check` stays exit 0; `--strict` exits 1 naming the exclusion, because a partially-measured tree must not be called clean. A symlink whose target lies outside the project root is still never traversed and its content is never read. A symlink that is itself a configured `source_dirs` entry still fails loudly rather than being silently skipped."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786628923,
+      "digest": "bb51cd68c8f3e56684132f4a929759fefa5123fc975207d0f31504459454c8de",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

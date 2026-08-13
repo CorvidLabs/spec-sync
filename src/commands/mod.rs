@@ -1141,6 +1141,17 @@ pub fn compute_exit_code(
             if strict && total_warnings > 0 {
                 return 1;
             }
+            // Discovery skips symlinked entries rather than aborting (#546),
+            // which is safe — a link points either outside the root, where it
+            // must not be followed, or inside it, where the target is already
+            // counted under its real path. What is not safe is the denominator
+            // shrinking silently: a repo that symlinks a vendored tree would
+            // report a *higher* percentage than before, a number that improved
+            // because measurement stopped. Bare `check` reports it; `--strict`
+            // refuses to call a partially-measured tree clean.
+            if strict && !coverage.skipped_links.is_empty() {
+                return 1;
+            }
         }
     }
     if let Some(req) = require_coverage {
@@ -1189,6 +1200,21 @@ pub fn exit_with_status(
                 println!(
                     "\n{}: {total_warnings} warning(s) treated as errors",
                     "--strict mode".red()
+                );
+                process::exit(1);
+            }
+            // Mirrors `compute_exit_code`. Discovery skips symlinked entries
+            // rather than aborting (#546), which is safe — but the coverage
+            // denominator shrinks with them, so a tree that symlinks its
+            // vendored source would report a *higher* percentage than before, a
+            // number that improved because measurement stopped. Bare `check`
+            // reports it; `--strict` refuses to call a partially-measured tree
+            // clean.
+            if strict && !coverage.skipped_links.is_empty() {
+                println!(
+                    "\n{}: {} symlinked path(s) were excluded from coverage — the percentages above are measured over the remainder",
+                    "--strict mode".red(),
+                    coverage.skipped_links.len()
                 );
                 process::exit(1);
             }

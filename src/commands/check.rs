@@ -591,6 +591,9 @@ pub fn cmd_check(
                 "notices": all_notices,
                 "stale": stale_entries,
                 "specs_checked": total,
+                // Machine consumers are exactly who cannot see the text
+                // disclosure, and they are the ones acting on `passed` (#546).
+                "skipped_links": coverage.skipped_links,
             });
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
             process::exit(exit_code);

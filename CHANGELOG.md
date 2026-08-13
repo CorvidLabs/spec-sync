@@ -65,6 +65,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A scaffolded spec's sections can now be changed through the lifecycle**
+  (CorvidLabs/spec-sync#564). `specsync scaffold` writes `### Structs & Enums`,
+  `### Traits`, and `### Functions` inside `## Public API`, and `### Consumes` inside
+  `## Dependencies`. The delta grammar treated *every* `###` line as an item heading, so
+  `specsync change approve` rejected the section the tool had just generated:
+
+  ```
+  error: invalid delta item heading `### Structs & Enums`
+  ```
+
+  That put the second half of the SDD loop out of reach for the section that matters most —
+  the one describing the public contract — with no hint that a section body may not contain
+  `###` at all.
+
+  The grammar identifies its own items by keyword (`REQUIREMENT`, `SPEC SECTION`), so depth
+  was never what distinguished them. A `###` that is not a known item heading, met while
+  inside an item, is now section content. Before any item it remains an error, and that
+  error now names the two valid forms. Fixing the parser rather than the generator repairs
+  existing projects too, not only newly scaffolded ones.
+
 - **`stale` no longer reports every spec up to date in a repository with no commits**
   (CorvidLabs/spec-sync#558). Staleness is decided against git history, and an unborn `HEAD`
   has none — nothing can be newer or older than a history that does not exist. The command

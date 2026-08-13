@@ -7,11 +7,11 @@
   "title": "A symlink under a source directory must be skipped and disclosed, never abort discovery",
   "description": "A symlink under a source directory must be skipped and disclosed, never abort discovery",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "9240b1dfe12e604845b0e083036ce7ea31c2964d",
   "created_at": 1786628627,
-  "updated_at": 1786628896,
+  "updated_at": 1786629134,
   "affected_specs": [
     "validator",
     "types",

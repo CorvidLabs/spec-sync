@@ -1,6 +1,6 @@
 ---
 id: CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 9240b1dfe12e604845b0e083036ce7ea31c2964d
 ---

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di",
+  "slug": "a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di",
+  "title": "A symlink under a source directory must be skipped and disclosed, never abort discovery",
+  "description": "A symlink under a source directory must be skipped and disclosed, never abort discovery",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "9240b1dfe12e604845b0e083036ce7ea31c2964d",
+  "created_at": 1786628627,
+  "updated_at": 1786628923,
+  "affected_specs": [
+    "validator",
+    "types",
+    "output",
+    "cmd_check",
+    "commands",
+    "comment",
+    "generator",
+    "cli"
+  ],
+  "affected_paths": [
+    "src/commands/check.rs",
+    "src/commands/mod.rs",
+    "src/comment.rs",
+    "src/generator.rs",
+    "src/main.rs",
+    "src/output.rs",
+    "src/types.rs",
+    "src/validator.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A project containing a symlinked entry under a source directory completes `specsync check` normally — per-spec results, coverage figures, and a summary — instead of aborting with a single discovery error. Every skipped link is named in the text, markdown, and JSON outputs, so the coverage percentages are never read without what was excluded from them. Bare `check` stays exit 0; `--strict` exits 1 naming the exclusion, because a partially-measured tree must not be called clean. A symlink whose target lies outside the project root is still never traversed and its content is never read. A symlink that is itself a configured `source_dirs` entry still fails loudly rather than being silently skipped."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

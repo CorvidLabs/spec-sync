@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0110-report-the-specs-that-dependency-analysis-dropped-instead-of-calling-a-malformed",
+      "reviewer": "opus-5-implementing-session",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "bc1cf1602c8d76a2f54647e310fa143644f8f99e",
+      "contract_digest": "e91cf09c49fb52e5da83a3f7af148f1590b3936e6e9315a21e49adde035e0197",
+      "execution_digest": "f3ffa79e94e048c30636f82deca3345307ef0128e8b8695f046dccc998abb732",
+      "workspace_digest": "2957b39d9e222d4b5c5029c15ddead6d7ece68408238856c31ddb49d608d305b",
+      "timestamp": 1786634790
+    }
+  ]
+}

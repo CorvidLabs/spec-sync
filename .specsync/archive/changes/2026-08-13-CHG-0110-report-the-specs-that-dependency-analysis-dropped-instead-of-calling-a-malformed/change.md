@@ -1,6 +1,6 @@
 ---
 id: CHG-0110-report-the-specs-that-dependency-analysis-dropped-instead-of-calling-a-malformed
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 7bd6c0ac75ecf83bf680a303d3146709021423f1
 ---

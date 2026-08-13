@@ -7,11 +7,11 @@
   "title": "Report the specs that dependency analysis dropped instead of calling a malformed graph valid",
   "description": "Report the specs that dependency analysis dropped instead of calling a malformed graph valid",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "7bd6c0ac75ecf83bf680a303d3146709021423f1",
   "created_at": 1786633417,
-  "updated_at": 1786634773,
+  "updated_at": 1786635001,
   "affected_specs": [
     "deps"
   ],

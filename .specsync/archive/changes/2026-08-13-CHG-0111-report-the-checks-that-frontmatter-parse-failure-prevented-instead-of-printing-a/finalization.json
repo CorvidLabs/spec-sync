@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0111-report-the-checks-that-frontmatter-parse-failure-prevented-instead-of-printing-a",
+  "implementation_commit": "1d935e882e164a7217d1dc74e212f7eb5f97ae44",
+  "implementation_tree": "d363ccbaa7daf14d92274b135a564a89f9ce8072",
+  "contract_digest": "ba34f70b653c7f38d73dcc623f01288d3691c49a2cb21ea51394e9b360ee0649",
+  "workspace_digest": "62fd75543c4ad75f6d9641809877eb829d007012d42055735689d0359e1c7299",
+  "closing_digest": "86e8ccda3bb55a05fbcb3e67c7f60865ed146ee9ad6c8a784d5f16920a9db82e",
+  "review_digest": "739df4441126985e957d223c30e7b660af8455d7c264a7e8fb5179304d9f4678",
+  "finalization_digest": "ef25fb0d21b34a03216db979d1a3c621765c5407110d2ea52006c20527e7b6d9",
+  "timestamp": 1786636214
+}

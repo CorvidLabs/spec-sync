@@ -7,11 +7,11 @@
   "title": "Report the checks that frontmatter parse failure prevented instead of printing a green line for each",
   "description": "Report the checks that frontmatter parse failure prevented instead of printing a green line for each",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "c7977425ad791f6eef99af5a29032c55532f84fb",
   "created_at": 1786636016,
-  "updated_at": 1786636196,
+  "updated_at": 1786636214,
   "affected_specs": [
     "commands"
   ],

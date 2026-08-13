@@ -1,6 +1,6 @@
 ---
 id: CHG-0111-report-the-checks-that-frontmatter-parse-failure-prevented-instead-of-printing-a
-state: implementing
+state: archived
 type: bug_fix
 base_commit: c7977425ad791f6eef99af5a29032c55532f84fb
 ---

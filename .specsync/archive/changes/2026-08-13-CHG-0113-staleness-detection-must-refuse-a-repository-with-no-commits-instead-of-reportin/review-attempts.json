@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0113-staleness-detection-must-refuse-a-repository-with-no-commits-instead-of-reportin",
+      "reviewer": "opus-5-implementing-session",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "9105b49c12f464e497c5474cc4abcdb0a5f923ad",
+      "contract_digest": "8952907175f90272577d2a66460b8118ad9c5c10e2af82dcdb1b0fc728092714",
+      "execution_digest": "2c692f9cdd21f1384f651f8209868b16d661f71da24aee65eb628c9d9f576e00",
+      "workspace_digest": "aed3636e99efee8bd48b0e565631f9d08fb1eb7b3cfe58de74f5af592c969e5c",
+      "timestamp": 1786644976
+    }
+  ]
+}

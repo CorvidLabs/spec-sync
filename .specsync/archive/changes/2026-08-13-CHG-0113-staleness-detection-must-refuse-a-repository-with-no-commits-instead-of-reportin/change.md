@@ -1,6 +1,6 @@
 ---
 id: CHG-0113-staleness-detection-must-refuse-a-repository-with-no-commits-instead-of-reportin
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 8feb4581d9dcee97028573aab1ee33b00b5cccf4
 ---

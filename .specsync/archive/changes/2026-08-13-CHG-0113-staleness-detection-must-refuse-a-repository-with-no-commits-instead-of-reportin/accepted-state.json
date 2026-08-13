@@ -7,11 +7,11 @@
   "title": "Staleness detection must refuse a repository with no commits instead of reporting every spec current",
   "description": "Staleness detection must refuse a repository with no commits instead of reporting every spec current",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "8feb4581d9dcee97028573aab1ee33b00b5cccf4",
   "created_at": 1786643379,
-  "updated_at": 1786644957,
+  "updated_at": 1786644984,
   "affected_specs": [
     "cmd_stale",
     "git_utils"

@@ -65,6 +65,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`check --strict` no longer exits 0 on a tree with source and zero specs**
+  (CorvidLabs/spec-sync#560). A project with real source and an empty `specs/` passed
+  strict validation silently, and the coverage footer `check` prints in every other path
+  was omitted entirely — so a CI log carried no figure at all, while `coverage` on the
+  identical tree reported 0%.
+
+  The branch already carried a comment stating that `--require-coverage`,
+  `--enforcement enforce-new`, and `--strict` must all gate here. The first two did.
+  `--strict` did not, because it escalates *warnings* and a project with no specs produces
+  none.
+
+  The coverage line is now printed unconditionally rather than only when a gate already
+  failed, `--strict` gates when the tree has source files, and the JSON payload carries
+  `total_source_files` and `coverage_percent` so `specs_checked: 0` can be told apart from
+  an empty project. Confined to trees that have source: an empty project, or one whose
+  specs simply have not been generated yet, still exits 0.
+
 - **`check` no longer prints green result lines for checks that could not run**
   (CorvidLabs/spec-sync#553). When a spec's frontmatter failed to parse, validation still
   reported `✓ All source files exist`, `✓ All DB tables exist in schema`,

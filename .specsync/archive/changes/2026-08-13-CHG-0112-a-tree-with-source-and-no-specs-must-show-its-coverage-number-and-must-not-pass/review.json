@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0112-a-tree-with-source-and-no-specs-must-show-its-coverage-number-and-must-not-pass",
+  "reviewer": "opus-5-implementing-session",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "a1a4ff6fbacf8b68f0f9493351c540c13e64c15f",
+  "contract_digest": "a3636f71214c84b43a38415d92a8d5e149bb8a8dcdc198be65dd5b4bb907f06b",
+  "execution_digest": "d2ee6327e257be35459db176d974213a80bc27608ebee60aa3a06611c392c7ca",
+  "workspace_digest": "0ffdb1a8b5e5136f298f117ee4657a29707427fb2852e2db050dc937114e6678",
+  "timestamp": 1786640815
+}

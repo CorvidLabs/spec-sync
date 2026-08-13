@@ -1,6 +1,6 @@
 ---
 id: CHG-0115-a-fix-request-that-could-not-be-applied-must-be-reported-not-reported-as-succes
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 12cbd50f5bb24b36da2dc56fe17dcf98743ac7da
 ---

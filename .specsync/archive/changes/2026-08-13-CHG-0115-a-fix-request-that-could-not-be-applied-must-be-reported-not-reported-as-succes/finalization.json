@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0115-a-fix-request-that-could-not-be-applied-must-be-reported-not-reported-as-succes",
+  "implementation_commit": "def1d6263d9e514f4c6bd5ea0aec86eed7773221",
+  "implementation_tree": "454abe9fb8ff02267d03a04cd5e990743f3ebeb1",
+  "contract_digest": "eda3060ba77449de68697dc84f91caa0d8a944e2699200740a3daec6f7152cd6",
+  "workspace_digest": "bbc6c64449eb19155cfbe963479ae690f8283d60b8fa7afdb6acea21e2a3c0ea",
+  "closing_digest": "3680384822bee84f010e3492c6c56d422a7b39504e9fecb1754cce80b0ce9a84",
+  "review_digest": "c732885bd6a4630168690d39a305bb812562f839ac40b3368d69fc2b30b921b5",
+  "finalization_digest": "1f938c223ed5dbe0e10e089b4d2b14106e14a859410aece8d4a856310dfbfc78",
+  "timestamp": 1786659657
+}

@@ -7,11 +7,11 @@
   "title": "A fix request that could not be applied must be reported, not reported as success",
   "description": "A fix request that could not be applied must be reported, not reported as success",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "12cbd50f5bb24b36da2dc56fe17dcf98743ac7da",
   "created_at": 1786659445,
-  "updated_at": 1786659637,
+  "updated_at": 1786659883,
   "affected_specs": [
     "cmd_check"
   ],

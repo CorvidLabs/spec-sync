@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0115-a-fix-request-that-could-not-be-applied-must-be-reported-not-reported-as-succes",
+      "reviewer": "opus-5-implementing-session",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "def1d6263d9e514f4c6bd5ea0aec86eed7773221",
+      "contract_digest": "eda3060ba77449de68697dc84f91caa0d8a944e2699200740a3daec6f7152cd6",
+      "execution_digest": "0e1eecb6e101f11fb2dfb4169c9274b9a0aafc3a36537b56bcecb061d24b13d0",
+      "workspace_digest": "bbc6c64449eb19155cfbe963479ae690f8283d60b8fa7afdb6acea21e2a3c0ea",
+      "timestamp": 1786659648
+    }
+  ]
+}

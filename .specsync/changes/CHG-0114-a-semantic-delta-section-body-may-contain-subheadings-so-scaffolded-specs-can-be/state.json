@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0114-a-semantic-delta-section-body-may-contain-subheadings-so-scaffolded-specs-can-be",
+  "slug": "a-semantic-delta-section-body-may-contain-subheadings-so-scaffolded-specs-can-be",
+  "title": "A semantic delta section body may contain subheadings so scaffolded specs can be changed",
+  "description": "A semantic delta section body may contain subheadings so scaffolded specs can be changed",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "2991eb272d1299e5db4b96cc76df3e9c1b1a9b86",
+  "created_at": 1786655077,
+  "updated_at": 1786656419,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A semantic delta whose spec-section body contains subheadings is accepted, so the Public API and Dependencies sections a scaffold generates can be changed through the lifecycle without hand-editing the spec first. A subheading appearing before any delta item is still rejected, and the message names the two valid item forms. Existing projects benefit without regenerating their specs."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

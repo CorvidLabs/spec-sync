@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 113,
-  "id": "CHG-0113-staleness-detection-must-refuse-a-repository-with-no-commits-instead-of-reportin",
+  "sequence": 114,
+  "id": "CHG-0114-a-semantic-delta-section-body-may-contain-subheadings-so-scaffolded-specs-can-be",
   "acknowledged_collisions": [
     {
       "sequence": 16,

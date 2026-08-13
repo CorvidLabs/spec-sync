@@ -8094,8 +8094,22 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
                 (DeltaTarget::Requirement, value)
             } else if let Some(value) = header.strip_prefix("SPEC SECTION ") {
                 (DeltaTarget::SpecSection, value)
+            } else if current_target.is_some() {
+                // A `###` that is not one of this grammar's item headings, met
+                // while inside an item, is section CONTENT — not a malformed
+                // item. Rejecting it made a scaffolded spec impossible to
+                // change through the lifecycle: `scaffold` writes
+                // `### Structs & Enums`, `### Traits`, `### Functions` inside
+                // `## Public API` and `### Consumes` inside `## Dependencies`,
+                // so `approve` refused the section it had just generated
+                // (#564). The grammar identifies its own items by keyword, so
+                // depth was never what distinguished them.
+                body.push(line.to_string());
+                continue;
             } else {
-                return Err(format!("invalid delta item heading `### {header}`"));
+                return Err(format!(
+                    "invalid delta item heading `### {header}` — a delta item must be `### REQUIREMENT <id>` or `### SPEC SECTION <name>`; subheadings are only content once an item has been opened"
+                ));
             };
             current_target = Some(target);
             current_key = key.trim().to_string();

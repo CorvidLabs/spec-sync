@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1786638969,
+      "commit": "c7977425ad791f6eef99af5a29032c55532f84fb",
+      "contract_digest": "8637b839d523c78195b999088a14e9593df476fe22abc35d1064b5116f9bf782",
+      "execution_digest": "8accaa0b38633131deaaa966fc28d4596581c5ca4bb1605b0b1f7d16b1545267",
+      "workspace_digest": "f0b168dfff8ad5056b882256648111cbdac1c24886c0d60bda4284ac059f573b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test commands::check::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-007"
+      ]
+    }
+  ]
+}

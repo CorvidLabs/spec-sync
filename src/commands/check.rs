@@ -232,7 +232,21 @@ pub fn cmd_check(
         // default state right after `specsync init`). Default mode (warn, no gate)
         // still exits 0 with the informational message.
         let coverage = checked_coverage_or_exit(root, &spec_files, &config, format);
-        let exit_code = compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
+        let mut exit_code =
+            compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
+        // The comment above states the intent; `--strict` did not deliver it.
+        // `compute_exit_code` escalates WARNINGS under `--strict`, and a project
+        // with no specs produces none — so `check --strict` exited 0 over real
+        // source with zero coverage, printing no number at all, while `coverage`
+        // on the same tree reported 0%. A caller who asked for strict validation
+        // of a tree that was never measured should not be told it is clean.
+        //
+        // Confined to a tree that actually has source: an empty project, or one
+        // whose specs simply have not been generated yet and has nothing to
+        // measure, still exits 0.
+        if strict && coverage.total_source_files > 0 {
+            exit_code = 1;
+        }
         match format {
             Json => {
                 let output = serde_json::json!({
@@ -242,6 +256,10 @@ pub fn cmd_check(
                     "notices": [],
                     "stale": [],
                     "specs_checked": 0,
+                    // Without these a consumer sees `specs_checked: 0` and cannot
+                    // tell an empty project from one with source and no specs.
+                    "total_source_files": coverage.total_source_files,
+                    "coverage_percent": coverage.coverage_percent,
                 });
                 println!("{}", serde_json::to_string_pretty(&output).unwrap());
             }
@@ -255,11 +273,10 @@ pub fn cmd_check(
                     "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
                     abs_specs.display()
                 );
-                // When a gate fails, show the coverage that failed it so exit 1
-                // isn't unexplained.
-                if exit_code != 0 {
-                    print_coverage_line(&coverage);
-                }
+                // Always show the number. Printing it only on failure is how a
+                // tree with source and zero specs produced a log containing
+                // nothing to notice.
+                print_coverage_line(&coverage);
             }
         }
         process::exit(exit_code);

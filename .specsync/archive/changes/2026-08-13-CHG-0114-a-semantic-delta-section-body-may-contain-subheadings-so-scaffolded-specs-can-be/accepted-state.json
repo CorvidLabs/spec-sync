@@ -7,11 +7,11 @@
   "title": "A semantic delta section body may contain subheadings so scaffolded specs can be changed",
   "description": "A semantic delta section body may contain subheadings so scaffolded specs can be changed",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "2991eb272d1299e5db4b96cc76df3e9c1b1a9b86",
   "created_at": 1786655077,
-  "updated_at": 1786657625,
+  "updated_at": 1786657654,
   "affected_specs": [
     "change"
   ],

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0114-a-semantic-delta-section-body-may-contain-subheadings-so-scaffolded-specs-can-be",
+  "implementation_commit": "100ba84298dcd28bd60e91135995e5317ea84eb4",
+  "implementation_tree": "2e73c3087d59bac205ad96fb1c091f19ac382acf",
+  "contract_digest": "171a3fe9262022bbdc4918b9ffb307e896e57e8ff1762fab5d4e7d49d2382f8c",
+  "workspace_digest": "3498c70de0ff65989a59ace923784b8affea8c19b42ba65ad3661016e21207bc",
+  "closing_digest": "7e953673ceaf3d7e1c793730cd93288d1ff0bab3b9ffa920e17ab2c81e370b17",
+  "review_digest": "5bbc640ee6f5a2d4ff29da038281b1a6b3fa42749133421ac401540a753d9fac",
+  "finalization_digest": "e05b858613123c0849a11074b6f1742d48b59e469e9ecb6bcf7d4decda24f2f4",
+  "timestamp": 1786657654
+}

@@ -1,6 +1,6 @@
 ---
 id: CHG-0114-a-semantic-delta-section-body-may-contain-subheadings-so-scaffolded-specs-can-be
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 2991eb272d1299e5db4b96cc76df3e9c1b1a9b86
 ---

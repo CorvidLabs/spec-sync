@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0110-stop-printing-green-result-lines-for-checks-that-could-not-run-when-frontmatter",
+      "reviewer": "opus-5-implementing-session",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "f54b387d89f4cb6d0d1656594e32dc2c35549f8d",
+      "contract_digest": "06dc2a455183e098f0205d5c2a41e1f2e30d16f92110f778bb03c910f07e975c",
+      "execution_digest": "8cc04ec6a051ef28ec41311226ba42b6d5785e20f98284eeb775b303fc862de9",
+      "workspace_digest": "3975674e0a8fa97f75632715a9795d5ef29dc086bda691a12f46ee26ac3c60cc",
+      "timestamp": 1786630848
+    }
+  ]
+}

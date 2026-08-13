@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0110-stop-printing-green-result-lines-for-checks-that-could-not-run-when-frontmatter",
+  "implementation_commit": "f54b387d89f4cb6d0d1656594e32dc2c35549f8d",
+  "implementation_tree": "e8d5d0daf6b90ecfe75d09bb68cffcd32fc5ca5c",
+  "contract_digest": "06dc2a455183e098f0205d5c2a41e1f2e30d16f92110f778bb03c910f07e975c",
+  "workspace_digest": "3975674e0a8fa97f75632715a9795d5ef29dc086bda691a12f46ee26ac3c60cc",
+  "closing_digest": "a9203ae15d6aae90d274fca093136769796369461a87b08b82a1b41567631f30",
+  "review_digest": "ab68dc8ee595dc7d197b1b85a548127dc27a6cbb87bd5265e1d0b0f8f04569fe",
+  "finalization_digest": "3d8b8cbda35891c009f992d04ac2cda9f8ae18375da742296aea7717c9785abf",
+  "timestamp": 1786630856
+}

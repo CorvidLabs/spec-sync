@@ -1,0 +1,38 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786630799,
+      "digest": "06dc2a455183e098f0205d5c2a41e1f2e30d16f92110f778bb03c910f07e975c",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0110-stop-printing-green-result-lines-for-checks-that-could-not-run-when-frontmatter",
+        "title": "Stop printing green result lines for checks that could not run when frontmatter is invalid",
+        "description": "Stop printing green result lines for checks that could not run when frontmatter is invalid",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "commands"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/mod.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When a spec's frontmatter cannot be parsed, `specsync check` reports the source-file, required-section, and dependency checks as skipped rather than printing a green result line for each. A spec whose frontmatter is valid continues to report those three checks normally, and the same spec body with valid frontmatter still reports every genuinely missing required section, proving the previous green line was false rather than merely vacuous."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

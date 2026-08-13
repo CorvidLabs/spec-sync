@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 109,
-  "id": "CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di",
+  "sequence": 110,
+  "id": "CHG-0110-stop-printing-green-result-lines-for-checks-that-could-not-run-when-frontmatter",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 17
+version: 18
 status: stable
 files:
   - src/commands/mod.rs
@@ -203,3 +203,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
 | 2026-08-13 | CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di: A symlink under a source directory must be skipped and disclosed, never abort discovery |
+| 2026-08-13 | CHG-0110-stop-printing-green-result-lines-for-checks-that-could-not-run-when-frontmatter: Stop printing green result lines for checks that could not run when frontmatter is invalid |

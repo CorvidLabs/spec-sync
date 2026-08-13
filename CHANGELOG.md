@@ -65,6 +65,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`check` no longer prints green result lines for checks that could not run**
+  (CorvidLabs/spec-sync#553). When a spec's frontmatter failed to parse, validation still
+  reported `✓ All source files exist`, `✓ All required sections present`, and
+  `✓ All dependency specs exist` — for a spec missing six of the eight default required
+  sections.
+
+  Each of those lines inferred success from the *absence of errors in its category*, and
+  unparseable frontmatter yields no `files:`, no `depends_on:`, and no section validation at
+  all, so every category was empty for want of input rather than for want of problems.
+
+  Unlike the rest of this series the section line was not merely vacuous but **false**: the
+  identical spec body with valid frontmatter reports five missing sections. All three checks
+  are now reported as skipped, reusing the `⊘ … skipped` wording the draft path already
+  used. Exit status is unchanged — invalid frontmatter was an error before and remains one.
+
 - **`specsync init` no longer leaves a project failing its own coverage gate.** Initialization
   writes `.specsync/config.toml`, `.specsync/version`, and `.specsync/sdd.json` — all three are
   protected SDD paths, so the first commit after `specsync init` was reported as uncovered

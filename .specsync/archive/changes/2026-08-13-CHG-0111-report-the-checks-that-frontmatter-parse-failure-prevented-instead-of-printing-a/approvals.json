@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786636175,
+      "digest": "ba34f70b653c7f38d73dcc623f01288d3691c49a2cb21ea51394e9b360ee0649",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0111-report-the-checks-that-frontmatter-parse-failure-prevented-instead-of-printing-a",
+        "title": "Report the checks that frontmatter parse failure prevented instead of printing a green line for each",
+        "description": "Report the checks that frontmatter parse failure prevented instead of printing a green line for each",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "commands"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/mod.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When a spec's frontmatter cannot be parsed, `specsync check` reports the source-file, DB-table, required-section, and dependency checks as skipped rather than printing a green result line for each of the four. A spec whose frontmatter is valid continues to report all four normally: the same body with valid frontmatter still reports every genuinely missing required section, and a declared table absent from the schema is still reported as missing. Exit status is unchanged — invalid frontmatter remains an error."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786636214,
+      "digest": "86e8ccda3bb55a05fbcb3e67c7f60865ed146ee9ad6c8a784d5f16920a9db82e",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

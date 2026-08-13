@@ -65,6 +65,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`check` no longer prints green result lines for checks that could not run**
+  (CorvidLabs/spec-sync#553). When a spec's frontmatter failed to parse, validation still
+  reported `✓ All source files exist`, `✓ All DB tables exist in schema`,
+  `✓ All required sections present`, and `✓ All dependency specs exist` — for a spec
+  missing six of the eight default required sections.
+
+  Each line inferred success from the *absence of errors in its category*, and unparseable
+  frontmatter yields no `files:`, no `db_tables:`, no `depends_on:`, and no section
+  validation at all, so every category was empty for want of input rather than for want of
+  problems.
+
+  The section line was not merely vacuous but **false**: the identical body with valid
+  frontmatter reports five missing sections. The DB-table line hid behind a differently
+  shaped guard — it tested whether the *project schema* had tables, not whether the spec's
+  `db_tables:` could be read. All four are now reported as skipped, reusing the
+  `⊘ … skipped` wording the draft path already used. Exit status is unchanged: invalid
+  frontmatter was an error before and remains one.
+
 - **`deps` no longer reports a malformed dependency graph as valid**
   (CorvidLabs/spec-sync#550). Frontmatter that `check` rejects with
   `depends_on must be a YAML list, got a mapping` was parsed by `deps` into an *empty*

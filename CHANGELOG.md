@@ -65,6 +65,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`specsync init` no longer leaves a project failing its own coverage gate.** Initialization
+  writes `.specsync/config.toml`, `.specsync/version`, and `.specsync/sdd.json` — all three are
+  protected SDD paths, so the first commit after `specsync init` was reported as uncovered
+  meaningful delivery (`meaningful changed paths are not covered by an active change`) on a gate
+  no change workspace could satisfy, because none existed when the files were written. `init` now
+  records what it created in a committed `.specsync/bootstrap.json`, and the coverage gate honours
+  that record.
+
+  The exemption is pinned, not blanket: a recorded path counts only while it is a protected SDD
+  path, is absent at the delivery comparison base (so only *creation* is ever exempt, never a
+  modification of an already-tracked policy file), has a recorded base commit that is an ancestor
+  of `HEAD`, and still matches its recorded digest. The policy digest covers the enforcement
+  surface rather than the file bytes — filling in `verification_commands`, which `init` asks you
+  to do, keeps the exemption, while changing `enabled`, `require_change_for_meaningful_files`,
+  `meaningful_paths`, or `ignored_paths` revokes it. `change adopt`'s existing single-path
+  bootstrap record is honoured through the same, now stricter, validator.
+
+- **The coverage gate no longer breaks in a one-commit repository.** With no active change to
+  supply a base commit, the gate fell back to `HEAD~1...HEAD`; in a repository whose first commit
+  is also its only one that does not resolve, and a dirty tree — exactly the state `specsync init`
+  leaves behind — produced `error: unable to inspect changed paths for SDD coverage`. The fallback
+  now resolves to `HEAD`: there is no earlier commit to review, so the committed delivery is empty
+  and the working tree is what needs coverage.
+
+- **The coverage-gate failure names the way out.** `meaningful changed paths are not covered by an
+  active change` now prints a runnable `specsync change new … --path …` line carrying every
+  reported path, names the `--no-spec-change --rationale` variant, and — when a reported path
+  matches a configured `ignored_paths` entry — states why the entry did not apply: protected SDD
+  policy files and the configured specs tree are always meaningful and cannot be ignored away.
+
+- **`specsync scaffold` output no longer fails `specsync check`.** Scaffolding a module emits
+  placeholder sections, and the effective-contract gate treated every unfinished section as a stub
+  warning — fatal under `--strict`. The tool's own output failed the tool's own gate, on the second
+  command of the quick start. The exemption is keyed to **authorship, not content shape**: a
+  generated section no active change has authored no longer gates, while a section an active change
+  authored and then emptied stays fatal, through both the pending and the applied delta paths.
+  Unknown authorship fails closed and exempts nothing, and suppressions are reported as warnings
+  rather than dropped silently.
+
+- **A directory in a spec's `files:` block is now an error instead of silent success**
+  (CorvidLabs/spec-sync#472). A directory mapping extracts zero exports, so the Public API
+  comparison had nothing to compare and passed: `specsync check --strict --force` exited 0 with
+  zero warnings while measuring nothing — a green result indistinguishable from a real one. Filed as
+  Kotlin-specific; it was language-independent. Validation now reports
+  `Source file <path> is a directory — files: must list source files, not directories`, with a fix
+  naming the source files beneath it, expanded by the same rule `generate` and `scaffold` apply to a
+  `[modules."x"] files` directory, so the remedy matches what generation would have written.
+
+  The snapshot validation path had the same defect in a more misleading form: it refused the
+  directory but reported it as an out-of-root **security escape**, telling authors their confined
+  path had left the project root. Both paths now name the real cause. Symlink and reparse-point
+  rejection is unchanged and still evaluated first.
+
 - SpecSync 6.0 reopen/finalize paths address stranded accepted-record deadlocks reported via CorvidLabs/spec-sync#481 (fledge PR CorvidLabs/fledge#506 worked around the 5.x strand by manual archive).
 
 - **Draft `next_action` no longer recommends approve while artifacts are incomplete** — when the interview is done but selected artifacts still contain `<!-- TODO -->` stubs (or are empty), status/show guidance prefers completing those artifacts first (sandbox #16).

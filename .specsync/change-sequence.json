@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 106,
-  "id": "CHG-0106-make-verification-currency-a-content-question-delete-the-git-ancestry-walk-the",
+  "sequence": 107,
+  "id": "CHG-0107-fix-the-first-five-minutes-of-spec-sync-init-leaves-a-repo-that-fails-check-sc",
   "acknowledged_collisions": [
     {
       "sequence": 16,

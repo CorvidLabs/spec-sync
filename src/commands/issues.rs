@@ -1091,7 +1091,15 @@ fn snapshot_source_file(project: &Dir, mapping: &str, max_bytes: u64) -> SourceS
         Err(error) if error.kind() == io::ErrorKind::NotFound => return SourceSnapshot::Missing,
         Err(_) => return SourceSnapshot::Unreadable,
     };
-    if is_link_or_reparse_point(&metadata) || !metadata.is_file() {
+    if is_link_or_reparse_point(&metadata) {
+        return SourceSnapshot::Rejected;
+    }
+    // A confined directory is a mapping-shape error, not a security escape: report
+    // it as one instead of hiding the real cause behind the escape message.
+    if metadata.is_dir() {
+        return SourceSnapshot::Directory;
+    }
+    if !metadata.is_file() {
         return SourceSnapshot::Rejected;
     }
     let identity = match discovered_file_identity(&directory, name, &metadata) {
@@ -2335,6 +2343,63 @@ mod tests {
         assert!(!combined.contains("OUTSIDE_SOURCE_SECRET"));
         assert!(!combined.contains(&outside.to_string_lossy().to_string()));
         assert_eq!(fs::read(&outside).unwrap(), outside_bytes);
+    }
+
+    #[test]
+    fn snapshot_validation_reports_a_directory_mapping_as_a_directory() {
+        // Regression (#472): the snapshot path already refused to read a directory
+        // mapping, but reported it as an out-of-root escape. Name the real cause so
+        // both validation paths agree on why the mapping is invalid.
+        let temporary = tempfile::TempDir::new().unwrap();
+        let root = temporary.path().join("project");
+        fs::create_dir_all(root.join("src/provider")).unwrap();
+        fs::create_dir_all(root.join("specs/provider")).unwrap();
+        fs::write(
+            root.join("src/provider/provider.rs"),
+            "pub fn provide() {}\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("specs/provider/provider.spec.md"),
+            concat!(
+                "---\nmodule: provider\nversion: 1\nstatus: active\nfiles:\n",
+                "  - src/provider\n---\n\n",
+                "## Purpose\nProvide.\n\n## Requirements\nProvide.\n\n",
+                "## Public API\n| Name | Description |\n|---|---|\n\n",
+                "## Invariants\nSafe.\n\n## Behavioral Examples\nWorks.\n\n",
+                "## Error Cases\nNone.\n\n## Dependencies\nNone.\n\n",
+                "## Change Log\n- Initial.\n",
+            ),
+        )
+        .unwrap();
+
+        let opened = open_specs_directory(&root, "specs")
+            .expect("configuration must be confined")
+            .expect("specs directory must exist");
+        let (snapshots, findings) = find_spec_snapshots_checked_with_hook(&opened, |_| {});
+        assert!(findings.is_empty());
+
+        let config = crate::config::load_config(&root);
+        let (errors, _, _) = collect_snapshot_validation_with_hook(
+            &opened.project,
+            &root,
+            &snapshots,
+            &config,
+            || {},
+        );
+        let errors = errors.to_vec();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("`src/provider` is a directory")),
+            "expected a directory mapping error, got: {errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .all(|error| !error.contains("resolves outside the project root")),
+            "a confined directory is not an escape: {errors:?}"
+        );
     }
 
     #[test]

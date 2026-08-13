@@ -192,6 +192,14 @@ fn execute_init(root: &Path, repair: bool) -> Result<InitReport, Box<InitReport>
 
     let mut restored = Vec::new();
     let mut warnings = Vec::new();
+    // Every file init just wrote is a protected SDD path, so without this record
+    // the very next `specsync check` reports init's own output as uncovered
+    // meaningful delivery — a gate no change workspace could have satisfied,
+    // because none existed when the files were written. Non-fatal: a project
+    // without Git evidence has no coverage gate to satisfy in the first place.
+    if let Err(error) = crate::change::record_bootstrap_paths(root) {
+        warnings.push(error);
+    }
     // An empty verification command list is written silently and only surfaces
     // later, when a lifecycle command fails naming a file the user has never
     // opened. Say it here, while they are still looking at init output.
@@ -883,6 +891,81 @@ mod tests {
         assert!(root.join(".specsync/.gitignore").is_file());
         assert!(root.join(".specsync/sdd.json").is_file());
         assert!(missing_support_files(root).is_empty());
+    }
+
+    #[test]
+    fn fresh_init_leaves_the_next_lifecycle_check_clean() {
+        // #542 first-five-minutes: `git init` → `specsync init` → commit →
+        // `specsync check` reported init's own protected output as uncovered
+        // meaningful delivery, a gate no change workspace could satisfy.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                std::process::Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
+        };
+        git(&["init", "-q", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/main.rs"), "fn main() {}\n").unwrap();
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "init"]);
+
+        cmd_init(root, false, crate::types::OutputFormat::Text);
+        assert!(
+            root.join(".specsync/bootstrap.json").is_file(),
+            "init must record the protected files it created"
+        );
+        // The gate must also survive being run before that output is committed:
+        // `HEAD~1` does not resolve in a one-commit repository.
+        let uncommitted = crate::change::check_project(root);
+        assert!(
+            uncommitted.errors.is_empty(),
+            "checking before the bootstrap commit must not fail: {:?}",
+            uncommitted.errors
+        );
+        // Init tells the author to fill in verification commands when it cannot
+        // detect any. Doing so must not revoke the bootstrap it just recorded.
+        let policy_path = root.join(".specsync/sdd.json");
+        let write_policy = |policy: &crate::change::SddPolicy| {
+            fs::write(
+                &policy_path,
+                format!("{}\n", serde_json::to_string_pretty(policy).unwrap()),
+            )
+            .unwrap();
+        };
+        let mut policy = crate::change::load_policy(root).unwrap();
+        policy.verification_commands = vec!["true".to_string()];
+        write_policy(&policy);
+
+        git(&["add", "-A"]);
+        git(&["commit", "-qm", "Add: initialize spec-sync"]);
+
+        let report = crate::change::check_project(root);
+        assert!(
+            report.errors.is_empty(),
+            "the first check after init must pass: {:?}",
+            report.errors
+        );
+
+        // The pin still covers the enforcement surface: widening the policy's
+        // meaningful paths revokes the exemption it was granted.
+        policy.meaningful_paths.push("private/".into());
+        write_policy(&policy);
+        assert!(
+            crate::change::check_project(root)
+                .errors
+                .iter()
+                .any(|error| error.contains(".specsync/sdd.json")),
+            "editing a bootstrapped policy must revoke its own exemption"
+        );
     }
 
     #[test]

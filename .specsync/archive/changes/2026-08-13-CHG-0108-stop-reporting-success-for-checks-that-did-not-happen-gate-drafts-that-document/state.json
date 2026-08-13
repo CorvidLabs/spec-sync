@@ -7,11 +7,11 @@
   "title": "Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally",
   "description": "Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "80324cb50220c05ffdf4158eeadb3b9acca1e24b",
   "created_at": 1786585470,
-  "updated_at": 1786597268,
+  "updated_at": 1786597507,
   "affected_specs": [
     "parser",
     "hash_cache",

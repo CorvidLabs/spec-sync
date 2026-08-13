@@ -1,6 +1,6 @@
 ---
 id: CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 80324cb50220c05ffdf4158eeadb3b9acca1e24b
 ---

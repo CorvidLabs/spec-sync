@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document",
+  "implementation_commit": "7953cbc90c17507b292b54e2a692a9f113ffb5ef",
+  "implementation_tree": "46410ac52ac017e7f746e1c3f260db8dc6b1ced3",
+  "contract_digest": "5c484a65644ce5646109047297fa007f13575b62f78bf8f803c613d9963da756",
+  "workspace_digest": "adfe8fb8d434ad7900cf5085c49b2fed66472f55b636ac384fb66da231739211",
+  "closing_digest": "c857a9fe4b848e2e93ced40611b00d464694a90ddd7890eaf576c820811cf6aa",
+  "review_digest": "73c32043856e3996e698007324b60edc9f3ce2e4610644ee775692905b160b89",
+  "finalization_digest": "f206b2fdc2d6b7de19eac211e058ad766ff3e4fbec86afb3e111a998c8a2c7a3",
+  "timestamp": 1786597302
+}

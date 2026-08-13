@@ -47,3 +47,13 @@ Acceptance Criteria
 - Related tests remain green.
 - No intentional regression of SpecSync 6.0 lifecycle verbs.
 
+### REQ-hash-cache-002
+
+A change classification SHALL record whether the cache held a prior hash for the spec, so
+that a change can be told apart from an absence of evidence.
+
+Acceptance Criteria
+- An absent cache entry continues to select the spec for re-validation.
+- An absent cache entry is not reported as a change.
+- A companion change observed against a known baseline is still reported.
+- The cache's own frontmatter `files:` extraction resolves a quoted entry to the same path the parser resolves.

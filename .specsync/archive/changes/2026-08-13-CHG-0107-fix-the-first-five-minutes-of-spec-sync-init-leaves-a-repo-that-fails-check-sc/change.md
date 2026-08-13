@@ -1,6 +1,6 @@
 ---
 id: CHG-0107-fix-the-first-five-minutes-of-spec-sync-init-leaves-a-repo-that-fails-check-sc
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 4ddf810ed39b56482ba96a0d209ee9216ef56fe9
 ---

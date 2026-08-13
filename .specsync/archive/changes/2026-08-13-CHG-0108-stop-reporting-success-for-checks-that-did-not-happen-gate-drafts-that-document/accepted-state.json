@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document",
+  "slug": "stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document",
+  "title": "Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally",
+  "description": "Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "80324cb50220c05ffdf4158eeadb3b9acca1e24b",
+  "created_at": 1786585470,
+  "updated_at": 1786597302,
+  "affected_specs": [
+    "parser",
+    "hash_cache",
+    "cmd_check",
+    "commands",
+    "types",
+    "validator",
+    "change"
+  ],
+  "affected_paths": [
+    "src/parser.rs",
+    "src/hash_cache.rs",
+    "src/commands/check.rs",
+    "src/commands/mod.rs",
+    "src/types.rs",
+    "src/validator.rs",
+    "src/change.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A spec that is `status: draft`, whose mapped source files exist, and whose Public API names at least one symbol produces a warning, so bare `specsync check` still exits 0 and `specsync check --strict` exits 1. A draft whose mapped files do not exist yet still passes `--strict` unchanged, and so does a draft with an empty Public API. A fresh clone with no hash cache reports no requirements-drift warnings, while a real edit to a companion against a known baseline still reports exactly one. A quoted entry in frontmatter resolves to the path inside the quotes for `files:`, `depends_on:`, `db_tables:` and scalars, an unterminated quote is a frontmatter error, and the hash cache keys the same path the parser resolved. The coverage-gate remediation names at most twelve paths and summarizes the rest."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

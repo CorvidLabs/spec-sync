@@ -95,6 +95,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matches a configured `ignored_paths` entry — states why the entry did not apply: protected SDD
   policy files and the configured specs tree are always meaningful and cannot be ignored away.
 
+- **A quoted path in frontmatter is no longer taken literally**
+  (CorvidLabs/spec-sync#545). `files:` containing `- "src/alpha.rs"` — valid YAML, and the
+  documented answer for a path with a space in it — resolved to the literal path
+  `"src/alpha.rs"`, reported `✗ Source file not found`, and then cascaded into a bogus
+  `✗ Spec documents 'one' but no matching export found in source`, because the file had
+  never been opened. Frontmatter was still reported `✓ Frontmatter valid`, so nothing
+  pointed at the quotes.
+
+  Flow-style lists (`files: ["a", "b"]`) already unquoted; block lists and plain scalars
+  did not. The fix closes that asymmetry at the parse layer, so it covers `files:`,
+  `depends_on:`, `db_tables:`, and every scalar — `status: "active"` had the same defect.
+  An opening quote with no match is now a frontmatter error rather than a silently
+  retained literal. The hash cache's separate `files:` extractor was unquoted to match;
+  otherwise it would key entries on a path no file exists at.
+
+- **A `draft` spec whose source is present no longer passes `--strict` without being
+  validated** (CorvidLabs/spec-sync#547). `status: draft` skips section and export
+  validation, so a spec whose Public API documented a function that existed nowhere still
+  reported `1 passed`, `File coverage: 100%`, `"passed": true`, and exit 0. Since
+  `specsync generate` writes new specs as draft, that was the day-one state of an adopting
+  project.
+
+  The two meanings of `draft` are now separated. A draft whose files **do not exist yet**
+  is spec-first authoring — the spec is deliberately written before the code, nothing could
+  have been validated, and it still passes `--strict` exactly as before. A draft whose
+  files **are present** now emits a warning, so bare `check` stays exit 0 and `--strict`
+  gates on it.
+
+- **`check` no longer invents drift warnings on a cold cache**
+  (CorvidLabs/spec-sync#548). `.specsync/hashes.json` is untracked, so a fresh clone has no
+  baseline, and an absent cache entry was classified as "changed" — correct for deciding
+  what to re-validate, wrong for telling a person something drifted. A fresh clone of a
+  33-spec project printed 33 × `requirements changed — spec may need re-validation`, none
+  of them real, and CI always starts cold. Drift is now reported only against a baseline
+  that actually exists; selection is unchanged, so the same specs are still re-validated.
+
+  Note for anyone who noticed `check --strict` reporting *fewer* warnings than bare
+  `check`: that was this, not `--strict` suppressing drift. `--strict` re-validates every
+  spec and so never consulted the classification that produced the phantom warnings.
+
+- **The coverage-gate remediation no longer emits a wall of flags.** One `--path` per
+  changed file on a single line reached over 8000 characters on a wide branch. It now
+  spells out the first twelve and names the remainder, suggesting a covering prefix.
+
 - **`specsync scaffold` output no longer fails `specsync check`.** Scaffolding a module emits
   placeholder sections, and the effective-contract gate treated every unfinished section as a stub
   warning — fatal under `--strict`. The tool's own output failed the tool's own gate, on the second

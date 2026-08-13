@@ -309,7 +309,10 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
         if let Some(stripped) = line.trim_start().strip_prefix("- ")
             && current_key.is_some()
         {
-            current_list.push(strip_yaml_comment(stripped.trim()));
+            match unquote_yaml_scalar(&strip_yaml_comment(stripped.trim())) {
+                Ok(item) => current_list.push(item),
+                Err(error) => errors.push(error),
+            }
             continue;
         }
 
@@ -336,7 +339,20 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
                 ));
             }
 
-            let value = strip_yaml_comment(line[colon_pos + 1..].trim());
+            let raw_value = strip_yaml_comment(line[colon_pos + 1..].trim());
+            // A flow-style list keeps its brackets for `parse_flow_string_list`,
+            // which unquotes its own items.
+            let value = if raw_value.starts_with('[') {
+                raw_value
+            } else {
+                match unquote_yaml_scalar(&raw_value) {
+                    Ok(unquoted) => unquoted,
+                    Err(error) => {
+                        errors.push(error);
+                        continue;
+                    }
+                }
+            };
 
             if value.is_empty() || value == "[]" {
                 current_key = Some(key.to_string());
@@ -382,6 +398,37 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
         errors,
         warnings,
     })
+}
+
+/// Remove matched surrounding YAML quotes from a scalar, and any comment that
+/// follows the closing quote.
+///
+/// Quoting is valid YAML and is the documented answer for a path containing a
+/// space or a leading special character, but block scalars and block list items
+/// used to keep their quotes: `- "src/a.rs"` was resolved as the literal path
+/// `"src/a.rs"`, reported as a missing source file, and then cascaded into a
+/// bogus "documents X but no matching export found" — while frontmatter was
+/// still reported valid, so nothing pointed at the quotes. Flow-style lists
+/// (`files: ["a", "b"]`) already unquoted via [`parse_flow_string_list`]; this
+/// closes the asymmetry.
+///
+/// An opening quote with no match is an error rather than a silently retained
+/// literal, matching the flow-style list behavior.
+fn unquote_yaml_scalar(value: &str) -> Result<String, String> {
+    let unterminated = || format!("Frontmatter has an unterminated quoted string: `{value}`");
+    for quote in ['"', '\''] {
+        let Some(rest) = value.strip_prefix(quote) else {
+            continue;
+        };
+        let close = rest.find(quote).ok_or_else(unterminated)?;
+        // Anything after the closing quote may only be a comment.
+        let trailing = rest[close + quote.len_utf8()..].trim();
+        if !trailing.is_empty() && !trailing.starts_with('#') {
+            return Err(unterminated());
+        }
+        return Ok(rest[..close].to_string());
+    }
+    Ok(value.to_string())
 }
 
 /// Strip inline YAML comments from a value.
@@ -964,6 +1011,81 @@ pub fn find_stub_sections(body: &str, required_sections: &[String]) -> Vec<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quoted_block_list_items_and_scalars_are_unquoted() {
+        // #545: a quoted entry resolved to the literal path `"src/auth.ts"`,
+        // was reported as a missing source file, and then cascaded into a bogus
+        // "documents X but no matching export found" — while frontmatter was
+        // still reported valid, so nothing pointed at the quotes.
+        let content = "---\nmodule: \"auth\"\nversion: 1\nstatus: 'active'\nfiles:\n  - \"src/auth.ts\"\n  - 'src/auth.utils.ts'\n  - src/plain.ts\ndepends_on:\n  - \"specs/types/types.spec.md\"\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("auth"));
+        assert_eq!(parsed.frontmatter.status.as_deref(), Some("active"));
+        assert_eq!(
+            parsed.frontmatter.files,
+            vec![
+                "src/auth.ts".to_string(),
+                "src/auth.utils.ts".to_string(),
+                "src/plain.ts".to_string(),
+            ]
+        );
+        assert_eq!(
+            parsed.frontmatter.depends_on,
+            vec!["specs/types/types.spec.md".to_string()]
+        );
+    }
+
+    #[test]
+    fn quoted_entry_keeps_a_trailing_comment_out_of_the_path() {
+        let content =
+            "---\nmodule: auth\nfiles:\n  - \"src/auth.ts\" # the main file\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts".to_string()]);
+    }
+
+    #[test]
+    fn a_hash_inside_a_quoted_path_is_not_a_comment() {
+        let content = "---\nmodule: auth\nfiles:\n  - \"src/a#b.ts\"\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        assert_eq!(parsed.frontmatter.files, vec!["src/a#b.ts".to_string()]);
+    }
+
+    #[test]
+    fn an_unterminated_quote_is_an_error_not_a_literal_path() {
+        // Silently keeping the literal is how #545 stayed invisible; fail loudly
+        // instead, matching flow-style list behavior.
+        let content = "---\nmodule: auth\nfiles:\n  - \"src/auth.ts\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(
+            parsed
+                .errors
+                .iter()
+                .any(|error| error.contains("unterminated quoted string")),
+            "{:?}",
+            parsed.errors
+        );
+        assert!(parsed.frontmatter.files.is_empty());
+    }
+
+    #[test]
+    fn flow_style_lists_still_unquote_their_own_items() {
+        let content =
+            "---\nmodule: auth\nfiles: [\"src/a.ts\", 'src/b.ts', src/c.ts]\n---\n\n# Auth\n";
+        let parsed = parse_frontmatter(content).unwrap();
+        assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+        assert_eq!(
+            parsed.frontmatter.files,
+            vec![
+                "src/a.ts".to_string(),
+                "src/b.ts".to_string(),
+                "src/c.ts".to_string()
+            ]
+        );
+    }
 
     #[test]
     fn test_parse_frontmatter_basic() {

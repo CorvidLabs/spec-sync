@@ -688,6 +688,34 @@ pub(super) fn run_validation_with_suppressions(
         let is_draft = result.status == Some(SpecStatus::Draft);
         if is_draft {
             drafts_skipped += 1;
+            // `status: draft` means two very different things, and only one of
+            // them is a problem.
+            //
+            // A draft whose files do not exist yet is spec-first authoring —
+            // the spec is deliberately written before the code, nothing could
+            // have been validated, and it rightly passes `--strict` (see
+            // `draft_planned_mapping_passes_strict_and_is_absent_from_coverage`).
+            //
+            // A draft whose files *are* present skipped section and export
+            // validation over real source that could have been checked. Every
+            // machine-readable channel — exit code, the `N passed` count,
+            // coverage percent, `"passed": true` in JSON — then reports success
+            // for a spec never compared to its source; a Public API documenting
+            // a function that exists nowhere still passed green. Since
+            // `generate` writes new specs as draft, that is also the day-one
+            // state of an adopting project.
+            //
+            // Warn only where all three hold — the source is present, and the
+            // spec documents a contract over it. An empty Public API is an
+            // honest stub that claims nothing and is left alone; only a draft
+            // asserting a checkable contract and skipping the check is called
+            // out. Bare `check` stays exit 0; `--strict` gates.
+            if result.had_present_source && result.documents_contract {
+                result.warnings.push(
+                    "Spec is `status: draft` — section and export validation were skipped, so a documented Public API was never compared to source that is present; set `status: active` to validate it"
+                        .to_string(),
+                );
+            }
         }
 
         // Parse inline ignore directives from the spec file

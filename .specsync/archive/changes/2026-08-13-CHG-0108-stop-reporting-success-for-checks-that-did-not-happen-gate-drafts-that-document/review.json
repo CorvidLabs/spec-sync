@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document",
+  "reviewer": "opus-5-implementing-session",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "7953cbc90c17507b292b54e2a692a9f113ffb5ef",
+  "contract_digest": "5c484a65644ce5646109047297fa007f13575b62f78bf8f803c613d9963da756",
+  "execution_digest": "4093a65a2f6d8a0740f3ff41a678329670f23c5f5717b31792107e94460e510f",
+  "workspace_digest": "adfe8fb8d434ad7900cf5085c49b2fed66472f55b636ac384fb66da231739211",
+  "timestamp": 1786597287
+}

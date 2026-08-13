@@ -120,6 +120,12 @@ impl HashCache {
 
     /// Check whether a file has changed since the last cached hash.
     /// Returns `true` if the file is new, modified, or unreadable.
+    /// Whether a prior hash exists for this path — i.e. whether "changed" can
+    /// be distinguished from "never seen".
+    pub fn has_baseline(&self, rel_path: &str) -> bool {
+        self.hashes.contains_key(rel_path)
+    }
+
     pub fn is_changed(&self, root: &Path, rel_path: &str) -> bool {
         let current = match Self::hash_file(&root.join(rel_path)) {
             Some(h) => h,
@@ -328,6 +334,15 @@ impl fmt::Display for ChangeKind {
 pub struct ChangeClassification {
     pub spec_path: PathBuf,
     pub changes: Vec<ChangeKind>,
+    /// Whether the cache held a prior hash for this spec.
+    ///
+    /// `is_changed` treats an absent entry as changed, which is correct for
+    /// deciding what to re-validate — with no baseline everything must be
+    /// re-checked — and wrong for telling a person something drifted, because
+    /// there is nothing it could have drifted from. `.specsync/hashes.json` is
+    /// untracked, so CI always starts cold: without this, every CI run reported
+    /// a requirements-drift warning for every spec that owns a companion.
+    pub baseline_known: bool,
 }
 
 impl ChangeClassification {
@@ -337,6 +352,12 @@ impl ChangeClassification {
 
     pub fn has(&self, kind: &ChangeKind) -> bool {
         self.changes.contains(kind)
+    }
+
+    /// Whether `kind` is a change observed against a real baseline, and so is
+    /// worth reporting rather than merely acting on.
+    pub fn reportable(&self, kind: &ChangeKind) -> bool {
+        self.baseline_known && self.has(kind)
     }
 }
 
@@ -436,6 +457,7 @@ pub fn classify_changes(root: &Path, spec_path: &Path, cache: &HashCache) -> Cha
     ChangeClassification {
         spec_path: spec_path.to_path_buf(),
         changes,
+        baseline_known: cache.has_baseline(&rel),
     }
 }
 
@@ -515,7 +537,19 @@ pub fn extract_frontmatter_files(content: &str) -> Vec<String> {
         }
         if in_files {
             if let Some(item) = trimmed.strip_prefix("- ") {
-                files.push(item.trim().to_string());
+                // Match the parser: a quoted entry names the path inside the
+                // quotes, so the cache must key on that and not on the literal
+                // `"src/a.rs"`, which no file will ever be found at.
+                let item = item.trim();
+                let unquoted = item
+                    .strip_prefix('"')
+                    .and_then(|rest| rest.split_once('"').map(|(inner, _)| inner))
+                    .or_else(|| {
+                        item.strip_prefix('\'')
+                            .and_then(|rest| rest.split_once('\'').map(|(inner, _)| inner))
+                    })
+                    .unwrap_or(item);
+                files.push(unquoted.to_string());
             } else if !trimmed.is_empty() && !trimmed.starts_with('-') {
                 // New key — stop collecting files
                 in_files = false;
@@ -844,5 +878,55 @@ mod tests {
         assert!(cache.hashes.contains_key("specs/auth/auth.spec.md"));
         assert!(cache.hashes.contains_key("specs/auth/requirements.md"));
         assert!(cache.hashes.contains_key("specs/auth/context.md"));
+    }
+
+    #[test]
+    fn a_cold_cache_selects_for_revalidation_without_claiming_drift() {
+        // #548: an absent entry is classified changed so the spec is
+        // re-validated, which is right — but CI always starts cold, so
+        // reporting it as drift put one phantom warning per spec in every run.
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let specs = root.join("specs/auth");
+        fs::create_dir_all(&specs).unwrap();
+        let spec_path = specs.join("auth.spec.md");
+        fs::write(&spec_path, "---\nmodule: auth\nfiles:\n---").unwrap();
+        fs::write(specs.join("requirements.md"), "# Req").unwrap();
+
+        let cold = HashCache::default();
+        let classification = classify_changes(root, &spec_path, &cold);
+        assert!(
+            classification.is_changed(),
+            "a cold cache must still select the spec for validation"
+        );
+        assert!(
+            !classification.baseline_known,
+            "there is no baseline to have drifted from"
+        );
+        assert!(
+            !classification.reportable(&ChangeKind::Requirements),
+            "drift must not be reported without a baseline"
+        );
+
+        // Warm the cache, then make a real edit: the warning must come back.
+        let mut warm = HashCache::default();
+        update_cache(root, &[spec_path.clone()], &mut warm);
+        fs::write(specs.join("requirements.md"), "# Req\n\nNew criterion.\n").unwrap();
+        let edited = classify_changes(root, &spec_path, &warm);
+        assert!(edited.baseline_known);
+        assert!(
+            edited.reportable(&ChangeKind::Requirements),
+            "a real requirements edit against a known baseline must still report"
+        );
+    }
+
+    #[test]
+    fn quoted_frontmatter_files_are_cached_under_the_real_path() {
+        // #545: the cache's own `files:` extractor must agree with the parser,
+        // or it keys entries on a path no file exists at.
+        let files = extract_frontmatter_files(
+            "---\nmodule: auth\nfiles:\n  - \"src/auth.ts\"\n  - 'src/b.ts'\n  - src/c.ts\n---\n",
+        );
+        assert_eq!(files, vec!["src/auth.ts", "src/b.ts", "src/c.ts"]);
     }
 }

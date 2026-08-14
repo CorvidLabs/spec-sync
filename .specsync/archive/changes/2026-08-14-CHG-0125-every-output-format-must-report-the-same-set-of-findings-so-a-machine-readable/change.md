@@ -1,6 +1,6 @@
 ---
 id: CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable
-state: implementing
+state: archived
 type: bug_fix
 base_commit: d4a79069ec53da9bcc707be11acccfee77ceba0a
 ---

@@ -7,11 +7,11 @@
   "title": "Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text",
   "description": "Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "d4a79069ec53da9bcc707be11acccfee77ceba0a",
   "created_at": 1786746647,
-  "updated_at": 1786748028,
+  "updated_at": 1786748276,
   "affected_specs": [
     "output",
     "cmd_check",

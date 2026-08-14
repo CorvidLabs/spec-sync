@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable",
+  "implementation_commit": "aebc4168cffdae47620c2f8bbc65222f948f89ad",
+  "implementation_tree": "f6c40e18650a41b1e18167922bda07cc3fc0b75e",
+  "contract_digest": "485ef0e2365bdd2536631b24798b6e5cf348c298a70696c8d72030e9864e31da",
+  "workspace_digest": "808a59d2fa291f57e1d6da579a6ca26e2d28dd13b48e4b74a5e8dacc0e179686",
+  "closing_digest": "2bf410affc78e04f02e201472180b434539bf40edaa2e4cc5b0545445d9916aa",
+  "review_digest": "5b2432bb7f096a1f61317c2d4a0b8f2892784e8ff7ac70bb52b7028867032f29",
+  "finalization_digest": "0b901b02d314441caeb04516927ca2fc1d268e0c4ccea30422c52a0beb443944",
+  "timestamp": 1786748059
+}

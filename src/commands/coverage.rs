@@ -1,7 +1,9 @@
 use std::path::Path;
 use std::process;
 
-use crate::output::{percent_json, print_coverage_line, print_coverage_report, print_summary};
+use crate::output::{
+    CoverageFindings, coverage_json, print_coverage_line, print_coverage_report, print_summary,
+};
 use crate::types;
 use crate::validator::compute_coverage_checked;
 
@@ -27,7 +29,7 @@ pub fn cmd_coverage(
         config.enforcement
     });
     let ignore_rules = crate::ignore::IgnoreRules::default();
-    let (total_errors, total_warnings, passed, total, _all_errors, _all_warnings, _all_notices) =
+    let (total_errors, total_warnings, passed, total, all_errors, all_warnings, all_notices) =
         run_validation(
             root,
             &spec_files,
@@ -41,10 +43,19 @@ pub fn cmd_coverage(
         Ok(coverage) => coverage,
         Err(error) => {
             if json {
+                let message = format!("Coverage inconclusive: {error}");
                 let output = serde_json::json!({
                     "valid": false,
                     "inconclusive": true,
-                    "error": format!("Coverage inconclusive: {error}"),
+                    // `passed` and `errors` match the successful payload's
+                    // shape. Without them a consumer had to infer failure from
+                    // the ABSENCE of fields, on the one path where the command
+                    // knows for certain that it failed.
+                    "passed": false,
+                    "errors": [message],
+                    "warnings": [],
+                    "notices": [],
+                    "error": message,
                     "file_coverage": serde_json::Value::Null,
                     "files_covered": 0,
                     "files_total": 0,
@@ -63,47 +74,37 @@ pub fn cmd_coverage(
     };
 
     if json {
-        // `null`, not `100.0`, when there was nothing to measure — matching the
-        // inconclusive-discovery payload above, which already reports absence
-        // as null. This site used to re-derive its own percentage with a
-        // hardcoded 100.0 fallback (#582).
-        let file_coverage = percent_json(coverage.file_coverage());
-        let loc_coverage = percent_json(coverage.loc_coverage());
-
-        let modules: Vec<serde_json::Value> = coverage
-            .unspecced_modules
-            .iter()
-            .map(|m| serde_json::json!({ "name": m, "has_spec": false }))
-            .collect();
-
-        let uncovered_files: Vec<serde_json::Value> = coverage
-            .unspecced_file_loc
-            .iter()
-            .map(|(f, loc)| serde_json::json!({ "file": f, "loc": loc }))
-            .collect();
-
-        let output = serde_json::json!({
-            "file_coverage": file_coverage,
-            "files_covered": coverage.specced_file_count,
-            "files_total": coverage.measured_file_total(),
-            "loc_coverage": loc_coverage,
-            "loc_covered": coverage.specced_loc,
-            "loc_total": coverage.total_loc,
-            "modules": modules,
-            "uncovered_files": uncovered_files,
-        });
-        println!("{}", serde_json::to_string_pretty(&output).unwrap());
         // Gate the exit code for machine consumers too (was an unconditional
         // exit 0, so `coverage --format json --require-coverage N` never failed —
         // finding M1). compute_exit_code prints nothing, so stdout stays valid JSON.
-        process::exit(compute_exit_code(
+        let exit_code = compute_exit_code(
             total_errors,
             total_warnings,
             strict,
             enforcement,
             &coverage,
             require_coverage,
-        ));
+        );
+        // The findings `run_validation` just produced used to be dropped on the
+        // floor here (`_all_errors`, `_all_warnings`, `_all_notices`), so
+        // `coverage --format json` printed a spotless report and exited 1 on
+        // the very tree whose `check --format text` names two problems. Same
+        // run, same validation, opposite conclusions — the format decided
+        // whether the problems existed. `passed` is the gate verdict, so it can
+        // never contradict the exit code beside it.
+        let output = coverage_json(
+            &coverage,
+            &CoverageFindings {
+                passed: exit_code == 0,
+                specs_checked: total,
+                specs_passed: passed,
+                errors: all_errors,
+                warnings: all_warnings,
+                notices: all_notices,
+            },
+        );
+        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        process::exit(exit_code);
     }
 
     print_coverage_report(&coverage);

@@ -6,6 +6,7 @@ use std::path::Path;
 use std::process;
 
 use crate::config::{load_config, validate_config_file};
+use crate::output::csv_field;
 use crate::registry;
 use crate::types::OutputFormat;
 
@@ -216,13 +217,5 @@ fn render_init_registry_report(report: &InitRegistryReport, format: OutputFormat
                 println!("  Delete it first (or edit it by hand) to regenerate.");
             }
         }
-    }
-}
-
-fn csv_field(value: &str) -> String {
-    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
-        format!("\"{}\"", value.replace('"', "\"\""))
-    } else {
-        value.to_string()
     }
 }

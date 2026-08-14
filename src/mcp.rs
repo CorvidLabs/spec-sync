@@ -2,7 +2,7 @@ use crate::config::{detect_source_dirs, load_config, parse_config_content_checke
 use crate::deps::build_dep_graph;
 use crate::generator::generate_specs_for_unspecced_modules_paths;
 use crate::manifest::{MAX_GRADLE_MANIFEST_BYTES, parse_gradle_settings};
-use crate::output::percent_json;
+use crate::output::{CoverageFindings, coverage_json};
 use crate::scoring;
 use crate::types::SpecSyncConfig;
 use crate::validator::{
@@ -3215,39 +3215,112 @@ fn resource_config(root: &Path) -> Result<(String, &'static str), String> {
 }
 
 fn resource_coverage(root: &Path) -> Result<(String, &'static str), String> {
-    let (config, spec_files) = load_and_discover(root, true)?;
-    let coverage = compute_coverage_checked(root, &spec_files, &config)
-        .map_err(|error| format!("MCP coverage is inconclusive: {error}"))?;
-
-    let uncovered_modules: Vec<Value> = coverage
-        .unspecced_modules
-        .iter()
-        .map(|m| json!({ "name": m }))
-        .collect();
-
-    let uncovered_files: Vec<Value> = coverage
-        .unspecced_file_loc
-        .iter()
-        .map(|(f, loc)| json!({ "file": f, "loc": loc }))
-        .collect();
-
-    // `null` when nothing was measured. An agent reading this resource has no
-    // other signal, so a fabricated 100 here is a model told the project is
-    // fully specced when no file was ever looked at (#582).
-    let output = json!({
-        "file_coverage_percent": percent_json(coverage.file_coverage()),
-        "files_covered": coverage.specced_file_count,
-        "files_total": coverage.measured_file_total(),
-        "loc_coverage_percent": percent_json(coverage.loc_coverage()),
-        "loc_covered": coverage.specced_loc,
-        "loc_total": coverage.total_loc,
-        "uncovered_modules": uncovered_modules,
-        "uncovered_files": uncovered_files,
-    });
-
+    // Byte-identical to the `specsync_coverage` tool: one constructor, one
+    // validation pass, one payload. This resource is what an agent reads when
+    // it asks the project how it is doing, and it used to answer with
+    // percentages alone — no findings, no `passed`. An agent has no exit code
+    // and no second channel, so "nothing reported" is the only thing it can
+    // read as "nothing wrong".
+    let output = mcp_coverage_payload(root)?;
     Ok((
         serde_json::to_string_pretty(&output).unwrap(),
         "application/json",
+    ))
+}
+
+/// Every spec's validation outcome, collected once for whichever MCP payload
+/// needs it.
+///
+/// `tool_check`, `tool_coverage` and `resource_coverage` used to answer three
+/// different questions from three different amounts of work: check validated,
+/// the other two validated nothing and reported no findings at all. One
+/// collector means a finding cannot be present in one payload and absent from
+/// another.
+#[derive(Default)]
+struct McpFindings {
+    total_errors: usize,
+    total_warnings: usize,
+    specs_passed: usize,
+    errors: Vec<String>,
+    warnings: Vec<String>,
+    notices: Vec<String>,
+    specs: Vec<Value>,
+}
+
+fn validate_all(root: &Path, config: &SpecSyncConfig, spec_files: &[PathBuf]) -> McpFindings {
+    let schema_tables = get_schema_table_names(root, config);
+    let schema_columns = config
+        .schema_dir
+        .as_deref()
+        .map(|schema_dir| crate::schema::build_schema(&root.join(schema_dir)))
+        .unwrap_or_default();
+
+    let mut collected = McpFindings::default();
+    for spec_file in spec_files {
+        let result = validate_spec(spec_file, root, &schema_tables, &schema_columns, config);
+        let spec_passed = result.errors.is_empty();
+
+        collected.specs.push(json!({
+            "spec": result.spec_path,
+            "passed": spec_passed,
+            "errors": result.errors,
+            "warnings": result.warnings,
+            "export_summary": result.export_summary,
+        }));
+
+        for e in &result.errors {
+            collected.errors.push(format!("{}: {e}", result.spec_path));
+        }
+        for w in &result.warnings {
+            collected
+                .warnings
+                .push(format!("{}: {w}", result.spec_path));
+        }
+        for n in &result.notices {
+            collected.notices.push(format!("{}: {n}", result.spec_path));
+        }
+
+        collected.total_errors += result.errors.len();
+        collected.total_warnings += result.warnings.len();
+        if spec_passed {
+            collected.specs_passed += 1;
+        }
+    }
+    collected
+}
+
+/// The coverage payload both MCP surfaces return, built by the one shared
+/// constructor in `output`.
+///
+/// `passed` is the gate verdict, the same semantics the CLI uses: "would
+/// `specsync coverage` exit 0 on this project?" — evaluated with no CLI
+/// overrides and the project's configured enforcement, since MCP has neither
+/// flags nor an exit code. The counts and arrays beside it answer the factual
+/// question independently of that policy.
+fn mcp_coverage_payload(root: &Path) -> Result<Value, String> {
+    let (config, spec_files) = load_and_discover(root, true)?;
+    let coverage = compute_coverage_checked(root, &spec_files, &config)
+        .map_err(|error| format!("MCP coverage is inconclusive: {error}"))?;
+    let collected = validate_all(root, &config, &spec_files);
+    let passed = crate::commands::compute_exit_code(
+        collected.total_errors,
+        collected.total_warnings,
+        false,
+        config.enforcement,
+        &coverage,
+        None,
+    ) == 0;
+
+    Ok(coverage_json(
+        &coverage,
+        &CoverageFindings {
+            passed,
+            specs_checked: spec_files.len(),
+            specs_passed: collected.specs_passed,
+            errors: collected.errors,
+            warnings: collected.warnings,
+            notices: collected.notices,
+        },
     ))
 }
 
@@ -4249,12 +4322,6 @@ fn validate_generated_module_names(module_names: &[String]) -> Result<(), String
 
 fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
     let (config, spec_files) = load_and_discover(root, false)?;
-    let schema_tables = get_schema_table_names(root, &config);
-    let schema_columns = config
-        .schema_dir
-        .as_deref()
-        .map(|schema_dir| crate::schema::build_schema(&root.join(schema_dir)))
-        .unwrap_or_default();
     let strict = arguments
         .get("strict")
         .and_then(|s| s.as_bool())
@@ -4280,44 +4347,21 @@ fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
         }
     }
 
-    let mut total_errors = 0;
-    let mut total_warnings = 0;
-    let mut passed = 0;
-    let mut all_errors: Vec<Value> = Vec::new();
-    let mut all_warnings: Vec<Value> = Vec::new();
-    let mut spec_results: Vec<Value> = Vec::new();
-
-    for spec_file in &spec_files {
-        let result = validate_spec(spec_file, root, &schema_tables, &schema_columns, &config);
-        let spec_passed = result.errors.is_empty();
-
-        spec_results.push(json!({
-            "spec": result.spec_path,
-            "passed": spec_passed,
-            "errors": result.errors,
-            "warnings": result.warnings,
-            "export_summary": result.export_summary,
-        }));
-
-        for e in &result.errors {
-            all_errors.push(json!(format!("{}: {e}", result.spec_path)));
-        }
-        for w in &result.warnings {
-            all_warnings.push(json!(format!("{}: {w}", result.spec_path)));
-        }
-
-        total_errors += result.errors.len();
-        total_warnings += result.warnings.len();
-        if spec_passed {
-            passed += 1;
-        }
-    }
+    // Same collector the coverage payloads use — one validation implementation
+    // for every MCP surface, so a finding cannot exist in one and not another.
+    let collected = validate_all(root, &config, &spec_files);
+    let total_errors = collected.total_errors;
+    let total_warnings = collected.total_warnings;
+    let passed = collected.specs_passed;
+    let all_errors = collected.errors;
+    let mut all_warnings = collected.warnings;
+    let spec_results = collected.specs;
 
     // Add staleness warnings into the warnings array for consistency
     for entry in &stale_entries {
         if let Some(msg) = entry["message"].as_str() {
             let spec = entry["spec"].as_str().unwrap_or("unknown");
-            all_warnings.push(json!(format!("{spec}: {msg}")));
+            all_warnings.push(format!("{spec}: {msg}"));
         }
     }
 
@@ -4346,33 +4390,7 @@ fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
 }
 
 fn tool_coverage(root: &Path) -> Result<Value, String> {
-    let (config, spec_files) = load_and_discover(root, true)?;
-    let coverage = compute_coverage_checked(root, &spec_files, &config)
-        .map_err(|error| format!("MCP coverage is inconclusive: {error}"))?;
-
-    let modules: Vec<Value> = coverage
-        .unspecced_modules
-        .iter()
-        .map(|m| json!({ "name": m, "has_spec": false }))
-        .collect();
-
-    let uncovered_files: Vec<Value> = coverage
-        .unspecced_file_loc
-        .iter()
-        .map(|(f, loc)| json!({ "file": f, "loc": loc }))
-        .collect();
-
-    Ok(json!({
-        // Null, not 100.0, when nothing was measured (#582).
-        "file_coverage": percent_json(coverage.file_coverage()),
-        "files_covered": coverage.specced_file_count,
-        "files_total": coverage.measured_file_total(),
-        "loc_coverage": percent_json(coverage.loc_coverage()),
-        "loc_covered": coverage.specced_loc,
-        "loc_total": coverage.total_loc,
-        "uncovered_modules": modules,
-        "uncovered_files": uncovered_files,
-    }))
+    mcp_coverage_payload(root)
 }
 
 fn tool_generate(root: &Path, write_directory: &Dir, arguments: &Value) -> Result<Value, String> {

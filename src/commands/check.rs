@@ -8,7 +8,10 @@ use crate::git_utils;
 use crate::github;
 use crate::hash_cache;
 use crate::ignore::IgnoreRules;
-use crate::output::{print_check_markdown, print_coverage_line, print_summary};
+use crate::output::{
+    FINDING_CSV_HEADER, eprint_coverage_line, eprint_summary, findings, print_check_markdown,
+    print_coverage_line, print_findings_csv, print_findings_table, print_summary,
+};
 use crate::parser;
 use crate::types;
 use crate::validator::compute_coverage_checked;
@@ -34,6 +37,33 @@ fn suppressed_warning_summary(detail: &serde_json::Value) -> String {
         clean("source"),
         clean("warning")
     )
+}
+
+/// Fold the staleness entries into the warning list the tabular formats render.
+///
+/// Staleness findings are counted in `effective_warnings` and therefore drive
+/// the exit code, but they live in `stale_entries` rather than `all_warnings` —
+/// so a `--format csv --stale` run could exit 1 over git drift and emit a CSV
+/// with no row explaining it. The row count now matches the warning count the
+/// summary states.
+///
+/// `git_drift` entries carry no `message` field; their text is composed the
+/// same way the terminal renderer composes it.
+fn warnings_with_staleness(
+    mut warnings: Vec<String>,
+    stale_entries: &[serde_json::Value],
+) -> Vec<String> {
+    for entry in stale_entries {
+        let spec = entry["spec"].as_str().unwrap_or("unknown");
+        match entry["message"].as_str() {
+            Some(message) => warnings.push(format!("{spec}: {message}")),
+            None => warnings.push(format!(
+                "{spec}: spec is {} commits behind source files",
+                entry["commits_behind"].as_u64().unwrap_or(0)
+            )),
+        }
+    }
+    warnings
 }
 
 fn print_suppressed_markdown(details: &[serde_json::Value]) {
@@ -270,7 +300,7 @@ pub fn cmd_check(
                 println!("## SpecSync Check Results\n");
                 println!("No spec files found. Run `specsync generate` to scaffold specs.");
             }
-            Text | Table | Csv => {
+            Text | Table => {
                 let abs_specs = root.join(&config.specs_dir);
                 println!(
                     "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
@@ -280,6 +310,18 @@ pub fn cmd_check(
                 // tree with source and zero specs produced a log containing
                 // nothing to notice.
                 print_coverage_line(&coverage);
+            }
+            Csv => {
+                // A well-formed CSV with zero rows, not empty output: the
+                // header proves the renderer ran and found nothing, which is a
+                // different claim from producing nothing at all.
+                println!("{FINDING_CSV_HEADER}");
+                let abs_specs = root.join(&config.specs_dir);
+                eprintln!(
+                    "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
+                    abs_specs.display()
+                );
+                eprint_coverage_line(&coverage);
             }
         }
         process::exit(exit_code);
@@ -686,13 +728,19 @@ pub fn cmd_check(
                 &coverage,
                 require_coverage,
             );
+            // Staleness findings live in `stale_entries`, not `all_warnings`,
+            // yet they drive `effective_warnings` and therefore the exit code.
+            // Passing the bare list here made markdown and github exit 1 while
+            // naming no finding — the exact contradiction this change exists to
+            // remove, surviving in the two formats a human actually reads.
+            let md_warnings = warnings_with_staleness(all_warnings.clone(), &stale_entries);
             print_check_markdown(
                 total,
                 passed,
                 effective_warnings,
                 total_errors,
                 &all_errors,
-                &all_warnings,
+                &md_warnings,
                 &all_notices,
                 &coverage,
                 exit_code == 0,
@@ -711,13 +759,17 @@ pub fn cmd_check(
             );
             let repo = github::detect_repo(root);
             let branch = comment::detect_branch(root);
+            // Same merge as the markdown arm above. This is the PR-comment
+            // renderer, so a staleness finding omitted here is the one a
+            // reviewer is most likely to be shown the absence of.
+            let gh_warnings = warnings_with_staleness(all_warnings.clone(), &stale_entries);
             let mut body = comment::render_check_comment(
                 total,
                 passed,
                 effective_warnings,
                 total_errors,
                 &all_errors,
-                &all_warnings,
+                &gh_warnings,
                 &all_notices,
                 &coverage,
                 exit_code == 0,
@@ -728,7 +780,7 @@ pub fn cmd_check(
             print!("{body}");
             process::exit(exit_code);
         }
-        Text | Table | Csv => {
+        Text => {
             if !suppressed_warnings.is_empty() {
                 println!(
                     "{} {} warning(s) suppressed by explicit ignore rules",
@@ -749,6 +801,67 @@ pub fn cmd_check(
                 &coverage,
                 require_coverage,
             );
+        }
+        // Table and Csv used to share the arm above, which prints only the
+        // summary and the coverage line — making them aliases for "text minus
+        // the findings". A consumer parsing the CSV of a run that exited 1 saw
+        // no rows and concluded there was nothing wrong, while the exit code
+        // said the opposite. The identities are the point of these formats.
+        Table => {
+            let warnings = warnings_with_staleness(all_warnings, &stale_entries);
+            print_findings_table(&findings(&all_errors, &warnings, &all_notices));
+            if !suppressed_warnings.is_empty() {
+                println!(
+                    "\n{} {} warning(s) suppressed by explicit ignore rules",
+                    "ℹ".cyan(),
+                    suppressed_warnings.len()
+                );
+                for detail in &suppressed_warnings {
+                    println!("  - {}", suppressed_warning_summary(detail));
+                }
+            }
+            print_summary(total, passed, effective_warnings, total_errors);
+            print_coverage_line(&coverage);
+            exit_with_status(
+                total_errors,
+                effective_warnings,
+                strict,
+                enforcement,
+                &coverage,
+                require_coverage,
+            );
+        }
+        Csv => {
+            // stdout is a machine protocol here: nothing but the header and one
+            // row per finding may go to it. The human context still has to
+            // reach a terminal, so it goes to stderr through the SAME renderers
+            // every other format uses — a second hand-rolled coverage line is
+            // how `csv: file coverage 100% (0/0)` once appeared beside
+            // `table: 0/0 (no source files to measure)` on one tree.
+            let warnings = warnings_with_staleness(all_warnings, &stale_entries);
+            print_findings_csv(&findings(&all_errors, &warnings, &all_notices));
+            if !suppressed_warnings.is_empty() {
+                eprintln!(
+                    "{} {} warning(s) suppressed by explicit ignore rules",
+                    "ℹ".cyan(),
+                    suppressed_warnings.len()
+                );
+                for detail in &suppressed_warnings {
+                    eprintln!("  - {}", suppressed_warning_summary(detail));
+                }
+            }
+            eprint_summary(total, passed, effective_warnings, total_errors);
+            eprint_coverage_line(&coverage);
+            // `exit_with_status` prints its gate message with `println!`, which
+            // would put prose in the middle of the CSV. Same verdict, silent.
+            process::exit(compute_exit_code(
+                total_errors,
+                effective_warnings,
+                strict,
+                enforcement,
+                &coverage,
+                require_coverage,
+            ));
         }
     }
 }

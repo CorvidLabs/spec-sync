@@ -1,0 +1,38 @@
+{
+  "timestamp": 1786747442,
+  "commit": "d4a79069ec53da9bcc707be11acccfee77ceba0a",
+  "contract_digest": "485ef0e2365bdd2536631b24798b6e5cf348c298a70696c8d72030e9864e31da",
+  "execution_digest": "c88d15f30f1d98e8060b3e38996088cd052ca27c2b9dcab4f0d52542e941b5c3",
+  "workspace_digest": "808a59d2fa291f57e1d6da579a6ca26e2d28dd13b48e4b74a5e8dacc0e179686",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test commands::check::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-cmd-check-011",
+    "REQ-cmd-coverage-003",
+    "REQ-cmd-init-006",
+    "REQ-cmd-init-registry-002",
+    "REQ-mcp-006",
+    "REQ-output-006"
+  ]
+}

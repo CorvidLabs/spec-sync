@@ -7,11 +7,11 @@
   "title": "Specsync comment must exit with the verdict it prints, so a failing comment fails the CI step that posted it",
   "description": "specsync comment must exit with the verdict it prints, so a failing comment fails the CI step that posted it",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "6e007ac3fc26ee747eb47bd7d24e8e6e93153a47",
   "created_at": 1786685283,
-  "updated_at": 1786687525,
+  "updated_at": 1786687560,
   "affected_specs": [
     "cmd_comment"
   ],

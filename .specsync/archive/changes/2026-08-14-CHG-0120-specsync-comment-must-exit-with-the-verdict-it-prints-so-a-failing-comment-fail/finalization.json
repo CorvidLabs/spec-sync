@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0120-specsync-comment-must-exit-with-the-verdict-it-prints-so-a-failing-comment-fail",
+  "implementation_commit": "80c16dc4f17ad5bfc4d21d8fa78ffec092cdd793",
+  "implementation_tree": "555364e4c19e72752ff1a8b4c3a65d08fb6a2142",
+  "contract_digest": "5c646a6ebf2e3ecda2c9a11fcd51901f0972735dee2efca89b84c9cbc13a4d23",
+  "workspace_digest": "3df877b51e3d54b735e535aed368aed5fdaa49b97f193e89d83eddcbd25640be",
+  "closing_digest": "f31106903aae69ac751c4e451dfedce5bd690e25ed7d9270e4c2cca3e4137f48",
+  "review_digest": "38d8ecc9128a5767ca861294ef22f99b6c5f3c299913b0b825746a591c1f492b",
+  "finalization_digest": "b970c2b26d0ad5747af410a8cff0702ccc2626c1c27a3504a4d6352eebee1c22",
+  "timestamp": 1786687560
+}

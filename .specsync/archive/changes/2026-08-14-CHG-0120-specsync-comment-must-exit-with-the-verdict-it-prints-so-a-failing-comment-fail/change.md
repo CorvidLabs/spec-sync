@@ -1,6 +1,6 @@
 ---
 id: CHG-0120-specsync-comment-must-exit-with-the-verdict-it-prints-so-a-failing-comment-fail
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 6e007ac3fc26ee747eb47bd7d24e8e6e93153a47
 ---

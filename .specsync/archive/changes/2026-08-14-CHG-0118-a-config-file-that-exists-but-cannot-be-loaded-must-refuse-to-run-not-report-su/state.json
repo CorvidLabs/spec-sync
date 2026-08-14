@@ -7,11 +7,11 @@
   "title": "A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults",
   "description": "A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "70056667a92decfa3c925540aef4f14971859708",
   "created_at": 1786683074,
-  "updated_at": 1786683274,
+  "updated_at": 1786683729,
   "affected_specs": [
     "types",
     "config",

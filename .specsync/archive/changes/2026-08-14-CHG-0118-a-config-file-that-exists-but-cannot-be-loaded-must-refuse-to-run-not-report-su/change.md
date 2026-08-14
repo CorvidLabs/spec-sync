@@ -1,6 +1,6 @@
 ---
 id: CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 70056667a92decfa3c925540aef4f14971859708
 ---

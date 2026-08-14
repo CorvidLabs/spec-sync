@@ -358,10 +358,8 @@ mod tests {
             specced_file_count: 0,
             unspecced_files: vec![],
             unspecced_modules: vec![],
-            coverage_percent: 100,
             total_loc: 0,
             specced_loc: 0,
-            loc_coverage_percent: 100,
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
@@ -375,7 +373,6 @@ mod tests {
         types::CoverageReport {
             total_source_files: 100,
             specced_file_count: percent,
-            coverage_percent: percent,
             ..empty_coverage()
         }
     }
@@ -387,10 +384,8 @@ mod tests {
             specced_file_count: 0,
             unspecced_files: files.iter().map(|s| s.to_string()).collect(),
             unspecced_modules: vec![],
-            coverage_percent: 0,
             total_loc: 0,
             specced_loc: 0,
-            loc_coverage_percent: 0,
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
@@ -582,7 +577,7 @@ mod tests {
     fn require_coverage_fails_loud_on_zero_source_files() {
         // Regression: `--require-coverage` over 0 source files reports a vacuous 100%
         // and must NOT silently pass — it indicates an empty/misconfigured source tree.
-        let coverage = empty_coverage(); // total_source_files: 0, coverage_percent: 100
+        let coverage = empty_coverage(); // total_source_files: 0, so no percentage exists
         assert_eq!(
             compute_exit_code(
                 0,
@@ -612,5 +607,50 @@ mod tests {
             compute_exit_code(0, 0, false, types::EnforcementMode::Strict, &coverage, None),
             0
         );
+    }
+
+    #[test]
+    fn require_coverage_has_no_number_to_compare_against_an_unmeasured_tree() {
+        // #582: the gate used to compare `100 < req` against a fabricated
+        // percentage, and only a separate `total_source_files == 0` guard kept
+        // it from passing. The percentage itself is now absent, so even at
+        // every threshold from 1 upward there is nothing that could satisfy it.
+        let coverage = empty_coverage();
+        assert_eq!(coverage.file_coverage_percent(), None);
+        for req in [1, 50, 80, 99, 100] {
+            assert_eq!(
+                compute_exit_code(
+                    0,
+                    0,
+                    false,
+                    types::EnforcementMode::Strict,
+                    &coverage,
+                    Some(req)
+                ),
+                1,
+                "--require-coverage {req} must fail closed over an unmeasured tree"
+            );
+        }
+    }
+
+    #[test]
+    fn require_coverage_still_gates_on_a_real_percentage() {
+        // The other direction: the fix must not turn every gate into a failure.
+        let coverage = coverage_pct(75);
+        assert_eq!(coverage.file_coverage_percent(), Some(75));
+        for (req, expected) in [(0, 0), (50, 0), (75, 0), (76, 1), (100, 1)] {
+            assert_eq!(
+                compute_exit_code(
+                    0,
+                    0,
+                    false,
+                    types::EnforcementMode::Strict,
+                    &coverage,
+                    Some(req)
+                ),
+                expected,
+                "--require-coverage {req} against 75% coverage"
+            );
+        }
     }
 }

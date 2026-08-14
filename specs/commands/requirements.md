@@ -164,3 +164,11 @@ Acceptance Criteria
 - The refusal states how to proceed: fix the file, or remove it to use the built-in defaults deliberately.
 - A project with a valid configuration, and a project with none, are both unaffected.
 - The refusal is applied once at the shared entry point, so no command can omit it.
+
+### REQ-commands-011
+
+A `--require-coverage` gate SHALL fail when coverage could not be measured.
+
+Acceptance Criteria
+- An unmeasurable tree fails the gate rather than being compared against a substituted value.
+- The gate's verdict and the percentage printed by the same run never disagree.

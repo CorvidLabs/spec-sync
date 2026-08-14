@@ -1,0 +1,69 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786724827,
+      "digest": "0fade2d423effff36254391536567947d108d6048c316a079dbf477876a6cf3c",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac",
+        "title": "Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question",
+        "description": "Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cli",
+          "cmd_check",
+          "cmd_coverage",
+          "cmd_deps",
+          "cmd_report",
+          "commands",
+          "comment",
+          "generator",
+          "mcp",
+          "output",
+          "types",
+          "validator"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "site/src/content/docs/cli.md",
+          "src/commands/check.rs",
+          "src/commands/coverage.rs",
+          "src/commands/deps.rs",
+          "src/commands/mod.rs",
+          "src/commands/report.rs",
+          "src/comment.rs",
+          "src/generator.rs",
+          "src/main.rs",
+          "src/mcp.rs",
+          "src/output.rs",
+          "src/types.rs",
+          "src/validator.rs",
+          "vscode-extension/src/extension.ts"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "No command and no output format reports a coverage percentage for a tree with zero source files or zero lines. The precomputed percentage fields are gone from CoverageReport, replaced by accessors returning None when the denominator is zero, so the compiler forces every renderer to state what it shows when nothing was measured. Text renders the existing 'no source files to measure' wording; JSON renders null; the --require-coverage gate fails closed rather than comparing against a fabricated 100. A project with real source files reports exactly the percentages it reported before, in every format and over MCP."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786728293,
+      "digest": "6d09760874f84dd4e8fcf3e211663ce0a485807a2d78dc80d30c1f3f13d1b18d",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

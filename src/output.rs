@@ -18,49 +18,89 @@ pub fn print_summary(total: usize, passed: usize, warnings: usize, _errors: usiz
     );
 }
 
-pub fn print_coverage_line(coverage: &types::CoverageReport) {
-    let pct = coverage.coverage_percent;
-    let pct_str = format!("{pct}%");
-    let colored_pct = if pct == 100 {
-        pct_str.green().to_string()
+/// Render an optional coverage percentage into a JSON value: the percentage
+/// rounded to hundredths, or `null` when there was nothing to measure.
+///
+/// Machine consumers are the ones a fabricated `100.0` hurts most — a badge or
+/// a dashboard has no way to tell it apart from a genuinely covered project.
+/// `null` is already how these payloads report an inconclusive discovery, so
+/// "not measured" now has one representation across all of them (#582).
+pub fn percent_json(percent: Option<f64>) -> serde_json::Value {
+    match percent {
+        Some(value) => serde_json::json!((value * 100.0).round() / 100.0),
+        None => serde_json::Value::Null,
+    }
+}
+
+/// Wording used everywhere a file-coverage percentage cannot be stated.
+pub const NO_FILES_MEASURED: &str = "no source files to measure";
+
+/// Wording used everywhere a LOC-coverage percentage cannot be stated.
+pub const NO_LINES_MEASURED: &str = "no source lines to measure";
+
+fn colored_percent(pct: usize) -> String {
+    let text = format!("{pct}%");
+    if pct == 100 {
+        text.green().to_string()
     } else if pct >= 80 {
-        pct_str.yellow().to_string()
+        text.yellow().to_string()
     } else {
-        pct_str.red().to_string()
-    };
+        text.red().to_string()
+    }
+}
 
-    let loc_pct = coverage.loc_coverage_percent;
-    let loc_pct_str = format!("{loc_pct}%");
-    let colored_loc_pct = if loc_pct == 100 {
-        loc_pct_str.green().to_string()
-    } else if loc_pct >= 80 {
-        loc_pct_str.yellow().to_string()
-    } else {
-        loc_pct_str.red().to_string()
-    };
-
+pub fn print_coverage_line(coverage: &types::CoverageReport) {
     // A zero denominator is not 100% — it is nothing measured. Reporting it as
     // 100% put the display in direct contradiction with the gate: the same run
     // exits 1 from `--require-coverage`, which already refuses this as a
     // vacuous pass, while printing a green `100%` (#562). The number is what
     // ends up on badges and dashboards, so it is the half that must not lie.
-    if coverage.total_source_files == 0 {
-        println!("File coverage: 0/0 (no source files to measure)");
-    } else {
-        println!(
-            "File coverage: {}/{} ({colored_pct})",
-            coverage.specced_file_count, coverage.total_source_files
-        );
+    //
+    // This used to be the only renderer that got it right, and it got it right
+    // by ignoring `coverage_percent` and re-deriving from the counts — which is
+    // why eight other sites kept printing 100%. Both halves now come from
+    // `CoverageReport`, which has no percentage to report when nothing was
+    // measured (#582).
+    match coverage.file_coverage_percent() {
+        Some(pct) => println!(
+            "File coverage: {}/{} ({})",
+            coverage.specced_file_count,
+            coverage.measured_file_total(),
+            colored_percent(pct)
+        ),
+        None => println!("File coverage: 0/0 ({NO_FILES_MEASURED})"),
     }
-    if coverage.total_loc == 0 {
-        println!("LOC coverage:  0/0 (no source lines to measure)");
-    } else {
-        println!(
-            "LOC coverage:  {}/{} ({colored_loc_pct})",
-            coverage.specced_loc, coverage.total_loc
-        );
+    match coverage.loc_coverage_percent() {
+        Some(pct) => println!(
+            "LOC coverage:  {}/{} ({})",
+            coverage.specced_loc,
+            coverage.total_loc,
+            colored_percent(pct)
+        ),
+        None => println!("LOC coverage:  0/0 ({NO_LINES_MEASURED})"),
     }
+    print_missing_files_note(coverage);
     print_skipped_links(coverage);
+}
+
+/// Report files a spec's `files:` list names that are not on disk, immediately
+/// after the coverage figures.
+///
+/// They are part of the denominator — an absent file can never be covered, so
+/// excluding it would let `--require-coverage 100` pass over a spec that points
+/// at nothing. But that makes the total larger than the number of files on
+/// disk, so the total can only be read honestly next to what inflated it.
+/// Printed for the same reason as the skipped links: the number is never shown
+/// without what shaped it.
+fn print_missing_files_note(coverage: &types::CoverageReport) {
+    if coverage.missing_files.is_empty() {
+        return;
+    }
+    println!(
+        "{} {} file(s) referenced by specs but missing on disk are counted in the total (they can never be covered)",
+        "⚠".yellow(),
+        coverage.missing_files.len()
+    );
 }
 
 /// How many skipped links are named before the rest are summarized.
@@ -199,14 +239,39 @@ pub fn print_check_markdown(
     }
 
     println!("### Coverage\n");
-    println!(
-        "- **Files:** {}/{} ({}%)",
-        coverage.specced_file_count, coverage.total_source_files, coverage.coverage_percent
-    );
-    println!(
-        "- **LOC:** {}/{} ({}%)",
-        coverage.specced_loc, coverage.total_loc, coverage.loc_coverage_percent
-    );
+    // Same rule as the text renderer, and now the same source: a zero
+    // denominator has no percentage to print. This renderer used to print
+    // `0/0 (100%)` while the text one printed "no source files to measure"
+    // for the very same report (#582).
+    match coverage.file_coverage_percent() {
+        Some(pct) => println!(
+            "- **Files:** {}/{} ({pct}%)",
+            coverage.specced_file_count,
+            coverage.measured_file_total()
+        ),
+        None => println!("- **Files:** 0/0 ({NO_FILES_MEASURED})"),
+    }
+    match coverage.loc_coverage_percent() {
+        Some(pct) => println!(
+            "- **LOC:** {}/{} ({pct}%)",
+            coverage.specced_loc, coverage.total_loc
+        ),
+        None => println!("- **LOC:** 0/0 ({NO_LINES_MEASURED})"),
+    }
+    // Absent files a spec claims are part of the file total (they can never be
+    // covered, so a gate must not ignore them), which makes the total exceed
+    // what is on disk. Named here so the total is never read without them.
+    if !coverage.missing_files.is_empty() {
+        println!(
+            "- **Referenced but missing on disk (counted in the total):** {}",
+            coverage
+                .missing_files
+                .iter()
+                .map(|file| format!("`{file}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
     // Same reason as the text renderer: these percentages are measured over
     // whatever was left after skipping links (#546), so the exclusion belongs
     // with the numbers rather than in a separate section a reader may not reach.
@@ -316,16 +381,16 @@ pub fn print_diff_markdown(
 mod tests {
     use super::*;
 
+    /// A report whose percentages work out to `file_pct` / `loc_pct` over a
+    /// hundred-file, hundred-line tree.
     fn coverage(file_pct: usize, loc_pct: usize) -> types::CoverageReport {
         types::CoverageReport {
-            total_source_files: 1,
-            specced_file_count: 1,
+            total_source_files: 100,
+            specced_file_count: file_pct,
             unspecced_files: Vec::new(),
             unspecced_modules: Vec::new(),
-            coverage_percent: file_pct,
-            total_loc: 1,
-            specced_loc: 1,
-            loc_coverage_percent: loc_pct,
+            total_loc: 100,
+            specced_loc: loc_pct,
             unspecced_file_loc: Vec::new(),
             missing_files: Vec::new(),
             skipped_links: Vec::new(),
@@ -350,5 +415,20 @@ mod tests {
         for pct in [0usize, 79, 80, 99, 100] {
             print_coverage_line(&coverage(pct, pct));
         }
+    }
+
+    #[test]
+    fn percent_json_reports_absence_as_null_and_a_measurement_as_a_number() {
+        // Machine consumers get `null` for "not measured" — the same shape the
+        // inconclusive-discovery payloads already use — and never a fabricated
+        // 100.0 (#582).
+        assert!(percent_json(None).is_null());
+        assert_eq!(percent_json(Some(0.0)), serde_json::json!(0.0));
+        assert_eq!(percent_json(Some(100.0)), serde_json::json!(100.0));
+        assert_eq!(
+            percent_json(Some(66.666_666)),
+            serde_json::json!(66.67),
+            "measured values keep their hundredths rounding"
+        );
     }
 }

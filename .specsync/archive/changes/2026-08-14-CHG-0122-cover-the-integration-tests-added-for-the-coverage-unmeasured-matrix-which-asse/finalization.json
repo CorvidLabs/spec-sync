@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0122-cover-the-integration-tests-added-for-the-coverage-unmeasured-matrix-which-asse",
+  "implementation_commit": "88c783d5a64145b33b46268ced2b3ed77981e443",
+  "implementation_tree": "084831f07460fd5bf8f3306c216a2c2bfafc2056",
+  "contract_digest": "abcfdee9be96f432978d330f39fd1221ba8b9053768f6d7055084fd12498d7d1",
+  "workspace_digest": "ae164940bae610d3cfa04a427bab1ef75e1c2a5debdcb75ab66cc188f17dc238",
+  "closing_digest": "45301d7601377155335a6705379b53f5bf6557b2611f7ea686839c198f73affc",
+  "review_digest": "bf709d22bc937bcee04f83120e5abe0e0c27f2f920dfd92c393f636abcf996dc",
+  "finalization_digest": "47e3574ac5b1446955b2cebe00a260b7522bd7e10b6e1847e3194ba8a5065187",
+  "timestamp": 1786738896
+}

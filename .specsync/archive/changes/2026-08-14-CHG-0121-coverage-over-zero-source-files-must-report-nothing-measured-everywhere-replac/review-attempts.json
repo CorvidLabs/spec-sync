@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac",
+      "reviewer": "claude-opus-5",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "5fefe39abeca44761d3e53eeda0a16c610e03787",
+      "contract_digest": "0fade2d423effff36254391536567947d108d6048c316a079dbf477876a6cf3c",
+      "execution_digest": "b74cdccb4726e640e30b921e669c98174a034cbdfdbddfe89c80ba4b5bb4e403",
+      "workspace_digest": "b024e74e3e156f02c2c297303a38d954a9eb86a709522870229ac8cc126af162",
+      "timestamp": 1786728283
+    }
+  ]
+}

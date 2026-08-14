@@ -4,11 +4,31 @@ use std::path::Path;
 use std::process;
 
 use crate::git_utils::{git_commits_since, git_last_commit_hash};
+use crate::output::{NO_FILES_MEASURED, percent_json};
 use crate::parser;
 use crate::types;
 use crate::validator::compute_coverage_checked;
 
 use super::{compute_exit_code, default_enforcement, filter_by_status, load_and_discover};
+
+/// A percentage for a human-readable column, or a marker that there was
+/// nothing to measure. `n/a` is deliberately not a number: a reader scanning
+/// the column must not mistake an unmeasured module for a scored one.
+fn percent_cell(percent: Option<f64>) -> String {
+    match percent {
+        Some(value) => format!("{value:.0}%"),
+        None => "n/a".to_string(),
+    }
+}
+
+/// A percentage for a CSV field. An empty field is how CSV spells "no value";
+/// writing `0` or `100` there would report a measurement nobody took.
+fn percent_csv(percent: Option<f64>, precision: usize) -> String {
+    match percent {
+        Some(value) => format!("{value:.precision$}"),
+        None => String::new(),
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub fn cmd_report(
@@ -56,7 +76,8 @@ pub fn cmd_report(
         spec_path: String,
         module_name: String,
         source_files: Vec<String>,
-        coverage_pct: f64,
+        /// `None` when the spec lists no files, so there is nothing to measure.
+        coverage_pct: Option<f64>,
         status: Option<String>,
         stale: bool,
         stale_commits_behind: usize,
@@ -96,10 +117,12 @@ pub fn cmd_report(
             .to_string_lossy()
             .to_string();
 
-        // Coverage: how many of this spec's source files exist
+        // Coverage: how many of this spec's source files exist. A spec that
+        // lists no files has nothing to divide by; `.max(1)` used to turn that
+        // into a fabricated 0%, which reads as a measured result rather than as
+        // the absence of one (#582).
         let existing: usize = fm.files.iter().filter(|f| root.join(f).exists()).count();
-        let total_files = fm.files.len().max(1);
-        let cov = (existing as f64 / total_files as f64) * 100.0;
+        let cov = (!fm.files.is_empty()).then(|| (existing as f64 / fm.files.len() as f64) * 100.0);
 
         // Stale detection via git log
         let mut stale = false;
@@ -184,10 +207,19 @@ pub fn cmd_report(
     let total_modules = modules.len();
     let stale_count = modules.iter().filter(|m| m.stale).count();
     let incomplete_count = modules.iter().filter(|m| m.incomplete).count();
-    let overall_coverage = if coverage.total_source_files == 0 {
-        100.0
-    } else {
-        (coverage.specced_file_count as f64 / coverage.total_source_files as f64) * 100.0
+    // Re-derived here with a hardcoded 100.0 fallback until #582; now the one
+    // implementation on `CoverageReport`, which has no percentage to give when
+    // the denominator is zero.
+    let overall_coverage = coverage.file_coverage();
+    // Every human-readable rendering of the overall figure, so text, markdown,
+    // github and table cannot drift apart again.
+    let overall_line = |precision: usize| match overall_coverage {
+        Some(pct) => format!(
+            "{}/{} files covered ({pct:.precision$}%)",
+            coverage.specced_file_count,
+            coverage.measured_file_total(),
+        ),
+        None => format!("0/0 files covered ({NO_FILES_MEASURED})"),
     };
 
     match format {
@@ -200,7 +232,7 @@ pub fn cmd_report(
                         "spec_path": m.spec_path,
                         "status": m.status,
                         "source_files": m.source_files,
-                        "coverage_pct": (m.coverage_pct * 100.0).round() / 100.0,
+                        "coverage_pct": percent_json(m.coverage_pct),
                         "stale": m.stale,
                         "commits_behind": m.stale_commits_behind,
                         "incomplete": m.incomplete,
@@ -211,9 +243,9 @@ pub fn cmd_report(
                 .collect();
 
             let output = serde_json::json!({
-                "overall_coverage_pct": (overall_coverage * 100.0).round() / 100.0,
+                "overall_coverage_pct": percent_json(overall_coverage),
                 "files_covered": coverage.specced_file_count,
-                "files_total": coverage.total_source_files,
+                "files_total": coverage.measured_file_total(),
                 "total_modules": total_modules,
                 "stale_modules": stale_count,
                 "incomplete_modules": incomplete_count,
@@ -236,24 +268,24 @@ pub fn cmd_report(
             println!("module,spec_path,status,coverage_pct,stale,commits_behind,incomplete");
             for m in &modules {
                 println!(
-                    "{},{},{},{:.0},{},{},{}",
+                    "{},{},{},{},{},{},{}",
                     m.module_name,
                     m.spec_path,
                     m.status.as_deref().unwrap_or(""),
-                    m.coverage_pct,
+                    percent_csv(m.coverage_pct, 0),
                     m.stale,
                     m.stale_commits_behind,
                     m.incomplete,
                 );
             }
-            println!("SUMMARY,,,{overall_coverage:.1},{stale_count},,{incomplete_count}",);
+            println!(
+                "SUMMARY,,,{},{stale_count},,{incomplete_count}",
+                percent_csv(overall_coverage, 1)
+            );
         }
         types::OutputFormat::Markdown | types::OutputFormat::Github => {
             println!("## Spec Coverage Report\n");
-            println!(
-                "**Overall:** {}/{} files covered ({:.1}%)  ",
-                coverage.specced_file_count, coverage.total_source_files, overall_coverage,
-            );
+            println!("**Overall:** {}  ", overall_line(1));
             println!(
                 "**Modules:** {total_modules} total, {stale_count} stale, {incomplete_count} incomplete\n"
             );
@@ -261,10 +293,10 @@ pub fn cmd_report(
             println!("|--------|--------|----------|-------|----------------|------------|");
             for m in &modules {
                 println!(
-                    "| {} | {} | {:.0}% | {} | {} | {} |",
+                    "| {} | {} | {} | {} | {} | {} |",
                     m.module_name,
                     m.status.as_deref().unwrap_or(""),
-                    m.coverage_pct,
+                    percent_cell(m.coverage_pct),
                     if m.stale { "yes" } else { "no" },
                     m.stale_commits_behind,
                     if m.incomplete { "yes" } else { "no" },
@@ -276,10 +308,7 @@ pub fn cmd_report(
                 "\n--- {} ------------------------------------------------",
                 "Spec Coverage Report".bold()
             );
-            println!(
-                "\n  Overall: {}/{} files covered ({:.1}%)",
-                coverage.specced_file_count, coverage.total_source_files, overall_coverage,
-            );
+            println!("\n  Overall: {}", overall_line(1));
             println!(
                 "  Modules: {} total, {} stale, {} incomplete\n",
                 total_modules, stale_count, incomplete_count,
@@ -293,7 +322,7 @@ pub fn cmd_report(
             println!("  {}", "-".repeat(52));
 
             for m in &modules {
-                let cov_str = format!("{:.0}%", m.coverage_pct);
+                let cov_str = percent_cell(m.coverage_pct);
                 let stale_str = if m.stale {
                     format!("{} behind", m.stale_commits_behind)
                         .yellow()

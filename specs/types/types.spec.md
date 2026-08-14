@@ -1,6 +1,6 @@
 ---
 module: types
-version: 11
+version: 12
 status: stable
 files:
   - src/types.rs
@@ -80,6 +80,11 @@ Core deterministic data structures and enums shared across the codebase: configu
 | `from_extension` | `ext: &str` | `Option<Self>` | Detect language from file extension |
 | `extensions` | `&self` | `&[&str]` | Default source file extensions for this language |
 | `test_patterns` | `&self` | `&[&str]` | File patterns to exclude (test files) |
+| `measured_file_total` | `&self` | `usize` | Files that count toward coverage: those discovered plus those a spec names but that are absent, so a broken `files:` list cannot shrink the denominator |
+| `file_coverage` | `&self` | `Option<f64>` | Fraction of source files covered by a spec, or `None` when there are no files to measure |
+| `file_coverage_percent` | `&self` | `Option<usize>` | `file_coverage` as a whole percent. `None` means nothing was measured, which is distinct from `Some(0)` |
+| `loc_coverage` | `&self` | `Option<f64>` | Fraction of source lines covered by a spec, or `None` when there are no lines to measure |
+| `loc_coverage_percent` | `&self` | `Option<usize>` | `loc_coverage` as a whole percent, `None` when unmeasured |
 
 ## Invariants
 
@@ -164,3 +169,4 @@ Core deterministic data structures and enums shared across the codebase: configu
 | 2026-08-13 | CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di: A symlink under a source directory must be skipped and disclosed, never abort discovery |
 | 2026-08-14 | CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
 | 2026-08-14 | CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
+| 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |

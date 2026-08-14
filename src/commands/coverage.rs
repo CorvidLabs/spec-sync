@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process;
 
-use crate::output::{print_coverage_line, print_coverage_report, print_summary};
+use crate::output::{percent_json, print_coverage_line, print_coverage_report, print_summary};
 use crate::types;
 use crate::validator::compute_coverage_checked;
 
@@ -63,17 +63,12 @@ pub fn cmd_coverage(
     };
 
     if json {
-        let file_coverage = if coverage.total_source_files == 0 {
-            100.0
-        } else {
-            (coverage.specced_file_count as f64 / coverage.total_source_files as f64) * 100.0
-        };
-
-        let loc_coverage = if coverage.total_loc == 0 {
-            100.0
-        } else {
-            (coverage.specced_loc as f64 / coverage.total_loc as f64) * 100.0
-        };
+        // `null`, not `100.0`, when there was nothing to measure — matching the
+        // inconclusive-discovery payload above, which already reports absence
+        // as null. This site used to re-derive its own percentage with a
+        // hardcoded 100.0 fallback (#582).
+        let file_coverage = percent_json(coverage.file_coverage());
+        let loc_coverage = percent_json(coverage.loc_coverage());
 
         let modules: Vec<serde_json::Value> = coverage
             .unspecced_modules
@@ -88,10 +83,10 @@ pub fn cmd_coverage(
             .collect();
 
         let output = serde_json::json!({
-            "file_coverage": (file_coverage * 100.0).round() / 100.0,
+            "file_coverage": file_coverage,
             "files_covered": coverage.specced_file_count,
-            "files_total": coverage.total_source_files,
-            "loc_coverage": (loc_coverage * 100.0).round() / 100.0,
+            "files_total": coverage.measured_file_total(),
+            "loc_coverage": loc_coverage,
             "loc_covered": coverage.specced_loc,
             "loc_total": coverage.total_loc,
             "modules": modules,

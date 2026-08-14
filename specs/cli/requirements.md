@@ -143,3 +143,10 @@ Acceptance Criteria
 - Help text distinguishes scoped check from active-only audit.
 - Parsing accepts `change audit` with no change id.
 
+### REQ-cli-coverage-optional-001
+
+`main` SHALL route coverage percentages through the shared accessor.
+
+Acceptance Criteria
+- No call site re-computes the ratio.
+

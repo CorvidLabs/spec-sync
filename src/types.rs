@@ -198,17 +198,33 @@ impl ValidationResult {
     }
 }
 
+/// The `(covered, total)` pair a coverage percentage may be derived from, or
+/// `None` when the denominator is zero and therefore nothing was measured.
+///
+/// Every coverage percentage in the codebase is derived through this guard.
+/// Zero out of zero is not full coverage: it is the absence of a measurement,
+/// and the two must not be rendered the same way. Reporting it as 100% is how
+/// an empty or misconfigured `source_dirs` produced a green badge (#562, #582).
+fn measured(covered: usize, total: usize) -> Option<(usize, usize)> {
+    (total > 0).then_some((covered, total))
+}
+
 /// Coverage report for the project.
+///
+/// The percentages are deliberately *not* stored. A precomputed `usize` field
+/// has to hold some value when the denominator is zero, and the value it held
+/// was `100` — a number no call site could distinguish from a fully covered
+/// project. Exposing them as `Option` accessors instead makes the empty case
+/// unrepresentable as a percentage, so the compiler forces every renderer and
+/// every gate to say what it does when nothing was measured.
 #[derive(Debug, Clone)]
 pub struct CoverageReport {
     pub total_source_files: usize,
     pub specced_file_count: usize,
     pub unspecced_files: Vec<String>,
     pub unspecced_modules: Vec<String>,
-    pub coverage_percent: usize,
     pub total_loc: usize,
     pub specced_loc: usize,
-    pub loc_coverage_percent: usize,
     /// (file_path, line_count) sorted by LOC descending.
     pub unspecced_file_loc: Vec<(String, usize)>,
     /// Files referenced by a spec's `files:` list that do not exist on disk.
@@ -225,6 +241,44 @@ pub struct CoverageReport {
     /// Reported alongside the coverage figures so the number is never read
     /// without them.
     pub skipped_links: Vec<String>,
+}
+
+impl CoverageReport {
+    /// The files the file-coverage percentage is measured over: those
+    /// discovered on disk plus those a spec's `files:` list names that are not
+    /// there. Absent files can never be covered, so counting them keeps a
+    /// `--require-coverage` gate from passing over broken specs.
+    pub fn measured_file_total(&self) -> usize {
+        self.total_source_files + self.missing_files.len()
+    }
+
+    /// File coverage as an exact percentage, or `None` when there were no
+    /// files to measure.
+    pub fn file_coverage(&self) -> Option<f64> {
+        measured(self.specced_file_count, self.measured_file_total())
+            .map(|(covered, total)| (covered as f64 / total as f64) * 100.0)
+    }
+
+    /// File coverage as a whole percent, truncated toward zero, or `None` when
+    /// there were no files to measure.
+    pub fn file_coverage_percent(&self) -> Option<usize> {
+        measured(self.specced_file_count, self.measured_file_total())
+            .map(|(covered, total)| covered.saturating_mul(100) / total)
+    }
+
+    /// LOC coverage as an exact percentage, or `None` when there were no
+    /// source lines to measure.
+    pub fn loc_coverage(&self) -> Option<f64> {
+        measured(self.specced_loc, self.total_loc)
+            .map(|(covered, total)| (covered as f64 / total as f64) * 100.0)
+    }
+
+    /// LOC coverage as a whole percent, truncated toward zero, or `None` when
+    /// there were no source lines to measure.
+    pub fn loc_coverage_percent(&self) -> Option<usize> {
+        measured(self.specced_loc, self.total_loc)
+            .map(|(covered, total)| covered.saturating_mul(100) / total)
+    }
 }
 
 /// Controls export extraction granularity.
@@ -875,5 +929,91 @@ impl Default for SpecSyncConfig {
             config_path: None,
             load_error: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod coverage_report_tests {
+    use super::CoverageReport;
+
+    fn report(
+        total_source_files: usize,
+        specced_file_count: usize,
+        total_loc: usize,
+        specced_loc: usize,
+    ) -> CoverageReport {
+        CoverageReport {
+            total_source_files,
+            specced_file_count,
+            unspecced_files: Vec::new(),
+            unspecced_modules: Vec::new(),
+            total_loc,
+            specced_loc,
+            unspecced_file_loc: Vec::new(),
+            missing_files: Vec::new(),
+            skipped_links: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn nothing_measured_is_none_not_a_hundred() {
+        // The whole point of #582: an empty denominator has no percentage. The
+        // removed `usize` field held `100` here, which every consumer read as
+        // a fully specced project.
+        let empty = report(0, 0, 0, 0);
+        assert_eq!(empty.file_coverage_percent(), None);
+        assert_eq!(empty.loc_coverage_percent(), None);
+        assert_eq!(empty.file_coverage(), None);
+        assert_eq!(empty.loc_coverage(), None);
+    }
+
+    #[test]
+    fn nothing_measured_is_not_zero_either() {
+        // `None` must not collapse into a measured 0%: one says the tree was
+        // looked at and found uncovered, the other says nothing was looked at.
+        let empty = report(0, 0, 0, 0);
+        let measured_zero = report(4, 0, 40, 0);
+        assert_eq!(empty.file_coverage_percent(), None);
+        assert_eq!(measured_zero.file_coverage_percent(), Some(0));
+        assert_eq!(measured_zero.loc_coverage_percent(), Some(0));
+    }
+
+    #[test]
+    fn a_measured_tree_still_reports_its_percentages() {
+        let half = report(4, 2, 40, 10);
+        assert_eq!(half.file_coverage_percent(), Some(50));
+        assert_eq!(half.file_coverage(), Some(50.0));
+        assert_eq!(half.loc_coverage_percent(), Some(25));
+        assert_eq!(half.loc_coverage(), Some(25.0));
+    }
+
+    #[test]
+    fn whole_percent_truncates_rather_than_rounds() {
+        // Matches the integer division the removed field used, so a gate that
+        // passed before still passes and one that failed still fails.
+        let two_thirds = report(3, 2, 3, 2);
+        assert_eq!(two_thirds.file_coverage_percent(), Some(66));
+        assert!(two_thirds.file_coverage().is_some_and(|pct| pct > 66.6));
+    }
+
+    #[test]
+    fn files_a_spec_claims_but_that_are_absent_count_in_the_denominator() {
+        // An absent file can never be covered, so dropping it from the
+        // denominator would let `--require-coverage 100` pass over a spec that
+        // points at nothing.
+        let mut with_ghost = report(1, 1, 10, 10);
+        with_ghost.missing_files = vec!["src/ghost.ts".to_string()];
+        assert_eq!(with_ghost.measured_file_total(), 2);
+        assert_eq!(with_ghost.file_coverage_percent(), Some(50));
+        assert_eq!(with_ghost.file_coverage(), Some(50.0));
+    }
+
+    #[test]
+    fn a_tree_of_only_absent_files_is_measured_at_zero_not_unmeasured() {
+        // Nothing on disk, but a spec claims two files: that IS a measurement,
+        // and it measures zero.
+        let mut only_ghosts = report(0, 0, 0, 0);
+        only_ghosts.missing_files = vec!["src/a.ts".to_string(), "src/b.ts".to_string()];
+        assert_eq!(only_ghosts.file_coverage_percent(), Some(0));
     }
 }

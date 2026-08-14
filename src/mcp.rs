@@ -2,6 +2,7 @@ use crate::config::{detect_source_dirs, load_config, parse_config_content_checke
 use crate::deps::build_dep_graph;
 use crate::generator::generate_specs_for_unspecced_modules_paths;
 use crate::manifest::{MAX_GRADLE_MANIFEST_BYTES, parse_gradle_settings};
+use crate::output::percent_json;
 use crate::scoring;
 use crate::types::SpecSyncConfig;
 use crate::validator::{
@@ -3218,18 +3219,6 @@ fn resource_coverage(root: &Path) -> Result<(String, &'static str), String> {
     let coverage = compute_coverage_checked(root, &spec_files, &config)
         .map_err(|error| format!("MCP coverage is inconclusive: {error}"))?;
 
-    let file_coverage = if coverage.total_source_files == 0 {
-        100.0
-    } else {
-        (coverage.specced_file_count as f64 / coverage.total_source_files as f64) * 100.0
-    };
-
-    let loc_coverage = if coverage.total_loc == 0 {
-        100.0
-    } else {
-        (coverage.specced_loc as f64 / coverage.total_loc as f64) * 100.0
-    };
-
     let uncovered_modules: Vec<Value> = coverage
         .unspecced_modules
         .iter()
@@ -3242,11 +3231,14 @@ fn resource_coverage(root: &Path) -> Result<(String, &'static str), String> {
         .map(|(f, loc)| json!({ "file": f, "loc": loc }))
         .collect();
 
+    // `null` when nothing was measured. An agent reading this resource has no
+    // other signal, so a fabricated 100 here is a model told the project is
+    // fully specced when no file was ever looked at (#582).
     let output = json!({
-        "file_coverage_percent": (file_coverage * 100.0).round() / 100.0,
+        "file_coverage_percent": percent_json(coverage.file_coverage()),
         "files_covered": coverage.specced_file_count,
-        "files_total": coverage.total_source_files,
-        "loc_coverage_percent": (loc_coverage * 100.0).round() / 100.0,
+        "files_total": coverage.measured_file_total(),
+        "loc_coverage_percent": percent_json(coverage.loc_coverage()),
         "loc_covered": coverage.specced_loc,
         "loc_total": coverage.total_loc,
         "uncovered_modules": uncovered_modules,
@@ -4346,8 +4338,9 @@ fn tool_check(root: &Path, arguments: &Value) -> Result<Value, String> {
         "stale": stale_entries,
         "specs": spec_results,
         "coverage": {
-            "file_percent": coverage.coverage_percent,
-            "loc_percent": coverage.loc_coverage_percent,
+            // Null, not 100, when nothing was measured (#582).
+            "file_percent": coverage.file_coverage_percent(),
+            "loc_percent": coverage.loc_coverage_percent(),
         }
     }))
 }
@@ -4356,18 +4349,6 @@ fn tool_coverage(root: &Path) -> Result<Value, String> {
     let (config, spec_files) = load_and_discover(root, true)?;
     let coverage = compute_coverage_checked(root, &spec_files, &config)
         .map_err(|error| format!("MCP coverage is inconclusive: {error}"))?;
-
-    let file_coverage = if coverage.total_source_files == 0 {
-        100.0
-    } else {
-        (coverage.specced_file_count as f64 / coverage.total_source_files as f64) * 100.0
-    };
-
-    let loc_coverage = if coverage.total_loc == 0 {
-        100.0
-    } else {
-        (coverage.specced_loc as f64 / coverage.total_loc as f64) * 100.0
-    };
 
     let modules: Vec<Value> = coverage
         .unspecced_modules
@@ -4382,10 +4363,11 @@ fn tool_coverage(root: &Path) -> Result<Value, String> {
         .collect();
 
     Ok(json!({
-        "file_coverage": (file_coverage * 100.0).round() / 100.0,
+        // Null, not 100.0, when nothing was measured (#582).
+        "file_coverage": percent_json(coverage.file_coverage()),
         "files_covered": coverage.specced_file_count,
-        "files_total": coverage.total_source_files,
-        "loc_coverage": (loc_coverage * 100.0).round() / 100.0,
+        "files_total": coverage.measured_file_total(),
+        "loc_coverage": percent_json(coverage.loc_coverage()),
         "loc_covered": coverage.specced_loc,
         "loc_total": coverage.total_loc,
         "uncovered_modules": modules,
@@ -7694,7 +7676,10 @@ project(':override').projectDir = file('vendor/custom')
         let result = tool_coverage(tmp.path());
         assert!(result.is_ok());
         let val = result.unwrap();
-        assert_eq!(val["file_coverage"], 100.0);
+        // Same correction as `test_resource_coverage_empty`: zero files
+        // measured is `null`, not full coverage (#582).
+        assert!(val["file_coverage"].is_null(), "{val}");
+        assert!(val["loc_coverage"].is_null(), "{val}");
         assert_eq!(val["files_total"], 0);
     }
 
@@ -8603,7 +8588,12 @@ project(':override').projectDir = file('vendor/custom')
         let resp = handle_resources_read(Some(json!(1)), &params, tmp.path());
         let text = resp["result"]["contents"][0]["text"].as_str().unwrap();
         let parsed: Value = serde_json::from_str(text).unwrap();
-        assert_eq!(parsed["file_coverage_percent"], 100.0);
+        // This test used to assert the bug: an empty project has no source
+        // file, so there is no percentage to report. `100.0` told an agent the
+        // project was fully specced when nothing had been looked at (#582).
+        assert!(parsed["file_coverage_percent"].is_null(), "{parsed}");
+        assert!(parsed["loc_coverage_percent"].is_null(), "{parsed}");
+        assert_eq!(parsed["files_total"], 0, "{parsed}");
     }
 
     #[test]

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac",
+  "slug": "coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac",
+  "title": "Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question",
+  "description": "Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "446aacd27b0be217063f0d92eb4d965b8dfbf105",
+  "created_at": 1786724601,
+  "updated_at": 1786728541,
+  "affected_specs": [
+    "types",
+    "validator",
+    "output",
+    "mcp",
+    "comment",
+    "generator",
+    "cli",
+    "commands",
+    "cmd_check",
+    "cmd_coverage",
+    "cmd_deps",
+    "cmd_report"
+  ],
+  "affected_paths": [
+    "src/types.rs",
+    "src/validator.rs",
+    "src/output.rs",
+    "src/mcp.rs",
+    "src/comment.rs",
+    "src/generator.rs",
+    "src/main.rs",
+    "src/commands/mod.rs",
+    "src/commands/check.rs",
+    "src/commands/coverage.rs",
+    "src/commands/deps.rs",
+    "src/commands/report.rs",
+    "site/src/content/docs/cli.md",
+    "vscode-extension/src/extension.ts",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "No command and no output format reports a coverage percentage for a tree with zero source files or zero lines. The precomputed percentage fields are gone from CoverageReport, replaced by accessors returning None when the denominator is zero, so the compiler forces every renderer to state what it shows when nothing was measured. Text renders the existing 'no source files to measure' wording; JSON renders null; the --require-coverage gate fails closed rather than comparing against a fabricated 100. A project with real source files reports exactly the percentages it reported before, in every format and over MCP."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

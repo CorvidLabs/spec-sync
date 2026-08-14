@@ -1214,14 +1214,25 @@ pub fn compute_exit_code(
     }
     if let Some(req) = require_coverage {
         // A `--require-coverage` gate over zero source files is a vacuous pass:
-        // coverage is reported as 100% when there is nothing to measure (an empty or
-        // misconfigured `source_dirs`, or an over-broad `exclude_patterns`), silently
-        // satisfying the gate. Fail loud so a broken config cannot pass CI.
-        if req > 0 && coverage.total_source_files == 0 {
-            return 1;
-        }
-        if coverage.coverage_percent < req {
-            return 1;
+        // there is nothing to measure (an empty or misconfigured `source_dirs`,
+        // or an over-broad `exclude_patterns`), so the gate has no evidence to
+        // act on. Fail closed so a broken config cannot pass CI.
+        //
+        // `file_coverage_percent()` returns `None` for exactly that case rather
+        // than the fabricated `100` the old field held, so the gate can no
+        // longer be satisfied by an unmeasured tree even if this branch were
+        // removed.
+        match coverage.file_coverage_percent() {
+            None => {
+                if req > 0 {
+                    return 1;
+                }
+            }
+            Some(pct) => {
+                if pct < req {
+                    return 1;
+                }
+            }
         }
     }
     0
@@ -1280,30 +1291,35 @@ pub fn exit_with_status(
     }
 
     if let Some(req) = require_coverage {
-        // Fail loud on a vacuous pass: `--require-coverage` over zero source files
-        // reports 100% because there is nothing to measure (empty/misconfigured
-        // `source_dirs` or an over-broad `exclude_patterns`), which would otherwise
-        // satisfy the gate silently.
-        if req > 0 && coverage.total_source_files == 0 {
-            println!(
-                "\n{} {req}%: no source files were found to measure coverage against — \
-                 check `source_dirs` and `exclude_patterns` (an empty or over-broad \
-                 config reports coverage as a vacuous 100%)",
-                "--require-coverage".red()
-            );
-            process::exit(1);
-        }
-        if coverage.coverage_percent < req {
-            println!(
-                "\n{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
-                "--require-coverage".red(),
-                coverage.coverage_percent,
-                coverage.unspecced_files.len()
-            );
-            for f in &coverage.unspecced_files {
-                println!("  {} {f}", "✗".red());
+        // Mirrors `compute_exit_code`. Fail closed on a vacuous pass:
+        // `--require-coverage` over zero source files has nothing to measure
+        // (empty/misconfigured `source_dirs` or an over-broad
+        // `exclude_patterns`), so there is no percentage to compare against.
+        match coverage.file_coverage_percent() {
+            None => {
+                if req > 0 {
+                    println!(
+                        "\n{} {req}%: no source files were found to measure coverage against — \
+                         check `source_dirs` and `exclude_patterns` (nothing was measured, so \
+                         the gate has no coverage to compare against)",
+                        "--require-coverage".red()
+                    );
+                    process::exit(1);
+                }
             }
-            process::exit(1);
+            Some(pct) => {
+                if pct < req {
+                    println!(
+                        "\n{} {req}%: actual coverage is {pct}% ({} file(s) missing specs)",
+                        "--require-coverage".red(),
+                        coverage.unspecced_files.len()
+                    );
+                    for f in &coverage.unspecced_files {
+                        println!("  {} {f}", "✗".red());
+                    }
+                    process::exit(1);
+                }
+            }
         }
     }
 }

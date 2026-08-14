@@ -3079,7 +3079,9 @@ mod tests {
         let error = compute_coverage_checked(tmp.path(), &[], &config).unwrap_err();
         assert!(error.contains("Cannot parse Gradle settings manifest"));
         let report = compute_coverage(tmp.path(), &[], &config);
-        assert_eq!(report.coverage_percent, 0);
+        // Nothing was discovered, so there is no percentage to report — not 0
+        // and emphatically not 100.
+        assert_eq!(report.file_coverage_percent(), None);
         assert!(report.unspecced_modules[0].contains("inconclusive"));
     }
 
@@ -4085,13 +4087,13 @@ mod tests {
         let mapped = compute_coverage(root, std::slice::from_ref(&spec_path), &config);
         assert_eq!(mapped.total_source_files, 1);
         assert_eq!(mapped.specced_file_count, 1);
-        assert_eq!(mapped.coverage_percent, 100);
+        assert_eq!(mapped.file_coverage_percent(), Some(100));
         assert!(mapped.unspecced_files.is_empty());
 
         let unmapped = compute_coverage(root, &[], &config);
         assert_eq!(unmapped.total_source_files, 1);
         assert_eq!(unmapped.specced_file_count, 0);
-        assert_eq!(unmapped.coverage_percent, 0);
+        assert_eq!(unmapped.file_coverage_percent(), Some(0));
         assert_eq!(unmapped.unspecced_files, ["landing/index.html"]);
     }
 
@@ -5060,10 +5062,8 @@ pub fn compute_coverage(
         specced_file_count: 0,
         unspecced_files: Vec::new(),
         unspecced_modules: vec![format!("Coverage inconclusive: {error}")],
-        coverage_percent: 0,
         total_loc: 0,
         specced_loc: 0,
-        loc_coverage_percent: 0,
         unspecced_file_loc: Vec::new(),
         missing_files: Vec::new(),
         skipped_links: Vec::new(),
@@ -5253,24 +5253,19 @@ pub fn compute_coverage_checked(
     missing_files.dedup();
 
     let specced_count = all_source_files.len() - unspecced_files.len();
-    let total_files = all_source_files.len() + missing_files.len();
-    let coverage_percent = if total_files == 0 {
-        100
-    } else {
-        (specced_count * 100) / total_files
-    };
 
-    let loc_coverage_percent = (specced_loc * 100).checked_div(total_loc).unwrap_or(100);
-
+    // No percentage is computed here. The denominator can be zero — an empty or
+    // misconfigured `source_dirs`, an over-broad `exclude_patterns` — and any
+    // value stored for that case is a fabrication. `CoverageReport` derives the
+    // percentages on demand and returns `None` when there was nothing to
+    // measure (#582); the previous `100` fallbacks are gone.
     Ok(CoverageReport {
         total_source_files: all_source_files.len(),
         specced_file_count: specced_count,
         unspecced_files,
         unspecced_modules,
-        coverage_percent,
         total_loc,
         specced_loc,
-        loc_coverage_percent,
         unspecced_file_loc,
         missing_files,
         skipped_links: budget.skipped_links.iter().cloned().collect(),

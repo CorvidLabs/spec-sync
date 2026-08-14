@@ -25,3 +25,6 @@ mod change;
 
 #[path = "integration/comment.rs"]
 mod comment;
+
+#[path = "integration/coverage_unmeasured.rs"]
+mod coverage_unmeasured;

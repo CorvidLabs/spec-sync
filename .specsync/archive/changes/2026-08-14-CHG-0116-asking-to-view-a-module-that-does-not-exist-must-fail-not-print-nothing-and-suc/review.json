@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0116-asking-to-view-a-module-that-does-not-exist-must-fail-not-print-nothing-and-suc",
+  "reviewer": "opus-5-implementing-session",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "977a5644a4f1fb4be73013807348cc2c98a68b25",
+  "contract_digest": "c7ef891108ab0b26047d6da213efc9dc5015ae1661b719d8751d8e001c2377ec",
+  "execution_digest": "05f01389ac0331a1212cd495f3d568566ce6ac37067744f688f03d71cc7df67b",
+  "workspace_digest": "d8f90ad1a868153e26f8308b90dac6a454ea2c1650052160babd8c0a23e4127c",
+  "timestamp": 1786669859
+}

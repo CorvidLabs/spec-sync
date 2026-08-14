@@ -1,6 +1,6 @@
 ---
 id: CHG-0116-asking-to-view-a-module-that-does-not-exist-must-fail-not-print-nothing-and-suc
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 60360ed2c07f89f234b9484253826e7948bb6121
 ---

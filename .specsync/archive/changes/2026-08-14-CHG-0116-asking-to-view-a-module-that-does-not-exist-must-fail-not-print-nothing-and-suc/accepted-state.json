@@ -7,11 +7,11 @@
   "title": "Asking to view a module that does not exist must fail, not print nothing and succeed",
   "description": "Asking to view a module that does not exist must fail, not print nothing and succeed",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "60360ed2c07f89f234b9484253826e7948bb6121",
   "created_at": 1786668260,
-  "updated_at": 1786669837,
+  "updated_at": 1786669867,
   "affected_specs": [
     "cmd_view"
   ],

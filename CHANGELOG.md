@@ -65,6 +65,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An unparseable `.specsync/config.toml` no longer reports success**
+  (CorvidLabs/spec-sync#570). A single missing bracket turned a failing project green: the
+  loader fell back to built-in defaults, warned on **stderr only**, and stdout printed
+  `✓ All required sections present` — a claim about a section list that had been thrown
+  away. A CI job capturing stdout saw a clean pass, and `--strict`, `--force`, `--json` and
+  `score --min-score` all agreed with it. `score` actually *rose* from 96 to 100, because
+  the project lost the very rule it was failing.
+
+  This disabled every rule the project had configured — `required_sections`, `[rules]`
+  thresholds, `exclude_patterns` — simultaneously, from one typo. A project writes that
+  file precisely because the defaults are not enough, so silently substituting the defaults
+  is never the safe reading.
+
+  A config file that exists and cannot be loaded is now an error, refused at the shared
+  entry point every spec-reading command passes through. A project with **no** config file
+  is unaffected and still runs on the built-in defaults.
+
 - **Coverage no longer displays `0/0` as 100%** (CorvidLabs/spec-sync#562). A project whose
   configured `source_dirs` contained no source files printed `File coverage: 0/0 (100%)` — in
   the same run that `--require-coverage` correctly failed. The gate and the display

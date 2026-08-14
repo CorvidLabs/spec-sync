@@ -154,3 +154,13 @@ Acceptance Criteria
 - The skipped form matches the existing vocabulary used when a draft spec skips validation.
 - A spec with valid frontmatter continues to report all four checks unchanged, including a declared table absent from the schema and every genuinely missing required section.
 - The exit status is unaffected: invalid frontmatter remains an error.
+
+### REQ-commands-009
+
+No command SHALL report a verdict derived from configuration that failed to load.
+
+Acceptance Criteria
+- A command that reads specs refuses to run when the configuration records a load failure, and names the file.
+- The refusal states how to proceed: fix the file, or remove it to use the built-in defaults deliberately.
+- A project with a valid configuration, and a project with none, are both unaffected.
+- The refusal is applied once at the shared entry point, so no command can omit it.

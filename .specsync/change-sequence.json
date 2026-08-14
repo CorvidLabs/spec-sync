@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 117,
-  "id": "CHG-0117-coverage-over-zero-source-files-must-report-that-nothing-was-measured-not-one-h",
+  "sequence": 118,
+  "id": "CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su",
   "acknowledged_collisions": [
     {
       "sequence": 16,

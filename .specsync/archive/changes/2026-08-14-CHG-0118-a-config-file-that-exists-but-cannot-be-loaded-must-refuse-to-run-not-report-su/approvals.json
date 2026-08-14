@@ -1,0 +1,51 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786683245,
+      "digest": "6391e162727a58939ecf53ec4fe7643d249b047b3dea94fead960d26229a426a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su",
+        "title": "A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults",
+        "description": "A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "commands",
+          "config",
+          "types",
+          "validator"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/mod.rs",
+          "src/config.rs",
+          "src/types.rs",
+          "src/validator.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A project whose config file exists but cannot be parsed or read is refused with an error naming the file, rather than silently falling back to built-in defaults and reporting that every configured rule passed. A project with a valid config continues to enforce exactly what it configures. A project with no config file at all continues to run on the built-in defaults and is unaffected. The refusal reaches every command that reads specs, not only the validating ones."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786683463,
+      "digest": "07810eed932fc9fd8a8e5545bd460d50ab365dae187783b489c9e2a82ae514e4",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

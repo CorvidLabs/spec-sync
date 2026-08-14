@@ -1,6 +1,6 @@
 ---
 module: config
-version: 16
+version: 18
 status: stable
 files:
   - src/config.rs
@@ -154,6 +154,8 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-08-14 | CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
+| 2026-08-14 | CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
 
 ## Config File Structure
 

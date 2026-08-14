@@ -7,11 +7,11 @@
   "title": "Cover the integration tests added for the coverage-unmeasured matrix, which assert behaviour already specified by CHG-0121 and introduce no new spec text",
   "description": "Cover the integration tests added for the coverage-unmeasured matrix, which assert behaviour already specified by CHG-0121 and introduce no new spec text",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "62cb051178e29c642b29df39f9a0daefbd6ba888",
   "created_at": 1786734991,
-  "updated_at": 1786738874,
+  "updated_at": 1786739108,
   "affected_specs": [
     "output"
   ],

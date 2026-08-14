@@ -1,6 +1,6 @@
 ---
 id: CHG-0122-cover-the-integration-tests-added-for-the-coverage-unmeasured-matrix-which-asse
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 62cb051178e29c642b29df39f9a0daefbd6ba888
 ---

@@ -36,3 +36,10 @@ Acceptance Criteria
 - Related tests remain green.
 - No intentional regression of SpecSync 6.0 lifecycle verbs.
 
+
+### REQ-cmd-coverage-002
+
+`coverage` SHALL report an unmeasured tree as unmeasured in every format.
+
+Acceptance Criteria
+- The JSON payload uses `null` rather than a substituted percentage.

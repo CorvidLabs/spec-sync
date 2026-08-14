@@ -430,6 +430,11 @@ fn backslash_mapping_is_rejected_and_does_not_count_toward_coverage() {
     )
     .unwrap();
 
+    // The rejected mapping covers nothing: 0% either way. The total is 2 —
+    // `src/shared.ts` on disk plus the `src\shared.ts` the spec claims and that
+    // is not there. Both have always been in the denominator the gate uses;
+    // #582 made the printed fraction show the same total instead of a smaller
+    // one, and names what inflated it so `0/2` over one file is not a puzzle.
     specsync()
         .args(["check", "--require-coverage", "100", "--force"])
         .arg("--root")
@@ -439,7 +444,10 @@ fn backslash_mapping_is_rejected_and_does_not_count_toward_coverage() {
         .stdout(predicate::str::contains(
             "Source mapping is not a safe project-relative path",
         ))
-        .stdout(predicate::str::contains("File coverage: 0/1 (0%)"));
+        .stdout(predicate::str::contains("File coverage: 0/2 (0%)"))
+        .stdout(predicate::str::contains(
+            "1 file(s) referenced by specs but missing on disk are counted in the total",
+        ));
 }
 
 #[test]

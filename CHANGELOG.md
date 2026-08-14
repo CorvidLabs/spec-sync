@@ -65,6 +65,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Coverage over zero source files no longer reports 100% anywhere**
+  (CorvidLabs/spec-sync#582). #562 was fixed in `src/output.rs` and reached one of nine sites; the
+  other eight were each only reachable through a format or transport the original report never
+  used. Text said `0/0 (no source files to measure)` while `report`, `coverage --json`, and both
+  MCP surfaces said the project was fully covered. Worse, `--require-coverage 80` over such a tree
+  **exited 1 while the same run's JSON printed `"coverage_percent": 100`** — the gate reads the
+  counts, the payload read a precomputed field.
+
+  The precomputed `coverage_percent` / `loc_coverage_percent` fields are removed from
+  `CoverageReport` and replaced by accessors returning `Option`, `None` when the denominator is
+  zero. This makes the omission impossible to repeat: every renderer is now a compile error until
+  it states what it shows when nothing was measured. JSON emits `null`; `--require-coverage` fails
+  closed rather than comparing against a substituted 100.
+
 - **`specsync comment` now exits with the verdict it just printed**
   (CorvidLabs/spec-sync#571). The command computed an exit code precisely so its PR comment
   would agree with CI, rendered `## ❌ SpecSync: Failed` from it — and then returned normally,

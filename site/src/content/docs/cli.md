@@ -526,3 +526,10 @@ specsync watch
   "uncovered_files": [{ "file": "src/helpers/utils.ts", "loc": 340 }]
 }
 ```
+
+`file_coverage` and `loc_coverage` are `null` when the denominator is zero —
+no source files were discovered, or the discovered files hold no lines. A
+percentage over nothing would be indistinguishable from full coverage, so no
+percentage is reported and `--require-coverage` fails closed. `files_total`
+counts the files discovered on disk plus any a spec's `files:` list names that
+are absent, since an absent file can never be covered.

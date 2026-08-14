@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 20
+version: 21
 status: stable
 files:
   - src/commands/mod.rs
@@ -207,3 +207,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-13 | CHG-0111-report-the-checks-that-frontmatter-parse-failure-prevented-instead-of-printing-a: Report the checks that frontmatter parse failure prevented instead of printing a green line for each |
 | 2026-08-14 | CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
 | 2026-08-14 | CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
+| 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |

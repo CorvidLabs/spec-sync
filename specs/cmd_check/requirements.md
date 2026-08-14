@@ -131,3 +131,11 @@ Acceptance Criteria
 - Failures are reported in every output format, so a machine consumer that requested a mutation is not left reading only a success payload.
 - A writable spec is still repaired and the command still exits zero.
 - A dry run attempts no write and therefore reports no write failure, exiting zero even when the target is not writable.
+
+### REQ-cmd-check-009
+
+`check` SHALL report an unmeasured tree as unmeasured in every format.
+
+Acceptance Criteria
+- Text, JSON, CSV, Markdown, GitHub and table all decline to print a percentage.
+- JSON uses `null`.

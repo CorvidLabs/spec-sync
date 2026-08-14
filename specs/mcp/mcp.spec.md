@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 24
+version: 25
 status: stable
 files:
   - src/mcp.rs
@@ -266,3 +266,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-07-24 | v22 / CHG-0063 Git-metadata-root remediation: Reject every case variant of a `.git` read-root component before opening operation authority |
 | 2026-07-26 | v23 / CHG-0063 exact-tree review remediation: Reject non-integer/null request IDs and malformed initialize negotiation, traverse and finally revalidate read-root routes without links/reparse points, reject staged publication after a public-parent identity change, clean every post-link failure's quarantine bytes, and share the transaction root capability |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |

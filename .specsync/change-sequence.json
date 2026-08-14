@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 120,
-  "id": "CHG-0120-specsync-comment-must-exit-with-the-verdict-it-prints-so-a-failing-comment-fail",
+  "sequence": 121,
+  "id": "CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac",
   "acknowledged_collisions": [
     {
       "sequence": 16,

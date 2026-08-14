@@ -15,14 +15,21 @@ interface CheckOutput {
 }
 
 interface CoverageOutput {
-  file_coverage: number;
+  /** `null` when the denominator was zero — nothing was measured. */
+  file_coverage: number | null;
   files_covered: number;
   files_total: number;
-  loc_coverage: number;
+  /** `null` when there were no source lines to measure. */
+  loc_coverage: number | null;
   loc_covered: number;
   loc_total: number;
   modules: { name: string; has_spec: boolean }[];
   uncovered_files: { file: string; loc: number }[];
+}
+
+/** Render a coverage percentage, or say plainly that nothing was measured. */
+function formatCoverage(percent: number | null): string {
+  return percent === null ? "not measured" : `${percent.toFixed(1)}%`;
 }
 
 interface ScoreSpec {
@@ -333,19 +340,19 @@ async function runCoverage(context: vscode.ExtensionContext) {
       .map((m) => `<li>${escapeHtml(m.name)}</li>`)
       .join("\n");
 
-    const filePct = result.file_coverage.toFixed(1);
-    const locPct = result.loc_coverage.toFixed(1);
+    const filePct = formatCoverage(result.file_coverage);
+    const locPct = formatCoverage(result.loc_coverage);
 
     panel.webview.html = webviewHtml(
       "SpecSync Coverage",
       `
       <div class="stats">
         <div class="stat">
-          <span class="stat-value">${filePct}%</span>
+          <span class="stat-value">${filePct}</span>
           <span class="stat-label">File coverage (${result.files_covered}/${result.files_total})</span>
         </div>
         <div class="stat">
-          <span class="stat-value">${locPct}%</span>
+          <span class="stat-value">${locPct}</span>
           <span class="stat-label">LOC coverage (${result.loc_covered}/${result.loc_total})</span>
         </div>
       </div>
@@ -368,7 +375,7 @@ async function runCoverage(context: vscode.ExtensionContext) {
       `
     );
 
-    log(`Coverage: ${filePct}% files, ${locPct}% LOC`);
+    log(`Coverage: ${filePct} files, ${locPct} LOC`);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     log(`Coverage failed: ${msg}`);

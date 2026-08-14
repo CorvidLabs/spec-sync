@@ -4,6 +4,7 @@
 //! including direct links to spec files, actionable checklists, and diff-aware
 //! suggestions for updating specs.
 
+use crate::output::{NO_FILES_MEASURED, NO_LINES_MEASURED};
 use crate::types::CoverageReport;
 use std::path::Path;
 
@@ -107,14 +108,24 @@ pub fn render_check_comment(
     out.push_str(&format!("| Passed | {passed} |\n"));
     out.push_str(&format!("| Errors | {errors} |\n"));
     out.push_str(&format!("| Warnings | {warnings} |\n"));
-    out.push_str(&format!(
-        "| File coverage | {}% ({}/{}) |\n",
-        coverage.coverage_percent, coverage.specced_file_count, coverage.total_source_files
-    ));
-    out.push_str(&format!(
-        "| LOC coverage | {}% ({}/{}) |\n\n",
-        coverage.loc_coverage_percent, coverage.specced_loc, coverage.total_loc
-    ));
+    // A PR comment is the most-read rendering of these numbers, so it is the
+    // last place a zero denominator may be dressed up as 100% (#582). When
+    // nothing was measured the row says so instead of naming a percentage.
+    out.push_str(&match coverage.file_coverage_percent() {
+        Some(pct) => format!(
+            "| File coverage | {pct}% ({}/{}) |\n",
+            coverage.specced_file_count,
+            coverage.measured_file_total()
+        ),
+        None => format!("| File coverage | {NO_FILES_MEASURED} (0/0) |\n"),
+    });
+    out.push_str(&match coverage.loc_coverage_percent() {
+        Some(pct) => format!(
+            "| LOC coverage | {pct}% ({}/{}) |\n\n",
+            coverage.specced_loc, coverage.total_loc
+        ),
+        None => format!("| LOC coverage | {NO_LINES_MEASURED} (0/0) |\n\n"),
+    });
 
     // Errors with spec links and actionable suggestions
     if !all_errors.is_empty() {
@@ -442,10 +453,8 @@ mod tests {
             specced_file_count: 10,
             unspecced_files: vec![],
             unspecced_modules: vec![],
-            coverage_percent: 100,
             total_loc: 1000,
             specced_loc: 1000,
-            loc_coverage_percent: 100,
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
@@ -476,10 +485,8 @@ mod tests {
             specced_file_count: 8,
             unspecced_files: vec!["src/new.rs".to_string(), "src/other.rs".to_string()],
             unspecced_modules: vec![],
-            coverage_percent: 80,
             total_loc: 1000,
             specced_loc: 800,
-            loc_coverage_percent: 80,
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
@@ -522,10 +529,8 @@ mod tests {
             specced_file_count: 0,
             unspecced_files: vec![],
             unspecced_modules: vec![],
-            coverage_percent: 100,
             total_loc: 0,
             specced_loc: 0,
-            loc_coverage_percent: 100,
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
@@ -536,6 +541,55 @@ mod tests {
     }
 
     #[test]
+    fn comment_over_an_unmeasured_tree_names_no_percentage() {
+        // A PR comment saying "File coverage | 100% (0/0)" is the most widely
+        // read form of the #582 lie — it lands under a green check on a repo
+        // whose `source_dirs` matched nothing.
+        let coverage = CoverageReport {
+            total_source_files: 0,
+            specced_file_count: 0,
+            unspecced_files: vec![],
+            unspecced_modules: vec![],
+            total_loc: 0,
+            specced_loc: 0,
+            unspecced_file_loc: vec![],
+            missing_files: vec![],
+            skipped_links: vec![],
+        };
+        let output = render_check_comment(0, 0, 0, 0, &[], &[], &[], &coverage, true, None, None);
+        assert!(
+            output.contains("| File coverage | no source files to measure (0/0) |"),
+            "{output}"
+        );
+        assert!(
+            output.contains("| LOC coverage | no source lines to measure (0/0) |"),
+            "{output}"
+        );
+        assert!(!output.contains("100%"), "{output}");
+    }
+
+    #[test]
+    fn comment_over_a_measured_tree_still_names_its_percentage() {
+        let coverage = CoverageReport {
+            total_source_files: 4,
+            specced_file_count: 3,
+            unspecced_files: vec!["src/new.rs".to_string()],
+            unspecced_modules: vec![],
+            total_loc: 400,
+            specced_loc: 300,
+            unspecced_file_loc: vec![],
+            missing_files: vec![],
+            skipped_links: vec![],
+        };
+        let output = render_check_comment(4, 4, 0, 0, &[], &[], &[], &coverage, true, None, None);
+        assert!(output.contains("| File coverage | 75% (3/4) |"), "{output}");
+        assert!(
+            output.contains("| LOC coverage | 75% (300/400) |"),
+            "{output}"
+        );
+    }
+
+    #[test]
     fn test_render_check_comment_truncates_unspecced_files() {
         let files: Vec<String> = (0..20).map(|i| format!("src/file{i}.rs")).collect();
         let coverage = CoverageReport {
@@ -543,10 +597,8 @@ mod tests {
             specced_file_count: 0,
             unspecced_files: files,
             unspecced_modules: vec![],
-            coverage_percent: 0,
             total_loc: 0,
             specced_loc: 0,
-            loc_coverage_percent: 0,
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
@@ -562,10 +614,8 @@ mod tests {
             specced_file_count: 1,
             unspecced_files: vec![],
             unspecced_modules: vec![],
-            coverage_percent: 100,
             total_loc: 1,
             specced_loc: 1,
-            loc_coverage_percent: 100,
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
@@ -597,10 +647,8 @@ mod tests {
             specced_file_count: 5,
             unspecced_files: vec![],
             unspecced_modules: vec![],
-            coverage_percent: 100,
             total_loc: 500,
             specced_loc: 500,
-            loc_coverage_percent: 100,
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
@@ -623,10 +671,8 @@ mod tests {
             specced_file_count: 5,
             unspecced_files: vec![],
             unspecced_modules: vec![],
-            coverage_percent: 100,
             total_loc: 500,
             specced_loc: 500,
-            loc_coverage_percent: 100,
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],

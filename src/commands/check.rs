@@ -258,8 +258,11 @@ pub fn cmd_check(
                     "specs_checked": 0,
                     // Without these a consumer sees `specs_checked: 0` and cannot
                     // tell an empty project from one with source and no specs.
+                    // `coverage_percent` is null when there was nothing to
+                    // measure — a machine consumer must not read that as 100
+                    // (#582).
                     "total_source_files": coverage.total_source_files,
-                    "coverage_percent": coverage.coverage_percent,
+                    "coverage_percent": coverage.file_coverage_percent(),
                 });
                 println!("{}", serde_json::to_string_pretty(&output).unwrap());
             }

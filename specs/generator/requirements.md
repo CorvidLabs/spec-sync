@@ -35,3 +35,10 @@ Acceptance Criteria
 - Redirecting the caller-visible root after checked coverage cannot redirect an output write.
 - Existing files remain no-overwrite destinations.
 
+
+### REQ-generator-003
+
+Generated output SHALL NOT embed a coverage percentage that was not measured.
+
+Acceptance Criteria
+- A zero denominator renders the unmeasured state.

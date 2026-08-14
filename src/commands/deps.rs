@@ -4,6 +4,7 @@ use std::process;
 
 use crate::config::load_config;
 use crate::deps;
+use crate::output::NO_FILES_MEASURED;
 use crate::types;
 
 use super::{compute_exit_code, default_enforcement, load_and_discover};
@@ -161,19 +162,28 @@ pub fn cmd_deps(
         let enforcement = enforcement.unwrap_or_else(|| default_enforcement(&config));
         let code = compute_exit_code(0, 0, strict, enforcement, &coverage, Some(req));
         if format != types::OutputFormat::Json {
-            if code == 0 {
-                println!(
-                    "  {} Coverage {}% meets --require-coverage {req}%",
+            match (code, coverage.file_coverage_percent()) {
+                // A gate that passed because nothing was measured must not
+                // print a percentage it does not have. `--require-coverage 0`
+                // is the only threshold an unmeasured tree can satisfy (#582).
+                (0, None) => println!(
+                    "  {} --require-coverage {req}% is satisfied by an unmeasured tree — \
+                     {NO_FILES_MEASURED}",
+                    "⊘".yellow(),
+                ),
+                (0, Some(pct)) => println!(
+                    "  {} Coverage {pct}% meets --require-coverage {req}%",
                     "✓".green(),
-                    coverage.coverage_percent
-                );
-            } else {
-                eprintln!(
-                    "{} {req}%: actual coverage is {}% ({} file(s) missing specs)",
+                ),
+                (_, None) => eprintln!(
+                    "{} {req}%: {NO_FILES_MEASURED} — check `source_dirs` and `exclude_patterns`",
                     "--require-coverage".red(),
-                    coverage.coverage_percent,
+                ),
+                (_, Some(pct)) => eprintln!(
+                    "{} {req}%: actual coverage is {pct}% ({} file(s) missing specs)",
+                    "--require-coverage".red(),
                     coverage.unspecced_files.len()
-                );
+                ),
             }
         }
         if code != 0 {

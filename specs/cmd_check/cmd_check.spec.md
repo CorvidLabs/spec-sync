@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 18
+version: 19
 status: stable
 files:
   - src/commands/check.rs
@@ -121,3 +121,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-13 | CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di: A symlink under a source directory must be skipped and disclosed, never abort discovery |
 | 2026-08-13 | CHG-0112-a-tree-with-source-and-no-specs-must-show-its-coverage-number-and-must-not-pass: A tree with source and no specs must show its coverage number and must not pass strict validation |
 | 2026-08-13 | CHG-0115-a-fix-request-that-could-not-be-applied-must-be-reported-not-reported-as-succes: A fix request that could not be applied must be reported, not reported as success |
+| 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |

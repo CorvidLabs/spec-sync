@@ -65,6 +65,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`view --spec <unknown>` no longer succeeds silently** (CorvidLabs/spec-sync#551).
+  Asking for a module that does not exist printed **zero bytes** and exited 0, in text and
+  in JSON alike — indistinguishable from a module that exists and renders empty. A script or
+  agent fetching spec context for a mistyped name got an empty payload and no signal to
+  retry.
+
+  The filter loop skipped every non-matching spec, so a filter matching nothing left the
+  loop body unexecuted and the command returned normally. It now exits non-zero, names the
+  unknown module, and suggests the near match:
+
+  ```
+  error: no spec module named `alph`
+    did you mean: alpha
+  ```
+
+  When nothing is close it lists the modules that do exist instead. The same run also
+  surfaced a second defect with the identical shape: a spec that failed to render printed
+  its error to stderr and was then ignored by the exit code, so a caller could not tell a
+  rendered spec from an unrenderable one. Both now gate.
+
 - **`check --fix` no longer reports success when it could not write**
   (CorvidLabs/spec-sync#549). A spec file that was not writable produced exit 0, no error,
   and nothing on stderr, while the byte-identical writable spec reported

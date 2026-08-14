@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786668543,
+      "digest": "c7ef891108ab0b26047d6da213efc9dc5015ae1661b719d8751d8e001c2377ec",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0116-asking-to-view-a-module-that-does-not-exist-must-fail-not-print-nothing-and-suc",
+        "title": "Asking to view a module that does not exist must fail, not print nothing and succeed",
+        "description": "Asking to view a module that does not exist must fail, not print nothing and succeed",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_view"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/view.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Requesting a spec module that does not exist reports the unknown name and exits non-zero, instead of printing nothing and exiting zero, in both the human and machine-readable outputs. A near-miss name is answered with the module it probably meant; when nothing is close, the modules that do exist are listed. A spec that fails to render also causes a non-zero exit rather than being printed to stderr and ignored. Requesting a module that does exist still renders it and exits zero, and running with no filter at all is unchanged."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786669867,
+      "digest": "f032c81aae1877045c84a307211fb8b37ed581122292d4c4dcf91ad742694846",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

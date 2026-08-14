@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0116-asking-to-view-a-module-that-does-not-exist-must-fail-not-print-nothing-and-suc",
+  "implementation_commit": "977a5644a4f1fb4be73013807348cc2c98a68b25",
+  "implementation_tree": "732148fb80864e659d64afc971371712b48b6226",
+  "contract_digest": "c7ef891108ab0b26047d6da213efc9dc5015ae1661b719d8751d8e001c2377ec",
+  "workspace_digest": "d8f90ad1a868153e26f8308b90dac6a454ea2c1650052160babd8c0a23e4127c",
+  "closing_digest": "f032c81aae1877045c84a307211fb8b37ed581122292d4c4dcf91ad742694846",
+  "review_digest": "488640152830493d199e5e913b0bb00b94d1499b23422f825f0572549301e48c",
+  "finalization_digest": "148af5a90f0ed059555d5f12fa5bb892bcb5a0a75c64255b3d9bb0959d70465e",
+  "timestamp": 1786669867
+}

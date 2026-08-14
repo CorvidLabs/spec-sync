@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 115,
-  "id": "CHG-0115-a-fix-request-that-could-not-be-applied-must-be-reported-not-reported-as-succes",
+  "sequence": 116,
+  "id": "CHG-0116-asking-to-view-a-module-that-does-not-exist-must-fail-not-print-nothing-and-suc",
   "acknowledged_collisions": [
     {
       "sequence": 16,

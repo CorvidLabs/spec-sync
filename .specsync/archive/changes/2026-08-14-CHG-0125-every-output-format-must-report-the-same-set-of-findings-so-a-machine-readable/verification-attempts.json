@@ -1,0 +1,525 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1786747442,
+      "commit": "d4a79069ec53da9bcc707be11acccfee77ceba0a",
+      "contract_digest": "485ef0e2365bdd2536631b24798b6e5cf348c298a70696c8d72030e9864e31da",
+      "execution_digest": "c88d15f30f1d98e8060b3e38996088cd052ca27c2b9dcab4f0d52542e941b5c3",
+      "workspace_digest": "808a59d2fa291f57e1d6da579a6ca26e2d28dd13b48e4b74a5e8dacc0e179686",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test commands::check::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-011",
+        "REQ-cmd-coverage-003",
+        "REQ-cmd-init-006",
+        "REQ-cmd-init-registry-002",
+        "REQ-mcp-006",
+        "REQ-output-006"
+      ]
+    },
+    {
+      "timestamp": 1786748026,
+      "commit": "0f7d0f1bd2ba7563afcbd82628c711ca64cf9094",
+      "contract_digest": "485ef0e2365bdd2536631b24798b6e5cf348c298a70696c8d72030e9864e31da",
+      "execution_digest": "c88d15f30f1d98e8060b3e38996088cd052ca27c2b9dcab4f0d52542e941b5c3",
+      "workspace_digest": "808a59d2fa291f57e1d6da579a6ca26e2d28dd13b48e4b74a5e8dacc0e179686",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test commands::check::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-011",
+        "REQ-cmd-coverage-003",
+        "REQ-cmd-init-006",
+        "REQ-cmd-init-registry-002",
+        "REQ-mcp-006",
+        "REQ-output-006"
+      ]
+    },
+    {
+      "timestamp": 1786748026,
+      "commit": "aebc4168cffdae47620c2f8bbc65222f948f89ad",
+      "contract_digest": "485ef0e2365bdd2536631b24798b6e5cf348c298a70696c8d72030e9864e31da",
+      "execution_digest": "c88d15f30f1d98e8060b3e38996088cd052ca27c2b9dcab4f0d52542e941b5c3",
+      "workspace_digest": "808a59d2fa291f57e1d6da579a6ca26e2d28dd13b48e4b74a5e8dacc0e179686",
+      "acceptance_input_digest": "686b12978cb868f098463f8126b439e0295f80e2c6db518560f248c67c7753ce",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".specsync/change-sequence.json",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4f30767fc7383761c69f879ebd9b7b7cd07ee826665d513b7fa4ff0dc023ce92",
+            "entry_digest": "457a4fd82c014a55965b96d52f89192708c29e5235db2f47f68ebd22afb86dc8",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c8c6f613653fd25902fcbdaa91dd480bc70c4237607aa62677d0b507c938e81d",
+            "entry_digest": "a67ce4d9d32be431bde9f2029cf666802134b59dc68e81bd4a74345ff42e3aae",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/cmd_check.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6d50c6267df3aef22291b8b7e7afe04a9974e729de303d4f196930709633ee68",
+            "entry_digest": "149cb2f3248476ca6cba06eb132839a9776b7c34f1c51e77a2da78aad7ab23af",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "17d6705ed251a689f83c753d8bca65325b0c7c9760e3c051382e533e79668381",
+            "entry_digest": "84b59348313fff668334e57aa94b5051e96c4f8c67d041f7125dc26d071de8ac",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0c33996d14fe228d5eeb6cc9a7ad872de2153c69f64bdbf8eace33073436809b",
+            "entry_digest": "d70a0cc241e8ca2efd745a7335b53fd0779fc8b202e6b450468b63c39d8a7513",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "05472a642fdb438e104ba453736f29267bbf37aebe8a370e271f7e99dca73377",
+            "entry_digest": "c557a97f65b749939af8a429c4e4e3590c6958242e5d22d245ab39f048b2015c",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5efc2bf4570519ba306c4a7163c5c3b2cd534c272008a8c605181a22005ff9ad",
+            "entry_digest": "676124219f76002f7ca4f8c4be2c1f2d30e65be1b29689dac26241d50a768f8a",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_coverage/cmd_coverage.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "89807458df9179d9079cd91a9e1023ab2230a1bca2d3913a1d6b3e00248f9ee7",
+            "entry_digest": "e4fb9b408b2795176688bc77d5cfae1ee47a4f3dc7c8612107dc81667791ceb7",
+            "owners": [
+              "cmd_coverage"
+            ]
+          },
+          {
+            "path": "specs/cmd_coverage/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7c48ee4ba2e97172ac1b458d066494cbfe27c4689650a06d7cbcb670aed9469b",
+            "entry_digest": "c45f32643aac5a44a56fae51e33ef7d405c8120d5608295a502e2b30397ef768",
+            "owners": [
+              "cmd_coverage"
+            ]
+          },
+          {
+            "path": "specs/cmd_coverage/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1f92e14f80a34bf63ed883a9d3bd7a7dddcb75826f123d114ca53cba4d34d6a6",
+            "entry_digest": "b5ce25f449ba44cbf34c471e1e13c16f9dc240a804bfe4f2e035b616291b7b73",
+            "owners": [
+              "cmd_coverage"
+            ]
+          },
+          {
+            "path": "specs/cmd_coverage/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ea448485351472c77a6911d4dabb1e4a0e6a067653054405fb342d55ca89bf83",
+            "entry_digest": "b20cb2c873078d9faf84c03e814a3d86fbdaca47de46123c78a6f3a2f4f9207e",
+            "owners": [
+              "cmd_coverage"
+            ]
+          },
+          {
+            "path": "specs/cmd_coverage/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7175687415ac6792da8345669581db21c5e02293b0d87a4bc3f084a6bd4fffd3",
+            "entry_digest": "436f63f1f791396701e9eb631917e3ae23dc93a7691a80b6a9c032ec376b2267",
+            "owners": [
+              "cmd_coverage"
+            ]
+          },
+          {
+            "path": "specs/cmd_init/cmd_init.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5512de0f79e551cfb314f37fe6e6b1223ea9b9ee3ecd023a2b52e83dc6261e1b",
+            "entry_digest": "bee5145684f5161acfc38cbc5076881cd80f4d3eed8bc347bab90f0265f998d4",
+            "owners": [
+              "cmd_init"
+            ]
+          },
+          {
+            "path": "specs/cmd_init/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "61cc99049994eef66bb90f67d240d1eb1252d6c8ebc8ffe976941df97558065c",
+            "entry_digest": "4df8d07638e3c9130aa907f728057ef2442fbf6fb291e00947c3eb70449caaca",
+            "owners": [
+              "cmd_init"
+            ]
+          },
+          {
+            "path": "specs/cmd_init/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "12c14fb51e8593a8de2dc25a6f775983994e18364d97d25871e0c52bdf6f48a0",
+            "entry_digest": "43b6320eb8011b70336bc5cc4149aae97f40aa4f0f946bf8c754d59d4e541d4c",
+            "owners": [
+              "cmd_init"
+            ]
+          },
+          {
+            "path": "specs/cmd_init/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "96ad3a45f48745876cd2ffd4233ee9da3fdb49511fd9a8eec94d24ab2e2a594b",
+            "entry_digest": "d76b2f26e8bf0131dc962a35ebf5a64114561f6df444460d19577668eb20859e",
+            "owners": [
+              "cmd_init"
+            ]
+          },
+          {
+            "path": "specs/cmd_init/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "77eb7b953a702633eac04d8413a80783b2ce600f275d33761ae6590268e95d42",
+            "entry_digest": "52193d5d646c55b29129534db826b1e42ab237e503510c3da1acf3782a9324e6",
+            "owners": [
+              "cmd_init"
+            ]
+          },
+          {
+            "path": "specs/cmd_init_registry/cmd_init_registry.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a3b98839a23747c4e7524cf740181c4328f30e6b5295fe9bfdadb59b26bd8201",
+            "entry_digest": "891a11cb98a28b9c3793fbaf4991f192e75e3226f72b1bd01964dc2d81abed1f",
+            "owners": [
+              "cmd_init_registry"
+            ]
+          },
+          {
+            "path": "specs/cmd_init_registry/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2a756d201093b904aa2c865d3a20f4ec30b1273cdff5e4edb77d467df67b4654",
+            "entry_digest": "95633ca274b3cab5c9ac4570e6482a33fe3f33cb6bf3128a122732f09868ada5",
+            "owners": [
+              "cmd_init_registry"
+            ]
+          },
+          {
+            "path": "specs/cmd_init_registry/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f5e48763fe00b0494ade4ffb597d7db9c486b90d32171f0e3816ffc8cc89d340",
+            "entry_digest": "6ad4201662701bd89f5afc16264104848be444d64f8bcf35719208ac74470f34",
+            "owners": [
+              "cmd_init_registry"
+            ]
+          },
+          {
+            "path": "specs/cmd_init_registry/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "41414b5b856dd8c8ad92429014b5b626f425122fc31f7851eb430d7e5fd967be",
+            "entry_digest": "f2a236eb452d690079a7202e4582f58c487450d59e8ad5abbef2ff6be01000db",
+            "owners": [
+              "cmd_init_registry"
+            ]
+          },
+          {
+            "path": "specs/cmd_init_registry/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ca21d34457073f6f3cd1ceac6490cd94f72192c3a0d660497d95a9e0761c95d1",
+            "entry_digest": "a757f37f46301d569075f1ede96e25a66b6079aeedc8c369dadb82a28421e7a3",
+            "owners": [
+              "cmd_init_registry"
+            ]
+          },
+          {
+            "path": "specs/mcp/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "756155484799c809dfaeca15dfa634dec7a1732efe11ce00aaf81ad1c14b58fb",
+            "entry_digest": "64cb2942b134c5693ca10e2cc6de8a52beac558ff0f5e78fe187b612c1b7200c",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/mcp.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3e89c5d6efded1a1cad875f5f583f2524b2d06d3d60a06db7f82feb9cfa4289c",
+            "entry_digest": "cdcb52fb9dc48304ca24ca2d6b7dae13d7dbc48f5cd07ce1dc0a690921537362",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b4b3ae9e0eef805097091b50ab75cf695e77b416d98f0fe10cc38be4b58986bb",
+            "entry_digest": "6a3c5ac2a24fa3ef69d119ff83428e00437f4d7d9416a207245769ea26c64bb6",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c80977809295aa0c6fc05f9b24d209cdaaa40ab1213e441917477d11ef004030",
+            "entry_digest": "beec2853eaafec8fb73b6f159e9b7f0dcaddfdff2c804b9af6bd3ad1c4da343c",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f68cd71ea04cb5f0fa326a17382003d42b67b26d6858fe53e2b6c6a26ca813de",
+            "entry_digest": "403b83848d78ca031b95ce566be7e9f89ce040d3309ec6ca43ea113301579796",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/output/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "66fd70a1ddf565cd9696d531e7e561812cd383b6fbb24c5f82e232dc33d0e375",
+            "entry_digest": "a9b5e13c5113a285d68148deeff0e55fb5129409615f307f48b8da9b8bf12483",
+            "owners": [
+              "output"
+            ]
+          },
+          {
+            "path": "specs/output/output.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "32bdc03b6d9e95ca4a8bf81fc4df99064f3378f87644da5b8aecccf9ece08cda",
+            "entry_digest": "5694a84c1ee5a7279217cbb7a801059e53a01a50d4fd21ed7182cbaa28b50c86",
+            "owners": [
+              "output"
+            ]
+          },
+          {
+            "path": "specs/output/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9846e6f039c8531316a782af1f6d3e3bfb849075a1c907671a665f37b12fc779",
+            "entry_digest": "382b1f28f544bafb1e96005684295c885de46815dba14b25b147c426830ec054",
+            "owners": [
+              "output"
+            ]
+          },
+          {
+            "path": "specs/output/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "00ced25b0c9c22f7962995237860199b21d911b1ff1b65587bcd80f8fc10be31",
+            "entry_digest": "e9dd2a29d63d74c86ccb150744ca07990042470a6a790d733a0ce3a8ec71380b",
+            "owners": [
+              "output"
+            ]
+          },
+          {
+            "path": "specs/output/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fd587307829c5d03611057bab5e08de306dce6f1dc7e2815ca4a071d41e92290",
+            "entry_digest": "86431309e56aec8f51b7f8f05a6d3b4d9dff5556aa948b1ac5ce5cc73c2b0abf",
+            "owners": [
+              "output"
+            ]
+          },
+          {
+            "path": "src/commands/check.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dfccf9022c7d3c45f0c72516d42ca30a274ba063e278dbdf0dd66ed425f0eed4",
+            "entry_digest": "25d74ee2e4d3779fdb9dad5fc8528c53f8ce4c731a377199f9a94ab8eeaa0edd",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "src/commands/coverage.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1bd7f978f8f016fead35f89ec8a2218a55478e935a166079f28269f1a98e8425",
+            "entry_digest": "ca6f737803c91b198c612c7c92115e6b15ff41b77ae0c286205b20a2cbe84e26",
+            "owners": [
+              "cmd_coverage"
+            ]
+          },
+          {
+            "path": "src/commands/init.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "945225fe43fc295edd2418e1b9dde011e80e9633729af910cc715020f571badf",
+            "entry_digest": "1bdacc9eab34dad015b90d45635a14feda9e32c8e1409aaf0774dac6b225c0f8",
+            "owners": [
+              "cmd_init"
+            ]
+          },
+          {
+            "path": "src/commands/init_registry.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "23525d3241e9add45f5f5df7e81ab51865c3cafbfb41f92f61e53fc647994d50",
+            "entry_digest": "0334e8218322bfb9fc16886cacd5b5a63c6acc472748c1d0ef7bc2da85d2bff3",
+            "owners": [
+              "cmd_init_registry"
+            ]
+          },
+          {
+            "path": "src/mcp.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "12c8db8e2d96f608b6e36b74baab3dcc960b6a9be3ac50afc9ae48b8c4146dab",
+            "entry_digest": "4429e992e3f5e310c9af04e614927b1ca6fb09a5a21686676ec55822e95f68cd",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "src/output.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0d30b89e7a4437930348adaee589f67bcbc6398620362a886bce634bd826845c",
+            "entry_digest": "f12a659c4af0d4130422531207bf93c704da2a29b270a35b07ace44f726a9c04",
+            "owners": [
+              "output"
+            ]
+          },
+          {
+            "path": "tests/integration.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fb0f5402c1af8650cc496d6ecaf5d89cf9816d57862396eb3027127474b94567",
+            "entry_digest": "4f3cacd3ce9e92a332d207f557f3d41fcd79107ab7d460e55b3681ac2b927cc1",
+            "owners": [
+              "@exact:test"
+            ]
+          },
+          {
+            "path": "tests/integration/finding_identity_parity.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dea493381d3b5fa8528f08a9e1875135461af05161ffb91e68008aded2943b3c",
+            "entry_digest": "2bf2405940627abad97fb85cc321b6d6803730b3da215ea9893c49c15aa9f98f",
+            "owners": [
+              "@exact:test"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test commands::check::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-011",
+        "REQ-cmd-coverage-003",
+        "REQ-cmd-init-006",
+        "REQ-cmd-init-registry-002",
+        "REQ-mcp-006",
+        "REQ-output-006"
+      ]
+    }
+  ]
+}

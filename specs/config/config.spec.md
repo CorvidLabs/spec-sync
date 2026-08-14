@@ -22,7 +22,8 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `load_config` | `root: &Path` | `SpecSyncConfig` | Load configuration in canonical-to-legacy precedence order, falling back to defaults with auto-detected source directories |
+| `load_config` | `root: &Path` | `SpecSyncConfig` | Load configuration in canonical-to-legacy precedence order, refusing a config file that exists and cannot be used; absent config falls back to defaults with auto-detected source directories |
+| `load_config_allowing_unloadable` | `root: &Path` | `SpecSyncConfig` | Like `load_config` but does NOT refuse a config file that exists and cannot be used. Only for callers whose job is repairing a broken config, which must run on the project that needs repairing. Named for the bypass so that omitting the guard is impossible and choosing to skip it is deliberate |
 | `load_config_from_path` | `config_path: &Path, root: &Path` | `SpecSyncConfig` | Load config from a specific file path (JSON or TOML based on extension), used by migration |
 | `detect_source_dirs` | `root: &Path` | `Vec<String>` | Compatibility source-directory discovery; falls back to scan-based detection when checked manifest discovery fails |
 | `detect_source_dirs_checked` | `root: &Path` | `Result<Vec<String>, String>` | Auto-detect source directories while surfacing malformed or unreadable Gradle settings instead of returning partial manifest discovery |

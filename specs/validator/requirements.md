@@ -218,3 +218,12 @@ Acceptance Criteria
 - A symlink that is a configured source directory entry remains a hard failure, because silently skipping an explicitly configured tree would drop everything the author asked to measure.
 - Symlinks in the spec tree remain a hard failure.
 - Recorded paths are deduplicated and normalized to forward slashes.
+
+### REQ-validator-013
+
+Retained configuration discovery SHALL record a parse failure rather than returning defaults
+indistinguishable from a successful load.
+
+Acceptance Criteria
+- A config file that fails to parse during discovery records the failure alongside the defaults it fell back to.
+- Source directory discovery is unaffected.

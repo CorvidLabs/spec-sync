@@ -606,6 +606,14 @@ where
                 return Ok(SpecSyncConfig {
                     source_dirs,
                     config_path: Some(root.join(relative)),
+                    // The project configured rules that are now NOT in effect.
+                    // Warning on stderr and carrying on meant stdout reported
+                    // `✓ All required sections present` over a section list that
+                    // had been thrown away (#570).
+                    load_error: Some(format!(
+                        "config file {} exists but could not be loaded; built-in defaults are in use",
+                        root.join(relative).display()
+                    )),
                     ..SpecSyncConfig::default()
                 });
             }
@@ -627,6 +635,14 @@ where
                 return Ok(SpecSyncConfig {
                     source_dirs,
                     config_path: Some(root.join(relative)),
+                    // The project configured rules that are now NOT in effect.
+                    // Warning on stderr and carrying on meant stdout reported
+                    // `✓ All required sections present` over a section list that
+                    // had been thrown away (#570).
+                    load_error: Some(format!(
+                        "config file {} exists but could not be loaded; built-in defaults are in use",
+                        root.join(relative).display()
+                    )),
                     ..SpecSyncConfig::default()
                 });
             }

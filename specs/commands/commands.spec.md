@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 18
+version: 19
 status: stable
 files:
   - src/commands/mod.rs
@@ -204,3 +204,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
 | 2026-08-13 | CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di: A symlink under a source directory must be skipped and disclosed, never abort discovery |
 | 2026-08-13 | CHG-0111-report-the-checks-that-frontmatter-parse-failure-prevented-instead-of-printing-a: Report the checks that frontmatter parse failure prevented instead of printing a green line for each |
+| 2026-08-14 | CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |

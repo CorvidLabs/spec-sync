@@ -65,6 +65,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An unparseable `.specsync/config.toml` no longer reports success**
+  (CorvidLabs/spec-sync#570). A single missing bracket turned a failing project green: the
+  loader fell back to built-in defaults, warned on **stderr only**, and stdout printed
+  `✓ All required sections present` — a claim about a section list that had been thrown
+  away. A CI job capturing stdout saw a clean pass, and `--strict`, `--force`, `--json` and
+  `score --min-score` all agreed with it.
+
+  This disabled every rule the project had configured — `required_sections`, `[rules]`
+  thresholds, `exclude_patterns` — simultaneously, from one typo. A project writes that
+  file precisely because the defaults are not enough, so silently substituting the defaults
+  is never the safe reading.
+
+  A config file that exists and cannot be loaded is now an error, refused at the shared
+  entry point every spec-reading command passes through. A project with **no** config file
+  is unaffected and still runs on the built-in defaults.
+
 - **`view --spec <unknown>` no longer succeeds silently** (CorvidLabs/spec-sync#551).
   Asking for a module that does not exist printed **zero bytes** and exited 0, in text and
   in JSON alike — indistinguishable from a module that exists and renders empty. A script or

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 116,
-  "id": "CHG-0116-asking-to-view-a-module-that-does-not-exist-must-fail-not-print-nothing-and-suc",
+  "sequence": 117,
+  "id": "CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su",
   "acknowledged_collisions": [
     {
       "sequence": 16,

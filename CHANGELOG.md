@@ -65,6 +65,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`specsync comment` now exits with the verdict it just printed**
+  (CorvidLabs/spec-sync#571). The command computed an exit code precisely so its PR comment
+  would agree with CI, rendered `## ❌ SpecSync: Failed` from it — and then returned normally,
+  so the process exited `0`. Used as a CI step, `comment` was a permanent pass that posted its
+  own failure. It was also the only command ignoring `--require-coverage`: `check`, `score`,
+  `report` and `deps` all exit `1` over a 0%-covered tree while `comment` exited `0`.
+
 - **An unparseable `.specsync/config.toml` no longer reports success**
   (CorvidLabs/spec-sync#570). A single missing bracket turned a failing project green: the
   loader fell back to built-in defaults, warned on **stderr only**, and stdout printed

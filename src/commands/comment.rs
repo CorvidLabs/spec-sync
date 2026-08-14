@@ -127,4 +127,14 @@ pub fn cmd_comment(
         // Just print the comment body to stdout for piping
         print!("{body}");
     }
+
+    // Exit with the verdict this command just rendered. `exit_code` was computed
+    // above precisely so the comment status would match CI — and then the
+    // function returned normally, so the process exited 0 while the body it
+    // posted said `## ❌ SpecSync: Failed` (#571).
+    //
+    // That made `specsync comment` a permanent pass as a CI step, and it was the
+    // only command ignoring `--require-coverage`: `check`, `score`, `report` and
+    // `deps` all exit 1 over a 0% tree while this one exited 0.
+    process::exit(exit_code);
 }

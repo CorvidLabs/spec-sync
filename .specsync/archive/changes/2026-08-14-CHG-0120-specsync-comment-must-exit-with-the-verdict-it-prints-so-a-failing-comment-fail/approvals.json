@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786685441,
+      "digest": "5c646a6ebf2e3ecda2c9a11fcd51901f0972735dee2efca89b84c9cbc13a4d23",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0120-specsync-comment-must-exit-with-the-verdict-it-prints-so-a-failing-comment-fail",
+        "title": "Specsync comment must exit with the verdict it prints, so a failing comment fails the CI step that posted it",
+        "description": "specsync comment must exit with the verdict it prints, so a failing comment fails the CI step that posted it",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_comment"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/comment.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A project that fails validation makes 'specsync comment' exit non-zero, matching the exit code of 'specsync check' on the same project and matching the verdict rendered in the comment body it prints. A passing project still exits zero. '--require-coverage N' is honored by 'comment' exactly as it is by 'check', 'score', 'report' and 'deps': a tree below the threshold exits non-zero. The comment body itself is unchanged; only the process exit status is corrected."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786687560,
+      "digest": "f31106903aae69ac751c4e451dfedce5bd690e25ed7d9270e4c2cca3e4137f48",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

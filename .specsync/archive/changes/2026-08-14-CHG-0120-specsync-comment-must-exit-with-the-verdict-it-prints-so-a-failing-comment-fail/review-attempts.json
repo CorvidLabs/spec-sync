@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0120-specsync-comment-must-exit-with-the-verdict-it-prints-so-a-failing-comment-fail",
+      "reviewer": "claude-opus-5",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "80c16dc4f17ad5bfc4d21d8fa78ffec092cdd793",
+      "contract_digest": "5c646a6ebf2e3ecda2c9a11fcd51901f0972735dee2efca89b84c9cbc13a4d23",
+      "execution_digest": "1dfd964752cacafc0999949e45d48612b0014cba3aed5a6cc28897298963393a",
+      "workspace_digest": "3df877b51e3d54b735e535aed368aed5fdaa49b97f193e89d83eddcbd25640be",
+      "timestamp": 1786687550
+    }
+  ]
+}

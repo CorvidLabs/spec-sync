@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused",
+      "reviewer": "claude-opus-5",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "48eb4e27860aafe69966687f3ba7849957240386",
+      "contract_digest": "91edd458d7729345172d0364d0aafe06e291a50eadaf6bd31b0d03fa201c0b24",
+      "execution_digest": "d479b631535163312e6831bea0c5cc5fe3e0534c61d5b146e4c6be3f4d9624f9",
+      "workspace_digest": "d1ae6ca9649eb43da892c8b3a6d3f1571a87c3f41fc190a97f66a61718841ca0",
+      "timestamp": 1786745650
+    }
+  ]
+}

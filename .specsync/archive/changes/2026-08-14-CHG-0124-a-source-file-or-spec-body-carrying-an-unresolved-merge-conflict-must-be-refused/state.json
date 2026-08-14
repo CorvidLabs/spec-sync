@@ -7,11 +7,11 @@
   "title": "A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist",
   "description": "A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "e29e3b0dd9fe302b92152283dc9c3898f47b632f",
   "created_at": 1786745228,
-  "updated_at": 1786745634,
+  "updated_at": 1786745868,
   "affected_specs": [
     "merge",
     "exports",

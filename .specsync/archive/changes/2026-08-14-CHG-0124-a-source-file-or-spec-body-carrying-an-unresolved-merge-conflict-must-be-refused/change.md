@@ -1,6 +1,6 @@
 ---
 id: CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e29e3b0dd9fe302b92152283dc9c3898f47b632f
 ---

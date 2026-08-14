@@ -1,6 +1,6 @@
 ---
 id: CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i
-state: implementing
+state: archived
 type: bug_fix
 base_commit: f26768913eeef4dac2d925ad85daddfa22a054ce
 ---

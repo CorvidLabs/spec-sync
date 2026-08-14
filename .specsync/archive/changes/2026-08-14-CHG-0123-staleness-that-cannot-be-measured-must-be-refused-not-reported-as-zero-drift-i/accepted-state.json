@@ -7,11 +7,11 @@
   "title": "Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension",
   "description": "Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "f26768913eeef4dac2d925ad85daddfa22a054ce",
   "created_at": 1786742186,
-  "updated_at": 1786744156,
+  "updated_at": 1786744180,
   "affected_specs": [
     "git_utils",
     "cmd_report",

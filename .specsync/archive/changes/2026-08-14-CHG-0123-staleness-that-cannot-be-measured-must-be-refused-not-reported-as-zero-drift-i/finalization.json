@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i",
+  "implementation_commit": "dd6ca4d4195236f13b6f589b798ca1f63dea799b",
+  "implementation_tree": "02d003d524bc2a40c0db01775cc3912cdc4ee6c0",
+  "contract_digest": "818ccc329c6e9cec1f389b9373525946ad256029f316e416e890ae4e2d9c4c30",
+  "workspace_digest": "edf086c8e87cfb627d44be2323309a65b9d989c3b75fc18915911687675b10d0",
+  "closing_digest": "e0cc4a23143b1e0f7e98e7a2cb67b768ffa5473bcaf0dd96b4c86facdc4ad2a9",
+  "review_digest": "c7b043d586be1954973c0ba4f0f36c501844387da3249f0e0b41d47f673a9ae1",
+  "finalization_digest": "6fa374bc8aa609fc76a2c07570553d8b00ba05c109fc01f7d8320a5d9e242d9b",
+  "timestamp": 1786744180
+}

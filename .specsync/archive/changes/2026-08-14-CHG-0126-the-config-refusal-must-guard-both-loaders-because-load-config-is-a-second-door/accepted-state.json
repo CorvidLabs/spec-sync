@@ -7,11 +7,11 @@
   "title": "The config refusal must guard both loaders, because load_config is a second door through which rules, compact and rehash reported success over configuration they never read",
   "description": "The config refusal must guard both loaders, because load_config is a second door through which rules, compact and rehash reported success over configuration they never read",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "88d73e1a8208f25035ee727f2326f871af504223",
   "created_at": 1786749091,
-  "updated_at": 1786751318,
+  "updated_at": 1786751352,
   "affected_specs": [
     "config",
     "cmd_wizard",

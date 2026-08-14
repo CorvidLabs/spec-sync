@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0126-the-config-refusal-must-guard-both-loaders-because-load-config-is-a-second-door",
+  "implementation_commit": "a2d6bd71bb4c283231f9274c8e60698a78aa2cc1",
+  "implementation_tree": "a7eef4b0c584f6bdafe7e625773a9217ea680c70",
+  "contract_digest": "4e2e063019c3cdca79782d18d8a26a04d7ccfc46db57c4d697cc9d76613acab2",
+  "workspace_digest": "217da1da7722ae7d387e26248ef2624e163fd4e35c0841067ab257c19c3662f8",
+  "closing_digest": "4450b9ba0c86ded0bfd0b67dd7d96c557a1e2a32e42f5ec043a8d1756580dbf0",
+  "review_digest": "172ead4a933b871066e9a007d9abe63bf2eb6c357eb5baa7fe0122c12a6a90b0",
+  "finalization_digest": "916724610249e9aa90779c8a639670984fc3c359de9b18124593f7cefa4522f6",
+  "timestamp": 1786751352
+}

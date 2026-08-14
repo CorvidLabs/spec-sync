@@ -1,6 +1,6 @@
 ---
 id: CHG-0126-the-config-refusal-must-guard-both-loaders-because-load-config-is-a-second-door
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 88d73e1a8208f25035ee727f2326f871af504223
 ---

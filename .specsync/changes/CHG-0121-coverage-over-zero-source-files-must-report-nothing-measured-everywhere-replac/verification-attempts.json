@@ -226,6 +226,65 @@
         "REQ-types-008",
         "REQ-validator-014"
       ]
+    },
+    {
+      "timestamp": 1786728263,
+      "commit": "bb99f74ed7b4c695704e85b3f9182f2df273926f",
+      "contract_digest": "0fade2d423effff36254391536567947d108d6048c316a079dbf477876a6cf3c",
+      "execution_digest": "b74cdccb4726e640e30b921e669c98174a034cbdfdbddfe89c80ba4b5bb4e403",
+      "workspace_digest": "b024e74e3e156f02c2c297303a38d954a9eb86a709522870229ac8cc126af162",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test commands::check::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-coverage-optional-001",
+        "REQ-cmd-check-009",
+        "REQ-cmd-coverage-002",
+        "REQ-cmd-deps-002",
+        "REQ-cmd-report-002",
+        "REQ-commands-011",
+        "REQ-comment-003",
+        "REQ-generator-003",
+        "REQ-mcp-004",
+        "REQ-output-005",
+        "REQ-types-008",
+        "REQ-validator-014"
+      ]
     }
   ]
 }

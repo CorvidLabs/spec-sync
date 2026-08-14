@@ -1,6 +1,6 @@
 ---
 module: scoring
-version: 5
+version: 6
 status: stable
 files:
   - src/scoring.rs
@@ -30,6 +30,12 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 | `CriterionResult` | Pass/fail result for a single scoring criterion within a dimension |
 | `ExplainDetail` | Per-dimension breakdown (criteria list, score, max) used by `--explain` |
 
+### Exported Enums
+
+| Type | Description |
+|------|-------------|
+| `GitFreshness` | Whether the git-history half of the freshness dimension could be measured: `NotApplicable` (spec lists no files), `Measured`, or `Withheld` (no history existed, so the points were not awarded). Consumers that also confine git — the MCP snapshot — read it so one absence is not charged twice |
+
 ### Exported Functions
 
 | Function | Parameters | Returns | Description |
@@ -46,6 +52,7 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 5. Unfinished-work marker counting only counts standalone markers — not compound terms or descriptive prose
 6. Content depth checks that sections have meaningful content beyond headings, comments, and separator rows
 7. Freshness penalizes stale file references (5pts each, max 15pt penalty) and stale dependency refs (3pts each)
+7a. The 5-point git-freshness budget is WITHHELD, never awarded, when there is no committed history to measure drift against — a spec's score can never rise because `.git` was removed or never created (#572). A repository that has history but has not committed this spec yet is a different case: drift there is genuinely zero, and the modification-time fallback stands in
 8. Suggestions are always actionable — each corresponds to a specific improvement the user can make
 9. No exports to document = full API score (20/20) — specs for config-only modules are not penalized
 10. `SpecScore.explain` is always populated during `score_spec` — one `ExplainDetail` per dimension, each containing one or more `CriterionResult` entries
@@ -111,3 +118,4 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |

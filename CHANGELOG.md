@@ -65,6 +65,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Staleness that cannot be measured is refused, not reported as zero drift**
+  (CorvidLabs/spec-sync#572, CorvidLabs/spec-sync#586). On a tree six commits behind its source with
+  `.git` removed, `stale` refused while `report` answered `"stale": false, "commits_behind": 0` and
+  exited 0 — two commands, one tree, opposite answers. An unborn HEAD did the same.
+
+  There were **four** implementations of the same computation and only `stale.rs` guarded the
+  precondition; its guard cites #558, a fix that landed there and nowhere else. `report`,
+  `check --stale`, the lifecycle `no_stale` transition and the `score` freshness dimension all read
+  the absence of history as an absence of drift. The scoring case was the sharpest: **deleting
+  `.git` raised a spec's grade a full letter** (77/100 C to 80/100 B), and `--min-score` gates on
+  that number.
+
+  `git_utils` now exposes the precondition as a value distinguishing "no repository" from "no
+  commits", every reader refuses in the shape its own file already used, and freshness points that
+  could not be measured are withheld rather than awarded.
+
 - **Coverage over zero source files no longer reports 100% anywhere**
   (CorvidLabs/spec-sync#582). #562 was fixed in `src/output.rs` and reached one of nine sites; the
   other eight were each only reachable through a format or transport the original report never

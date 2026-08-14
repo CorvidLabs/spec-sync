@@ -1,0 +1,59 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786742852,
+      "digest": "818ccc329c6e9cec1f389b9373525946ad256029f316e416e890ae4e2d9c4c30",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i",
+        "title": "Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension",
+        "description": "Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check",
+          "cmd_lifecycle",
+          "cmd_report",
+          "cmd_stale",
+          "git_utils",
+          "mcp",
+          "scoring"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/check.rs",
+          "src/commands/lifecycle.rs",
+          "src/commands/report.rs",
+          "src/commands/stale.rs",
+          "src/git_utils.rs",
+          "src/mcp.rs",
+          "src/scoring.rs",
+          "tests/integration.rs",
+          "tests/integration/staleness_unmeasurable.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A tree whose git history cannot answer the staleness question is refused by every reader rather than reported as zero drift. Both unmeasurable states are covered: no repository at all, and a repository with an unborn HEAD. 'report' and 'check --stale' exit non-zero naming which of the two it is, matching what 'stale' already did. The lifecycle no_stale guard refuses to promote on an unasked question. The score freshness dimension withholds its points rather than awarding them, so removing git can no longer raise a grade. A healthy repository reports exactly what it reported before, in every command and format."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786744180,
+      "digest": "e0cc4a23143b1e0f7e98e7a2cb67b768ffa5473bcaf0dd96b4c86facdc4ad2a9",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

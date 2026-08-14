@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 122,
-  "id": "CHG-0122-cover-the-integration-tests-added-for-the-coverage-unmeasured-matrix-which-asse",
+  "sequence": 123,
+  "id": "CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i",
   "acknowledged_collisions": [
     {
       "sequence": 16,

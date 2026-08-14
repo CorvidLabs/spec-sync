@@ -7,10 +7,13 @@ spec: git_utils.spec.md
 - As a command author (stale/report/check/scoring), I want a small set of git query helpers so I can measure spec freshness without reimplementing `git` invocations in each command
 - As a maintainer, I want a single source-file's drift to be measured against a precomputed spec commit so iterating a spec's source list does not trigger an N+1 explosion of `git log` calls
 - As a user running outside git, I want these helpers to degrade gracefully (safe defaults) rather than panic
+- As a command author, I want the type system — not a guard I have to remember to call — to stop me reporting "no drift" on a tree where drift could not be measured
 
 ## Acceptance Criteria
 
-- `git_last_commit_hash(root, file)` returns `Some(full SHA)` for a tracked file and `None` for an untracked/never-committed file
+- `spec_baseline(root, spec_file)` returns `Commit(full SHA)` for a tracked spec, `Untracked` for a never-committed spec in a repository that HAS history, and `Missing(..)` when the tree has no history at all
+- `missing_history(root)` returns `None` when history is usable, `Some(NotARepository)` outside a repository, and `Some(NoCommits)` for an unborn `HEAD`
+- No public function returns a bare `Option<String>` commit hash: the two absences must not be expressible as one value
 - `git_commits_since(root, spec_commit, source_file)` returns the count of commits touching `source_file` in the range `spec_commit..HEAD`, and `0` when the range is empty or the commit ref is invalid
 - `is_git_repo(root)` returns `true` inside a git work tree and `false` otherwise
 - `StaleInfo` carries `spec_path`, `module_name`, `max_commits_behind`, and `source_details: Vec<(String, usize)>`
@@ -46,3 +49,11 @@ Acceptance Criteria
 - A repository with at least one commit reports that it has history.
 - A repository with an unborn HEAD reports that it does not, while still reporting as a work tree.
 - A path that is not a repository reports neither.
+
+### REQ-git-utils-003
+
+The absence of git history SHALL be representable as a value.
+
+Acceptance Criteria
+- "No repository" and "no commits" are distinguishable, not collapsed into one condition.
+- The machine and terminal strings match those established by #558, so a reader refactored onto this helper does not change its output.

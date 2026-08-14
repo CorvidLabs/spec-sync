@@ -215,18 +215,36 @@ pub fn evaluate_guards(
                             // Resolve the spec commit once, then count per source
                             // file — avoids re-running `git log` for the spec on
                             // every file.
-                            if let Some(spec_commit) = git_utils::git_last_commit_hash(root, &rel) {
-                                for source_file in &parsed.frontmatter.files {
-                                    let commits = git_utils::git_commits_since(
-                                        root,
-                                        &spec_commit,
-                                        source_file,
-                                    );
-                                    if commits > 0 && commits >= threshold {
-                                        failures.push(format!(
-                                            "guard: stale — {source_file} has {commits} commits since spec was last updated (threshold: {threshold})"
-                                        ));
+                            match git_utils::spec_baseline(root, &rel) {
+                                git_utils::SpecBaseline::Commit(spec_commit) => {
+                                    for source_file in &parsed.frontmatter.files {
+                                        let commits = git_utils::git_commits_since(
+                                            root,
+                                            &spec_commit,
+                                            source_file,
+                                        );
+                                        if commits > 0 && commits >= threshold {
+                                            failures.push(format!(
+                                                "guard: stale — {source_file} has {commits} commits since spec was last updated (threshold: {threshold})"
+                                            ));
+                                        }
                                     }
+                                }
+                                // History exists; the spec is simply not in it
+                                // yet, so there is nothing for it to be behind.
+                                // `stale` has treated an untracked spec as fresh
+                                // since #558; the guard agrees with it.
+                                git_utils::SpecBaseline::Untracked => {}
+                                // A `no_stale` guard asks git a question. With no
+                                // history there is no answer, and a guard that
+                                // cannot be verified must not be reported as
+                                // satisfied — that would promote a spec on drift
+                                // nobody looked for (#572).
+                                git_utils::SpecBaseline::Missing(missing) => {
+                                    failures.push(format!(
+                                        "guard: no_stale could not be verified — {} (staleness needs git history)",
+                                        missing.reason()
+                                    ));
                                 }
                             }
                         }

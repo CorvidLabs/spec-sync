@@ -17,7 +17,7 @@ spec: cmd_check.spec.md
 
 - `src/commands/check.rs` — the full command: caching, drift prompts, `auto_fix_specs`, `fix_near_miss_headers`, `auto_regen_stale_specs`, git-staleness loop, format dispatch
 - `src/commands/mod.rs` — shared `load_and_discover`, `run_validation`, `compute_exit_code`, `exit_with_status`, `create_drift_issues`
-- `src/git_utils.rs` — `is_git_repo`, `git_last_commit_hash`, `git_commits_since` (staleness)
+- `src/git_utils.rs` — `missing_history`, `spec_baseline`, `git_commits_since` (staleness)
 - `src/hash_cache.rs` — `HashCache`, `classify_all_changes`, `update_cache`
 
 ## Current Status

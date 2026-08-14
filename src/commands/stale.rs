@@ -3,12 +3,36 @@ use std::fs;
 use std::path::Path;
 
 use crate::git_utils::{
-    StaleInfo, git_commits_since, git_last_commit_hash, has_commits, is_git_repo,
+    MissingHistory, SpecBaseline, StaleInfo, git_commits_since, missing_history, spec_baseline,
 };
 use crate::parser;
 use crate::types;
 
 use super::{filter_by_status, load_and_discover};
+
+/// Report that staleness cannot be determined here and exit non-zero.
+///
+/// `stale` has exactly one job, so an unanswerable question is a hard failure
+/// rather than a degraded answer. Never returns.
+fn refuse_without_history(missing: MissingHistory, format: types::OutputFormat) -> ! {
+    match format {
+        types::OutputFormat::Json => {
+            let output = serde_json::json!({
+                "error": missing.reason(),
+                "stale_specs": [],
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        }
+        _ => {
+            eprintln!(
+                "{} {} — staleness detection requires git history.",
+                "Error:".red().bold(),
+                missing.sentence(),
+            );
+        }
+    }
+    std::process::exit(1);
+}
 
 pub fn cmd_stale(
     root: &Path,
@@ -23,34 +47,8 @@ pub fn cmd_stale(
     // "up to date" there was an answer to a question that could not be asked —
     // and it is the state `git init` leaves behind (#558). Handled alongside the
     // no-repository case, which was already correct.
-    let missing_history = !is_git_repo(root) || !has_commits(root);
-    if missing_history {
-        let reason = if is_git_repo(root) {
-            "repository has no commits"
-        } else {
-            "not a git repository"
-        };
-        match format {
-            types::OutputFormat::Json => {
-                let output = serde_json::json!({
-                    "error": reason,
-                    "stale_specs": [],
-                });
-                println!("{}", serde_json::to_string_pretty(&output).unwrap());
-            }
-            _ => {
-                eprintln!(
-                    "{} {} — staleness detection requires git history.",
-                    "Error:".red().bold(),
-                    if reason == "repository has no commits" {
-                        "Repository has no commits"
-                    } else {
-                        "Not a git repository"
-                    }
-                );
-            }
-        }
-        std::process::exit(1);
+    if let Some(missing) = missing_history(root) {
+        refuse_without_history(missing, format);
     }
 
     let (config, all_spec_files) = load_and_discover(root, false);
@@ -91,13 +89,17 @@ pub fn cmd_stale(
             continue;
         }
 
-        let spec_commit = match git_last_commit_hash(root, &rel_spec) {
-            Some(commit) => commit,
-            None => {
-                // Spec not yet tracked by git — skip
+        let spec_commit = match spec_baseline(root, &rel_spec) {
+            SpecBaseline::Commit(commit) => commit,
+            // History exists; this spec is simply not in it yet. There is
+            // nothing for it to be behind.
+            SpecBaseline::Untracked => {
                 fresh_count += 1;
                 continue;
             }
+            // Guarded above, so only reachable if history vanished mid-run.
+            // Fail the same way rather than counting the spec fresh.
+            SpecBaseline::Missing(missing) => refuse_without_history(missing, format),
         };
 
         let mut max_behind: usize = 0;

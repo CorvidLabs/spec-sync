@@ -49,3 +49,11 @@ Acceptance Criteria
 - A path that is not a repository continues to be refused and exits non-zero.
 - The two causes are reported distinctly in both text and machine-readable output.
 - A repository with at least one commit reports staleness normally and exits zero.
+
+### REQ-cmd-stale-003
+
+`stale` SHALL derive its precondition from the shared helper.
+
+Acceptance Criteria
+- Existing messages, JSON shape and exit codes are byte-identical to before.
+- The duplicated precondition logic is removed, so no reader carries its own copy.

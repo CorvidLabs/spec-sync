@@ -5534,10 +5534,22 @@ fn score_spec_for_mcp(
     }
 
     const UNAVAILABLE_GIT_FRESHNESS_POINTS: u32 = 5;
-    let penalty = score.freshness_score.min(UNAVAILABLE_GIT_FRESHNESS_POINTS);
+    // `score_spec` now withholds these points itself whenever there is no
+    // history to measure against (#572), which is always true of the confined
+    // snapshot — it is a temp copy with no `.git`. Deducting again would charge
+    // the spec twice for one absence, so only deduct when the points are still
+    // on the board. The relabel below always runs: "intentionally unavailable
+    // here" is a more useful thing to read than "not a git repository".
+    let penalty = match score.git_freshness {
+        scoring::GitFreshness::Withheld => 0,
+        _ => score.freshness_score.min(UNAVAILABLE_GIT_FRESHNESS_POINTS),
+    };
     score.freshness_score = score.freshness_score.saturating_sub(penalty);
     score.total = score.total.saturating_sub(penalty);
     score.grade = mcp_letter_grade(score.total);
+    score
+        .suggestions
+        .retain(|suggestion| !suggestion.contains("drift is unverifiable"));
     score.suggestions.push(
         "Freshness (-5pts): Git history is intentionally unavailable in the confined MCP snapshot"
             .to_string(),
@@ -8784,16 +8796,48 @@ project(':override').projectDir = file('vendor/custom')
         let baseline = scoring::score_spec(&spec_path, snapshot.root(), &config);
         let confined = score_spec_for_mcp(&spec_path, snapshot.root(), &config, false);
 
-        assert_eq!(confined.total, baseline.total.saturating_sub(5));
+        // The snapshot is a temp copy with no `.git`, so `score_spec` itself
+        // now withholds the git-freshness budget (#572) — it did not before,
+        // and this wrapper was the only thing standing between an agent and 5
+        // points for a question git could not be asked. The invariant that
+        // matters is unchanged and now holds twice over: NOTHING in the
+        // confined path awards those points. What must not happen is charging
+        // for the same absence twice, so `confined` equals `baseline` here.
+        assert_eq!(baseline.git_freshness, scoring::GitFreshness::Withheld);
         assert_eq!(
-            confined.freshness_score,
-            baseline.freshness_score.saturating_sub(5)
+            confined.total, baseline.total,
+            "the confined score must not be penalized a second time for one absence"
         );
+        assert_eq!(confined.freshness_score, baseline.freshness_score);
+        let git_criterion = confined
+            .explain
+            .iter()
+            .find(|detail| detail.dimension == "Freshness")
+            .and_then(|detail| {
+                detail
+                    .criteria
+                    .iter()
+                    .find(|criterion| criterion.name == "git_freshness")
+            })
+            .expect("freshness/git_freshness criterion");
+        assert_eq!(
+            git_criterion.points, 0,
+            "the confined snapshot must award no git-freshness points"
+        );
+        assert!(!git_criterion.passed);
         assert!(
             confined
                 .suggestions
                 .iter()
                 .any(|suggestion| suggestion.contains("Git history is intentionally unavailable"))
+        );
+        assert!(
+            !confined
+                .suggestions
+                .iter()
+                .any(|suggestion| suggestion.contains("drift is unverifiable")),
+            "the confined wording replaces the generic one rather than stacking with it: {:?}",
+            confined.suggestions
         );
         let output = tool_score(snapshot.root(), snapshot.git_freshness_available()).unwrap();
         assert_eq!(output["git_freshness_available"], false);

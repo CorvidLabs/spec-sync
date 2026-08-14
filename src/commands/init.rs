@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use crate::config::{config_to_toml, detect_source_dirs_with_confidence, validate_config_file};
+use crate::output::csv_field;
 use crate::types::{OutputFormat, SpecSyncConfig};
 
 /// Version stamp written to `.specsync/version` for fresh projects.
@@ -369,14 +370,6 @@ fn render_init_text(report: &InitReport) {
     }
     for warning in &report.warnings {
         eprintln!("{} {warning}", "warning:".yellow().bold());
-    }
-}
-
-fn csv_field(value: &str) -> String {
-    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
-        format!("\"{}\"", value.replace('"', "\"\""))
-    } else {
-        value.to_string()
     }
 }
 

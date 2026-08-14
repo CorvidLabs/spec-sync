@@ -1,12 +1,20 @@
 use colored::Colorize;
+use std::io::Write;
 
 use crate::types;
 
-pub fn print_summary(total: usize, passed: usize, warnings: usize, _errors: usize) {
+fn write_summary(
+    out: &mut dyn Write,
+    total: usize,
+    passed: usize,
+    warnings: usize,
+    _errors: usize,
+) {
     // saturating_sub guards against an underflow panic if `passed` is ever
     // reported higher than `total`.
     let failed = total.saturating_sub(passed);
-    println!(
+    let _ = writeln!(
+        out,
         "\n{total} specs checked: {} passed, {} warning(s), {} failed",
         passed.to_string().green(),
         warnings.to_string().yellow(),
@@ -15,6 +23,30 @@ pub fn print_summary(total: usize, passed: usize, warnings: usize, _errors: usiz
         } else {
             "0".to_string()
         }
+    );
+}
+
+pub fn print_summary(total: usize, passed: usize, warnings: usize, errors: usize) {
+    write_summary(
+        &mut std::io::stdout().lock(),
+        total,
+        passed,
+        warnings,
+        errors,
+    );
+}
+
+/// The same summary on stderr, for formats whose stdout is a machine protocol
+/// (CSV). Deliberately the same renderer rather than a second one: the summary
+/// a CSV run shows a human must not be free to drift from the one every other
+/// format shows.
+pub fn eprint_summary(total: usize, passed: usize, warnings: usize, errors: usize) {
+    write_summary(
+        &mut std::io::stderr().lock(),
+        total,
+        passed,
+        warnings,
+        errors,
     );
 }
 
@@ -30,6 +62,228 @@ pub fn percent_json(percent: Option<f64>) -> serde_json::Value {
         Some(value) => serde_json::json!((value * 100.0).round() / 100.0),
         None => serde_json::Value::Null,
     }
+}
+
+/// Quote a CSV field when it contains a delimiter, a quote, or a newline.
+///
+/// One implementation for every CSV renderer in the codebase. A finding
+/// message routinely contains a comma (`Export 'a, b' ...`) and a spec path
+/// never does, so a renderer that skips this turns one finding into two
+/// columns and shifts every field after it.
+pub fn csv_field(value: &str) -> String {
+    if value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r') {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
+/// One validation finding, split into the columns the tabular renderers need.
+///
+/// Findings are collected as `"{spec}: {message}"` strings (see
+/// `ValidationErrors::push_for_spec`); the tabular formats need those two parts
+/// as separate columns, and every format must agree on what the parts are.
+pub struct Finding<'a> {
+    pub severity: &'a str,
+    pub spec: &'a str,
+    pub message: &'a str,
+}
+
+/// Split one rendered finding into `(spec, message)`.
+///
+/// Project-scoped findings (schema failures, `.specsyncignore` problems) are
+/// pushed without a spec prefix; they get an empty spec column rather than
+/// being dropped — a finding no format can attribute is still a finding.
+fn split_finding<'a>(severity: &'a str, rendered: &'a str) -> Finding<'a> {
+    match rendered.split_once(": ") {
+        Some((spec, message)) if spec.contains('.') && !spec.contains(' ') => Finding {
+            severity,
+            spec,
+            message,
+        },
+        _ => Finding {
+            severity,
+            spec: "",
+            message: rendered,
+        },
+    }
+}
+
+/// The full finding set in a stable order: errors, then warnings, then notices.
+///
+/// Every format renders THIS list. The set a consumer sees must not depend on
+/// which `--format` they asked for — presentation may differ, the set may not.
+pub fn findings<'a>(
+    errors: &'a [String],
+    warnings: &'a [String],
+    notices: &'a [String],
+) -> Vec<Finding<'a>> {
+    let mut out = Vec::with_capacity(errors.len() + warnings.len() + notices.len());
+    out.extend(errors.iter().map(|e| split_finding("error", e)));
+    out.extend(warnings.iter().map(|w| split_finding("warning", w)));
+    out.extend(notices.iter().map(|n| split_finding("notice", n)));
+    out
+}
+
+/// Column header for the findings CSV. Stable: consumers key off these names.
+pub const FINDING_CSV_HEADER: &str = "severity,spec,message";
+
+/// Render the findings as CSV — one row per finding, stable columns.
+///
+/// The header is printed even when there are no findings, so an empty result
+/// is a well-formed CSV with zero rows rather than empty output. The two are
+/// not the same thing to a parser, and "no output" is what let a consumer
+/// conclude there were no problems from a run that exited 1.
+pub fn print_findings_csv(findings: &[Finding<'_>]) {
+    let out = &mut std::io::stdout().lock();
+    let _ = writeln!(out, "{FINDING_CSV_HEADER}");
+    for finding in findings {
+        let _ = writeln!(
+            out,
+            "{},{},{}",
+            csv_field(finding.severity),
+            csv_field(finding.spec),
+            csv_field(finding.message)
+        );
+    }
+}
+
+/// Render the findings as an aligned ASCII table.
+///
+/// Prints the header row even when empty, for the same reason the CSV does:
+/// "the renderer ran and found nothing" must be distinguishable from "the
+/// renderer never ran".
+pub fn print_findings_table(findings: &[Finding<'_>]) {
+    const SEVERITY_HEADER: &str = "SEVERITY";
+    const SPEC_HEADER: &str = "SPEC";
+    const MESSAGE_HEADER: &str = "MESSAGE";
+
+    let severity_width = findings
+        .iter()
+        .map(|f| f.severity.chars().count())
+        .chain(std::iter::once(SEVERITY_HEADER.len()))
+        .max()
+        .unwrap_or(SEVERITY_HEADER.len());
+    let spec_width = findings
+        .iter()
+        .map(|f| f.spec.chars().count())
+        .chain(std::iter::once(SPEC_HEADER.len()))
+        .max()
+        .unwrap_or(SPEC_HEADER.len());
+
+    let out = &mut std::io::stdout().lock();
+    let _ = writeln!(
+        out,
+        "{:<severity_width$}  {:<spec_width$}  {}",
+        SEVERITY_HEADER, SPEC_HEADER, MESSAGE_HEADER
+    );
+    let _ = writeln!(
+        out,
+        "{}  {}  {}",
+        "-".repeat(severity_width),
+        "-".repeat(spec_width),
+        "-".repeat(MESSAGE_HEADER.len())
+    );
+    for finding in findings {
+        let _ = writeln!(
+            out,
+            "{:<severity_width$}  {:<spec_width$}  {}",
+            finding.severity, finding.spec, finding.message
+        );
+    }
+}
+
+/// The validation findings that accompany a coverage payload.
+///
+/// `passed` is the GATE VERDICT — the same boolean the process exit code
+/// carries (`exit_code == 0`), honouring `--strict`, `--require-coverage` and
+/// the configured enforcement mode. That is the one semantics under which a
+/// payload can never contradict the exit code beside it, which is the whole
+/// defect: `coverage --format json` exited 1 while handing back a payload with
+/// nothing wrong in it.
+///
+/// Because `passed` answers a POLICY question, it is never the only signal
+/// here: `total_errors`/`total_warnings` and the finding arrays answer the
+/// factual one. A consumer that wants "is this tree clean" reads the counts;
+/// one that wants "did the gate pass" reads `passed`. Neither has to infer the
+/// other from silence.
+pub struct CoverageFindings {
+    pub passed: bool,
+    pub specs_checked: usize,
+    pub specs_passed: usize,
+    pub errors: Vec<String>,
+    pub warnings: Vec<String>,
+    pub notices: Vec<String>,
+}
+
+/// THE constructor for every coverage payload — CLI `coverage --format json`,
+/// the `specsync_coverage` MCP tool, and the `specsync:///coverage` MCP
+/// resource.
+///
+/// Those three used to hand-build their own JSON. They disagreed about the
+/// percentage (one re-derived it with a 100.0 fallback), about the key names,
+/// and about whether findings existed at all: all three shipped a coverage
+/// report with no `errors`, no `warnings` and no `passed`, so an agent or a
+/// dashboard reading one saw a clean project on a tree that `check` failed.
+/// Three hand-built payloads is the shape that rots; there is now one.
+///
+/// Both historical key spellings are emitted (`file_coverage` /
+/// `file_coverage_percent`, `modules` / `uncovered_modules`) so no existing
+/// consumer breaks, and so all three payloads carry one field set. The tests
+/// assert that the two MCP surfaces are byte-identical (same inputs, same
+/// constructor) and that the CLI payload has the same keys and the same finding
+/// identities. The CLI's finding list can still differ in CONTENT: it applies
+/// `.specsyncignore` suppression and the draft-spec warnings, which the MCP
+/// collector does not — a pre-existing difference between the two validation
+/// paths, not between the payloads.
+pub fn coverage_json(
+    coverage: &types::CoverageReport,
+    findings: &CoverageFindings,
+) -> serde_json::Value {
+    let file_coverage = percent_json(coverage.file_coverage());
+    let loc_coverage = percent_json(coverage.loc_coverage());
+
+    let modules: Vec<serde_json::Value> = coverage
+        .unspecced_modules
+        .iter()
+        .map(|m| serde_json::json!({ "name": m, "has_spec": false }))
+        .collect();
+
+    let uncovered_files: Vec<serde_json::Value> = coverage
+        .unspecced_file_loc
+        .iter()
+        .map(|(f, loc)| serde_json::json!({ "file": f, "loc": loc }))
+        .collect();
+
+    serde_json::json!({
+        // The gate verdict, identical to the process exit code beside it.
+        "passed": findings.passed,
+        "specs_checked": findings.specs_checked,
+        "specs_passed": findings.specs_passed,
+        // The factual verdict, independent of enforcement policy.
+        "total_errors": findings.errors.len(),
+        "total_warnings": findings.warnings.len(),
+        "errors": findings.errors,
+        "warnings": findings.warnings,
+        "notices": findings.notices,
+        "file_coverage": file_coverage,
+        "file_coverage_percent": file_coverage,
+        "files_covered": coverage.specced_file_count,
+        "files_total": coverage.measured_file_total(),
+        "loc_coverage": loc_coverage,
+        "loc_coverage_percent": loc_coverage,
+        "loc_covered": coverage.specced_loc,
+        "loc_total": coverage.total_loc,
+        "modules": modules,
+        "uncovered_modules": modules,
+        "uncovered_files": uncovered_files,
+        // What shaped the denominator. The percentages above are measured over
+        // whatever was left after these were excluded or counted (#546, #582),
+        // so they travel with the numbers rather than in a section a consumer
+        // may never read.
+        "missing_files": coverage.missing_files,
+        "skipped_links": coverage.skipped_links,
+    })
 }
 
 /// Wording used everywhere a file-coverage percentage cannot be stated.
@@ -49,7 +303,7 @@ fn colored_percent(pct: usize) -> String {
     }
 }
 
-pub fn print_coverage_line(coverage: &types::CoverageReport) {
+fn write_coverage_line(out: &mut dyn Write, coverage: &types::CoverageReport) {
     // A zero denominator is not 100% — it is nothing measured. Reporting it as
     // 100% put the display in direct contradiction with the gate: the same run
     // exits 1 from `--require-coverage`, which already refuses this as a
@@ -62,25 +316,47 @@ pub fn print_coverage_line(coverage: &types::CoverageReport) {
     // `CoverageReport`, which has no percentage to report when nothing was
     // measured (#582).
     match coverage.file_coverage_percent() {
-        Some(pct) => println!(
-            "File coverage: {}/{} ({})",
-            coverage.specced_file_count,
-            coverage.measured_file_total(),
-            colored_percent(pct)
-        ),
-        None => println!("File coverage: 0/0 ({NO_FILES_MEASURED})"),
+        Some(pct) => {
+            let _ = writeln!(
+                out,
+                "File coverage: {}/{} ({})",
+                coverage.specced_file_count,
+                coverage.measured_file_total(),
+                colored_percent(pct)
+            );
+        }
+        None => {
+            let _ = writeln!(out, "File coverage: 0/0 ({NO_FILES_MEASURED})");
+        }
     }
     match coverage.loc_coverage_percent() {
-        Some(pct) => println!(
-            "LOC coverage:  {}/{} ({})",
-            coverage.specced_loc,
-            coverage.total_loc,
-            colored_percent(pct)
-        ),
-        None => println!("LOC coverage:  0/0 ({NO_LINES_MEASURED})"),
+        Some(pct) => {
+            let _ = writeln!(
+                out,
+                "LOC coverage:  {}/{} ({})",
+                coverage.specced_loc,
+                coverage.total_loc,
+                colored_percent(pct)
+            );
+        }
+        None => {
+            let _ = writeln!(out, "LOC coverage:  0/0 ({NO_LINES_MEASURED})");
+        }
     }
-    print_missing_files_note(coverage);
-    print_skipped_links(coverage);
+    write_missing_files_note(out, coverage);
+    write_skipped_links(out, coverage);
+}
+
+pub fn print_coverage_line(coverage: &types::CoverageReport) {
+    write_coverage_line(&mut std::io::stdout().lock(), coverage);
+}
+
+/// The same coverage figures on stderr, for formats whose stdout is a machine
+/// protocol (CSV). One renderer, two destinations — a second hand-rolled
+/// coverage line is exactly how `csv: file coverage 100% (0/0)` once appeared
+/// next to `table: 0/0 (no source files to measure)` on the same tree.
+pub fn eprint_coverage_line(coverage: &types::CoverageReport) {
+    write_coverage_line(&mut std::io::stderr().lock(), coverage);
 }
 
 /// Report files a spec's `files:` list names that are not on disk, immediately
@@ -92,11 +368,12 @@ pub fn print_coverage_line(coverage: &types::CoverageReport) {
 /// disk, so the total can only be read honestly next to what inflated it.
 /// Printed for the same reason as the skipped links: the number is never shown
 /// without what shaped it.
-fn print_missing_files_note(coverage: &types::CoverageReport) {
+fn write_missing_files_note(out: &mut dyn Write, coverage: &types::CoverageReport) {
     if coverage.missing_files.is_empty() {
         return;
     }
-    println!(
+    let _ = writeln!(
+        out,
         "{} {} file(s) referenced by specs but missing on disk are counted in the total (they can never be covered)",
         "⚠".yellow(),
         coverage.missing_files.len()
@@ -113,7 +390,7 @@ const SKIPPED_LINK_DISPLAY_LIMIT: usize = 5;
 /// link shrinks the denominator, so these percentages can only be read honestly
 /// next to what was excluded from them. A repo that symlinks a vendored tree
 /// would otherwise see its coverage *rise* because measurement stopped.
-pub fn print_skipped_links(coverage: &types::CoverageReport) {
+fn write_skipped_links(out: &mut dyn Write, coverage: &types::CoverageReport) {
     if coverage.skipped_links.is_empty() {
         return;
     }
@@ -130,7 +407,8 @@ pub fn print_skipped_links(coverage: &types::CoverageReport) {
     } else {
         listed
     };
-    println!(
+    let _ = writeln!(
+        out,
         "{} {} symlinked path(s) excluded from coverage (not traversed): {tail}",
         "⚠".yellow(),
         coverage.skipped_links.len()

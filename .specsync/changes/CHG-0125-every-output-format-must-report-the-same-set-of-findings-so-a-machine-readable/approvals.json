@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786746848,
+      "digest": "485ef0e2365bdd2536631b24798b6e5cf348c298a70696c8d72030e9864e31da",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable",
+        "title": "Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text",
+        "description": "Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check",
+          "cmd_coverage",
+          "cmd_init",
+          "cmd_init_registry",
+          "mcp",
+          "output"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/check.rs",
+          "src/commands/coverage.rs",
+          "src/commands/init.rs",
+          "src/commands/init_registry.rs",
+          "src/mcp.rs",
+          "src/output.rs",
+          "tests/integration.rs",
+          "tests/integration/finding_identity_parity.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "One broken tree run through every format of check and of coverage yields the same set of finding identities. Presentation differs; the set does not. csv emits one row per finding with stable columns, table an aligned list, and coverage --format json carries the findings it previously omitted entirely. Both MCP coverage surfaces emit byte-identical payloads built by one shared constructor rather than three hand-built ones. Staleness findings, which drive the exit code but live outside the warning list, reach every non-text format and not only the tabular pair. A clean tree is all-clear in every format with exit 0, and a zero-source tree still reports nothing measured rather than a percentage."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

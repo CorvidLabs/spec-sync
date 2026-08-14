@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 124,
-  "id": "CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused",
+  "sequence": 125,
+  "id": "CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable",
   "acknowledged_collisions": [
     {
       "sequence": 16,

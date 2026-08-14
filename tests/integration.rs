@@ -31,3 +31,6 @@ mod coverage_unmeasured;
 
 #[path = "integration/staleness_unmeasurable.rs"]
 mod staleness_unmeasurable;
+
+#[path = "integration/finding_identity_parity.rs"]
+mod finding_identity_parity;

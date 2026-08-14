@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su",
+      "reviewer": "opus-5-implementing-session",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "424dcc15863396970e51a953090ee721e3578ea0",
+      "contract_digest": "800c177bcc29e6d210a0d46c0d9f33d055975ee66b915b72f0aeb46f0fe784c9",
+      "execution_digest": "e54d60a020b448ffabb62d23fb606c460905d397f84b43c4ebc01c2295fc7730",
+      "workspace_digest": "72d6349f497ad5d8ac0a80d0f81ef24985bf2c5e9573d8d7db43b7f4d816955c",
+      "timestamp": 1786680274
+    }
+  ]
+}

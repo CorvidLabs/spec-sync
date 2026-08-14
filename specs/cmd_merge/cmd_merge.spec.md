@@ -1,6 +1,6 @@
 ---
 module: cmd_merge
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/merge.rs
@@ -75,3 +75,4 @@ Implements the `specsync merge` command. Auto-resolves git merge conflicts in sp
 |------|--------|
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |

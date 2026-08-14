@@ -111,6 +111,11 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
         /// non-UTF-8), so this spec's export delta is unreliable — surfaced and
         /// failed loud rather than silently reported as "no drift".
         inconclusive_files: Vec<String>,
+        /// `files:` entries whose extraction unioned both sides of an unresolved
+        /// merge conflict. Worse than unreadable: the symbol set is not merely
+        /// incomplete, it describes a tree that does not exist, so every delta
+        /// computed against it is fiction.
+        conflicted_files: Vec<String>,
     }
 
     let mut entries: Vec<DiffEntry> = Vec::new();
@@ -149,6 +154,7 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
         // Get current exports from changed files
         let mut current_exports: Vec<String> = Vec::new();
         let mut inconclusive_files: Vec<String> = Vec::new();
+        let mut conflicted_files: Vec<String> = Vec::new();
         for file in &parsed.frontmatter.files {
             // Skip `files:` entries that escape the project root (out-of-root
             // identifier leak); `check` reports them as errors.
@@ -164,6 +170,12 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
                 // consistent with the invariant that a failed comparison must not
                 // silently pass in CI.
                 crate::exports::ExportScan::Unreadable => inconclusive_files.push(file.clone()),
+                // An unresolved merge conflict whose sides both declared symbols:
+                // the union is not this file's API, so no delta computed from it
+                // can be trusted.
+                crate::exports::ExportScan::Conflicted(evidence) => {
+                    conflicted_files.push(format!("{file} — {}", evidence.describe()));
+                }
                 // A non-source file (e.g. a `.md`/`.sql` listed in `files:`)
                 // legitimately has no extractable exports — not a failure.
                 crate::exports::ExportScan::UnknownLanguage => {}
@@ -185,7 +197,7 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
         // (a false deletion to a machine consumer). Suppress the deltas and rely on
         // the inconclusive marker + non-zero exit instead.
         let (new_exports, removed_exports): (Vec<String>, Vec<String>) =
-            if inconclusive_files.is_empty() {
+            if inconclusive_files.is_empty() && conflicted_files.is_empty() {
                 (
                     current_exports
                         .iter()
@@ -209,6 +221,7 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
             removed_exports,
             spec_itself_changed,
             inconclusive_files,
+            conflicted_files,
         });
     }
 
@@ -224,6 +237,7 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
                         "removed_exports": e.removed_exports,
                         "spec_modified": e.spec_itself_changed,
                         "inconclusive_files": e.inconclusive_files,
+                        "conflicted_files": e.conflicted_files,
                     })
                 })
                 .collect();
@@ -269,13 +283,23 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
                         entry.removed_exports.join(", ")
                     );
                 }
+                if !entry.conflicted_files.is_empty() {
+                    println!(
+                        "  {} Unresolved merge conflict (drift unknown): {}",
+                        "✗".red(),
+                        entry.conflicted_files.join("; ")
+                    );
+                }
                 if !entry.inconclusive_files.is_empty() {
                     println!(
                         "  {} Could not read (drift unknown): {}",
                         "⚠".yellow(),
                         entry.inconclusive_files.join(", ")
                     );
-                } else if entry.new_exports.is_empty() && entry.removed_exports.is_empty() {
+                } else if entry.conflicted_files.is_empty()
+                    && entry.new_exports.is_empty()
+                    && entry.removed_exports.is_empty()
+                {
                     println!("  {} Spec is up to date", "✓".green());
                 }
             }
@@ -318,6 +342,22 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
     // exports, so a genuinely-changed API could otherwise be reported as "no drift".
     // The report above already surfaces the files on stdout; the diagnostic and the
     // non-zero exit (a failed comparison must not silently pass in CI) go here.
+    let conflicted: Vec<&String> = entries
+        .iter()
+        .flat_map(|e| e.conflicted_files.iter())
+        .collect();
+    if !conflicted.is_empty() {
+        eprintln!(
+            "\ndiff is inconclusive: {} source file(s) carry an unresolved merge conflict, \
+             so their export drift is unknown:",
+            conflicted.len()
+        );
+        for f in &conflicted {
+            eprintln!("  {} {f}", "✗".red());
+        }
+        process::exit(1);
+    }
+
     let inconclusive: Vec<&String> = entries
         .iter()
         .flat_map(|e| e.inconclusive_files.iter())

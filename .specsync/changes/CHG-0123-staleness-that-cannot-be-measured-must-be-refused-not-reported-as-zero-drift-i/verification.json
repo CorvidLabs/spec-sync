@@ -1,0 +1,39 @@
+{
+  "timestamp": 1786743495,
+  "commit": "f26768913eeef4dac2d925ad85daddfa22a054ce",
+  "contract_digest": "818ccc329c6e9cec1f389b9373525946ad256029f316e416e890ae4e2d9c4c30",
+  "execution_digest": "a0e1d527094df35c6c25ef7cc6c3d4fa81e8618e2795cd8e94b935e138ac2e85",
+  "workspace_digest": "edf086c8e87cfb627d44be2323309a65b9d989c3b75fc18915911687675b10d0",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test commands::check::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-cmd-check-010",
+    "REQ-cmd-lifecycle-002",
+    "REQ-cmd-report-003",
+    "REQ-cmd-stale-003",
+    "REQ-git-utils-003",
+    "REQ-mcp-005",
+    "REQ-scoring-002"
+  ]
+}

@@ -511,8 +511,35 @@ pub fn cmd_check(
     let mut git_stale_warnings: usize = 0;
     let mut git_stale_entries: Vec<serde_json::Value> = Vec::new();
 
+    // `--stale` is an explicit request for a git-history answer. When there is
+    // no history, the honest reply is "could not check", not silence — the old
+    // `is_git_repo`-only guard skipped the whole block on an unborn HEAD and
+    // printed nothing, which reads exactly like "checked, found nothing" (#572).
+    // Reported as a warning, the same weight a real drift finding carries here,
+    // so `--strict` fails and a plain `check --stale` still exits 0 as it does
+    // for genuinely drifted specs.
+    let history_missing = stale_threshold.and_then(|_| git_utils::missing_history(root));
+    if let Some(missing) = history_missing {
+        git_stale_warnings += 1;
+        if matches!(format, types::OutputFormat::Text) {
+            println!(
+                "  {} staleness not checked: {} — `--stale` needs git history",
+                "⚠".yellow(),
+                missing.reason(),
+            );
+            println!();
+        }
+        git_stale_entries.push(serde_json::json!({
+            "spec": serde_json::Value::Null,
+            "reason": "history_unavailable",
+            "detail": missing.reason(),
+            "commits_behind": serde_json::Value::Null,
+            "drifted_files": [],
+        }));
+    }
+
     if let Some(threshold) = stale_threshold
-        && git_utils::is_git_repo(root)
+        && history_missing.is_none()
     {
         for spec_file in &spec_files {
             let content = match fs::read_to_string(spec_file) {
@@ -534,9 +561,24 @@ pub fn cmd_check(
                 .to_string_lossy()
                 .to_string();
 
-            let spec_commit = match git_utils::git_last_commit_hash(root, &rel_spec) {
-                Some(commit) => commit,
-                None => continue,
+            let spec_commit = match git_utils::spec_baseline(root, &rel_spec) {
+                git_utils::SpecBaseline::Commit(commit) => commit,
+                // History exists; this spec is just not in it yet, so there is
+                // nothing for it to be behind.
+                git_utils::SpecBaseline::Untracked => continue,
+                // Guarded above; only reachable if history vanished mid-run.
+                // Warn rather than skip — that skip was the bug.
+                git_utils::SpecBaseline::Missing(missing) => {
+                    git_stale_warnings += 1;
+                    git_stale_entries.push(serde_json::json!({
+                        "spec": rel_spec,
+                        "reason": "history_unavailable",
+                        "detail": missing.reason(),
+                        "commits_behind": serde_json::Value::Null,
+                        "drifted_files": [],
+                    }));
+                    continue;
+                }
             };
 
             let mut max_behind: usize = 0;

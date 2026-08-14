@@ -53,6 +53,19 @@ const GRADE_B_MIN: u32 = 80;
 const GRADE_C_MIN: u32 = 70;
 const GRADE_D_MIN: u32 = 60;
 
+/// Whether the git-history half of the freshness dimension could be measured.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitFreshness {
+    /// Not applicable — the spec lists no files, so there is nothing to date.
+    NotApplicable,
+    /// Measured against committed history (including a spec git has no record
+    /// of yet, where the modification-time fallback stands in).
+    Measured,
+    /// There was no history to measure against, so the points were WITHHELD
+    /// rather than awarded. Consumers must not withhold them a second time.
+    Withheld,
+}
+
 /// Quality score for a single spec file.
 #[derive(Debug)]
 pub struct SpecScore {
@@ -67,6 +80,8 @@ pub struct SpecScore {
     pub depth_score: u32,
     /// Freshness — files exist, no stale references (0-20).
     pub freshness_score: u32,
+    /// Whether the git-history half of `freshness_score` was measurable.
+    pub git_freshness: GitFreshness,
     /// Overall score (0-100).
     pub total: u32,
     /// Letter grade.
@@ -92,6 +107,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         api_score: 0,
         depth_score: 0,
         freshness_score: 0,
+        git_freshness: GitFreshness::NotApplicable,
         total: 0,
         grade: "F",
         suggestions: Vec::new(),
@@ -603,39 +619,63 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     let mut git_behind: usize = 0;
     let mut git_baseline_available = false;
     let mut source_newer_than_spec = false;
-    if !fm.files.is_empty() && git_utils::is_git_repo(root) {
+    let mut history_missing: Option<git_utils::MissingHistory> = None;
+    if !fm.files.is_empty() {
         let rel_path = spec_path
             .strip_prefix(root)
             .unwrap_or(spec_path)
             .to_string_lossy()
             .to_string();
-        if let Some(spec_commit) = git_utils::git_last_commit_hash(root, &rel_path) {
-            git_baseline_available = true;
-            let mut max_behind: usize = 0;
-            for file in &fm.files {
-                if root.join(file).exists() {
-                    let behind = git_utils::git_commits_since(root, &spec_commit, file);
-                    max_behind = max_behind.max(behind);
+        match git_utils::spec_baseline(root, &rel_path) {
+            git_utils::SpecBaseline::Commit(spec_commit) => {
+                git_baseline_available = true;
+                let mut max_behind: usize = 0;
+                for file in &fm.files {
+                    if root.join(file).exists() {
+                        let behind = git_utils::git_commits_since(root, &spec_commit, file);
+                        max_behind = max_behind.max(behind);
+                    }
+                }
+                git_behind = max_behind;
+                if max_behind >= 10 {
+                    git_penalty = FRESH_GIT_MAX;
+                    fresh_points = fresh_points.saturating_sub(git_penalty);
+                    score.suggestions.push(format!(
+                        "Freshness (-{git_penalty}pts): spec is {max_behind} commits behind source files"
+                    ));
+                } else if max_behind >= 5 {
+                    git_penalty = FRESH_GIT_MAX - 2;
+                    fresh_points = fresh_points.saturating_sub(git_penalty);
+                    score.suggestions.push(format!(
+                        "Freshness (-{git_penalty}pts): spec is {max_behind} commits behind source files"
+                    ));
                 }
             }
-            git_behind = max_behind;
-            if max_behind >= 10 {
+            // History exists, this spec is simply not committed yet. The
+            // mtime fallback below is the designed substitute for that case.
+            git_utils::SpecBaseline::Untracked => {}
+            // No history at all. `is_git_repo` alone used to leave `git_penalty`
+            // at 0 here and hand the spec the full git-freshness budget for a
+            // question git could not be asked — deleting `.git` RAISED a spec's
+            // grade a full letter and flipped a `--min-score` gate from fail to
+            // pass (#572, #586). An empty `files:` list has been treated as
+            // "freshness unverifiable, not perfect" since #441, and the confined
+            // MCP snapshot has withheld exactly these 5 points since it shipped;
+            // absent history is the same judgment, applied to the same budget.
+            git_utils::SpecBaseline::Missing(missing) => {
+                history_missing = Some(missing);
                 git_penalty = FRESH_GIT_MAX;
                 fresh_points = fresh_points.saturating_sub(git_penalty);
                 score.suggestions.push(format!(
-                    "Freshness (-{git_penalty}pts): spec is {max_behind} commits behind source files"
-                ));
-            } else if max_behind >= 5 {
-                git_penalty = FRESH_GIT_MAX - 2;
-                fresh_points = fresh_points.saturating_sub(git_penalty);
-                score.suggestions.push(format!(
-                    "Freshness (-{git_penalty}pts): spec is {max_behind} commits behind source files"
+                    "Freshness (-{git_penalty}pts): {} — spec-behind-source drift is unverifiable",
+                    missing.reason()
                 ));
             }
         }
     }
     if !fm.files.is_empty()
         && !git_baseline_available
+        && history_missing.is_none()
         && let Ok(spec_modified) = fs::metadata(spec_path).and_then(|meta| meta.modified())
     {
         source_newer_than_spec = fm.files.iter().any(|file| {
@@ -654,6 +694,11 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     }
 
     score.freshness_score = fresh_points;
+    score.git_freshness = match (fm.files.is_empty(), history_missing) {
+        (true, _) => GitFreshness::NotApplicable,
+        (false, Some(_)) => GitFreshness::Withheld,
+        (false, None) => GitFreshness::Measured,
+    };
     // Budget the dimension so the --explain criteria sum EXACTLY to the
     // reported score (previously criteria summed to 15+5+variable ≠ 20 — the
     // raw max was silently rescaled, contradicting the dimension line, #441).
@@ -701,7 +746,9 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 passed: git_penalty == 0,
                 points: FRESH_GIT_MAX.saturating_sub(git_penalty),
                 max_points: FRESH_GIT_MAX,
-                detail: if source_newer_than_spec {
+                detail: if let Some(missing) = history_missing {
+                    Some(format!("{} — drift unverifiable", missing.reason()))
+                } else if source_newer_than_spec {
                     Some("source files were modified after the spec".to_string())
                 } else if git_behind >= 5 {
                     Some(format!("{git_behind} commits behind source files"))
@@ -940,6 +987,7 @@ mod tests {
                 api_score: 20,
                 depth_score: 20,
                 freshness_score: 15,
+                git_freshness: GitFreshness::Measured,
                 total: 95,
                 grade: "A",
                 suggestions: vec![],
@@ -952,6 +1000,7 @@ mod tests {
                 api_score: 10,
                 depth_score: 10,
                 freshness_score: 10,
+                git_freshness: GitFreshness::Measured,
                 total: 50,
                 grade: "F",
                 suggestions: vec![],
@@ -1326,13 +1375,12 @@ None.
         assert!(score.total < 80, "all-TODO score was {}", score.total);
     }
 
-    #[test]
-    fn freshness_detects_source_newer_than_untracked_spec() {
+    /// Lay down a scorable auth spec whose only source file is `src/auth.ts`,
+    /// with the source stamped 60s NEWER than the spec.
+    fn source_newer_than_spec_tree(root: &Path) -> std::path::PathBuf {
         use std::fs::{FileTimes, OpenOptions};
         use std::time::{Duration, UNIX_EPOCH};
 
-        let tmp = tempfile::tempdir().unwrap();
-        let root = tmp.path();
         std::fs::create_dir_all(root.join("src")).unwrap();
         let source_path = root.join("src/auth.ts");
         std::fs::write(&source_path, "export function login() {}\n").unwrap();
@@ -1359,8 +1407,44 @@ None.
             .unwrap()
             .set_times(FileTimes::new().set_modified(source_time))
             .unwrap();
+        spec_path
+    }
+
+    /// Run a git command in `root`, asserting it succeeds.
+    fn git(root: &Path, args: &[&str]) {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .expect("git should run");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    /// The modification-time fallback covers the case it was written for: a
+    /// repository WITH history in which this particular spec is not committed
+    /// yet. git can be asked and answers "no commit for this path", which is a
+    /// genuine zero — so mtimes are the only remaining signal, and a source
+    /// newer than its spec must still cost the git-freshness budget.
+    #[test]
+    fn freshness_detects_source_newer_than_untracked_spec() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let spec_path = source_newer_than_spec_tree(root);
+
+        git(root, &["init"]);
+        git(root, &["config", "user.email", "test@test.invalid"]);
+        git(root, &["config", "user.name", "Test"]);
+        git(root, &["config", "commit.gpgsign", "false"]);
+        // Commit the SOURCE only, so history exists but the spec is untracked.
+        git(root, &["add", "src/auth.ts"]);
+        git(root, &["commit", "-m", "add source"]);
 
         let score = score_spec(&spec_path, root, &SpecSyncConfig::default());
+        assert_eq!(score.git_freshness, GitFreshness::Measured);
         assert_eq!(score.freshness_score, 15, "{:?}", score.suggestions);
         assert!(
             score
@@ -1368,5 +1452,64 @@ None.
                 .iter()
                 .any(|suggestion| suggestion.contains("modified after the spec"))
         );
+    }
+
+    /// #572: with no history at all, the git-freshness budget is WITHHELD, not
+    /// awarded. Previously this fell through to the modification-time fallback,
+    /// which is silent whenever a checkout stamps every file at the same time —
+    /// and silence there paid out the full 5 points for a question git could
+    /// not be asked, so deleting `.git` could RAISE a spec's grade.
+    #[test]
+    fn freshness_withholds_the_git_budget_when_there_is_no_history() {
+        // Same tree, same mtimes, no repository.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let spec_path = source_newer_than_spec_tree(root);
+        let score = score_spec(&spec_path, root, &SpecSyncConfig::default());
+        assert_eq!(score.git_freshness, GitFreshness::Withheld);
+        assert_eq!(score.freshness_score, 15, "{:?}", score.suggestions);
+        assert!(
+            score
+                .suggestions
+                .iter()
+                .any(|suggestion| suggestion.contains("unverifiable")),
+            "{:?}",
+            score.suggestions
+        );
+
+        // An unborn HEAD is a repository by every other test and must be
+        // treated identically (#558's lesson, applied to `score`).
+        let unborn = tempfile::tempdir().unwrap();
+        let unborn_root = unborn.path();
+        let unborn_spec = source_newer_than_spec_tree(unborn_root);
+        git(unborn_root, &["init"]);
+        let score = score_spec(&unborn_spec, unborn_root, &SpecSyncConfig::default());
+        assert_eq!(score.git_freshness, GitFreshness::Withheld);
+        assert_eq!(score.freshness_score, 15, "{:?}", score.suggestions);
+    }
+
+    /// The `--explain` budget must still sum EXACTLY to the dimension score
+    /// (#441) when the git criterion is withheld rather than scored.
+    #[test]
+    fn withheld_git_freshness_still_budgets_the_dimension_exactly() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let spec_path = source_newer_than_spec_tree(root);
+        let score = score_spec(&spec_path, root, &SpecSyncConfig::default());
+        let freshness = score
+            .explain
+            .iter()
+            .find(|detail| detail.dimension == "Freshness")
+            .expect("freshness dimension");
+        let summed: u32 = freshness.criteria.iter().map(|c| c.points).sum();
+        assert_eq!(summed, freshness.score);
+        assert_eq!(freshness.score, score.freshness_score);
+        let git = freshness
+            .criteria
+            .iter()
+            .find(|c| c.name == "git_freshness")
+            .expect("git_freshness criterion");
+        assert_eq!(git.points, 0, "withheld points must not be awarded");
+        assert!(!git.passed);
     }
 }

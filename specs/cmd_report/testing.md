@@ -7,7 +7,7 @@ spec: cmd_report.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/commands/report.rs` | cargo test commands::report | No inline tests. Add focused coverage for staleness flagging and incomplete detection before risky changes |
-| `src/git_utils.rs` (indirect) | cargo test git_utils | Staleness primitives `git_last_commit_hash` / `git_commits_since` are tested here, not in `report` |
+| `src/git_utils.rs` (indirect) | cargo test git_utils | Staleness primitives `spec_baseline` / `git_commits_since` are tested here, not in `report` |
 | `tests/integration/commands.rs` | cargo test --test integration malformed_gradle_is_inconclusive_for_coverage_gating_commands | Report exits 1 with parseable inconclusive JSON when Gradle discovery is malformed |
 
 > Note: `coverage_full_reports_100`, `invalid_frontmatter_reports_error`, `missing_required_sections_reports_error`, and `missing_frontmatter_fields_reports_error` exercise the `coverage` and `check` commands — **not** `report`. Do not rely on them as `cmd_report` coverage.

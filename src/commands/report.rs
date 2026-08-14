@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::process;
 
-use crate::git_utils::{git_commits_since, git_last_commit_hash};
+use crate::git_utils::{MissingHistory, SpecBaseline, git_commits_since, spec_baseline};
 use crate::output::{NO_FILES_MEASURED, percent_json};
 use crate::parser;
 use crate::types;
@@ -28,6 +28,46 @@ fn percent_csv(percent: Option<f64>, precision: usize) -> String {
         Some(value) => format!("{value:.precision$}"),
         None => String::new(),
     }
+}
+
+/// A staleness verdict for a human-readable column. `n/a` is deliberately not
+/// `no`: an unmeasured module must not read like a module that was checked and
+/// found current (#572).
+fn stale_cell(stale: Option<bool>) -> &'static str {
+    match stale {
+        Some(true) => "yes",
+        Some(false) => "no",
+        None => "n/a",
+    }
+}
+
+/// A commit distance for a human-readable column, or `n/a` when git had no
+/// history to measure it against.
+fn behind_cell(behind: Option<usize>) -> String {
+    match behind {
+        Some(value) => value.to_string(),
+        None => "n/a".to_string(),
+    }
+}
+
+/// A CSV field for a value that was never measured: empty, like the coverage
+/// fields. Writing `false` or `0` there would state a finding nobody made.
+fn csv_field<T: std::fmt::Display>(value: Option<T>) -> String {
+    match value {
+        Some(value) => value.to_string(),
+        None => String::new(),
+    }
+}
+
+/// The one `Modules: …` summary, so text, markdown, github and table cannot
+/// drift apart about how many modules were unmeasured.
+fn module_summary_line(total: usize, stale: usize, unmeasured: usize, incomplete: usize) -> String {
+    let mut line = format!("{total} total, {stale} stale");
+    if unmeasured > 0 {
+        line.push_str(&format!(", {unmeasured} staleness unmeasured"));
+    }
+    line.push_str(&format!(", {incomplete} incomplete"));
+    line
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -79,14 +119,23 @@ pub fn cmd_report(
         /// `None` when the spec lists no files, so there is nothing to measure.
         coverage_pct: Option<f64>,
         status: Option<String>,
-        stale: bool,
-        stale_commits_behind: usize,
+        /// `None` when git had no history to measure staleness against, so the
+        /// module is neither stale nor known-current (#572).
+        stale: Option<bool>,
+        /// `None` for the same reason `stale` is.
+        stale_commits_behind: Option<usize>,
         incomplete: bool,
         missing_fields: Vec<String>,
         empty_sections: Vec<String>,
     }
 
     let mut modules: Vec<ModuleInfo> = Vec::new();
+    // Set the first time a module actually needs a staleness answer git cannot
+    // give. Deliberately NOT probed before the loop: a project whose specs list
+    // no source files never asks git anything, and must keep getting its full
+    // coverage report (that is the tree the #582 suite measures). The guard
+    // fires where the fabricated `false`/`0` used to be written, not earlier.
+    let mut history_missing: Option<MissingHistory> = None;
 
     for spec_file in &spec_files {
         let content = match fs::read_to_string(spec_file) {
@@ -124,24 +173,42 @@ pub fn cmd_report(
         let existing: usize = fm.files.iter().filter(|f| root.join(f).exists()).count();
         let cov = (!fm.files.is_empty()).then(|| (existing as f64 / fm.files.len() as f64) * 100.0);
 
-        // Stale detection via git log
-        let mut stale = false;
-        let mut max_behind: usize = 0;
+        // Stale detection via git log. `None` means UNMEASURED, and only a
+        // measured run may say `false`/`0`.
+        let mut stale: Option<bool> = Some(false);
+        let mut max_behind: Option<usize> = Some(0);
         if !fm.files.is_empty() {
-            // Resolve the spec commit once; if git has no record of the spec we
-            // can't determine staleness, so leave `stale` false.
-            if let Some(spec_commit) = git_last_commit_hash(root, &rel_spec) {
-                for source_file in &fm.files {
-                    if !root.join(source_file).exists() {
-                        continue;
+            // Resolve the spec commit once, then count per source file.
+            match spec_baseline(root, &rel_spec) {
+                SpecBaseline::Commit(spec_commit) => {
+                    let mut behind_max = 0usize;
+                    let mut is_stale = false;
+                    for source_file in &fm.files {
+                        if !root.join(source_file).exists() {
+                            continue;
+                        }
+                        let behind = git_commits_since(root, &spec_commit, source_file);
+                        // Always track the real drift: `commits_behind` must
+                        // reflect sub-threshold drift too, not only once the
+                        // module is stale.
+                        behind_max = behind_max.max(behind);
+                        if behind >= stale_threshold {
+                            is_stale = true;
+                        }
                     }
-                    let behind = git_commits_since(root, &spec_commit, source_file);
-                    // Always track the real drift: `commits_behind` must reflect
-                    // sub-threshold drift too, not only once the module is stale.
-                    max_behind = max_behind.max(behind);
-                    if behind >= stale_threshold {
-                        stale = true;
-                    }
+                    stale = Some(is_stale);
+                    max_behind = Some(behind_max);
+                }
+                // History exists; git simply has no record of this spec yet, so
+                // there is nothing for it to be behind. A measured zero.
+                SpecBaseline::Untracked => {}
+                // No history at all: the distance is unknown. Reporting `false`
+                // and `0` here is the bug (#572) — a tree with `.git` removed
+                // reported every module current and exited 0.
+                SpecBaseline::Missing(missing) => {
+                    history_missing.get_or_insert(missing);
+                    stale = None;
+                    max_behind = None;
                 }
             }
         }
@@ -205,8 +272,26 @@ pub fn cmd_report(
     modules.sort_by(|a, b| a.module_name.cmp(&b.module_name));
 
     let total_modules = modules.len();
-    let stale_count = modules.iter().filter(|m| m.stale).count();
+    let stale_count = modules.iter().filter(|m| m.stale == Some(true)).count();
+    // Modules whose staleness git could not be asked about. Counted SEPARATELY
+    // from `stale_count`: they are not known-stale, and they are emphatically
+    // not known-current. Folding them into either number is the defect (#572).
+    let unmeasured_stale_count = modules.iter().filter(|m| m.stale.is_none()).count();
     let incomplete_count = modules.iter().filter(|m| m.incomplete).count();
+    // The staleness half of the report is inconclusive, exactly the way
+    // `compute_coverage_checked` above makes the coverage half inconclusive.
+    // The report still renders in full — an early exit would take the coverage
+    // figures with it — but it must not exit 0 certifying "0 stale" over a
+    // question git was never able to answer. Threaded into the finding count so
+    // the project's own `enforcement` decides: a `warn` project still exits 0
+    // with honest `n/a` cells, a gating project fails closed.
+    let staleness_note = history_missing.map(|missing| {
+        format!(
+            "Staleness inconclusive: {} — {unmeasured_stale_count} module(s) could not be checked \
+             for drift against their source files",
+            missing.reason()
+        )
+    });
     // Re-derived here with a hardcoded 100.0 fallback until #582; now the one
     // implementation on `CoverageReport`, which has no percentage to give when
     // the denominator is zero.
@@ -248,6 +333,9 @@ pub fn cmd_report(
                 "files_total": coverage.measured_file_total(),
                 "total_modules": total_modules,
                 "stale_modules": stale_count,
+                "unmeasured_stale_modules": unmeasured_stale_count,
+                "staleness_inconclusive": staleness_note.is_some(),
+                "staleness_error": staleness_note,
                 "incomplete_modules": incomplete_count,
                 "stale_threshold": stale_threshold,
                 "modules": module_json,
@@ -256,7 +344,7 @@ pub fn cmd_report(
             // Machine consumers get the gate via the exit code alone (printing
             // the human gate message would corrupt the JSON on stdout).
             std::process::exit(compute_exit_code(
-                stale_count + incomplete_count,
+                stale_count + unmeasured_stale_count + incomplete_count,
                 0,
                 strict,
                 enforcement,
@@ -273,8 +361,8 @@ pub fn cmd_report(
                     m.spec_path,
                     m.status.as_deref().unwrap_or(""),
                     percent_csv(m.coverage_pct, 0),
-                    m.stale,
-                    m.stale_commits_behind,
+                    csv_field(m.stale),
+                    csv_field(m.stale_commits_behind),
                     m.incomplete,
                 );
             }
@@ -282,13 +370,25 @@ pub fn cmd_report(
                 "SUMMARY,,,{},{stale_count},,{incomplete_count}",
                 percent_csv(overall_coverage, 1)
             );
+            if let Some(note) = &staleness_note {
+                eprintln!("{note}");
+            }
         }
         types::OutputFormat::Markdown | types::OutputFormat::Github => {
             println!("## Spec Coverage Report\n");
             println!("**Overall:** {}  ", overall_line(1));
             println!(
-                "**Modules:** {total_modules} total, {stale_count} stale, {incomplete_count} incomplete\n"
+                "**Modules:** {}\n",
+                module_summary_line(
+                    total_modules,
+                    stale_count,
+                    unmeasured_stale_count,
+                    incomplete_count,
+                )
             );
+            if let Some(note) = &staleness_note {
+                println!("> **{note}**\n");
+            }
             println!("| Module | Status | Coverage | Stale | Commits Behind | Incomplete |");
             println!("|--------|--------|----------|-------|----------------|------------|");
             for m in &modules {
@@ -297,8 +397,8 @@ pub fn cmd_report(
                     m.module_name,
                     m.status.as_deref().unwrap_or(""),
                     percent_cell(m.coverage_pct),
-                    if m.stale { "yes" } else { "no" },
-                    m.stale_commits_behind,
+                    stale_cell(m.stale),
+                    behind_cell(m.stale_commits_behind),
                     if m.incomplete { "yes" } else { "no" },
                 );
             }
@@ -310,9 +410,17 @@ pub fn cmd_report(
             );
             println!("\n  Overall: {}", overall_line(1));
             println!(
-                "  Modules: {} total, {} stale, {} incomplete\n",
-                total_modules, stale_count, incomplete_count,
+                "  Modules: {}\n",
+                module_summary_line(
+                    total_modules,
+                    stale_count,
+                    unmeasured_stale_count,
+                    incomplete_count,
+                )
             );
+            if let Some(note) = &staleness_note {
+                println!("  {} {note}\n", "!".yellow().bold());
+            }
 
             // Table header
             println!(
@@ -323,12 +431,11 @@ pub fn cmd_report(
 
             for m in &modules {
                 let cov_str = percent_cell(m.coverage_pct);
-                let stale_str = if m.stale {
-                    format!("{} behind", m.stale_commits_behind)
-                        .yellow()
-                        .to_string()
-                } else {
-                    "no".green().to_string()
+                let stale_str = match (m.stale, m.stale_commits_behind) {
+                    (Some(true), Some(behind)) => format!("{behind} behind").yellow().to_string(),
+                    (Some(_), _) => "no".green().to_string(),
+                    // Never green: nothing was measured here.
+                    (None, _) => "n/a".yellow().to_string(),
                 };
                 let incomplete_str = if m.incomplete {
                     "yes".yellow().to_string()
@@ -342,7 +449,8 @@ pub fn cmd_report(
             }
 
             // Stale details
-            let stale_modules: Vec<&ModuleInfo> = modules.iter().filter(|m| m.stale).collect();
+            let stale_modules: Vec<&ModuleInfo> =
+                modules.iter().filter(|m| m.stale == Some(true)).collect();
             if !stale_modules.is_empty() {
                 println!(
                     "\n  {} ({}) (>{} commits behind):",
@@ -355,7 +463,26 @@ pub fn cmd_report(
                         "    {} {} — {} commits behind source",
                         "⚠".yellow(),
                         m.module_name,
-                        m.stale_commits_behind,
+                        behind_cell(m.stale_commits_behind),
+                    );
+                }
+            }
+
+            // Unmeasured details: named individually so nobody has to infer
+            // which modules the summary's `n/a` refers to.
+            let unmeasured_modules: Vec<&ModuleInfo> =
+                modules.iter().filter(|m| m.stale.is_none()).collect();
+            if !unmeasured_modules.is_empty() {
+                println!(
+                    "\n  {} ({}):",
+                    "Modules with unmeasured staleness".yellow().bold(),
+                    unmeasured_modules.len(),
+                );
+                for m in &unmeasured_modules {
+                    println!(
+                        "    {} {} — no git history to measure drift against",
+                        "?".yellow(),
+                        m.module_name,
                     );
                 }
             }
@@ -395,7 +522,9 @@ pub fn cmd_report(
     // warn` still exits 0, `enforce-new` gates on unspecced files, and
     // `--require-coverage` gates on real file coverage. CSV is a machine
     // format — gate silently via the exit code like JSON (handled above).
-    let failures = stale_count + incomplete_count;
+    // Modules whose staleness could not be measured count too: `report` must
+    // not exit 0 attesting to drift it never looked for (#572).
+    let failures = stale_count + unmeasured_stale_count + incomplete_count;
     if matches!(format, types::OutputFormat::Csv) {
         std::process::exit(compute_exit_code(
             failures,

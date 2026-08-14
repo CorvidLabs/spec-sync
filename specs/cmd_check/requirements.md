@@ -20,7 +20,7 @@ spec: cmd_check.spec.md
 - `--fix` renames near-miss headers and appends undocumented exports with language-aware skeleton rows; it performs no inference or command execution
 - `--backup` copies specs to `.specsync/backup-fix/` before any `--fix` write, aborting on any copy/dir failure to avoid data loss
 - `--dry-run` previews `--fix` without writing; `--dry-run` without `--fix` prints a warning that it has no effect
-- `--stale [N]` (default N=5) runs only inside a git repo, using `git_last_commit_hash` + `git_commits_since` to count how many commits each source file has advanced past the spec's last commit, flagging specs ≥ N behind
+- `--stale [N]` (default N=5) uses `spec_baseline` + `git_commits_since` to count how many commits each source file has advanced past the spec's last commit, flagging specs ≥ N behind. When the tree has no committed history — no repository, or an unborn `HEAD` — it emits one `history_unavailable` warning saying it could not check, rather than silently producing no output (#572); a warning is the same weight a real drift finding carries here, so `--strict` fails and a plain run still exits 0
 - `--create-issues` creates one GitHub issue per spec with errors (only when `total_errors > 0`)
 - The hash cache is updated and saved only when `total_errors == 0`
 - JSON output is a single object with `passed`, `errors`, `warnings`, `stale`, and `specs_checked`
@@ -139,3 +139,12 @@ Acceptance Criteria
 Acceptance Criteria
 - Text, JSON, CSV, Markdown, GitHub and table all decline to print a percentage.
 - JSON uses `null`.
+
+### REQ-cmd-check-010
+
+`check --stale` SHALL refuse when staleness cannot be measured.
+
+Acceptance Criteria
+- An explicitly requested measurement that cannot be taken exits non-zero rather than emitting zero warnings.
+- JSON reports `null`, never an empty list.
+- Plain `check` without `--stale` is unaffected.

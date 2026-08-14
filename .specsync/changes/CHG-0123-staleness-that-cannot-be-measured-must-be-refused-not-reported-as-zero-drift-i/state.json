@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i",
+  "slug": "staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i",
+  "title": "Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension",
+  "description": "Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "f26768913eeef4dac2d925ad85daddfa22a054ce",
+  "created_at": 1786742186,
+  "updated_at": 1786743497,
+  "affected_specs": [
+    "git_utils",
+    "cmd_report",
+    "cmd_check",
+    "cmd_stale",
+    "cmd_lifecycle",
+    "scoring",
+    "mcp"
+  ],
+  "affected_paths": [
+    "src/git_utils.rs",
+    "src/commands/report.rs",
+    "src/commands/check.rs",
+    "src/commands/stale.rs",
+    "src/commands/lifecycle.rs",
+    "src/scoring.rs",
+    "src/mcp.rs",
+    "tests/integration.rs",
+    "tests/integration/staleness_unmeasurable.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A tree whose git history cannot answer the staleness question is refused by every reader rather than reported as zero drift. Both unmeasurable states are covered: no repository at all, and a repository with an unborn HEAD. 'report' and 'check --stale' exit non-zero naming which of the two it is, matching what 'stale' already did. The lifecycle no_stale guard refuses to promote on an unasked question. The score freshness dimension withholds its points rather than awarding them, so removing git can no longer raise a grade. A healthy repository reports exactly what it reported before, in every command and format."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

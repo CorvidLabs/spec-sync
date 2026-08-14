@@ -37,7 +37,7 @@ spec: cmd_check.spec.md
 | Auto-fix changes a spec but validation still fails | Reports remaining errors, does not loop | Keep or add a focused assertion before changing this behavior |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) | Keep or add a focused assertion before changing this behavior |
 | `--create-issues` with no GitHub repo | Prints error, skips issue creation | Keep or add a focused assertion before changing this behavior |
-| `--stale` outside a git repo | No staleness output, no crash (the `is_git_repo` guard skips it) | Keep or add a focused assertion before changing this behavior |
+| `--stale` outside a git repo, or with an unborn `HEAD` | One warning: "staleness not checked: … — `--stale` needs git history", `stale[].reason == "history_unavailable"` in JSON, `--strict` exits 1. Silence here read as "checked, found nothing" (#572) | Covered by `staleness_unmeasurable::check_stale_says_it_could_not_check_rather_than_saying_nothing` |
 | Validation has errors | Hash cache is NOT updated/saved (only saved when `total_errors == 0`) | Keep or add a focused assertion before changing this behavior |
 | `--dry-run` without `--fix` | Prints a warning that dry-run has no effect, makes no changes | Keep or add a focused assertion before changing this behavior |
 | Manifest discovery is malformed | Never report partial/vacuous coverage or a successful exit; JSON remains a structured failure | Covered by `malformed_gradle_is_inconclusive_for_coverage_gating_commands` |

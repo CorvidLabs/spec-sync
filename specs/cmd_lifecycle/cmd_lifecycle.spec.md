@@ -1,6 +1,6 @@
 ---
 module: cmd_lifecycle
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/lifecycle.rs
@@ -50,6 +50,10 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 4. Single spec is resolved via `filter_specs` — exits 1 if ambiguous or no match
 5. JSON output uses `OutputFormat::Json` for machine-readable results
 6. Transition guards check min_score, require_sections, and staleness
+6a. A `no_stale` guard that git cannot evaluate FAILS rather than passes: with no committed history
+    the guard's question has no answer, and an unanswerable guard must not be reported as satisfied
+    (#572). A spec that git simply has no record of yet is a different case — there is nothing for
+    it to be behind, so the guard passes, matching `stale`'s treatment since #558.
 7. Lifecycle history is appended to frontmatter `lifecycle_log` when `track_history` is enabled
 
 ## Behavioral Examples
@@ -81,6 +85,7 @@ Implements the `specsync lifecycle` command. Manages spec status transitions —
 | No `status:` line in frontmatter | Prints error, exits 1 |
 | Invalid transition (without `--force`) | Prints error with valid alternatives, exits 1 |
 | Guard check fails (without `--force`) | Prints guard failures, exits 1 |
+| `no_stale` guard with no git history (no repo, or unborn `HEAD`) | Guard fails with "no_stale could not be verified", exits 1 — never silently satisfied |
 | File write fails | Prints error, exits 1 |
 
 ## Dependencies
@@ -112,3 +117,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-04-11 | Add cmd_auto_promote, cmd_enforce to API table; fix invariant #3 scope |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |

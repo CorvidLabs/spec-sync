@@ -39,14 +39,27 @@ pub fn print_coverage_line(coverage: &types::CoverageReport) {
         loc_pct_str.red().to_string()
     };
 
-    println!(
-        "File coverage: {}/{} ({colored_pct})",
-        coverage.specced_file_count, coverage.total_source_files
-    );
-    println!(
-        "LOC coverage:  {}/{} ({colored_loc_pct})",
-        coverage.specced_loc, coverage.total_loc
-    );
+    // A zero denominator is not 100% — it is nothing measured. Reporting it as
+    // 100% put the display in direct contradiction with the gate: the same run
+    // exits 1 from `--require-coverage`, which already refuses this as a
+    // vacuous pass, while printing a green `100%` (#562). The number is what
+    // ends up on badges and dashboards, so it is the half that must not lie.
+    if coverage.total_source_files == 0 {
+        println!("File coverage: 0/0 (no source files to measure)");
+    } else {
+        println!(
+            "File coverage: {}/{} ({colored_pct})",
+            coverage.specced_file_count, coverage.total_source_files
+        );
+    }
+    if coverage.total_loc == 0 {
+        println!("LOC coverage:  0/0 (no source lines to measure)");
+    } else {
+        println!(
+            "LOC coverage:  {}/{} ({colored_loc_pct})",
+            coverage.specced_loc, coverage.total_loc
+        );
+    }
     print_skipped_links(coverage);
 }
 
@@ -90,7 +103,10 @@ pub fn print_coverage_report(coverage: &types::CoverageReport) {
         "Coverage Report".bold()
     );
 
-    if coverage.unspecced_modules.is_empty() {
+    if coverage.total_source_files == 0 {
+        // Vacuous for the same reason: no modules were found to have or lack
+        // spec directories.
+    } else if coverage.unspecced_modules.is_empty() {
         println!(
             "\n  {} All source modules have spec directories",
             "✓".green()
@@ -117,7 +133,13 @@ pub fn print_coverage_report(coverage: &types::CoverageReport) {
         }
     }
 
-    if coverage.unspecced_files.is_empty() && coverage.missing_files.is_empty() {
+    if coverage.total_source_files == 0 {
+        // Both lines below are true of an empty set and read as measurements.
+        println!(
+            "  {} No source files were found to measure — check `source_dirs` and `exclude_patterns`",
+            "⊘".yellow()
+        );
+    } else if coverage.unspecced_files.is_empty() && coverage.missing_files.is_empty() {
         println!("  {} All source files referenced by specs", "✓".green());
     } else if !coverage.unspecced_files.is_empty() {
         let uncovered_loc: usize = coverage.unspecced_file_loc.iter().map(|(_, l)| l).sum();

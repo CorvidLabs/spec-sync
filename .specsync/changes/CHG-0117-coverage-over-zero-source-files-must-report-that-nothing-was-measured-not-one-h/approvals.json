@@ -1,0 +1,38 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786674419,
+      "digest": "82a5493d6b0048734456c332d746c029273ab62ba475ab371b732d0c0d2e3141",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0117-coverage-over-zero-source-files-must-report-that-nothing-was-measured-not-one-h",
+        "title": "Coverage over zero source files must report that nothing was measured, not one hundred percent",
+        "description": "Coverage over zero source files must report that nothing was measured, not one hundred percent",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "output"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/output.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Coverage output over a project with no source files reports that there was nothing to measure rather than a percentage, and names the likely cause so the configuration can be corrected. The affirmative lines claiming every source file is referenced and every module has a spec directory are not printed when no source files were found, because both are true only of an empty set. A project that does contain source files reports its percentages and affirmative lines exactly as before. Gate behaviour is unchanged."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

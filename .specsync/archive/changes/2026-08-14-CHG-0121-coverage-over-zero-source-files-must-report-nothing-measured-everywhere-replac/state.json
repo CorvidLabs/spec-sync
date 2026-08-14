@@ -7,11 +7,11 @@
   "title": "Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question",
   "description": "Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "446aacd27b0be217063f0d92eb4d965b8dfbf105",
   "created_at": 1786724601,
-  "updated_at": 1786728265,
+  "updated_at": 1786728541,
   "affected_specs": [
     "types",
     "validator",

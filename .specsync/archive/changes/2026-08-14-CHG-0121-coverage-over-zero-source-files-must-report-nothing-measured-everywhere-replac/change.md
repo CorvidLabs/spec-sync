@@ -1,6 +1,6 @@
 ---
 id: CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 446aacd27b0be217063f0d92eb4d965b8dfbf105
 ---

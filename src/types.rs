@@ -370,6 +370,20 @@ pub struct SpecSyncConfig {
     /// Path to the config file that was loaded (not serialized — set at runtime).
     #[serde(skip)]
     pub config_path: Option<std::path::PathBuf>,
+
+    /// Set when a config file EXISTS but could not be read or parsed, so these
+    /// settings are the built-in defaults rather than the project's.
+    ///
+    /// Loading silently fell back to defaults and warned on stderr only, so a
+    /// single missing bracket disabled every rule the project had configured —
+    /// `required_sections`, `[rules]` thresholds, `exclude_patterns` — while
+    /// stdout reported `✓ All required sections present` and the run exited 0.
+    /// A CI job capturing stdout saw a clean pass (#570).
+    ///
+    /// Carried on the config so every command can refuse to report success over
+    /// rules it never loaded.
+    #[serde(skip)]
+    pub load_error: Option<String>,
 }
 
 /// Configuration for companion file generation.
@@ -859,6 +873,7 @@ impl Default for SpecSyncConfig {
             lifecycle: LifecycleConfig::default(),
             companions: CompanionConfig::default(),
             config_path: None,
+            load_error: None,
         }
     }
 }

@@ -50,6 +50,10 @@ pub fn load_and_discover(root: &Path, allow_empty: bool) -> (types::SpecSyncConf
         process::exit(1);
     });
 
+    // Single choke point: every command that reads specs comes through here, so
+    // none of them can report a verdict over rules that failed to load (#570).
+    refuse_unloadable_config(&config);
+
     if spec_files.is_empty() && !allow_empty {
         let abs_specs = root.join(&config.specs_dir);
         println!(
@@ -1145,6 +1149,29 @@ pub(crate) fn default_enforcement(config: &types::SpecSyncConfig) -> types::Enfo
 }
 
 /// Compute exit code without printing or exiting.
+/// Refuse to run when a config file exists but could not be loaded.
+///
+/// The rules in force would be the built-in defaults, not the project's. Every
+/// `required_sections` entry, `[rules]` threshold and `exclude_patterns` line it
+/// configured is silently absent — and the previous behaviour warned on stderr
+/// and carried on, so stdout reported `✓ All required sections present` over a
+/// section list that had been thrown away, and a CI job capturing stdout saw a
+/// clean pass (#570).
+///
+/// Reporting success over rules that were never loaded is the same defect as
+/// reporting success over checks that never ran, and worse: it disables every
+/// configured rule at once. A project writes that file precisely because the
+/// defaults are not enough, so substituting the defaults is never the safe
+/// reading of a typo.
+pub fn refuse_unloadable_config(config: &types::SpecSyncConfig) {
+    let Some(reason) = &config.load_error else {
+        return;
+    };
+    eprintln!("{} {reason}", "error:".red().bold());
+    eprintln!("  fix the config file, or remove it to use the built-in defaults deliberately");
+    process::exit(1);
+}
+
 pub fn compute_exit_code(
     total_errors: usize,
     total_warnings: usize,

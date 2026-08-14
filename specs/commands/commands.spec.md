@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 18
+version: 20
 status: stable
 files:
   - src/commands/mod.rs
@@ -42,6 +42,7 @@ suppression, exit handling, and GitHub drift diagnostics.
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `load_and_discover` | `root: &Path, allow_empty: bool` | `(SpecSyncConfig, Vec<PathBuf>)` | Load config and discover all spec files (excluding `_`-prefixed); exits if empty and `allow_empty` is false |
+| `refuse_unloadable_config` | `config: &SpecSyncConfig` | `()` | Exit rather than report a verdict derived from a config file that exists but could not be loaded; applied once inside `load_and_discover` so no command can omit it |
 | `validate_module_name` | `module_name: &str` | `Result<(), String>` | Validate a user-supplied module name as one portable path segment: reject traversal/control/Windows-invalid characters, trailing spaces/dots, Windows reserved device basenames (including before extensions), and names whose `<name>.spec.md` filename exceeds 255 UTF-8 bytes |
 | `filter_specs` | `root: &Path, spec_files: &[PathBuf], filters: &[String]` | `Vec<PathBuf>` | Filter spec files by user-provided names/paths (exact path, relative path, filename, module name); returns all if filters is empty |
 | `filter_by_status` | `spec_files: &[PathBuf], exclude: &[String], only: &[String]` | `Vec<PathBuf>` | Filter spec files by their frontmatter status field; supports exclude-list and allow-list modes |
@@ -204,3 +205,5 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
 | 2026-08-13 | CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di: A symlink under a source directory must be skipped and disclosed, never abort discovery |
 | 2026-08-13 | CHG-0111-report-the-checks-that-frontmatter-parse-failure-prevented-instead-of-printing-a: Report the checks that frontmatter parse failure prevented instead of printing a green line for each |
+| 2026-08-14 | CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
+| 2026-08-14 | CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |

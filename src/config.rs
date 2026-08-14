@@ -1088,7 +1088,13 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                     config_path.display()
                 );
             }
-            return SpecSyncConfig::default();
+            return SpecSyncConfig {
+                load_error: Some(format!(
+                    "config file {} exists but could not be loaded; built-in defaults are in use",
+                    config_path.display()
+                )),
+                ..SpecSyncConfig::default()
+            };
         }
     };
 
@@ -1164,7 +1170,13 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
                     config_path.display()
                 );
             }
-            return SpecSyncConfig::default();
+            return SpecSyncConfig {
+                load_error: Some(format!(
+                    "config file {} exists but could not be loaded; built-in defaults are in use",
+                    config_path.display()
+                )),
+                ..SpecSyncConfig::default()
+            };
         }
     };
 

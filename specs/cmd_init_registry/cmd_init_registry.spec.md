@@ -1,6 +1,6 @@
 ---
 module: cmd_init_registry
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/init_registry.rs
@@ -71,3 +71,4 @@ Implements the `specsync init-registry` command. Creates a registry file for cro
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-14 | CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable: Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text |
+| 2026-08-14 | CHG-0126-the-config-refusal-must-guard-both-loaders-because-load-config-is-a-second-door: The config refusal must guard both loaders, because load_config is a second door through which rules, compact and rehash reported success over configuration they never read |

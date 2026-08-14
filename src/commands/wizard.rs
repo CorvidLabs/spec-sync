@@ -3,13 +3,12 @@ use std::fs;
 use std::path::Path;
 use std::process;
 
-use crate::config::load_config;
 use crate::generator;
 
 pub fn cmd_wizard(root: &Path) {
     use dialoguer::{Confirm, Input, Select};
 
-    let config = load_config(root);
+    let config = crate::config::load_config_allowing_unloadable(root);
     let specs_dir = root.join(&config.specs_dir);
 
     println!(

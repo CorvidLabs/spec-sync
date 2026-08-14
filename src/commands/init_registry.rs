@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::Path;
 use std::process;
 
-use crate::config::{load_config, validate_config_file};
+use crate::config::validate_config_file;
 use crate::output::csv_field;
 use crate::registry;
 use crate::types::OutputFormat;
@@ -97,7 +97,7 @@ fn execute_init_registry(
     {
         return Err(InitRegistryReport::failure(rel_display, error));
     }
-    let config = load_config(root);
+    let config = crate::config::load_config_allowing_unloadable(root);
     let content = registry::generate_registry(root, &project_name, &config.specs_dir);
     if let Err(error) = toml::from_str::<toml::Value>(&content) {
         return Err(InitRegistryReport::failure(

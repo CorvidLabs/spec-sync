@@ -1,6 +1,6 @@
 ---
 module: config
-version: 18
+version: 19
 status: stable
 files:
   - src/config.rs
@@ -156,6 +156,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-14 | CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
 | 2026-08-14 | CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
+| 2026-08-14 | CHG-0126-the-config-refusal-must-guard-both-loaders-because-load-config-is-a-second-door: The config refusal must guard both loaders, because load_config is a second door through which rules, compact and rehash reported success over configuration they never read |
 
 ## Config File Structure
 

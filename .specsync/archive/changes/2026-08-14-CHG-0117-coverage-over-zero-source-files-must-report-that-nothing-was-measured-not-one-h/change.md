@@ -1,6 +1,6 @@
 ---
 id: CHG-0117-coverage-over-zero-source-files-must-report-that-nothing-was-measured-not-one-h
-state: implementing
+state: archived
 type: bug_fix
 base_commit: a38c3554152b32867daf5df740c530d40aa221b5
 ---

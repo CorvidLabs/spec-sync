@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 121,
-  "id": "CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac",
+  "sequence": 122,
+  "id": "CHG-0122-cover-the-integration-tests-added-for-the-coverage-unmeasured-matrix-which-asse",
   "acknowledged_collisions": [
     {
       "sequence": 16,

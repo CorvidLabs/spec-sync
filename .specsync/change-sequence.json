@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 116,
-  "id": "CHG-0116-asking-to-view-a-module-that-does-not-exist-must-fail-not-print-nothing-and-suc",
+  "sequence": 117,
+  "id": "CHG-0117-coverage-over-zero-source-files-must-report-that-nothing-was-measured-not-one-h",
   "acknowledged_collisions": [
     {
       "sequence": 16,

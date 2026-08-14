@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0117-coverage-over-zero-source-files-must-report-that-nothing-was-measured-not-one-h",
+  "reviewer": "opus-5-implementing-session",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "da404d876f30e35141df88a33d281734f47be356",
+  "contract_digest": "82a5493d6b0048734456c332d746c029273ab62ba475ab371b732d0c0d2e3141",
+  "execution_digest": "a7dd10e1cce986660cfef9bee5b3877cf39dc8298ac3368975ef4703075346c9",
+  "workspace_digest": "a9a3c4f02ba12c6678e29aac4fec6b7a8ad098ce1bb2b0ecbbca95b2c53a8bfc",
+  "timestamp": 1786676143
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0117-coverage-over-zero-source-files-must-report-that-nothing-was-measured-not-one-h",
+  "implementation_commit": "da404d876f30e35141df88a33d281734f47be356",
+  "implementation_tree": "c0539bab84fe1e6b63e5ff0d0cabb96db8e26ab2",
+  "contract_digest": "82a5493d6b0048734456c332d746c029273ab62ba475ab371b732d0c0d2e3141",
+  "workspace_digest": "a9a3c4f02ba12c6678e29aac4fec6b7a8ad098ce1bb2b0ecbbca95b2c53a8bfc",
+  "closing_digest": "50ccd7b4aefe1d5d83b0d50c906ef8161a2f857aff9d276f0be659342e5856e7",
+  "review_digest": "d7827286201666c06f853e8e04eba564beec20313352d37fe8d2aa6b4b53a32c",
+  "finalization_digest": "8c514ebe167428cf312f711058ae0973298dac8aab9dc83bbf85bcf857a595c8",
+  "timestamp": 1786676161
+}

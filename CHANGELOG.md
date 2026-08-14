@@ -65,6 +65,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Coverage no longer displays `0/0` as 100%** (CorvidLabs/spec-sync#562). A project whose
+  configured `source_dirs` contained no source files printed `File coverage: 0/0 (100%)` — in
+  the same run that `--require-coverage` correctly failed. The gate and the display
+  contradicted each other, and the number is the half that ends up on badges and dashboards.
+
+  `compute_exit_code` already carried the reasoning: *"a `--require-coverage` gate over zero
+  source files is a vacuous pass … fail loud so a broken config cannot pass CI."* The hazard
+  was understood and defended in the gate, while the display kept reporting success.
+
+  Zero denominators now read `0/0 (no source files to measure)`, and the two affirmative
+  lines that were true only of an empty set — `✓ All source files referenced by specs` and
+  `✓ All source modules have spec directories` — are replaced by the actionable cause:
+  `⊘ No source files were found to measure — check source_dirs and exclude_patterns`.
+  A project with source files is unaffected.
+
 - **`view --spec <unknown>` no longer succeeds silently** (CorvidLabs/spec-sync#551).
   Asking for a module that does not exist printed **zero bytes** and exited 0, in text and
   in JSON alike — indistinguishable from a module that exists and renders empty. A script or

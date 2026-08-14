@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su",
+  "implementation_commit": "2df7fb2b50d4527d80662c6f46a96d983518f1f3",
+  "implementation_tree": "830c864d951a779558b8750af6fd86017a708d2d",
+  "contract_digest": "800c177bcc29e6d210a0d46c0d9f33d055975ee66b915b72f0aeb46f0fe784c9",
+  "workspace_digest": "f1175f98254373d578b64e1233ca24882bda31b9cf2e3253b6d61d10dafad871",
+  "closing_digest": "34b43eb35ad3e57523154b91865fae25b8f60394d28d757dea5e8558e73ce4ff",
+  "review_digest": "4954cd0026b2f22b41f5e340fad8496a94cb2186d2f50371dd32bae3bceac106",
+  "finalization_digest": "ce33fdce3cddb1f0f8d3134e333cda1bfb5e138c82b3d6b49e82a2505081f373",
+  "timestamp": 1786680390
+}

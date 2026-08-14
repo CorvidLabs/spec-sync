@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su",
+  "slug": "a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su",
+  "title": "A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults",
+  "description": "A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "a38c3554152b32867daf5df740c530d40aa221b5",
+  "created_at": 1786679265,
+  "updated_at": 1786680390,
+  "affected_specs": [
+    "types",
+    "config",
+    "validator",
+    "commands"
+  ],
+  "affected_paths": [
+    "src/types.rs",
+    "src/config.rs",
+    "src/validator.rs",
+    "src/commands/mod.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A project whose config file exists but cannot be parsed or read is refused with an error naming the file, rather than silently falling back to built-in defaults and reporting that every configured rule passed. A project with a valid config continues to enforce exactly what it configures. A project with no config file at all continues to run on the built-in defaults and is unaffected. The refusal reaches every command that reads specs, not only the validating ones."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

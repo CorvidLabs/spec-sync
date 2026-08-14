@@ -80,6 +80,11 @@ Core deterministic data structures and enums shared across the codebase: configu
 | `from_extension` | `ext: &str` | `Option<Self>` | Detect language from file extension |
 | `extensions` | `&self` | `&[&str]` | Default source file extensions for this language |
 | `test_patterns` | `&self` | `&[&str]` | File patterns to exclude (test files) |
+| `measured_file_total` | `&self` | `usize` | Files that count toward coverage: those discovered plus those a spec names but that are absent, so a broken `files:` list cannot shrink the denominator |
+| `file_coverage` | `&self` | `Option<f64>` | Fraction of source files covered by a spec, or `None` when there are no files to measure |
+| `file_coverage_percent` | `&self` | `Option<usize>` | `file_coverage` as a whole percent. `None` means nothing was measured, which is distinct from `Some(0)` |
+| `loc_coverage` | `&self` | `Option<f64>` | Fraction of source lines covered by a spec, or `None` when there are no lines to measure |
+| `loc_coverage_percent` | `&self` | `Option<usize>` | `loc_coverage` as a whole percent, `None` when unmeasured |
 
 ## Invariants
 

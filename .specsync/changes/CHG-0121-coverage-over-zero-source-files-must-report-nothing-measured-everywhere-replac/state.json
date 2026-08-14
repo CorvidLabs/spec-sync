@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "446aacd27b0be217063f0d92eb4d965b8dfbf105",
   "created_at": 1786724601,
-  "updated_at": 1786725544,
+  "updated_at": 1786726257,
   "affected_specs": [
     "types",
     "validator",

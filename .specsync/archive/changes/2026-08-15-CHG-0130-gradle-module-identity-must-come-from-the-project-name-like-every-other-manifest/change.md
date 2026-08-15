@@ -1,6 +1,6 @@
 ---
 id: CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 0edba080ab9fee5879e9cae903ea2abb3b97a250
 ---

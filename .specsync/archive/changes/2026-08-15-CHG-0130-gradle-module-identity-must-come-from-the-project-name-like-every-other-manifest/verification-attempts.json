@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1786831913,
+      "commit": "0edba080ab9fee5879e9cae903ea2abb3b97a250",
+      "contract_digest": "a581928c83ac0dd4071411c35ace92f7e5cadfec85d708d89ad0c79e8a5e87b0",
+      "execution_digest": "6f3c9d60e14fdbde5af298d98e09691c096cb8cd0b1361e98429116b07672317",
+      "workspace_digest": "c0591c52f380151e28685870d5341e4787f66b1ff4ee712a6a95dcfd9ac66d3f",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-manifest-002",
+        "REQ-validator-016"
+      ]
+    },
+    {
+      "timestamp": 1786831947,
+      "commit": "6e73d7ce27d41da860f9f1b37b1298ffccd811e4",
+      "contract_digest": "a581928c83ac0dd4071411c35ace92f7e5cadfec85d708d89ad0c79e8a5e87b0",
+      "execution_digest": "11e5aca606ae1ca22a1fcebbb1819f73480868b5d64149ed26cea59cf66b2714",
+      "workspace_digest": "52a538c076cf29c1cf6bb3eb07f636209138f44aae3bbfd61045efb418844d59",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-manifest-002",
+        "REQ-validator-016"
+      ]
+    },
+    {
+      "timestamp": 1786831955,
+      "commit": "1c7e830d9053f10fbd74bfb80d94c9ce9444e197",
+      "contract_digest": "a581928c83ac0dd4071411c35ace92f7e5cadfec85d708d89ad0c79e8a5e87b0",
+      "execution_digest": "11e5aca606ae1ca22a1fcebbb1819f73480868b5d64149ed26cea59cf66b2714",
+      "workspace_digest": "52a538c076cf29c1cf6bb3eb07f636209138f44aae3bbfd61045efb418844d59",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-manifest-002",
+        "REQ-validator-016"
+      ]
+    },
+    {
+      "timestamp": 1786831955,
+      "commit": "c29c3eaf9bc734a050e67c5168db81b67c6f5ba8",
+      "contract_digest": "a581928c83ac0dd4071411c35ace92f7e5cadfec85d708d89ad0c79e8a5e87b0",
+      "execution_digest": "11e5aca606ae1ca22a1fcebbb1819f73480868b5d64149ed26cea59cf66b2714",
+      "workspace_digest": "52a538c076cf29c1cf6bb3eb07f636209138f44aae3bbfd61045efb418844d59",
+      "acceptance_input_digest": "fe7acfb7c1dc0cfdbba8bc68b2d4239194a0782b3b9d01a6bfcf170d6ed12da6",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".specsync/change-sequence.json",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "75e6e9400c5f20b08c40f71ff5da517e64ac509a739b6ccedfca62471d42661b",
+            "entry_digest": "6d1d3c4f5f16fee66fc1d94bac2d9eaa764fa5d805af35bd33c766cc7876d76a",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e9e6241720c9c6da69bca211d0d8a54bfa5906360401e665d2b60074edb3605f",
+            "entry_digest": "c4cf61db00b276751e83125ae059046a6e66ec848c7825b3d95467284be33d56",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/manifest/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1d0ac718cf0901d58f9e9e6347f568c4a5c2c766a3104e1b69497c32848a72dc",
+            "entry_digest": "21f22c32bfdced027b9c1fde394999665ea279b1c779566a7f7026fff98ce24f",
+            "owners": [
+              "manifest"
+            ]
+          },
+          {
+            "path": "specs/manifest/manifest.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c56d96e255b7f20e59c49d76b5fa70c0d573d23a6dd23d8bc4dc8528227fc1a3",
+            "entry_digest": "edc417bfd87a6d538633c166793f9583191765c5247e37f5530f597cad8df202",
+            "owners": [
+              "manifest"
+            ]
+          },
+          {
+            "path": "specs/manifest/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "317dca1276129b05bd1cec4e8f068ebef783c99aaf200aca0a19a5177c6e05ba",
+            "entry_digest": "fac6a8dc681f83e2fd278eda7bb290d466f525ef6b740d9726b563f63078f31d",
+            "owners": [
+              "manifest"
+            ]
+          },
+          {
+            "path": "specs/manifest/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ee8ceec7c613b92a5746771bf1c375dd6db6a5b05e3adef1760517eb01598253",
+            "entry_digest": "f08e26b507c7295dc647043f7fab7d18b3371b8fead75848920d15e077250d0c",
+            "owners": [
+              "manifest"
+            ]
+          },
+          {
+            "path": "specs/manifest/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "585ae8ea476030af0d75ec099b0bae8f3bab4ef363c3c326e6e1f2e5f4318281",
+            "entry_digest": "ae8c64f74d972dfc1a1b63e02aac9e2fbfce4ad068058b258b963aaff2a5b5fe",
+            "owners": [
+              "manifest"
+            ]
+          },
+          {
+            "path": "specs/validator/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c6b7498a9b4345db9d4c9936648af800c65bf0213574596e289ca34b27f1bf56",
+            "entry_digest": "20e0c30624450b31cac86e7be70f507d9953bb589d243819d98c634e5ebf7f1a",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "40a27c8c164c1d214c9728c34e5c75213289fab14c10a547eb741bfdefed62d5",
+            "entry_digest": "6b20d22ed83e2ee2d1b8cfaab9f8b275f5c207a467cc6c126e7f2cf94a3fedf5",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8a63359ac4b8bb403202131a82498133359c5063d5a9386a0a1b4671a997f950",
+            "entry_digest": "26943c838defe3ac7db44470c37585a37beaf1416c64fa74691e13b2b983d04a",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "88aa38ed2586874febd5226e8194e1c3cf79c1ca650c03d69a328d7c4e27fc8c",
+            "entry_digest": "04efa7f260cfc557bf1cf0ce30efe3d81a9ad92386d02feb8896d6dfd0fc65d7",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/validator.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f677b1ed0d8349da05b42891f597bf7902e7ccc15e809749f8b18130428da83c",
+            "entry_digest": "85ebea747986250d22a682ac89928c421764f1814b111ca8d5d42099f65ccc46",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "src/manifest.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3b1300c59891aa849ed711e54fa6896aad01e9d119b491676b1a0c57fbf59cff",
+            "entry_digest": "39925a39b8124a604d546b7be40370c4baac29a9c246f66d3459bebe90aa6dfa",
+            "owners": [
+              "manifest"
+            ]
+          },
+          {
+            "path": "src/validator.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9e51bc6b3cb324931e752e2e222b11a0e5838ad40bc2428fe25bdf94f2539e08",
+            "entry_digest": "960609835ccd5ddc2082732164fc33ab7945418ce65e78692c1c7ab8428f2a87",
+            "owners": [
+              "validator"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-manifest-002",
+        "REQ-validator-016"
+      ]
+    }
+  ]
+}

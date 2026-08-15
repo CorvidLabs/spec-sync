@@ -7,11 +7,11 @@
   "title": "Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module",
   "description": "Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "0edba080ab9fee5879e9cae903ea2abb3b97a250",
   "created_at": 1786831688,
-  "updated_at": 1786831957,
+  "updated_at": 1786831996,
   "affected_specs": [
     "manifest",
     "validator"

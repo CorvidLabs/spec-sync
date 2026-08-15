@@ -1,0 +1,55 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786812967,
+      "digest": "9771c0a475d83de9bdb69484b26ea52f8f9eb7933f0cf2bc3a4645afe75aa0e2",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve",
+        "title": "Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is",
+        "description": "Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_diff",
+          "cmd_new",
+          "cmd_scaffold",
+          "exports",
+          "generator",
+          "scoring"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/diff.rs",
+          "src/commands/new.rs",
+          "src/commands/scaffold.rs",
+          "src/exports/mod.rs",
+          "src/generator.rs",
+          "src/scoring.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "On a project configuring export_level = type, score grades the API dimension against the type-level surface that check validates, so the two commands agree about what the module's API is. new and generate produce specs whose Public API contains only symbols check will accept, so the tool cannot generate work its own validator rejects. diff reports drift only for symbols in the configured surface. The configured parse mode is threaded to the same sites, so an AST project gets AST parsing everywhere rather than in check alone. A project on the default member level and regex mode behaves byte-identically to before."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786823038,
+      "digest": "41e9fa10c222fe4e57333c3d79fdd7ce553ce6efe84919d4240e836052d34666",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

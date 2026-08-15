@@ -42,3 +42,11 @@ Generated output SHALL NOT embed a coverage percentage that was not measured.
 
 Acceptance Criteria
 - A zero denominator renders the unmeasured state.
+
+### REQ-generator-004
+
+Generated specs SHALL contain only symbols the configured surface includes.
+
+Acceptance Criteria
+- A generated spec, once activated, passes `check` without orphan-export errors.
+- The tool cannot emit a spec its own validator rejects.

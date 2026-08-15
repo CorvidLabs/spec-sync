@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve",
+  "implementation_commit": "2f98728bbd7533fbf6516239156f48166cbfb765",
+  "implementation_tree": "ade2a6ac7379f0c3c37ec062d4455e36cda5d4cf",
+  "contract_digest": "9771c0a475d83de9bdb69484b26ea52f8f9eb7933f0cf2bc3a4645afe75aa0e2",
+  "workspace_digest": "9973453e19f18eaee0efac0471e28773f13cd228d52b90a8fc2cd5172a05bab6",
+  "closing_digest": "41e9fa10c222fe4e57333c3d79fdd7ce553ce6efe84919d4240e836052d34666",
+  "review_digest": "4bd0fb9ef7a471d909d9106e39b2507ad49256497057aa634ddd3cccd2ae485d",
+  "finalization_digest": "a82912cddff2e87ae6ad5445d3e9a52a9953eb5c321b2f3eb903a8d2a5ceac57",
+  "timestamp": 1786823038
+}

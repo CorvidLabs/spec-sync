@@ -44,3 +44,10 @@ Acceptance Criteria
 Acceptance Criteria
 - A `files:` entry whose extraction unioned both sides of a conflict is reported rather than differenced, because every delta computed from that union is fiction.
 - The affected paths are named, so the reader knows which entries were excluded and why.
+
+### REQ-cmd-diff-003
+
+`diff` SHALL report drift only for symbols in the configured surface.
+
+Acceptance Criteria
+- A symbol outside the surface is never reported as new or removed drift.

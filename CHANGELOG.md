@@ -65,6 +65,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`score`, `new`, `generate`, `scaffold` and `diff` now honour the configured export level**
+  (CorvidLabs/spec-sync#474). On a project configuring `export_level = "type"`, `check` reported
+  `2/2 exports documented` while `score` deducted 12 points for three "undocumented exports" that
+  were not part of the configured surface at all — two commands disagreeing about what a module's
+  API is.
+
+  The cause was a convenience wrapper that hard-coded both the export level and the parse mode, and
+  it had five callers. The unreported ones matter more than the reported one: **`specsync new`
+  generated specs that `specsync check` then rejected** (`Spec documents 'id' but no matching export
+  found in source`), and `diff --json` reported `"new_exports": ["id","name","find"]` as drift — in
+  PR comments — for symbols the contract never claimed.
+
+  A project configuring `parse_mode = "ast"` also got AST parsing in `check` and regex everywhere
+  else. One configuration now produces one answer.
+
 - **Two values that stood in for measurements nobody took** (follow-up to CorvidLabs/spec-sync#572
   and CorvidLabs/spec-sync#583, both caught by their own sandbox gates after the fixes had merged).
 

@@ -38,6 +38,15 @@ use std::path::Path;
 
 /// Extract exported symbol names from a source file, auto-detecting language.
 /// Uses `ExportLevel::Member` (all symbols) and regex parsing for backwards compatibility.
+///
+/// NOT for any command that reports on a project: this pins the surface to
+/// member/regex regardless of what the project configured, so `score`, `diff`,
+/// `new`, and the generators disagreed with `check` about what a module's API
+/// even is — under `export_level = "type"` check said `2/2 exports documented`
+/// while score deducted for `id`, `name`, `find` (#474). Those callers now pass
+/// `config.export_level` / `config.parse_mode` to `get_exported_symbols_full`.
+/// Kept for callers that genuinely want the default surface (tests).
+#[allow(dead_code)]
 pub fn get_exported_symbols(file_path: &Path) -> Vec<String> {
     get_exported_symbols_full(file_path, ExportLevel::Member, ParseMode::Regex)
 }
@@ -121,6 +130,13 @@ fn sample_symbols(symbols: &[String]) -> String {
 
 /// Extract exported symbol names, distinguishing failure from genuine emptiness.
 /// Uses `ExportLevel::Member` and regex parsing (matches `get_exported_symbols`).
+///
+/// Carries the same warning as `get_exported_symbols`: the surface is pinned to
+/// member/regex, so no command that grades or reports against a project may use
+/// it — `score` and `diff` did, and graded every project against a surface it
+/// had not configured (#474). Use `scan_exported_symbols_full` with the
+/// project's `export_level`/`parse_mode` instead.
+#[allow(dead_code)]
 pub fn scan_exported_symbols(file_path: &Path) -> ExportScan {
     scan_exported_symbols_full(file_path, ExportLevel::Member, ParseMode::Regex)
 }

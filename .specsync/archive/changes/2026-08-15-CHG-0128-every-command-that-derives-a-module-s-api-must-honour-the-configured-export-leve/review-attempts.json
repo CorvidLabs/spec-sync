@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve",
+      "reviewer": "claude-opus-5",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "2f98728bbd7533fbf6516239156f48166cbfb765",
+      "contract_digest": "9771c0a475d83de9bdb69484b26ea52f8f9eb7933f0cf2bc3a4645afe75aa0e2",
+      "execution_digest": "e847a450c76b8ebfad7a892ccf01ecdf0f6445d861e55a3e9e4c80065ad5202a",
+      "workspace_digest": "9973453e19f18eaee0efac0471e28773f13cd228d52b90a8fc2cd5172a05bab6",
+      "timestamp": 1786823029
+    }
+  ]
+}

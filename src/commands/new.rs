@@ -64,7 +64,14 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
             continue;
         }
         let full_path = root.join(file);
-        all_exports.extend(exports::get_exported_symbols(&full_path));
+        // Scaffold the API table from the configured export surface, not from
+        // every member: under `export_level = "type"` the member rows document
+        // symbols `check` does not recognize as exports (#474).
+        all_exports.extend(exports::get_exported_symbols_full(
+            &full_path,
+            config.export_level,
+            config.parse_mode,
+        ));
     }
     // Deduplicate
     let mut seen = std::collections::HashSet::new();

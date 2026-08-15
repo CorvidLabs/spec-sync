@@ -7,11 +7,11 @@
   "title": "Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is",
   "description": "Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "48caf5688f9e0b7b2096b33c8e6a5ae47897daa4",
   "created_at": 1786812758,
-  "updated_at": 1786823011,
+  "updated_at": 1786823038,
   "affected_specs": [
     "scoring",
     "generator",

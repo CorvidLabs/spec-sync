@@ -1,6 +1,6 @@
 ---
 id: CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 48caf5688f9e0b7b2096b33c8e6a5ae47897daa4
 ---

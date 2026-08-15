@@ -65,6 +65,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The config refusal now guards both loaders** (CorvidLabs/spec-sync#583). #570 installed it at
+  `load_and_discover` and called that "a single choke point" in the source. It was not:
+  `config::load_config` is a second door, and `rules`, `compact` and `rehash` all came through it,
+  each exiting 0 over a config file that existed and could not be read.
+
+  **`rehash` is the one that mattered.** It does not merely report — it regenerated
+  `.specsync/hashes.json` from specs interpreted under default configuration, and that cache is what
+  later `check` runs consult to decide which specs are unchanged and can be skipped. A broken config
+  did not produce one wrong answer; it wrote a stale-skip cache that silently shortened every
+  subsequent run.
+
+  The default now refuses and the permissive loader must be requested by name, so the repair paths
+  keep working while a caller added later gets the guard unless it deliberately opts out.
+
 - **Machine-readable formats no longer report fewer findings than the text output**
   (CorvidLabs/spec-sync#576). On a failing tree, `check --format table` and `--format csv` printed a
   summary and **named no finding while exiting 1** — a CI job parsing the CSV saw zero rows and

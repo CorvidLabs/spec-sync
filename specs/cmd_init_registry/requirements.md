@@ -41,3 +41,10 @@ The registry initialiser SHALL use the shared CSV field quoting.
 
 Acceptance Criteria
 - Its duplicate implementation is removed rather than kept in sync.
+
+### REQ-cmd-init-registry-003
+
+The registry initialiser SHALL keep working over a broken configuration.
+
+Acceptance Criteria
+- It requests the permissive loader explicitly, for the same reason as the wizard.

@@ -562,7 +562,35 @@ fn is_toml_string_array(value: &toml::Value) -> bool {
 ///
 /// After loading the shared config, `.specsync/config.local.toml` is read for
 /// migration diagnostics. Retired embedded-AI keys are ignored safely.
+/// Load the project configuration, refusing to continue when a config file
+/// exists but could not be used.
+///
+/// This is the default loader precisely because it fails closed. #570 installed
+/// the refusal at `commands::load_and_discover`, described in the source as
+/// "a single choke point" — which it was not. `load_config` is a second door,
+/// and `rules`, `compact` and `rehash` all came through it. `rehash` is the one
+/// that mattered: it does not merely report, it WRITES `.specsync/hashes.json`
+/// from specs interpreted under default configuration, and that cache is what
+/// later `check` runs consult to decide which specs are unchanged and may be
+/// skipped. A broken config therefore did not produce one wrong answer; it
+/// wrote a stale-skip cache that silently shortened every subsequent run (#583).
+///
+/// Callers whose job is to REPAIR a broken config need the raw loader and must
+/// ask for it by name. That inverts the default: a caller added later gets the
+/// guard unless it deliberately opts out, instead of getting the hole unless it
+/// remembers to opt in.
 pub fn load_config(root: &Path) -> SpecSyncConfig {
+    let config = load_config_allowing_unloadable(root);
+    crate::commands::refuse_unloadable_config(&config);
+    config
+}
+
+/// Load the project configuration WITHOUT refusing an unloadable file.
+///
+/// Only for callers that must keep working when the config is broken: the
+/// repair paths, and tests that exercise the fallback itself. Everything else
+/// wants [`load_config`].
+pub fn load_config_allowing_unloadable(root: &Path) -> SpecSyncConfig {
     let v4_toml = root.join(".specsync/config.toml");
     let v4_json = root.join(".specsync/config.json");
     let legacy_toml = root.join(".specsync.toml");

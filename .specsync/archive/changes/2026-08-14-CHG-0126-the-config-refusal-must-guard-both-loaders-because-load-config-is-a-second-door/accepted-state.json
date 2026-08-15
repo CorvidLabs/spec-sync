@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0126-the-config-refusal-must-guard-both-loaders-because-load-config-is-a-second-door",
+  "slug": "the-config-refusal-must-guard-both-loaders-because-load-config-is-a-second-door",
+  "title": "The config refusal must guard both loaders, because load_config is a second door through which rules, compact and rehash reported success over configuration they never read",
+  "description": "The config refusal must guard both loaders, because load_config is a second door through which rules, compact and rehash reported success over configuration they never read",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "88d73e1a8208f25035ee727f2326f871af504223",
+  "created_at": 1786749091,
+  "updated_at": 1786751352,
+  "affected_specs": [
+    "config",
+    "cmd_wizard",
+    "cmd_init_registry"
+  ],
+  "affected_paths": [
+    "src/config.rs",
+    "src/commands/wizard.rs",
+    "src/commands/init_registry.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A project whose config file exists but cannot be read is refused by commands that load config directly, not only by those that go through the discovery path. rules, compact and rehash all exit non-zero, and rehash writes no hash cache. A project with a valid config is unchanged in every one of them. The repair paths that must keep working over a broken config ask for the permissive loader by name, so a caller added later gets the guard unless it deliberately opts out."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

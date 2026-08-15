@@ -245,3 +245,12 @@ Acceptance Criteria
 - A body conflict is reported before frontmatter parsing, so it is named as a conflict rather than as an incidental parse error.
 - A path git reports as unmerged is refused whatever the extractor made of its bytes.
 - Every read path is covered, including the pre-read snapshot path used by `issues`.
+
+### REQ-validator-016
+
+No child of a JVM source root SHALL be treated as a module.
+
+Acceptance Criteria
+- Children of `src/main/kotlin` and its siblings are not modules.
+- A package hierarchy therefore contributes no module names, removing the choice of segment that produced both the original defect and its first attempted fix.
+- A monorepo laid out as `packages/<name>/src/main/kotlin` does not collapse into a single module.

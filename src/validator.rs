@@ -3142,6 +3142,74 @@ mod tests {
     }
 
     #[test]
+    fn gradle_coverage_names_the_root_project_not_the_package_tld() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("payments");
+        fs::create_dir_all(root.join("src/main/kotlin/com/example/tool")).unwrap();
+        fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            root.join("src/main/kotlin/com/example/tool/Profile.kt"),
+            "package com.example.tool\nclass Profile\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src/main/kotlin".to_string()],
+            source_extensions: vec!["kt".to_string()],
+            ..SpecSyncConfig::default()
+        };
+
+        let report = compute_coverage_checked(&root, &[], &config).unwrap();
+        assert_eq!(
+            report.unspecced_files.len(),
+            1,
+            "{:?}",
+            report.unspecced_files
+        );
+        assert!(
+            report
+                .unspecced_modules
+                .iter()
+                .any(|name| name == "payments"),
+            "expected directory identity, got {:?}",
+            report.unspecced_modules
+        );
+        assert!(
+            !report.unspecced_modules.iter().any(|name| name == "com"),
+            "package TLD must not be a module: {:?}",
+            report.unspecced_modules
+        );
+        assert!(
+            !report.unspecced_modules.iter().any(|name| name == "src"),
+            "shared src/ leaf must not be a module: {:?}",
+            report.unspecced_modules
+        );
+    }
+
+    #[test]
+    fn conventional_src_child_is_still_a_module() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("src/auth")).unwrap();
+        fs::write(
+            tmp.path().join("src/auth/session.py"),
+            "def login():\n    return True\n",
+        )
+        .unwrap();
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src".to_string()],
+            source_extensions: vec!["py".to_string()],
+            ..SpecSyncConfig::default()
+        };
+
+        let report = compute_coverage_checked(tmp.path(), &[], &config).unwrap();
+        assert!(
+            report.unspecced_modules.iter().any(|name| name == "auth"),
+            "expected subdirectory module auth, got {:?}",
+            report.unspecced_modules
+        );
+        assert!(!report.unspecced_modules.iter().any(|name| name == "com"));
+    }
+
+    #[test]
     fn malformed_gradle_settings_make_coverage_inconclusive() {
         let tmp = tempfile::tempdir().unwrap();
         fs::create_dir_all(tmp.path().join("src/main/kotlin")).unwrap();
@@ -5439,8 +5507,13 @@ pub fn compute_coverage_checked(
         }
     }
 
-    // Detect subdirectory-based modules
+    // Detect subdirectory-based modules. JVM language roots (`src/main/kotlin`,
+    // …) hold package segments, not modules — naming from those children is
+    // how a conventional Gradle tree became module `com` (#473).
     for src_dir in &config.source_dirs {
+        if crate::manifest::is_jvm_package_source_root(src_dir) {
+            continue;
+        }
         for module in coverage_source_modules(&source_snapshot, src_dir)? {
             if !spec_modules.contains(&module) && seen_modules.insert(module.clone()) {
                 unspecced_modules.push(module);

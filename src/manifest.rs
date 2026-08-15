@@ -97,7 +97,7 @@ pub(crate) fn discover_from_manifests_checked_with_root(
     if let Some(d) = parse_package_swift_with_access(&mut access)? {
         merge_discovery(&mut discovery, d);
     }
-    if let Some(d) = parse_gradle_checked_with_root(project_root)? {
+    if let Some(d) = parse_gradle_checked_with_root(root, project_root)? {
         merge_discovery(&mut discovery, d);
     }
     if let Some(d) = parse_package_json_with_access(&mut access)? {
@@ -1172,10 +1172,13 @@ fn parse_gradle_checked(root: &Path) -> Result<Option<ManifestDiscovery>, String
             root.display()
         )
     })?;
-    parse_gradle_checked_with_root(&project_root)
+    parse_gradle_checked_with_root(root, &project_root)
 }
 
-fn parse_gradle_checked_with_root(project_root: &Dir) -> Result<Option<ManifestDiscovery>, String> {
+fn parse_gradle_checked_with_root(
+    root: &Path,
+    project_root: &Dir,
+) -> Result<Option<ManifestDiscovery>, String> {
     // Try Kotlin DSL first, then Groovy. A settings manifest is independently sufficient for a
     // multi-project Gradle workspace; do not require a root build script before parsing it. Every
     // recognized variant is preflighted before precedence is selected so a shadowed unsafe entry
@@ -1196,8 +1199,8 @@ fn parse_gradle_checked_with_root(project_root: &Dir) -> Result<Option<ManifestD
         return Ok(None);
     }
     let content = build.map_or_else(String::new, |(_, content)| content);
-    let modules = if let Some((settings_name, settings)) = settings {
-        parse_gradle_settings(&settings).map_err(|error| {
+    let modules = if let Some((settings_name, settings_text)) = settings.as_ref() {
+        parse_gradle_settings(settings_text).map_err(|error| {
             format!("Cannot parse Gradle settings manifest {settings_name}: {error}")
         })?
     } else {
@@ -1229,6 +1232,7 @@ fn parse_gradle_checked_with_root(project_root: &Dir) -> Result<Option<ManifestD
         }
     }
 
+    let has_included_modules = !modules.is_empty();
     for module in modules {
         let module_src = format!("{}/src/main", module.path);
         let kotlin_source = format!("{}/src/main/kotlin", module.path);
@@ -1254,11 +1258,118 @@ fn parse_gradle_checked_with_root(project_root: &Dir) -> Result<Option<ManifestD
         }
     }
 
+    // Single-project Gradle has no `include`s. Name it from the settings identity
+    // (`rootProject.name`) or, when that is unset, the project directory — the
+    // same default Gradle uses. Do not invent a name from package path segments.
+    if !has_included_modules {
+        let settings_name = match settings.as_ref() {
+            Some((_, settings_text)) => parse_gradle_root_project_name(settings_text)?,
+            None => None,
+        };
+        if let Some(name) = settings_name
+            .as_deref()
+            .and_then(gradle_identity_module_name)
+            .or_else(|| {
+                root.file_name()
+                    .and_then(|name| name.to_str())
+                    .and_then(gradle_identity_module_name)
+            })
+        {
+            discovery.modules.insert(
+                name.clone(),
+                ManifestModule {
+                    name,
+                    source_paths: discovery.source_dirs.clone(),
+                    dependencies: Vec::new(),
+                },
+            );
+        }
+    }
+
     if discovery.modules.is_empty() && discovery.source_dirs.is_empty() {
         Ok(None)
     } else {
         Ok(Some(discovery))
     }
+}
+
+/// True when `source_dir` is a JVM language root (`src/main/kotlin`, …).
+/// Immediate children of that root are package segments, not modules.
+pub(crate) fn is_jvm_package_source_root(source_dir: &str) -> bool {
+    let normalized = source_dir.replace('\\', "/");
+    let normalized = normalized.trim_end_matches('/');
+    normalized.ends_with("src/main/kotlin")
+        || normalized.ends_with("src/main/java")
+        || normalized.ends_with("src/main/scala")
+        || normalized.ends_with("src/main")
+        || normalized.ends_with("src/test/kotlin")
+        || normalized.ends_with("src/test/java")
+        || normalized.ends_with("src/test/scala")
+}
+
+fn gradle_identity_module_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return None;
+    }
+    let mut components = Path::new(name).components();
+    match (components.next(), components.next()) {
+        (Some(Component::Normal(segment)), None) => {
+            let text = segment.to_str()?;
+            if text.contains('/') || text.contains('\\') {
+                return None;
+            }
+            Some(text.to_string())
+        }
+        _ => None,
+    }
+}
+
+/// Read a literal `rootProject.name = "..."` assignment from settings.
+///
+/// Dynamic or otherwise unsupported right-hand sides are ignored so existing
+/// settings stay parseable; callers then use the project directory name.
+fn parse_gradle_root_project_name(content: &str) -> Result<Option<String>, String> {
+    let content = strip_gradle_comments(content)?;
+    let mut search_start = 0usize;
+    let mut found = None;
+    while let Some(index) =
+        find_unquoted_gradle_fragment(&content, "rootProject.name", search_start)
+    {
+        let token_end = index + "rootProject.name".len();
+        search_start = token_end;
+        let before_is_boundary = content[..index]
+            .chars()
+            .next_back()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        let after_is_boundary = content[token_end..]
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_alphanumeric() && character != '_');
+        if !before_is_boundary || !after_is_boundary {
+            continue;
+        }
+        let after = content[token_end..].trim_start();
+        let Some(rhs) = after.strip_prefix('=') else {
+            continue;
+        };
+        if rhs.starts_with('=') {
+            continue;
+        }
+        let Ok((name, remainder)) = gradle_string_literal(rhs.trim_start()) else {
+            continue;
+        };
+        let remainder = remainder.trim_start();
+        if !(remainder.is_empty()
+            || remainder.starts_with(';')
+            || remainder.starts_with('\n')
+            || remainder.starts_with('\r'))
+        {
+            continue;
+        }
+        found = gradle_identity_module_name(&name);
+    }
+    Ok(found)
 }
 
 /// Parse Groovy or Kotlin Gradle settings into effective module directories.
@@ -4748,6 +4859,96 @@ project(":escaped\$module").setProjectDir(file("modules/escaped\$literal"))
             error.contains("must not traverse a symlink or reparse point"),
             "unexpected Gradle symlink rejection: {error}"
         );
+    }
+
+    #[test]
+    fn gradle_single_project_uses_directory_name_not_package_tld() {
+        let tmp = tempdir().unwrap();
+        let root = tmp.path().join("payments");
+        fs::create_dir_all(root.join("src/main/kotlin/com/example/tool")).unwrap();
+        fs::write(
+            root.join("build.gradle.kts"),
+            "plugins { kotlin(\"jvm\") }\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("src/main/kotlin/com/example/tool/Profile.kt"),
+            "package com.example.tool\nclass Profile\n",
+        )
+        .unwrap();
+
+        let result = parse_gradle(&root).unwrap();
+        assert!(
+            result.modules.contains_key("payments"),
+            "single-project Gradle with no rootProject.name must use the directory name: {:?}",
+            result.modules.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !result.modules.contains_key("com"),
+            "package TLD must not become a module: {:?}",
+            result.modules.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !result.modules.contains_key("src"),
+            "shared src/ leaf must not become a module: {:?}",
+            result.modules.keys().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            result.modules["payments"].source_paths,
+            vec!["src/main/kotlin"]
+        );
+    }
+
+    #[test]
+    fn gradle_single_project_uses_literal_root_project_name() {
+        let tmp = tempdir().unwrap();
+        let root = tmp.path().join("checkout-dir");
+        fs::create_dir_all(root.join("src/main/kotlin/com/example")).unwrap();
+        fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            root.join("settings.gradle.kts"),
+            "rootProject.name = \"checkout\"\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/main/kotlin/com/example/A.kt"), "class A\n").unwrap();
+
+        let result = parse_gradle(&root).unwrap();
+        assert!(result.modules.contains_key("checkout"));
+        assert!(!result.modules.contains_key("checkout-dir"));
+        assert!(!result.modules.contains_key("com"));
+        assert_eq!(result.modules.len(), 1);
+    }
+
+    #[test]
+    fn gradle_multi_project_keeps_include_names_and_does_not_add_root() {
+        let tmp = tempdir().unwrap();
+        let root = tmp.path().join("workspace");
+        fs::create_dir_all(root.join("packages/profile/src/main/kotlin/com/example")).unwrap();
+        fs::create_dir_all(root.join("packages/provider/src/main/kotlin/com/example")).unwrap();
+        fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+        fs::write(
+            root.join("settings.gradle.kts"),
+            "rootProject.name = \"workspace\"\ninclude(\":profile\", \":provider\")\nproject(\":profile\").projectDir = file(\"packages/profile\")\nproject(\":provider\").projectDir = file(\"packages/provider\")\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("packages/profile/src/main/kotlin/com/example/Profile.kt"),
+            "class Profile\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("packages/provider/src/main/kotlin/com/example/Provider.kt"),
+            "class Provider\n",
+        )
+        .unwrap();
+
+        let result = parse_gradle(&root).unwrap();
+        assert!(result.modules.contains_key("profile"));
+        assert!(result.modules.contains_key("provider"));
+        assert!(!result.modules.contains_key("workspace"));
+        assert!(!result.modules.contains_key("com"));
+        assert!(!result.modules.contains_key("src"));
+        assert_eq!(result.modules.len(), 2);
     }
 
     #[test]

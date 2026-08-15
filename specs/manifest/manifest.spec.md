@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 16
+version: 17
 status: stable
 files:
   - src/manifest.rs
@@ -77,7 +77,10 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
     deduplicates normalized nodes, and reuses completed results.
 17. Retained nested manifest/workspace parents are reverified through the project root around
     enumeration and reads.
-18. Node workspace enumeration records child identities, opens children sequentially through the
+18. Single-project Gradle (no `include`) names the module from a literal `rootProject.name`
+    assignment or, when that is unset, the project directory name — Gradle's own default.
+    Package path segments under `src/main/{kotlin,java,scala}` are not modules.
+19. Node workspace enumeration records child identities, opens children sequentially through the
     retained workspace base, and consumes child manifests/source probes only from identity-matching
     capabilities. Each verified base listing is released before the next distinct base, so
     swap/read/restore cannot mix generations and neither sibling nor base breadth exhausts handles.
@@ -127,6 +130,12 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 - **Given** `build.gradle.kts` containing `android {` and `app/src/main/kotlin/` exists
 - **When** `discover_from_manifests(root)` is called
 - **Then** includes `app/src/main/kotlin` in source dirs
+
+### Scenario: Single-project Gradle uses manifest identity
+
+- **Given** a conventional `src/main/kotlin/com/example/...` tree with `build.gradle.kts` and no `include`s
+- **When** `discover_from_manifests(root)` is called
+- **Then** the module is the literal `rootProject.name` or, when unset, the project directory name — never `com` or `src`
 
 ### Scenario: Gradle module uses a custom project directory
 
@@ -232,3 +241,4 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | 2026-07-24 | v14 / CHG-0063 exact-head rereview remediation: Consume Node child manifests and probes through identity-bound enumerated capabilities while bounding live handles independently of sibling count |
 | 2026-07-24 | v15 / CHG-0063 descriptor-breadth remediation: Release each verified Node workspace-base listing so live handles remain bounded across distinct base patterns as well as sibling directories |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
+| 2026-08-15 | CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest: Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module |

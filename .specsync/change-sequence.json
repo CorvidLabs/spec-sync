@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 123,
-  "id": "CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i",
+  "sequence": 124,
+  "id": "CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused",
   "acknowledged_collisions": [
     {
       "sequence": 16,

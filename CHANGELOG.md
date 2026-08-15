@@ -65,6 +65,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A tree with unresolved merge conflicts no longer passes `check`**
+  (CorvidLabs/spec-sync#578). A source file with `sub` on one side of a hunk and `mul` on the other,
+  with a spec documenting both, reported `✓ 3/3 exports documented` and exit 0. The extractors
+  parsed **both sides as ordinary declarations**, so the union satisfied the spec and spec-sync
+  green-lit a tree that does not compile. Spec bodies carrying markers passed the same way.
+
+  The naive guard was unshippable: this repository contains twelve complete, well-formed conflict
+  triples inside test string literals, two of them in files a spec maps and `check` scans on every
+  run. Detection therefore composes two signals — git's own unmerged list, which is authoritative
+  and cannot false-positive, and the symptom itself: declarations read from **both** sides of one
+  hunk. A triple inside a string literal yields declarations on neither side, so this repository
+  still passes. The error names which side contributed which symbols rather than announcing that
+  markers exist.
+
 - **Staleness that cannot be measured is refused, not reported as zero drift**
   (CorvidLabs/spec-sync#572, CorvidLabs/spec-sync#586). On a tree six commits behind its source with
   `.git` removed, `stale` refused while `report` answered `"stale": false, "commits_behind": 0` and

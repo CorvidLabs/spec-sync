@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 12
+version: 13
 status: stable
 files:
   - src/exports/mod.rs
@@ -77,12 +77,14 @@ Language-aware export extraction from source files. Auto-detects the programming
 | `get_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `Vec<String>` | Extract exports with full control over granularity and parse mode (Regex or Ast); a read/parse failure or unsupported language yields an empty vector |
 | `scan_exported_symbols` | `file_path: &Path` | `ExportScan` | Like `get_exported_symbols` but returns an `ExportScan`, distinguishing a genuine empty result from an unreadable/unsupported file |
 | `scan_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `ExportScan` | Like `get_exported_symbols_full` but returns an `ExportScan` so gating callers (`diff`, `score`) can tell a failure from genuine emptiness |
+| `describe` | `&self` | `String` | `ConflictedExtraction` method: one-line diagnostic naming both conflict-marker labels and a sample of the symbols each side contributed |
 
 ### Exported Types
 
 | Type | Description |
 |------|-------------|
-| `ExportScan` | Outcome of an extraction attempt: `Parsed(Vec<String>)` (recognized language, read + parsed — the vec may be empty, meaning genuinely no exports), `UnknownLanguage` (extension not a source language, e.g. a `.md`/`.sql` file — not a failure), or `Unreadable` (missing / permission-denied / non-UTF-8 — exports unknown). Lets gating callers avoid treating an unreadable file as export-free. |
+| `ExportScan` | Outcome of an extraction attempt: `Parsed(Vec<String>)` (recognized language, read + parsed — the vec may be empty, meaning genuinely no exports), `UnknownLanguage` (extension not a source language, e.g. a `.md`/`.sql` file — not a failure), `Unreadable` (missing / permission-denied / non-UTF-8 — exports unknown), or `Conflicted(ConflictedExtraction)` (an unresolved merge conflict whose two sides each contributed symbols, so the list is the union of two trees and describes source that does not exist). Lets gating callers avoid treating an unreadable or conflicted file as export-free. |
+| `ConflictedExtraction` | Evidence for `ExportScan::Conflicted` — `ours_label`/`theirs_label` from the hunk's markers and `ours_only`/`theirs_only`, the symbols that survive resolving to exactly one side. `describe()` renders a one-line account naming both sides and a sample of each side's symbols. |
 
 ### Exported Modules
 
@@ -180,6 +182,17 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 21. Erlang regex and AST backends emit canonical `name/arity` identities for functions and types,
     preserve overloaded arities, derive `export_all` arity from balanced forms, and skip incomplete
     or macro-placeholder attributes.
+22. Every scan is checked for conflicted extraction before it is returned, so the guard covers
+    `scan_exported_symbols_full` (path-based) and the snapshot entry points alike — they share the
+    same internal choke point rather than each carrying their own copy
+23. `ExportScan::Conflicted` is returned only when the file has a structurally complete conflict
+    hunk AND the extractor reads at least one symbol that survives resolving to `ours` but not
+    `theirs`, and at least one that survives the reverse. Marker *shape* is never sufficient: a
+    complete triple quoted inside a string literal yields identical symbols on both reconstructions
+    (the backends blank string literals before matching), so it is not reported
+24. The conflict check asks the extractor, not the bytes, which makes it correct for all 30+
+    regex-only backends without a lexer: whatever a backend chooses to ignore, it ignores
+    identically on the raw text and on both reconstructions
 
 ## Behavioral Examples
 
@@ -293,6 +306,22 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 - **Then** the local supplied-content export is returned, the wildcard target is not opened, and no
   symbol from the ambient sibling is returned
 
+### Scenario: Unresolved conflict makes extraction report the union of two trees
+
+- **Given** a `.rs` file with `pub fn sub` on the `HEAD` side of a conflict hunk and `pub fn mul` on
+  the incoming side
+- **When** `scan_exported_symbols_full(path, ...)` is called
+- **Then** `ExportScan::Conflicted` is returned naming both labels, `sub` as ours-only and `mul` as
+  theirs-only — never `Parsed(["add", "sub", "mul"])`, which is the API of no tree that exists
+
+### Scenario: A conflict triple quoted inside a string literal is not a conflict
+
+- **Given** a `.rs` test fixture holding a complete conflict triple with `pub fn` on both sides
+  inside a raw string literal
+- **When** `scan_exported_symbols_full(path, ...)` is called
+- **Then** `ExportScan::Parsed` is returned: the backend blanks string literals, so both
+  reconstructions extract the same symbols and no side-exclusive symbol exists
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -302,6 +331,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | File has no exports | Returns empty vector |
 | Binary or non-text file | Returns empty vector (read_to_string fails gracefully) |
 | Supplied TypeScript snapshot contains a wildcard re-export | Parses supplied text but skips ambient wildcard resolution |
+| Unresolved merge conflict contributing symbols on both sides | Returns `ExportScan::Conflicted`; the plain-vector entry points return an empty vector rather than the union |
 
 ## Dependencies
 
@@ -310,6 +340,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | Module | What is used |
 |--------|-------------|
 | types | `Language` enum for extension-to-language mapping |
+| merge | `conflict_hunks`, `conflict_free_side`, `ConflictSide` to decide whether a scan unioned both sides of a conflict |
 
 **Consumed By**
 
@@ -329,6 +360,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 
 | Date | Change |
 |------|--------|
+| 2026-08-14 | Issue #578: add `ExportScan::Conflicted` and `ConflictedExtraction`; every scan now reports when extraction unioned both sides of an unresolved merge conflict instead of returning that union as the file's API |
 | 2026-07-22 | v9 / CHG-0063: add module-internal supplied-content extraction that never reopens source paths or resolves TypeScript wildcards through ambient paths |
 | 2026-07-10 | v3: parse one-level nested Kotlin annotation arguments and prevent members of annotated non-public types from leaking as exports |
 | 2026-07-10 | v2: support modern Android/Kotlin Multiplatform declarations (`value class`, `expect`/`actual`, `external`), same-line annotations, and flexible modifier ordering |
@@ -347,6 +379,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
+| 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
 
 ## CommonJS Extraction
 

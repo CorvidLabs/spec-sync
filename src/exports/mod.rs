@@ -67,6 +67,56 @@ pub enum ExportScan {
     /// The file could not be read — missing, permission-denied, or not valid UTF-8 —
     /// so its exports are unknown. A gate must not treat this as "no exports".
     Unreadable,
+    /// The file carries an unresolved merge conflict and the extractor read
+    /// declarations from BOTH sides of the same hunk, so the symbol list is the
+    /// union of two alternative trees and describes source that does not exist.
+    /// A gate must not compare a spec against this — it would pass a tree that
+    /// cannot compile.
+    Conflicted(ConflictedExtraction),
+}
+
+/// Evidence that extraction unioned both sides of a merge conflict.
+///
+/// Carries the symbols that exist on exactly one side, which is what makes the
+/// union bogus and what a report needs in order to be actionable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConflictedExtraction {
+    /// Label on the `<<<<<<<` marker of the offending hunk.
+    pub ours_label: String,
+    /// Label on the `>>>>>>>` marker of the offending hunk.
+    pub theirs_label: String,
+    /// Symbols the extractor read that survive only on the `ours` side.
+    pub ours_only: Vec<String>,
+    /// Symbols the extractor read that survive only on the `theirs` side.
+    pub theirs_only: Vec<String>,
+}
+
+impl ConflictedExtraction {
+    /// A one-line, human-readable account naming both sides and a sample of the
+    /// symbols each contributed.
+    pub fn describe(&self) -> String {
+        format!(
+            "exports were read from both sides of an unresolved merge conflict ({} contributes {}; {} contributes {})",
+            self.ours_label,
+            sample_symbols(&self.ours_only),
+            self.theirs_label,
+            sample_symbols(&self.theirs_only),
+        )
+    }
+}
+
+/// Render up to three symbol names for a diagnostic, noting any remainder.
+fn sample_symbols(symbols: &[String]) -> String {
+    const SHOWN: usize = 3;
+    let head: Vec<String> = symbols
+        .iter()
+        .take(SHOWN)
+        .map(|s| format!("'{s}'"))
+        .collect();
+    match symbols.len().saturating_sub(SHOWN) {
+        0 => head.join(", "),
+        rest => format!("{} (+{rest} more)", head.join(", ")),
+    }
 }
 
 /// Extract exported symbol names, distinguishing failure from genuine emptiness.
@@ -93,6 +143,12 @@ pub fn scan_exported_symbols_full(
 /// Extract symbols from caller-supplied source bytes without reopening the source
 /// path. TypeScript wildcard imports are intentionally not resolved through the
 /// ambient filesystem; snapshot callers must only validate bytes they retained.
+///
+/// Callers that gate on the result now use `scan_exported_symbols_from_content`
+/// instead, because collapsing a conflicted file to an empty vector here is the
+/// very fail-open this guard exists to close. Kept as the plain-vector form of
+/// the same confined entry point.
+#[allow(dead_code)]
 pub(super) fn get_exported_symbols_from_content(
     file_path: &Path,
     content: &str,
@@ -101,11 +157,122 @@ pub(super) fn get_exported_symbols_from_content(
 ) -> Vec<String> {
     match scan_exported_symbols_content_internal(file_path, content, level, parse_mode, false) {
         ExportScan::Parsed(symbols) => symbols,
-        ExportScan::UnknownLanguage | ExportScan::Unreadable => Vec::new(),
+        ExportScan::UnknownLanguage | ExportScan::Unreadable | ExportScan::Conflicted(_) => {
+            Vec::new()
+        }
     }
 }
 
+/// Like [`get_exported_symbols_from_content`] but preserving the scan outcome,
+/// so a snapshot caller can distinguish a conflicted file from an empty one.
+pub(super) fn scan_exported_symbols_from_content(
+    file_path: &Path,
+    content: &str,
+    level: ExportLevel,
+    parse_mode: ParseMode,
+) -> ExportScan {
+    scan_exported_symbols_content_internal(file_path, content, level, parse_mode, false)
+}
+
+/// Extract, then check whether extraction was fooled by an unresolved conflict.
+///
+/// The guard is symptom-based on purpose. A content guard that fails on
+/// marker-shaped lines is unshippable: this repository alone carries twelve
+/// complete, well-formed conflict triples inside raw string literals in test
+/// fixtures, and nothing in the bytes distinguishes them from a real conflict.
+/// What *does* distinguish them is whether the extractor believed them — a
+/// triple inside a string literal contributes no declarations, because the
+/// extractors blank string literals before matching. So we ask the extractor,
+/// not the bytes: resolve the file to each side in turn, re-extract, and
+/// escalate only when the raw parse claims symbols that survive on one side and
+/// other symbols that survive only on the other. That union is the defect
+/// itself — it is what let a spec documenting both `sub` and `mul` report
+/// `3/3 exports documented` against source that cannot compile.
 fn scan_exported_symbols_content_internal(
+    file_path: &Path,
+    content: &str,
+    level: ExportLevel,
+    parse_mode: ParseMode,
+    resolve_typescript_imports: bool,
+) -> ExportScan {
+    let scan = extract_scan(
+        file_path,
+        content,
+        level,
+        parse_mode,
+        resolve_typescript_imports,
+    );
+    let ExportScan::Parsed(symbols) = &scan else {
+        return scan;
+    };
+    match conflicted_union(content, symbols, &|side: &str| match extract_scan(
+        file_path,
+        side,
+        level,
+        parse_mode,
+        resolve_typescript_imports,
+    ) {
+        ExportScan::Parsed(side_symbols) => side_symbols,
+        _ => Vec::new(),
+    }) {
+        Some(evidence) => ExportScan::Conflicted(evidence),
+        None => scan,
+    }
+}
+
+/// Decide whether `symbols` is the union of two sides of a conflict hunk.
+///
+/// Returns evidence only when the raw parse contributes at least one symbol
+/// that survives resolving to `ours` but not to `theirs`, AND at least one that
+/// survives the reverse. One-sided differences are not enough: a hunk that only
+/// adds declarations on one side leaves the other side's parse a strict subset,
+/// which is also what a file with a *quoted* triple looks like when the
+/// extractor correctly ignores it (no difference at all).
+fn conflicted_union(
+    content: &str,
+    symbols: &[String],
+    extract: &dyn Fn(&str) -> Vec<String>,
+) -> Option<ConflictedExtraction> {
+    let hunks = crate::merge::conflict_hunks(content);
+    if hunks.is_empty() {
+        return None;
+    }
+
+    let raw: std::collections::HashSet<&str> = symbols.iter().map(String::as_str).collect();
+    let ours_text = crate::merge::conflict_free_side(content, crate::merge::ConflictSide::Ours);
+    let theirs_text = crate::merge::conflict_free_side(content, crate::merge::ConflictSide::Theirs);
+    let ours: std::collections::HashSet<String> = extract(&ours_text).into_iter().collect();
+    let theirs: std::collections::HashSet<String> = extract(&theirs_text).into_iter().collect();
+
+    let mut ours_only: Vec<String> = raw
+        .iter()
+        .filter(|s| ours.contains(**s) && !theirs.contains(**s))
+        .map(|s| (*s).to_string())
+        .collect();
+    let mut theirs_only: Vec<String> = raw
+        .iter()
+        .filter(|s| theirs.contains(**s) && !ours.contains(**s))
+        .map(|s| (*s).to_string())
+        .collect();
+
+    if ours_only.is_empty() || theirs_only.is_empty() {
+        return None;
+    }
+    ours_only.sort();
+    theirs_only.sort();
+
+    let hunk = &hunks[0];
+    Some(ConflictedExtraction {
+        ours_label: hunk.ours_label.clone(),
+        theirs_label: hunk.theirs_label.clone(),
+        ours_only,
+        theirs_only,
+    })
+}
+
+/// Pure language dispatch — no conflict analysis, so the guard above can call
+/// it on reconstructed variants without re-entering itself.
+fn extract_scan(
     file_path: &Path,
     content: &str,
     level: ExportLevel,
@@ -255,7 +422,9 @@ pub fn get_exported_symbols_full(
 ) -> Vec<String> {
     match scan_exported_symbols_full(file_path, level, parse_mode) {
         ExportScan::Parsed(symbols) => symbols,
-        ExportScan::UnknownLanguage | ExportScan::Unreadable => Vec::new(),
+        ExportScan::UnknownLanguage | ExportScan::Unreadable | ExportScan::Conflicted(_) => {
+            Vec::new()
+        }
     }
 }
 
@@ -780,6 +949,156 @@ mod scan_tests {
                 ParseMode::Regex,
             )
             .is_empty()
+        );
+    }
+
+    /// The confirmed #578 repro, at the level the defect actually lives: the
+    /// extractor reading `sub` from one side of a hunk and `mul` from the other
+    /// and returning both as though the file exported three functions.
+    #[test]
+    fn conflicted_source_is_reported_instead_of_the_union_of_both_sides() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("calc.rs");
+        std::fs::write(
+            &source,
+            "pub fn add(a: i32, b: i32) -> i32 { a + b }\n\
+             <<<<<<< HEAD\n\
+             pub fn sub(a: i32, b: i32) -> i32 { a - b }\n\
+             =======\n\
+             pub fn mul(a: i32, b: i32) -> i32 { a * b }\n\
+             >>>>>>> feature/other\n",
+        )
+        .unwrap();
+
+        match scan_exported_symbols(&source) {
+            ExportScan::Conflicted(evidence) => {
+                assert_eq!(evidence.ours_label, "HEAD");
+                assert_eq!(evidence.theirs_label, "feature/other");
+                assert_eq!(evidence.ours_only, vec!["sub".to_string()]);
+                assert_eq!(evidence.theirs_only, vec!["mul".to_string()]);
+            }
+            other => panic!("a conflicted file must not scan as {other:?}"),
+        }
+        // The plain-vector entry point must not leak the union either.
+        assert!(super::get_exported_symbols(&source).is_empty());
+    }
+
+    /// The false positive that makes the naive fix unshippable. This shape is
+    /// verbatim `src/exports/ast/rust_lang.rs`'s
+    /// `test_merge_conflict_markers_defer_to_regex_fallback` fixture: a
+    /// complete, well-formed triple with `pub fn` on BOTH sides, inside a raw
+    /// string literal. Nothing in the marker bytes distinguishes it from the
+    /// test above — only whether the extractor believed it.
+    #[test]
+    fn a_conflict_triple_quoted_in_a_string_literal_is_not_a_conflict() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("fixture.rs");
+        std::fs::write(
+            &source,
+            "pub fn real_export() {}\n\
+             \n\
+             #[test]\n\
+             fn fixture() {\n\
+             let src = r#\"\n\
+             <<<<<<< HEAD\n\
+             pub fn feature_a() {}\n\
+             =======\n\
+             pub fn feature_b() {}\n\
+             >>>>>>> feature-branch\n\
+             \"#;\n\
+             }\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            scan_exported_symbols(&source),
+            ExportScan::Parsed(vec!["real_export".to_string()]),
+            "a quoted triple must stay Parsed — the extractor blanks string literals, \
+             so neither side contributes a symbol the other lacks"
+        );
+    }
+
+    /// A hunk that only ADDS declarations on one side is not the union defect:
+    /// the other side's parse is a strict subset, so nothing is invented.
+    #[test]
+    fn a_one_sided_hunk_is_not_reported_as_conflicted() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("one_sided.rs");
+        std::fs::write(
+            &source,
+            "pub fn add() {}\n\
+             <<<<<<< HEAD\n\
+             pub fn sub() {}\n\
+             =======\n\
+             >>>>>>> feature/other\n",
+        )
+        .unwrap();
+
+        assert!(matches!(
+            scan_exported_symbols(&source),
+            ExportScan::Parsed(_)
+        ));
+    }
+
+    /// The acceptance requirement as an executable assertion: the guard must not
+    /// fire on spec-sync's own tree, which carries twelve complete conflict
+    /// triples across three files. A guard that red-lights this repository is a
+    /// failed guard however well it handles a fixture.
+    #[test]
+    fn no_source_file_in_this_repository_scans_as_conflicted() {
+        fn walk(dir: &std::path::Path, found: &mut Vec<std::path::PathBuf>) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk(&path, found);
+                } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+                    found.push(path);
+                }
+            }
+        }
+
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut sources = Vec::new();
+        walk(&repo.join("src"), &mut sources);
+        walk(&repo.join("tests"), &mut sources);
+        assert!(
+            sources.len() > 20,
+            "expected to walk the real tree, found {} files",
+            sources.len()
+        );
+
+        let mut marker_files = 0usize;
+        let mut offenders = Vec::new();
+        for source in &sources {
+            let content = std::fs::read_to_string(source).unwrap_or_default();
+            if !crate::merge::conflict_hunks(&content).is_empty() {
+                marker_files += 1;
+            }
+            for parse_mode in [ParseMode::Regex, ParseMode::Ast] {
+                if let ExportScan::Conflicted(evidence) =
+                    scan_exported_symbols_full(source, ExportLevel::Member, parse_mode)
+                {
+                    offenders.push(format!(
+                        "{} [{parse_mode:?}] {}",
+                        source.display(),
+                        evidence.describe()
+                    ));
+                }
+            }
+        }
+
+        assert!(
+            marker_files >= 3,
+            "the false-positive hazard must still be present in the tree, \
+             otherwise this test proves nothing; saw {marker_files} file(s) with complete triples"
+        );
+        assert!(
+            offenders.is_empty(),
+            "spec-sync must not report its own fixtures as conflicts:\n{}",
+            offenders.join("\n")
         );
     }
 }

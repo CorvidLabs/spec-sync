@@ -2,10 +2,7 @@ use crate::config::{
     CONFIG_PATH_CANDIDATES, default_schema_pattern, is_detectable_source_file,
     parse_config_content_checked_with_source_dirs, source_detection_ignores_directory,
 };
-use crate::exports::{
-    get_exported_symbols_from_content, get_exported_symbols_full, has_configured_extension,
-    is_test_file,
-};
+use crate::exports::{has_configured_extension, is_test_file};
 use crate::parser::{
     body_has_section, find_section_offset, find_stub_sections, get_duplicate_spec_symbols,
     get_missing_sections, get_near_miss_sections, get_spec_symbols, parse_frontmatter,
@@ -1995,6 +1992,43 @@ fn validate_spec_content_internal(
     };
     let content = normalized.as_ref();
 
+    // ─── Level 0: Is this file a document at all? ─────────────────────
+    // A spec carrying an unresolved conflict is not a spec; every section and
+    // symbol check below would assert a contract over text nobody has read.
+    // Reported before frontmatter parsing so a conflict inside the frontmatter
+    // is named as a conflict rather than incidentally as a `duplicate key`.
+    //
+    // Only complete opener/separator/closer triples outside fenced code blocks
+    // count. A bare `=======` line is a setext `<h1>` underline in Markdown, so
+    // a guard on marker *shape* would fail ordinary specs.
+    if let Some(hunk) = crate::merge::document_conflict_hunks(content)
+        .into_iter()
+        .next()
+    {
+        result.errors.push(format!(
+            "Unresolved merge conflict in spec body ({} ↔ {}) — resolve it before this file can be validated",
+            hunk.ours_label, hunk.theirs_label
+        ));
+        result.fixes.push(
+            "Run `spec-sync merge --all` to attempt auto-resolution, or resolve the conflict by hand"
+                .to_string(),
+        );
+        return result;
+    }
+    if let Some(unmerged) = crate::merge::cached_unmerged_paths(root) {
+        let spec_rel = spec_path
+            .strip_prefix(root)
+            .unwrap_or(spec_path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if unmerged.contains(&spec_rel) {
+            result.errors.push(format!(
+                "git reports {spec_rel} as unmerged — resolve the merge conflict before validating"
+            ));
+            return result;
+        }
+    }
+
     let parsed = match parse_frontmatter(content) {
         Some(p) => p,
         None => {
@@ -2383,19 +2417,35 @@ fn validate_spec_content_internal(
         // Track exports with their source file for attribution
         let mut exports_by_file: Vec<(String, String)> = Vec::new(); // (symbol, file)
         let mut all_exports: Vec<String> = Vec::new();
+        // Source files whose symbol list is fiction. Collected rather than acted
+        // on inline: once ANY mapped file is conflicted, the spec-versus-source
+        // comparison below is meaningless, so it is skipped entirely instead of
+        // emitting a page of "documents X but no export found" noise derived
+        // from a tree that does not exist.
+        let mut conflicted_sources: Vec<String> = Vec::new();
+        let unmerged = crate::merge::cached_unmerged_paths(root);
         for file in &fm.files {
             // Never extract exports from a path that escapes the project root — it
             // would leak arbitrary host-file identifiers. The files-exist check
             // above already reports such entries as errors.
             let full_path = root.join(file);
-            let exports = if let Some(sources) = source_snapshots {
+            // git's own unmerged list is authoritative and costs no heuristic: a
+            // path in it IS a conflict, whatever the extractor made of the bytes.
+            if unmerged
+                .as_ref()
+                .is_some_and(|paths| paths.contains(&file.replace('\\', "/")))
+            {
+                conflicted_sources.push(format!("{file} — git reports this path as unmerged"));
+                continue;
+            }
+            let scan = if let Some(sources) = source_snapshots {
                 let Some(SourceSnapshot::Present(bytes)) = sources.get(file) else {
                     continue;
                 };
                 let Ok(content) = std::str::from_utf8(bytes) else {
                     continue;
                 };
-                get_exported_symbols_from_content(
+                crate::exports::scan_exported_symbols_from_content(
                     &full_path,
                     content,
                     config.export_level,
@@ -2405,7 +2455,20 @@ fn validate_spec_content_internal(
                 if !source_within_root(root, file) {
                     continue;
                 }
-                get_exported_symbols_full(&full_path, config.export_level, config.parse_mode)
+                crate::exports::scan_exported_symbols_full(
+                    &full_path,
+                    config.export_level,
+                    config.parse_mode,
+                )
+            };
+            let exports = match scan {
+                crate::exports::ExportScan::Conflicted(evidence) => {
+                    conflicted_sources.push(format!("{file} — {}", evidence.describe()));
+                    continue;
+                }
+                crate::exports::ExportScan::Parsed(symbols) => symbols,
+                crate::exports::ExportScan::UnknownLanguage
+                | crate::exports::ExportScan::Unreadable => Vec::new(),
             };
             for sym in &exports {
                 exports_by_file.push((sym.clone(), file.clone()));
@@ -2413,57 +2476,74 @@ fn validate_spec_content_internal(
             all_exports.extend(exports);
         }
 
+        if !conflicted_sources.is_empty() {
+            for detail in &conflicted_sources {
+                result
+                    .errors
+                    .push(format!("Unresolved merge conflict in source: {detail}"));
+            }
+            result.fixes.push(
+                "Resolve the merge conflict in the listed source file(s) before re-running check"
+                    .to_string(),
+            );
+        }
+
         // Deduplicate (keep first occurrence for file attribution)
         let mut seen = HashSet::new();
         all_exports.retain(|s| seen.insert(s.clone()));
 
-        let spec_symbols = get_spec_symbols(body);
-        let spec_set: HashSet<&str> = spec_symbols.iter().map(|s| s.as_str()).collect();
-        let export_set: HashSet<&str> = all_exports.iter().map(|s| s.as_str()).collect();
+        // A conflicted mapping makes the whole API surface unknown, so the
+        // comparison is not attempted. Reporting `n/n exports documented` over a
+        // partial set would be the same fail-open in a different costume.
+        if conflicted_sources.is_empty() {
+            let spec_symbols = get_spec_symbols(body);
+            let spec_set: HashSet<&str> = spec_symbols.iter().map(|s| s.as_str()).collect();
+            let export_set: HashSet<&str> = all_exports.iter().map(|s| s.as_str()).collect();
 
-        // Spec documents something that doesn't exist = ERROR
-        for sym in &spec_symbols {
-            if !export_set.contains(sym.as_str()) {
-                result.errors.push(format!(
-                    "Spec documents '{sym}' but no matching export found in source"
-                ));
+            // Spec documents something that doesn't exist = ERROR
+            for sym in &spec_symbols {
+                if !export_set.contains(sym.as_str()) {
+                    result.errors.push(format!(
+                        "Spec documents '{sym}' but no matching export found in source"
+                    ));
+                }
             }
-        }
 
-        // Code exports something not in spec = WARNING (with source file attribution)
-        for sym in &all_exports {
-            if !spec_set.contains(sym.as_str()) {
-                // Find the source file for this export
-                let source_file = exports_by_file
-                    .iter()
-                    .find(|(s, _)| s == sym)
-                    .map(|(_, f)| f.as_str());
-                match source_file {
-                    Some(file) => {
-                        result
-                            .warnings
-                            .push(format!("Undocumented export '{sym}' from {file}"));
-                    }
-                    None => {
-                        result
-                            .warnings
-                            .push(format!("Export '{sym}' not in spec (undocumented)"));
+            // Code exports something not in spec = WARNING (with source file attribution)
+            for sym in &all_exports {
+                if !spec_set.contains(sym.as_str()) {
+                    // Find the source file for this export
+                    let source_file = exports_by_file
+                        .iter()
+                        .find(|(s, _)| s == sym)
+                        .map(|(_, f)| f.as_str());
+                    match source_file {
+                        Some(file) => {
+                            result
+                                .warnings
+                                .push(format!("Undocumented export '{sym}' from {file}"));
+                        }
+                        None => {
+                            result
+                                .warnings
+                                .push(format!("Export '{sym}' not in spec (undocumented)"));
+                        }
                     }
                 }
             }
-        }
 
-        let documented = spec_symbols
-            .iter()
-            .filter(|s| export_set.contains(s.as_str()))
-            .count();
+            let documented = spec_symbols
+                .iter()
+                .filter(|s| export_set.contains(s.as_str()))
+                .count();
 
-        if !all_exports.is_empty() {
-            let summary = format!("{documented}/{} exports documented", all_exports.len());
-            if documented < all_exports.len() {
-                result.warnings.insert(0, summary);
-            } else {
-                result.export_summary = Some(summary);
+            if !all_exports.is_empty() {
+                let summary = format!("{documented}/{} exports documented", all_exports.len());
+                if documented < all_exports.len() {
+                    result.warnings.insert(0, summary);
+                } else {
+                    result.export_summary = Some(summary);
+                }
             }
         }
     }
@@ -4311,6 +4391,187 @@ mod tests {
         let result = validate_spec(&spec, tmp.path(), &tables, &schema_cols, &config);
         assert!(!result.errors.is_empty());
         assert!(result.errors[0].contains("frontmatter"));
+    }
+
+    /// #578: a spec body carrying live markers used to pass with
+    /// "✓ All required sections present" — the tool asserting a contract over
+    /// text that is not a document.
+    #[test]
+    fn a_spec_body_with_an_unresolved_conflict_fails_validation() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec = tmp.path().join("calc.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: calc\nversion: 1\nstatus: active\nfiles: []\n---\n\n\
+             ## Purpose\n\nMath.\n\n## Invariants\n\n\
+             <<<<<<< HEAD\n1. Pure functions.\n=======\n1. Total on i32.\n>>>>>>> feature/other\n",
+        )
+        .unwrap();
+
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &SpecSyncConfig::default(),
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("Unresolved merge conflict in spec body")
+                    && e.contains("HEAD")
+                    && e.contains("feature/other")),
+            "{:?}",
+            result.errors
+        );
+    }
+
+    /// The companion false-positive guard: a spec that *documents* markers in a
+    /// fenced example is a legitimate document and must still validate.
+    #[test]
+    fn a_spec_documenting_markers_inside_a_fence_still_validates() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec = tmp.path().join("merge.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: merge\nversion: 1\nstatus: active\nfiles: []\n---\n\n\
+             ## Purpose\n\nDocuments conflict handling.\n\n## Invariants\n\n\
+             ```\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n```\n",
+        )
+        .unwrap();
+
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &SpecSyncConfig::default(),
+        );
+        assert!(
+            !result
+                .errors
+                .iter()
+                .any(|e| e.contains("Unresolved merge conflict")),
+            "{:?}",
+            result.errors
+        );
+    }
+
+    /// The end-to-end shape of the confirmed repro: source conflicted, spec
+    /// documenting both sides. Before the fix this reported
+    /// `3/3 exports documented` and passed.
+    #[test]
+    fn a_spec_over_conflicted_source_fails_instead_of_documenting_the_union() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("src")).unwrap();
+        fs::write(
+            tmp.path().join("src/calc.rs"),
+            "pub fn add() {}\n\
+             <<<<<<< HEAD\npub fn sub() {}\n=======\npub fn mul() {}\n>>>>>>> feature/other\n",
+        )
+        .unwrap();
+        let spec = tmp.path().join("calc.spec.md");
+        fs::write(
+            &spec,
+            "---\nmodule: calc\nversion: 1\nstatus: active\nfiles:\n  - src/calc.rs\n---\n\n\
+             ## Purpose\n\nMath.\n\n## Public API\n\n### Exported Functions\n\n\
+             | Function | Description |\n|---|---|\n\
+             | `add` | adds |\n| `sub` | subtracts |\n| `mul` | multiplies |\n",
+        )
+        .unwrap();
+
+        let result = validate_spec(
+            &spec,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &SpecSyncConfig::default(),
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("Unresolved merge conflict in source")
+                    && e.contains("src/calc.rs")),
+            "{:?}",
+            result.errors
+        );
+        assert_eq!(
+            result.export_summary, None,
+            "no export summary may be reported over a tree that does not exist"
+        );
+    }
+
+    /// The third path. `specsync issues` never calls `validate_spec` — it
+    /// pre-reads bytes through `snapshot_source_file` and validates the retained
+    /// snapshot. A fix that stopped at the path-based read would leave this
+    /// entry point with the original union bug.
+    #[test]
+    fn the_snapshot_validation_path_also_refuses_a_conflicted_source() {
+        let tmp = tempfile::tempdir().unwrap();
+        let spec = tmp.path().join("calc.spec.md");
+        let spec_content = "---\nmodule: calc\nversion: 1\nstatus: active\nfiles:\n  - src/calc.rs\n---\n\n\
+             ## Purpose\n\nMath.\n\n## Public API\n\n### Exported Functions\n\n\
+             | Function | Description |\n|---|---|\n\
+             | `add` | adds |\n| `sub` | subtracts |\n| `mul` | multiplies |\n";
+
+        let conflicted = "pub fn add() {}\n\
+             <<<<<<< HEAD\npub fn sub() {}\n=======\npub fn mul() {}\n>>>>>>> feature/other\n";
+        let mut sources = HashMap::new();
+        sources.insert(
+            "src/calc.rs".to_string(),
+            SourceSnapshot::Present(conflicted.as_bytes().to_vec()),
+        );
+
+        let result = validate_spec_content_with_sources(
+            &spec,
+            spec_content,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &SpecSyncConfig::default(),
+            &sources,
+        );
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| e.contains("Unresolved merge conflict in source")),
+            "{:?}",
+            result.errors
+        );
+        assert_eq!(result.export_summary, None);
+
+        // Healthy control on the same entry point: a clean snapshot exporting
+        // all three names still validates and still reports its summary.
+        let clean = "pub fn add() {}\npub fn sub() {}\npub fn mul() {}\n";
+        let mut clean_sources = HashMap::new();
+        clean_sources.insert(
+            "src/calc.rs".to_string(),
+            SourceSnapshot::Present(clean.as_bytes().to_vec()),
+        );
+        let clean_result = validate_spec_content_with_sources(
+            &spec,
+            spec_content,
+            tmp.path(),
+            &HashSet::new(),
+            &HashMap::new(),
+            &SpecSyncConfig::default(),
+            &clean_sources,
+        );
+        assert!(
+            !clean_result
+                .errors
+                .iter()
+                .any(|e| e.contains("Unresolved merge conflict")),
+            "{:?}",
+            clean_result.errors
+        );
+        assert_eq!(
+            clean_result.export_summary,
+            Some("3/3 exports documented".to_string())
+        );
     }
 
     #[test]

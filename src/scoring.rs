@@ -315,6 +315,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     if !fm.files.is_empty() {
         let mut all_exports: Vec<String> = Vec::new();
         let mut unreadable_files = 0usize;
+        let mut conflicted_files = 0usize;
         for file in &fm.files {
             // Never read a `files:` entry that escapes the project root — it would
             // leak arbitrary host-file identifiers into score suggestions (and the
@@ -330,6 +331,12 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 // had nothing to document (that awarded a perfect API dimension and
                 // inflated the gating total, e.g. past a lifecycle min_score guard).
                 crate::exports::ExportScan::Unreadable => unreadable_files += 1,
+                // An unresolved merge conflict whose two sides both declared
+                // symbols: the union is not this file's API. Scoring it would
+                // award API credit for a tree that does not compile, so the
+                // symbols are dropped and the credit withheld — same reasoning
+                // as `Unreadable`, stronger cause.
+                crate::exports::ExportScan::Conflicted(_) => conflicted_files += 1,
                 // A non-source file (e.g. a `.md`/`.sql`) legitimately has no
                 // extractable exports — not a failure, and not counted against.
                 crate::exports::ExportScan::UnknownLanguage => {}
@@ -346,7 +353,29 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             .filter(|s| export_set.contains(s.as_str()))
             .count();
 
-        if all_exports.is_empty() && unreadable_files == 0 {
+        if conflicted_files > 0 {
+            // A conflicted file's API is unknowable, and that is true whether or
+            // not the spec's OTHER files parsed: scoring the readable remainder
+            // would report a confident number over a tree that cannot compile.
+            score.api_score = 0;
+            score.explain.push(ExplainDetail {
+                dimension: "API".to_string(),
+                score: 0,
+                max_score: DIMENSION_MAX,
+                criteria: vec![CriterionResult {
+                    name: "documented_exports".to_string(),
+                    passed: false,
+                    points: 0,
+                    max_points: DIMENSION_MAX,
+                    detail: Some(format!(
+                        "could not analyze exports for {conflicted_files} file(s) (unresolved merge conflict)"
+                    )),
+                }],
+            });
+            score.suggestions.push(format!(
+                "API coverage (-{DIMENSION_MAX}pts): {conflicted_files} source file(s) carry an unresolved merge conflict — resolve them before scoring"
+            ));
+        } else if all_exports.is_empty() && unreadable_files == 0 {
             // Genuinely nothing to document: every listed file parsed cleanly (or was
             // a non-source file) and produced no exports. Full marks.
             score.api_score = DIMENSION_MAX;

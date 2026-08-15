@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::process;
+use std::sync::{LazyLock, Mutex};
 
 use crate::parser::{parse_checked_issue_references, parse_frontmatter};
 use crate::validator::find_spec_files;
@@ -22,6 +23,11 @@ pub enum MergeStatus {
     Manual,
     /// File had no conflicts.
     Clean,
+    /// The scan could not run — git could not answer, so nothing was looked at.
+    /// Distinct from `Clean`: an empty list of conflicts because the question
+    /// was never asked is not the same as an empty list because the answer was
+    /// "none", and reporting the first as the second is an unearned all-clear.
+    Unknown,
 }
 
 /// Detect and resolve git merge conflicts in spec files.
@@ -46,7 +52,23 @@ pub fn merge_specs(
             .collect::<Vec<_>>()
     } else {
         // Use git to find conflicted spec files
-        detect_conflicted_specs(root, specs_dir)
+        match detect_conflicted_specs(root, specs_dir) {
+            Some(paths) => paths,
+            None => {
+                return vec![MergeResult {
+                    spec_path: specs_dir
+                        .strip_prefix(root)
+                        .unwrap_or(specs_dir)
+                        .to_string_lossy()
+                        .to_string(),
+                    status: MergeStatus::Unknown,
+                    details: vec![
+                        "Not a git repository (or git unavailable) — no conflict scan was performed. Re-run with --all to scan spec files by content."
+                            .to_string(),
+                    ],
+                }];
+            }
+        }
     };
 
     let mut results = Vec::new();
@@ -96,29 +118,209 @@ pub fn has_conflict_markers(content: &str) -> bool {
     content.lines().any(is_conflict_marker_like)
 }
 
-/// Use `git status` to find spec files with merge conflicts.
-fn detect_conflicted_specs(root: &Path, specs_dir: &Path) -> Vec<std::path::PathBuf> {
-    let output = process::Command::new("git")
+/// One structurally complete conflict hunk: an opener, exactly one `=======`
+/// separator, and a closer, with the two alternative texts it offers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConflictHunk {
+    /// Text between the opener and the separator (`HEAD` side).
+    pub ours: String,
+    /// Text between the separator and the closer (the incoming side).
+    pub theirs: String,
+    /// Label on the `<<<<<<<` marker.
+    pub ours_label: String,
+    /// Label on the `>>>>>>>` marker.
+    pub theirs_label: String,
+}
+
+/// Which side of a conflict hunk to keep when reconstructing a file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConflictSide {
+    /// Keep the `<<<<<<<`-to-`=======` text.
+    Ours,
+    /// Keep the `=======`-to-`>>>>>>>` text.
+    Theirs,
+}
+
+/// Structurally complete conflict hunks in `content`.
+///
+/// Deliberately stricter than [`has_conflict_markers`], which reports any
+/// marker-shaped line: a bare `=======` is a setext `<h1>` underline in
+/// Markdown and a decorative rule in source comments, so a guard that fails a
+/// build on marker shape alone fires on ordinary documents. Only a complete
+/// opener/separator/closer triple is returned here.
+pub fn conflict_hunks(content: &str) -> Vec<ConflictHunk> {
+    parse_conflict_regions(content)
+        .into_iter()
+        .filter_map(|region| match region {
+            Region::Conflict {
+                ours,
+                theirs,
+                marker_label,
+                theirs_label,
+                well_formed: true,
+                ..
+            } => Some(ConflictHunk {
+                ours,
+                theirs,
+                ours_label: marker_label,
+                theirs_label,
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Rebuild `content` keeping only `side` of every structurally complete hunk
+/// and dropping its markers, so the result is what the file would say if that
+/// side had won. Malformed hunks are re-emitted verbatim — nothing is invented
+/// for a shape we could not read.
+pub fn conflict_free_side(content: &str, side: ConflictSide) -> String {
+    let mut out = String::with_capacity(content.len());
+    for region in parse_conflict_regions(content) {
+        match region {
+            Region::Clean(text) => out.push_str(&text),
+            Region::Conflict {
+                ours,
+                theirs,
+                raw,
+                well_formed,
+                ..
+            } => {
+                if well_formed {
+                    out.push_str(match side {
+                        ConflictSide::Ours => &ours,
+                        ConflictSide::Theirs => &theirs,
+                    });
+                } else {
+                    out.push_str(&raw);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Structurally complete conflict hunks in a Markdown document, ignoring fenced
+/// code blocks. A spec may legitimately *document* conflict markers inside a
+/// fence — `specs/merge/merge.spec.md` is the obvious candidate — and quoted
+/// example text is not a corrupted document.
+pub fn document_conflict_hunks(body: &str) -> Vec<ConflictHunk> {
+    // Fenced code is blanked first, line count preserved, so a spec that
+    // *documents* conflict-marker syntax inside a ``` block is not read as a
+    // spec that *contains* a conflict. Blanking rather than deleting keeps the
+    // reported line numbers pointing at the real body.
+    conflict_hunks(&blank_fenced_code(body))
+}
+
+/// Replace every line inside a fenced code block with an empty line, preserving
+/// line count so reported positions still line up with the original.
+fn blank_fenced_code(body: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut open_fence: Option<String> = None;
+    for line in body.lines() {
+        let trimmed = line.trim_start();
+        if let Some(fence) = &open_fence {
+            if trimmed.starts_with(fence.as_str()) {
+                open_fence = None;
+            }
+            out.push('\n');
+            continue;
+        }
+        if let Some(fence) = fence_marker(trimmed) {
+            open_fence = Some(fence);
+            out.push('\n');
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
+/// The opening run of a code fence (three or more backticks or tildes).
+fn fence_marker(trimmed: &str) -> Option<String> {
+    for ch in ['`', '~'] {
+        let run = trimmed.chars().take_while(|c| *c == ch).count();
+        if run >= 3 {
+            return Some(ch.to_string().repeat(run));
+        }
+    }
+    None
+}
+
+/// Repository-relative paths git reports as unmerged.
+///
+/// Returns `None` when git could not answer — not a repository, git missing, or
+/// a failed invocation. `None` means *unknown*, never *clean*: a caller that
+/// collapses the two reports an all-clear it never verified, which is the same
+/// fail-open that made a conflicted tree pass `check`.
+pub fn unmerged_paths(root: &Path) -> Option<HashSet<String>> {
+    let output = match process::Command::new("git")
         .args(["diff", "--name-only", "--diff-filter=U"])
         .current_dir(root)
-        .output();
-
-    let output = match output {
-        Ok(output) if output.status.success() => output,
-        Err(_) => return Vec::new(),
-        Ok(_) => return Vec::new(),
+        .output()
+    {
+        Ok(output) => output,
+        // git could not run at all. That is UNKNOWN, not clean — see the
+        // contract above. Returning an empty set here would tell every caller
+        // "no path is unmerged", which is precisely the fail-open this guard
+        // exists to close.
+        Err(_) => return None,
     };
+    if !output.status.success() {
+        // Not a repository, or git refused. Same reasoning: unknown.
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|line| line.trim().to_string())
+            .filter(|line| !line.is_empty())
+            .collect(),
+    )
+}
+
+/// Memoized [`unmerged_paths`] keyed by repository root.
+///
+/// `check` asks the same question once per spec and once per mapped source
+/// file; without the memo a large project pays one `git` process per question.
+/// The cache lives for the process, which is one CLI invocation.
+pub fn cached_unmerged_paths(root: &Path) -> Option<HashSet<String>> {
+    static CACHE: LazyLock<Mutex<HashMap<std::path::PathBuf, Option<HashSet<String>>>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+
+    let key = root.to_path_buf();
+    if let Ok(cache) = CACHE.lock()
+        && let Some(hit) = cache.get(&key)
+    {
+        return hit.clone();
+    }
+    let probed = unmerged_paths(root);
+    if let Ok(mut cache) = CACHE.lock() {
+        cache.insert(key, probed.clone());
+    }
+    probed
+}
+
+/// Use `git status` to find spec files with merge conflicts.
+///
+/// `None` is propagated when git could not answer, so the caller can report the
+/// missing precondition instead of an unearned "no conflicts found".
+fn detect_conflicted_specs(root: &Path, specs_dir: &Path) -> Option<Vec<std::path::PathBuf>> {
+    let unmerged = unmerged_paths(root)?;
 
     let specs_rel = specs_dir
         .strip_prefix(root)
         .unwrap_or(specs_dir)
         .to_string_lossy();
 
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
+    let mut paths: Vec<std::path::PathBuf> = unmerged
+        .iter()
         .filter(|l| l.starts_with(specs_rel.as_ref()) && l.ends_with(".md"))
         .map(|l| root.join(l))
-        .collect()
+        .collect();
+    paths.sort();
+    Some(paths)
 }
 
 /// Resolve conflicts in a single spec file.
@@ -952,6 +1154,14 @@ pub fn print_results(results: &[MergeResult], dry_run: bool) {
                 );
             }
             MergeStatus::Clean => {}
+            MergeStatus::Unknown => {
+                println!(
+                    "  {} {} {}",
+                    "⊘".yellow(),
+                    "conflict scan not performed:".yellow(),
+                    r.spec_path.bold()
+                );
+            }
         }
 
         for detail in &r.details {
@@ -990,6 +1200,7 @@ pub fn results_to_json(results: &[MergeResult]) -> String {
                 MergeStatus::Resolved => "resolved",
                 MergeStatus::Manual => "manual",
                 MergeStatus::Clean => "clean",
+                MergeStatus::Unknown => "unknown",
             };
             let details_json: Vec<String> = r
                 .details
@@ -1018,6 +1229,107 @@ mod tests {
             "some text\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n"
         ));
         assert!(!has_conflict_markers("clean file\nno conflicts\n"));
+    }
+
+    /// `has_conflict_markers` reports marker *shape*, which in Markdown includes
+    /// a setext `<h1>` underline. `conflict_hunks` requires the full triple, so
+    /// a guard built on it cannot fail an ordinary document.
+    #[test]
+    fn a_setext_underline_is_marker_shaped_but_is_not_a_hunk() {
+        let body = "Release Notes\n=======\n\nSome prose.\n";
+        assert!(
+            has_conflict_markers(body),
+            "shape check is deliberately loose"
+        );
+        assert!(conflict_hunks(body).is_empty());
+        assert!(document_conflict_hunks(body).is_empty());
+    }
+
+    #[test]
+    fn conflict_hunks_reports_a_complete_triple_with_both_labels() {
+        let hunks = conflict_hunks(
+            "before\n<<<<<<< HEAD\nours line\n=======\ntheirs line\n>>>>>>> branch\nafter\n",
+        );
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0].ours, "ours line\n");
+        assert_eq!(hunks[0].theirs, "theirs line\n");
+        assert_eq!(hunks[0].ours_label, "HEAD");
+        assert_eq!(hunks[0].theirs_label, "branch");
+    }
+
+    #[test]
+    fn an_incomplete_triple_is_not_a_hunk() {
+        // Opener and separator but no closer: structurally unreadable, so it is
+        // never handed to a caller as an alternative-texts pair.
+        assert!(conflict_hunks("<<<<<<< HEAD\nours\n=======\ntheirs\n").is_empty());
+    }
+
+    #[test]
+    fn document_conflict_hunks_ignores_fenced_code_blocks() {
+        let body = "## Purpose\n\nA spec may document markers:\n\n\
+             ```\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n```\n\nDone.\n";
+        assert!(
+            !conflict_hunks(body).is_empty(),
+            "the raw scan does see the quoted triple"
+        );
+        assert!(
+            document_conflict_hunks(body).is_empty(),
+            "a fenced example is quoted text, not a corrupted document"
+        );
+    }
+
+    #[test]
+    fn document_conflict_hunks_reports_an_unfenced_hunk() {
+        let body = "## Invariants\n\n<<<<<<< HEAD\n1. Pure.\n=======\n1. Total.\n>>>>>>> other\n";
+        let hunks = document_conflict_hunks(body);
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0].ours_label, "HEAD");
+        assert_eq!(hunks[0].theirs_label, "other");
+    }
+
+    #[test]
+    fn conflict_free_side_keeps_exactly_one_side_and_drops_the_markers() {
+        let content =
+            "before\n<<<<<<< HEAD\nours line\n=======\ntheirs line\n>>>>>>> branch\nafter\n";
+        assert_eq!(
+            conflict_free_side(content, ConflictSide::Ours),
+            "before\nours line\nafter\n"
+        );
+        assert_eq!(
+            conflict_free_side(content, ConflictSide::Theirs),
+            "before\ntheirs line\nafter\n"
+        );
+    }
+
+    #[test]
+    fn conflict_free_side_leaves_a_malformed_hunk_verbatim() {
+        let content = "<<<<<<< HEAD\nours\n";
+        assert_eq!(conflict_free_side(content, ConflictSide::Ours), content);
+    }
+
+    /// The precondition half of #578: an absent git must read as *unknown*, so a
+    /// caller cannot print "no conflicts found" over a scan that never ran.
+    #[test]
+    fn unmerged_paths_is_unknown_outside_a_git_repository() {
+        let directory = tempfile::tempdir().unwrap();
+        assert_eq!(unmerged_paths(directory.path()), None);
+    }
+
+    #[test]
+    fn default_merge_without_git_reports_the_missing_precondition() {
+        let directory = tempfile::tempdir().unwrap();
+        let specs_dir = directory.path().join("specs");
+        std::fs::create_dir_all(&specs_dir).unwrap();
+
+        let results = merge_specs(directory.path(), &specs_dir, true, false);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].status, MergeStatus::Unknown);
+        assert!(
+            results[0].details[0].contains("--all"),
+            "{:?}",
+            results[0].details
+        );
+        assert!(results_to_json(&results).contains("\"status\": \"unknown\""));
     }
 
     #[test]
@@ -2052,12 +2364,15 @@ depends_on:
         assert_eq!(fs::read_to_string(&spec).unwrap(), content);
     }
 
+    /// Was `git_discovery_failure_is_a_safe_noop`, which asserted the #578
+    /// fail-open: an empty result standing in for an answer git never gave. A
+    /// discovery failure is not a no-op, it is an unknown.
     #[test]
-    fn git_discovery_failure_is_a_safe_noop() {
+    fn git_discovery_failure_is_unknown_not_empty() {
         let tmp = tempfile::tempdir().unwrap();
         let specs = tmp.path().join("specs");
         fs::create_dir_all(&specs).unwrap();
-        assert!(detect_conflicted_specs(tmp.path(), &specs).is_empty());
+        assert_eq!(detect_conflicted_specs(tmp.path(), &specs), None);
     }
 
     #[test]

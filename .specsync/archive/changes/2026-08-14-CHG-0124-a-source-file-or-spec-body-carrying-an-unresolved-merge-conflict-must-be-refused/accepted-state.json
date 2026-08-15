@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused",
+  "slug": "a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused",
+  "title": "A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist",
+  "description": "A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "e29e3b0dd9fe302b92152283dc9c3898f47b632f",
+  "created_at": 1786745228,
+  "updated_at": 1786745658,
+  "affected_specs": [
+    "merge",
+    "exports",
+    "validator",
+    "cmd_merge",
+    "cmd_diff",
+    "scoring"
+  ],
+  "affected_paths": [
+    "src/merge.rs",
+    "src/exports/mod.rs",
+    "src/validator.rs",
+    "src/commands/merge.rs",
+    "src/commands/diff.rs",
+    "src/scoring.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A source file whose extractor read declarations from both sides of an unresolved conflict hunk is refused, naming which side contributed which symbols, instead of comparing the union against the spec and passing. A spec body carrying conflict markers is refused before frontmatter parsing, so the failure is named as a conflict rather than as an incidental duplicate key. A path git reports as unmerged is refused whatever the extractor made of the bytes, and a git failure reports unknown rather than clean. Conflict-marker syntax inside a fenced code block in a spec is not a conflict. spec-sync's own repository, which contains twelve well-formed conflict triples inside test string literals, still passes check --strict."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

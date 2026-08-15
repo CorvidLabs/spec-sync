@@ -32,3 +32,11 @@ Acceptance Criteria
 - Error conditions produce clear, actionable messages
 - Module follows the project's established patterns for config loading and output formatting
 
+
+### REQ-cmd-merge-002
+
+`merge` SHALL exit non-zero when its scan could not run.
+
+Acceptance Criteria
+- A scan that could not be performed exits non-zero rather than reporting that no conflicts need resolution.
+- An unperformed scan is never reported as a pass.

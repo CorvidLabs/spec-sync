@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused",
+  "implementation_commit": "48eb4e27860aafe69966687f3ba7849957240386",
+  "implementation_tree": "e1cdc8db3974f69b0f7a049c03d3855eccb1ee53",
+  "contract_digest": "91edd458d7729345172d0364d0aafe06e291a50eadaf6bd31b0d03fa201c0b24",
+  "workspace_digest": "d1ae6ca9649eb43da892c8b3a6d3f1571a87c3f41fc190a97f66a61718841ca0",
+  "closing_digest": "6df476afae86a9446b0d504e4aa9ad07459eec296e050021bf2b6e68746a806e",
+  "review_digest": "802663b1c7910bda51710331e2c5367ed06040921b411001f102b6891047159c",
+  "finalization_digest": "22a8c70f88e6f5162685525e61726b06350a7bc4daaf14cb3f3c05816ea72b97",
+  "timestamp": 1786745658
+}

@@ -324,7 +324,16 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 continue;
             }
             let full_path = root.join(file);
-            match crate::exports::scan_exported_symbols(&full_path) {
+            // Grade against the export surface the project actually configured.
+            // Hard-coding `ExportLevel::Member`/`ParseMode::Regex` here made
+            // `score` and `check` disagree about what the module's API IS: under
+            // `export_level = "type"`, check reported `2/2 exports documented`
+            // while score deducted for members the contract never claimed (#474).
+            match crate::exports::scan_exported_symbols_full(
+                &full_path,
+                config.export_level,
+                config.parse_mode,
+            ) {
                 crate::exports::ExportScan::Parsed(syms) => all_exports.extend(syms),
                 // A recognized-language source file that can't be read (missing /
                 // non-UTF-8) leaves its API unknown — it must NOT be scored as if it
@@ -1402,6 +1411,64 @@ None.
 
         let score = score_spec(&spec_path, root, &SpecSyncConfig::default());
         assert!(score.total < 80, "all-TODO score was {}", score.total);
+    }
+
+    /// `score` must grade against the export surface the project configured, the
+    /// same one `check` validates. With `export_level = "type"`, check reported
+    /// `2/2 exports documented` while score reported API 8/20 and named `id`,
+    /// `name`, `find` — members that are not part of the configured contract at
+    /// all (#474). Two commands, one config, two answers about what the API is.
+    #[test]
+    fn api_score_grades_against_configured_export_level() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(
+            root.join("src/Profile.kt"),
+            "package com.example.tool\n\ndata class Profile(\n    val id: String,\n    val name: String,\n)\n\nclass ProfileCatalog {\n    fun find(id: String): Profile = TODO()\n}\n",
+        )
+        .unwrap();
+        let spec_dir = root.join("specs").join("tool");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_path = spec_dir.join("tool.spec.md");
+        std::fs::write(
+            &spec_path,
+            "---\nmodule: tool\nversion: 1\nstatus: active\nfiles:\n  - src/Profile.kt\ndb_tables: []\ndepends_on: []\n---\n\n# Tool\n\n## Purpose\nProfiles.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `Profile` | Profile record. |\n| `ProfileCatalog` | Catalog of profiles. |\n\n## Invariants\nTypes are the contract.\n\n## Behavioral Examples\nfind returns a Profile.\n\n## Error Cases\nNone.\n\n## Dependencies\nNone.\n\n## Change Log\n2026-08-14: created.\n",
+        )
+        .unwrap();
+
+        let type_config = SpecSyncConfig {
+            export_level: crate::types::ExportLevel::Type,
+            ..SpecSyncConfig::default()
+        };
+        let typed = score_spec(&spec_path, root, &type_config);
+        assert_eq!(
+            typed.api_score, DIMENSION_MAX,
+            "both configured exports are documented, so API is full marks: {:?}",
+            typed.suggestions
+        );
+        assert!(
+            !typed
+                .suggestions
+                .iter()
+                .any(|s| s.contains("`id`") || s.contains("`name`") || s.contains("`find`")),
+            "type-level scoring must not deduct for members: {:?}",
+            typed.suggestions
+        );
+
+        // Control: the members are really there, and a member-level project must
+        // still pay for leaving them undocumented — the fix narrows the surface
+        // to what was configured, it does not stop counting.
+        let member = score_spec(&spec_path, root, &SpecSyncConfig::default());
+        assert!(
+            member.api_score < DIMENSION_MAX,
+            "member-level scoring still deducts: {member:?}"
+        );
+        assert!(
+            member.suggestions.iter().any(|s| s.contains("`id`")),
+            "member-level suggestions still name the members: {:?}",
+            member.suggestions
+        );
     }
 
     /// Lay down a scorable auth spec whose only source file is `src/auth.ts`,

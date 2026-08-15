@@ -73,7 +73,8 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
 
     // Generate spec content with the shared deterministic generator (language-aware
     // template, valid `files:` list, pre-populated Public API table).
-    let spec_content = generator::generate_spec(module_name, &module_files, root, &specs_dir);
+    let spec_content =
+        generator::generate_spec(module_name, &module_files, root, &specs_dir, &config);
 
     match fs::write(&spec_file, &spec_content) {
         Ok(_) => {
@@ -188,9 +189,15 @@ pub fn cmd_scaffold(
 
     // Generate spec content
     let spec_content = if let Some(ref tpl_dir) = template {
-        generator::generate_spec_from_custom_template(tpl_dir, module_name, &module_files, root)
+        generator::generate_spec_from_custom_template(
+            tpl_dir,
+            module_name,
+            &module_files,
+            root,
+            &config,
+        )
     } else {
-        generator::generate_spec(module_name, &module_files, root, &specs_dir)
+        generator::generate_spec(module_name, &module_files, root, &specs_dir, &config)
     };
 
     match fs::write(&spec_file, &spec_content) {

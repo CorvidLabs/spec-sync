@@ -51,3 +51,10 @@ Acceptance Criteria
 - JavaScript-family `.test.*` and `.spec.*` files are omitted.
 - Production files with configured or default source extensions remain included.
 
+
+### REQ-cmd-scaffold-003
+
+`scaffold` SHALL derive exports from the configured surface and parse mode.
+
+Acceptance Criteria
+- The Public API it writes contains only symbols `check` will accept.

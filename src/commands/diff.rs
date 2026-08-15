@@ -162,7 +162,15 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
                 continue;
             }
             let full_path = root.join(file);
-            match crate::exports::scan_exported_symbols(&full_path) {
+            // Same surface `check`/`score` grade against: the configured export
+            // level and parser backend. Hard-coding member/regex here reported
+            // members as "new exports" drift under `export_level = "type"`,
+            // where the contract never claimed them (#474).
+            match crate::exports::scan_exported_symbols_full(
+                &full_path,
+                config.export_level,
+                config.parse_mode,
+            ) {
                 crate::exports::ExportScan::Parsed(syms) => current_exports.extend(syms),
                 // A recognized-language source file that can't be read (missing /
                 // non-UTF-8) makes this spec's export delta unreliable. Record it so

@@ -665,11 +665,16 @@ pub fn find_single_source_fallback(root: &Path, config: &SpecSyncConfig) -> Opti
 }
 
 /// Generate a spec from a template, using language-aware defaults.
+///
+/// `config` supplies the export surface (`export_level`, `parse_mode`) the
+/// pre-populated Public API table is drawn from, so a scaffolded spec documents
+/// exactly what `check`/`score` will grade it against (#474).
 pub fn generate_spec(
     module_name: &str,
     source_files: &[String],
     root: &Path,
     specs_dir: &Path,
+    config: &SpecSyncConfig,
 ) -> String {
     let template_path = specs_dir.join("_template.spec.md");
     let template = if template_path.exists() {
@@ -683,7 +688,7 @@ pub fn generate_spec(
         }
     };
 
-    render_spec_template(module_name, source_files, root, template)
+    render_spec_template(module_name, source_files, root, template, config)
 }
 
 fn render_spec_template(
@@ -691,6 +696,7 @@ fn render_spec_template(
     source_files: &[String],
     root: &Path,
     template: String,
+    config: &SpecSyncConfig,
 ) -> String {
     let title = module_name
         .split('-')
@@ -755,7 +761,7 @@ fn render_spec_template(
 
     // Pre-populate the Public API table from detected exports so generated
     // specs document their API surface like `specsync new` does.
-    let exports = collect_exports_for_files(root, source_files);
+    let exports = collect_exports_for_files(root, source_files, config);
     spec = populate_public_api_table(&spec, &exports);
 
     spec
@@ -765,7 +771,16 @@ fn render_spec_template(
 ///
 /// Paths may be absolute or root-relative; anything escaping the project root
 /// is skipped (consistency with validate/score/diff).
-pub fn collect_exports_for_files(root: &Path, source_files: &[String]) -> Vec<String> {
+///
+/// Extraction follows the project's configured `export_level` and `parse_mode`.
+/// Hard-coding member/regex here scaffolded rows for symbols the configured
+/// contract excludes, which `check` then rejected as "Spec documents 'x' but no
+/// matching export found in source" (#474).
+pub fn collect_exports_for_files(
+    root: &Path,
+    source_files: &[String],
+    config: &SpecSyncConfig,
+) -> Vec<String> {
     let mut all_exports: Vec<String> = Vec::new();
     for file in source_files {
         let rel = Path::new(file)
@@ -776,7 +791,11 @@ pub fn collect_exports_for_files(root: &Path, source_files: &[String]) -> Vec<St
             continue;
         }
         let full_path = root.join(&rel);
-        all_exports.extend(crate::exports::get_exported_symbols(&full_path));
+        all_exports.extend(crate::exports::get_exported_symbols_full(
+            &full_path,
+            config.export_level,
+            config.parse_mode,
+        ));
     }
     let mut seen = std::collections::HashSet::new();
     all_exports.retain(|s| seen.insert(s.clone()));
@@ -810,8 +829,9 @@ fn generate_module_spec(
     module_files: &[String],
     root: &Path,
     specs_dir: &Path,
+    config: &SpecSyncConfig,
 ) -> String {
-    generate_spec(module_name, module_files, root, specs_dir)
+    generate_spec(module_name, module_files, root, specs_dir, config)
 }
 
 /// Generate companion files (tasks.md, context.md, requirements.md, testing.md,
@@ -876,6 +896,7 @@ pub fn generate_spec_from_custom_template(
     module_name: &str,
     source_files: &[String],
     root: &Path,
+    config: &SpecSyncConfig,
 ) -> String {
     let template_file = template_dir.join("spec.md");
     let template = if template_file.exists() {
@@ -940,7 +961,7 @@ pub fn generate_spec_from_custom_template(
     let db_re = regex::Regex::new(r"(?m)^db_tables:\n(?:\s+-\s+.+\n?)*").unwrap();
     spec = db_re.replace(&spec, "db_tables: []\n").to_string();
 
-    let exports = collect_exports_for_files(root, source_files);
+    let exports = collect_exports_for_files(root, source_files, config);
     populate_public_api_table(&spec, &exports)
 }
 
@@ -1085,7 +1106,7 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
         }
 
         let template = retained_generation_template(project, &specs_relative, &module_files);
-        let spec_content = render_spec_template(module_name, &module_files, root, template);
+        let spec_content = render_spec_template(module_name, &module_files, root, template, config);
         match write_new_retained_file(project, &spec_relative, spec_content.as_bytes()) {
             Ok(true) => {
                 if progress {
@@ -1323,7 +1344,8 @@ pub fn generate_specs_for_unspecced_modules(
             continue;
         }
 
-        let spec_content = generate_module_spec(module_name, &module_files, root, &specs_dir);
+        let spec_content =
+            generate_module_spec(module_name, &module_files, root, &specs_dir, config);
 
         match fs::write(&spec_file, &spec_content) {
             Ok(_) => {
@@ -1379,7 +1401,8 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let spec_content = generate_module_spec(module_name, &module_files, root, &specs_dir);
+        let spec_content =
+            generate_module_spec(module_name, &module_files, root, &specs_dir, config);
 
         if fs::write(&spec_file, &spec_content).is_ok() {
             let rel = spec_file
@@ -1511,7 +1534,7 @@ mod tests {
         fs::write(src_dir.join("auth.rs"), "pub fn login() {}").unwrap();
 
         let files = vec![src_dir.join("auth.rs").to_string_lossy().to_string()];
-        let spec = generate_spec("auth", &files, root, &specs_dir);
+        let spec = generate_spec("auth", &files, root, &specs_dir, &SpecSyncConfig::default());
 
         assert!(spec.contains("module: auth"));
         assert!(spec.contains("# Auth"));
@@ -1526,7 +1549,13 @@ mod tests {
         let specs_dir = root.join("specs");
         fs::create_dir_all(&specs_dir).unwrap();
 
-        let spec = generate_spec("api-gateway", &[], root, &specs_dir);
+        let spec = generate_spec(
+            "api-gateway",
+            &[],
+            root,
+            &specs_dir,
+            &SpecSyncConfig::default(),
+        );
         assert!(spec.contains("# Api Gateway"));
         assert!(spec.contains("module: api-gateway"));
     }
@@ -1541,7 +1570,7 @@ mod tests {
         let custom_template = "---\nmodule: module-name\nversion: 1\nstatus: draft\nfiles: []\ndb_tables: []\ndepends_on: []\n---\n\n# Module Name\n\n## Purpose\n\nCustom template marker\n";
         fs::write(specs_dir.join("_template.spec.md"), custom_template).unwrap();
 
-        let spec = generate_spec("my-mod", &[], root, &specs_dir);
+        let spec = generate_spec("my-mod", &[], root, &specs_dir, &SpecSyncConfig::default());
         assert!(spec.contains("Custom template marker"));
         assert!(spec.contains("module: my-mod"));
     }
@@ -1603,7 +1632,13 @@ mod tests {
         fs::create_dir_all(&specs_dir).unwrap();
 
         let files = vec!["src/parser.rs".to_string()];
-        let spec = generate_spec("parser", &files, root, &specs_dir);
+        let spec = generate_spec(
+            "parser",
+            &files,
+            root,
+            &specs_dir,
+            &SpecSyncConfig::default(),
+        );
         // Should use Rust template (no custom template file exists)
         assert!(spec.contains("### Structs & Enums"));
     }
@@ -1972,7 +2007,7 @@ mod tests {
         let specs_dir = root.join("specs");
         fs::create_dir_all(&specs_dir).unwrap();
 
-        let spec = generate_spec("ghost", &[], root, &specs_dir);
+        let spec = generate_spec("ghost", &[], root, &specs_dir, &SpecSyncConfig::default());
         assert!(spec.contains("files: []"), "{spec}");
         let parsed = crate::parser::parse_frontmatter(&spec).expect("frontmatter parses");
         assert!(parsed.frontmatter.files.is_empty());
@@ -1993,7 +2028,7 @@ mod tests {
         .unwrap();
 
         let files = vec!["src/auth.rs".to_string()];
-        let spec = generate_spec("auth", &files, root, &specs_dir);
+        let spec = generate_spec("auth", &files, root, &specs_dir, &SpecSyncConfig::default());
         assert!(spec.contains("| `login` |"), "{spec}");
         assert!(spec.contains("| `logout` |"), "{spec}");
 
@@ -2001,6 +2036,42 @@ mod tests {
         let parsed = crate::parser::parse_frontmatter(&spec).unwrap();
         let symbols = crate::parser::get_spec_symbols(&parsed.body);
         assert!(symbols.iter().any(|s| s == "login"), "{symbols:?}");
+    }
+
+    /// The scaffolded Public API table must describe the configured export
+    /// surface. Hard-coding the member surface here wrote rows for symbols that
+    /// `check` does not recognize as exports under `export_level = "type"`, so
+    /// the generator handed back a spec its own validator rejects (#474).
+    #[test]
+    fn generate_spec_prepopulates_from_configured_export_level() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        let specs_dir = root.join("specs");
+        fs::create_dir_all(&specs_dir).unwrap();
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(
+            src_dir.join("Profile.kt"),
+            "package com.example.tool\n\ndata class Profile(\n    val id: String,\n    val name: String,\n)\n\nclass ProfileCatalog {\n    fun find(id: String): Profile = TODO()\n}\n",
+        )
+        .unwrap();
+        let files = vec!["src/Profile.kt".to_string()];
+
+        let type_config = SpecSyncConfig {
+            export_level: crate::types::ExportLevel::Type,
+            ..SpecSyncConfig::default()
+        };
+        let typed = generate_spec("tool", &files, root, &specs_dir, &type_config);
+        assert!(typed.contains("| `Profile` |"), "{typed}");
+        assert!(typed.contains("| `ProfileCatalog` |"), "{typed}");
+        assert!(!typed.contains("| `id` |"), "{typed}");
+        assert!(!typed.contains("| `find` |"), "{typed}");
+
+        // Control: the members are extractable, and a member-level project still
+        // gets rows for them.
+        let member = generate_spec("tool", &files, root, &specs_dir, &SpecSyncConfig::default());
+        assert!(member.contains("| `id` |"), "{member}");
+        assert!(member.contains("| `find` |"), "{member}");
     }
 
     #[test]
@@ -2014,7 +2085,13 @@ mod tests {
         fs::write(root.join("src/auth.ts"), "export function login() {}\n").unwrap();
 
         let files = vec!["src/auth.ts".to_string()];
-        let spec = generate_spec_from_custom_template(&template_dir, "auth", &files, root);
+        let spec = generate_spec_from_custom_template(
+            &template_dir,
+            "auth",
+            &files,
+            root,
+            &SpecSyncConfig::default(),
+        );
 
         assert!(spec.contains("| `login` |"), "{spec}");
     }

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 129,
-  "id": "CHG-0129-a-ruby-method-below-private-must-never-be-extracted-as-an-export-because-an-ass",
+  "sequence": 130,
+  "id": "CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest",
+      "reviewer": "claude-opus-5",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "c29c3eaf9bc734a050e67c5168db81b67c6f5ba8",
+      "contract_digest": "a581928c83ac0dd4071411c35ace92f7e5cadfec85d708d89ad0c79e8a5e87b0",
+      "execution_digest": "11e5aca606ae1ca22a1fcebbb1819f73480868b5d64149ed26cea59cf66b2714",
+      "workspace_digest": "52a538c076cf29c1cf6bb3eb07f636209138f44aae3bbfd61045efb418844d59",
+      "timestamp": 1786831986
+    }
+  ]
+}

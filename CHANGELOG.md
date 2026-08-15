@@ -65,6 +65,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Gradle module identity now comes from the project name, not a source path segment**
+  (CorvidLabs/spec-sync#473). Discovery took the **first** path segment, so `com.example.foo` and
+  `com.example.bar` both became a module named `com` and `generate` wrote `specs/com/com.spec.md` for
+  an entire package tree.
+
+  The reframing matters more than the fix: every other ecosystem derives identity from its
+  **manifest** — Cargo `[package]`, Swift `.target(name:)`, npm `name`, pubspec, pyproject, Go's
+  module path — with directory scanning only as the no-manifest fallback. Gradle already used that
+  rule for `settings.gradle` includes; a *single-project* build never inserts a module, so the shared
+  fallback saw `src/main/kotlin/com`. Gradle was the one language naming a module from a path at all.
+
+  A single-project build is now named from `rootProject.name`, falling back to the project directory
+  — Gradle's own default. Children of JVM source roots are not modules, so there is no longer a
+  segment to choose wrongly.
+
 - **Ruby private methods are no longer published as exports** (CorvidLabs/spec-sync#479). The issue
   title describes the opposite of the defect: nothing "escapes extraction". Methods sitting *below*
   `private` were wrongly **added** to the export set.

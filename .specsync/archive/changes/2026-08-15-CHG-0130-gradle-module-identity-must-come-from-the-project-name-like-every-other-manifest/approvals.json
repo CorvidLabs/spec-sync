@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786831893,
+      "digest": "a581928c83ac0dd4071411c35ace92f7e5cadfec85d708d89ad0c79e8a5e87b0",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest",
+        "title": "Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module",
+        "description": "Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "manifest",
+          "validator"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/manifest.rs",
+          "src/validator.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A single-project Gradle build is named from a literal rootProject.name, or from the project directory when that is unset, matching Gradle's own default. A multi-project build continues to use its include names. No child of a JVM source root such as src/main/kotlin is treated as a module, so a package hierarchy no longer collapses into a module named after any one of its segments. A monorepo laid out as packages/<name>/src/main/kotlin does not collapse into a single module. Discovery for every other language is unchanged."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786831996,
+      "digest": "fe5dfb054e8eae917e6d81f9085749983cc883b4f567d7fb37972ff22b110a4d",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

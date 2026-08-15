@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest",
+  "slug": "gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest",
+  "title": "Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module",
+  "description": "Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "0edba080ab9fee5879e9cae903ea2abb3b97a250",
+  "created_at": 1786831688,
+  "updated_at": 1786831996,
+  "affected_specs": [
+    "manifest",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/manifest.rs",
+    "src/validator.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A single-project Gradle build is named from a literal rootProject.name, or from the project directory when that is unset, matching Gradle's own default. A multi-project build continues to use its include names. No child of a JVM source root such as src/main/kotlin is treated as a module, so a package hierarchy no longer collapses into a module named after any one of its segments. A monorepo laid out as packages/<name>/src/main/kotlin does not collapse into a single module. Discovery for every other language is unchanged."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

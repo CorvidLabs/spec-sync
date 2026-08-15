@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest",
+  "implementation_commit": "c29c3eaf9bc734a050e67c5168db81b67c6f5ba8",
+  "implementation_tree": "b625bafb9116a3636a15a72f8d86098aeb965f9c",
+  "contract_digest": "a581928c83ac0dd4071411c35ace92f7e5cadfec85d708d89ad0c79e8a5e87b0",
+  "workspace_digest": "52a538c076cf29c1cf6bb3eb07f636209138f44aae3bbfd61045efb418844d59",
+  "closing_digest": "fe5dfb054e8eae917e6d81f9085749983cc883b4f567d7fb37972ff22b110a4d",
+  "review_digest": "406b8856dd9d9c12427b425900e2a4b839c035dad538f52237151723527d876f",
+  "finalization_digest": "6489d96767784110474aae5db44878dae75e94b75fa7297aeef4c7f24d52fa4c",
+  "timestamp": 1786831996
+}

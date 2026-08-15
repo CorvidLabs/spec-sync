@@ -1,6 +1,6 @@
 ---
 module: cmd_deps
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/deps.rs
@@ -94,3 +94,4 @@ Implements the `specsync deps` command. Validates cross-module dependency declar
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |
+| 2026-08-15 | CHG-0131-dependency-analysis-must-not-report-a-clean-graph-built-from-imports-it-could-no: Dependency analysis must not report a clean graph built from imports it could not read or could not resolve, so an unattributable import is disclosed rather than dropped |

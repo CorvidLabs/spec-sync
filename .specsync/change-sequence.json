@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 130,
-  "id": "CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest",
+  "sequence": 131,
+  "id": "CHG-0131-dependency-analysis-must-not-report-a-clean-graph-built-from-imports-it-could-no",
   "acknowledged_collisions": [
     {
       "sequence": 16,

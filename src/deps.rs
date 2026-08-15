@@ -3,7 +3,7 @@
 //! Parses `depends_on` declarations from spec frontmatter, builds a dependency
 //! graph, validates that declared dependencies actually exist, detects circular
 //! dependency chains, and cross-references declared dependencies against actual
-//! import statements in source code (Rust, TypeScript, Python).
+//! import statements in source code (Rust, TypeScript, Python, Kotlin).
 
 use crate::parser::parse_frontmatter;
 use crate::types::Language;
@@ -31,6 +31,12 @@ static TS_IMPORT: LazyLock<Regex> = LazyLock::new(|| {
 /// Python `import module` or `from module import ...` (relative: `from .module`)
 static PY_IMPORT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^(?:from\s+\.?(\w+)|import\s+(\w+))").unwrap());
+
+/// Kotlin `import com.example.core.Core`, `import com.example.core.*`,
+/// `import com.example.core.Core as Alias`. Only a statement that starts its own
+/// line (leading whitespace aside) is an import; the alias tail is not captured.
+static KOTLIN_IMPORT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[ \t]*import[ \t]+([A-Za-z_`][^\s;]*)").unwrap());
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -63,6 +69,25 @@ pub struct DepsReport {
     pub missing_deps: Vec<(String, String)>,
     /// Imports found in source code but not declared in spec depends_on.
     pub undeclared_imports: Vec<(String, String)>,
+    /// Declared source files whose language has an import concept this tool
+    /// cannot yet parse, as `(language, file count)` sorted by language. Their
+    /// imports were never collected, so an empty `undeclared_imports` for those
+    /// files means "nobody looked", not "nothing to report" — callers must
+    /// disclose this rather than let it read as a clean bill of health.
+    ///
+    /// A language with no import construct at all (YAML, shell) is NOT listed:
+    /// there is nothing there to miss, and naming it would bury the real
+    /// disclosure in noise.
+    pub unanalyzed_languages: Vec<(String, usize)>,
+    /// Imports that WERE collected but could not be mapped to a spec module, as
+    /// `(module, imported package)` sorted and deduplicated. Distinct from an
+    /// import that maps to nothing: the analysis ran, produced a package, and
+    /// then failed to attribute it — so the edge it might have implied is
+    /// missing from the graph. Dropping these silently is the same defect as
+    /// never collecting them (#477), so they are reported rather than filtered
+    /// away. Third-party packages that correctly belong to no spec module
+    /// (`java.util`, `kotlinx.coroutines`) are not listed here.
+    pub unresolved_imports: Vec<(String, String)>,
 }
 
 // ─── Graph Construction ─────────────────────────────────────────────────
@@ -318,19 +343,120 @@ fn detect_cycles(graph: &HashMap<String, DepNode>) -> Vec<Vec<String>> {
 
 // ─── Import Analysis ────────────────────────────────────────────────────
 
-/// Extract imported module names from a source file based on language.
-pub fn extract_imports(file_path: &Path, content: &str) -> HashSet<String> {
-    let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let lang = match Language::from_extension(ext) {
-        Some(l) => l,
-        None => return HashSet::new(),
-    };
+/// The import dialects this module can actually read.
+///
+/// This enum is the single source of truth for "can `deps` analyse this file?".
+/// Before it existed, the dispatch in `extract_imports` fell through to an empty
+/// set for every other language, and `check_undeclared_imports` could not tell
+/// "this file declares no cross-module imports" from "nobody parsed this file"
+/// — the second read as the first, and `deps --strict` called an unexamined
+/// graph valid (#477). Any new language extractor belongs here, so the
+/// disclosure in `DepsReport::unanalyzed_languages` stays correct by
+/// construction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImportDialect {
+    Rust,
+    TypeScript,
+    Python,
+    Kotlin,
+}
 
-    match lang {
-        Language::Rust => extract_rust_imports(content),
-        Language::TypeScript => extract_ts_imports(content),
-        Language::Python => extract_python_imports(content),
-        _ => HashSet::new(),
+impl ImportDialect {
+    /// The dialect for a file, or `None` when no extractor exists for it.
+    fn for_path(file_path: &Path) -> Option<Self> {
+        let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        Self::for_language(Language::from_extension(ext)?)
+    }
+
+    fn for_language(language: Language) -> Option<Self> {
+        match language {
+            Language::Rust => Some(Self::Rust),
+            Language::TypeScript => Some(Self::TypeScript),
+            Language::Python => Some(Self::Python),
+            Language::Kotlin => Some(Self::Kotlin),
+            _ => None,
+        }
+    }
+
+    fn extract(self, content: &str) -> HashSet<String> {
+        match self {
+            Self::Rust => extract_rust_imports(content),
+            Self::TypeScript => extract_ts_imports(content),
+            Self::Python => extract_python_imports(content),
+            Self::Kotlin => extract_kotlin_imports(content),
+        }
+    }
+}
+
+/// Does this language name other units of code from source, so that an
+/// unparsed file could be hiding an undeclared dependency?
+///
+/// Only such a language belongs in `DepsReport::unanalyzed_languages`. A YAML
+/// file has no imports to miss, and disclosing it as "not analysed" turns a
+/// real gap ("your Go imports were never read") into noise that a pure-Rust
+/// project sees on every run just for listing `ci.yml` in its spec. Shell is
+/// excluded on the same ground: `source`/`.` splices a file that is named by
+/// path and, being a source file, is already visible to spec `files:` — there
+/// is no module namespace to cross-reference against `depends_on`.
+///
+/// The match is exhaustive on purpose: a new `Language` variant must not
+/// silently inherit either answer.
+fn language_has_import_concept(language: Language) -> bool {
+    match language {
+        // Each of these names another unit of code from source — `use`,
+        // `import`, `require`, `using`, `open`, `#include`, `#import`,
+        // `library`, `Import-Module` — so an unparsed file may hide an
+        // undeclared dependency. The four dialects with extractors are listed
+        // too; they never reach the tally, but leaving them out would make this
+        // read as "not analysable".
+        Language::Rust
+        | Language::TypeScript
+        | Language::Python
+        | Language::Kotlin
+        | Language::Go
+        | Language::Swift
+        | Language::Java
+        | Language::CSharp
+        | Language::Dart
+        | Language::Php
+        | Language::Ruby
+        | Language::C
+        | Language::Cpp
+        | Language::Scala
+        | Language::Crystal
+        | Language::Nim
+        | Language::Erlang
+        | Language::Elixir
+        | Language::Perl
+        | Language::Lisp
+        | Language::Haskell
+        | Language::Lua
+        | Language::R
+        | Language::OCaml
+        | Language::Groovy
+        | Language::FSharp
+        | Language::Clojure
+        | Language::D
+        | Language::ObjectiveC
+        | Language::PowerShell
+        | Language::Vala => true,
+        // No import construct at all: nothing was missed by not parsing these.
+        Language::Yaml | Language::Bash => false,
+    }
+}
+
+/// Extract what a source file imports, in the terms its language uses: a module
+/// token for Rust, TypeScript and Python, whose spec module IS the token; a
+/// package path (`com.example.core`) for Kotlin, which `validate_deps` must
+/// still resolve to an owning spec module via `jvm_package_owners`.
+///
+/// Returns an empty set for a language with no extractor; callers that gate on
+/// the result must consult `ImportDialect::for_path` to tell that case apart
+/// from a file that genuinely imports nothing.
+pub fn extract_imports(file_path: &Path, content: &str) -> HashSet<String> {
+    match ImportDialect::for_path(file_path) {
+        Some(dialect) => dialect.extract(content),
+        None => HashSet::new(),
     }
 }
 
@@ -368,7 +494,7 @@ fn strip_rust_non_code(content: &str) -> String {
             while index < bytes.len() && bytes[index] != b'\n' {
                 index += 1;
             }
-            blank_rust_span(&mut output, start, index);
+            blank_span(&mut output, start, index);
             continue;
         }
         if bytes[index..].starts_with(b"/*") {
@@ -386,7 +512,7 @@ fn strip_rust_non_code(content: &str) -> String {
                     index += 1;
                 }
             }
-            blank_rust_span(&mut output, start, index);
+            blank_span(&mut output, start, index);
             continue;
         }
 
@@ -407,7 +533,7 @@ fn strip_rust_non_code(content: &str) -> String {
                 }
                 index += 1;
             }
-            blank_rust_span(&mut output, start, index);
+            blank_span(&mut output, start, index);
             continue;
         }
 
@@ -432,7 +558,7 @@ fn strip_rust_non_code(content: &str) -> String {
                         index += 1;
                     }
                 }
-                blank_rust_span(&mut output, start, index);
+                blank_span(&mut output, start, index);
                 continue;
             }
         }
@@ -469,7 +595,7 @@ fn rust_raw_string_start(bytes: &[u8], index: usize) -> Option<(usize, usize)> {
     (bytes.get(cursor) == Some(&b'"')).then_some((cursor, cursor - hashes_start))
 }
 
-fn blank_rust_span(output: &mut [u8], start: usize, end: usize) {
+fn blank_span(output: &mut [u8], start: usize, end: usize) {
     for byte in &mut output[start..end] {
         if *byte != b'\n' && *byte != b'\r' {
             *byte = b' ';
@@ -505,6 +631,353 @@ fn extract_python_imports(content: &str) -> HashSet<String> {
     modules
 }
 
+/// Extract the PACKAGES a Kotlin file imports from — `import com.example.core.Core`
+/// yields `com.example.core`. Package paths (not bare tokens) are returned because
+/// a Kotlin module's spec name is not a segment of the import on its own:
+/// `check_undeclared_imports` maps the package to the spec that owns those files
+/// (see `jvm_package_owners`).
+fn extract_kotlin_imports(content: &str) -> HashSet<String> {
+    let stripped = strip_jvm_non_code(content);
+    let mut packages = HashSet::new();
+
+    for caps in KOTLIN_IMPORT.captures_iter(&stripped) {
+        if let Some(path) = caps.get(1)
+            && let Some(package) = kotlin_import_package(path.as_str())
+        {
+            packages.insert(package);
+        }
+    }
+
+    packages
+}
+
+/// The package an `import` path names, with the imported declaration — and any
+/// enclosing type names — removed. A Kotlin import always ends in a declaration
+/// or `*`, never in the package itself.
+///
+/// `com.example.core.Core` → `com.example.core`
+/// `com.example.core.Core.Nested` → `com.example.core`
+/// `com.example.core.*` → `com.example.core`
+/// `com.example.core.helper` (top-level function) → `com.example.core`
+/// `Foo` → `None` (no package to attribute)
+fn kotlin_import_package(path: &str) -> Option<String> {
+    let segments: Vec<&str> = path
+        .trim_end_matches(';')
+        .split('.')
+        .map(|segment| segment.trim_matches('`'))
+        .filter(|segment| !segment.is_empty())
+        .collect();
+
+    // The final segment is the imported declaration (or `*`) — never a package.
+    let mut end = segments.len().checked_sub(1)?;
+    if segments.get(end) != Some(&"*") {
+        // Nested types: walk back over capitalized owners (`...core.Core.Nested`).
+        while end > 0
+            && segments[end - 1]
+                .chars()
+                .next()
+                .is_some_and(char::is_uppercase)
+        {
+            end -= 1;
+        }
+    }
+
+    (end > 0).then(|| segments[..end].join("."))
+}
+
+/// Replace JVM-family comments and string literals with spaces, preserving line
+/// breaks and byte offsets, so a commented-out or quoted `import`/`package` line
+/// cannot be mistaken for a real declaration. Kotlin and Scala block comments
+/// nest, and raw strings (`"""…"""`) span lines, so regex stripping would either
+/// miss valid forms or consume adjacent code. Java and Groovy are a subset of
+/// the same syntax, which is why one stripper serves all four.
+fn strip_jvm_non_code(content: &str) -> String {
+    let bytes = content.as_bytes();
+    let mut output = bytes.to_vec();
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"//") {
+            let start = index;
+            index += 2;
+            while index < bytes.len() && bytes[index] != b'\n' {
+                index += 1;
+            }
+            blank_span(&mut output, start, index);
+            continue;
+        }
+        if bytes[index..].starts_with(b"/*") {
+            let start = index;
+            index += 2;
+            let mut depth = 1_usize;
+            while index < bytes.len() && depth > 0 {
+                if bytes[index..].starts_with(b"/*") {
+                    depth += 1;
+                    index += 2;
+                } else if bytes[index..].starts_with(b"*/") {
+                    depth -= 1;
+                    index += 2;
+                } else {
+                    index += 1;
+                }
+            }
+            blank_span(&mut output, start, index);
+            continue;
+        }
+        if bytes[index..].starts_with(b"\"\"\"") {
+            let start = index;
+            index += 3;
+            while index < bytes.len() {
+                if bytes[index..].starts_with(b"\"\"\"") {
+                    index += 3;
+                    break;
+                }
+                index += 1;
+            }
+            blank_span(&mut output, start, index);
+            continue;
+        }
+        if bytes[index] == b'"' {
+            let start = index;
+            index += 1;
+            while index < bytes.len() {
+                if bytes[index] == b'\\' {
+                    index = (index + 2).min(bytes.len());
+                } else if bytes[index] == b'"' {
+                    index += 1;
+                    break;
+                } else if bytes[index] == b'\n' {
+                    // An unterminated single-quoted string cannot cross a line;
+                    // stop rather than blanking the rest of the file.
+                    break;
+                } else {
+                    index += 1;
+                }
+            }
+            blank_span(&mut output, start, index);
+            continue;
+        }
+
+        index += 1;
+    }
+
+    // Only ASCII bytes are replaced, so the original UTF-8 boundaries remain.
+    String::from_utf8(output).unwrap_or_default()
+}
+
+/// Does this file belong to a JVM language, whose sources declare a package and
+/// share one package namespace? A Kotlin file may well import a package whose
+/// spec owns `.java` sources, so all four count.
+fn is_jvm_source(normalized_path: &str) -> bool {
+    matches!(
+        Path::new(normalized_path)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .and_then(Language::from_extension),
+        Some(Language::Kotlin | Language::Java | Language::Scala | Language::Groovy)
+    )
+}
+
+/// The package a JVM source file declares in its own header, or `None` when it
+/// declares none (default package, or a file whose header we cannot read).
+///
+/// This is what makes resolution independent of where the file sits on disk:
+/// a directory only *usually* ends with the package path, and when it does not,
+/// guessing from the directory silently yields no owner at all. Comments and
+/// strings are stripped first, blank and annotation lines (`@file:JvmName`,
+/// which Kotlin requires before `package`) are skipped, and Scala's chained
+/// clauses (`package com.example` then `package core`) nest into one path.
+fn jvm_declared_package(content: &str) -> Option<String> {
+    let stripped = strip_jvm_non_code(content);
+    let mut segments: Vec<String> = Vec::new();
+
+    for line in stripped.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('@') {
+            continue;
+        }
+        // The first line that is not a package clause ends the header.
+        let Some(rest) = line.strip_prefix("package") else {
+            break;
+        };
+        if !rest.starts_with([' ', '\t']) {
+            break;
+        }
+        let Some(token) = rest.split_whitespace().next() else {
+            break;
+        };
+        // Scala's `package object foo` declares a member of the enclosing
+        // package rather than another clause.
+        if token == "object" {
+            break;
+        }
+        for segment in token.trim_end_matches([';', '{']).split('.') {
+            let segment = segment.trim_matches('`');
+            if !segment.is_empty() {
+                segments.push(segment.to_string());
+            }
+        }
+    }
+
+    (!segments.is_empty()).then(|| segments.join("."))
+}
+
+/// The JVM package topology of the project as the specs describe it.
+struct JvmPackages {
+    /// Package path → the one spec module that owns it.
+    owners: HashMap<String, String>,
+    /// Every package path the project is known to occupy, and every prefix of
+    /// one. Used to tell a package we failed to attribute from a package that
+    /// was never ours (`java.util`, `kotlinx.coroutines`).
+    namespace: HashSet<String>,
+}
+
+/// How an imported package relates to the project's spec modules.
+enum PackageOwner {
+    /// One spec module owns this package, or the nearest enclosing one.
+    Module(String),
+    /// The package lies outside every namespace this project occupies — a
+    /// standard-library or third-party dependency. It maps to no spec module,
+    /// and that is the right answer, not a failure.
+    Foreign,
+    /// The package looks like this project's own code, but no spec module could
+    /// be shown to own it. The analysis ran and came up short, which is NOT the
+    /// same as an import that maps to nothing (#477); the caller discloses it.
+    Unattributed,
+}
+
+/// How many leading segments must match for a package to count as this
+/// project's own. One is too few — `com.google.common` and `com.example.core`
+/// share `com`, and `java.com` appears in every `src/main/java/com/...` layout.
+/// Two separates an organisation's namespace from a foreign one.
+const PROJECT_NAMESPACE_SEGMENTS: usize = 2;
+
+/// Map JVM package paths to the spec modules that own them. Mirrors
+/// `rust_module_owners`: source topology (`com.example.core`) stays distinct
+/// from spec naming (`core`) with no hard-coded aliases.
+///
+/// Two sources feed the map, in order of authority:
+///
+/// 1. the `package` statement each declared source file makes about itself —
+///    correct regardless of layout, including source roots where the directory
+///    does not end with the package path;
+/// 2. the directory the file sits in, every suffix of it, which still answers
+///    for files that are listed in a spec but missing, unreadable, or written
+///    in the default package.
+///
+/// A package claimed by two modules is ambiguous and is left unowned rather
+/// than guessed — an import of it then resolves to `Unattributed` and is
+/// disclosed, instead of vanishing.
+fn jvm_package_owners(root: &Path, graph: &HashMap<String, DepNode>) -> JvmPackages {
+    let mut declared: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut layout: HashMap<String, HashSet<String>> = HashMap::new();
+
+    for node in graph.values() {
+        for file in &node.files {
+            let normalized = file.replace('\\', "/");
+            if !is_jvm_source(&normalized) {
+                continue;
+            }
+
+            if let Some((directory, _)) = normalized.rsplit_once('/') {
+                let segments: Vec<&str> = directory
+                    .split('/')
+                    .filter(|segment| !segment.is_empty() && *segment != ".")
+                    .collect();
+                for start in 0..segments.len() {
+                    layout
+                        .entry(segments[start..].join("."))
+                        .or_default()
+                        .insert(node.module.clone());
+                }
+            }
+
+            // Reading is skipped for paths that escape the project root (see
+            // `validator::source_within_root`); an unreadable file is left to
+            // the hard error `check_undeclared_imports` already raises for it.
+            if crate::validator::source_within_root(root, file)
+                && let Ok(content) = fs::read_to_string(root.join(file))
+                && let Some(package) = jvm_declared_package(&content)
+            {
+                declared
+                    .entry(package)
+                    .or_default()
+                    .insert(node.module.clone());
+            }
+        }
+    }
+
+    fn sole(modules: &HashSet<String>) -> Option<&String> {
+        (modules.len() == 1)
+            .then(|| modules.iter().next())
+            .flatten()
+    }
+
+    let mut owners: HashMap<String, String> = HashMap::new();
+    for (package, modules) in &declared {
+        if let Some(module) = sole(modules) {
+            owners.insert(package.clone(), module.clone());
+        }
+    }
+    for (package, modules) in &layout {
+        // What a file says about itself outranks the directory it sits in.
+        if declared.contains_key(package) {
+            continue;
+        }
+        if let Some(module) = sole(modules) {
+            owners.insert(package.clone(), module.clone());
+        }
+    }
+
+    let mut namespace: HashSet<String> = HashSet::new();
+    for package in declared.keys().chain(layout.keys()) {
+        let segments: Vec<&str> = package.split('.').collect();
+        for end in 1..=segments.len() {
+            namespace.insert(segments[..end].join("."));
+        }
+    }
+
+    JvmPackages { owners, namespace }
+}
+
+/// Resolve an imported JVM package against the project's package topology,
+/// longest package prefix first, so `com.example.core.internal` still resolves
+/// to the spec owning `com.example.core`.
+///
+/// The three outcomes are deliberately distinct. Collapsing `Foreign` and
+/// `Unattributed` into "no owner" is what let an unresolved import disappear
+/// into a `filter_map` and leave `deps --strict` calling the remaining graph
+/// valid (#477): an import the tool could not map to a module is not the same
+/// as an import that correctly maps to none.
+fn resolve_jvm_package(package: &str, packages: &JvmPackages) -> PackageOwner {
+    let segments: Vec<&str> = package
+        .split('.')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    if segments.is_empty() {
+        return PackageOwner::Foreign;
+    }
+
+    for end in (1..=segments.len()).rev() {
+        if let Some(owner) = packages.owners.get(&segments[..end].join(".")) {
+            return PackageOwner::Module(owner.clone());
+        }
+    }
+
+    if packages.namespace.is_empty() {
+        // Nothing at all is known about this project's packages, so nothing can
+        // honestly be called foreign. Disclose rather than discard.
+        return PackageOwner::Unattributed;
+    }
+
+    let probe = segments[..segments.len().min(PROJECT_NAMESPACE_SEGMENTS)].join(".");
+    if packages.namespace.contains(&probe) {
+        PackageOwner::Unattributed
+    } else {
+        PackageOwner::Foreign
+    }
+}
+
 /// Check that imports in source files match declared dependencies.
 fn check_undeclared_imports(
     root: &Path,
@@ -513,6 +986,15 @@ fn check_undeclared_imports(
 ) {
     let known_modules: HashSet<&str> = graph.keys().map(|k| k.as_str()).collect();
     let rust_owners = rust_module_owners(graph);
+    let jvm_packages = jvm_package_owners(root, graph);
+    // Languages whose declared source files were read but never parsed for
+    // imports. Counted, not discarded: their absence from `undeclared_imports`
+    // is "not analysed", and the caller has to say so.
+    let mut unanalyzed: HashMap<Language, usize> = HashMap::new();
+    // Imports that were collected and then could not be attributed to a module.
+    // Same rule, one level down: the edge they might have implied is missing
+    // from the graph, so the caller has to say so rather than filter them out.
+    let mut unresolved: Vec<(String, String)> = Vec::new();
 
     for node in graph.values() {
         let declared: HashSet<&str> = node.declared_deps.iter().map(|d| d.as_str()).collect();
@@ -541,18 +1023,47 @@ fn check_undeclared_imports(
                 }
             };
             let file_imports = extract_imports(&full_path, &content);
-            if full_path
-                .extension()
-                .and_then(|extension| extension.to_str())
-                == Some("rs")
-            {
-                actual_imports.extend(
+            match ImportDialect::for_path(&full_path) {
+                // Source topology → spec naming, per dialect.
+                Some(ImportDialect::Rust) => actual_imports.extend(
                     file_imports
                         .into_iter()
                         .map(|import| rust_owners.get(&import).cloned().unwrap_or(import)),
-                );
-            } else {
-                actual_imports.extend(file_imports);
+                ),
+                Some(ImportDialect::Kotlin) => {
+                    for package in file_imports {
+                        match resolve_jvm_package(&package, &jvm_packages) {
+                            PackageOwner::Module(owner) => {
+                                actual_imports.insert(owner);
+                            }
+                            // Correctly maps to no spec module: a standard
+                            // library or third-party package. Nothing to say.
+                            PackageOwner::Foreign => {}
+                            // Maps to nothing only because attribution failed.
+                            // Disclosed instead of dropped (#477).
+                            PackageOwner::Unattributed => {
+                                unresolved.push((node.module.clone(), package));
+                            }
+                        }
+                    }
+                }
+                Some(ImportDialect::TypeScript | ImportDialect::Python) => {
+                    actual_imports.extend(file_imports)
+                }
+                // No extractor: this file contributed nothing because nobody
+                // parsed it. Record the language so the verdict can say so
+                // instead of counting silence as cleanliness (#477) — but only
+                // for a language that has imports to miss in the first place.
+                None => {
+                    if let Some(language) = full_path
+                        .extension()
+                        .and_then(|extension| extension.to_str())
+                        .and_then(Language::from_extension)
+                        .filter(|language| language_has_import_concept(*language))
+                    {
+                        *unanalyzed.entry(language).or_insert(0) += 1;
+                    }
+                }
             }
         }
 
@@ -573,6 +1084,17 @@ fn check_undeclared_imports(
             }
         }
     }
+
+    let mut unanalyzed: Vec<(String, usize)> = unanalyzed
+        .into_iter()
+        .map(|(language, files)| (format!("{language:?}"), files))
+        .collect();
+    unanalyzed.sort();
+    report.unanalyzed_languages = unanalyzed;
+
+    unresolved.sort();
+    unresolved.dedup();
+    report.unresolved_imports = unresolved;
 }
 
 /// Map a top-level Rust module token to the spec that owns its canonical module
@@ -618,6 +1140,81 @@ fn rust_module_owners(graph: &HashMap<String, DepNode>) -> HashMap<String, Strin
         .collect()
 }
 
+/// One sentence naming the languages whose imports could not be read, or `None`
+/// when every declared source file that could have imports was analysable.
+/// Single formatting site for every renderer, so a language cannot be disclosed
+/// in one output format and hidden in another.
+///
+/// Only languages that HAVE imports appear here (see
+/// `language_has_import_concept`): a note that fires for YAML and shell files
+/// says nothing true and drowns the cases where something really was missed.
+pub fn unanalyzed_languages_note(report: &DepsReport) -> Option<String> {
+    if report.unanalyzed_languages.is_empty() {
+        return None;
+    }
+    let listed = report
+        .unanalyzed_languages
+        .iter()
+        .map(|(language, files)| format!("{language} ({files} file(s))"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(format!(
+        "Import analysis is not implemented for {listed}; \
+         undeclared imports in those files were not checked"
+    ))
+}
+
+/// One sentence naming the imports that were read but could not be attributed
+/// to a spec module, or `None` when every collected import was either owned or
+/// recognisably foreign. Single formatting site, like
+/// `unanalyzed_languages_note`.
+///
+/// The count is exact; the listing is capped so a large project cannot bury the
+/// rest of the report. Machine consumers get the full list in the JSON
+/// `unresolved_imports` array.
+pub fn unresolved_imports_note(report: &DepsReport) -> Option<String> {
+    const LISTED: usize = 5;
+    if report.unresolved_imports.is_empty() {
+        return None;
+    }
+    let total = report.unresolved_imports.len();
+    let listed = report
+        .unresolved_imports
+        .iter()
+        .take(LISTED)
+        .map(|(module, import)| format!("{module} imports {import}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let remainder = total.saturating_sub(LISTED);
+    let tail = if remainder > 0 {
+        format!(", +{remainder} more")
+    } else {
+        String::new()
+    };
+    Some(format!(
+        "{total} import(s) could not be mapped to a spec module, so they were \
+         not checked against depends_on: {listed}{tail}"
+    ))
+}
+
+/// The success sentence, qualified when part of the tree went unread or
+/// unattributed. "Valid" over a graph the command could not fully build is a
+/// claim it has not earned (#477).
+pub fn valid_declarations_line(report: &DepsReport) -> &'static str {
+    match (
+        report.unanalyzed_languages.is_empty(),
+        report.unresolved_imports.is_empty(),
+    ) {
+        (true, true) => "All dependency declarations are valid.",
+        (false, true) => "All dependency declarations are valid for the languages analysed.",
+        (true, false) => "All dependency declarations are valid for the imports that resolved.",
+        (false, false) => {
+            "All dependency declarations are valid for the languages analysed \
+             and the imports that resolved."
+        }
+    }
+}
+
 /// Format the dependency report as a printable summary.
 #[allow(dead_code)]
 pub fn format_report(report: &DepsReport) -> String {
@@ -628,8 +1225,28 @@ pub fn format_report(report: &DepsReport) -> String {
     ));
 
     if report.errors.is_empty() && report.warnings.is_empty() {
-        out.push_str("All dependency declarations are valid.\n");
+        out.push_str(valid_declarations_line(report));
+        out.push('\n');
+        for note in [
+            unanalyzed_languages_note(report),
+            unresolved_imports_note(report),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            out.push_str(&format!("{note}\n"));
+        }
         return out;
+    }
+
+    for note in [
+        unanalyzed_languages_note(report),
+        unresolved_imports_note(report),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        out.push_str(&format!("{note}\n"));
     }
 
     if !report.errors.is_empty() {
@@ -1103,6 +1720,568 @@ mod after_comment;
                 .undeclared_imports
                 .contains(&("caller".to_string(), "settings".to_string()))
         );
+    }
+
+    #[test]
+    fn test_extract_kotlin_imports_packages() {
+        let imports = extract_kotlin_imports(
+            "package com.example.feature\n\n\
+             import com.example.core.Core\n\
+             import com.example.util.*\n\
+             import com.example.nested.Outer.Inner\n\
+             import com.example.top.helper\n\
+             import com.example.alias.Thing as Renamed\n\
+             import Bare\n",
+        );
+
+        assert_eq!(
+            imports,
+            HashSet::from([
+                "com.example.core".to_string(),
+                "com.example.util".to_string(),
+                "com.example.nested".to_string(),
+                "com.example.top".to_string(),
+                "com.example.alias".to_string(),
+            ]),
+            "a Kotlin import names a declaration, so the package is everything before it"
+        );
+    }
+
+    #[test]
+    fn test_extract_kotlin_imports_ignores_comments_and_strings() {
+        let imports = extract_kotlin_imports(
+            "package com.example.feature\n\
+             // import com.example.linecomment.Thing\n\
+             /* import com.example.block.Thing\n\
+                /* import com.example.nestedblock.Thing */\n\
+             */\n\
+             val doc = \"\"\"\nimport com.example.raw.Thing\n\"\"\"\n\
+             val line = \"import com.example.quoted.Thing\"\n\
+             import com.example.real.Thing\n",
+        );
+
+        assert_eq!(imports, HashSet::from(["com.example.real".to_string()]));
+    }
+
+    #[test]
+    fn test_undeclared_kotlin_import() {
+        // #477: Kotlin imports were never collected, so `deps` called an
+        // unexamined graph valid.
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/core/Core.kt",
+            "package com.example.core\n\nclass Core\n",
+        );
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/feature/Feature.kt",
+            "package com.example.feature\n\nimport com.example.core.Core\n\nclass Feature(val core: Core)\n",
+        );
+        create_spec(
+            tmp.path(),
+            "core",
+            &[],
+            &["src/main/kotlin/com/example/core/Core.kt"],
+        );
+        create_spec(
+            tmp.path(),
+            "feature",
+            &[],
+            &["src/main/kotlin/com/example/feature/Feature.kt"],
+        );
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report
+                .undeclared_imports
+                .contains(&("feature".to_string(), "core".to_string())),
+            "expected com.example.core to resolve to the spec owning it: {:?}",
+            report.undeclared_imports
+        );
+        assert!(
+            report.unanalyzed_languages.is_empty(),
+            "Kotlin is analysable now: {:?}",
+            report.unanalyzed_languages
+        );
+    }
+
+    #[test]
+    fn test_declared_kotlin_import_not_flagged() {
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/core/Core.kt",
+            "package com.example.core\n\nclass Core\n",
+        );
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/feature/Feature.kt",
+            "package com.example.feature\n\nimport com.example.core.Core\n",
+        );
+        create_spec(
+            tmp.path(),
+            "core",
+            &[],
+            &["src/main/kotlin/com/example/core/Core.kt"],
+        );
+        create_spec(
+            tmp.path(),
+            "feature",
+            &["specs/core/core.spec.md"],
+            &["src/main/kotlin/com/example/feature/Feature.kt"],
+        );
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report.undeclared_imports.is_empty(),
+            "a declared dependency must not be flagged: {:?}",
+            report.undeclared_imports
+        );
+    }
+
+    #[test]
+    fn test_kotlin_import_of_subpackage_maps_to_owning_spec() {
+        // `com.example.core.internal` has no spec of its own; the longest
+        // package prefix that does own files wins.
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/core/Core.kt",
+            "package com.example.core\n\nclass Core\n",
+        );
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/feature/Feature.kt",
+            "package com.example.feature\n\nimport com.example.core.internal.Detail\n",
+        );
+        create_spec(
+            tmp.path(),
+            "core",
+            &[],
+            &["src/main/kotlin/com/example/core/Core.kt"],
+        );
+        create_spec(
+            tmp.path(),
+            "feature",
+            &[],
+            &["src/main/kotlin/com/example/feature/Feature.kt"],
+        );
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report
+                .undeclared_imports
+                .contains(&("feature".to_string(), "core".to_string())),
+            "expected the subpackage import to resolve to core: {:?}",
+            report.undeclared_imports
+        );
+    }
+
+    #[test]
+    fn test_kotlin_third_party_package_is_not_mistaken_for_a_spec_module() {
+        // `java.util` must not resolve to the spec module named `util` just
+        // because they share a last segment: the project's package topology is
+        // known and `java.util` is not part of it.
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/util/Util.kt",
+            "package com.example.util\n\nclass Util\n",
+        );
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/feature/Feature.kt",
+            "package com.example.feature\n\nimport java.util.UUID\n",
+        );
+        create_spec(
+            tmp.path(),
+            "util",
+            &[],
+            &["src/main/kotlin/com/example/util/Util.kt"],
+        );
+        create_spec(
+            tmp.path(),
+            "feature",
+            &[],
+            &["src/main/kotlin/com/example/feature/Feature.kt"],
+        );
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report.undeclared_imports.is_empty(),
+            "java.util is not the spec module `util`: {:?}",
+            report.undeclared_imports
+        );
+        // And it is NOT an attribution failure either: a third-party package
+        // correctly maps to no spec module, so disclosing it would be noise.
+        assert!(
+            report.unresolved_imports.is_empty(),
+            "java.util is foreign, not unattributed: {:?}",
+            report.unresolved_imports
+        );
+    }
+
+    #[test]
+    fn test_kotlin_flat_layout_resolves_by_declared_package() {
+        // No file sits in a package directory, so the directory tells us nothing
+        // about package ownership. The `package` statement each file declares
+        // does, and that is what resolution uses.
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "Core.kt",
+            "package com.example.core\n\nclass Core\n",
+        );
+        create_source(
+            tmp.path(),
+            "Feature.kt",
+            "package com.example.feature\n\nimport com.example.core.Core\n",
+        );
+        create_spec(tmp.path(), "core", &[], &["Core.kt"]);
+        create_spec(tmp.path(), "feature", &[], &["Feature.kt"]);
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report
+                .undeclared_imports
+                .contains(&("feature".to_string(), "core".to_string())),
+            "expected the flat-layout import to still be attributed: {:?}",
+            report.undeclared_imports
+        );
+        assert!(
+            report.unresolved_imports.is_empty(),
+            "nothing was left unattributed: {:?}",
+            report.unresolved_imports
+        );
+    }
+
+    #[test]
+    fn test_kotlin_import_resolves_when_directory_does_not_match_package() {
+        // #477, one level down: the source root is `src/kt`, which does not end
+        // with either file's package path. Matching a package against directory
+        // suffixes finds no owner here — and a resolution that finds no owner
+        // used to be dropped, leaving an empty report and exit 0.
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/kt/Core.kt",
+            "package com.example.core\n\nclass Core\n",
+        );
+        create_source(
+            tmp.path(),
+            "src/kt/Feature.kt",
+            "package com.example.feature\n\nimport com.example.core.Core\n",
+        );
+        create_spec(tmp.path(), "core", &[], &["src/kt/Core.kt"]);
+        create_spec(tmp.path(), "feature", &[], &["src/kt/Feature.kt"]);
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report
+                .undeclared_imports
+                .contains(&("feature".to_string(), "core".to_string())),
+            "the declared package must resolve regardless of directory: {:?}",
+            report.undeclared_imports
+        );
+        assert!(
+            report.unresolved_imports.is_empty(),
+            "nothing was left unattributed: {:?}",
+            report.unresolved_imports
+        );
+    }
+
+    #[test]
+    fn test_kotlin_import_of_project_package_with_no_owner_is_disclosed() {
+        // The import was collected and is plainly this project's own namespace,
+        // but no spec owns `com.example.internal`. Silently dropping it is the
+        // #477 defect: no edge, no finding, exit 0. It must be disclosed.
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/feature/Feature.kt",
+            "package com.example.feature\n\nimport com.example.internal.Detail\n",
+        );
+        create_spec(
+            tmp.path(),
+            "feature",
+            &[],
+            &["src/main/kotlin/com/example/feature/Feature.kt"],
+        );
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert_eq!(
+            report.unresolved_imports,
+            vec![("feature".to_string(), "com.example.internal".to_string())],
+            "an import the tool could not map must be reported, not filtered away"
+        );
+        assert_eq!(
+            valid_declarations_line(&report),
+            "All dependency declarations are valid for the imports that resolved.",
+            "the success sentence must not claim more than was checked"
+        );
+        let note = unresolved_imports_note(&report).expect("the gap must be disclosed");
+        assert!(
+            note.contains("feature imports com.example.internal"),
+            "got: {note}"
+        );
+        // Disclosure is advisory: it is not an error and does not gate.
+        assert!(report.errors.is_empty() && report.warnings.is_empty());
+    }
+
+    #[test]
+    fn test_ambiguous_kotlin_package_is_disclosed_not_guessed() {
+        // Two specs own files in `com.example.core`, so no single module owns
+        // the package. Guessing one would be wrong; dropping the import in
+        // silence is the bug. Say it could not be mapped.
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/core/One.kt",
+            "package com.example.core\n\nclass One\n",
+        );
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/core/Two.kt",
+            "package com.example.core\n\nclass Two\n",
+        );
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/feature/Feature.kt",
+            "package com.example.feature\n\nimport com.example.core.One\n",
+        );
+        create_spec(
+            tmp.path(),
+            "core_one",
+            &[],
+            &["src/main/kotlin/com/example/core/One.kt"],
+        );
+        create_spec(
+            tmp.path(),
+            "core_two",
+            &[],
+            &["src/main/kotlin/com/example/core/Two.kt"],
+        );
+        create_spec(
+            tmp.path(),
+            "feature",
+            &[],
+            &["src/main/kotlin/com/example/feature/Feature.kt"],
+        );
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert_eq!(
+            report.unresolved_imports,
+            vec![("feature".to_string(), "com.example.core".to_string())],
+            "an ambiguous package is unattributed, and unattributed is disclosed"
+        );
+    }
+
+    #[test]
+    fn test_kotlin_import_resolves_to_spec_owning_java_sources() {
+        // A Kotlin file importing a package whose spec owns `.java` sources still
+        // produces the edge — JVM siblings share one package namespace.
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/main/java/com/example/core/Core.java",
+            "package com.example.core;\n\npublic class Core {}\n",
+        );
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/feature/Feature.kt",
+            "package com.example.feature\n\nimport com.example.core.Core\n",
+        );
+        create_spec(
+            tmp.path(),
+            "core",
+            &[],
+            &["src/main/java/com/example/core/Core.java"],
+        );
+        create_spec(
+            tmp.path(),
+            "feature",
+            &[],
+            &["src/main/kotlin/com/example/feature/Feature.kt"],
+        );
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report
+                .undeclared_imports
+                .contains(&("feature".to_string(), "core".to_string())),
+            "expected the Java-owned package to be attributed: {:?}",
+            report.undeclared_imports
+        );
+        // Java itself still has no import extractor, and that is disclosed.
+        assert_eq!(report.unanalyzed_languages, vec![("Java".to_string(), 1)]);
+    }
+
+    #[test]
+    fn test_kotlin_self_package_import_not_flagged() {
+        let tmp = TempDir::new().unwrap();
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/core/Core.kt",
+            "package com.example.core\n\nclass Core\n",
+        );
+        create_source(
+            tmp.path(),
+            "src/main/kotlin/com/example/core/Helper.kt",
+            "package com.example.core\n\nimport com.example.core.Core\n",
+        );
+        create_spec(
+            tmp.path(),
+            "core",
+            &[],
+            &[
+                "src/main/kotlin/com/example/core/Core.kt",
+                "src/main/kotlin/com/example/core/Helper.kt",
+            ],
+        );
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report.undeclared_imports.is_empty(),
+            "a module must not depend on itself: {:?}",
+            report.undeclared_imports
+        );
+    }
+
+    #[test]
+    fn test_unanalyzed_language_is_disclosed_not_counted_as_clean() {
+        // A language with no import extractor contributes no edges; the report
+        // must say so instead of letting the silence read as "no problems".
+        let tmp = TempDir::new().unwrap();
+        create_source(tmp.path(), "src/core/core.go", "package core\n");
+        create_source(
+            tmp.path(),
+            "src/feature/feature.go",
+            "package feature\n\nimport \"example.com/src/core\"\n",
+        );
+        create_spec(tmp.path(), "core", &[], &["src/core/core.go"]);
+        create_spec(tmp.path(), "feature", &[], &["src/feature/feature.go"]);
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert_eq!(report.unanalyzed_languages, vec![("Go".to_string(), 2)]);
+        assert_eq!(
+            valid_declarations_line(&report),
+            "All dependency declarations are valid for the languages analysed."
+        );
+        let note = unanalyzed_languages_note(&report).expect("Go must be disclosed");
+        assert!(note.contains("Go (2 file(s))"), "got: {note}");
+        // Disclosure is not a failure: the exit code is untouched.
+        assert!(report.errors.is_empty() && report.warnings.is_empty());
+    }
+
+    #[test]
+    fn test_both_disclosures_qualify_the_verdict_together() {
+        // Unread languages and unattributable imports are separate gaps, and a
+        // tree with both must own up to both rather than pick one sentence.
+        let tmp = TempDir::new().unwrap();
+        create_source(tmp.path(), "src/core/core.go", "package core\n");
+        create_source(
+            tmp.path(),
+            "src/kt/Feature.kt",
+            "package com.example.feature\n\nimport com.example.missing.Gone\n",
+        );
+        create_spec(tmp.path(), "core", &[], &["src/core/core.go"]);
+        create_spec(tmp.path(), "feature", &[], &["src/kt/Feature.kt"]);
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert_eq!(report.unanalyzed_languages, vec![("Go".to_string(), 1)]);
+        assert_eq!(
+            report.unresolved_imports,
+            vec![("feature".to_string(), "com.example.missing".to_string())]
+        );
+        assert_eq!(
+            valid_declarations_line(&report),
+            "All dependency declarations are valid for the languages analysed \
+             and the imports that resolved."
+        );
+        assert!(unanalyzed_languages_note(&report).is_some());
+        assert!(unresolved_imports_note(&report).is_some());
+        assert!(report.errors.is_empty() && report.warnings.is_empty());
+    }
+
+    #[test]
+    fn test_analyzable_tree_reports_no_unanalyzed_languages() {
+        let tmp = TempDir::new().unwrap();
+        create_source(tmp.path(), "src/api.py", "from .auth import login\n");
+        create_spec(tmp.path(), "api", &[], &["src/api.py"]);
+        create_spec(tmp.path(), "auth", &[], &[]);
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(report.unanalyzed_languages.is_empty());
+        assert_eq!(
+            valid_declarations_line(&report),
+            "All dependency declarations are valid."
+        );
+        assert!(unanalyzed_languages_note(&report).is_none());
+    }
+
+    #[test]
+    fn test_language_without_an_import_concept_is_not_disclosed() {
+        // A YAML file has no imports to miss, and a shell script names a path
+        // rather than a module. Listing them as "not analysed" would bury the
+        // real disclosure under noise every pure-Rust project sees.
+        let tmp = TempDir::new().unwrap();
+        create_source(tmp.path(), "src/lib.rs", "pub fn run() {}\n");
+        create_source(tmp.path(), "src/ci.yml", "jobs: {}\n");
+        create_source(tmp.path(), "src/tool.sh", "#!/usr/bin/env bash\ntrue\n");
+        create_spec(
+            tmp.path(),
+            "tooling",
+            &[],
+            &["src/lib.rs", "src/ci.yml", "src/tool.sh"],
+        );
+
+        let report = validate_deps(tmp.path(), "specs");
+        assert!(
+            report.unanalyzed_languages.is_empty(),
+            "neither YAML nor shell has an import to miss: {:?}",
+            report.unanalyzed_languages
+        );
+        assert!(unanalyzed_languages_note(&report).is_none());
+        assert_eq!(
+            valid_declarations_line(&report),
+            "All dependency declarations are valid.",
+            "nothing was skipped, so the verdict must not be hedged"
+        );
+    }
+
+    #[test]
+    fn test_jvm_declared_package_reads_the_header() {
+        assert_eq!(
+            jvm_declared_package("package com.example.core\n\nclass Core\n"),
+            Some("com.example.core".to_string())
+        );
+        assert_eq!(
+            jvm_declared_package("package com.example.core;\n\npublic class Core {}\n"),
+            Some("com.example.core".to_string()),
+            "Java terminates the clause with a semicolon"
+        );
+        assert_eq!(
+            jvm_declared_package("@file:JvmName(\"CoreKt\")\n\npackage com.example.core\n"),
+            Some("com.example.core".to_string()),
+            "Kotlin file annotations precede the package clause"
+        );
+        assert_eq!(
+            jvm_declared_package("// package com.example.wrong\npackage com.example.core\n"),
+            Some("com.example.core".to_string()),
+            "a commented-out clause is not a declaration"
+        );
+        assert_eq!(
+            jvm_declared_package("package com.example\npackage core\n\nclass Core\n"),
+            Some("com.example.core".to_string()),
+            "Scala chains clauses, and they nest"
+        );
+        assert_eq!(
+            jvm_declared_package("class Core\n\npackage com.example.core\n"),
+            None,
+            "only the header declares the package"
+        );
+        assert_eq!(jvm_declared_package("class Core\n"), None);
     }
 
     #[test]

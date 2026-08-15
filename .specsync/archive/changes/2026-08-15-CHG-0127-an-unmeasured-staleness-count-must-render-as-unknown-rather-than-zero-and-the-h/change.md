@@ -1,6 +1,6 @@
 ---
 id: CHG-0127-an-unmeasured-staleness-count-must-render-as-unknown-rather-than-zero-and-the-h
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 16013babe407bc096f403c0fa9833c56a14533e2
 ---

@@ -7,11 +7,11 @@
   "title": "An unmeasured staleness count must render as unknown rather than zero, and the hand-rolled config scanner must report a malformed header rather than silently skipping it",
   "description": "An unmeasured staleness count must render as unknown rather than zero, and the hand-rolled config scanner must report a malformed header rather than silently skipping it",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "16013babe407bc096f403c0fa9833c56a14533e2",
   "created_at": 1786755163,
-  "updated_at": 1786756521,
+  "updated_at": 1786756553,
   "affected_specs": [
     "cmd_report",
     "config"

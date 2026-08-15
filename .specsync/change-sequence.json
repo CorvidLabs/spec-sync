@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 126,
-  "id": "CHG-0126-the-config-refusal-must-guard-both-loaders-because-load-config-is-a-second-door",
+  "sequence": 127,
+  "id": "CHG-0127-an-unmeasured-staleness-count-must-render-as-unknown-rather-than-zero-and-the-h",
   "acknowledged_collisions": [
     {
       "sequence": 16,

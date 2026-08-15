@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0127-an-unmeasured-staleness-count-must-render-as-unknown-rather-than-zero-and-the-h",
+  "slug": "an-unmeasured-staleness-count-must-render-as-unknown-rather-than-zero-and-the-h",
+  "title": "An unmeasured staleness count must render as unknown rather than zero, and the hand-rolled config scanner must report a malformed header rather than silently skipping it",
+  "description": "An unmeasured staleness count must render as unknown rather than zero, and the hand-rolled config scanner must report a malformed header rather than silently skipping it",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "16013babe407bc096f403c0fa9833c56a14533e2",
+  "created_at": 1786755163,
+  "updated_at": 1786756553,
+  "affected_specs": [
+    "cmd_report",
+    "config"
+  ],
+  "affected_paths": [
+    "src/commands/report.rs",
+    "src/config.rs",
+    "tests/integration/staleness_unmeasurable.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "On a tree whose staleness cannot be measured, report renders the stale count as unknown in text and null in JSON, never zero, because zero is an answer and there is none. A tree with real git history reports its actual count unchanged. A config file whose header is unterminated is reported as unloadable rather than silently skipped, using the same refusal wording as the unreadable-file shape, so a consumer matching a refusal need not know which door it came through. A well-formed config is unaffected, and valid TOML the scanner does not implement is not rejected."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

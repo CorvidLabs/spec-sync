@@ -1,6 +1,6 @@
 ---
 module: cmd_report
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/report.rs
@@ -95,3 +95,4 @@ Implements the `specsync report` command — a comprehensive per-module coverage
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |
 | 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |
+| 2026-08-15 | CHG-0127-an-unmeasured-staleness-count-must-render-as-unknown-rather-than-zero-and-the-h: An unmeasured staleness count must render as unknown rather than zero, and the hand-rolled config scanner must report a malformed header rather than silently skipping it |

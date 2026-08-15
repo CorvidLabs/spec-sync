@@ -1,6 +1,6 @@
 ---
 module: config
-version: 19
+version: 20
 status: stable
 files:
   - src/config.rs
@@ -158,6 +158,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-08-14 | CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
 | 2026-08-14 | CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
 | 2026-08-14 | CHG-0126-the-config-refusal-must-guard-both-loaders-because-load-config-is-a-second-door: The config refusal must guard both loaders, because load_config is a second door through which rules, compact and rehash reported success over configuration they never read |
+| 2026-08-15 | CHG-0127-an-unmeasured-staleness-count-must-render-as-unknown-rather-than-zero-and-the-h: An unmeasured staleness count must render as unknown rather than zero, and the hand-rolled config scanner must report a malformed header rather than silently skipping it |
 
 ## Config File Structure
 

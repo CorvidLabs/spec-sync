@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0127-an-unmeasured-staleness-count-must-render-as-unknown-rather-than-zero-and-the-h",
+      "reviewer": "claude-opus-5",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "8621cc25fd0f84be86c1e87610c44c427ec23153",
+      "contract_digest": "f393208c5d4521aefbd9f679bdf8c73796ad7fed686e7209e9f7a94707c86c36",
+      "execution_digest": "80b95b9f6824a4366c1ea4bb1b0b3d7c195f1a4d8e2a800067725fae568ae664",
+      "workspace_digest": "7a55075cddb3524566dbe709f5f9c2ffe2036efcbe0ae4be56a8c7498f3c5cfe",
+      "timestamp": 1786756544
+    }
+  ]
+}

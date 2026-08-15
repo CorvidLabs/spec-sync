@@ -156,9 +156,17 @@ fn report_json_never_states_a_staleness_it_could_not_measure() {
             module["commits_behind"].is_null(),
             "[{label}] `commits_behind` must be null, not a distance nobody measured: {json}"
         );
-        assert_eq!(
-            json["stale_modules"], 0,
-            "[{label}] an unmeasured module is not a stale one: {json}"
+        // This asserted `0` when it was written, with the reasoning "an
+        // unmeasured module is not a stale one". True of the module, wrong of
+        // the COUNT: `0` says zero modules are stale, which is a claim about a
+        // measurement that never ran — the same defect the surrounding test
+        // exists to prevent, one level up in the aggregate. Sandbox drill 046
+        // caught it after the fix had already merged. `null` here, and a number
+        // only when at least one module was actually measured.
+        assert!(
+            json["stale_modules"].is_null(),
+            "[{label}] the stale COUNT must be null when nothing was measured; \
+             0 is an answer and there is no answer here: {json}"
         );
         assert_eq!(
             json["unmeasured_stale_modules"], 1,

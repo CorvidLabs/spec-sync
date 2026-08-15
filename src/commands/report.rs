@@ -62,7 +62,16 @@ fn csv_field<T: std::fmt::Display>(value: Option<T>) -> String {
 /// The one `Modules: …` summary, so text, markdown, github and table cannot
 /// drift apart about how many modules were unmeasured.
 fn module_summary_line(total: usize, stale: usize, unmeasured: usize, incomplete: usize) -> String {
-    let mut line = format!("{total} total, {stale} stale");
+    // When every module's staleness was unmeasurable there is no stale COUNT to
+    // report, and printing `0 stale` beside `N staleness unmeasured` is the
+    // whole defect in miniature: a dashboard scraping "N stale" reads zero
+    // drift from a run that measured none. Say "unknown" instead, and only
+    // print a number when at least one module was actually measured.
+    let mut line = if unmeasured > 0 && stale == 0 && unmeasured == total {
+        format!("{total} total, stale unknown")
+    } else {
+        format!("{total} total, {stale} stale")
+    };
     if unmeasured > 0 {
         line.push_str(&format!(", {unmeasured} staleness unmeasured"));
     }
@@ -332,7 +341,14 @@ pub fn cmd_report(
                 "files_covered": coverage.specced_file_count,
                 "files_total": coverage.measured_file_total(),
                 "total_modules": total_modules,
-                "stale_modules": stale_count,
+                // `null`, not `0`, when nothing could be measured: a consumer
+                // must be able to tell "no module is stale" from "no module's
+                // staleness is knowable". Zero is an answer; this is not one.
+                "stale_modules": if unmeasured_stale_count > 0 && stale_count == 0 {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::Value::from(stale_count)
+                },
                 "unmeasured_stale_modules": unmeasured_stale_count,
                 "staleness_inconclusive": staleness_note.is_some(),
                 "staleness_error": staleness_note,

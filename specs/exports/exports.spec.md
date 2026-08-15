@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 14
+version: 15
 status: stable
 files:
   - src/exports/mod.rs
@@ -381,6 +381,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
 | 2026-08-15 | CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve: Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is |
+| 2026-08-15 | CHG-0129-a-ruby-method-below-private-must-never-be-extracted-as-an-export-because-an-ass: A Ruby method below private must never be extracted as an export, because an assignment-form conditional desynced the visibility stack and published private methods as contract |
 
 ## CommonJS Extraction
 

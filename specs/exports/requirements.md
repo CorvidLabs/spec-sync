@@ -140,3 +140,13 @@ An entry point that derives exports without stating the surface SHALL warn again
 Acceptance Criteria
 - The convenience wrappers that hard-code export level and parse mode are documented as unsafe for new callers, naming the defect they caused.
 - Production code derives exports from the configured surface instead.
+
+### REQ-exports-009
+
+Ruby visibility SHALL survive block forms that do not begin a line.
+
+Acceptance Criteria
+- A method below `private` is never reported as an export, whether it precedes or follows an assignment-form multi-line conditional.
+- Documenting such a method is an orphan error rather than an accepted export, so silencing the warning cannot publish a private method as contract.
+- A statement-form conditional, which never desynced the visibility stack, behaves exactly as before.
+- Public methods above `private` continue to be extracted.

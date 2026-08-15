@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 128,
-  "id": "CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve",
+  "sequence": 129,
+  "id": "CHG-0129-a-ruby-method-below-private-must-never-be-extracted-as-an-export-because-an-ass",
   "acknowledged_collisions": [
     {
       "sequence": 16,

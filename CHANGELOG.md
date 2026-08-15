@@ -65,6 +65,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Ruby private methods are no longer published as exports** (CorvidLabs/spec-sync#479). The issue
+  title describes the opposite of the defect: nothing "escapes extraction". Methods sitting *below*
+  `private` were wrongly **added** to the export set.
+
+  The extractor's block-opener test was anchored to a line's first token, so an assignment-form
+  conditional (`coarse = if seconds < 3600 … end`) never pushed a nesting entry while its `end` still
+  popped one. The stack desynced by one, the class's visibility-restore entry popped early, `public`
+  flipped back mid-body, and every method after that point leaked — including the private ones.
+
+  This was dangerous rather than noisy: the leak surfaces as a *warning*, and the obvious way to
+  silence a warning is to document the symbol — which made `check` accept it, **publishing a private
+  method as public contract**. The bug recruited the user into making it permanent.
+
 - **`score`, `new`, `generate`, `scaffold` and `diff` now honour the configured export level**
   (CorvidLabs/spec-sync#474). On a project configuring `export_level = "type"`, `check` reported
   `2/2 exports documented` while `score` deducted 12 points for three "undocumented exports" that

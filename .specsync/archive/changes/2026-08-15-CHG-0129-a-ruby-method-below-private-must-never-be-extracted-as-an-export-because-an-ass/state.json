@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0129-a-ruby-method-below-private-must-never-be-extracted-as-an-export-because-an-ass",
+  "slug": "a-ruby-method-below-private-must-never-be-extracted-as-an-export-because-an-ass",
+  "title": "A Ruby method below private must never be extracted as an export, because an assignment-form conditional desynced the visibility stack and published private methods as contract",
+  "description": "A Ruby method below private must never be extracted as an export, because an assignment-form conditional desynced the visibility stack and published private methods as contract",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "e0af129cce77d654ad2d1de42310932fe42c4780",
+  "created_at": 1786824416,
+  "updated_at": 1786824907,
+  "affected_specs": [
+    "exports"
+  ],
+  "affected_paths": [
+    "src/exports/ruby.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A Ruby method sitting below a private keyword is never reported as an export, whether it precedes or follows an assignment-form multi-line conditional. Documenting such a method is an orphan error rather than an accepted export, so a repository cannot silence the warning by publishing a private method as contract. A statement-form conditional, which never triggered the desync, behaves exactly as before. Public methods above private continue to be extracted."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

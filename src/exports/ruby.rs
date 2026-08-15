@@ -66,32 +66,32 @@ static VISIBILITY_PRIVATE_SYMBOLS: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// Keywords that open a Ruby block requiring a matching `end`, other than
-/// `class`/`module` (handled separately below since they also carry the
-/// visibility state that needs restoring on close). Anchored to the line's
-/// first token so a statement-modifier form (`do_thing if condition`) never
-/// matches -- only a true multi-line block header does.
-static BLOCK_OPENER: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[^\S\n]*(?:def|do\b|begin|case|if|unless|while|until|for)\b").unwrap()
-});
+/// A singleton-class body (`class << self`, `class << other`). It opens a
+/// block that a later `end` closes, and — like `class`/`module` — it carries
+/// its own visibility state (a `private` inside `class << self` applies to
+/// the singleton methods, not to the enclosing class body). `RUBY_CLASS`
+/// deliberately does not match it (there's no constant being declared), so
+/// it needs its own pattern or its `end` pops the enclosing class's
+/// visibility-restore entry.
+static SINGLETON_CLASS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*class[^\S\n]*<<").unwrap());
 
 /// A Ruby 3.0+ "endless method" (`def name(...) = expr` or `def name = expr`)
-/// has no body block and needs no matching `end` at all. Distinguishing it
-/// from an ordinary `def` with a default-parameter `=` (`def foo(x = 1)`)
-/// matters: the endless form's `=` sits *after* the parameter list closes
-/// (or after the bare name, if there's no parameter list), not inside it.
+/// has no body block and needs no matching `end` at all. Two ordinary defs
+/// that also carry an `=` must NOT be mistaken for it, since they do own an
+/// `end`:
+///   * a default-parameter def (`def foo(x = 1)`) — the endless form's `=`
+///     sits *after* the parameter list closes, not inside it;
+///   * a setter def (`def name=(value)`) — Ruby requires the `=` of a setter
+///     name to be attached to the name, so an endless def without a
+///     parameter list always has whitespace before its `=`.
 static ENDLESS_DEF: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^[^\S\n]*def\s+[\w.?!]+[^\S\n]*(?:\([^)]*\))?[^\S\n]*=[^=]").unwrap()
+    Regex::new(r"(?m)^[^\S\n]*def\s+[\w.?!]+(?:[^\S\n]*\([^)]*\)[^\S\n]*=[^=]|[^\S\n]+=[^=])")
+        .unwrap()
 });
 
 /// A bare `end` keyword closing the innermost open block.
 static BLOCK_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[^\S\n]*end\b").unwrap());
-
-/// Detects a same-line closing `end` (e.g. a one-line `if x then y end` or
-/// `def foo; end`), so a self-contained one-liner is never pushed onto the
-/// block stack in the first place -- its matching `end` will never appear on
-/// a later line for `BLOCK_END` to pop.
-static INLINE_END: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\bend\b").unwrap());
 
 /// Heredoc start: `<<~TAG`, `<<-TAG`, `<<TAG`, or quoted-tag variants
 /// (`<<~"TAG"`, `<<~'TAG'`). Requires no whitespace immediately before `<<`
@@ -109,6 +109,297 @@ static HEREDOC_START: LazyLock<Regex> =
 /// already-existing namespace, not new declarations.
 fn last_segment(name: &str) -> String {
     name.rsplit("::").next().unwrap_or(name).to_string()
+}
+
+/// Whether `character` can end a Ruby expression. A `/` or `%` that follows
+/// one of these is the division or modulo operator, not the opening
+/// delimiter of a regex or `%`-literal.
+fn ends_expression(character: char) -> bool {
+    character.is_alphanumeric() || matches!(character, ')' | ']' | '}' | '_')
+}
+
+/// The trailing identifier of `text` (`""` when it doesn't end in one), used
+/// to ask what keyword — if any — immediately precedes a position.
+fn trailing_word(text: &str) -> &str {
+    let start = text
+        .char_indices()
+        .rev()
+        .take_while(|(_, character)| character.is_alphanumeric() || *character == '_')
+        .last()
+        .map(|(index, _)| index);
+    match start {
+        Some(index) => &text[index..],
+        None => "",
+    }
+}
+
+/// Whether a regex or `%`-literal can begin right after `prefix` — i.e.
+/// whether `prefix` leaves us in expression position rather than having just
+/// completed an operand (in which case `/` is division and `%` is modulo).
+fn literal_can_start_here(prefix: &str) -> bool {
+    let head = prefix.trim_end();
+    match head.chars().last() {
+        None => true,
+        Some(character) if !ends_expression(character) => true,
+        Some(_) => matches!(
+            trailing_word(head),
+            "and"
+                | "or"
+                | "not"
+                | "when"
+                | "in"
+                | "if"
+                | "unless"
+                | "while"
+                | "until"
+                | "then"
+                | "else"
+                | "elsif"
+                | "case"
+                | "return"
+                | "rescue"
+                | "do"
+        ),
+    }
+}
+
+/// Scans forward from the opening quote at `open` and returns the index just
+/// past the closing quote (or the end of the line, for a quote that never
+/// closes on this line).
+fn skip_quoted(chars: &[char], open: usize, quote: char) -> usize {
+    let mut cursor = open + 1;
+    while cursor < chars.len() {
+        if chars[cursor] == '\\' {
+            cursor += 2;
+            continue;
+        }
+        if chars[cursor] == quote {
+            return cursor + 1;
+        }
+        cursor += 1;
+    }
+    chars.len()
+}
+
+/// If a `%`-literal (`%w[...]`, `%i(...)`, `%q{...}`, `%{...}`) starts at
+/// `open`, returns the index just past its closing delimiter. Returns `None`
+/// for the modulo operator, for an unknown delimiter, and for a literal that
+/// does not close on this line.
+fn percent_literal_end(chars: &[char], open: usize, prefix: &str) -> Option<usize> {
+    if !literal_can_start_here(prefix) {
+        return None;
+    }
+    let mut cursor = open + 1;
+    if matches!(
+        chars.get(cursor),
+        Some('q' | 'Q' | 'w' | 'W' | 'i' | 'I' | 'r' | 's')
+    ) {
+        cursor += 1;
+    }
+    let close = match chars.get(cursor)? {
+        '(' => ')',
+        '[' => ']',
+        '{' => '}',
+        '<' => '>',
+        '|' => '|',
+        '!' => '!',
+        '/' => '/',
+        _ => return None,
+    };
+    cursor += 1;
+    while cursor < chars.len() {
+        if chars[cursor] == '\\' {
+            cursor += 2;
+            continue;
+        }
+        if chars[cursor] == close {
+            return Some(cursor + 1);
+        }
+        cursor += 1;
+    }
+    None
+}
+
+/// If a regex literal starts at the `/` at `open`, returns the index just
+/// past its closing `/`. Returns `None` for the division operator and for a
+/// literal that does not close on this line.
+fn regex_literal_end(chars: &[char], open: usize, prefix: &str) -> Option<usize> {
+    if !literal_can_start_here(prefix) {
+        return None;
+    }
+    let mut cursor = open + 1;
+    while cursor < chars.len() {
+        if chars[cursor] == '\\' {
+            cursor += 2;
+            continue;
+        }
+        if chars[cursor] == '/' {
+            return Some(cursor + 1);
+        }
+        cursor += 1;
+    }
+    None
+}
+
+/// Replaces every string, backtick, regex and `%`-literal on a line with a
+/// single identifier-shaped placeholder, so a keyword that merely appears
+/// *inside* a literal (`raise "unexpected end"`, `line =~ /end/`,
+/// `%w[begin end]`) is never read as a real block opener or closer by
+/// `scan_line_blocks`. The placeholder is an identifier character rather
+/// than whitespace on purpose: the text before a keyword decides whether it
+/// opens a block, and `x = "text" if flag` must keep reading as "an operand
+/// already completed here" (a statement modifier), exactly like `x = 1 if
+/// flag`.
+fn mask_literals(line: &str) -> String {
+    let chars: Vec<char> = line.chars().collect();
+    let mut masked = String::with_capacity(line.len());
+    let mut index = 0;
+    while index < chars.len() {
+        let current = chars[index];
+        match current {
+            '"' | '\'' | '`' => {
+                index = skip_quoted(&chars, index, current);
+                masked.push('s');
+            }
+            '%' => match percent_literal_end(&chars, index, &masked) {
+                Some(next) => {
+                    index = next;
+                    masked.push('s');
+                }
+                None => {
+                    masked.push(current);
+                    index += 1;
+                }
+            },
+            '/' => match regex_literal_end(&chars, index, &masked) {
+                Some(next) => {
+                    index = next;
+                    masked.push('s');
+                }
+                None => {
+                    masked.push(current);
+                    index += 1;
+                }
+            },
+            _ => {
+                masked.push(current);
+                index += 1;
+            }
+        }
+    }
+    masked
+}
+
+/// Whether an `if`/`unless`/`while`/`until` appearing after `prefix` opens a
+/// multi-line block (and therefore owns an `end`) rather than being a
+/// statement modifier (which owns nothing). It opens when nothing precedes
+/// it on the line — the classic `if cond` header — and also when what
+/// precedes it cannot stand as a complete expression: after an assignment
+/// (`x = if cond`, `@memo ||= while ...`), after `(`, `;`, `&&`, `||`, or
+/// after a keyword that introduces a fresh expression (`then`, `else`,
+/// `do`, `and`, `or`, `not`). Anything else — `return if x`, `next if x`,
+/// `log "msg" if x` — is a modifier and must not be counted, or the block
+/// stack gains an entry that no `end` will ever pop.
+fn keyword_opens_block_here(prefix: &str) -> bool {
+    let head = prefix.trim_end();
+    if head.is_empty() {
+        return true;
+    }
+    if let Some(before_equals) = head.strip_suffix('=') {
+        // `==`, `!=`, `<=`, `>=`, `=~` compare — they don't assign, so what
+        // follows them is the right-hand side of a completed expression.
+        if !matches!(
+            before_equals.chars().last(),
+            Some('=' | '!' | '<' | '>' | '~')
+        ) {
+            return true;
+        }
+    }
+    if head.ends_with("&&") || head.ends_with("||") || head.ends_with('(') || head.ends_with(';') {
+        return true;
+    }
+    matches!(
+        trailing_word(head),
+        "then" | "else" | "do" | "and" | "or" | "not"
+    )
+}
+
+/// What one source line does to Ruby's block nesting.
+struct LineBlocks {
+    /// A block that needs a matching `end` opens on this line (`def`, a
+    /// `do` block, `begin`/`case`/`for`, or a non-modifier
+    /// `if`/`unless`/`while`/`until`). `class`/`module`/`class <<` are
+    /// reported by their own patterns instead, since they also carry
+    /// visibility state.
+    opens: bool,
+    /// An `end` keyword appears somewhere on this line.
+    has_end: bool,
+}
+
+/// Reads the block-nesting effect of a single (literal-masked) line.
+///
+/// Everything here is deliberately token-based rather than anchored to the
+/// line's first word: a block opener does not have to start its line.
+/// `x = if cond`, `@memo ||= begin`, `items.each do |item|` and
+/// `class << self` all open a block whose `end` arrives later, and an
+/// extractor that misses the opener lets that `end` pop the enclosing
+/// class's visibility-restore entry — which republishes every `private`
+/// method that follows as public API.
+fn scan_line_blocks(masked: &str, endless_def: bool) -> LineBlocks {
+    let bytes = masked.as_bytes();
+    let mut blocks = LineBlocks {
+        opens: false,
+        has_end: false,
+    };
+    let mut index = 0;
+    while index < bytes.len() {
+        if !(bytes[index].is_ascii_alphabetic() || bytes[index] == b'_') {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        while index < bytes.len() && (bytes[index].is_ascii_alphanumeric() || bytes[index] == b'_')
+        {
+            index += 1;
+        }
+        let word = &masked[start..index];
+        if !matches!(
+            word,
+            "def" | "do" | "begin" | "case" | "for" | "if" | "unless" | "while" | "until" | "end"
+        ) {
+            continue;
+        }
+        let prefix = &masked[..start];
+        // `record.end`, `:end`, `@if`, `$begin` — a qualified name, a symbol
+        // or a variable that merely spells a keyword.
+        if matches!(
+            prefix
+                .chars()
+                .rev()
+                .find(|character| !character.is_whitespace()),
+            Some('.' | ':' | '@' | '$')
+        ) {
+            continue;
+        }
+        // A hash label (`validates :name, if: :admin?`, `{ end: 3 }`) is a
+        // key, not a keyword. `::` is a namespace separator, not a label.
+        let rest = &masked[index..];
+        if rest.starts_with(':') && !rest.starts_with("::") {
+            continue;
+        }
+        match word {
+            "end" => blocks.has_end = true,
+            "def" => blocks.opens |= !endless_def,
+            // `begin`/`case`/`for` are never statement modifiers, and a `do`
+            // is either a block opener (`items.each do |item|`) or the
+            // redundant body marker of a `while`/`until`/`for` header on
+            // this same line -- which reports the very same single open.
+            "do" | "begin" | "case" | "for" => blocks.opens = true,
+            // `if` / `unless` / `while` / `until`: block header or modifier.
+            _ => blocks.opens |= keyword_opens_block_here(prefix),
+        }
+    }
+    blocks
 }
 
 /// Extract public symbols from Ruby source code.
@@ -180,6 +471,15 @@ pub fn extract_exports(content: &str) -> Vec<String> {
     // set before a nested class/module would incorrectly stay in effect
     // forever after that nested scope's `end` closes it (visibility was
     // reset to public on entry but never restored on exit).
+    //
+    // The stack is only as good as the opener detection feeding it: every
+    // `end` in the file pops something, so an opener that goes unnoticed
+    // makes its `end` pop the enclosing class's `Some(prev)` entry instead,
+    // restoring `public` in the middle of a `private` region and publishing
+    // the rest of the class as public API. `scan_line_blocks` therefore
+    // recognises openers wherever they occur on a line — `x = if cond`,
+    // `items.each do |item|`, `class << self` — not just as the line's
+    // first token.
     let mut public = true;
     let mut scope_stack: Vec<Option<bool>> = Vec::new();
     // Tag of a currently-open heredoc, if any. While this is `Some`, every
@@ -199,15 +499,21 @@ pub fn extract_exports(content: &str) -> Vec<String> {
             continue;
         }
 
-        let is_class_or_module = RUBY_CLASS.is_match(line) || RUBY_MODULE.is_match(line);
-        let has_inline_end = INLINE_END.is_match(line);
+        // String/regex/`%`-literal contents are masked out before any
+        // block-nesting question is asked of the line, so `raise "the end"`
+        // and `text =~ /end/` can't be read as block structure.
+        let masked = mask_literals(line);
+        let is_singleton_class = SINGLETON_CLASS.is_match(line);
+        let is_class_or_module =
+            is_singleton_class || RUBY_CLASS.is_match(line) || RUBY_MODULE.is_match(line);
+        let blocks = scan_line_blocks(&masked, ENDLESS_DEF.is_match(line));
 
         if is_class_or_module {
-            if !has_inline_end {
+            if !blocks.has_end {
                 scope_stack.push(Some(public));
                 public = true;
             }
-        } else if !ENDLESS_DEF.is_match(line) && BLOCK_OPENER.is_match(line) && !has_inline_end {
+        } else if blocks.opens && !blocks.has_end {
             scope_stack.push(None);
         }
 
@@ -255,7 +561,12 @@ pub fn extract_exports(content: &str) -> Vec<String> {
         // by having no whitespace token in that position, whereas a bitshift
         // operator is conventionally (and here, structurally) followed by a
         // space before its right-hand operand.
-        if let Some(caps) = HEREDOC_START.captures(line)
+        // `class <<self` (no space) is a singleton-class header, not a
+        // heredoc opener -- reading it as one would swallow the whole rest
+        // of the file as opaque body text while hunting for a terminator
+        // line that says `self`.
+        if !is_singleton_class
+            && let Some(caps) = HEREDOC_START.captures(line)
             && let Some(tag) = caps.get(2)
         {
             heredoc_terminator = Some(tag.as_str().to_string());
@@ -823,6 +1134,257 @@ end
         let symbols = extract_exports(src);
         assert!(symbols.contains(&"Foo".to_string()));
         assert!(symbols.contains(&"quick".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_assignment_form_if_does_not_leak_private_methods() {
+        // Regression test (#479): an `if` used as an *expression* (`x = if
+        // cond`) opens a block just like a leading `if` does, but the opener
+        // is not the line's first token. Missing it meant the block's `end`
+        // popped `class WatchCommand`'s visibility-restore entry, flipping
+        // `public` back on inside the `private` region -- so every method
+        // after the construct was published as public API.
+        let src = r#"
+class WatchCommand
+  def public_one
+    1
+  end
+
+  private
+
+  def legit_private
+    2
+  end
+
+  x = if true
+    :nested
+  end
+
+  def should_be_private
+    3
+  end
+
+  def also_private
+    4
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"WatchCommand".to_string()));
+        assert!(symbols.contains(&"public_one".to_string()));
+        assert!(!symbols.contains(&"legit_private".to_string()));
+        assert!(!symbols.contains(&"should_be_private".to_string()));
+        assert!(!symbols.contains(&"also_private".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_public_method_after_assignment_form_if_still_extracts() {
+        // Control for the regression above: bounding the private region must
+        // not be achieved by muting the scan. A public method that follows an
+        // assignment-form `if` is still a real export.
+        let src = r#"
+class WatchCommand
+  def public_one
+    1
+  end
+
+  x = if true
+    :nested
+  end
+
+  def public_after
+    2
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"WatchCommand".to_string()));
+        assert!(symbols.contains(&"public_one".to_string()));
+        assert!(symbols.contains(&"public_after".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_trailing_do_block_does_not_leak_private_methods() {
+        // A `do ... end` block almost never starts its line (`items.each do
+        // |item|`), so anchoring opener detection to the first token missed
+        // it and its `end` closed the class's visibility region early.
+        let src = r#"
+class Registry
+  def public_one
+  end
+
+  private
+
+  ITEMS.each do |item|
+    define_method(item) { item }
+  end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Registry".to_string()));
+        assert!(symbols.contains(&"public_one".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_modifier_if_is_not_a_block_opener() {
+        // The mirror-image error: a statement modifier (`handle if flag`)
+        // owns no `end`, so counting it as an opener pushes an entry nothing
+        // ever pops -- and the *next* real `end` then restores the wrong
+        // visibility. Here `module Inner`'s `end` must restore the outer
+        // class's `private`, keeping `secret` off the contract.
+        let src = r#"
+class Outer
+  private
+
+  module Inner
+    def pub
+    end
+
+    handle if flag
+  end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"pub".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_keyword_inside_a_literal_is_not_block_structure() {
+        // `end` inside a string, a regex, or a `%w` list is text, not a
+        // block closer. Reading one as a closer suppressed the push for the
+        // block that line opens, leaving the real `end` to pop the class's
+        // visibility-restore entry instead.
+        let src = r#"
+class Foo
+  private
+
+  limit = if config.fetch("end")
+    1
+  end
+
+  pattern = if source =~ /end/
+    2
+  end
+
+  tokens = if list == %w[end]
+    3
+  end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_hash_label_spelled_like_a_keyword_is_not_block_structure() {
+        // `end:` / `if:` in a keyword-argument list are hash keys. Counting
+        // the `end:` label as a block closer suppressed the push for the
+        // `if` that opens on the same line, so the construct's real `end`
+        // ended the private region early.
+        let src = r#"
+class Timeline
+  private
+
+  span = if window?(start: 1, end: 2)
+    3
+  end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Timeline".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_singleton_class_body_carries_its_own_visibility() {
+        // `class << self` opens a block with its own visibility state, but
+        // it declares no constant so the class-declaration pattern doesn't
+        // see it. Treating it as invisible let its `end` close the enclosing
+        // class's `private` region.
+        let src = r#"
+class Foo
+  private
+
+  class << self
+    def build
+    end
+  end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"build".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_singleton_class_without_a_space_is_not_a_heredoc() {
+        // `class <<self` (no space) looks exactly like a `<<TAG` heredoc
+        // opener. Reading it as one swallows the entire rest of the file as
+        // heredoc body while hunting for a terminator line saying `self`,
+        // dropping every remaining declaration.
+        let src = r#"
+class Foo
+  private
+
+  class <<self
+    def build
+    end
+  end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"build".to_string()));
+        assert!(!symbols.contains(&"secret".to_string()));
+    }
+
+    #[test]
+    fn test_ruby_setter_def_is_not_an_endless_method() {
+        // `def name=(value)` is a setter with a body and an `end`, not a
+        // Ruby 3 endless method (`def name = value`, which needs whitespace
+        // before the `=`). Treating the setter as endless skipped its push,
+        // so its `end` closed the enclosing `private` region.
+        let src = r#"
+class Person
+  def public_one
+  end
+
+  private
+
+  def name=(value)
+    @name = value
+  end
+
+  def secret
+  end
+end
+"#;
+        let symbols = extract_exports(src);
+        assert!(symbols.contains(&"Person".to_string()));
+        assert!(symbols.contains(&"public_one".to_string()));
+        assert!(!symbols.contains(&"name".to_string()));
         assert!(!symbols.contains(&"secret".to_string()));
     }
 

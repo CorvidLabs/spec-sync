@@ -1,6 +1,6 @@
 ---
 id: CHG-0129-a-ruby-method-below-private-must-never-be-extracted-as-an-export-because-an-ass
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e0af129cce77d654ad2d1de42310932fe42c4780
 ---

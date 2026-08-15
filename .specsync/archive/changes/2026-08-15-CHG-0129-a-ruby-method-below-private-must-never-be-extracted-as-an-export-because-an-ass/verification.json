@@ -1,0 +1,114 @@
+{
+  "timestamp": 1786824614,
+  "commit": "1e254ba25b2e4f971b8b0e8233a11c54065f73d7",
+  "contract_digest": "d2e7bcb3b948b2cee4ffb6890bef0e12bb04e7f1505a3a01640f14f80c4d15c6",
+  "execution_digest": "d867796724d2d6ea8c75a0d96d030d4a83e7d3dfa96f0a75cd6207d48b6899f8",
+  "workspace_digest": "85b65c1efd3262678e27b25e6704e6108d61b48505569a9f4a78191ad0c25ffd",
+  "acceptance_input_digest": "3789f31d7055cfaf34ff3f1f38fd891a058b250265cf6d6075417f4aaf4288d6",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2714175e0623077cb04f44055381b936200d665e8f9a413d938291d2545a551f",
+        "entry_digest": "f5577ce8f34e0643861b59db8ec7effd3a1663689fd0b722ca374f73b6d4950a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "CHANGELOG.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ea9745f38d1c2ea343ed20c3b35eed033b32b2777e5131a76e9dcaec47618f79",
+        "entry_digest": "599fd22275e5987bee5a72e06eac72a72e50cef1d527557b0795c9cfa5ec2d65",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/exports/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "79e538286e373b7b2cae88f69d396d72339bd1ac70f4eba9faec3d8dcf21953c",
+        "entry_digest": "6611432d71e5b49ddbce57b888318eba9e04f8f79a2a74557e0b2343e121af47",
+        "owners": [
+          "exports"
+        ]
+      },
+      {
+        "path": "specs/exports/exports.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "36cab6eb32ac8aef66fc7a07b1c9653215e7b0f9cc89715d31dd60257b5763d2",
+        "entry_digest": "57207c71cd0a6e166a7a137ecbefd53b6712375d81f87f74618f975f05e55214",
+        "owners": [
+          "exports"
+        ]
+      },
+      {
+        "path": "specs/exports/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7596d75df26cf994ef94f0685dbef9fa28ec49f3720708cacf2ffad81ebe427b",
+        "entry_digest": "473da808918e52f5aa7b327d783cacf8c0755478cca772d6a6b60d80299fab20",
+        "owners": [
+          "exports"
+        ]
+      },
+      {
+        "path": "specs/exports/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "487111f1b59d9a25e82beb39d8f752f97e799b35c75a8ea26556c910881a3083",
+        "entry_digest": "d32dcfe3921fa97a4aaf07cc8b05bc4d32b7c1eaba5405eb688e7ba8172f503f",
+        "owners": [
+          "exports"
+        ]
+      },
+      {
+        "path": "specs/exports/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9931df99696a2030071eaa84e5167d5c5f5ccaead7d812640aad25ab6acdbc2a",
+        "entry_digest": "d2f39c28cf32106e2e708b7b69ece80ddd45f1721cbbd3a9a710843d0d17a0eb",
+        "owners": [
+          "exports"
+        ]
+      },
+      {
+        "path": "src/exports/ruby.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7f0d204f71fe05bfd223657fe5f13005d17feb36756dd184cb76014be9802dd1",
+        "entry_digest": "cafdb9c07c9ef9cb208f68e384ebd3d4019bcc720c07c1dec67c6ebd1b6e388a",
+        "owners": [
+          "exports"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test exports::typescript::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test exports::erlang::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test exports::ast::erlang::",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-exports-009"
+  ]
+}

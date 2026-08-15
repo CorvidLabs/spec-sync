@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0129-a-ruby-method-below-private-must-never-be-extracted-as-an-export-because-an-ass",
+  "implementation_commit": "1e254ba25b2e4f971b8b0e8233a11c54065f73d7",
+  "implementation_tree": "539875e7b11cc69194c522585fed79a8162e9081",
+  "contract_digest": "d2e7bcb3b948b2cee4ffb6890bef0e12bb04e7f1505a3a01640f14f80c4d15c6",
+  "workspace_digest": "85b65c1efd3262678e27b25e6704e6108d61b48505569a9f4a78191ad0c25ffd",
+  "closing_digest": "7140a990143d5bace9f89ff32c8871e8455daa6acf4b7119fd89d798947a4610",
+  "review_digest": "df9f7561562f0c29c74f2ef2c8388079d36d5e8fe8cdf38a8d8ed5610e341ed6",
+  "finalization_digest": "5cc0291cdff00d54faf52e882652ed7aa2976fa6f1eb12436d2282c8fb976da6",
+  "timestamp": 1786824655
+}

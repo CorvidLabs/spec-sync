@@ -39,6 +39,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | `discover_from_manifests_checked` | `root: &Path` | `Result<ManifestDiscovery, String>` | Discover modules while surfacing unreadable or malformed Gradle settings to gate callers |
 | `discover_from_manifests_checked_with_root` | `root: &Path, project_root: &Dir` | `Result<ManifestDiscovery, String>` | Crate-visible checked discovery that reuses a caller-retained project-root capability and rejects an ambient/retained root identity mismatch |
 | `parse_gradle_settings` | `content: &str` | `Result<Vec<GradleSettingsModule>, String>` | Crate-visible shared parser for Groovy/Kotlin includes plus assignment-style and method-style literal project-directory overrides |
+| `is_jvm_package_source_root` | `source_dir: &str` | `bool` | Whether a directory is a JVM source root such as `src/main/kotlin`, whose children are package segments rather than modules. Naming a module from one of those segments is what made every `com.example.*` package collapse into a module called `com` (#473) |
 
 ## Invariants
 

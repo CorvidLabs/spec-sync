@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable",
+  "slug": "every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable",
+  "title": "Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text",
+  "description": "Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "d4a79069ec53da9bcc707be11acccfee77ceba0a",
+  "created_at": 1786746647,
+  "updated_at": 1786748276,
+  "affected_specs": [
+    "output",
+    "cmd_check",
+    "cmd_coverage",
+    "mcp",
+    "cmd_init",
+    "cmd_init_registry"
+  ],
+  "affected_paths": [
+    "src/output.rs",
+    "src/commands/check.rs",
+    "src/commands/coverage.rs",
+    "src/mcp.rs",
+    "src/commands/init.rs",
+    "src/commands/init_registry.rs",
+    "tests/integration.rs",
+    "tests/integration/finding_identity_parity.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "One broken tree run through every format of check and of coverage yields the same set of finding identities. Presentation differs; the set does not. csv emits one row per finding with stable columns, table an aligned list, and coverage --format json carries the findings it previously omitted entirely. Both MCP coverage surfaces emit byte-identical payloads built by one shared constructor rather than three hand-built ones. Staleness findings, which drive the exit code but live outside the warning list, reach every non-text format and not only the tabular pair. A clean tree is all-clear in every format with exit 0, and a zero-source tree still reports nothing measured rather than a percentage."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

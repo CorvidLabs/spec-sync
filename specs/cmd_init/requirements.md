@@ -70,3 +70,10 @@ Acceptance Criteria
 - The first check after initialization reports no uncovered meaningful delivery for files
   initialization itself wrote.
 - Failure to write the record is reported as a warning and does not fail initialization.
+
+### REQ-cmd-init-006
+
+CSV field quoting SHALL have a single implementation.
+
+Acceptance Criteria
+- No command carries its own copy of the quoting rule.

@@ -185,3 +185,11 @@ MCP staleness surfaces SHALL report unmeasurable history as unmeasurable.
 
 Acceptance Criteria
 - No MCP surface reports zero drift for a tree whose history cannot answer.
+
+### REQ-mcp-006
+
+Both MCP coverage surfaces SHALL emit payloads from one shared constructor.
+
+Acceptance Criteria
+- The coverage resource and the coverage tool produce byte-identical payloads for the same tree.
+- Neither reports a clean result for a tree the CLI reports findings on.

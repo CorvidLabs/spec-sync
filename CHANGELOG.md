@@ -65,6 +65,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Machine-readable formats no longer report fewer findings than the text output**
+  (CorvidLabs/spec-sync#576). On a failing tree, `check --format table` and `--format csv` printed a
+  summary and **named no finding while exiting 1** — a CI job parsing the CSV saw zero rows and
+  concluded the tree was clean, while the exit code disagreed. `coverage --format json`, the payload
+  an agent reads, carried **no findings at all**.
+
+  Table and csv were never implemented for `check`: they shared the text arm, which printed only the
+  summary, while per-finding output sat behind a `Text`-only guard. Every format now draws from one
+  finding list, and the three hand-built coverage payloads — CLI and both MCP surfaces — collapse to
+  a single constructor, which previously disagreed even on key names.
+
+  Staleness findings drive the exit code but are gathered separately, so a format that omitted them
+  exited non-zero naming nothing. They now reach every non-text format, including `--format github`,
+  the PR-comment renderer.
+
 - **A tree with unresolved merge conflicts no longer passes `check`**
   (CorvidLabs/spec-sync#578). A source file with `sub` on one side of a hunk and `mul` on the other,
   with a spec documenting both, reported `✓ 3/3 exports documented` and exit 0. The extractors

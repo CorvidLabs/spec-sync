@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable",
+      "reviewer": "claude-opus-5",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "aebc4168cffdae47620c2f8bbc65222f948f89ad",
+      "contract_digest": "485ef0e2365bdd2536631b24798b6e5cf348c298a70696c8d72030e9864e31da",
+      "execution_digest": "c88d15f30f1d98e8060b3e38996088cd052ca27c2b9dcab4f0d52542e941b5c3",
+      "workspace_digest": "808a59d2fa291f57e1d6da579a6ca26e2d28dd13b48e4b74a5e8dacc0e179686",
+      "timestamp": 1786748051
+    }
+  ]
+}

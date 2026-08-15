@@ -65,6 +65,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Two values that stood in for measurements nobody took** (follow-up to CorvidLabs/spec-sync#572
+  and CorvidLabs/spec-sync#583, both caught by their own sandbox gates after the fixes had merged).
+
+  `report` correctly refused a tree whose staleness could not be measured — and then printed
+  `1 total, 0 stale` with `"stale_modules": 0`. The per-module fields were already `null`; the
+  **aggregate** still said zero, so a dashboard scraping "N stale" read no drift from a run that
+  measured none. Text now says `stale unknown` and JSON emits `null`, with a number only when at
+  least one module was actually measured.
+
+  And `config.rs`'s hand-rolled scanner **silently skipped any line it did not recognise**, so a
+  typo'd `[rules]` header disabled every rule while `check` reported success. An unterminated header
+  is now a load failure, worded identically to the unreadable-file refusal so a consumer matching on
+  one need not know which door produced it.
+
 - **The config refusal now guards both loaders** (CorvidLabs/spec-sync#583). #570 installed it at
   `load_and_discover` and called that "a single choke point" in the source. It was not:
   `config::load_config` is a second door, and `rules`, `compact` and `rehash` all came through it,

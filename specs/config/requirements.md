@@ -125,3 +125,12 @@ Acceptance Criteria
 - A config file that exists and cannot be used stops the command, whichever loader it reached.
 - A permissive loader remains available under a name that states it bypasses the refusal, so the bypass is deliberate rather than forgotten.
 - A project with no config file at all is unaffected; the built-in defaults remain a legitimate run.
+
+### REQ-config-011
+
+The configuration scanner SHALL report an unterminated header as a load failure.
+
+Acceptance Criteria
+- A line that opens a header and never closes it is recorded rather than silently skipped.
+- The refusal uses the same wording as the unreadable-file shape, so a consumer matching a refusal need not know which door produced it.
+- Valid TOML the scanner does not implement is not rejected; the test is limited to the unambiguous unterminated-header case.

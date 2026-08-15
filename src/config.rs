@@ -1223,6 +1223,7 @@ fn parse_toml_config_with_source_dirs(
     let mut config = SpecSyncConfig::default();
     let mut has_source_dirs = false;
     let mut current_section: Option<String> = None;
+    let mut malformed: Vec<String> = Vec::new();
 
     // Peekable so a value that opens a multi-line array can consume its
     // continuation lines while leaving a following key/section un-consumed if the
@@ -1238,6 +1239,21 @@ fn parse_toml_config_with_source_dirs(
         // Track TOML section headers like [rules]
         if line.starts_with('[') && line.ends_with(']') {
             current_section = Some(line[1..line.len() - 1].trim().to_string());
+            continue;
+        }
+
+        // A line that opens a header and never closes it is malformed TOML, and
+        // this reader is the ONLY place that can say so on this path: it is a
+        // hand-rolled line scanner, so it has no parser to raise an error and
+        // silently skipped anything it did not recognise. That silence is why a
+        // typo in `[rules]` disabled every rule while `check` reported success
+        // (#583). The test is deliberately narrow — an unterminated header is
+        // unambiguous — rather than "anything this scanner cannot parse", which
+        // would reject valid TOML the scanner simply does not implement.
+        // Array continuation lines never reach here; they are consumed by the
+        // multi-line array branch below.
+        if line.starts_with('[') {
+            malformed.push(line.to_string());
             continue;
         }
 
@@ -1400,6 +1416,25 @@ fn parse_toml_config_with_source_dirs(
         config.source_dirs = detected_source_dirs
             .map(<[String]>::to_vec)
             .unwrap_or_else(|| detect_source_dirs(root));
+    }
+
+    if !malformed.is_empty() {
+        // Record it rather than printing and continuing. `load_error` is what
+        // `refuse_unloadable_config` reads, so recording is what turns a
+        // silently-ignored typo into a refusal — the settings this file was
+        // written to apply are NOT in effect, and the defaults standing in for
+        // them are not the project's choice.
+        // Same wording as the unreadable-file refusal above, deliberately. Two
+        // shapes of one failure — a file that cannot be read and a file that
+        // cannot be parsed — should read the same way to whoever hits them, and
+        // a consumer matching on the refusal should not have to know which door
+        // it came through. The specific cause follows the shared sentence.
+        config.load_error = Some(format!(
+            "config file exists but could not be loaded; built-in defaults are in use \
+             ({} malformed line(s), first is {:?})",
+            malformed.len(),
+            malformed[0],
+        ));
     }
 
     config

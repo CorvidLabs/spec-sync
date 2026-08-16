@@ -114,6 +114,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   move-then-restore pattern `archive_change` already had for #540 — the correct shape was one function
   away — and the refusal now says `archive restored`, or names the path to recover by hand if the
   restore itself fails.
+- **One unreadable change workspace no longer hides every healthy one**
+  (CorvidLabs/spec-sync#443). `change list` and `change status` printed
+  `No active SDD changes.` and exited 0 when any single workspace was malformed —
+  indistinguishable from an empty project, while `change show` and `change audit`
+  on the identical tree hard-errored with the path and line:column.
+
+  Two defects compounded. Enumeration aborted on the first bad `state.json`, so
+  healthy siblings were never collected; then `list_changes_checked().unwrap_or_default()`
+  turned the resulting `Err` into an empty list, so the failure was not merely
+  unhandled but unrepresentable. A category was empty for want of input, and the
+  listing read that as want of changes.
+
+  The roster now reports both halves: every readable change, and every workspace it
+  could not read, named with its reason. It exits non-zero when the view is partial
+  — `change audit` already did so on the same tree, and two commands disagreeing
+  about whether one repository is healthy is precisely the class of defect this
+  release has been closing. A project with genuinely no active changes is
+  unaffected and still exits 0.
+
+  **This is also what made mixed-version corruption invisible**
+  (CorvidLabs/spec-sync#603). A 6.0 record rewritten by a 5.2 binary loses
+  `workflow_version`, and 6.0 detects that correctly — `workflow-v1 change <id> was
+  not present at the trusted pre-v2 cutoff <sha>` — but `list` and `status` were
+  swallowing the detection and reporting the change as absent rather than as
+  damaged. No version stamp had to move: the refusal already existed and was being
+  discarded.
+
+  Three further callers were reading the same empty roster as fact. The
+  pull-request diff base was selected from it; `ship-status` reported no other
+  changes in flight when it could not tell; and `ship` inferred which change to
+  ship from whatever remained readable. The last of those writes commits. All three
+  now refuse rather than guess.
+
+  **JSON note:** `list` and `status` keep their historical bare-array shape whenever
+  every workspace is readable. A degraded roster is reported as an object carrying
+  `changes` and `unreadable`, because an array cannot say "and there were three I
+  could not read".
 
 - **A warm hash cache no longer drops findings** (CorvidLabs/spec-sync#429). The same command over
   the same tree disagreed with itself depending on run history: the first run reported

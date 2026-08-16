@@ -66,7 +66,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
         .and_then(|result| print_mutation_record(root, &id, &result, format, false, strict)),
         ChangeAction::List => {
             let _scope = change::begin_change_read_scope(root);
-            print_records(root, &change::list_changes(root), format, strict)
+            change::list_changes(root)
+                .and_then(|roster| print_roster(root, &roster, format, strict))
         }
         ChangeAction::Show { id } => {
             let _scope = change::begin_change_read_scope(root);
@@ -79,7 +80,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 change::load_change(root, &id)
                     .and_then(|record| print_record(root, &record, format, false, strict))
             } else {
-                print_records(root, &change::list_changes(root), format, strict)
+                change::list_changes(root)
+                    .and_then(|roster| print_roster(root, &roster, format, strict))
             }
         }
         ChangeAction::ShipStatus { id } => {
@@ -88,8 +90,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 change::load_change(root, &id)
                     .and_then(|record| print_ship_status(root, &record, format))
             } else {
-                let records = change::list_changes(root);
-                if records.is_empty() {
+                change::list_changes(root).and_then(|roster| {
+                let records = &roster.records;
+                if records.is_empty() && !roster.is_degraded() {
                     match format {
                         OutputFormat::Json => print_json(&serde_json::json!({ "changes": [] })),
                         _ => println!("No active SDD changes."),
@@ -101,15 +104,33 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                         .map(|record| ship_status_report(root, record))
                         .collect::<Result<Vec<_>, _>>()
                         .map(|reports| {
-                            print_json(&serde_json::json!({ "changes": reports }));
+                            let error = unreadable_error(&roster).err();
+                            let degraded = roster.is_degraded();
+                            print_json(&serde_json::json!({
+                                "changes": reports,
+                                "unreadable": unreadable_json(&roster),
+                                "error": error,
+                            }));
+                            // See print_roster: returning Err here would append a
+                            // second JSON document to stdout.
+                            if degraded {
+                                process::exit(1);
+                            }
                         })
                 } else {
-                    records.iter().try_for_each(|record| {
-                        print_ship_status(root, record, format)?;
-                        println!();
-                        Ok(())
-                    })
+                    records
+                        .iter()
+                        .try_for_each(|record| {
+                            print_ship_status(root, record, format)?;
+                            println!();
+                            Ok(())
+                        })
+                        .and_then(|()| {
+                            print_unreadable_rows(&roster);
+                            unreadable_error(&roster)
+                        })
                 }
+                })
             }
         }
         ChangeAction::Ship {
@@ -411,6 +432,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                         // Prefer the ID from the change workspace after verify.
                         let verified_id = id.clone().or_else(|| {
                             change::list_changes(root)
+                                .ok()?
+                                .records
                                 .into_iter()
                                 .find(|record| {
                                     matches!(
@@ -923,12 +946,32 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     }))
 }
 
+/// Sibling active changes, counting the ones that could not be read.
+///
+/// This answers "is anything else in flight?", so it must fail closed. An
+/// unreadable workspace is still an active change directory — we simply cannot
+/// say which state it is in — and dropping it would report an empty field that
+/// means "nothing else is in flight" when the truth is "I could not tell".
 fn sibling_active_change_ids(root: &Path, id: &str) -> Vec<String> {
-    change::list_changes(root)
+    let Ok(roster) = change::list_changes(root) else {
+        return Vec::new();
+    };
+    let mut ids: Vec<String> = roster
+        .records
         .into_iter()
         .filter(|record| record.id != id && record.state != ChangeState::Archived)
         .map(|record| record.id)
-        .collect()
+        .collect();
+    ids.extend(
+        roster
+            .unreadable
+            .into_iter()
+            .map(|entry| entry.id)
+            .filter(|entry| entry != id),
+    );
+    ids.sort();
+    ids.dedup();
+    ids
 }
 
 const SHIP_TRUST_LOCAL_GUIDANCE: &str = "After pushing a product tip, wait for trust + SpecSync implementation ready (and required product checks) to succeed before pushing a review_only or archive_only tip. Review/archive tips reuse trust from a green product parent — do not push them while product trust is still running or cancelled.";
@@ -1358,21 +1401,31 @@ fn run_ship(
         return Err("ship --dry-run cannot be combined with --push or --wait".into());
     }
 
-    let record =
-        match id {
-            Some(id) => change::load_change(root, id)?,
-            None => {
-                let records = change::list_changes(root);
-                match records.as_slice() {
-                    [] => return Err("no active change to ship; pass an explicit change id".into()),
-                    [single] => single.clone(),
-                    _ => return Err(
+    let record = match id {
+        Some(id) => change::load_change(root, id)?,
+        None => {
+            let roster = change::list_changes(root)?;
+            // Inferring "the one active change" from a partial roster can ship
+            // the wrong change, or ship while another is still in flight. With
+            // any workspace unreadable there is no safe inference to make.
+            if let Some(unreadable) = roster.unreadable.first() {
+                return Err(format!(
+                    "cannot infer which change to ship while a workspace is unreadable: {}; pass an explicit change id",
+                    unreadable.reason
+                ));
+            }
+            match roster.records.as_slice() {
+                [] => return Err("no active change to ship; pass an explicit change id".into()),
+                [single] => single.clone(),
+                _ => {
+                    return Err(
                         "multiple active changes; pass an explicit id: `specsync change ship <ID>`"
                             .into(),
-                    ),
+                    );
                 }
             }
-        };
+        }
+    };
 
     if record.state == ChangeState::Archived {
         let report = ship_status_report(root, &record)?;
@@ -1760,6 +1813,76 @@ fn git_status_name_only(root: &Path) -> Result<Vec<String>, String> {
         }
     }
     Ok(paths)
+}
+
+fn unreadable_json(roster: &change::ChangeRoster) -> Vec<serde_json::Value> {
+    roster
+        .unreadable
+        .iter()
+        .map(|entry| serde_json::json!({ "id": entry.id, "error": entry.reason }))
+        .collect()
+}
+
+fn print_unreadable_rows(roster: &change::ChangeRoster) {
+    for entry in &roster.unreadable {
+        println!("{}  unreadable  {}", entry.id, entry.reason);
+    }
+}
+
+/// The exit status for a partial roster.
+///
+/// A degraded roster must not exit 0. `change audit` already exits 1 on the very
+/// same tree, and two commands disagreeing about whether one repository is
+/// healthy is the defect this codebase keeps re-learning (#576). The rows are
+/// printed first, so the operator sees every healthy change *and* the failure.
+fn unreadable_error(roster: &change::ChangeRoster) -> Result<(), String> {
+    match roster.unreadable.len() {
+        0 => Ok(()),
+        1 => Err(roster.unreadable[0].reason.clone()),
+        count => Err(format!(
+            "{count} active change workspaces could not be read; the listing above is incomplete"
+        )),
+    }
+}
+
+/// Print the roster, then fail if any workspace could not be read.
+///
+/// Splitting this from [`print_records`] keeps one rule in one place: healthy
+/// rows are always printed, the unreadable ones are always named, and the exit
+/// status always reflects that the view is partial.
+fn print_roster(
+    root: &Path,
+    roster: &change::ChangeRoster,
+    format: OutputFormat,
+    strict: bool,
+) -> Result<(), String> {
+    if matches!(format, OutputFormat::Json) && roster.is_degraded() {
+        // A bare array cannot say "and there were three I could not read", so a
+        // degraded roster is reported as an object. Healthy rosters keep the
+        // historical array shape exactly, which is every project that is not
+        // already being lied to.
+        let summaries: Vec<_> = roster
+            .records
+            .iter()
+            .map(|record| change::summarize_change_with_strict(root, record, strict))
+            .collect();
+        let error = unreadable_error(roster).err();
+        print_json(&serde_json::json!({
+            "changes": summaries,
+            "unreadable": unreadable_json(roster),
+            "error": error,
+        }));
+        // Exit here rather than returning Err. `cmd_change`'s tail handler prints
+        // its own `{"error": …}` document in JSON mode, and a second document
+        // concatenated after this one makes stdout unparseable — the failure this
+        // whole change exists to stop, reintroduced one layer up.
+        process::exit(1);
+    }
+    if !roster.records.is_empty() || !roster.is_degraded() {
+        print_records(root, &roster.records, format, strict)?;
+    }
+    print_unreadable_rows(roster);
+    unreadable_error(roster)
 }
 
 fn print_records(
@@ -2154,15 +2277,26 @@ fn run_checked_commit(
     // First pass: materialize the approved delta and verify the working tree.
     verify("Checking (1/2): verifying the materialized tree…")?;
 
-    let resolved = id
-        .map(str::to_string)
-        .or_else(|| {
-            change::list_changes(root)
+    let resolved = match id.map(str::to_string) {
+        Some(id) => id,
+        None => {
+            // This writes a commit, so it must not guess from a partial roster:
+            // the change it is looking for may be the very one it could not read.
+            let roster = change::list_changes(root)?;
+            if let Some(unreadable) = roster.unreadable.first() {
+                return Err(format!(
+                    "cannot resolve a change to commit while a workspace is unreadable: {}",
+                    unreadable.reason
+                ));
+            }
+            roster
+                .records
                 .into_iter()
                 .find(|record| record.canonical_applied)
                 .map(|record| record.id)
-        })
-        .ok_or_else(|| "cannot resolve a change to commit".to_string())?;
+                .ok_or_else(|| "cannot resolve a change to commit".to_string())?
+        }
+    };
 
     git_commit_all(root, &format!("chore(lifecycle): materialize {resolved}"))?;
     say("Committed the materialized spec.");

@@ -34,8 +34,9 @@ fn gradle_read_only_nofollow_options() -> OpenOptions {
 pub struct ManifestModule {
     /// Module/target name.
     pub name: String,
-    /// Source paths relative to project root.
-    #[allow(dead_code)]
+    /// Source paths relative to project root. Coverage reads these to decide
+    /// whether a manifest module's files are already mapped by some spec,
+    /// whatever that spec is named.
     pub source_paths: Vec<String>,
     /// Dependencies (other module names).
     pub dependencies: Vec<String>,

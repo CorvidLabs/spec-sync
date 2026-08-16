@@ -101,6 +101,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Coverage no longer invents a parent module for language-specific specs**
+  (CorvidLabs/spec-sync#529). A repository mapping `src/strutil.{py,mjs,rb,lua,sh}` to five
+  language-specific specs read `Modules without specs (1): ⚠ strutil/` and `File coverage: 5/5
+  (100%)` in the same report — a module nobody wrote, printed with a trailing slash over a
+  directory that does not exist, telling a multi-language project it was incompletely specced at
+  100% file and LOC coverage.
+
+  "Does this module have a spec?" was decided by looking for a spec **directory of that name**.
+  Nothing about the module's files was consulted — `specced_files` is computed a few lines above
+  and never reached the module blocks — so the absence of the *name* `strutil` was read as the
+  absence of a *spec*. That is this release's defect class with the sign flipped: rather than a
+  category emptied for want of input, a value invented where there was no input.
+
+  Four separate blocks made that claim on the same evidence — configured modules, manifest
+  modules, source subdirectories, and flat-file stems — and only the last one is named in the
+  issue. **All four now have to show a gap in their own files.** A module whose discovered files
+  were all looked at and all found mapped is covered, whatever the specs are called.
+  Owning no discovered file is *not* such a showing: it is the absence of input, so a directory
+  holding nothing measurable keeps its report, and so does any module with even one unmapped
+  file. spec-sync's own tree had two of these phantoms — `specsync` from `Cargo.toml` and
+  `change_tests` from `src/change_tests.rs` — beside 106/106 files covered.
+
+  `generate` consumes that same list, so `specsync generate` and the MCP `generate` tool no
+  longer offer to write `specs/strutil/strutil.spec.md` claiming files another spec already owns.
+
 - **A refused `reopen` no longer destroys the archive** (CorvidLabs/spec-sync#539). This was the only
   confirmed unrecoverable bug in 6.0. `reopen` moved the dated archive package into the active
   workspace and *then* ran its preconditions — every one of which correctly returns an error on a

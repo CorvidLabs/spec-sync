@@ -29,6 +29,9 @@ mod comment;
 #[path = "integration/coverage_unmeasured.rs"]
 mod coverage_unmeasured;
 
+#[path = "integration/coverage_phantom_module.rs"]
+mod coverage_phantom_module;
+
 #[path = "integration/staleness_unmeasurable.rs"]
 mod staleness_unmeasurable;
 

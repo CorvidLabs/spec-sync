@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without",
+  "slug": "a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without",
+  "title": "A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked",
+  "description": "A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "a38638fa386eae8db3dc039fc61648ca66b09397",
+  "created_at": 1786850565,
+  "updated_at": 1786851052,
+  "affected_specs": [
+    "hash_cache",
+    "cmd_check",
+    "commands"
+  ],
+  "affected_paths": [
+    "src/hash_cache.rs",
+    "src/commands/check.rs",
+    "src/commands/mod.rs",
+    "tests/integration/check.rs",
+    "tests/integration/config.rs",
+    "CHANGELOG.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Running check twice over an unchanged tree produces the same findings both times, in text and in JSON. A spec skipped as unchanged replays the findings recorded when it was last validated, so specs_checked counts it and its warnings are named. A genuinely clean spec still reports clean. Editing a spec or its source re-validates it and updates the stored result. --force and --no-cache behave as before, and the cache continues to skip re-validation rather than only re-extraction."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

@@ -1,6 +1,6 @@
 ---
 id: CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without
-state: implementing
+state: archived
 type: bug_fix
 base_commit: a38638fa386eae8db3dc039fc61648ca66b09397
 ---

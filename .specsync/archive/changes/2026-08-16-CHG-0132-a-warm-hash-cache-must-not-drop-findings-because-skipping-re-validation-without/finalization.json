@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without",
+  "implementation_commit": "278dbe41bf238a956c4d8dfa8bfc7baa145db6a9",
+  "implementation_tree": "1fe85e5730a73413162e213e569f23b1314b0e17",
+  "contract_digest": "2a38019afc32dc2c0e7bf77168e67758eefe05fbf08b4de8ec0be5bc83fb8fd4",
+  "workspace_digest": "6020f78dc871ce993d22bd47ddab81284c99d5b2b19280b394ecc9d944d05492",
+  "closing_digest": "a293ce1b3ef53a31e94dae3af15df7b4e645a2d9f502bb8533ab1e25ce3ea73a",
+  "review_digest": "741adde4aa50e91b316141e7b7d2a3370774802cf17f4ef25fc8a4fc5dd00cb0",
+  "finalization_digest": "2a7cf50bbc2f850957a0cf3960d14e3c27077b8eeea2e5ff1afb66e484bf12dc",
+  "timestamp": 1786850812
+}

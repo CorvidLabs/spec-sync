@@ -20,6 +20,7 @@ spec: hash_cache.spec.md
 - [x] `extract_frontmatter_files` lightweight `files:` extraction
 - [x] Empty-cache fallback on missing/corrupt JSON
 - [x] Integration coverage: `check_creates_hash_cache`
+- [x] Persist and replay per-spec validation snapshots so a warm check cannot drop findings
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
 
 ## Review Status

@@ -1053,15 +1053,20 @@ fn fix_runs_even_when_cache_marks_specs_unchanged() {
         .assert()
         .failure();
 
-    // Sanity: without --fix/--force/--strict the cache now skips the spec
+    // Sanity: without --fix/--force/--strict the cache now skips re-validation,
+    // but it must still report the warning the cold run stored.
     let assert = specsync()
         .args(["check", "--root", root.to_str().unwrap()])
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
     assert!(
-        stdout.contains("All specs unchanged"),
-        "expected the cache to skip the unchanged spec, got:\n{stdout}"
+        stdout.contains("unchanged"),
+        "expected the cache to skip re-validating the unchanged spec, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("undocumented"),
+        "a warm skip must replay the stored undocumented-export warning, got:\n{stdout}"
     );
 
     // --fix without --force must actually fix, not report "All specs unchanged"

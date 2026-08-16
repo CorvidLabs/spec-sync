@@ -2021,3 +2021,134 @@ fn check_require_coverage_gate_fails_on_warm_cache() {
         .assert()
         .failure();
 }
+
+#[test]
+fn warm_cache_text_replays_cached_warnings() {
+    // #429: the same tree must not lose its warning after the hash cache warms.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/calc.py"),
+        "def add(a, b):\n    return a + b\ndef sub(a, b):\n    return a - b\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/calc")).unwrap();
+    let spec = valid_spec("calc", &["src/calc.py"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `add` | a, b | number | Add two numbers. |\n",
+    );
+    fs::write(root.join("specs/calc/calc.spec.md"), spec).unwrap();
+
+    let cold = specsync().current_dir(root).arg("check").assert().success();
+    let cold_out = String::from_utf8_lossy(&cold.get_output().stdout).to_string();
+    assert!(
+        cold_out.contains("Undocumented export 'sub'"),
+        "cold control missed 'sub':\n{cold_out}"
+    );
+
+    let warm = specsync().current_dir(root).arg("check").assert().success();
+    let warm_out = String::from_utf8_lossy(&warm.get_output().stdout).to_string();
+    assert!(
+        warm_out.contains("unchanged"),
+        "expected a warm skip, got:\n{warm_out}"
+    );
+    assert!(
+        warm_out.contains("Undocumented export 'sub'"),
+        "warm text dropped the stored 'sub' warning:\n{warm_out}"
+    );
+}
+
+#[test]
+fn warm_cache_json_replays_cached_warnings() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/calc.py"),
+        "def add(a, b):\n    return a + b\ndef sub(a, b):\n    return a - b\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/calc")).unwrap();
+    let spec = valid_spec("calc", &["src/calc.py"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `add` | a, b | number | Add two numbers. |\n",
+    );
+    fs::write(root.join("specs/calc/calc.spec.md"), spec).unwrap();
+
+    let cold = specsync()
+        .current_dir(root)
+        .args(["check", "--format", "json"])
+        .assert()
+        .success();
+    let cold_json: serde_json::Value =
+        serde_json::from_slice(&cold.get_output().stdout).expect("cold json");
+    assert_eq!(cold_json["specs_checked"], 1, "{cold_json:#}");
+    let cold_blob = cold_json.to_string();
+    assert!(
+        cold_blob.contains("sub"),
+        "cold json control missed 'sub': {cold_json:#}"
+    );
+
+    let warm = specsync()
+        .current_dir(root)
+        .args(["check", "--format", "json"])
+        .assert()
+        .success();
+    let warm_json: serde_json::Value =
+        serde_json::from_slice(&warm.get_output().stdout).expect("warm json");
+    assert_ne!(
+        warm_json["specs_checked"], 0,
+        "warm json claimed nothing was checked: {warm_json:#}"
+    );
+    let warm_blob = warm_json.to_string();
+    assert!(
+        warm_blob.contains("sub"),
+        "warm json dropped the stored 'sub' warning: {warm_json:#}"
+    );
+}
+
+#[test]
+fn hashes_without_snapshots_revalidate_instead_of_going_silent() {
+    // An older cache that stored hashes but never stored findings must not
+    // skip. The next run re-validates, stores the snapshot, and only then
+    // is allowed to skip.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/calc.py"),
+        "def add(a, b):\n    return a + b\ndef sub(a, b):\n    return a - b\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/calc")).unwrap();
+    let spec = valid_spec("calc", &["src/calc.py"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `add` | a, b | number | Add two numbers. |\n",
+    );
+    fs::write(root.join("specs/calc/calc.spec.md"), spec).unwrap();
+
+    specsync().current_dir(root).arg("check").assert().success();
+
+    let cache_path = root.join(".specsync/hashes.json");
+    let mut cache: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&cache_path).unwrap()).unwrap();
+    cache["snapshots"] = serde_json::json!({});
+    fs::write(&cache_path, serde_json::to_string_pretty(&cache).unwrap()).unwrap();
+
+    let recovered = specsync()
+        .current_dir(root)
+        .args(["check", "--format", "json"])
+        .assert()
+        .success();
+    let recovered_json: serde_json::Value =
+        serde_json::from_slice(&recovered.get_output().stdout).expect("recovered json");
+    assert_eq!(recovered_json["specs_checked"], 1, "{recovered_json:#}");
+    assert!(
+        recovered_json.to_string().contains("sub"),
+        "a hash-only cache must re-validate rather than report a clean skip: {recovered_json:#}"
+    );
+}

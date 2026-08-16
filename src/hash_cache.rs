@@ -13,7 +13,6 @@ const CACHE_FILE: &str = "hashes.json";
 /// On-disk cache schema. Unknown versions are discarded conservatively.
 const CACHE_FORMAT_VERSION: u32 = 1;
 /// Per-spec validation snapshot schema.
-#[cfg_attr(not(test), allow(dead_code))]
 const SNAPSHOT_VERSION: u32 = 1;
 
 /// Normalize a relative path to use forward slashes on all platforms.
@@ -44,7 +43,6 @@ pub(crate) struct CachedValidationSnapshot {
 
 /// User-visible diagnostics captured for one spec validation.
 #[derive(Debug, Clone)]
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) struct ValidationDiagnostics {
     /// Validation errors without a duplicated spec-path prefix.
     pub errors: Vec<String>,
@@ -65,6 +63,13 @@ pub struct HashCache {
     /// Complete per-spec validation snapshots.
     #[serde(default)]
     pub snapshots: BTreeMap<String, CachedValidationSnapshot>,
+}
+
+impl CachedValidationSnapshot {
+    /// Whether this snapshot carries any user-visible diagnostic.
+    pub(crate) fn has_findings(&self) -> bool {
+        !self.errors.is_empty() || !self.warnings.is_empty() || !self.notices.is_empty()
+    }
 }
 
 impl Default for HashCache {
@@ -153,7 +158,6 @@ impl HashCache {
     }
 
     /// Record one complete validation snapshot against the current inputs.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn record_validation_snapshot(
         &mut self,
         root: &Path,
@@ -188,7 +192,6 @@ impl HashCache {
     }
 
     /// Compute the exact current input digest used to guard a validation run.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn current_validation_input_digest(
         root: &Path,
         spec_path: &Path,
@@ -198,9 +201,29 @@ impl HashCache {
         validation_input_digest(root, spec_path, global_inputs, spec_inventory)
     }
 
+    /// Bind the just-computed diagnostics to the current inputs and store them.
+    pub(crate) fn record_current_validation_snapshot(
+        &mut self,
+        root: &Path,
+        spec_path: &Path,
+        global_inputs: &[String],
+        spec_inventory: &[String],
+        diagnostics: ValidationDiagnostics,
+    ) -> bool {
+        let digest =
+            Self::current_validation_input_digest(root, spec_path, global_inputs, spec_inventory);
+        self.record_validation_snapshot(
+            root,
+            spec_path,
+            global_inputs,
+            spec_inventory,
+            &digest,
+            diagnostics,
+        )
+    }
+
     /// Return a snapshot only when its schema, integrity digest, and every
     /// validation input still match the current workspace.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn replayable_validation_snapshot(
         &self,
         root: &Path,
@@ -224,7 +247,6 @@ impl HashCache {
     }
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn update_digest(hasher: &mut Sha256, field: &str, value: &str) {
     hasher.update((field.len() as u64).to_le_bytes());
     hasher.update(field.as_bytes());
@@ -232,7 +254,6 @@ fn update_digest(hasher: &mut Sha256, field: &str, value: &str) {
     hasher.update(value.as_bytes());
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn validation_snapshot_digest(snapshot: &CachedValidationSnapshot) -> String {
     let mut hasher = Sha256::new();
     update_digest(
@@ -254,7 +275,6 @@ fn validation_snapshot_digest(snapshot: &CachedValidationSnapshot) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn validation_input_digest(
     root: &Path,
     spec_path: &Path,

@@ -15,7 +15,7 @@ spec: cmd_check.spec.md
 ## Acceptance Criteria
 
 - Validates discovered specs, applying `--exclude-status`/`--only-status` and positional `[SPEC...]` filters
-- A hash cache (`.specsync/hashes.json`) skips unchanged specs unless `--force`/`--no-cache`, `--strict`, or explicit spec filters are given; the skipped count is reported in text mode
+- A hash cache (`.specsync/hashes.json`) skips re-validation of unchanged specs unless `--force`/`--no-cache`, `--strict`, or explicit spec filters are given; the skipped count is reported in text mode, and any stored findings are replayed so a warm run cannot go silent
 - Requirements drift remains visible as validation guidance for humans and coding agents
 - `--fix` renames near-miss headers and appends undocumented exports with language-aware skeleton rows; it performs no inference or command execution
 - `--backup` copies specs to `.specsync/backup-fix/` before any `--fix` write, aborting on any copy/dir failure to avoid data loss
@@ -157,3 +157,24 @@ Acceptance Criteria
 - csv emits one row per finding with stable columns; a clean tree emits a header and no rows, distinguishable from a run that never happened.
 - table emits an aligned list.
 - Staleness findings appear in every non-text format, not only the tabular pair — they drive the exit code, so a format that omits them exits non-zero while naming nothing.
+
+### REQ-cmd-check-012
+
+`check` SHALL NOT drop findings because the hash cache is warm.
+
+Acceptance Criteria
+- A second run over an unchanged tree reports the same warning identity the first run reported.
+- JSON `specs_checked` is not 0 when a spec exists and was either validated or replayed.
+- A spec is skipped only when a replayable validation snapshot still binds to the current inputs.
+- `--force` / `--no-cache` still re-validate and still report the same identity.
+- An in-sync tree remains all-clear on both the cold and the warm run.
+
+### REQ-cmd-check-013
+
+`check` SHALL produce identical findings on repeated runs over an unchanged tree.
+
+Acceptance Criteria
+- Two consecutive runs report the same findings in text and in JSON.
+- A skipped spec is counted in `specs_checked` and its warnings are named.
+- A genuinely clean spec still reports clean, so replay does not manufacture findings.
+- `--force` and `--no-cache` are unaffected.

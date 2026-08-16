@@ -6,6 +6,7 @@ spec: cmd_check.spec.md
 
 - `cmd_check` is the default command and the most feature-dense one: caching, requirements-drift detection, multi-pass `--fix`, git staleness, multiple output formats, and GitHub issue creation all live here.
 - Hash-cache skipping is bypassed whenever correctness demands a full pass: `--force`/`--no-cache`, `--strict`, or explicit spec filters.
+- The cache skips re-validation, not the previous result. Findings are stored as per-spec snapshots and replayed when inputs have not changed. A hash-only cache (no snapshot) is treated as a miss.
 - `--fix` is intentionally deterministic: header renames first, then undocumented-export insertion. Requirements drift remains guidance rather than triggering inference.
 - `--backup` aborts the whole `--fix` run on any copy failure rather than risk a partial, unrecoverable rewrite.
 - Git staleness uses `git_commits_since(root, spec_commit, source_file)` — one `rev-list` per source file — replacing the old `git_commits_between` pairwise walk (the N+1 fix).

@@ -573,6 +573,7 @@ pub fn run_validation(
             collect,
             explain,
             ignore_rules,
+            None,
         );
     (
         errors,
@@ -596,6 +597,14 @@ type ValidationWithSuppressions = (
     Vec<serde_json::Value>,
 );
 
+/// Per-spec diagnostics collected so `check` can persist them for warm replay.
+pub(super) struct SpecValidationOutcome {
+    pub spec_file: PathBuf,
+    pub errors: Vec<String>,
+    pub warnings: Vec<String>,
+    pub notices: Vec<String>,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn run_validation_with_suppressions(
     root: &Path,
@@ -605,6 +614,7 @@ pub(super) fn run_validation_with_suppressions(
     collect: bool,
     explain: bool,
     ignore_rules: &IgnoreRules,
+    mut outcomes: Option<&mut Vec<SpecValidationOutcome>>,
 ) -> ValidationWithSuppressions {
     let schema_input = build_schema_validation_input(root, config);
     let mut total_errors = 0;
@@ -743,6 +753,18 @@ pub(super) fn run_validation_with_suppressions(
             } else {
                 filtered_warnings.push(warning);
             }
+        }
+
+        if let Some(outcomes) = outcomes.as_mut() {
+            outcomes.push(SpecValidationOutcome {
+                spec_file: spec_file.clone(),
+                errors: result.errors.clone(),
+                warnings: filtered_warnings
+                    .iter()
+                    .map(|warning| (*warning).clone())
+                    .collect(),
+                notices: result.notices.clone(),
+            });
         }
 
         if collect {
@@ -1671,6 +1693,7 @@ None.
             true,
             false,
             &ignore_rules,
+            None,
         );
 
         assert!(

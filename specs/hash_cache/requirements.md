@@ -35,7 +35,7 @@ spec: hash_cache.spec.md
 
 - Hashing strategies other than SHA-256
 - Tracking changes to files not referenced by a spec (spec, its companions, and its `files:` only)
-- Cross-run change history or diffing (only last-known hash is stored)
+- Cross-run change history or diffing (only the last-known hash and last validation snapshot are stored)
 - Watching the filesystem for live changes (see the `watch` module)
 - Validating spec content (only change detection lives here)
 
@@ -57,3 +57,23 @@ Acceptance Criteria
 - An absent cache entry is not reported as a change.
 - A companion change observed against a known baseline is still reported.
 - The cache's own frontmatter `files:` extraction resolves a quoted entry to the same path the parser resolves.
+
+### REQ-hash-cache-003
+
+The hash cache SHALL store the last validation snapshot for a spec and SHALL refuse to
+replay it when any bound input has changed.
+
+Acceptance Criteria
+- `record_current_validation_snapshot` writes errors, warnings, and notices bound to the current input digest.
+- `replayable_validation_snapshot` returns that snapshot only when the schema, integrity digest, and every validation input still match.
+- A cache written before snapshots existed loads, but replay returns `None` so the caller re-validates.
+
+### REQ-hash-cache-004
+
+A cached spec's validation result SHALL be stored and replayed.
+
+Acceptance Criteria
+- The result recorded when a spec was last validated survives in the cache alongside its hash.
+- A spec skipped as unchanged replays that result rather than contributing nothing.
+- Editing a spec or any file it maps re-validates it and overwrites the stored result.
+- The cache continues to skip re-validation, not merely re-extraction; the optimisation is preserved and the verdict is not lost.

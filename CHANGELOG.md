@@ -65,6 +65,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A warm hash cache no longer drops findings** (CorvidLabs/spec-sync#429). The same command over
+  the same tree disagreed with itself depending on run history: the first run reported
+  `specs_checked: 1` and warned about an undocumented export; the second reported
+  `{passed: true, specs_checked: 0, warnings: []}`. `--force` and `--no-cache` restored the warning —
+  the cache was working correctly, and that is precisely why the findings vanished.
+
+  This was the most serious of the remaining false-green defects, because it made **every other
+  result conditional on run history**. A green board, a clean CI run, a passing gate — each was only
+  as trustworthy as whether the cache happened to be cold.
+
+  The cache legitimately skips re-validation rather than only re-extraction, so the previous verdict
+  has to survive. It did not: the snapshot types for storing a per-spec result **already existed and
+  were never wired to the live path**. Results are now stored alongside the hash and replayed for a
+  skipped spec, which is counted in `specs_checked` with its warnings named.
+
 - **`deps` no longer reports a clean graph built from imports it could not resolve**
   (CorvidLabs/spec-sync#477). Kotlin import analysis was skipped entirely: a fixture with real
   imports reported `✓ All dependency declarations are valid` with rc=0, having collected nothing.

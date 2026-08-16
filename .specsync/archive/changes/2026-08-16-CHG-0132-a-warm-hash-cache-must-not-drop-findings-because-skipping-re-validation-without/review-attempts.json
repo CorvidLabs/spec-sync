@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without",
+      "reviewer": "claude-opus-5",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "278dbe41bf238a956c4d8dfa8bfc7baa145db6a9",
+      "contract_digest": "2a38019afc32dc2c0e7bf77168e67758eefe05fbf08b4de8ec0be5bc83fb8fd4",
+      "execution_digest": "8dc557127f1e5e50e0ea4d864b18be784e4f429d7b5bef2d234670fedc318c6c",
+      "workspace_digest": "6020f78dc871ce993d22bd47ddab81284c99d5b2b19280b394ecc9d944d05492",
+      "timestamp": 1786850804
+    }
+  ]
+}

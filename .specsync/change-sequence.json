@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 131,
-  "id": "CHG-0131-dependency-analysis-must-not-report-a-clean-graph-built-from-imports-it-could-no",
+  "sequence": 132,
+  "id": "CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without",
   "acknowledged_collisions": [
     {
       "sequence": 16,

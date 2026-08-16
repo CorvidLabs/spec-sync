@@ -1,0 +1,51 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786850756,
+      "digest": "2a38019afc32dc2c0e7bf77168e67758eefe05fbf08b4de8ec0be5bc83fb8fd4",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without",
+        "title": "A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked",
+        "description": "A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check",
+          "commands",
+          "hash_cache"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/check.rs",
+          "src/commands/mod.rs",
+          "src/hash_cache.rs",
+          "tests/integration/check.rs",
+          "tests/integration/config.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Running check twice over an unchanged tree produces the same findings both times, in text and in JSON. A spec skipped as unchanged replays the findings recorded when it was last validated, so specs_checked counts it and its warnings are named. A genuinely clean spec still reports clean. Editing a spec or its source re-validates it and updates the stored result. --force and --no-cache behave as before, and the cache continues to skip re-validation rather than only re-extraction."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786850812,
+      "digest": "a293ce1b3ef53a31e94dae3af15df7b4e645a2d9f502bb8533ab1e25ce3ea73a",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

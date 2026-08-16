@@ -7,6 +7,7 @@ spec: cmd_check.spec.md
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
 | `src/commands/check.rs` | cargo test commands::check | No inline tests found; add focused coverage for `cmd_check`, `IgnoreRules::load`, `build_comment_body`, `resolve_repo` before risky changes |
+| `tests/integration.rs` | cargo test --test integration warm_cache | `warm_cache_text_replays_cached_warnings`, `warm_cache_json_replays_cached_warnings`, `hashes_without_snapshots_revalidate_instead_of_going_silent` |
 | `tests/integration.rs` | cargo test --test integration check_valid_project_passes | End-to-end fixture: `check_valid_project_passes` |
 | `tests/integration.rs` | cargo test --test integration check_missing_source_file_fails | End-to-end fixture: `check_missing_source_file_fails` |
 | `tests/integration.rs` | cargo test --test integration check_undocumented_export_warns | End-to-end fixture: `check_undocumented_export_warns` |
@@ -23,7 +24,9 @@ spec: cmd_check.spec.md
 
 | Flow | Fixture / Setup | Action | Expected Result |
 |------|-----------------|--------|-----------------|
-| Incremental check with cache | 25 specs, 3 have changed since last check | `cmd_check` runs without `--force` | only 3 specs are validated; 22 are skipped via hash cache |
+| Incremental check with cache | 25 specs, 3 have changed since last check | `cmd_check` runs without `--force` | only 3 specs are re-validated; 22 are skipped via hash cache and stored findings are replayed |
+| Warm cache keeps findings | spec warns about undocumented `sub`; files unchanged | second `check` and `check --format json` | text still names `sub`; JSON `specs_checked` is not 0 and still names `sub` (`warm_cache_text_replays_cached_warnings`, `warm_cache_json_replays_cached_warnings`) |
+| Hash-only cache is a miss | `.specsync/hashes.json` has hashes but empty `snapshots` | `check --format json` | spec is re-validated and the warning returns (`hashes_without_snapshots_revalidate_instead_of_going_silent`) |
 | Auto-fix undocumented exports | spec is missing export `pub fn new_function()` | `cmd_check` runs with `--fix` | the export is appended to the spec's Public API table with a generated description prompt and the file is rewritten |
 | JSON output format | `--format json` is set | validation completes with errors and warnings | output is a single JSON object with `passed`, `errors`, `warnings`, `stale`, and `specs_checked` fields (verified by `fix_with_json_output`) |
 | Backup before fix | a spec will be rewritten by `--fix` | `specsync check --fix --backup` is run | originals are copied to `.specsync/backup-fix/` before any write (`fix_backup_creates_backup_dir`) |

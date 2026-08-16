@@ -1,4 +1,5 @@
 use colored::Colorize;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -19,8 +20,8 @@ use crate::validator::compute_coverage_checked;
 use crate::config::is_legacy_layout;
 
 use super::{
-    compute_exit_code, create_drift_issues, exit_with_status, filter_by_status, filter_specs,
-    load_and_discover, run_validation_with_suppressions,
+    SpecValidationOutcome, compute_exit_code, create_drift_issues, exit_with_status,
+    filter_by_status, filter_specs, load_and_discover, run_validation_with_suppressions,
 };
 
 fn suppressed_warning_summary(detail: &serde_json::Value) -> String {
@@ -146,6 +147,97 @@ fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<
     }
     inputs.sort();
     inputs
+}
+
+fn spec_inventory(root: &Path, spec_files: &[PathBuf]) -> Vec<String> {
+    spec_files
+        .iter()
+        .map(|path| {
+            path.strip_prefix(root)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .replace('\\', "/")
+        })
+        .collect()
+}
+
+fn print_replayed_snapshots(snapshots: &[hash_cache::CachedValidationSnapshot]) {
+    for snapshot in snapshots {
+        if !snapshot.has_findings() {
+            continue;
+        }
+        println!("\n{}", snapshot.spec_path.bold());
+        println!("  {} cached result", "ℹ".cyan());
+        for error in &snapshot.errors {
+            println!("  {} {error}", "✗".red());
+        }
+        for warning in &snapshot.warnings {
+            println!("  {} {warning}", "⚠".yellow());
+        }
+        for notice in &snapshot.notices {
+            println!("  {} {notice}", "⊘".cyan());
+        }
+    }
+}
+
+fn merge_replayed_snapshots(
+    snapshots: &[hash_cache::CachedValidationSnapshot],
+    errors: &mut Vec<String>,
+    warnings: &mut Vec<String>,
+    notices: &mut Vec<String>,
+) -> (usize, usize, usize, usize) {
+    let mut passed = 0usize;
+    let mut extra_errors = 0usize;
+    let mut extra_warnings = 0usize;
+    for snapshot in snapshots {
+        extra_errors += snapshot.errors.len();
+        extra_warnings += snapshot.warnings.len();
+        if snapshot.errors.is_empty() {
+            passed += 1;
+        }
+        let prefix = &snapshot.spec_path;
+        errors.extend(
+            snapshot
+                .errors
+                .iter()
+                .map(|error| format!("{prefix}: {error} (cached)")),
+        );
+        warnings.extend(
+            snapshot
+                .warnings
+                .iter()
+                .map(|warning| format!("{prefix}: {warning} (cached)")),
+        );
+        notices.extend(
+            snapshot
+                .notices
+                .iter()
+                .map(|notice| format!("{prefix}: {notice} (cached)")),
+        );
+    }
+    (snapshots.len(), passed, extra_errors, extra_warnings)
+}
+
+fn record_validation_snapshots(
+    cache: &mut hash_cache::HashCache,
+    root: &Path,
+    global_inputs: &[String],
+    inventory: &[String],
+    outcomes: Vec<SpecValidationOutcome>,
+) {
+    for outcome in outcomes {
+        cache.record_current_validation_snapshot(
+            root,
+            &outcome.spec_file,
+            global_inputs,
+            inventory,
+            hash_cache::ValidationDiagnostics {
+                errors: outcome.errors,
+                warnings: outcome.warnings,
+                notices: outcome.notices,
+            },
+        );
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -332,31 +424,50 @@ pub fn cmd_check(
     // Config + schema files affect validation globally (not via one spec's
     // frontmatter), so track them separately from per-spec hashes.
     let global_inputs = global_validation_inputs(root, &config);
-    let (specs_to_validate, change_classifications) = if force || strict || !spec_filters.is_empty()
+    let inventory = spec_inventory(root, &spec_files);
+    // The cache skips re-VALIDATION of unchanged specs, not merely
+    // re-extraction. A skip is only honest when the previous findings are
+    // still stored and still bind to the current inputs; otherwise the spec
+    // is re-validated. Findings themselves live in `HashCache.snapshots`.
+    let (specs_to_validate, change_classifications, replayed) = if force
+        || strict
+        || !spec_filters.is_empty()
     {
-        (spec_files.clone(), Vec::new())
+        (spec_files.clone(), Vec::new(), Vec::new())
     } else if fix {
         // --fix bypasses the unchanged-skip: an explicit fix request must
         // never be a silent no-op because a previous (failing or warning) run
         // recorded the hashes.
         let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
-        (spec_files.clone(), classifications)
+        (spec_files.clone(), classifications, Vec::new())
     } else {
         let classifications = hash_cache::classify_all_changes(root, &spec_files, &cache);
         let global_changed = global_inputs.iter().any(|p| cache.is_changed(root, p));
-        let changed: Vec<PathBuf> = if global_changed {
+        if global_changed {
             // A schema or config file changed since the cache was written — a
             // spec whose own files are unchanged may still now be stale (e.g. a
             // migration dropped a documented column, or a new custom rule was
             // added). Re-validate everything rather than trust the stale skip.
-            spec_files.clone()
+            (spec_files.clone(), classifications, Vec::new())
         } else {
-            classifications
+            let changed: HashSet<PathBuf> = classifications
                 .iter()
-                .map(|c| c.spec_path.clone())
-                .collect()
-        };
-        (changed, classifications)
+                .map(|classification| classification.spec_path.clone())
+                .collect();
+            let mut to_validate = Vec::new();
+            let mut replayed = Vec::new();
+            for spec in &spec_files {
+                if changed.contains(spec) {
+                    to_validate.push(spec.clone());
+                    continue;
+                }
+                match cache.replayable_validation_snapshot(root, spec, &global_inputs, &inventory) {
+                    Some(snapshot) => replayed.push(snapshot.clone()),
+                    None => to_validate.push(spec.clone()),
+                }
+            }
+            (to_validate, classifications, replayed)
+        }
     };
 
     let skipped = spec_files.len() - specs_to_validate.len();
@@ -369,15 +480,17 @@ pub fn cmd_check(
         println!("  {} Cache: {}\n", "ℹ".dimmed(), cache_path.display());
     }
 
-    if specs_to_validate.is_empty() && matches!(format, Text) {
+    let replayed_has_findings = replayed.iter().any(|snapshot| snapshot.has_findings());
+    if specs_to_validate.is_empty() && !replayed_has_findings && matches!(format, Text) {
         println!("{}", "All specs unchanged — nothing to validate.".green());
         let coverage = checked_coverage_or_exit(root, &spec_files, &config, format);
         print_coverage_line(&coverage);
-        // A warm cache skips spec RE-validation, but a requested coverage/
-        // enforcement gate must still be evaluated against freshly computed
-        // coverage — otherwise an unchanged run silently flips a failing
-        // --require-coverage / --enforcement gate to exit 0. Cached specs had no
-        // errors (that's why they're cached), so 0 errors/warnings is correct here.
+        // A warm cache skips spec RE-validation. Coverage/enforcement gates
+        // still run against freshly computed coverage so an unchanged tree
+        // cannot flip a failing --require-coverage / --enforcement gate to
+        // exit 0. Findings are empty here only because every skipped spec
+        // replayed a stored snapshot with none — not because the skip itself
+        // means "no problems".
         let exit_code = compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
         process::exit(exit_code);
     }
@@ -530,14 +643,18 @@ pub fn cmd_check(
     }
 
     let collect = !matches!(format, Text);
+    if !collect {
+        print_replayed_snapshots(&replayed);
+    }
+    let mut outcomes = Vec::new();
     let (
-        total_errors,
-        total_warnings,
-        passed,
-        total,
-        all_errors,
-        all_warnings,
-        all_notices,
+        mut total_errors,
+        mut total_warnings,
+        mut passed,
+        mut total,
+        mut all_errors,
+        mut all_warnings,
+        mut all_notices,
         suppressed_warnings,
     ) = run_validation_with_suppressions(
         root,
@@ -547,7 +664,19 @@ pub fn cmd_check(
         collect,
         explain,
         &ignore_rules,
+        Some(&mut outcomes),
     );
+    let (replayed_specs, replayed_passed, replayed_errors, replayed_warnings) =
+        merge_replayed_snapshots(
+            &replayed,
+            &mut all_errors,
+            &mut all_warnings,
+            &mut all_notices,
+        );
+    total += replayed_specs;
+    passed += replayed_passed;
+    total_errors += replayed_errors;
+    total_warnings += replayed_warnings;
     // Git-based staleness detection (--stale flag)
     let stale_threshold = stale.map(|opt| opt.unwrap_or(5));
     let mut git_stale_warnings: usize = 0;
@@ -676,10 +805,13 @@ pub fn cmd_check(
     let coverage = checked_coverage_or_exit(root, &spec_files, &config, format);
 
     // Update hash cache after validation (only when no errors).
-    // Specs with warnings are still cached, which is why --fix, --strict, and
-    // --force all bypass the unchanged-skip above — an explicit fix or strict
-    // run must never trust hashes recorded by a run that had findings.
+    // Specs with warnings are still cached. Their findings are stored in
+    // snapshots and replayed on the next unchanged run — the skip is a skip
+    // of re-validation, not a claim that there were no problems. --fix,
+    // --strict, and --force still bypass the skip so an explicit request
+    // never trusts hashes alone.
     if total_errors == 0 {
+        record_validation_snapshots(&mut cache, root, &global_inputs, &inventory, outcomes);
         hash_cache::update_cache(root, &specs_to_validate, &mut cache);
         // Record global inputs (config + schema files) so a later unchanged run
         // can skip, and a future schema/config edit is detected as a change.

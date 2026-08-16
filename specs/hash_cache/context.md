@@ -10,6 +10,7 @@ spec: hash_cache.spec.md
 - **Companion classification split**: `requirements.md` is its own `ChangeKind::Requirements`; `context.md`/`tasks.md`/`testing.md`/`design.md` collapse into `ChangeKind::Companion`. Both plain and legacy `{module}.<suffix>` names are probed by `find_companion_files`.
 - **Cheap frontmatter scan**: `extract_frontmatter_files` string-matches the `files:` block instead of invoking the full YAML parser, keeping the change-detection path fast.
 - **Prune on update**: `update_cache` re-hashes everything relevant and then drops entries for files that no longer exist, bounding cache size.
+- **Snapshots are the previous findings**: hashes decide *whether* to skip re-validation; `snapshots` hold the result that must still be reported. A hash hit without a replayable snapshot is a miss.
 
 ## Files to Read First
 

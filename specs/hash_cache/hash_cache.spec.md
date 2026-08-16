@@ -1,6 +1,6 @@
 ---
 module: hash_cache
-version: 6
+version: 8
 status: stable
 files:
   - src/hash_cache.rs
@@ -47,8 +47,10 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | `CachedValidationSnapshot` | Cached validation outcome bound to digests |
 | `ValidationDiagnostics` | Cached errors/warnings/notices |
 | `record_validation_snapshot` | Record warm-cache validation snapshot |
+| `record_current_validation_snapshot` | Bind diagnostics to the current input digest and store them |
 | `current_validation_input_digest` | Current validation input digest |
 | `replayable_validation_snapshot` | Load replayable snapshot when still valid |
+| `has_findings` | Whether a snapshot carries any error, warning, or notice |
 
 ## Invariants
 
@@ -68,6 +70,12 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 - **Given** 50 specs, only 3 have changed since last run
 - **When** `classify_all_changes` is called
 - **Then** returns 3 `ChangeClassification` entries; 47 specs are skipped
+
+### Scenario: Replay stored findings for an unchanged spec
+
+- **Given** a snapshot recorded against the current spec, companions, sources, and global inputs
+- **When** `replayable_validation_snapshot` is called
+- **Then** it returns that snapshot, including any warnings the previous validation produced
 
 ### Scenario: Source file change triggers re-validation
 
@@ -128,3 +136,5 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
+| 2026-08-15 | Persist and replay per-spec validation snapshots so a warm `check` cannot drop findings (#429) |
+| 2026-08-16 | CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without: A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked |

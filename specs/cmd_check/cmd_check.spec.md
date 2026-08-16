@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 21
+version: 23
 status: stable
 files:
   - src/commands/check.rs
@@ -43,6 +43,9 @@ gates, and optional drift issues.
    and exit 1 instead of producing partial or vacuous coverage.
 10. Text, JSON, Markdown, and GitHub output distinguish emitted warnings from deterministic
     suppressed-warning details, while strict exit behavior counts only unsuppressed findings.
+11. A warm hash-cache skip skips re-validation, never the previous findings: unchanged specs
+    replay their stored snapshot, `specs_checked` counts them, and a hash-only cache with no
+    snapshot is re-validated rather than reported clean.
 
 ## Behavioral Examples
 
@@ -50,7 +53,13 @@ gates, and optional drift issues.
 
 - **Given** 25 specs, 3 have changed since last check
 - **When** `cmd_check` runs without `--force`
-- **Then** only 3 specs are validated; 22 are skipped via hash cache
+- **Then** only 3 specs are re-validated; 22 are skipped via hash cache and any stored findings are replayed
+
+### Scenario: Warm cache still reports the previous warning
+
+- **Given** a spec whose first `check` reported an undocumented export, and whose files have not changed
+- **When** `cmd_check` runs again without `--force`
+- **Then** the same warning identity is present in text and JSON, and JSON `specs_checked` is not 0
 
 ### Scenario: Auto-fix undocumented exports
 
@@ -124,3 +133,5 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |
 | 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |
 | 2026-08-14 | CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable: Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text |
+| 2026-08-15 | A warm cache skip must replay stored findings: the same tree cannot go from `specs_checked: 1` with a warning to `specs_checked: 0` with none (#429) |
+| 2026-08-16 | CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without: A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked |

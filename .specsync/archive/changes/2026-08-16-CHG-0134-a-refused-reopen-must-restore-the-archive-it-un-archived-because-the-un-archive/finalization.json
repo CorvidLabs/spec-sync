@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0134-a-refused-reopen-must-restore-the-archive-it-un-archived-because-the-un-archive",
+  "implementation_commit": "4205111dc5371267aa22c1a5c70b0b8b248b0b93",
+  "implementation_tree": "bb5b090ef5fcb27f4275992a276268bfeafb22bd",
+  "contract_digest": "ab018717139eecf95a295ed9d1707574650aff2804e61f2766ae2b7ec55728d4",
+  "workspace_digest": "0461ec24ff8bfe3e3ff1f57e014f184010d380317e2a6e7eb7a150fdb22dcd8d",
+  "closing_digest": "d61b4f14e8807a3db2be08df33af939104bc5629caadd160d8bc87a24f54b4f2",
+  "review_digest": "fdd9d297e9cc0a2940ac35d0d156800e3414a205b9eb3937a88ff2995026427c",
+  "finalization_digest": "f6270f7f6c995186a739969697597fad490c87620a1a2ce2c39b90b36a83adf9",
+  "timestamp": 1786917184
+}

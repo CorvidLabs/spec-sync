@@ -1,6 +1,6 @@
 ---
 id: CHG-0134-a-refused-reopen-must-restore-the-archive-it-un-archived-because-the-un-archive
-state: implementing
+state: archived
 type: bug_fix
 base_commit: c977572e9adda56dfdcb1bc6b0290097ac16eb39
 ---

@@ -7,11 +7,11 @@
   "title": "A refused reopen must restore the archive it un-archived, because the un-archive move happens before the preconditions are checked and a correct refusal was destroying the package",
   "description": "A refused reopen must restore the archive it un-archived, because the un-archive move happens before the preconditions are checked and a correct refusal was destroying the package",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "c977572e9adda56dfdcb1bc6b0290097ac16eb39",
   "created_at": 1786914579,
-  "updated_at": 1786917142,
+  "updated_at": 1786917184,
   "affected_specs": [
     "change"
   ],

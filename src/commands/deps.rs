@@ -41,6 +41,12 @@ pub fn cmd_deps(
         // diagram remains the only thing on stdout; the gate note and exit go to
         // stderr / the exit code, consistent with the normal `deps` path.
         let report = deps::validate_deps(root, &config.specs_dir);
+        // A rendered graph is as incomplete as the analysis behind it: say which
+        // languages contributed no edges because nobody could parse them, and
+        // which imports were parsed but could not be attributed (#477).
+        for note in disclosures(&report) {
+            eprintln!("{} {note}", "⊘".yellow());
+        }
         let strict_fail = strict && !report.warnings.is_empty();
         if strict_fail {
             eprintln!(
@@ -71,6 +77,18 @@ pub fn cmd_deps(
                 "undeclared_imports": report.undeclared_imports.iter()
                     .map(|(m, i)| serde_json::json!({"module": m, "import": i}))
                     .collect::<Vec<_>>(),
+                // Languages whose declared files were never parsed for imports:
+                // an empty `undeclared_imports` covering them means "not
+                // analysed", and a machine consumer must be able to tell (#477).
+                "unanalyzed_languages": report.unanalyzed_languages.iter()
+                    .map(|(language, files)| serde_json::json!({"language": language, "files": files}))
+                    .collect::<Vec<_>>(),
+                // Imports that were parsed but could not be mapped to a spec
+                // module. Same distinction one level down: these produced no
+                // edge because attribution failed, not because there was none.
+                "unresolved_imports": report.unresolved_imports.iter()
+                    .map(|(m, i)| serde_json::json!({"module": m, "import": i}))
+                    .collect::<Vec<_>>(),
             });
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
         }
@@ -94,8 +112,16 @@ pub fn cmd_deps(
                 }
                 println!();
             }
+            let disclosures = disclosures(&report);
+            if !disclosures.is_empty() {
+                println!("### Not Analysed\n");
+                for note in disclosures {
+                    println!("- {note}");
+                }
+                println!();
+            }
             if report.errors.is_empty() && report.warnings.is_empty() {
-                println!("All dependency declarations are valid.");
+                println!("{}", deps::valid_declarations_line(&report));
             }
         }
         types::OutputFormat::Text | types::OutputFormat::Table | types::OutputFormat::Csv => {
@@ -109,7 +135,19 @@ pub fn cmd_deps(
             );
 
             if report.errors.is_empty() && report.warnings.is_empty() {
-                println!("\n  {} All dependency declarations are valid.", "✓".green());
+                println!(
+                    "\n  {} {}",
+                    "✓".green(),
+                    deps::valid_declarations_line(&report)
+                );
+            }
+
+            // Say what went unread and what went unattributed. A category that
+            // is empty because nobody parsed it — or because the parse could
+            // not be mapped to a module — must not read as a category with no
+            // problems.
+            for note in disclosures(&report) {
+                println!("  {} {note}", "⊘".yellow());
             }
 
             for e in &report.errors {
@@ -190,6 +228,20 @@ pub fn cmd_deps(
             process::exit(code);
         }
     }
+}
+
+/// Everything the analysis could NOT account for, in report order: languages it
+/// cannot parse, then imports it parsed but could not attribute. One list for
+/// every renderer, so a gap cannot be disclosed in one output format and hidden
+/// in another (#477).
+fn disclosures(report: &deps::DepsReport) -> Vec<String> {
+    [
+        deps::unanalyzed_languages_note(report),
+        deps::unresolved_imports_note(report),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
 /// Render the dependency graph as a Mermaid flowchart diagram.

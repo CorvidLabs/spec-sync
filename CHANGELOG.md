@@ -65,6 +65,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`deps` no longer reports a clean graph built from imports it could not resolve**
+  (CorvidLabs/spec-sync#477). Kotlin import analysis was skipped entirely: a fixture with real
+  imports reported `✓ All dependency declarations are valid` with rc=0, having collected nothing.
+
+  The first fix for that reproduced it one layer down. It collected the imports, then matched each
+  package prefix only against directory *suffixes* and let `filter_map` **drop whatever failed to
+  resolve, with no record** — so a Kotlin file whose directory did not mirror its package still
+  produced zero edges and exit 0. The fix for "zero edges reported as zero problems" reported zero
+  edges as zero problems.
+
+  Resolution now reads each file's own `package` declaration before falling back to layout, and
+  "unresolvable" is a distinct reported outcome rather than an absent one: an import is owned by a
+  module, foreign to the project's namespace, or **unattributed and disclosed**. When nothing is
+  known about the project's packages an unowned import is unattributed rather than foreign, so
+  silence is never the default. The disclosure never changes the exit code.
+
 - **Gradle module identity now comes from the project name, not a source path segment**
   (CorvidLabs/spec-sync#473). Discovery took the **first** path segment, so `com.example.foo` and
   `com.example.bar` both became a module named `com` and `generate` wrote `specs/com/com.spec.md` for

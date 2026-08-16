@@ -1,0 +1,48 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1786835922,
+      "digest": "c64ef6ea1fc0927c8b252a7783cd150b8179fd051594cffff3f316303115f2da",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0131-dependency-analysis-must-not-report-a-clean-graph-built-from-imports-it-could-no",
+        "title": "Dependency analysis must not report a clean graph built from imports it could not read or could not resolve, so an unattributable import is disclosed rather than dropped",
+        "description": "Dependency analysis must not report a clean graph built from imports it could not read or could not resolve, so an unattributable import is disclosed rather than dropped",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_deps",
+          "deps"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "CHANGELOG.md",
+          "src/commands/deps.rs",
+          "src/deps.rs",
+          "tests/integration/commands.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Kotlin imports are collected and resolved against a package topology built first from each JVM file's own package declaration and then from directory layout, so a file whose directory does not match its package still produces an edge. Every imported package resolves to exactly one of three outcomes: owned by a spec module, foreign to the project's namespace, or inside the project's namespace but unattributed. The third is recorded and disclosed in every output format rather than dropped. A language that has an import construct but no extractor is disclosed; a language with no import concept at all is not. Neither disclosure is an error or a warning, and neither changes the exit code."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786838183,
+      "digest": "511b6a15027bd19e745d340883547c7b260a648aee4cd2d9bf4df9837013493f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

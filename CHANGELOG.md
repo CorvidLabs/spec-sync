@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`src/change.rs` is 17,460 lines, down from 29,983** (CorvidLabs/spec-sync#589). Its 309 tests
+  moved to `src/change_tests.rs`, declared with `#[cfg(test)] #[path]` so the module stays inline and
+  `use super::*` still reaches every private item.
+
+  The size was not cosmetic. The defect this release has been chasing — a fix landing at the site
+  named in the bug report while a parallel implementation survives — has happened **seven times**,
+  and you cannot sweep for a sibling in a file you cannot hold in your head. Ten of the thirteen
+  remaining known bugs live in this file.
+
+  A pure move, proved by counting rather than by reading a 12,543-line diff: 309 `#[test]` functions
+  before and after, 2275 unit and 374 integration tests passing both times, and an unchanged drill
+  board. The 24 `#[cfg(test)]` helpers and fault-injection hooks stay — production paths reference
+  them, so they are not test code that merely lives near production code.
+
 - **Verification currency is a content question only.** Whether recorded verification evidence
   is still current is now decided by three content equalities — the evidence passed, the plan
   on disk is the plan that was verified, and the tree on disk is the tree that was verified.

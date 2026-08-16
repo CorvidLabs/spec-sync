@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0133-extract-the-change-module-s-tests-into-their-own-file-so-the-file-that-manufactu",
+  "implementation_commit": "d6a381ccabc352b3b4c3c6d0231c0785cb5bfd16",
+  "implementation_tree": "720e59513e2f560962a8e7f2b21ecbd57ac39b30",
+  "contract_digest": "99b3154e901a82350cf45ad0d474ef05a673d9f46e33213f93815d5aa88c1708",
+  "workspace_digest": "294b123f01eccf7b4d4a41467deeee387479855b1b71bc5123b94df79e69f136",
+  "closing_digest": "8af2446738b00d999371db855e5ce7b432d06ba4ad2935a06e4a6eefd7a225d4",
+  "review_digest": "62acbfd509765a7d0283f628d6c76279ee6d9a8b55f01639b59a7a4b7d3c29a5",
+  "finalization_digest": "10ff0134de16b2a852f08db7ec159c2c36fd9fc77a60eeeebad5adbdd063ec0f",
+  "timestamp": 1786860593
+}

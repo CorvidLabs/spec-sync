@@ -928,3 +928,12 @@ Acceptance Criteria
 - The spec sections a scaffold generates are accepted verbatim as delta content, without editing the spec first.
 - A subheading appearing before any item is opened remains an error, because it cannot be attached to anything.
 - That error names both valid item forms so the required shape is discoverable from the message.
+
+### REQ-change-066
+
+The change module's tests SHALL live in their own file while remaining inline for name resolution.
+
+Acceptance Criteria
+- Tests are declared with `#[cfg(test)] #[path]` so `use super::*` continues to reach every private item; a sibling module would force visibility changes across hundreds of items and turn a move into an edit.
+- Test-only helpers and fault-injection hooks that production code paths reference remain in the production file, because they instrument production code rather than merely living beside it.
+- A future split of this module is verified by counting test functions and passing tests before and after, not by reading the diff: a move that loses a test still compiles and still passes.

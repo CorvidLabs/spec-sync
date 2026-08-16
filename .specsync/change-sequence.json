@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 134,
-  "id": "CHG-0134-a-refused-reopen-must-restore-the-archive-it-un-archived-because-the-un-archive",
+  "sequence": 135,
+  "id": "CHG-0135-register-20-integration-tests-that-never-compiled-and-guard-against-orphaned-tes",
   "acknowledged_collisions": [
     {
       "sequence": 16,

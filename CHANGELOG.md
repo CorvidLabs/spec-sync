@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **20 integration tests that had never compiled now run** (CorvidLabs/spec-sync#585).
+  `tests/integration/regression_w1.rs` arrived in `9a00223b` and was never `#[path]`-declared in
+  `tests/integration.rs`. `Cargo.toml` defines no `[[test]]` targets, so Cargo auto-discovers
+  `tests/*.rs` — and `tests/integration/` is a subdirectory, whose files must each be registered
+  explicitly. One never was.
+
+  It was not compile-rot: the file compiled on the first attempt, against the same helper API it was
+  written for. That is what made it invisible. An unregistered file contributes no failures, and no
+  failures reads as green, so 20 regression assertions were absent from every passing run they
+  appeared to be part of — the release's own defect class, a category empty for want of input and
+  read as want of problems.
+
+  Running them found two real defects, filed as #605 (`report --require-coverage` is unreachable
+  when staleness is unmeasurable — `--require-coverage 0` also exits 1, so the gate is not failing,
+  it is not running) and #606 (`deps` emits two findings for one missing dependency). A third, #607,
+  is sharper: the *passing* sibling test would have passed with `--require-coverage` deleted from the
+  codebase, because its fixture exited 1 for every argument. Its fixture now varies with the flag.
+
+  A guard asserts set equality between the files in `tests/integration/` and the `#[path]`
+  declarations, so an orphan names itself. It lives inline in `tests/integration.rs`, because a guard
+  placed in `tests/integration/` could be orphaned and would then be the thing it exists to detect.
+
 - **`src/change.rs` is 17,460 lines, down from 29,983** (CorvidLabs/spec-sync#589). Its 309 tests
   moved to `src/change_tests.rs`, declared with `#[cfg(test)] #[path]` so the module stays inline and
   `use super::*` still reaches every private item.

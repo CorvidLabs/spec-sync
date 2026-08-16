@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 133,
-  "id": "CHG-0133-extract-the-change-module-s-tests-into-their-own-file-so-the-file-that-manufactu",
+  "sequence": 134,
+  "id": "CHG-0134-a-refused-reopen-must-restore-the-archive-it-un-archived-because-the-un-archive",
   "acknowledged_collisions": [
     {
       "sequence": 16,

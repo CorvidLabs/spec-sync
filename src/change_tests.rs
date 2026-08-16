@@ -8000,6 +8000,82 @@ fn reopen_rejects_current_evidence_and_requires_explicit_audit_fields() {
     );
 }
 
+/// A reopen that is correctly refused must not consume the dated archive package. The
+/// un-archive is a move performed before the preconditions are known to hold, so every
+/// failure after it has to put the package back; otherwise the refusal leaves an active
+/// orphan whose state.json still says `archived` and no verb can recover it.
+#[test]
+fn refused_reopen_restores_the_archived_package() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git {} failed",
+            args.join(" ")
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    write_default_policy(root, Vec::new()).unwrap();
+    let mut record = completed_no_spec_record(root);
+    git(&["add", "."]);
+    git(&["commit", "-m", "base definition"]);
+    record = accept_completed_record(root, record);
+    git(&["add", "."]);
+    git(&["commit", "-m", "accept definition"]);
+    let archived = archive_change(root, &record.id).unwrap();
+    assert!(archived.is_dir());
+
+    // Delivery inputs are still current, so this reopen is refused on purpose.
+    let error = reopen_change(root, &record.id, "Reopener".into(), "probe".into()).unwrap_err();
+    assert!(error.contains("delivery inputs are current"), "{error}");
+    assert!(error.contains("archive restored"), "{error}");
+    assert!(
+        archived.is_dir(),
+        "the refused reopen consumed the archive package at {}",
+        archived.display()
+    );
+    assert!(
+        !change_dir(root, &record.id).exists(),
+        "the refused reopen left an active orphan"
+    );
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Archived
+    );
+
+    // The refusal stays the same diagnostic instead of degrading into an orphan collision.
+    let retry = reopen_change(root, &record.id, "Reopener".into(), "retry".into()).unwrap_err();
+    assert!(retry.contains("delivery inputs are current"), "{retry}");
+    assert!(
+        !retry.contains("an active change directory already exists"),
+        "{retry}"
+    );
+
+    // Control: the un-archive is still reachable when the reopen can succeed, so the
+    // restore above cannot be passing by never un-archiving at all.
+    git(&["add", "."]);
+    git(&["commit", "-m", "archive tip"]);
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "drift input"]);
+    let reopened = reopen_change(root, &record.id, "Reopener".into(), "drifted".into()).unwrap();
+    assert_eq!(reopened.change.state, ChangeState::Verifying);
+    assert!(change_dir(root, &record.id).is_dir());
+    assert!(!archived.exists());
+}
+
 #[test]
 fn reaccept_rejects_definition_changes_after_canonical_application() {
     let temp = TempDir::new().unwrap();

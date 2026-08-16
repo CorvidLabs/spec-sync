@@ -937,3 +937,13 @@ Acceptance Criteria
 - Tests are declared with `#[cfg(test)] #[path]` so `use super::*` continues to reach every private item; a sibling module would force visibility changes across hundreds of items and turn a move into an edit.
 - Test-only helpers and fault-injection hooks that production code paths reference remain in the production file, because they instrument production code rather than merely living beside it.
 - A future split of this module is verified by counting test functions and passing tests before and after, not by reading the diff: a move that loses a test still compiles and still passes.
+
+### REQ-change-067
+
+A refused reopen SHALL leave the archive as finalize wrote it.
+
+Acceptance Criteria
+- The dated archive package remains at its original path, with no orphan in the active workspace and the record still archived.
+- The refusal states that the archive was restored, so a user whose reopen failed knows the package survived; if the restore itself fails, the message names the path to move back by hand.
+- Retrying reproduces the same refusal rather than a different one, because the first attempt consumed nothing.
+- A reopen that legitimately succeeds still un-archives, so the restore cannot be satisfied by never moving anything.

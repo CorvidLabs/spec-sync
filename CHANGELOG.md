@@ -79,6 +79,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A refused `reopen` no longer destroys the archive** (CorvidLabs/spec-sync#539). This was the only
+  confirmed unrecoverable bug in 6.0. `reopen` moved the dated archive package into the active
+  workspace and *then* ran its preconditions — every one of which correctly returns an error on a
+  healthy tree with no drift. So a **correctly refused reopen consumed the archive**, leaving an
+  orphan whose `state.json` still said `archived`. Every recovery verb refused it, and if the archive
+  tip had never been committed the package was simply gone.
+
+  Validate-then-move was not available: the checks read the workspace through `find_change_dir`, and
+  `authenticate_accepted_evidence` runs `validate_archived_accepted_snapshot` only while the record is
+  Archived, so validating first would have silently changed what those checks mean. The fix uses the
+  move-then-restore pattern `archive_change` already had for #540 — the correct shape was one function
+  away — and the refusal now says `archive restored`, or names the path to recover by hand if the
+  restore itself fails.
+
 - **A warm hash cache no longer drops findings** (CorvidLabs/spec-sync#429). The same command over
   the same tree disagreed with itself depending on run history: the first run reported
   `specs_checked: 1` and warned about an undocumented export; the second reported

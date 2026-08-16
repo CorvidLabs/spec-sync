@@ -2726,7 +2726,7 @@ pub fn reopen_change(
     reason: String,
 ) -> Result<ReopenResult, String> {
     let _lock = acquire_project_lock(root)?;
-    let mut record = load_change(root, id)?;
+    let record = load_change(root, id)?;
     require_state(
         &record,
         &[ChangeState::Accepted, ChangeState::Archived],
@@ -2734,7 +2734,7 @@ pub fn reopen_change(
     )?;
     // `finalize` performs accept and archive in one command, so `Accepted` is never
     // observable and a change is Archived by the time anyone needs to recover it.
-    // Reopen therefore has to un-archive first: the rest of this function writes to
+    // Reopen therefore has to un-archive first: the rest of this reopen writes to
     // the *active* directory, so reopening in place would leave two directories
     // claiming one change ID in disagreeing states.
     //
@@ -2742,23 +2742,65 @@ pub fn reopen_change(
     // `from_state`, so a reopen out of the archive is distinguishable from a reopen
     // of a still-accepted change without inventing a new event type.
     let reopened_from = record.state;
-    if record.state == ChangeState::Archived {
-        let archived_location = find_change_dir(root, id)?;
-        let active = change_dir(root, &record.id);
-        if active.exists() {
-            return Err(format!(
-                "cannot un-archive {}: an active change directory already exists at {}",
-                record.id,
-                portable_project_path(root, &active)
-            ));
-        }
-        if let Some(parent) = active.parent() {
-            fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-        }
-        rename_durable(&archived_location, &active)
-            .map_err(|error| format!("failed to un-archive {}: {error}", record.id))?;
-        record = load_change(root, id)?;
+    let unarchived_from = if record.state == ChangeState::Archived {
+        Some(unarchive_change_workspace(root, &record)?)
+    } else {
+        None
+    };
+    let outcome = reopen_unarchived_change(root, id, reopened_from, actor, reason);
+    // The un-archive above is a move performed *before* the reopen preconditions are
+    // known to hold, so a correctly refused reopen would otherwise consume the archive:
+    // the package would sit in the active workspace with an `archived` state.json, and
+    // no verb puts it back. A refusal must leave the tree exactly as it was found, so
+    // the move is undone on every failure, exactly as `archive_change` restores its own
+    // source when post-move validation fails.
+    let Some(archived_location) = unarchived_from else {
+        return outcome;
+    };
+    let error = match outcome {
+        Ok(result) => return Ok(result),
+        Err(error) => error,
+    };
+    match rename_durable(&change_dir(root, id), &archived_location) {
+        Ok(()) => Err(format!("{error}; archive restored")),
+        Err(restore_error) => Err(format!(
+            "{error}; and the un-archived package could not be restored to {} ({restore_error}); move it back by hand before retrying",
+            portable_project_path(root, &archived_location)
+        )),
     }
+}
+
+/// Move an archived change package out of the dated archive and back into the active
+/// workspace, returning the archive location it came from so a failed reopen can put it
+/// back. The caller owns that restore: this helper only performs the move.
+fn unarchive_change_workspace(root: &Path, record: &ChangeRecord) -> Result<PathBuf, String> {
+    let archived_location = find_change_dir(root, &record.id)?;
+    let active = change_dir(root, &record.id);
+    if active.exists() {
+        return Err(format!(
+            "cannot un-archive {}: an active change directory already exists at {}",
+            record.id,
+            portable_project_path(root, &active)
+        ));
+    }
+    if let Some(parent) = active.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    rename_durable(&archived_location, &active)
+        .map_err(|error| format!("failed to un-archive {}: {error}", record.id))?;
+    Ok(archived_location)
+}
+
+/// Reopen a change whose workspace is already active. Every failure here is recoverable
+/// by the caller, which restores the archive when it was the one that un-archived.
+fn reopen_unarchived_change(
+    root: &Path,
+    id: &str,
+    reopened_from: ChangeState,
+    actor: String,
+    reason: String,
+) -> Result<ReopenResult, String> {
+    let mut record = load_change(root, id)?;
     let actor = actor.trim();
     if actor.is_empty() {
         return Err("reopen requires a non-empty human actor passed with --actor".into());

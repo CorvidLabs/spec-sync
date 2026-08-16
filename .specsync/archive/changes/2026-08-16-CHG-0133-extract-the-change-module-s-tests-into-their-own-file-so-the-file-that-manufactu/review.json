@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0133-extract-the-change-module-s-tests-into-their-own-file-so-the-file-that-manufactu",
+  "reviewer": "claude-opus-5",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "d6a381ccabc352b3b4c3c6d0231c0785cb5bfd16",
+  "contract_digest": "99b3154e901a82350cf45ad0d474ef05a673d9f46e33213f93815d5aa88c1708",
+  "execution_digest": "be28e244fd1cc0fb0379342150474d128f814578e97cb688c92e295354f6505a",
+  "workspace_digest": "294b123f01eccf7b4d4a41467deeee387479855b1b71bc5123b94df79e69f136",
+  "timestamp": 1786860584
+}

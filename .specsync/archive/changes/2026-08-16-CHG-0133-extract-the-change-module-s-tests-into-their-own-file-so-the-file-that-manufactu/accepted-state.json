@@ -7,11 +7,11 @@
   "title": "Extract the change module's tests into their own file so the file that manufactures the sibling-site defect can be read, without altering a single test",
   "description": "Extract the change module's tests into their own file so the file that manufactures the sibling-site defect can be read, without altering a single test",
   "kind": "refactor",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "15d2b20d11ad21a597007624c8ae6fded4429836",
   "created_at": 1786857818,
-  "updated_at": 1786860544,
+  "updated_at": 1786860593,
   "affected_specs": [
     "change"
   ],

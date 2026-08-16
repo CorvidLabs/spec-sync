@@ -4,7 +4,6 @@
 //! #425 (coverage), #430 (report), #431 (diff), #441 (score), #444 (resolve local).
 
 use crate::helpers::*;
-use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 

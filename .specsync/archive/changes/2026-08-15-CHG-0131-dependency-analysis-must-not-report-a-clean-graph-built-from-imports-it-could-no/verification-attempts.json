@@ -1,0 +1,297 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1786836554,
+      "commit": "fb763cc40f08502e6efa2554d4c2bbd1943a62af",
+      "contract_digest": "c64ef6ea1fc0927c8b252a7783cd150b8179fd051594cffff3f316303115f2da",
+      "execution_digest": "eddb91b4479abfee233eb3f1e914e248302a0ea2f5b79df3da3d46aa999b51c2",
+      "workspace_digest": "f169b23fb9c3d1d5c4adf06d297c79b97c680891c2102b9acd93c2cb0b8980f4",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-deps-003",
+        "REQ-deps-003"
+      ]
+    },
+    {
+      "timestamp": 1786837412,
+      "commit": "1e428a1edd65ada8323b6891f44b08b335f8a3f7",
+      "contract_digest": "c64ef6ea1fc0927c8b252a7783cd150b8179fd051594cffff3f316303115f2da",
+      "execution_digest": "b0305d3550df417fa960c0786e1b1da86ed783e59664b66a5c6d7a53d6d7192f",
+      "workspace_digest": "caf7f8164729f8b8b98b074cb3c9df27dfc1b9c97c7f342eff9c88b41e9c0d82",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-deps-003",
+        "REQ-deps-003"
+      ]
+    },
+    {
+      "timestamp": 1786838130,
+      "commit": "d92ab380c48d7e055209aa72226eb8d24ef1625b",
+      "contract_digest": "c64ef6ea1fc0927c8b252a7783cd150b8179fd051594cffff3f316303115f2da",
+      "execution_digest": "b0305d3550df417fa960c0786e1b1da86ed783e59664b66a5c6d7a53d6d7192f",
+      "workspace_digest": "caf7f8164729f8b8b98b074cb3c9df27dfc1b9c97c7f342eff9c88b41e9c0d82",
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-deps-003",
+        "REQ-deps-003"
+      ]
+    },
+    {
+      "timestamp": 1786838130,
+      "commit": "f87a7164095c68559bcadd144f0ffe5e4fc58a2e",
+      "contract_digest": "c64ef6ea1fc0927c8b252a7783cd150b8179fd051594cffff3f316303115f2da",
+      "execution_digest": "b0305d3550df417fa960c0786e1b1da86ed783e59664b66a5c6d7a53d6d7192f",
+      "workspace_digest": "caf7f8164729f8b8b98b074cb3c9df27dfc1b9c97c7f342eff9c88b41e9c0d82",
+      "acceptance_input_digest": "e7b882651056051e1ba0b58f7b8e1f6e645b7ec9b50e0f94b2b0568a0bcba752",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".specsync/change-sequence.json",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9cca22a5e44a2ab8a4497ff7eb4419d7322fcbb22dfd71726a1f479ae931d15f",
+            "entry_digest": "1c641f190882281518e41faa6adbb47f0fe9c2771a41903bc3e6f989e027cfba",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "641c8b9558f148a4ffe30d36fd5f3902540c9e978fcc1321114c1b24c15e9cba",
+            "entry_digest": "70ffabecae36b225f6a65f63780c4f0a26bc86f6ccc69daf1b7066106f9de2ab",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/cmd_deps/cmd_deps.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "07653191b9c8452930d8156759383b61d5dc44a543feddbdcf7a5893a321770f",
+            "entry_digest": "5c51737f6a88f18bf5b48cdf1259b1abbec44183d1084adab0a7e934d6c0a488",
+            "owners": [
+              "cmd_deps"
+            ]
+          },
+          {
+            "path": "specs/cmd_deps/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2dfdf0a67e979c4aad865875debbde221f7e88de3b5617f1a5b5b387e5738830",
+            "entry_digest": "657191d098135afc8f5c3cb1cd11942237ad828637a707487448ddb106516cf6",
+            "owners": [
+              "cmd_deps"
+            ]
+          },
+          {
+            "path": "specs/cmd_deps/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "811d90dc715029ae37500594f65577bca248179d6f9fd6b1fb36ab179e0a37a7",
+            "entry_digest": "80a9a2d5124c872cfa63685d7e67d8646b9b630b29041e6dd0419598f5507d17",
+            "owners": [
+              "cmd_deps"
+            ]
+          },
+          {
+            "path": "specs/cmd_deps/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "abf6d7f6c3ac7f42c48f40f62c7c088d2d108ec15ddddd22619c0dcdb6ff7b63",
+            "entry_digest": "88f588231ae4d5a948b8e6e5ec155720a234e6cfb8326ef6803f08eae998e4ce",
+            "owners": [
+              "cmd_deps"
+            ]
+          },
+          {
+            "path": "specs/cmd_deps/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "57c581cc87bd5f7af753c15b57f43f76043e276320c8670f18b04fc8a47bae2e",
+            "entry_digest": "95c3ca45992d09dc3046b15bd3a86cb8dc0ebe66d6ea7c6ec67ebd74284c8554",
+            "owners": [
+              "cmd_deps"
+            ]
+          },
+          {
+            "path": "specs/deps/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2745ed8a31073e1c65a87ecf5617790931d2d1612d9c17e6f5c3db1804e786af",
+            "entry_digest": "7ad74d58eff5082d653c29682046f31b64b1277f524567ddeccc87e0d4e82b37",
+            "owners": [
+              "deps"
+            ]
+          },
+          {
+            "path": "specs/deps/deps.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a41fe47a2498def090daf03ddeeaac0964ed5ff225668d1d4aed0df4a02a0504",
+            "entry_digest": "7dd8489844ab690013f28628e3461db166964b84d1bdbd477cc402261512c078",
+            "owners": [
+              "deps"
+            ]
+          },
+          {
+            "path": "specs/deps/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "69da3557e696b3a4da2c64dbbabdecd82c4619d3af6e5c32ed6c3b5f1c846bce",
+            "entry_digest": "308e132d9701fa0a11719c10c6b446289b89226295b91da36fc7b874add1e8e6",
+            "owners": [
+              "deps"
+            ]
+          },
+          {
+            "path": "specs/deps/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "049bc4b49d974bc87b67564710910db10059b670513cdd931c9a95b4757259b1",
+            "entry_digest": "a7b709b1ec07fb6725251eafff2605095e8bc3c11f64d8b1a5c538787f5ca443",
+            "owners": [
+              "deps"
+            ]
+          },
+          {
+            "path": "specs/deps/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b524f6a1d396e009b901062e5903807c481b6bc7aa62442a368e55d95a789bda",
+            "entry_digest": "7da588be9eeade175acb8958a9259cabda971f5986601cb3515559babba0cff4",
+            "owners": [
+              "deps"
+            ]
+          },
+          {
+            "path": "src/commands/deps.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c3b762c191dfb62742bf21c98661d4161e81e5610bd20d0c041a0a12e8cca143",
+            "entry_digest": "aae57cb9f7b6a206507e985f292f29029b669502adc65ae5925e656f685ee779",
+            "owners": [
+              "cmd_deps"
+            ]
+          },
+          {
+            "path": "src/deps.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b8ef3c0671a3422101abfda7111a6a8aae2d93c0cc4c8d04143c8b1a39cd5107",
+            "entry_digest": "eb3b17d064425ef964fb7f93a56a44b9c661bba5d0ec954ae8ac00a06b1a3ad5",
+            "owners": [
+              "deps"
+            ]
+          },
+          {
+            "path": "tests/integration/commands.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "cb7784e0d42181eeaadc8ca3b8700957b5b0adc0ce7ac99074278ddedf7102c3",
+            "entry_digest": "e337b755cb3f227d8c811c1c3e52b08ad7fd959f6ff221b8ae1a32bca213b2f1",
+            "owners": [
+              "@exact:test"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-deps-003",
+        "REQ-deps-003"
+      ]
+    }
+  ]
+}

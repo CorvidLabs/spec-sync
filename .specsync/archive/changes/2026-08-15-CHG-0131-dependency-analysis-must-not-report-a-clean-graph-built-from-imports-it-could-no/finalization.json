@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0131-dependency-analysis-must-not-report-a-clean-graph-built-from-imports-it-could-no",
+  "implementation_commit": "f87a7164095c68559bcadd144f0ffe5e4fc58a2e",
+  "implementation_tree": "5a1810d8c554c7be9f931eef2c4d9a230888b6ed",
+  "contract_digest": "c64ef6ea1fc0927c8b252a7783cd150b8179fd051594cffff3f316303115f2da",
+  "workspace_digest": "caf7f8164729f8b8b98b074cb3c9df27dfc1b9c97c7f342eff9c88b41e9c0d82",
+  "closing_digest": "511b6a15027bd19e745d340883547c7b260a648aee4cd2d9bf4df9837013493f",
+  "review_digest": "72043f9bf8d689948815e857c994f2482bd0bc7facf5152582f67708d8030a49",
+  "finalization_digest": "7491b55a0705961d3eb5028a0ef49113fe029ca71587f415500c24df35093ecf",
+  "timestamp": 1786838183
+}

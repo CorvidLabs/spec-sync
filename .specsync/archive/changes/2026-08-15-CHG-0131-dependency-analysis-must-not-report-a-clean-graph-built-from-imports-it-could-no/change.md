@@ -1,6 +1,6 @@
 ---
 id: CHG-0131-dependency-analysis-must-not-report-a-clean-graph-built-from-imports-it-could-no
-state: implementing
+state: archived
 type: bug_fix
 base_commit: fb763cc40f08502e6efa2554d4c2bbd1943a62af
 ---

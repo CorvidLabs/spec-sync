@@ -1,6 +1,6 @@
 ---
 id: CHG-0140-a-stale-sequence-ledger-must-not-be-committed-backwards
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 55c566d411612ce051678f6102066684de72b307
 ---

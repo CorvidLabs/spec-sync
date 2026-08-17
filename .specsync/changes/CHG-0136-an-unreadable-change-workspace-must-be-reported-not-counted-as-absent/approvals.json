@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1786929420,
+      "digest": "f10882edc3c5d0111ee9503a7fb977ef0fc60d47e546cfc7b007484735f81b8a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent",
+        "title": "An unreadable change workspace must be reported, not counted as absent",
+        "description": "an unreadable change workspace must be reported, not counted as absent",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change list and change status print every readable change, name each unreadable workspace with its reason including the offending path, and exit non-zero; a project with genuinely no active changes still prints the empty-project line and exits 0; JSON keeps its bare-array shape when every workspace is readable and becomes an object carrying changes plus unreadable when degraded, always one parseable document; ship and lifecycle commit resolution refuse to infer a target while any workspace is unreadable; sibling-active reporting counts unreadable workspaces as active; sandbox gate 055 goes pass=5 pending=2 to pass=7 pending=0 with all five controls still green; the whole board moves 43/12 to 44/11 with exactly one drill changing state."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

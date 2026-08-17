@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 135,
-  "id": "CHG-0135-register-20-integration-tests-that-never-compiled-and-guard-against-orphaned-tes",
+  "sequence": 136,
+  "id": "CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 23
+version: 24
 status: active
 files:
   - src/commands/change.rs
@@ -128,3 +128,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-10 | CHG-0103-address-pr-531-review-by-validating-correction-ledger-health-before-mutating-lif: Address PR 531 review by validating correction-ledger health before mutating lifecycle commands and incrementing the cmd_change contract version |
 | 2026-08-10 | CHG-0103: Delegate correction-ledger validation to locked change-domain mutations and render successful mutations from their validated transaction snapshots |
 | 2026-08-10 | CHG-0103: Select the normal/strict mutation summary captured under the domain transaction lock |
+| 2026-08-17 | CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent: An unreadable change workspace must be reported, not counted as absent |

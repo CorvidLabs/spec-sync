@@ -35,6 +35,13 @@
           "public_contract": "yes"
         }
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787001754,
+      "digest": "a53af658d59f7878774c63aa4085c5d3dfa1b731e30f215f01be20489b137c5a",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

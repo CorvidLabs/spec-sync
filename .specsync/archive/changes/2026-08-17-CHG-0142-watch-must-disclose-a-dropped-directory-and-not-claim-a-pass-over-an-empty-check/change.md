@@ -1,6 +1,6 @@
 ---
 id: CHG-0142-watch-must-disclose-a-dropped-directory-and-not-claim-a-pass-over-an-empty-check
-state: implementing
+state: archived
 type: bug_fix
 base_commit: a1efb828b13fb5cca37aa6aec65b6677b334da2c
 ---

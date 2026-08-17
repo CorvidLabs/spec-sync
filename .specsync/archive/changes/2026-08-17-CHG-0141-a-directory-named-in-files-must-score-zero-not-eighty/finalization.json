@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty",
+  "implementation_commit": "ba97c1df637b6521ddc4209dc54416094729956a",
+  "implementation_tree": "543c1f37bfe3b3b765f19d4a9ef18feec20e62c0",
+  "contract_digest": "2ee05364221468b6b8b9aa1122e5279483d73b0cd4aeb93399da3f13000d913a",
+  "workspace_digest": "92d09b488bf33fbcbb8931a1dc10191e7b1cc330cf260910059cb97176c55532",
+  "closing_digest": "8be758b31fe343392a4b829f47b4d1227ddea9034a2897dc843b6f43b2b80e66",
+  "review_digest": "15a7773b3bd6396270b64ba57f3babe810d8d46601a6544835e83f8d0a245fec",
+  "finalization_digest": "d990b1d29f910db90fc6fa90bfa07e4f813f3d5e740088081d1a8f6f0e80a145",
+  "timestamp": 1786995857
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty",
+  "slug": "a-directory-named-in-files-must-score-zero-not-eighty",
+  "title": "A directory named in files: must score zero, not eighty",
+  "description": "a directory named in files: must score zero, not eighty",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "adbfb442e6ea73d78f4d8d4dc830ad1077c7b961",
+  "created_at": 1786990765,
+  "updated_at": 1786995857,
+  "affected_specs": [
+    "exports",
+    "scoring",
+    "validator",
+    "cli_args",
+    "mcp",
+    "cmd_diff",
+    "cmd_score",
+    "cmd_issues",
+    "cmd_lifecycle"
+  ],
+  "affected_paths": [
+    "src/exports/mod.rs",
+    "src/scoring.rs",
+    "src/validator.rs",
+    "src/cli.rs",
+    "src/mcp.rs",
+    "src/commands/diff.rs",
+    "src/commands/score.rs",
+    "src/commands/issues.rs",
+    "src/commands/lifecycle.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a spec whose files: entry is a directory scores 0 with grade F and exits 1 under --strict, where it previously scored exactly 80 and passed; the message names the word directory rather than reporting missing or not UTF-8; check continues to hard-fail the same mapping unchanged, so score and check agree; a spec naming a real source file still scores 100 and exits 0, which is the vacuity control that stops a score-everything-zero fix from passing; the directory classification is made once in the export scan and consumed by validator, score, diff, issues, lifecycle and mcp, so a directory cannot be classified two ways across commands."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

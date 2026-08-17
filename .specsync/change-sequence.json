@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 140,
-  "id": "CHG-0140-a-stale-sequence-ledger-must-not-be-committed-backwards",
+  "sequence": 141,
+  "id": "CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty",
   "acknowledged_collisions": [
     {
       "sequence": 16,

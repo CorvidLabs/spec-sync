@@ -26,6 +26,9 @@ pub fn cmd_score(
 ) {
     let json = matches!(format, types::OutputFormat::Json);
     let machine_output = json || matches!(format, types::OutputFormat::Csv);
+    // Inclusive floor: `total < 80` fails, so 80 passes. A `files:` directory
+    // is scored 0 by `score_spec` (#573), so it fails this gate without making
+    // 80 exclusive or turning `score` into a second `check`.
     let minimum_score = match (min_score, strict) {
         (Some(value), true) => Some(value.max(80)),
         (Some(value), false) => Some(value),

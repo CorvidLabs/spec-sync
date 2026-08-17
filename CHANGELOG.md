@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A stale sequence ledger is no longer committed backwards** (CorvidLabs/spec-sync#533).
+  A branch created before the default branch advanced carries an older `change-sequence.json`.
+  `change check --commit` ran `git add -A` over it, so SpecSync's own materialize commit rewrote
+  the high-water mark downwards — no human `git add` involved. The next change then reused an
+  allocated number.
+
+  `floor_sequence_ledger_to_committed` reads HEAD's committed ledger before staging and raises the
+  working tree to it, merging `acknowledged_collisions` rather than discarding them, and returns
+  the before/after so the caller can disclose the raise on stderr — where it survives `--quiet` and
+  stays off a `--format json` payload. It refuses rather than guesses when the committed ledger is
+  unparseable. All three staging sites are covered: materialize, verification evidence, and archive.
+
+  `validate_change_sequences` gained the matching read-side gate: a ledger below the default
+  branch's recorded high-water mark is now an error naming the recovery command, so the divergence
+  is caught on read as well as prevented on write.
+
+  A change already at or ahead of the committed mark is untouched, so the repair cannot be
+  satisfied by raising every ledger.
+
+- **A directory named in `files:` scores zero, not eighty** (CorvidLabs/spec-sync#573).
+  The same spec scored `80/100 [B]` and exited 0 under `score --strict` while `check` on the
+  identical tree hard-failed. The 80 was not arbitrary: freshness awarded 15/15 because the path
+  existed — `is_dir()` was never asked — and the API dimension scored 0 because `read_to_string`
+  on a directory returns `Err`, which the scorer folded into "documents nothing yet". A spec that
+  could not be read at all was graded as one that was merely incomplete.
+
+  This is the release's defect class in the scoring path: a dimension empty for want of a readable
+  file, read as an absence of documented exports.
+
+  `ExportScan` gains a `Directory` variant, classified by a shared `files_entry_is_directory`
+  predicate *before* the read, so the decision is made once at the scan rather than re-derived at
+  each consumer. Six consumers handle it and the compiler enforces coverage. `score` remains a
+  metric rather than a hard failure — the spec totals 0 with grade F, below every strict and
+  minimum floor, so `--explain` and machine-readable output still render for the affected spec.
+  `check` is untouched; it was already correct.
+
+  A spec naming a real source file scores exactly as before, so the rule cannot be satisfied by
+  lowering scores generally.
+
 ### Changed
 
 - **20 integration tests that had never compiled now run** (CorvidLabs/spec-sync#585).

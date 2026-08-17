@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 15
+version: 16
 status: stable
 files:
   - src/exports/mod.rs
@@ -77,13 +77,14 @@ Language-aware export extraction from source files. Auto-detects the programming
 | `get_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `Vec<String>` | Extract exports with full control over granularity and parse mode (Regex or Ast); a read/parse failure or unsupported language yields an empty vector |
 | `scan_exported_symbols` | `file_path: &Path` | `ExportScan` | Like `get_exported_symbols` but returns an `ExportScan`, distinguishing a genuine empty result from an unreadable/unsupported file |
 | `scan_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `ExportScan` | Like `get_exported_symbols_full` but returns an `ExportScan` so gating callers (`diff`, `score`) can tell a failure from genuine emptiness |
+| `files_entry_is_directory` | `path: &Path` | `bool` | Whether a `files:` entry names a directory rather than a file. The single place that question is answered, asked *before* any read attempt so a directory is classified as its own outcome instead of surfacing as a failed read |
 | `describe` | `&self` | `String` | `ConflictedExtraction` method: one-line diagnostic naming both conflict-marker labels and a sample of the symbols each side contributed |
 
 ### Exported Types
 
 | Type | Description |
 |------|-------------|
-| `ExportScan` | Outcome of an extraction attempt: `Parsed(Vec<String>)` (recognized language, read + parsed — the vec may be empty, meaning genuinely no exports), `UnknownLanguage` (extension not a source language, e.g. a `.md`/`.sql` file — not a failure), `Unreadable` (missing / permission-denied / non-UTF-8 — exports unknown), or `Conflicted(ConflictedExtraction)` (an unresolved merge conflict whose two sides each contributed symbols, so the list is the union of two trees and describes source that does not exist). Lets gating callers avoid treating an unreadable or conflicted file as export-free. |
+| `ExportScan` | Outcome of an extraction attempt: `Parsed(Vec<String>)` (recognized language, read + parsed — the vec may be empty, meaning genuinely no exports), `UnknownLanguage` (extension not a source language, e.g. a `.md`/`.sql` file — not a failure), `Unreadable` (missing / permission-denied / non-UTF-8 — exports unknown), `Directory` (the path names a directory, so there is no file to read — distinct from `Unreadable`, which means a file that could not be read), or `Conflicted(ConflictedExtraction)` (an unresolved merge conflict whose two sides each contributed symbols, so the list is the union of two trees and describes source that does not exist). Lets gating callers avoid treating an unreadable or conflicted file as export-free. |
 | `ConflictedExtraction` | Evidence for `ExportScan::Conflicted` — `ours_label`/`theirs_label` from the hunk's markers and `ours_only`/`theirs_only`, the symbols that survive resolving to exactly one side. `describe()` renders a one-line account naming both sides and a sample of each side's symbols. |
 
 ### Exported Modules
@@ -382,6 +383,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 | 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
 | 2026-08-15 | CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve: Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is |
 | 2026-08-15 | CHG-0129-a-ruby-method-below-private-must-never-be-extracted-as-an-export-because-an-ass: A Ruby method below private must never be extracted as an export, because an assignment-form conditional desynced the visibility stack and published private methods as contract |
+| 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |
 
 ## CommonJS Extraction
 

@@ -76,12 +76,28 @@ pub enum ExportScan {
     /// The file could not be read — missing, permission-denied, or not valid UTF-8 —
     /// so its exports are unknown. A gate must not treat this as "no exports".
     Unreadable,
+    /// The `files:` path is a directory, not a source file. `read_to_string` on a
+    /// directory is an OS error, which used to collapse into `Unreadable` and let
+    /// `score` award freshness for a path `check` hard-rejects (#573). A gate must
+    /// not treat this as a missing file or as export-free.
+    Directory,
     /// The file carries an unresolved merge conflict and the extractor read
     /// declarations from BOTH sides of the same hunk, so the symbol list is the
     /// union of two alternative trees and describes source that does not exist.
     /// A gate must not compare a spec against this — it would pass a tree that
     /// cannot compile.
     Conflicted(ConflictedExtraction),
+}
+
+/// Shared `files:` directory predicate (#472 / #573).
+///
+/// `check` hard-errors when a mapping is a directory. `score`, `diff`, and the
+/// export scan must use this same test so a directory cannot be "an existing
+/// file" to one command and a hard error to another. Never infer "directory"
+/// from `read_to_string` failing — that is also how missing and non-UTF-8
+/// files fail, and collapsing them is what made `score` disagree with `check`.
+pub fn files_entry_is_directory(path: &Path) -> bool {
+    path.is_dir()
 }
 
 /// Evidence that extraction unioned both sides of a merge conflict.
@@ -149,6 +165,9 @@ pub fn scan_exported_symbols_full(
     level: ExportLevel,
     parse_mode: ParseMode,
 ) -> ExportScan {
+    if files_entry_is_directory(file_path) {
+        return ExportScan::Directory;
+    }
     let content = match std::fs::read_to_string(file_path) {
         Ok(content) => content,
         Err(_) => return ExportScan::Unreadable,
@@ -173,9 +192,10 @@ pub(super) fn get_exported_symbols_from_content(
 ) -> Vec<String> {
     match scan_exported_symbols_content_internal(file_path, content, level, parse_mode, false) {
         ExportScan::Parsed(symbols) => symbols,
-        ExportScan::UnknownLanguage | ExportScan::Unreadable | ExportScan::Conflicted(_) => {
-            Vec::new()
-        }
+        ExportScan::UnknownLanguage
+        | ExportScan::Unreadable
+        | ExportScan::Directory
+        | ExportScan::Conflicted(_) => Vec::new(),
     }
 }
 
@@ -438,9 +458,10 @@ pub fn get_exported_symbols_full(
 ) -> Vec<String> {
     match scan_exported_symbols_full(file_path, level, parse_mode) {
         ExportScan::Parsed(symbols) => symbols,
-        ExportScan::UnknownLanguage | ExportScan::Unreadable | ExportScan::Conflicted(_) => {
-            Vec::new()
-        }
+        ExportScan::UnknownLanguage
+        | ExportScan::Unreadable
+        | ExportScan::Directory
+        | ExportScan::Conflicted(_) => Vec::new(),
     }
 }
 
@@ -889,6 +910,19 @@ mod scan_tests {
         let mut f = std::fs::File::create(&bad).unwrap();
         f.write_all(b"export function x() {}\n\xff\xfe").unwrap();
         assert_eq!(scan_exported_symbols(&bad), ExportScan::Unreadable);
+    }
+
+    #[test]
+    fn directory_is_directory_not_unreadable() {
+        // #573: `read_to_string` on a directory is an OS error. Callers must
+        // not collapse that into Unreadable ("missing or not UTF-8") or they
+        // disagree with `check`, which hard-errors on a `files:` directory.
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(scan_exported_symbols(dir.path()), ExportScan::Directory);
+        assert!(super::files_entry_is_directory(dir.path()));
+        let file = dir.path().join("lib.rs");
+        std::fs::write(&file, "pub fn one() {}\n").unwrap();
+        assert!(!super::files_entry_is_directory(&file));
     }
 
     #[test]

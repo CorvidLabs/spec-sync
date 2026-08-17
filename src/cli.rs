@@ -103,7 +103,8 @@ pub enum Command {
         #[arg(long)]
         explain: bool,
         /// Fail when any selected spec scores below this threshold (0-100).
-        /// `--strict` implies 80 when this flag is omitted.
+        /// `--strict` implies 80 when this flag is omitted (inclusive: 80 passes).
+        /// A `files:` directory is scored 0, so it fails this floor (#573).
         #[arg(long, value_name = "N", value_parser = clap::value_parser!(u32).range(0..=100))]
         min_score: Option<u32>,
         /// Score all specs (default when no filters provided; enables batch summary stats)

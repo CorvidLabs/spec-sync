@@ -1,0 +1,36 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1786938188,
+      "digest": "13fe7433d870659088e1f65c4c2920846c94922d5e7995e42697ecd0b0ff5663",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0138-release-profile-test-barriers-must-not-fail-the-suite-they-cannot-synchronise",
+        "title": "Release-profile test barriers must not fail the suite they cannot synchronise",
+        "description": "release-profile test barriers must not fail the suite they cannot synchronise",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "tests/integration/commands.rs",
+          "tests/integration/mcp.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Test gating only. No module's public contract or spec text changes; the shipped binary is byte-identical and its guards are unconditional. tests/ is not owned by any spec module.",
+        "acceptance_criteria": [
+          "cargo test --release exits 0 with the six affected tests reported as ignored rather than absent, and cargo test in debug still exits 0 with all of them running; the counts reconcile exactly (368 run + 6 ignored = 374 in release, 374 + 0 ignored in debug), so the gating hit the intended set and nothing else; no assertion is weakened, removed, renamed or deleted; the shipped release binary is byte-identical, proven by git diff touching no src/ file; the guards remain unconditional and demonstrably fire in a release binary under a live symlink race; comments state honestly which guards lose release-runnable coverage rather than citing a substitute test that covers a different guard."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

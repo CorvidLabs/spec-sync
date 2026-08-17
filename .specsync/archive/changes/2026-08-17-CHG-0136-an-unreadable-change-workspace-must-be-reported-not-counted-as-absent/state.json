@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent",
+  "slug": "an-unreadable-change-workspace-must-be-reported-not-counted-as-absent",
+  "title": "An unreadable change workspace must be reported, not counted as absent",
+  "description": "an unreadable change workspace must be reported, not counted as absent",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "bb6b5ee9a8a4dbf5bf4e5c50762e0855b796e718",
+  "created_at": 1786929085,
+  "updated_at": 1786933413,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/commands/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change list and change status print every readable change, name each unreadable workspace with its reason including the offending path, and exit non-zero; a project with genuinely no active changes still prints the empty-project line and exits 0; JSON keeps its bare-array shape when every workspace is readable and becomes an object carrying changes plus unreadable when degraded, always one parseable document; ship and lifecycle commit resolution refuse to infer a target while any workspace is unreadable; sibling-active reporting counts unreadable workspaces as active; sandbox gate 055 goes pass=5 pending=2 to pass=7 pending=0 with all five controls still green; the whole board moves 43/12 to 44/11 with exactly one drill changing state."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

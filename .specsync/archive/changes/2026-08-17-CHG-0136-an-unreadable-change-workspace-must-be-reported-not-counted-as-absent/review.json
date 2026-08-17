@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "32531b91d545ed70c142d8b490b066833f44b889",
+  "contract_digest": "f10882edc3c5d0111ee9503a7fb977ef0fc60d47e546cfc7b007484735f81b8a",
+  "execution_digest": "31690f67771d7b1a7d6065464f24f88fb41d9b32e008bbd226b6b5771d191a11",
+  "workspace_digest": "cfce06d9c5b8cc6aea06d1263af00750a9107e190a137adfec1b22e538426780",
+  "timestamp": 1786933166
+}

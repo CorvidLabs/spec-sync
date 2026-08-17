@@ -1,6 +1,6 @@
 ---
 id: CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent
-state: implementing
+state: archived
 type: bug_fix
 base_commit: bb6b5ee9a8a4dbf5bf4e5c50762e0855b796e718
 ---

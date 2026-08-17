@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent",
+  "implementation_commit": "32531b91d545ed70c142d8b490b066833f44b889",
+  "implementation_tree": "93553aa26d7d8c03ee7fe8d9a1eadd1260852c2b",
+  "contract_digest": "f10882edc3c5d0111ee9503a7fb977ef0fc60d47e546cfc7b007484735f81b8a",
+  "workspace_digest": "cfce06d9c5b8cc6aea06d1263af00750a9107e190a137adfec1b22e538426780",
+  "closing_digest": "eaf153a1cebe69b155f2aef543a3d88f096ed0d6f9580cf5c795cb72c79b595b",
+  "review_digest": "c67ed351f05721e5b5dc790c4b6555692220a468c3617170aa40090e214fa4a2",
+  "finalization_digest": "37cb8db15fbf78f96d592b5b9718de08c7ba108f88562fc30978d72137827643",
+  "timestamp": 1786933174
+}

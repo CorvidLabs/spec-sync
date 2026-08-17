@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1786973026,
+      "digest": "96f75ae5624c0c3dc950593da0c9f0126877de5d00bc1985bee231ae21137b92",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives",
+        "title": "Declaring a module must never reduce the verification a change receives",
+        "description": "declaring a module must never reduce the verification a change receives",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "declaring an additional spec module never removes a verification command: the command set for a scope containing both a routed and an unrouted module is a superset of the set for either alone; a change scoped entirely to routed modules still runs only its component commands, so targeted verification survives; a change declaring no module at all still runs the project-wide list; the property is asserted as a superset relation rather than by example, so any future regression of this shape is caught; the new assertions fail on an unfixed binary built from a separate checkout with src/change.rs provably unmodified, and the vacuity control passes on both binaries."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786977714,
+      "digest": "b288c4e8ef4a28d6227bff2c0b9298bceacb5a122cb00e3b824f1065f4f9fbf6",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

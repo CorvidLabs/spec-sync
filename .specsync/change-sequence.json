@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 138,
-  "id": "CHG-0138-release-profile-test-barriers-must-not-fail-the-suite-they-cannot-synchronise",
+  "sequence": 139,
+  "id": "CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives",
   "acknowledged_collisions": [
     {
       "sequence": 16,

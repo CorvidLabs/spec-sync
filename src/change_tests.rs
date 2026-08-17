@@ -9704,6 +9704,92 @@ fn verification_routing_fails_closed_without_any_validator() {
     assert!(error.contains("no verification commands"));
 }
 
+/// Write a routing config with one routed module, and return a policy whose
+/// project-wide list is distinguishable from it.
+fn routed_policy_fixture(root: &Path) -> SddPolicy {
+    let policy = SddPolicy {
+        verification_commands: vec!["project-wide".into()],
+        ..SddPolicy::default()
+    };
+    // Serialize the real policy and inject the routing key, rather than writing
+    // JSON by hand: `component_verification_commands` is a top-level sibling of
+    // the policy fields, read by a second deserialization, and a hand-written
+    // object omits everything else `SddPolicy` requires.
+    let mut document = serde_json::to_value(&policy).unwrap();
+    document.as_object_mut().unwrap().insert(
+        "component_verification_commands".into(),
+        serde_json::json!({ "routed": ["component-routed"] }),
+    );
+    if let Some(parent) = root.join(POLICY_PATH).parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(
+        root.join(POLICY_PATH),
+        serde_json::to_string_pretty(&document).unwrap(),
+    )
+    .unwrap();
+    policy
+}
+
+/// Declaring an additional module must never remove verification (#617).
+///
+/// The old rule was `if commands.is_empty()` over the whole change: one routed
+/// module made the list non-empty, which suppressed the project-wide commands
+/// for every module in that scope, routed or not. So naming a second, unrouted
+/// module *reduced* what ran — the SDD lifecycle punishing an author for
+/// declaring scope accurately.
+#[test]
+fn declaring_an_unrouted_module_never_reduces_verification() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let policy = routed_policy_fixture(root);
+    let mut record = completed_no_spec_record(root);
+    record.affected_paths.clear();
+
+    // Baseline: an unrouted module alone gets the project-wide list.
+    record.affected_specs = vec!["unrouted".into()];
+    let unrouted_only = verification_commands_for_change(root, &policy, &record, false).unwrap();
+    assert!(unrouted_only.contains(&"project-wide".to_string()));
+
+    // Baseline: a routed module alone gets its component command. This is the
+    // targeted-verification feature and stays intact.
+    record.affected_specs = vec!["routed".into()];
+    let routed_only = verification_commands_for_change(root, &policy, &record, false).unwrap();
+    assert!(routed_only.contains(&"component-routed".to_string()));
+
+    // The property: adding a module is monotonic. The union of the two scopes
+    // must be a superset of each, never a subset of either.
+    record.affected_specs = vec!["routed".into(), "unrouted".into()];
+    let both = verification_commands_for_change(root, &policy, &record, false).unwrap();
+    for command in unrouted_only.iter().chain(routed_only.iter()) {
+        assert!(
+            both.contains(command),
+            "declaring both modules dropped `{command}`; got {both:?}"
+        );
+    }
+}
+
+/// The targeted-verification feature must survive the fix (#617).
+///
+/// Without this, "always run the project-wide list" passes the monotonicity
+/// test above while deleting the optimisation the routing exists for.
+#[test]
+fn a_fully_routed_change_still_runs_only_its_component_commands() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let policy = routed_policy_fixture(root);
+    let mut record = completed_no_spec_record(root);
+    record.affected_paths.clear();
+    record.affected_specs = vec!["routed".into()];
+
+    let commands = verification_commands_for_change(root, &policy, &record, false).unwrap();
+    assert_eq!(commands, vec!["component-routed".to_string()]);
+    assert!(
+        !commands.contains(&"project-wide".to_string()),
+        "a fully routed change must not fall back to the project list: {commands:?}"
+    );
+}
+
 #[test]
 fn broad_scope_overlap_triggers_strict_validation() {
     let temp = TempDir::new().unwrap();

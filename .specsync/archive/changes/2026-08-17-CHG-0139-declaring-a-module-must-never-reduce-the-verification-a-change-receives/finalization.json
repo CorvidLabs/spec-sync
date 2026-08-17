@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives",
+  "implementation_commit": "633606ee9aaa8c3a20545eb5b4c609a97f6ecaee",
+  "implementation_tree": "a11c0fb691e578e2f6e4d92be5001c0989a2b3b8",
+  "contract_digest": "96f75ae5624c0c3dc950593da0c9f0126877de5d00bc1985bee231ae21137b92",
+  "workspace_digest": "c7e18006b156f9133476ad3d583f91bb81e1f7d1fffbc1c01ce50f7882f41e2a",
+  "closing_digest": "b288c4e8ef4a28d6227bff2c0b9298bceacb5a122cb00e3b824f1065f4f9fbf6",
+  "review_digest": "77a4d9861b77da0d5e0384013bd918642a58caf0a53323593132141fef870300",
+  "finalization_digest": "316d3e2b4b0a46481b1bbf374825b28c5485f6b1b284e0cd49312525ba90a26c",
+  "timestamp": 1786977714
+}

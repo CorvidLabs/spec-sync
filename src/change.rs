@@ -2740,12 +2740,20 @@ fn verification_commands_for_change(
 ) -> Result<Vec<String>, String> {
     let routing = load_verification_routing(root)?;
     let mut commands = Vec::new();
+    // A declared module with no component entry is not a module that needs no
+    // verification — it is a module nobody routed. Tracking those separately is
+    // what keeps this monotonic: previously any single routed module made
+    // `commands` non-empty, which suppressed the project-wide list for the whole
+    // change, so `--spec routed --spec unrouted` verified LESS than `--spec
+    // unrouted` alone. Declaring scope honestly must never cost coverage.
+    let mut unrouted_modules = Vec::new();
     for module in &record.affected_specs {
-        if let Some(component) = routing.component_verification_commands.get(module) {
-            commands.extend(component.iter().cloned());
+        match routing.component_verification_commands.get(module) {
+            Some(component) => commands.extend(component.iter().cloned()),
+            None => unrouted_modules.push(module.as_str()),
         }
     }
-    if commands.is_empty() {
+    if commands.is_empty() || !unrouted_modules.is_empty() {
         commands.extend(policy.verification_commands.iter().cloned());
     }
     let strict_required = explicit_strict || change_requires_strict_validation(record, &routing);

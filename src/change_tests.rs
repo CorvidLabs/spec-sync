@@ -6459,6 +6459,103 @@ fn validate_artifacts_rejects_hash_todo_body() {
     );
 }
 
+/// Build a repo whose committed ledger is `committed` and whose working tree
+/// ledger is `working`, which is the divergence #533 commits backwards.
+fn ledger_divergence_fixture(root: &Path, committed: u64, working: u64) {
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    let write = |sequence: u64| {
+        fs::write(
+            root.join(SEQUENCE_PATH),
+            serde_json::to_string_pretty(&ChangeSequenceLedger {
+                schema_version: 1,
+                sequence,
+                id: format!("CHG-{sequence:04}-fixture"),
+                acknowledged_collisions: Vec::new(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+    };
+    write(committed);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "committed high-water mark"]);
+    write(working);
+}
+
+/// A ledger that went stale while the branch sat must not be committed backwards
+/// (#533).
+///
+/// `change new` writes the ledger into the working tree only. Nothing commits it
+/// until a later lifecycle step runs `git add -A`, so a value written days
+/// earlier — correct when written — is staged over a higher mark the branch has
+/// since caught up to. The allocation-time floor cannot help: the value did not
+/// start wrong, it went stale.
+#[test]
+fn a_stale_sequence_ledger_is_raised_to_the_committed_mark_before_staging() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    ledger_divergence_fixture(root, 3, 1);
+
+    let raised = floor_sequence_ledger_to_committed(root).unwrap();
+    assert_eq!(
+        raised,
+        Some((1, 3)),
+        "the caller must be told what was raised and from where, so it can disclose it"
+    );
+    let now = load_change_sequence_ledger(root).unwrap().unwrap();
+    assert_eq!(now.sequence, 3, "the high-water mark must not regress");
+    assert_eq!(now.id, "CHG-0003-fixture");
+}
+
+/// The control that keeps the fix from becoming "always overwrite the ledger".
+///
+/// A working tree ahead of the committed mark is the ordinary case — that is
+/// exactly what `change new` produces — and raising it would destroy the claim
+/// the author just made. Without this, a fix that unconditionally restored the
+/// committed value would pass the test above.
+#[test]
+fn a_sequence_ledger_ahead_of_the_committed_mark_is_left_alone() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    ledger_divergence_fixture(root, 3, 7);
+
+    assert_eq!(
+        floor_sequence_ledger_to_committed(root).unwrap(),
+        None,
+        "nothing was raised, so nothing may be reported"
+    );
+    let now = load_change_sequence_ledger(root).unwrap().unwrap();
+    assert_eq!(now.sequence, 7, "the author's newer claim must survive");
+    assert_eq!(now.id, "CHG-0007-fixture");
+}
+
+/// Equal marks are not a divergence and must not be reported as one.
+#[test]
+fn a_sequence_ledger_equal_to_the_committed_mark_is_not_reported() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    ledger_divergence_fixture(root, 5, 5);
+    assert_eq!(floor_sequence_ledger_to_committed(root).unwrap(), None);
+    assert_eq!(
+        load_change_sequence_ledger(root).unwrap().unwrap().sequence,
+        5
+    );
+}
+
 #[test]
 fn maximum_observed_sequence_floors_on_remote_ledger() {
     let temp = TempDir::new().unwrap();

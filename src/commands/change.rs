@@ -2338,6 +2338,19 @@ fn run_git(root: &std::path::Path, args: &[&str]) -> Result<(), String> {
 /// Stage everything and commit, treating "nothing to commit" as success so the
 /// sequence stays idempotent when a pass produced no change.
 fn git_commit_all(root: &std::path::Path, message: &str) -> Result<(), String> {
+    // Every lifecycle commit stages `-A`, so every one of them can commit a
+    // sequence ledger that went stale while the branch sat. Flooring here rather
+    // than at the single call site named in the report covers all three, which is
+    // the difference between fixing this and fixing where it was noticed.
+    // Reported on stderr rather than through the caller's `say`: this is a state
+    // correction, not progress chatter, so it must survive `--quiet`, and it must
+    // stay off stdout where a `--format json` payload is being written.
+    if let Some((was, now)) = change::floor_sequence_ledger_to_committed(root)? {
+        eprintln!(
+            "note: raised the change sequence ledger from {was} to the committed {now} before staging; \
+             a ledger written before the branch caught up would have committed a lower high-water mark"
+        );
+    }
     run_git(root, &["add", "-A"])?;
     let status = std::process::Command::new("git")
         .args(["diff", "--cached", "--quiet"])

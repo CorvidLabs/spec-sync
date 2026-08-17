@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 24
+version: 25
 status: active
 files:
   - src/commands/change.rs
@@ -129,3 +129,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-10 | CHG-0103: Delegate correction-ledger validation to locked change-domain mutations and render successful mutations from their validated transaction snapshots |
 | 2026-08-10 | CHG-0103: Select the normal/strict mutation summary captured under the domain transaction lock |
 | 2026-08-17 | CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent: An unreadable change workspace must be reported, not counted as absent |
+| 2026-08-17 | CHG-0140-a-stale-sequence-ledger-must-not-be-committed-backwards: A stale sequence ledger must not be committed backwards |

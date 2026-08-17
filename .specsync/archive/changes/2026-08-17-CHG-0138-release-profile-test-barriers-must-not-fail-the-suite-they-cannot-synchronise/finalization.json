@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0138-release-profile-test-barriers-must-not-fail-the-suite-they-cannot-synchronise",
+  "implementation_commit": "6f052780033092d7bc9309520c26789c93621b68",
+  "implementation_tree": "24d323ca83a36a8f56278c6a2fa5d4cd23bcc2fa",
+  "contract_digest": "13fe7433d870659088e1f65c4c2920846c94922d5e7995e42697ecd0b0ff5663",
+  "workspace_digest": "61f140ca4e44bb820ed56b40a3d37a0195f24218ab6239d20d9f616dc133c87c",
+  "closing_digest": "5d3d4d08f0984d7742edd8d33c06ad5fa11755d6f149633bf009133ee9e8058a",
+  "review_digest": "0724ed38caf31531f2dabb8add92f81bfd70571ae6524191aaee7ff1ed9d1ecf",
+  "finalization_digest": "b20131417ce538c3afdfff87d805cbe1893bccc84181023b37af50f9a4295304",
+  "timestamp": 1786939945
+}

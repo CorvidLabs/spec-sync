@@ -1582,8 +1582,27 @@ fn gradle_symlink_module_escape_is_inconclusive_for_coverage_gating_commands() {
     );
 }
 
+// Drives the product's coverage-snapshot rendezvous (`coverage_snapshot_test_barrier`),
+// which is `#[cfg(debug_assertions)]`: a release build never publishes the marker, so the
+// swap cannot be landed inside the window and the child exits first. Only the rendezvous
+// is debug-only — the guard it synchronises (`verify_coverage_project_root`, validator.rs)
+// is compiled unconditionally and is present in the shipped binary.
+//
+// That guard has NO release-runnable test. It is reached only from validator.rs:275 and
+// :5440, and no unit test's path covers either call site. Do not mistake
+// `validator::tests::retained_coverage_snapshot_rejects_post_discovery_symlink_replacement`
+// for substitute coverage: it asserts "symlink or reparse point", which is the
+// source-directory symlink refusal, a different guard. Nor
+// `retained_coverage_sources_reject_regular_directory_replacement_after_selection`: it does
+// assert "changed during retained traversal", but reaches it through
+// `snapshot_selected_coverage_sources_with_hook`, so the string comes from the
+// source-directory identity checks, never from `verify_coverage_project_root`.
 #[cfg(unix)]
 #[test]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "coverage-snapshot rendezvous is #[cfg(debug_assertions)]"
+)]
 fn gradle_post_discovery_symlink_swap_is_inconclusive_for_every_coverage_gate() {
     use std::os::unix::fs::symlink;
     use std::process::Stdio;
@@ -1867,8 +1886,20 @@ fn assert_generate_post_coverage_root_retarget_is_inconclusive<CreateAlias, Reta
     }
 }
 
+// Drives the product's post-coverage rendezvous (`generate_after_coverage_test_barrier`),
+// which is `#[cfg(debug_assertions)]`. Only the rendezvous is debug-only — the guard it
+// synchronises (`RetainedGenerateRoot::verify_public_path`) is compiled unconditionally
+// and is present in the shipped binary.
+//
+// That guard has no release-runnable test, and no unit coverage in ANY profile:
+// src/commands/generate.rs has no `mod tests` at all. This test and its Windows sibling
+// are its only coverage, so in release it has none.
 #[cfg(unix)]
 #[test]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "generate post-coverage rendezvous is #[cfg(debug_assertions)]"
+)]
 fn generate_post_coverage_symlink_root_retarget_is_inconclusive_before_writes() {
     use std::os::unix::fs::symlink;
 
@@ -1881,8 +1912,16 @@ fn generate_post_coverage_symlink_root_retarget_is_inconclusive_before_writes() 
     );
 }
 
+// Same debug-only rendezvous as the symlink variant above, so it carries the same gate.
+// This test does run on Windows during RC qualification (release.yml `qualify` →
+// `fledge lanes run release-candidate` → `cargo test`, a debug build), where the gate is a
+// no-op. It would fail only under `cargo test --release` on Windows, which nothing runs.
 #[cfg(windows)]
 #[test]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "generate post-coverage rendezvous is #[cfg(debug_assertions)]"
+)]
 fn generate_post_coverage_junction_root_retarget_is_inconclusive_before_writes() {
     assert_generate_post_coverage_root_retarget_is_inconclusive(
         create_windows_junction,
@@ -1972,8 +2011,15 @@ fn gradle_junction_module_escape_is_inconclusive_for_coverage_gating_commands() 
     );
 }
 
+// Same debug-only coverage-snapshot rendezvous as the symlink variant above, so it carries
+// the same gate. Like the junction variant above, it does run on Windows during RC
+// qualification (a debug build), where the gate is a no-op.
 #[cfg(windows)]
 #[test]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "coverage-snapshot rendezvous is #[cfg(debug_assertions)]"
+)]
 fn gradle_post_discovery_junction_swap_is_inconclusive_for_every_coverage_gate() {
     use std::process::Stdio;
     use std::thread;

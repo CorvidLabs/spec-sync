@@ -638,8 +638,21 @@ fn mcp_read_roots_allow_existing_children_and_reject_escapes() {
     assert_eq!(fs::read(victim).unwrap(), victim_bytes);
 }
 
+// Drives the product's read-root rendezvous (`wait_for_mcp_read_root_revalidation_test_barrier`),
+// which is `#[cfg(debug_assertions)]`. Only the rendezvous is debug-only — the guard it
+// synchronises (`ConfinedReadRoot::revalidate_before_success`) is compiled unconditionally
+// and is present in the shipped binary.
+//
+// That guard has no release-runnable test; this test is its only coverage. Note the
+// rendezvous sits inside `revalidate_before_success`, which runs on every read-success
+// path — compiling it unconditionally would mean a repeated 30s stall per operation, not
+// a one-shot one.
 #[cfg(any(unix, windows))]
 #[test]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "MCP read-root rendezvous is #[cfg(debug_assertions)]"
+)]
 fn mcp_read_root_route_rejects_or_os_blocks_link_replacement_before_success() {
     use std::io::Write;
     use std::process::{Command, Stdio};
@@ -1515,8 +1528,17 @@ fn mcp_tools_and_resources_reject_generic_fifo_and_socket_sources_without_blocki
     }
 }
 
+// Drives the product's snapshot-file rendezvous (`wait_for_mcp_snapshot_file_test_barrier`),
+// which is `#[cfg(debug_assertions)]`. Only the rendezvous is debug-only — the guard it
+// synchronises is compiled unconditionally, and
+// `mcp::tests::generic_snapshot_reader_rejects_fifo_symlink_and_regular_replacements`
+// covers that same guard in-process (via a `#[cfg(test)]` hook) under `--release`.
 #[cfg(unix)]
 #[test]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "MCP snapshot-file rendezvous is #[cfg(debug_assertions)]"
+)]
 fn mcp_tool_and_resource_snapshot_races_reject_fifo_symlink_and_regular_replacements() {
     use std::io::Write;
     use std::os::unix::fs::symlink;
@@ -1670,8 +1692,17 @@ fn mcp_tool_and_resource_snapshot_races_reject_fifo_symlink_and_regular_replacem
     }
 }
 
+// Drives the product's snapshot-directory rendezvous (`wait_for_mcp_snapshot_directory_test_barrier`),
+// which is `#[cfg(debug_assertions)]`. Only the rendezvous is debug-only — the guard it
+// synchronises is compiled unconditionally, and
+// `mcp::tests::snapshot_rejects_directory_replacement_after_enumeration_before_recursion`
+// covers that same guard in-process (via a `#[cfg(test)]` hook) under `--release`.
 #[cfg(unix)]
 #[test]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "MCP snapshot-directory rendezvous is #[cfg(debug_assertions)]"
+)]
 fn mcp_tool_and_resource_reject_directory_replacement_after_enumeration() {
     use std::io::Write;
     use std::process::{Command, Stdio};
@@ -3783,8 +3814,23 @@ fn mcp_rejects_a_nonexistent_server_root() {
     assert!(!missing.exists());
 }
 
-#[cfg(all(unix, debug_assertions))]
+// Drives the product's startup rendezvous (`wait_for_mcp_startup_test_barrier`), which is
+// `#[cfg(debug_assertions)]`. Only the rendezvous is debug-only — the guard it synchronises
+// (the identity comparison in `open_server_root_capability`) is compiled unconditionally.
+//
+// This guard does keep release coverage:
+// `mcp::tests::server_root_capability_rejects_a_root_replaced_before_canonicalization`
+// (src/mcp.rs) calls `open_server_root_capability` with a swap closure at the same seam the
+// rendezvous occupies, and is gated only on `unix`, so it runs under `--release`.
+//
+// Gated with `ignore` rather than `cfg` so the test stays compiled — and therefore
+// type-checked — in release builds, and stays visible in the run output.
+#[cfg(unix)]
 #[test]
+#[cfg_attr(
+    not(debug_assertions),
+    ignore = "MCP startup rendezvous is #[cfg(debug_assertions)]"
+)]
 fn mcp_real_cli_rejects_requested_root_replacement_after_identity_binding() {
     use std::io::Write;
     use std::os::unix::fs::symlink;

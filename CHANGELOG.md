@@ -176,6 +176,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every workspace is readable. A degraded roster is reported as an object carrying
   `changes` and `unreadable`, because an array cannot say "and there were three I
   could not read".
+- **`cargo test --release` is green again** (CorvidLabs/spec-sync#581). On a clean `main` it exited
+  101 with five integration failures — `generate exited before the post-coverage barrier`, `tool
+  exited before the directory-enumeration barrier` — which read as real TOCTOU regressions in the
+  root-identity guards and were not. `cargo test` passed, so anyone who ran the release profile
+  before shipping saw five failures nobody else could reproduce.
+
+  Each of those tests spawns the real binary, waits for it to publish a marker at a synchronisation
+  point, swaps a path underneath it, then asserts the command refuses to report a result. Those
+  synchronisation points are `#[cfg(debug_assertions)]` and compile to `Ok(())` in release, so the
+  marker never appears, the child runs to completion, and the test polls for a file that will never
+  exist.
+
+  **The shipped binary was never weaker.** Every `#[cfg(debug_assertions)]` item in `src/` is a test
+  *rendezvous*, not a guard. The guards they synchronise — `verify_public_path`,
+  `verify_coverage_project_root`, `ConfinedReadRoot::revalidate_before_success`, and the identity
+  comparison in `open_server_root_capability` — are compiled unconditionally. A release binary put
+  under a live symlink race still refuses, with `Coverage project root … changed during retained
+  traversal` and exit 1. Compiling the rendezvous into release instead would have shipped an
+  env-var-triggered wait loop of up to 30 seconds — and on `revalidate_before_success` that is
+  *every* read-success path, not one — plus a file write at a caller-named path. So the seven
+  affected tests (five on Unix, two Windows-only carrying the identical defect) are gated with
+  `cfg_attr(not(debug_assertions), ignore)`, which keeps them compiled and type-checked in release
+  and **visible in the run output** rather than silently absent, as a bare `cfg` would leave them.
+
+  **Release-profile coverage is lost for three guards, stated plainly.**
+  `verify_coverage_project_root`, `verify_public_path` and `revalidate_before_success` now have no
+  release-runnable test; `verify_public_path` has no unit coverage in *any* profile, because
+  `src/commands/generate.rs` has no `mod tests` at all. The other three keep release coverage
+  through in-process `#[cfg(test)]` seams that do run under `--release`. And **no pipeline runs
+  `cargo test --release` today** — `ci.yml` runs `cargo test --verbose`, the RC lane runs
+  `cargo test`, both debug builds — so nothing caught this and nothing will catch its return.
 
 - **A warm hash cache no longer drops findings** (CorvidLabs/spec-sync#429). The same command over
   the same tree disagreed with itself depending on run history: the first run reported

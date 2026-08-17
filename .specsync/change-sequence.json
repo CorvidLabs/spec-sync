@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 137,
-  "id": "CHG-0137-coverage-must-not-invent-a-module-over-files-that-are-all-mapped",
+  "sequence": 138,
+  "id": "CHG-0138-release-profile-test-barriers-must-not-fail-the-suite-they-cannot-synchronise",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "633606ee9aaa8c3a20545eb5b4c609a97f6ecaee",
+  "contract_digest": "96f75ae5624c0c3dc950593da0c9f0126877de5d00bc1985bee231ae21137b92",
+  "execution_digest": "e1e0b9657511a6b39dedb89261c76f390fa65a44c46d1f72f3448687aeb09742",
+  "workspace_digest": "c7e18006b156f9133476ad3d583f91bb81e1f7d1fffbc1c01ce50f7882f41e2a",
+  "timestamp": 1786977706
+}

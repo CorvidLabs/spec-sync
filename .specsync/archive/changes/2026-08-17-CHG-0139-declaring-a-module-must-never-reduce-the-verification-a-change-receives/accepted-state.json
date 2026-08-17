@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives",
+  "slug": "declaring-a-module-must-never-reduce-the-verification-a-change-receives",
+  "title": "Declaring a module must never reduce the verification a change receives",
+  "description": "declaring a module must never reduce the verification a change receives",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "998df28e9ed932ffc78ef53f3a8481f150b6b3ed",
+  "created_at": 1786971823,
+  "updated_at": 1786977714,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "declaring an additional spec module never removes a verification command: the command set for a scope containing both a routed and an unrouted module is a superset of the set for either alone; a change scoped entirely to routed modules still runs only its component commands, so targeted verification survives; a change declaring no module at all still runs the project-wide list; the property is asserted as a superset relation rather than by example, so any future regression of this shape is caught; the new assertions fail on an unfixed binary built from a separate checkout with src/change.rs provably unmodified, and the vacuity control passes on both binaries."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

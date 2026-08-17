@@ -1,6 +1,6 @@
 ---
 id: CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 998df28e9ed932ffc78ef53f3a8481f150b6b3ed
 ---

@@ -7,11 +7,11 @@
   "title": "Declaring a module must never reduce the verification a change receives",
   "description": "declaring a module must never reduce the verification a change receives",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "998df28e9ed932ffc78ef53f3a8481f150b6b3ed",
   "created_at": 1786971823,
-  "updated_at": 1786977703,
+  "updated_at": 1786977964,
   "affected_specs": [
     "change"
   ],

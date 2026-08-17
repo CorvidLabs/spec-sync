@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0140-a-stale-sequence-ledger-must-not-be-committed-backwards",
+  "implementation_commit": "142f3d68cc85c79ec5172cf07033966016b040ce",
+  "implementation_tree": "3d79ea38df9fb0a37c061651ed8ce59d8de791f9",
+  "contract_digest": "4f89e812c2b4ddbc061cf1a4b215c533e99c9db23c60a2656f48a3a87a2174f5",
+  "workspace_digest": "dc7a58a513fa499010b37fa4393000d63f8d7d269e5054082cd08f59b9f9f98d",
+  "closing_digest": "c45fb5d8f7cf78ada958942e08655491f8856b711ed8f4598f8ed2815df52ce6",
+  "review_digest": "7634bd9601c5660b01761e04205a788071c6ba7a5de994ea650ce59aacf281d7",
+  "finalization_digest": "e96955b385a2dddfea1bda22f4e14c6680374a0c1eb8a5ce29ca4dcabfccc41c",
+  "timestamp": 1786989767
+}

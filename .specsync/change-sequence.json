@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 139,
-  "id": "CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives",
+  "sequence": 140,
+  "id": "CHG-0140-a-stale-sequence-ledger-must-not-be-committed-backwards",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1717,6 +1717,65 @@ fn load_change_sequence_ledger(root: &Path) -> Result<Option<ChangeSequenceLedge
     Ok(Some(ledger))
 }
 
+/// Raise the working-tree sequence ledger to the committed high-water mark, and
+/// report whether it had to.
+///
+/// The ledger records the highest change sequence ever claimed. `change new`
+/// writes it into the working tree only, and nothing commits it until a later
+/// lifecycle step runs `git add -A`. So a ledger written days earlier, while the
+/// shared branch has advanced past it, is staged as a *regression* — the commit
+/// records a lower high-water mark than the one it was built on, and the next
+/// allocation can hand out an ID that is already taken.
+///
+/// The floor at allocation time (`maximum_observed_sequence`) does not help
+/// here: the value was correct when it was written. It went stale afterwards.
+///
+/// Raising rather than refusing is deliberate. The author did nothing wrong —
+/// their branch simply sat while `main` moved — so blocking the commit would
+/// punish the wrong person for a race they cannot see. Returning the old value
+/// lets the caller say so, because silently rewriting lifecycle state is how
+/// this class of bug survives unnoticed in the first place.
+pub fn floor_sequence_ledger_to_committed(root: &Path) -> Result<Option<(u64, u64)>, String> {
+    let Some(local) = load_change_sequence_ledger(root)? else {
+        return Ok(None);
+    };
+    let Ok(tracked) = git_repo_relative_path(root, SEQUENCE_PATH) else {
+        return Ok(None);
+    };
+    let Some(committed) = git_output(root, &["show", &format!("HEAD:{tracked}")]) else {
+        return Ok(None);
+    };
+    let committed: ChangeSequenceLedger = match serde_json::from_str(&committed) {
+        Ok(ledger) => ledger,
+        // A committed ledger we cannot parse is not evidence of a higher mark.
+        // Leave it to the readers that already validate it and report properly.
+        Err(_) => return Ok(None),
+    };
+    if committed.sequence <= local.sequence {
+        return Ok(None);
+    }
+    let mut collisions = committed.acknowledged_collisions;
+    for collision in local.acknowledged_collisions {
+        if !collisions
+            .iter()
+            .any(|known| known.sequence == collision.sequence)
+        {
+            collisions.push(collision);
+        }
+    }
+    collisions.sort_by_key(|collision| collision.sequence);
+    write_json(
+        &root.join(SEQUENCE_PATH),
+        &ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: committed.sequence,
+            id: committed.id,
+            acknowledged_collisions: collisions,
+        },
+    )?;
+    Ok(Some((local.sequence, committed.sequence)))
+}
+
 fn update_change_sequence_claim(root: &Path, id: &str) -> Result<(), String> {
     let sequence = change_sequence(id).ok_or_else(|| format!("invalid change ID `{id}`"))?;
     let acknowledged_collisions = load_change_sequence_ledger(root)?
@@ -1984,6 +2043,23 @@ fn validate_change_sequences(root: &Path) -> Result<(), String> {
         if maximum > ledger.sequence {
             return Err(format!(
                 "change sequence ledger claims CHG-{:04} but the highest recorded sequence is CHG-{maximum:04}",
+                ledger.sequence
+            ));
+        }
+        // Nor may the ledger fall behind the mark the default branch has already
+        // published. `maximum` above is what is ON DISK, so a ledger regressed
+        // below a remote high-water passes that check whenever the higher-numbered
+        // workspaces are simply absent — which is the ordinary state of a fresh
+        // clone or a branch that has not fetched them. #523 floors allocation
+        // against this same source; nothing floored validation, so a regressed
+        // ledger could be audited clean and merged, and the next allocation would
+        // remint an ordinal the default branch had already used.
+        if let Some(remote) = remote_sequence_high_water(root)
+            && remote > ledger.sequence
+        {
+            return Err(format!(
+                "change sequence ledger claims CHG-{:04} but the default branch has already recorded CHG-{remote:04}; \
+restore it with `git checkout origin/HEAD -- {SEQUENCE_PATH}` before continuing",
                 ledger.sequence
             ));
         }

@@ -4,7 +4,6 @@
 //! #425 (coverage), #430 (report), #431 (diff), #441 (score), #444 (resolve local).
 
 use crate::helpers::*;
-use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
@@ -125,10 +124,29 @@ fn coverage_json_includes_missing_files() {
 
 // ─── #430: report honors --require-coverage ──────────────────────────────
 
+/// A 100%-covered project in a git repo with one commit.
+///
+/// The git repo is load-bearing (#607). `report` exits 1 whenever staleness is
+/// unmeasurable, and a bare `TempDir` is not a git repo, so an un-gitted fixture
+/// exits 1 for *every* `--require-coverage` value — including `0`. Under that
+/// fixture `report_require_coverage_above_actual_exits_1` passed while proving
+/// nothing: it would have passed with `--require-coverage` deleted outright.
+///
+/// Committing the fixture stops the staleness exit from shadowing the coverage
+/// gate, so these two tests once again measure the flag. The shadowing itself is
+/// a real product defect and is tracked separately as #605 — this fixture only
+/// stops the tests being blind to it, it does not fix or hide it.
+fn report_project(tmp: &TempDir) -> std::path::PathBuf {
+    let root = setup_minimal_project(tmp);
+    git_init(&root);
+    git_commit_all(&root, "initial");
+    root
+}
+
 #[test]
 fn report_require_coverage_above_actual_exits_1() {
     let tmp = TempDir::new().unwrap();
-    let root = setup_minimal_project(&tmp);
+    let root = report_project(&tmp);
 
     specsync()
         .args(["report", "--require-coverage", "101", "--root"])
@@ -140,7 +158,7 @@ fn report_require_coverage_above_actual_exits_1() {
 #[test]
 fn report_require_coverage_at_actual_exits_0() {
     let tmp = TempDir::new().unwrap();
-    let root = setup_minimal_project(&tmp);
+    let root = report_project(&tmp);
 
     specsync()
         .args(["report", "--require-coverage", "100", "--root"])
@@ -186,8 +204,9 @@ fn deps_scalar_depends_on_is_not_silently_dropped() {
     assert!(!output.status.success(), "missing dep must fail deps");
 }
 
-#[test]
-fn deps_duplicate_depends_on_entries_deduped() {
+/// Run `deps` against a project whose `auth` spec repeats `nonexistent-module`
+/// `repeats` times, returning combined stdout+stderr.
+fn deps_output_with_repeated_dep(repeats: usize) -> String {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     write_config(root, "specs", &["src"]);
@@ -198,10 +217,9 @@ fn deps_duplicate_depends_on_entries_deduped() {
     )
     .unwrap();
     fs::create_dir_all(root.join("specs/auth")).unwrap();
-    let spec = valid_spec("auth", &["src/auth/service.ts"]).replace(
-        "depends_on: []",
-        "depends_on:\n  - nonexistent-module\n  - nonexistent-module",
-    );
+    let entries: String = "  - nonexistent-module\n".repeat(repeats);
+    let spec = valid_spec("auth", &["src/auth/service.ts"])
+        .replace("depends_on: []", &format!("depends_on:\n{entries}"));
     fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
 
     let output = specsync()
@@ -209,15 +227,57 @@ fn deps_duplicate_depends_on_entries_deduped() {
         .arg(root)
         .output()
         .unwrap();
-    let combined = format!(
+    format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
-    );
-    let occurrences = combined.matches("nonexistent-module").count();
+    )
+}
+
+#[test]
+fn deps_duplicate_depends_on_entries_deduped() {
+    // The real dedupe signal is the edge count in the printed graph summary: N
+    // repeated `depends_on` entries must collapse to a single edge.
+    //
+    // The original assertion here counted occurrences of the module *name* in
+    // the output and required exactly 1. That never encoded a satisfiable claim
+    // — a correct, fully-deduping implementation still prints the name twice
+    // (see the #606 pin below), so it would have failed even with a single
+    // `depends_on` entry. It measured a different quantity than its name said.
+    for repeats in 1..=3 {
+        let combined = deps_output_with_repeated_dep(repeats);
+        assert!(
+            combined.contains("Edges: 1"),
+            "{repeats} repeated depends_on entries must collapse to 1 edge, got: {combined}"
+        );
+    }
+
+    // Repetition must make no difference at all, not merely keep the edge count
+    // right: 1, 2 and 3 entries must produce byte-identical output.
+    let one = deps_output_with_repeated_dep(1);
+    let three = deps_output_with_repeated_dep(3);
     assert_eq!(
-        occurrences, 1,
-        "duplicate depends_on entries must be deduped, got: {combined}"
+        one, three,
+        "repeating a depends_on entry must not change deps output at all"
+    );
+
+    // ─── PIN for #606 — asserts today's WRONG behaviour on purpose ───────
+    //
+    // One missing dependency is currently reported TWICE, by two independent
+    // code paths that each emit their own finding:
+    //   src/validator.rs → "Dependency spec not found: {dep}"
+    //   src/deps.rs      → "{}: depends on '{}' but no spec exists for that module"
+    // A single defect is therefore double-counted in deps error totals.
+    //
+    // This is NOT the desired behaviour. The pin exists so that fixing #606
+    // fails this assertion loudly instead of silently un-pinning. When #606
+    // lands, change the expected count from 2 to 1 and delete this comment.
+    let occurrences = one.matches("nonexistent-module").count();
+    assert_eq!(
+        occurrences, 2,
+        "PIN(#606): one missing dependency is currently reported twice by two \
+         separate code paths. If this now reads 1, #606 is fixed — update this \
+         assertion to 1 and remove the pin. Got: {one}"
     );
 }
 

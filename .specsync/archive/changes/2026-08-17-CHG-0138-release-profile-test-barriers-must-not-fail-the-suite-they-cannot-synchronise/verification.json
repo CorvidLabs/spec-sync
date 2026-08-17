@@ -1,0 +1,67 @@
+{
+  "timestamp": 1786939933,
+  "commit": "6f052780033092d7bc9309520c26789c93621b68",
+  "contract_digest": "13fe7433d870659088e1f65c4c2920846c94922d5e7995e42697ecd0b0ff5663",
+  "execution_digest": "90eb1a927241c8107c8c97b053eaffdaabec52afc69cea369c12c3ac21267e11",
+  "workspace_digest": "61f140ca4e44bb820ed56b40a3d37a0195f24218ab6239d20d9f616dc133c87c",
+  "acceptance_input_digest": "93089e50a346da07f2d2dfc7e7f1c64ad3b9d02609711914ff8fb066030679d0",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "af8e90d9b982fdd6caa07fd6ce4ace44e8615c6397f75930b48b228ab879ea29",
+        "entry_digest": "414f46e95b219f08fa52ed0ebfc8eb094f4f1de6162ca548de2f66765c91e60a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "tests/integration/commands.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7c1fae4adf8698e88d67f9fba66ee11f1f2345b0210994d926e6e459236d3ee0",
+        "entry_digest": "f3f96e5e7229f6f8125e678296ea261fd69a9aca0fd4bfb58ddd9a9ff3306519",
+        "owners": [
+          "@exact:test"
+        ]
+      },
+      {
+        "path": "tests/integration/mcp.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e99a85bfa12e0fbb2bd787da0fb14e53d7a530538152c77d86889b786f24ba9a",
+        "entry_digest": "22b29bb34d7390cab1859de02e62a3c635937785cf8e792f7f8400094ee16754",
+        "owners": [
+          "@exact:test"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

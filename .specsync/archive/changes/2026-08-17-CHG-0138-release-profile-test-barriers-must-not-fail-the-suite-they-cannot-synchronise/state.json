@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0138-release-profile-test-barriers-must-not-fail-the-suite-they-cannot-synchronise",
+  "slug": "release-profile-test-barriers-must-not-fail-the-suite-they-cannot-synchronise",
+  "title": "Release-profile test barriers must not fail the suite they cannot synchronise",
+  "description": "release-profile test barriers must not fail the suite they cannot synchronise",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "fad39674c308e3d5c25a4324e838db69b14adc9c",
+  "created_at": 1786937974,
+  "updated_at": 1786940185,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/commands.rs",
+    "tests/integration/mcp.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Test gating only. No module's public contract or spec text changes; the shipped binary is byte-identical and its guards are unconditional. tests/ is not owned by any spec module.",
+  "acceptance_criteria": [
+    "cargo test --release exits 0 with the six affected tests reported as ignored rather than absent, and cargo test in debug still exits 0 with all of them running; the counts reconcile exactly (368 run + 6 ignored = 374 in release, 374 + 0 ignored in debug), so the gating hit the intended set and nothing else; no assertion is weakened, removed, renamed or deleted; the shipped release binary is byte-identical, proven by git diff touching no src/ file; the guards remain unconditional and demonstrably fire in a release binary under a live symlink race; comments state honestly which guards lose release-runnable coverage rather than citing a substitute test that covers a different guard."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

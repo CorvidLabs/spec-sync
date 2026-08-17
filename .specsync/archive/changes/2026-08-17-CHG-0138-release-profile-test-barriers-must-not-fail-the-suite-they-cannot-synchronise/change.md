@@ -1,6 +1,6 @@
 ---
 id: CHG-0138-release-profile-test-barriers-must-not-fail-the-suite-they-cannot-synchronise
-state: implementing
+state: archived
 type: bug_fix
 base_commit: fad39674c308e3d5c25a4324e838db69b14adc9c
 ---

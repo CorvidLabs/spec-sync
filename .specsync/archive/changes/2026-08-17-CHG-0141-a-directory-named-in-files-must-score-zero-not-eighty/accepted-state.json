@@ -7,11 +7,11 @@
   "title": "A directory named in files: must score zero, not eighty",
   "description": "a directory named in files: must score zero, not eighty",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "adbfb442e6ea73d78f4d8d4dc830ad1077c7b961",
   "created_at": 1786990765,
-  "updated_at": 1786994865,
+  "updated_at": 1786995857,
   "affected_specs": [
     "exports",
     "scoring",

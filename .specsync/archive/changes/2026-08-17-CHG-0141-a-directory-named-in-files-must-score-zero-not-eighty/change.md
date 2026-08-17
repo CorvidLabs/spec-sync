@@ -1,6 +1,6 @@
 ---
 id: CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty
-state: implementing
+state: archived
 type: bug_fix
 base_commit: adbfb442e6ea73d78f4d8d4dc830ad1077c7b961
 ---

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ba97c1df637b6521ddc4209dc54416094729956a",
+  "contract_digest": "2ee05364221468b6b8b9aa1122e5279483d73b0cd4aeb93399da3f13000d913a",
+  "execution_digest": "efbd2cfca62560d15e4d647875499a12200cc9058197ecec87f0c071f275d4e0",
+  "workspace_digest": "92d09b488bf33fbcbb8931a1dc10191e7b1cc330cf260910059cb97176c55532",
+  "timestamp": 1786995832
+}

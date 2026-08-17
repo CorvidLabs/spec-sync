@@ -177,7 +177,9 @@ pub fn cmd_diff(root: &Path, base: Option<&str>, format: types::OutputFormat, st
                 // the "no drift" verdict cannot be silent, and fail loud below —
                 // consistent with the invariant that a failed comparison must not
                 // silently pass in CI.
-                crate::exports::ExportScan::Unreadable => inconclusive_files.push(file.clone()),
+                crate::exports::ExportScan::Unreadable | crate::exports::ExportScan::Directory => {
+                    inconclusive_files.push(file.clone())
+                }
                 // An unresolved merge conflict whose sides both declared symbols:
                 // the union is not this file's API, so no delta computed from it
                 // can be trusted.

@@ -5564,7 +5564,7 @@ fn score_spec_for_mcp(
     };
     score.freshness_score = score.freshness_score.saturating_sub(penalty);
     score.total = score.total.saturating_sub(penalty);
-    score.grade = mcp_letter_grade(score.total);
+    score.grade = scoring::letter_grade(score.total);
     score
         .suggestions
         .retain(|suggestion| !suggestion.contains("drift is unverifiable"));
@@ -5589,16 +5589,6 @@ fn score_spec_for_mcp(
         }
     }
     score
-}
-
-fn mcp_letter_grade(score: u32) -> &'static str {
-    match score {
-        90.. => "A",
-        80..=89 => "B",
-        70..=79 => "C",
-        60..=69 => "D",
-        _ => "F",
-    }
 }
 
 fn tool_issues(root: &Path) -> Result<Value, String> {

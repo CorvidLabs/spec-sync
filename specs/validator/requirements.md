@@ -266,3 +266,12 @@ Acceptance Criteria
 - The file and line coverage figures are unaffected: a candidate is suppressed without altering what the report measures.
 - Every path from which a candidate name is derived — configured modules, manifest modules, source subdirectories, and flat-file stems — applies the same rule, so a name invented by one derivation cannot survive because another was fixed.
 
+### REQ-validator-042
+
+Validation SHALL decide that a `files:` entry is a directory using the shared export-scan predicate, rather than its own test.
+
+Acceptance Criteria
+- The directory refusal is reached through the same predicate every other command uses, so `check` and `score` cannot disagree about whether one path is a directory.
+- A directory export scan contributes no symbols, exactly as an unreadable one does, without the two being reported as the same condition.
+- The existing refusal text and exit status for a directory mapping are unchanged.
+

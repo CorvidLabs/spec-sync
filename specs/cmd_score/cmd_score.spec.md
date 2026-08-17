@@ -1,6 +1,6 @@
 ---
 module: cmd_score
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/score.rs
@@ -78,3 +78,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |

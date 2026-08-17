@@ -168,6 +168,9 @@ pub fn evaluate_guards(
         // Check minimum score
         if let Some(min_score) = guard.min_score {
             let score = scoring::score_spec(spec_path, root, config);
+            // Inclusive (`<`). Specs whose `files:` name a directory score 0
+            // (#573), so they fail any positive min_score the same way `check`
+            // hard-fails them.
             if score.total < min_score {
                 let msg = guard.message.as_deref().unwrap_or("score too low");
                 failures.push(format!(

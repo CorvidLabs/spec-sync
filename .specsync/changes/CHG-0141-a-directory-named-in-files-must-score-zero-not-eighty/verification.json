@@ -1,0 +1,66 @@
+{
+  "timestamp": 1786994284,
+  "commit": "adbfb442e6ea73d78f4d8d4dc830ad1077c7b961",
+  "contract_digest": "2ee05364221468b6b8b9aa1122e5279483d73b0cd4aeb93399da3f13000d913a",
+  "execution_digest": "efbd2cfca62560d15e4d647875499a12200cc9058197ecec87f0c071f275d4e0",
+  "workspace_digest": "92d09b488bf33fbcbb8931a1dc10191e7b1cc330cf260910059cb97176c55532",
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test exports::typescript::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test exports::erlang::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test exports::ast::erlang::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test validator::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test cli::tests::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-cli-args-014",
+    "REQ-cmd-diff-004",
+    "REQ-cmd-issues-003",
+    "REQ-cmd-lifecycle-003",
+    "REQ-cmd-score-002",
+    "REQ-exports-010",
+    "REQ-mcp-007",
+    "REQ-scoring-005",
+    "REQ-validator-042"
+  ]
+}

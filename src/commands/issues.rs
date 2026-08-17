@@ -1096,6 +1096,9 @@ fn snapshot_source_file(project: &Dir, mapping: &str, max_bytes: u64) -> SourceS
     }
     // A confined directory is a mapping-shape error, not a security escape: report
     // it as one instead of hiding the real cause behind the escape message.
+    // Same classification as `files_entry_is_directory`, over cap-std metadata
+    // the Path helper cannot accept. Maps to SourceSnapshot::Directory so
+    // `check` and confined MCP validation share the #472 / #573 rule.
     if metadata.is_dir() {
         return SourceSnapshot::Directory;
     }

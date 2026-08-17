@@ -312,9 +312,20 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     }
 
     // ─── API Coverage (0-20) ─────────────────────────────────────────
+    // Count `files:` directories with the same predicate `check` uses (#472 /
+    // #573). A directory is not a missing file and not an unreadable source.
+    let directory_entry_count = fm
+        .files
+        .iter()
+        .filter(|file| {
+            crate::validator::source_within_root(root, file)
+                && crate::exports::files_entry_is_directory(&root.join(file))
+        })
+        .count();
     if !fm.files.is_empty() {
         let mut all_exports: Vec<String> = Vec::new();
         let mut unreadable_files = 0usize;
+        let mut directory_files = 0usize;
         let mut conflicted_files = 0usize;
         for file in &fm.files {
             // Never read a `files:` entry that escapes the project root — it would
@@ -340,6 +351,7 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 // had nothing to document (that awarded a perfect API dimension and
                 // inflated the gating total, e.g. past a lifecycle min_score guard).
                 crate::exports::ExportScan::Unreadable => unreadable_files += 1,
+                crate::exports::ExportScan::Directory => directory_files += 1,
                 // An unresolved merge conflict whose two sides both declared
                 // symbols: the union is not this file's API. Scoring it would
                 // award API credit for a tree that does not compile, so the
@@ -362,7 +374,26 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             .filter(|s| export_set.contains(s.as_str()))
             .count();
 
-        if conflicted_files > 0 {
+        if directory_files > 0 {
+            score.api_score = 0;
+            score.explain.push(ExplainDetail {
+                dimension: "API".to_string(),
+                score: 0,
+                max_score: DIMENSION_MAX,
+                criteria: vec![CriterionResult {
+                    name: "documented_exports".to_string(),
+                    passed: false,
+                    points: 0,
+                    max_points: DIMENSION_MAX,
+                    detail: Some(format!(
+                        "could not analyze exports for {directory_files} file(s) (path is a directory)"
+                    )),
+                }],
+            });
+            score.suggestions.push(format!(
+                "API coverage (-{DIMENSION_MAX}pts): {directory_files} `files:` path(s) are a directory — list source files, not directories"
+            ));
+        } else if conflicted_files > 0 {
             // A conflicted file's API is unknowable, and that is true whether or
             // not the spec's OTHER files parsed: scoring the readable remainder
             // would report a confident number over a tree that cannot compile.
@@ -607,8 +638,14 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     // ─── Freshness (0-20) ────────────────────────────────────────────
     let mut fresh_points = DIMENSION_MAX;
     let mut stale_files = 0u32;
+    let mut directory_files = 0u32;
     for file in &fm.files {
-        if !root.join(file).exists() {
+        let full_path = root.join(file);
+        if crate::validator::source_within_root(root, file)
+            && crate::exports::files_entry_is_directory(&full_path)
+        {
+            directory_files += 1;
+        } else if !full_path.exists() {
             stale_files += 1;
         }
     }
@@ -621,6 +658,16 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             "Freshness (-{FRESH_FILES_MAX}pts): no files listed in frontmatter — freshness is unverifiable"
         ));
         FRESH_FILES_MAX
+    } else if directory_files > 0 {
+        // A directory exists, so `Path::exists` is true — that used to award
+        // files_exist 15/15 while `check` hard-failed (#573). Treat it as a
+        // failed freshness check, named as a directory, not as a missing file.
+        let penalty = (directory_files * FRESH_FILE_PENALTY_PER).min(FRESH_FILES_MAX);
+        fresh_points = fresh_points.saturating_sub(penalty);
+        score.suggestions.push(format!(
+            "Freshness (-{penalty}pts): {directory_files} `files:` path(s) are a directory"
+        ));
+        penalty
     } else if stale_files > 0 {
         let penalty = (stale_files * FRESH_FILE_PENALTY_PER).min(FRESH_FILES_MAX);
         fresh_points = fresh_points.saturating_sub(penalty);
@@ -669,7 +716,8 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
                 git_baseline_available = true;
                 let mut max_behind: usize = 0;
                 for file in &fm.files {
-                    if root.join(file).exists() {
+                    let full_path = root.join(file);
+                    if full_path.exists() && !crate::exports::files_entry_is_directory(&full_path) {
                         let behind = git_utils::git_commits_since(root, &spec_commit, file);
                         max_behind = max_behind.max(behind);
                     }
@@ -717,8 +765,10 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         && let Ok(spec_modified) = fs::metadata(spec_path).and_then(|meta| meta.modified())
     {
         source_newer_than_spec = fm.files.iter().any(|file| {
+            let full_path = root.join(file);
             crate::validator::source_within_root(root, file)
-                && fs::metadata(root.join(file))
+                && !crate::exports::files_entry_is_directory(&full_path)
+                && fs::metadata(full_path)
                     .and_then(|meta| meta.modified())
                     .is_ok_and(|modified| modified > spec_modified)
         });
@@ -757,11 +807,13 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
         criteria: vec![
             CriterionResult {
                 name: "files_exist".to_string(),
-                passed: !fm.files.is_empty() && stale_files == 0,
+                passed: !fm.files.is_empty() && stale_files == 0 && directory_files == 0,
                 points: files_budget.saturating_sub(file_penalty),
                 max_points: files_budget,
                 detail: if fm.files.is_empty() {
                     Some("no files listed in frontmatter".to_string())
+                } else if directory_files > 0 {
+                    Some(format!("{directory_files} path(s) are a directory"))
                 } else if stale_files > 0 {
                     Some(format!("{stale_files} file(s) missing"))
                 } else {
@@ -822,6 +874,20 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             stub_sections.len(),
             total_req
         ));
+    }
+
+    // #573: `check` hard-fails when `files:` names a directory (validator).
+    // `score` is a 0-100 metric, not a second validator — aborting would drop
+    // `--explain` and JSON. Agreement is therefore a total of 0 (grade F).
+    // That sits below every `--strict` / `--min-score` floor, including the
+    // inclusive 80-point bar, without changing bare `score`'s advisory exit.
+    if directory_entry_count > 0 {
+        score.total = 0;
+        score.grade = letter_grade(score.total);
+        score.suggestions.push(
+            "Score set to 0: `files:` lists a directory — `check` rejects directories; list source files instead"
+                .to_string(),
+        );
     }
 
     score
@@ -898,7 +964,7 @@ fn count_sections_with_content(body: &str, required_sections: &[String]) -> usiz
     count
 }
 
-fn letter_grade(score: u32) -> &'static str {
+pub(crate) fn letter_grade(score: u32) -> &'static str {
     match score {
         s if s >= GRADE_A_MIN => "A",
         s if s >= GRADE_B_MIN => "B",
@@ -1129,6 +1195,135 @@ None.
             score.total
         );
         assert!(score.grade == "A" || score.grade == "B");
+    }
+
+    fn complete_spec_body(files_yaml: &str) -> String {
+        format!(
+            "---\n\
+             module: s\n\
+             version: 1\n\
+             status: stable\n\
+             files:\n\
+             {files_yaml}\n\
+             ---\n\
+             \n\
+             # S\n\
+             \n\
+             ## Purpose\n\
+             \n\
+             This module exposes a single public function used by callers.\n\
+             \n\
+             ## Public API\n\
+             \n\
+             | Export | Description |\n\
+             |--------|-------------|\n\
+             | `one` | A function named one |\n\
+             \n\
+             ## Invariants\n\
+             \n\
+             1. The documented export named one is the only public surface.\n\
+             \n\
+             ## Behavioral Examples\n\
+             \n\
+             ### Scenario: Callers invoke the documented export\n\
+             \n\
+             - **Given** a caller that depends on this module\n\
+             - **When** the documented export is invoked\n\
+             - **Then** the operation completes\n\
+             \n\
+             ## Error Cases\n\
+             \n\
+             | Condition | Behavior |\n\
+             |-----------|----------|\n\
+             | Invalid input | The function rejects the call |\n\
+             \n\
+             ## Dependencies\n\
+             \n\
+             None.\n\
+             \n\
+             ## Change Log\n\
+             \n\
+             | Date | Change |\n\
+             |------|--------|\n\
+             | 2026-08-17 | Initial |\n"
+        )
+    }
+
+    fn score_complete_spec(
+        files_yaml: &str,
+        write_source: impl FnOnce(&std::path::Path),
+    ) -> SpecScore {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        write_source(root);
+        let spec_dir = root.join("specs").join("s");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let spec_file = spec_dir.join("s.spec.md");
+        std::fs::write(&spec_file, complete_spec_body(files_yaml)).unwrap();
+        score_spec(&spec_file, root, &SpecSyncConfig::default())
+    }
+
+    fn diagnostic_blob(score: &SpecScore) -> String {
+        let mut blob = score.suggestions.join("\n");
+        for detail in &score.explain {
+            for criterion in &detail.criteria {
+                blob.push('\n');
+                blob.push_str(&criterion.name);
+                if let Some(text) = &criterion.detail {
+                    blob.push(' ');
+                    blob.push_str(text);
+                }
+            }
+        }
+        blob
+    }
+
+    #[test]
+    fn directory_in_files_scores_zero_and_names_directory() {
+        // #573: on origin/main this complete spec scores 80 (75 without git)
+        // because freshness treats a directory as `files_exist` and the API
+        // scan reports "missing or not UTF-8". The word "directory" never
+        // appears. After the fix the total is 0 and diagnostics name the
+        // directory.
+        let score = score_complete_spec("  - src", |root| {
+            std::fs::write(root.join("src/lib.rs"), "pub fn one() {}\n").unwrap();
+        });
+        assert_eq!(
+            score.total, 0,
+            "directory in files: must score 0, got {} ({})",
+            score.total, score.grade
+        );
+        assert_eq!(score.grade, "F");
+        let blob = diagnostic_blob(&score);
+        assert!(
+            blob.contains("directory"),
+            "diagnostics must say directory, got: {blob}"
+        );
+    }
+
+    #[test]
+    fn real_source_file_still_scores_at_or_above_strict_bar() {
+        // Vacuity control: a complete spec whose `files:` names a real source
+        // file must keep scoring at or above the inclusive `--strict` floor
+        // of 80. A "fix" that zeroes every spec, or makes score refuse
+        // everything, fails this on both origin/main and the patched tree.
+        let score = score_complete_spec("  - src/lib.rs", |root| {
+            std::fs::write(root.join("src/lib.rs"), "pub fn one() {}\n").unwrap();
+        });
+        assert!(
+            score.total >= 80,
+            "valid spec must still clear the strict bar, got {} ({})",
+            score.total,
+            score.grade
+        );
+        assert_ne!(score.total, 0);
+        assert!(score.grade == "A" || score.grade == "B");
+        let blob = diagnostic_blob(&score);
+        assert!(
+            !blob.contains("directory"),
+            "a real file must not be reported as a directory: {blob}"
+        );
     }
 
     #[test]

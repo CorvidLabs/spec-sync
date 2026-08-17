@@ -150,3 +150,14 @@ Acceptance Criteria
 - Documenting such a method is an orphan error rather than an accepted export, so silencing the warning cannot publish a private method as contract.
 - A statement-form conditional, which never desynced the visibility stack, behaves exactly as before.
 - Public methods above `private` continue to be extracted.
+
+### REQ-exports-010
+
+An export scan SHALL classify a path that is a directory as its own outcome, never as an unreadable file.
+
+Acceptance Criteria
+- Scanning a directory returns a distinct directory outcome, decided before any attempt to read the path as text.
+- A directory outcome is never reported as unreadable, so a caller cannot confuse "this is not a file" with "this file could not be read".
+- The plain-vector entry points return an empty vector for a directory, so callers that do not inspect the outcome are unaffected.
+- The predicate that decides whether a `files:` entry is a directory is shared by every command that asks the question, so a directory cannot be classified one way by one command and differently by another.
+

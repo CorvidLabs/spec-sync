@@ -2157,7 +2157,7 @@ fn validate_spec_content_internal(
         let directory_mapping = matches!(snapshot, Some(SourceSnapshot::Directory))
             || (source_snapshots.is_none()
                 && safe_project_relative
-                && full_path.is_dir()
+                && crate::exports::files_entry_is_directory(&full_path)
                 && source_within_root(root, file));
         if ambient_existing_escape || (safe_project_relative && confined_rejection) {
             result.errors.push(format!(
@@ -2468,7 +2468,8 @@ fn validate_spec_content_internal(
                 }
                 crate::exports::ExportScan::Parsed(symbols) => symbols,
                 crate::exports::ExportScan::UnknownLanguage
-                | crate::exports::ExportScan::Unreadable => Vec::new(),
+                | crate::exports::ExportScan::Unreadable
+                | crate::exports::ExportScan::Directory => Vec::new(),
             };
             for sym in &exports {
                 exports_by_file.push((sym.clone(), file.clone()));

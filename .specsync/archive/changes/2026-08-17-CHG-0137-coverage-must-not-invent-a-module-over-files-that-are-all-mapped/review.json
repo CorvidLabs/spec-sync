@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0137-coverage-must-not-invent-a-module-over-files-that-are-all-mapped",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "e1af8603771442c1ba8c25763be77c2794d92572",
+  "contract_digest": "9dbd9c43362874cdc01bdc11bc4cac51295e243209aba701fab42ebd423d475d",
+  "execution_digest": "2ae554f822a064a2b9f566df782742142078a831c6a06293fa4ce3fb517b4edc",
+  "workspace_digest": "a94acd7564802c58a53d95308e90a591342bb9d698b6c77131878bd5a4ad9cfe",
+  "timestamp": 1786937128
+}

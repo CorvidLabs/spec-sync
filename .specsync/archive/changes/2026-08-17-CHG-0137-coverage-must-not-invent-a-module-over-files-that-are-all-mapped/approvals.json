@@ -1,0 +1,48 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1786934320,
+      "digest": "9dbd9c43362874cdc01bdc11bc4cac51295e243209aba701fab42ebd423d475d",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0137-coverage-must-not-invent-a-module-over-files-that-are-all-mapped",
+        "title": "Coverage must not invent a module over files that are all mapped",
+        "description": "coverage must not invent a module over files that are all mapped",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "manifest",
+          "validator"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/manifest.rs",
+          "src/validator.rs",
+          "tests/integration.rs",
+          "tests/integration/coverage_phantom_module.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "coverage reports no module for a directory or stem whose every discovered file is already mapped by a spec, in text and in JSON; a module owning at least one unmapped file is still reported; a module owning no discovered file at all is still reported, because owning nothing measurable is absence of input rather than evidence of coverage; the file and LOC coverage percentages are unchanged by the fix, so the phantom disappears without moving the measurement; running coverage on this repository goes from modules ['specsync','change_tests'] to [] while files_covered stays 106/106; all four derivation sites are fixed, not only the flat-file-stem site named in the report; sandbox gate 061 goes rc=1 to rc=0 with its not-a-mute control still green."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1786937136,
+      "digest": "1dcf6cbef45e511be94a4b2f818fe075f773e97a89bc95277aca9891370f1884",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

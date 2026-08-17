@@ -3209,6 +3209,281 @@ mod tests {
         assert!(!report.unspecced_modules.iter().any(|name| name == "com"));
     }
 
+    // ─── #529: a module name nothing owns is not a missing spec ──────────────
+
+    /// Write a spec at `specs/<module>/<module>.spec.md` mapping `files`.
+    fn write_mapping_spec(root: &Path, module: &str, files: &[&str]) -> PathBuf {
+        let directory = root.join("specs").join(module);
+        fs::create_dir_all(&directory).unwrap();
+        let mapped: String = files.iter().map(|file| format!("  - {file}\n")).collect();
+        let spec_path = directory.join(format!("{module}.spec.md"));
+        fs::write(
+            &spec_path,
+            format!(
+                "---\nmodule: {module}\nversion: 1\nstatus: active\nfiles:\n{mapped}---\n\n# {module}\n"
+            ),
+        )
+        .unwrap();
+        spec_path
+    }
+
+    fn multi_language_config() -> SpecSyncConfig {
+        SpecSyncConfig {
+            specs_dir: "specs".to_string(),
+            source_dirs: vec!["src".to_string()],
+            source_extensions: vec!["py".to_string(), "mjs".to_string()],
+            ..SpecSyncConfig::default()
+        }
+    }
+
+    #[test]
+    fn language_specific_specs_do_not_invent_a_parent_module() {
+        // #529: `src/strutil.{py,mjs}` are mapped by `strutil_py` and
+        // `strutil_js`. No `specs/strutil/` exists — and none should, because
+        // nothing is missing. Reporting `strutil` as a module without a spec
+        // beside `2/2 files covered` is an answer read off the absence of a
+        // NAME, not off any measurement of the files.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/strutil.py"), "def upper(s):\n    return s\n").unwrap();
+        fs::write(
+            root.join("src/strutil.mjs"),
+            "export function upper(s) {\n}\n",
+        )
+        .unwrap();
+        let specs = vec![
+            write_mapping_spec(root, "strutil_py", &["src/strutil.py"]),
+            write_mapping_spec(root, "strutil_js", &["src/strutil.mjs"]),
+        ];
+
+        let report = compute_coverage_checked(root, &specs, &multi_language_config()).unwrap();
+        assert_eq!(report.specced_file_count, 2);
+        assert!(report.unspecced_files.is_empty());
+        assert!(
+            !report
+                .unspecced_modules
+                .iter()
+                .any(|name| name == "strutil"),
+            "stem of files that are all mapped must not be a module without a spec: {:?}",
+            report.unspecced_modules
+        );
+    }
+
+    #[test]
+    fn a_stem_with_one_unmapped_file_is_still_a_module_without_a_spec() {
+        // VACUITY CONTROL for the test above. Suppressing every stem would pass
+        // that assertion; only a stem whose files were all measured and all
+        // found mapped may go quiet. Here `src/strutil.mjs` is mapped by
+        // nothing, so `strutil` is a real gap and must survive.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/strutil.py"), "def upper(s):\n    return s\n").unwrap();
+        fs::write(
+            root.join("src/strutil.mjs"),
+            "export function upper(s) {\n}\n",
+        )
+        .unwrap();
+        let specs = vec![write_mapping_spec(root, "strutil_py", &["src/strutil.py"])];
+
+        let report = compute_coverage_checked(root, &specs, &multi_language_config()).unwrap();
+        assert_eq!(report.unspecced_files, ["src/strutil.mjs"]);
+        assert!(
+            report
+                .unspecced_modules
+                .iter()
+                .any(|name| name == "strutil"),
+            "a stem with an unmapped file must stay reported: {:?}",
+            report.unspecced_modules
+        );
+    }
+
+    #[test]
+    fn a_directory_module_mapped_by_language_specific_specs_is_not_unspecced() {
+        // The sibling derivation: the same phantom, one directory up. Nothing
+        // in the reported issue named this site, and it fails identically.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src/textkit")).unwrap();
+        fs::write(
+            root.join("src/textkit/case.py"),
+            "def upper(s):\n    return s\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("src/textkit/case.mjs"),
+            "export function upper(s) {\n}\n",
+        )
+        .unwrap();
+        let specs = vec![
+            write_mapping_spec(root, "textkit_py", &["src/textkit/case.py"]),
+            write_mapping_spec(root, "textkit_js", &["src/textkit/case.mjs"]),
+        ];
+
+        let report = compute_coverage_checked(root, &specs, &multi_language_config()).unwrap();
+        assert_eq!(report.specced_file_count, 2);
+        assert!(
+            !report
+                .unspecced_modules
+                .iter()
+                .any(|name| name == "textkit"),
+            "directory whose files are all mapped must not be a module without a spec: {:?}",
+            report.unspecced_modules
+        );
+    }
+
+    #[test]
+    fn a_directory_module_with_an_unmapped_file_is_still_unspecced() {
+        // VACUITY CONTROL for the directory site.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src/textkit")).unwrap();
+        fs::write(
+            root.join("src/textkit/case.py"),
+            "def upper(s):\n    return s\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("src/textkit/case.mjs"),
+            "export function upper(s) {\n}\n",
+        )
+        .unwrap();
+        let specs = vec![write_mapping_spec(
+            root,
+            "textkit_py",
+            &["src/textkit/case.py"],
+        )];
+
+        let report = compute_coverage_checked(root, &specs, &multi_language_config()).unwrap();
+        assert_eq!(report.unspecced_files, ["src/textkit/case.mjs"]);
+        assert!(
+            report
+                .unspecced_modules
+                .iter()
+                .any(|name| name == "textkit"),
+            "a directory with an unmapped file must stay reported: {:?}",
+            report.unspecced_modules
+        );
+    }
+
+    #[test]
+    fn a_directory_with_no_discovered_source_file_is_still_unspecced() {
+        // VACUITY CONTROL for the campaign's own defect class. A directory
+        // holding nothing the traversal measures owns zero files, which is the
+        // ABSENCE OF INPUT, not a clean bill of health — it keeps its report.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src/assets")).unwrap();
+        fs::write(root.join("src/assets/logo.svg"), "<svg/>\n").unwrap();
+        fs::write(root.join("src/strutil.py"), "def upper(s):\n    return s\n").unwrap();
+        let specs = vec![write_mapping_spec(root, "strutil_py", &["src/strutil.py"])];
+
+        let report = compute_coverage_checked(root, &specs, &multi_language_config()).unwrap();
+        assert!(
+            report.unspecced_modules.iter().any(|name| name == "assets"),
+            "a directory with nothing measured must stay reported: {:?}",
+            report.unspecced_modules
+        );
+    }
+
+    #[test]
+    fn a_manifest_module_whose_files_are_all_mapped_is_not_unspecced() {
+        // Same phantom from the manifest site: a Cargo package named `toolkit`
+        // whose every source file is mapped by `toolkit_core`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"toolkit\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn upper() {}\n").unwrap();
+        let config = SpecSyncConfig {
+            specs_dir: "specs".to_string(),
+            source_dirs: vec!["src".to_string()],
+            source_extensions: vec!["rs".to_string()],
+            ..SpecSyncConfig::default()
+        };
+        let specs = vec![write_mapping_spec(root, "toolkit_core", &["src/lib.rs"])];
+
+        let report = compute_coverage_checked(root, &specs, &config).unwrap();
+        assert_eq!(report.specced_file_count, 1);
+        assert!(
+            !report
+                .unspecced_modules
+                .iter()
+                .any(|name| name == "toolkit"),
+            "manifest module whose files are all mapped must not be reported: {:?}",
+            report.unspecced_modules
+        );
+
+        // VACUITY CONTROL: add a file the spec does not map and the manifest
+        // module comes back.
+        fs::write(root.join("src/extra.rs"), "pub fn lower() {}\n").unwrap();
+        let report = compute_coverage_checked(root, &specs, &config).unwrap();
+        assert_eq!(report.unspecced_files, ["src/extra.rs"]);
+        assert!(
+            report
+                .unspecced_modules
+                .iter()
+                .any(|name| name == "toolkit"),
+            "manifest module with an unmapped file must stay reported: {:?}",
+            report.unspecced_modules
+        );
+    }
+
+    #[test]
+    fn a_configured_module_whose_files_are_all_mapped_is_not_unspecced() {
+        // The configured-module site makes the same claim on the same evidence.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/strutil.py"), "def upper(s):\n    return s\n").unwrap();
+        fs::write(
+            root.join("src/strutil.mjs"),
+            "export function upper(s) {\n}\n",
+        )
+        .unwrap();
+        let mut config = multi_language_config();
+        config.modules.insert(
+            "strutil".to_string(),
+            crate::types::ModuleDefinition {
+                files: vec!["src/strutil.py".to_string(), "src/strutil.mjs".to_string()],
+                depends_on: Vec::new(),
+            },
+        );
+        let specs = vec![
+            write_mapping_spec(root, "strutil_py", &["src/strutil.py"]),
+            write_mapping_spec(root, "strutil_js", &["src/strutil.mjs"]),
+        ];
+
+        let report = compute_coverage_checked(root, &specs, &config).unwrap();
+        assert!(
+            !report
+                .unspecced_modules
+                .iter()
+                .any(|name| name == "strutil"),
+            "configured module whose files are all mapped must not be reported: {:?}",
+            report.unspecced_modules
+        );
+
+        // VACUITY CONTROL: a configured module that declares no files at all
+        // has nothing measured, so it stays reported.
+        let mut declared_nothing = multi_language_config();
+        declared_nothing.modules.insert(
+            "ghost".to_string(),
+            crate::types::ModuleDefinition::default(),
+        );
+        let report = compute_coverage_checked(root, &specs, &declared_nothing).unwrap();
+        assert!(
+            report.unspecced_modules.iter().any(|name| name == "ghost"),
+            "configured module declaring no files must stay reported: {:?}",
+            report.unspecced_modules
+        );
+    }
+
     #[test]
     fn malformed_gradle_settings_make_coverage_inconclusive() {
         let tmp = tempfile::tempdir().unwrap();
@@ -5379,6 +5654,170 @@ fn coverage_source_modules(
         .collect()
 }
 
+/// A configured source directory as a `/`-joined project-relative prefix, with
+/// `.` becoming the empty root prefix.
+fn normalized_coverage_source_dir(configured: &str) -> Result<String, String> {
+    if configured == "." {
+        return Ok(String::new());
+    }
+    normalize_source_mapping(configured).ok_or_else(|| {
+        format!("Coverage source directory must remain beneath the project root: {configured}")
+    })
+}
+
+/// Join a source-directory prefix with a child directory name.
+fn coverage_module_directory(source_dir: &str, child: &str) -> String {
+    if source_dir.is_empty() {
+        child.to_string()
+    } else {
+        format!("{source_dir}/{child}")
+    }
+}
+
+/// How many discovered source files a candidate module owns, and how many of
+/// those no spec maps.
+#[derive(Clone, Copy, Debug, Default)]
+struct ModuleFileOwnership {
+    owned: usize,
+    unmapped: usize,
+}
+
+impl ModuleFileOwnership {
+    fn observe(&mut self, mapped: bool) {
+        self.owned += 1;
+        if !mapped {
+            self.unmapped += 1;
+        }
+    }
+
+    fn absorb(&mut self, other: Self) {
+        self.owned += other.owned;
+        self.unmapped += other.unmapped;
+    }
+
+    /// Whether this module still has a coverage gap worth reporting.
+    ///
+    /// Owning NO discovered source file is not evidence of coverage: nothing
+    /// was measured, so the module keeps its report rather than being declared
+    /// covered by default. Only a module whose files were all looked at, and
+    /// all found mapped, is silent.
+    fn is_uncovered(self) -> bool {
+        self.owned == 0 || self.unmapped > 0
+    }
+}
+
+/// Which discovered source files each candidate module name owns.
+///
+/// Built in one pass over the measured file list so a candidate can be answered
+/// without rescanning it, and keyed only by the directories and stems a
+/// candidate can actually name — an unbounded ancestor index would grow with
+/// tree depth for names nothing ever asks about.
+#[derive(Debug, Default)]
+struct CoverageModuleOwnership {
+    directories: HashMap<String, ModuleFileOwnership>,
+    flat_stems: HashMap<String, HashMap<String, ModuleFileOwnership>>,
+}
+
+impl CoverageModuleOwnership {
+    fn index(
+        source_files: &[String],
+        specced_files: &HashSet<String>,
+        candidate_directories: &HashSet<String>,
+        source_roots: &HashSet<String>,
+    ) -> Self {
+        let mut ownership = Self {
+            directories: candidate_directories
+                .iter()
+                .map(|directory| (directory.clone(), ModuleFileOwnership::default()))
+                .collect(),
+            flat_stems: HashMap::new(),
+        };
+        for file in source_files {
+            let mapped = specced_files.contains(file.as_str());
+            let (parent, name) = match file.rsplit_once('/') {
+                Some((parent, name)) => (parent, name),
+                None => ("", file.as_str()),
+            };
+            if source_roots.contains(parent) {
+                // Keyed with the same derivation the flat-module block uses, so
+                // a stem always finds its own files.
+                let stem = Path::new(name)
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .unwrap_or(name);
+                ownership
+                    .flat_stems
+                    .entry(parent.to_string())
+                    .or_default()
+                    .entry(stem.to_string())
+                    .or_default()
+                    .observe(mapped);
+            }
+            let mut prefix = String::new();
+            if let Some(entry) = ownership.directories.get_mut(&prefix) {
+                entry.observe(mapped);
+            }
+            for component in parent.split('/').filter(|component| !component.is_empty()) {
+                if !prefix.is_empty() {
+                    prefix.push('/');
+                }
+                prefix.push_str(component);
+                if let Some(entry) = ownership.directories.get_mut(&prefix) {
+                    entry.observe(mapped);
+                }
+            }
+        }
+        ownership
+    }
+
+    fn directory(&self, directory: &str) -> ModuleFileOwnership {
+        self.directories.get(directory).copied().unwrap_or_default()
+    }
+
+    /// Ownership across every source path a manifest declares for a module.
+    /// Paths that do not normalize contribute nothing, so a module whose
+    /// declared sources cannot be located keeps its report.
+    fn declared_directories(&self, source_paths: &[String]) -> ModuleFileOwnership {
+        let mut total = ModuleFileOwnership::default();
+        for path in source_paths {
+            let Some(normalized) = normalize_source_mapping(path) else {
+                continue;
+            };
+            total.absorb(self.directory(&normalized));
+        }
+        total
+    }
+
+    fn flat_stem(&self, source_dir: &str, stem: &str) -> ModuleFileOwnership {
+        self.flat_stems
+            .get(source_dir)
+            .and_then(|stems| stems.get(stem))
+            .copied()
+            .unwrap_or_default()
+    }
+}
+
+/// Ownership over the explicit file list a configured module declares. A file
+/// the traversal never discovered is not counted as owned, so a declaration
+/// pointing at nothing keeps its report.
+fn declared_files_ownership(
+    files: &[String],
+    discovered_files: &HashSet<&str>,
+    specced_files: &HashSet<String>,
+) -> ModuleFileOwnership {
+    let mut ownership = ModuleFileOwnership::default();
+    for file in files {
+        let Some(normalized) = normalize_source_mapping(file) else {
+            continue;
+        };
+        if !discovered_files.contains(normalized.as_str()) {
+            continue;
+        }
+        ownership.observe(specced_files.contains(&normalized));
+    }
+    ownership
+}
+
 /// Compute file and module coverage.
 #[allow(dead_code)]
 pub fn compute_coverage(
@@ -5491,18 +5930,68 @@ pub fn compute_coverage_checked(
     let mut unspecced_modules = Vec::new();
     let mut seen_modules: HashSet<String> = HashSet::new();
 
+    // "This module has no spec" used to mean nothing more than "no spec
+    // DIRECTORY carries this name". When language-specific specs own the files
+    // — `strutil_py`, `strutil_js`, … mapping `src/strutil.{py,mjs,…}` — no
+    // `specs/strutil/` is ever created, so the missing NAME was read as a
+    // missing SPEC and coverage invented an uncovered module `strutil` beside
+    // `5/5 files covered` (#529). Every candidate below now has to show an
+    // actual gap in its own files: a module whose discovered files were all
+    // looked at and all found mapped is covered, whatever the spec is called.
+    // Owning no discovered file is NOT such a showing — it is the absence of
+    // input, and stays reported.
+    let discovered_files: HashSet<&str> = all_source_files
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
+    let source_roots: HashSet<String> = config
+        .source_dirs
+        .iter()
+        .map(|src_dir| normalized_coverage_source_dir(src_dir))
+        .collect::<Result<_, _>>()?;
+    let mut candidate_directories: HashSet<String> = manifest
+        .modules
+        .values()
+        .flat_map(|module| module.source_paths.iter())
+        .filter_map(|path| normalize_source_mapping(path))
+        .collect();
+    for src_dir in &config.source_dirs {
+        let normalized = normalized_coverage_source_dir(src_dir)?;
+        for module in coverage_source_modules(&source_snapshot, src_dir)? {
+            candidate_directories.insert(coverage_module_directory(&normalized, &module));
+        }
+    }
+    let ownership = CoverageModuleOwnership::index(
+        &all_source_files,
+        &specced_files,
+        &candidate_directories,
+        &source_roots,
+    );
+
     // User-defined modules from specsync.json take priority
     if !config.modules.is_empty() {
-        for name in config.modules.keys() {
-            if !spec_modules.contains(name) && seen_modules.insert(name.clone()) {
+        for (name, definition) in &config.modules {
+            if spec_modules.contains(name) {
+                continue;
+            }
+            let files =
+                declared_files_ownership(&definition.files, &discovered_files, &specced_files);
+            if files.is_uncovered() && seen_modules.insert(name.clone()) {
                 unspecced_modules.push(name.clone());
             }
         }
     }
 
     // Then: detect modules from manifest files (Package.swift, Cargo.toml, etc.)
-    for name in manifest.modules.keys() {
-        if !spec_modules.contains(name) && seen_modules.insert(name.clone()) {
+    for (name, module) in &manifest.modules {
+        if spec_modules.contains(name) {
+            continue;
+        }
+        if ownership
+            .declared_directories(&module.source_paths)
+            .is_uncovered()
+            && seen_modules.insert(name.clone())
+        {
             unspecced_modules.push(name.clone());
         }
     }
@@ -5514,8 +6003,14 @@ pub fn compute_coverage_checked(
         if crate::manifest::is_jvm_package_source_root(src_dir) {
             continue;
         }
+        let normalized = normalized_coverage_source_dir(src_dir)?;
         for module in coverage_source_modules(&source_snapshot, src_dir)? {
-            if !spec_modules.contains(&module) && seen_modules.insert(module.clone()) {
+            if spec_modules.contains(&module) {
+                continue;
+            }
+            let directory = coverage_module_directory(&normalized, &module);
+            if ownership.directory(&directory).is_uncovered() && seen_modules.insert(module.clone())
+            {
                 unspecced_modules.push(module);
             }
         }
@@ -5526,15 +6021,10 @@ pub fn compute_coverage_checked(
         .into_iter()
         .collect();
     for src_dir in &config.source_dirs {
-        let normalized = if src_dir == "." {
-            PathBuf::new()
-        } else {
-            PathBuf::from(normalize_source_mapping(src_dir).ok_or_else(|| {
-                format!("Coverage source directory must remain beneath the project root: {src_dir}")
-            })?)
-        };
+        let normalized = normalized_coverage_source_dir(src_dir)?;
+        let normalized_path = PathBuf::from(&normalized);
         for file in source_snapshot.files.iter().filter(|file| {
-            file.relative_path.parent().unwrap_or_else(|| Path::new("")) == normalized
+            file.relative_path.parent().unwrap_or_else(|| Path::new("")) == normalized_path
         }) {
             let Some(stem) = file
                 .relative_path
@@ -5547,7 +6037,12 @@ pub fn compute_coverage_checked(
             if skip_stems.contains(stem.as_str()) {
                 continue;
             }
-            if !spec_modules.contains(&stem) && seen_modules.insert(stem.clone()) {
+            if spec_modules.contains(&stem) {
+                continue;
+            }
+            if ownership.flat_stem(&normalized, &stem).is_uncovered()
+                && seen_modules.insert(stem.clone())
+            {
                 unspecced_modules.push(stem);
             }
         }

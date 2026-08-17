@@ -144,3 +144,13 @@ Acceptance Criteria
 - When `rootProject.name` is unset the project directory name is used, which is Gradle's own default rather than a spec-sync convention.
 - A multi-project build continues to use its `include` names.
 - No module name is derived from a source path segment, so neither the first nor the last segment of a package hierarchy can become a module.
+
+### REQ-manifest-018
+
+A manifest module SHALL carry the source paths it declares, so that a consumer can judge the module against its own files rather than against its name alone.
+
+Acceptance Criteria
+- Every discovered manifest module exposes the source paths attributed to it by the manifest it came from.
+- A module whose manifest declares no source paths exposes an empty set rather than being omitted, so a consumer can tell "declares nothing" from "was not discovered".
+- Cargo, Swift and Gradle discovery all populate the field, including the Gradle single-project fallback that derives its name from the root directory.
+

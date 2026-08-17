@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 17
+version: 18
 status: stable
 files:
   - src/manifest.rs
@@ -243,3 +243,4 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | 2026-07-24 | v15 / CHG-0063 descriptor-breadth remediation: Release each verified Node workspace-base listing so live handles remain bounded across distinct base patterns as well as sibling directories |
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-08-15 | CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest: Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module |
+| 2026-08-17 | CHG-0137-coverage-must-not-invent-a-module-over-files-that-are-all-mapped: Coverage must not invent a module over files that are all mapped |

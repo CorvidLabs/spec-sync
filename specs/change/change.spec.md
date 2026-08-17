@@ -1,6 +1,6 @@
 ---
 module: change
-version: 78
+version: 79
 status: active
 files:
   - src/change.rs
@@ -104,6 +104,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `TerminalEvidenceResult` | Change ID paired with its shared terminal-evidence summary |
 | `ChangeSummary` | Human/agent status projection with approval health/current scope digest, plain-language material expansion, validator plan, scoped-review freshness, exactly one next action, and optional terminal evidence |
 | `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
+| `UnreadableChange` | One active-change workspace that exists on disk but could not be read, carrying its directory identity and a reason naming the offending path |
+| `ChangeRoster` | The active-change roster as two separate facts: the records that were read and the workspaces that could not be, so absence and unreadability cannot share a value |
 
 **Exported Functions**
 
@@ -115,7 +117,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `create_change` | `root: &Path, request: CreateChangeRequest` | `Result<ChangeRecord, String>` | Create a sequential draft workspace and adaptive artifacts |
 | `load_change` | `root: &Path, id: &str` | `Result<ChangeRecord, String>` | Load active or archived change state |
 | `acceptance_entries` | `root: &Path, record: &ChangeRecord` | `Vec<AcceptanceInputEntryV1>` | Accepted acceptance-input entries, so `change show --json` can surface the `specsync.acceptance-entry.v1` digests `change supersede --digest` requires; empty when evidence is absent |
-| `list_changes` | `root: &Path` | `Vec<ChangeRecord>` | List active changes in stable ID order |
+| `list_changes` | `root: &Path` | `Result<ChangeRoster, String>` | List active changes in stable ID order alongside the workspaces that could not be read; `Err` only when the changes directory itself is unreadable |
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Return deterministic unanswered interview questions |
 | `answer_question` | `root, id, question, answer` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, then persists an interview answer and updates adaptive artifacts |
 | `answer_question_with_snapshot` | `root, id, question, answer` | `Result<DefinitionMutationResult, String>` | Crate-private command path that returns the answer mutation with its full in-transaction machine snapshot |
@@ -160,6 +162,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `parse` | Parse user-facing change-kind, artifact, or supported correction-field names into typed values |
 | `file_name` | Resolve an adaptive artifact to its safe Markdown filename |
 | `is_clean` | Return true when a ledger backfill recorded no per-change failures |
+| `is_degraded` | Return true when at least one workspace could not be read, so no caller may draw a conclusion from a missing record |
 
 Acceptance Criteria
 
@@ -382,3 +385,4 @@ Acceptance Criteria
 | 2026-08-13 | CHG-0114-a-semantic-delta-section-body-may-contain-subheadings-so-scaffolded-specs-can-be: A semantic delta section body may contain subheadings so scaffolded specs can be changed |
 | 2026-08-16 | CHG-0133-extract-the-change-module-s-tests-into-their-own-file-so-the-file-that-manufactu: Extract the change module's tests into their own file so the file that manufactures the sibling-site defect can be read, without altering a single test |
 | 2026-08-16 | CHG-0134-a-refused-reopen-must-restore-the-archive-it-un-archived-because-the-un-archive: A refused reopen must restore the archive it un-archived, because the un-archive move happens before the preconditions are checked and a correct refusal was destroying the package |
+| 2026-08-17 | CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent: An unreadable change workspace must be reported, not counted as absent |

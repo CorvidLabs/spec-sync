@@ -4453,7 +4453,84 @@ fn concurrent_change_creation_assigns_unique_ids() {
         .map(|handle| handle.join().unwrap())
         .collect();
     assert_eq!(ids.len(), 8);
-    assert_eq!(list_changes(&root).len(), 8);
+    let roster = list_changes(&root).unwrap();
+    assert!(!roster.is_degraded(), "unreadable: {:?}", roster.unreadable);
+    assert_eq!(roster.records.len(), 8);
+}
+
+/// One unreadable workspace must not erase its healthy siblings (#443).
+///
+/// The old roster was `list_changes_checked().unwrap_or_default()`: the first bad
+/// `state.json` aborted enumeration, and the resulting `Err` became an empty vec.
+/// Both halves are asserted here — the healthy record survives (enumeration no
+/// longer aborts) and the bad one is named (the failure is no longer discarded).
+#[test]
+fn unreadable_workspace_is_reported_beside_its_healthy_siblings() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let healthy = create_change(
+        root,
+        CreateChangeRequest {
+            description: "Healthy sibling".into(),
+            kind: ChangeKind::Operations,
+            affected_specs: Vec::new(),
+            affected_paths: vec!["ops/healthy/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("443 fixture".into()),
+        },
+    )
+    .unwrap()
+    .id;
+    let broken = create_change(
+        root,
+        CreateChangeRequest {
+            description: "Broken sibling".into(),
+            kind: ChangeKind::Operations,
+            affected_specs: Vec::new(),
+            affected_paths: vec!["ops/broken/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("443 fixture".into()),
+        },
+    )
+    .unwrap()
+    .id;
+
+    // Control: both are readable before the corruption, so a later empty roster
+    // cannot be blamed on the fixture never having created them.
+    let before = list_changes(root).unwrap();
+    assert!(!before.is_degraded());
+    assert_eq!(before.records.len(), 2);
+
+    fs::write(change_dir(root, &broken).join("state.json"), "{ not json").unwrap();
+
+    let roster = list_changes(root).unwrap();
+    assert_eq!(
+        roster
+            .records
+            .iter()
+            .map(|r| r.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![healthy.as_str()],
+        "the healthy sibling must survive an unreadable neighbour"
+    );
+    assert!(roster.is_degraded());
+    assert_eq!(roster.unreadable.len(), 1);
+    assert_eq!(roster.unreadable[0].id, broken);
+    assert!(
+        roster.unreadable[0].reason.contains("state.json"),
+        "the reason must name the offending file, got: {}",
+        roster.unreadable[0].reason
+    );
+
+    // Vacuity control: removing the corruption returns a clean, complete roster.
+    // Without this, a change that reported every workspace unreadable would pass
+    // every assertion above.
+    fs::remove_dir_all(change_dir(root, &broken)).unwrap();
+    let restored = list_changes(root).unwrap();
+    assert!(!restored.is_degraded());
+    assert_eq!(restored.records.len(), 1);
 }
 
 #[test]
@@ -10269,7 +10346,9 @@ fn openspec_adoption_imports_canonical_and_active_but_not_archive() {
         root.join(".specsync/imports/openspec/canonical/auth/spec.md")
             .is_file()
     );
-    let records = list_changes(root);
+    let roster = list_changes(root).unwrap();
+    assert!(!roster.is_degraded(), "unreadable: {:?}", roster.unreadable);
+    let records = roster.records;
     assert_eq!(records.len(), 1);
     assert!(
         change_dir(root, &records[0].id)
@@ -10298,7 +10377,9 @@ fn speckit_adoption_imports_constitution_and_feature_workspaces_only() {
         root.join(".specsync/imports/speckit/constitution.md")
             .is_file()
     );
-    let records = list_changes(root);
+    let roster = list_changes(root).unwrap();
+    assert!(!roster.is_degraded(), "unreadable: {:?}", roster.unreadable);
+    let records = roster.records;
     assert_eq!(records.len(), 1);
     assert!(
         change_dir(root, &records[0].id)

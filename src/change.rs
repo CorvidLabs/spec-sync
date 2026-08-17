@@ -91,7 +91,7 @@ struct GitTextQueryCacheKey {
 #[derive(Debug)]
 struct ChangeReadSnapshot {
     root: PathBuf,
-    active_records: Option<Result<Vec<ChangeRecord>, String>>,
+    active_records: Option<Result<ChangeRoster, String>>,
     all_records: Option<Result<BTreeMap<String, ChangeRecord>, String>>,
     repository_present: Option<Result<bool, String>>,
     repository_context: Option<Result<RepositoryContext, String>>,
@@ -1516,13 +1516,49 @@ pub fn load_change(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     Ok(record)
 }
 
-pub fn list_changes(root: &Path) -> Vec<ChangeRecord> {
-    list_changes_checked(root).unwrap_or_default()
+/// An active-change workspace that exists on disk but could not be read.
+///
+/// This type exists so that "there are no changes" and "I could not read the
+/// changes" cannot be represented by the same value. Dropping these on the floor
+/// is what made one malformed `state.json` print `No active SDD changes.` and
+/// exit 0 while healthy siblings sat right beside it (#443).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnreadableChange {
+    /// The workspace directory name, which is the change ID for a well-formed
+    /// workspace and the only handle we have for a malformed one.
+    pub id: String,
+    /// Why it could not be read, already carrying the offending path.
+    pub reason: String,
 }
 
-fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
-    if let Some(records) = read_scope_value(root, |scope| scope.active_records.clone()) {
-        return records;
+/// The active-change roster: what could be read, and what could not.
+///
+/// Callers that act on a record's *absence* must consult [`Self::is_degraded`]
+/// first. Absence from `records` means either that the change is not there or
+/// that it could not be parsed, and those two demand opposite responses.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ChangeRoster {
+    pub records: Vec<ChangeRecord>,
+    pub unreadable: Vec<UnreadableChange>,
+}
+
+impl ChangeRoster {
+    /// True when at least one workspace could not be read, so the roster is a
+    /// partial view and no conclusion may be drawn from a missing record.
+    pub fn is_degraded(&self) -> bool {
+        !self.unreadable.is_empty()
+    }
+}
+
+/// The full roster, including workspaces that could not be read.
+///
+/// `Err` is reserved for failures that leave no partial truth to report — the
+/// changes directory itself being unreadable. A single malformed workspace is
+/// data, not an error: it lands in [`ChangeRoster::unreadable`] so the caller can
+/// report it *and* still show every healthy change.
+pub fn list_changes(root: &Path) -> Result<ChangeRoster, String> {
+    if let Some(roster) = read_scope_value(root, |scope| scope.active_records.clone()) {
+        return roster;
     }
     let result = list_changes_uncached(root);
     update_read_scope(root, |scope| {
@@ -1531,15 +1567,31 @@ fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
     result
 }
 
-fn list_changes_uncached(root: &Path) -> Result<Vec<ChangeRecord>, String> {
-    let mut records = Vec::new();
+/// The roster as a plain record list, failing closed on any unreadable workspace.
+///
+/// This is the historical contract every internal caller was written against:
+/// one bad workspace aborts the whole read. Those callers compute digests,
+/// ledgers and successor sets where a silently short roster is worse than a hard
+/// error, so they keep it. Only the presentation layer uses [`list_changes`].
+fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
+    let roster = list_changes(root)?;
+    match roster.unreadable.first() {
+        Some(unreadable) => Err(unreadable.reason.clone()),
+        None => Ok(roster.records),
+    }
+}
+
+fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
+    let mut roster = ChangeRoster::default();
     let dir = root.join(CHANGES_PATH);
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(records),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(roster),
         Err(error) => return Err(format!("failed to read active changes: {error}")),
     };
     for entry in entries {
+        // Enumeration failures are not scoped to one workspace: we cannot name
+        // what we could not enumerate, so there is no partial truth to report.
         let entry =
             entry.map_err(|error| format!("failed to read active change entry: {error}"))?;
         if !entry
@@ -1549,12 +1601,20 @@ fn list_changes_uncached(root: &Path) -> Result<Vec<ChangeRecord>, String> {
         {
             continue;
         }
-        let expected_id = entry.file_name().into_string().map_err(|_| {
-            format!(
-                "active change directory is not valid UTF-8: {}",
-                entry.path().display()
-            )
-        })?;
+        let expected_id = match entry.file_name().into_string() {
+            Ok(name) => name,
+            Err(_) => {
+                let path = entry.path();
+                roster.unreadable.push(UnreadableChange {
+                    id: path.display().to_string(),
+                    reason: format!(
+                        "active change directory is not valid UTF-8: {}",
+                        path.display()
+                    ),
+                });
+                continue;
+            }
+        };
         let path = entry.path().join("state.json");
         // Git cannot track empty directories, so switching to a branch without this
         // change leaves a husk behind — typically just an empty `deltas/`. Treating
@@ -1563,26 +1623,50 @@ fn list_changes_uncached(root: &Path) -> Result<Vec<ChangeRecord>, String> {
         // branching pattern and blocked the first command in the workflow.
         //
         // A directory with no `state.json` is not an active change *here*. Skip it.
-        // Every other read error still fails closed: an unreadable state.json is a
-        // real problem and must not be silently ignored.
+        // Every other read error is still reported: an unreadable state.json is a
+        // real problem and must never be mistaken for an absent one.
         let content = match fs::read_to_string(&path) {
             Ok(content) => content,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => {
-                return Err(format!(
-                    "failed to read active change state {}: {error}",
-                    path.display()
-                ));
+                roster.unreadable.push(UnreadableChange {
+                    id: expected_id,
+                    reason: format!(
+                        "failed to read active change state {}: {error}",
+                        path.display()
+                    ),
+                });
+                continue;
             }
         };
-        let record = serde_json::from_str(&content)
-            .map_err(|error| format!("invalid active change state {}: {error}", path.display()))?;
-        validate_loaded_change(&record, &expected_id, &path)?;
-        validate_workflow_version_history(root, &record)?;
-        records.push(record);
+        let record: ChangeRecord = match serde_json::from_str(&content) {
+            Ok(record) => record,
+            Err(error) => {
+                roster.unreadable.push(UnreadableChange {
+                    id: expected_id,
+                    reason: format!("invalid active change state {}: {error}", path.display()),
+                });
+                continue;
+            }
+        };
+        if let Err(reason) = validate_loaded_change(&record, &expected_id, &path)
+            .and_then(|()| validate_workflow_version_history(root, &record))
+        {
+            roster.unreadable.push(UnreadableChange {
+                id: expected_id,
+                reason,
+            });
+            continue;
+        }
+        roster.records.push(record);
     }
-    records.sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));
-    Ok(records)
+    roster
+        .records
+        .sort_by(|left: &ChangeRecord, right: &ChangeRecord| left.id.cmp(&right.id));
+    roster
+        .unreadable
+        .sort_by(|left, right| left.id.cmp(&right.id));
+    Ok(roster)
 }
 
 fn change_sequence(id: &str) -> Option<u64> {
@@ -6263,7 +6347,10 @@ fn summarize_change_with_effective(
 }
 
 fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
-    let records = list_changes_checked(root).unwrap_or_default();
+    // Fails closed with the rest of the roster readers. An empty list here does not
+    // mean "no changes": it also meant "the roster could not be read", and that
+    // silently selected a different pull-request diff base below.
+    let records = list_changes_checked(root)?;
     let policy_changed_from_head = !is_ci_project(root)
         && Command::new("git")
             .args(["diff", "--quiet", "HEAD", "--", POLICY_PATH])

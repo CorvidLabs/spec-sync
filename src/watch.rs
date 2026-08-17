@@ -7,22 +7,84 @@ use notify::{EventKind, RecursiveMode};
 use notify_debouncer_full::{DebouncedEvent, new_debouncer};
 
 use crate::config::load_config;
+use crate::types::OutputFormat;
+
+/// The result of resolving configured watch directories.
+#[derive(Debug, PartialEq)]
+struct WatchDirs {
+    /// Directories that exist and should be watched.
+    watched: Vec<PathBuf>,
+    /// Configured paths that do not exist, with their role (`specs_dir` or `source_dirs`).
+    skipped: Vec<(String, String)>,
+}
+
+/// Resolve the configured `specs_dir` and `source_dirs` into the set of
+/// directories that actually exist. Nonexistent configured paths are recorded
+/// in `skipped` instead of silently dropped.
+fn resolve_watch_dirs(root: &Path, specs_dir: &str, source_dirs: &[String]) -> WatchDirs {
+    let abs_specs = root.join(specs_dir);
+    let abs_sources: Vec<PathBuf> = source_dirs.iter().map(|d| root.join(d)).collect();
+
+    let mut watched = Vec::new();
+    let mut skipped = Vec::new();
+
+    if abs_specs.is_dir() {
+        watched.push(abs_specs);
+    } else {
+        skipped.push((specs_dir.to_string(), "specs_dir".to_string()));
+    }
+
+    for (configured, abs) in source_dirs.iter().zip(abs_sources.iter()) {
+        if abs.is_dir() {
+            watched.push(abs.clone());
+        } else {
+            skipped.push((configured.clone(), "source_dirs".to_string()));
+        }
+    }
+
+    WatchDirs { watched, skipped }
+}
 
 /// Run the check command in watch mode, re-running on file changes.
 /// Uses the hash cache to skip unchanged specs on subsequent runs.
-pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>) {
+pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>, format: OutputFormat) {
     let config = load_config(root);
-    let specs_dir = root.join(&config.specs_dir);
-    let source_dirs: Vec<PathBuf> = config.source_dirs.iter().map(|d| root.join(d)).collect();
 
-    // Collect directories to watch
-    let mut watch_dirs: Vec<PathBuf> = Vec::new();
-    if specs_dir.is_dir() {
-        watch_dirs.push(specs_dir.clone());
-    }
-    for dir in &source_dirs {
-        if dir.is_dir() {
-            watch_dirs.push(dir.clone());
+    // Resolve the configured directories into the set to watch. A configured
+    // directory that does not exist is reported but does not stop the watch:
+    // watch is a long-running dev loop, and a typo in one of several paths
+    // should not be fatal. It must never be invisible, though — silently
+    // dropping a path makes the banner lie about what is being monitored.
+    let resolved = resolve_watch_dirs(root, &config.specs_dir, &config.source_dirs);
+    let watch_dirs = resolved.watched;
+
+    // Report dropped directories on both human and machine-readable channels.
+    // Even though watch is primarily interactive, CI and editor integrations
+    // read its output and need a parseable signal that a configured path was
+    // ignored.
+    for (configured_path, role) in &resolved.skipped {
+        match format {
+            OutputFormat::Json => {
+                eprintln!(
+                    "{}",
+                    serde_json::json!({
+                        "warning": "nonexistent_watch_directory",
+                        "path": configured_path,
+                        "role": role,
+                        "message": format!(
+                            "configured {role} does not exist and will not be watched: {configured_path}"
+                        )
+                    })
+                );
+            }
+            _ => {
+                eprintln!(
+                    "{} configured {} does not exist and will not be watched: {}",
+                    "⊘ Warning:".yellow(),
+                    role,
+                    configured_path
+                );
+            }
         }
     }
 
@@ -203,6 +265,7 @@ fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: 
 
     // Stream the child's output through while scanning for the summary line.
     let mut failed_specs: Option<usize> = None;
+    let mut examined_nothing = false;
     if let Some(stdout) = child.stdout.take() {
         for line in BufReader::new(stdout).lines() {
             let line = match line {
@@ -212,6 +275,9 @@ fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: 
             println!("{line}");
             if let Some(failed) = parse_failed_count(&line) {
                 failed_specs = Some(failed);
+            }
+            if reports_no_specs(&line) {
+                examined_nothing = true;
             }
         }
     }
@@ -226,6 +292,19 @@ fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: 
                     "Some checks failed.".red().bold(),
                     elapsed.as_millis()
                 );
+            } else if examined_nothing {
+                // A check that found no specs exits zero, and reading that as
+                // success is how watch printed a green `All checks passed!`
+                // over a run that examined nothing — the same false all-clear
+                // #577 produces on the watch set itself. Claim a pass only on
+                // positive evidence that specs were examined.
+                println!(
+                    "\n{} ({}ms)",
+                    "No specs were examined — nothing was checked."
+                        .yellow()
+                        .bold(),
+                    elapsed.as_millis()
+                );
             } else {
                 println!(
                     "\n{} ({}ms)",
@@ -238,6 +317,16 @@ fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: 
             eprintln!("{} Failed to run check: {e}", "Error:".red());
         }
     }
+}
+
+/// Recognise the check command's "there was nothing to examine" line.
+///
+/// The child prints this and exits zero, so the exit status alone cannot
+/// distinguish a clean run from an empty one.
+fn reports_no_specs(line: &str) -> bool {
+    strip_ansi(line)
+        .trim_start()
+        .starts_with("No spec files found in ")
 }
 
 /// Parse the failed-spec count from a check summary line like
@@ -420,29 +509,10 @@ mod tests {
         std::fs::create_dir_all(&specs_dir).unwrap();
         std::fs::create_dir_all(&src_dir).unwrap();
 
-        // Write a basic config
-        let config_content = r#"{"specsDir": "specs", "sourceDirs": ["src"]}"#;
-        std::fs::write(tmp.path().join("specsync.json"), config_content).unwrap();
+        let resolved = resolve_watch_dirs(tmp.path(), "specs", &["src".to_string()]);
 
-        let config = load_config(tmp.path());
-        let specs = tmp.path().join(&config.specs_dir);
-        let source_dirs: Vec<PathBuf> = config
-            .source_dirs
-            .iter()
-            .map(|d| tmp.path().join(d))
-            .collect();
-
-        let mut watch_dirs: Vec<PathBuf> = Vec::new();
-        if specs.is_dir() {
-            watch_dirs.push(specs);
-        }
-        for dir in &source_dirs {
-            if dir.is_dir() {
-                watch_dirs.push(dir.clone());
-            }
-        }
-
-        assert_eq!(watch_dirs.len(), 2);
+        assert_eq!(resolved.watched.len(), 2);
+        assert!(resolved.skipped.is_empty());
     }
 
     #[test]
@@ -450,28 +520,47 @@ mod tests {
         // Verify that empty watch dirs are detected
         let tmp = TempDir::new().unwrap();
         // No specs or source dirs exist
-        let config_content = r#"{"specsDir": "specs", "sourceDirs": ["src"]}"#;
-        std::fs::write(tmp.path().join("specsync.json"), config_content).unwrap();
 
-        let config = load_config(tmp.path());
-        let specs = tmp.path().join(&config.specs_dir);
-        let source_dirs: Vec<PathBuf> = config
-            .source_dirs
-            .iter()
-            .map(|d| tmp.path().join(d))
-            .collect();
+        let resolved = resolve_watch_dirs(tmp.path(), "specs", &["src".to_string()]);
 
-        let mut watch_dirs: Vec<PathBuf> = Vec::new();
-        if specs.is_dir() {
-            watch_dirs.push(specs);
-        }
-        for dir in &source_dirs {
-            if dir.is_dir() {
-                watch_dirs.push(dir.clone());
-            }
-        }
+        assert!(resolved.watched.is_empty());
+        assert_eq!(resolved.skipped.len(), 2);
+        assert!(
+            resolved
+                .skipped
+                .contains(&("specs".to_string(), "specs_dir".to_string()))
+        );
+        assert!(
+            resolved
+                .skipped
+                .contains(&("src".to_string(), "source_dirs".to_string()))
+        );
+    }
 
-        assert!(watch_dirs.is_empty());
+    #[test]
+    fn test_resolve_watch_dirs_reports_partially_missing_dirs() {
+        // One configured directory exists and one does not; both fates are recorded.
+        let tmp = TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
+
+        let resolved = resolve_watch_dirs(
+            tmp.path(),
+            "missing-specs",
+            &["src".to_string(), "also-missing".to_string()],
+        );
+
+        assert_eq!(resolved.watched.len(), 1);
+        assert_eq!(resolved.skipped.len(), 2);
+        assert!(
+            resolved
+                .skipped
+                .contains(&("missing-specs".to_string(), "specs_dir".to_string()))
+        );
+        assert!(
+            resolved
+                .skipped
+                .contains(&("also-missing".to_string(), "source_dirs".to_string()))
+        );
     }
 
     // --- event path extraction ---
@@ -533,6 +622,27 @@ mod tests {
         // print_summary colors the failed count red when non-zero
         let line = "1 specs checked: \u{1b}[32m0\u{1b}[0m passed, \u{1b}[33m0\u{1b}[0m warning(s), \u{1b}[31m1\u{1b}[0m failed";
         assert_eq!(parse_failed_count(line), Some(1));
+    }
+
+    #[test]
+    fn test_reports_no_specs_recognises_the_empty_run() {
+        assert!(reports_no_specs(
+            "No spec files found in /tmp/proj/nope/. Run `specsync generate` to scaffold specs."
+        ));
+    }
+
+    #[test]
+    fn test_reports_no_specs_ignores_a_real_run() {
+        // The control: lines from a run that did examine specs must not be
+        // mistaken for the empty case, or watch would never report a pass.
+        assert!(!reports_no_specs(
+            "1 specs checked: 1 passed, 0 warning(s), 0 failed"
+        ));
+        assert!(!reports_no_specs(
+            "  ✓ specs/mod.md — 1/1 exports documented"
+        ));
+        assert!(!reports_no_specs("File coverage: 0/1 (0%)"));
+        assert!(!reports_no_specs(""));
     }
 
     #[test]

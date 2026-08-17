@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0142-watch-must-disclose-a-dropped-directory-and-not-claim-a-pass-over-an-empty-check",
+  "implementation_commit": "7c5cf201a712183f09a30e0689e1394769433480",
+  "implementation_tree": "c2b33a6a05fc69f87cc483a04a9b7f908a38a8d8",
+  "contract_digest": "043b6aa78c5cd501a3d977b82abb379d928599d9edc81e53bf5540b88f64cee4",
+  "workspace_digest": "1ce0c5c06602bc267747455128081b64906ecc0edac5041aff969109f026463b",
+  "closing_digest": "a53af658d59f7878774c63aa4085c5d3dfa1b731e30f215f01be20489b137c5a",
+  "review_digest": "70910486e95d11a68115b275aa52b3b935ca465005a20456a670de151ce085cc",
+  "finalization_digest": "5f1e1f32c99075b3c6f8d63ad97cdd86bb7648c428c6063b854036b45b341e79",
+  "timestamp": 1787001754
+}

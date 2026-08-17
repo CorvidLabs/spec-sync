@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`watch` names the directories it is not watching, and no longer reports a pass over an empty
+  check** (CorvidLabs/spec-sync#577). Two claims, both untrue.
+
+  The watch set was built by testing each configured directory with `is_dir()` and keeping the ones
+  that passed. A `specs_dir` or `source_dirs` entry that did not exist fell out with no record it had
+  ever been named, and the banner then listed the survivors — which reads as the complete list. The
+  path the operator got wrong was exactly the one omitted.
+
+  Separately, `watch` forks `specsync check` and read the child's exit status. A check that finds no
+  specs prints `No spec files found in <dir>/` and exits 0, because in bare mode that is
+  informational — #560 settled that `--strict` is where it gates. `watch` could not tell "examined N
+  specs, all clean" from "examined none", so it printed a green `All checks passed!` over a run that
+  checked nothing.
+
+  Both halves are the release's defect class: a set empty or short for want of input, read as an
+  absence of problems.
+
+  Resolving the watch set now records skipped paths beside watched ones, and each is reported with
+  its role on stderr in both human and JSON modes, so the stdout banner stays parseable. `run_check`
+  claims a pass only on positive evidence that specs were examined.
+
+  A missing directory is still non-fatal — `watch` is a long-running dev loop and one bad path of
+  several should not stop it — an empty watch set still exits 1, `check` is untouched, and a real,
+  passing spec set still reports `All checks passed!`.
+
 - **A stale sequence ledger is no longer committed backwards** (CorvidLabs/spec-sync#533).
   A branch created before the default branch advanced carries an older `change-sequence.json`.
   `change check --commit` ran `git add -A` over it, so SpecSync's own materialize commit rewrote

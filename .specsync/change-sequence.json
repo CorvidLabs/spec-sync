@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 141,
-  "id": "CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty",
+  "sequence": 142,
+  "id": "CHG-0142-watch-must-disclose-a-dropped-directory-and-not-claim-a-pass-over-an-empty-check",
   "acknowledged_collisions": [
     {
       "sequence": 16,

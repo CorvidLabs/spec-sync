@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0142-watch-must-disclose-a-dropped-directory-and-not-claim-a-pass-over-an-empty-check",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "7c5cf201a712183f09a30e0689e1394769433480",
+  "contract_digest": "043b6aa78c5cd501a3d977b82abb379d928599d9edc81e53bf5540b88f64cee4",
+  "execution_digest": "0b6edde81b83c8810d73a83cf4fd3cf322faa9366c8e333ad002427b90d64398",
+  "workspace_digest": "1ce0c5c06602bc267747455128081b64906ecc0edac5041aff969109f026463b",
+  "timestamp": 1787001746
+}

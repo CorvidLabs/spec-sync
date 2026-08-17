@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "a1efb828b13fb5cca37aa6aec65b6677b334da2c",
   "created_at": 1786998696,
-  "updated_at": 1787000416,
+  "updated_at": 1787000972,
   "affected_specs": [
     "watch",
     "cli"

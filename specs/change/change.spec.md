@@ -1,6 +1,6 @@
 ---
 module: change
-version: 79
+version: 80
 status: active
 files:
   - src/change.rs
@@ -386,3 +386,4 @@ Acceptance Criteria
 | 2026-08-16 | CHG-0133-extract-the-change-module-s-tests-into-their-own-file-so-the-file-that-manufactu: Extract the change module's tests into their own file so the file that manufactures the sibling-site defect can be read, without altering a single test |
 | 2026-08-16 | CHG-0134-a-refused-reopen-must-restore-the-archive-it-un-archived-because-the-un-archive: A refused reopen must restore the archive it un-archived, because the un-archive move happens before the preconditions are checked and a correct refusal was destroying the package |
 | 2026-08-17 | CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent: An unreadable change workspace must be reported, not counted as absent |
+| 2026-08-17 | CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives: Declaring a module must never reduce the verification a change receives |

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0137-coverage-must-not-invent-a-module-over-files-that-are-all-mapped",
+  "slug": "coverage-must-not-invent-a-module-over-files-that-are-all-mapped",
+  "title": "Coverage must not invent a module over files that are all mapped",
+  "description": "coverage must not invent a module over files that are all mapped",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "7309c17f774467183f75d4063311d6ceb8b62bf0",
+  "created_at": 1786934078,
+  "updated_at": 1786936561,
+  "affected_specs": [
+    "validator",
+    "manifest"
+  ],
+  "affected_paths": [
+    "src/validator.rs",
+    "src/manifest.rs",
+    "tests/integration.rs",
+    "tests/integration/coverage_phantom_module.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "coverage reports no module for a directory or stem whose every discovered file is already mapped by a spec, in text and in JSON; a module owning at least one unmapped file is still reported; a module owning no discovered file at all is still reported, because owning nothing measurable is absence of input rather than evidence of coverage; the file and LOC coverage percentages are unchanged by the fix, so the phantom disappears without moving the measurement; running coverage on this repository goes from modules ['specsync','change_tests'] to [] while files_covered stays 106/106; all four derivation sites are fixed, not only the flat-file-stem site named in the report; sandbox gate 061 goes rc=1 to rc=0 with its not-a-mute control still green."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

@@ -41,6 +41,9 @@ mod finding_identity_parity;
 #[path = "integration/regression_w1.rs"]
 mod regression_w1;
 
+#[path = "integration/watch.rs"]
+mod watch;
+
 /// Guard against silently-orphaned integration test files (issue #585).
 ///
 /// `tests/integration/regression_w1.rs` sat on disk for months with 20 tests and

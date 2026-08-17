@@ -178,7 +178,7 @@ fn run() {
             &cli.exclude_status,
             &cli.only_status,
         ),
-        Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage),
+        Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage, format),
         Command::Mcp { allow_write } => {
             if let Err(message) = mcp::run_mcp_server(&root, allow_write) {
                 eprintln!("{} {message}", "error:".red().bold());

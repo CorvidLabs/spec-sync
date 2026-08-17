@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1786999815,
+      "commit": "a1efb828b13fb5cca37aa6aec65b6677b334da2c",
+      "contract_digest": "043b6aa78c5cd501a3d977b82abb379d928599d9edc81e53bf5540b88f64cee4",
+      "execution_digest": "0b6edde81b83c8810d73a83cf4fd3cf322faa9366c8e333ad002427b90d64398",
+      "workspace_digest": "1ce0c5c06602bc267747455128081b64906ecc0edac5041aff969109f026463b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-009",
+        "REQ-watch-002"
+      ]
+    },
+    {
+      "timestamp": 1787000414,
+      "commit": "a1efb828b13fb5cca37aa6aec65b6677b334da2c",
+      "contract_digest": "043b6aa78c5cd501a3d977b82abb379d928599d9edc81e53bf5540b88f64cee4",
+      "execution_digest": "0b6edde81b83c8810d73a83cf4fd3cf322faa9366c8e333ad002427b90d64398",
+      "workspace_digest": "1ce0c5c06602bc267747455128081b64906ecc0edac5041aff969109f026463b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test cli::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-009",
+        "REQ-watch-002"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 id: CHG-0137-coverage-must-not-invent-a-module-over-files-that-are-all-mapped
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 7309c17f774467183f75d4063311d6ceb8b62bf0
 ---

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0137-coverage-must-not-invent-a-module-over-files-that-are-all-mapped",
+  "implementation_commit": "e1af8603771442c1ba8c25763be77c2794d92572",
+  "implementation_tree": "d3fd9b769612f647d86bb91d87b2887c6a3573e6",
+  "contract_digest": "9dbd9c43362874cdc01bdc11bc4cac51295e243209aba701fab42ebd423d475d",
+  "workspace_digest": "a94acd7564802c58a53d95308e90a591342bb9d698b6c77131878bd5a4ad9cfe",
+  "closing_digest": "1dcf6cbef45e511be94a4b2f818fe075f773e97a89bc95277aca9891370f1884",
+  "review_digest": "469ffa638a23f89428bde5132ff2da2b1de1eb57eb940c73c8f81a4d3879ffb1",
+  "finalization_digest": "f7adce8bfb721ad4fe0f5b065344c0c0ccb6a612f071c5caf22bc0a0a68866cb",
+  "timestamp": 1786937136
+}

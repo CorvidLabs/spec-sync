@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0135-register-20-integration-tests-that-never-compiled-and-guard-against-orphaned-tes",
+  "slug": "register-20-integration-tests-that-never-compiled-and-guard-against-orphaned-tes",
+  "title": "Register 20 integration tests that never compiled and guard against orphaned test files",
+  "description": "register 20 integration tests that never compiled and guard against orphaned test files",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "b5ca06da706eb61cf72cfdd2dce035f93b40bad6",
+  "created_at": 1786922928,
+  "updated_at": 1786925440,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration.rs",
+    "tests/integration/regression_w1.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Registration and test-fixture work only; no module's public contract or spec text changes. tests/ is not owned by any spec module.",
+  "acceptance_criteria": [
+    "tests/integration/regression_w1.rs is declared in tests/integration.rs and its 20 tests execute; cargo test reports 395 integration tests passing (374 baseline + 20 resurrected + 1 guard); every_integration_test_file_is_registered fails with rc=101 naming a planted orphan file and passes when removed; the two previously-failing tests pass on fixtures proven to discriminate, with --require-coverage 101 failing and 0 passing on the same tree; the marker count in regression_w1.rs is 20 before and after."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

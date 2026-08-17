@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0135-register-20-integration-tests-that-never-compiled-and-guard-against-orphaned-tes",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6870ee3a8b21d2e7cdc98af5b60e0a387fb20ec7",
+  "contract_digest": "86512fb86f743368c5bb66f3abdb825c979244c15ef3eb6fa65723410658c6f0",
+  "execution_digest": "cbb8020933f7e5f0b55ab27dcd7e914b772191d52f1275847af616f10499faae",
+  "workspace_digest": "5efd399a22f5af4f5a5a58335200d49d6747244f8f6233a9e8ec2f1607f5af85",
+  "timestamp": 1786925394
+}

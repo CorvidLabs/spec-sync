@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 146,
-  "id": "CHG-0146-ci-must-run-the-product-lane-whenever-the-pull-request-touches-product-paths",
+  "sequence": 147,
+  "id": "CHG-0147-an-explicit-enforcement-policy-must-survive-migrate",
   "acknowledged_collisions": [
     {
       "sequence": 16,

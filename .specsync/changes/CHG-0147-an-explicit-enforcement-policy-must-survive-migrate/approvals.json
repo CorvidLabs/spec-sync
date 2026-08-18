@@ -1,0 +1,71 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1787066649,
+      "digest": "63f7847efa5b8bdc602b38fd384bb8e603dbbb14b3d8881aa0e8d81db748c9de",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0147-an-explicit-enforcement-policy-must-survive-migrate",
+        "title": "An explicit enforcement policy must survive migrate",
+        "description": "an explicit enforcement policy must survive migrate",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "config"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "site/src/content/docs/configuration.md",
+          "src/config.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "config_to_toml omitted enforcement when the value was Warn with the comment default-omit, but the default moved to Strict, so migrate dropped an explicit warn and the project silently became gating",
+        "acceptance_criteria": [
+          "a project with an explicit enforcement value has the same effective policy before and after migrate, demonstrated by check exiting identically on a tree with a validation error; the migrated config states the enforcement explicitly rather than relying on whichever default the binary carries; a project that never set enforcement is unaffected; the documented default matches the code"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1787066793,
+      "digest": "63f7847efa5b8bdc602b38fd384bb8e603dbbb14b3d8881aa0e8d81db748c9de",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0147-an-explicit-enforcement-policy-must-survive-migrate",
+        "title": "An explicit enforcement policy must survive migrate",
+        "description": "an explicit enforcement policy must survive migrate",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "config"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "site/src/content/docs/configuration.md",
+          "src/config.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "config_to_toml omitted enforcement when the value was Warn with the comment default-omit, but the default moved to Strict, so migrate dropped an explicit warn and the project silently became gating",
+        "acceptance_criteria": [
+          "a project with an explicit enforcement value has the same effective policy before and after migrate, demonstrated by check exiting identically on a tree with a validation error; the migrated config states the enforcement explicitly rather than relying on whichever default the binary carries; a project that never set enforcement is unaffected; the documented default matches the code"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

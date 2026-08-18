@@ -134,3 +134,14 @@ Acceptance Criteria
 - A line that opens a header and never closes it is recorded rather than silently skipped.
 - The refusal uses the same wording as the unreadable-file shape, so a consumer matching a refusal need not know which door produced it.
 - Valid TOML the scanner does not implement is not rejected; the test is limited to the unambiguous unterminated-header case.
+
+### REQ-config-012
+
+Serialising configuration SHALL state an explicit enforcement policy rather than omitting it as equal to a default.
+
+Acceptance Criteria
+- A configuration written by the tool records its enforcement value in every case, so the effective policy does not depend on which default the reading binary carries.
+- A project's effective enforcement is identical before and after migration, observable as an unchanged exit code from a check over a tree that contains a validation error.
+- A project that never expressed an enforcement preference is unaffected.
+- The documented default matches the value the type declares.
+

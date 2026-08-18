@@ -1,0 +1,77 @@
+{
+  "timestamp": 1787061584,
+  "commit": "9d1eeec7fbb32a6c81f7abb88a0aa4c83d0c97e5",
+  "contract_digest": "e967af3339188611284e19702f71fc48a588ce0bfaed02046308463d71ac6349",
+  "execution_digest": "de7f475909cec338caa227442ce44374c429bfd17ce36f4f6cd9fd4a90bc6fb0",
+  "workspace_digest": "73b1f37761e62cf9225bb73f0a3e0253e5dcba2c42bc862fe8a01fd8d7f77728",
+  "acceptance_input_digest": "a2d9a5660530fd9aec44ee5e2430e9b1713e5e21579434060ee39dfa7d6e60ee",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/scripts/select-ci-lane.sh",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "bb11bb990017b4689629f20c249ae71592ca63d5124ffae56f9a13b8bd468637",
+        "entry_digest": "75b306cbf39beaef96edee798b85018c1ab6aece38dddaeff53d1ebf88151626",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/scripts/test-classify-ci-paths.sh",
+        "kind": "file",
+        "mode": 33261,
+        "payload_digest": "cb2d6ca8549099115408f25b3a4b534fa4a70270ed9bcd87907dc5badaf76b32",
+        "entry_digest": "4f9501eafc2167f01a17e7b8b89b56fb1f9fab750b1b56ba93a8d2f7d5962d6c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6e94f31b3f0d3941be9b3c09f773c23c91f15dd65a998c531f10ceb4c1edcdcf",
+        "entry_digest": "980cde6719f4f6ccf10cf02bcc4daa83d5c0afdfc1da7d4ea28e1a1370a684ee",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "af9b87acb6c6a12bbd78622b56cd8c97ce056ae3d9c8a0ce7ea32391ab2764ff",
+        "entry_digest": "df81d9c34d86e00c041be0295f16fbb005d4f0b163e3c27105eec4c3f1b0e9e6",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -1,6 +1,6 @@
 ---
 id: CHG-0146-ci-must-run-the-product-lane-whenever-the-pull-request-touches-product-paths
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 2d60b46a5e4b245e2abdfa6a323fc1109d6416f1
 ---

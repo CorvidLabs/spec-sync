@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0151-a-test-that-pinned-deleted-release-lane-behaviour-must-go-with-it",
+  "reviewer": "Peer151",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "3230fb032d83f30ecf52d081424ce164e686a3d8",
+  "contract_digest": "695be7ec6855f394a82416bc813fb5ed17bcb39417dd85dcbd8a60e1b0dce070",
+  "execution_digest": "41d926f00728f6751f2f7b5aa05978b629d9989febe9262732c69a235da112fb",
+  "workspace_digest": "f6c5f252b7efb485f59a4cdb7c504a4d5d65af44c52b4c4b3a112a7e8d96f744",
+  "timestamp": 1787093843
+}

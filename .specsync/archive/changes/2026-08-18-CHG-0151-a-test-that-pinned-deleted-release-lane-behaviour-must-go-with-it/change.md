@@ -1,6 +1,6 @@
 ---
 id: CHG-0151-a-test-that-pinned-deleted-release-lane-behaviour-must-go-with-it
-state: implementing
+state: archived
 type: feature
 base_commit: 64a721c9ea4c0b2cd4fbb34418f477f69162ec95
 ---

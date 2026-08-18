@@ -7,11 +7,11 @@
   "title": "A test that pinned deleted release-lane behaviour must go with it",
   "description": "a test that pinned deleted release-lane behaviour must go with it",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "64a721c9ea4c0b2cd4fbb34418f477f69162ec95",
   "created_at": 1787091893,
-  "updated_at": 1787093558,
+  "updated_at": 1787093851,
   "affected_specs": [],
   "affected_paths": [
     ".github/scripts/test-validate-release-candidate.py",

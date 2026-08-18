@@ -10,6 +10,14 @@ on:
         description: Immutable annotated RC tag to promote after qualification
         required: true
         type: string
+      dry_run:
+        description: >-
+          Resolve the candidate and run validation only. Creates no tag and
+          publishes nothing. Every other job is gated on qualify/promote and
+          skips.
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -42,6 +50,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
           REQUESTED_RC_TAG: ${{ inputs.rc_tag }}
+          REQUESTED_DRY_RUN: ${{ inputs.dry_run }}
           PUSH_CREATED: ${{ github.event.created }}
           PUSH_FORCED: ${{ github.event.forced }}
           REPOSITORY: ${{ github.repository }}
@@ -59,7 +68,22 @@ jobs:
               echo "::error::Promotion must be dispatched from ${DEFAULT_BRANCH}"
               exit 1
             fi
-            mode="promote"
+            # A dry run resolves the candidate and validates it, then stops.
+            # Every job below `validate` is gated on qualify/promote, so none
+            # of them run and no tag is created. This exists so `release.yml`
+            # can be executed at all without pushing a tag — the lane going
+            # unexercised for sixteen days is how #635 stayed invisible.
+            # Reject anything that is not exactly true/false rather than
+            # falling back to a default. Treating an unrecognized value as
+            # "not a dry run" would turn a typo into a real promotion.
+            case "${REQUESTED_DRY_RUN:-false}" in
+              true) mode="dry-run" ;;
+              false|"") mode="promote" ;;
+              *)
+                echo "::error::dry_run must be true or false, got '${REQUESTED_DRY_RUN}'"
+                exit 1
+                ;;
+            esac
             rc_tag="$REQUESTED_RC_TAG"
             git fetch --force origin "refs/tags/${rc_tag}:refs/tags/${rc_tag}"
           elif [[ "$REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-rc\.([0-9]+)$ ]]; then
@@ -170,11 +194,21 @@ jobs:
           persist-credentials: false
           ref: ${{ needs.resolve.outputs.candidate_sha }}
 
-      - name: Validate candidate source and merged archive binding
+      # This job used to also wait for a check run named "SpecSync archive
+      # binding" and validate it in ~430 lines of embedded Python. Its producer,
+      # post-merge-archive.yml, was deleted in #499 as part of removing the CI
+      # reimplementation of the SDD lifecycle, and nothing replaced it — so the
+      # wait matched nothing, `validate` failed closed, and every job downstream
+      # of it (qualify, authorize-release, promote, build, release) was
+      # unreachable. `validate` has no mode guard, so this blocked the RC tag,
+      # not only the final tag. See #635.
+      #
+      # The archive-to-merge-commit binding is now enforced solely by SpecSync
+      # itself, in `change ship` and archive validation, which is where #499 put
+      # the lifecycle. The release lane no longer re-derives it from Git
+      # topology.
+      - name: Validate candidate source
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          SERVER_URL: ${{ github.server_url }}
           RELEASE_COMMIT: ${{ needs.resolve.outputs.candidate_sha }}
           TAG_VERSION: ${{ needs.resolve.outputs.version }}
         shell: bash
@@ -196,436 +230,6 @@ jobs:
             exit 1
           fi
 
-          checks_file="${RUNNER_TEMP}/specsync-release-checks.json"
-          binding_status=""
-          for attempt in $(seq 1 12); do
-            if gh api \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "repos/${REPOSITORY}/commits/${release_commit}/check-runs?per_page=100" \
-                > "$checks_file"; then
-              binding_status="$(
-                jq -r \
-                  --arg head "$release_commit" \
-                  --arg details_prefix "${SERVER_URL}/${REPOSITORY}/actions/runs/" \
-                  '
-                  [
-                    .check_runs[]
-                    | select(.name == "SpecSync archive binding")
-                    | select(.head_sha == $head)
-                    | select(.app.slug == "github-actions")
-                    | select(.app.id | type == "number")
-                    | select(
-                        .external_id
-                        | test("^specsync-archive:CHG-[0-9]{4,}-.+:[0-9a-f]{64}$")
-                      )
-                    | select(.details_url | startswith($details_prefix))
-                  ]
-                  | sort_by(.id)
-                  | last
-                  | if . == null then "missing"
-                    else "\(.status)/\(.conclusion // "")"
-                    end
-                ' "$checks_file"
-              )"
-              if [ "$binding_status" = "completed/success" ]; then
-                break
-              fi
-              if [[ "$binding_status" == completed/* ]]; then
-                echo "::error::SpecSync archive binding ended with ${binding_status}"
-                exit 1
-              fi
-            fi
-            echo "Waiting for SpecSync archive binding (${attempt}/12): ${binding_status:-lookup failed}"
-            sleep 10
-          done
-          if [ "$binding_status" != "completed/success" ]; then
-            echo "::error::Release commit has no structurally valid SpecSync archive binding check"
-            exit 1
-          fi
-
-          export CHECKS_FILE="$checks_file"
-          export RELEASE_COMMIT="$release_commit"
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-          import re
-          import selectors
-          import subprocess
-          import sys
-          import time
-
-          release_commit = os.environ["RELEASE_COMMIT"]
-          repository = os.environ["REPOSITORY"]
-          server_url = os.environ["SERVER_URL"].rstrip("/")
-          with open(os.environ["CHECKS_FILE"], encoding="utf-8") as handle:
-              checks = json.load(handle).get("check_runs", [])
-          with open(
-              ".github/scripts/lifecycle-validation-limits.json",
-              encoding="utf-8",
-          ) as handle:
-              limits = json.load(handle)
-          max_git_output_bytes = int(limits["git_max_output_bytes"])
-          git_timeout_seconds = int(limits["git_timeout_seconds"])
-          if min(max_git_output_bytes, git_timeout_seconds) <= 0:
-              raise SystemExit("lifecycle validation limits must be positive")
-
-          def api(endpoint: str) -> dict:
-              output = subprocess.check_output(
-                  [
-                      "gh",
-                      "api",
-                      "-H",
-                      "Accept: application/vnd.github+json",
-                      "-H",
-                      "X-GitHub-Api-Version: 2022-11-28",
-                      endpoint,
-                  ],
-                  text=True,
-              )
-              return json.loads(output)
-
-          github_actions_app = api("apps/github-actions")
-          if (
-              github_actions_app.get("slug") != "github-actions"
-              or github_actions_app.get("name") != "GitHub Actions"
-              or (github_actions_app.get("owner") or {}).get("login") != "github"
-          ):
-              raise SystemExit("could not resolve the official GitHub Actions app")
-
-          def git_bytes(*args: str) -> bytes:
-              process = subprocess.Popen(
-                  ["git", *args],
-                  stdout=subprocess.PIPE,
-                  stderr=subprocess.PIPE,
-              )
-              if process.stdout is None or process.stderr is None:
-                  process.kill()
-                  raise SystemExit("failed to capture bounded git query")
-              selector = selectors.DefaultSelector()
-              selector.register(process.stdout, selectors.EVENT_READ, "stdout")
-              selector.register(process.stderr, selectors.EVENT_READ, "stderr")
-              stdout = bytearray()
-              stderr = bytearray()
-              total_output = 0
-              deadline = time.monotonic() + git_timeout_seconds
-              try:
-                  while selector.get_map():
-                      remaining = deadline - time.monotonic()
-                      if remaining <= 0:
-                          process.kill()
-                          process.wait()
-                          raise SystemExit(
-                              f"bounded git query timed out: {' '.join(args)}"
-                          )
-                      events = selector.select(timeout=remaining)
-                      if not events:
-                          continue
-                      for key, _ in events:
-                          chunk = os.read(key.fileobj.fileno(), 64 * 1024)
-                          if not chunk:
-                              selector.unregister(key.fileobj)
-                              continue
-                          total_output += len(chunk)
-                          if total_output > max_git_output_bytes:
-                              process.kill()
-                              process.wait()
-                              raise SystemExit(
-                                  "bounded git query exceeded "
-                                  f"{max_git_output_bytes} bytes: {' '.join(args)}"
-                              )
-                          if key.data == "stdout":
-                              stdout.extend(chunk)
-                          elif len(stderr) < 4096:
-                              stderr.extend(chunk[: 4096 - len(stderr)])
-                  returncode = process.wait(timeout=5)
-              finally:
-                  selector.close()
-                  if process.poll() is None:
-                      process.kill()
-                      process.wait()
-              if returncode != 0:
-                  detail = bytes(stderr).decode(errors="replace").strip()
-                  raise subprocess.CalledProcessError(
-                      returncode,
-                      ["git", *args],
-                      output=bytes(stdout),
-                      stderr=detail,
-                  )
-              return bytes(stdout)
-
-          def git(*args: str) -> str:
-              return git_bytes(*args).decode().strip()
-
-          def git_status(*args: str) -> int:
-              try:
-                  return subprocess.run(
-                      ["git", *args],
-                      stdout=subprocess.DEVNULL,
-                      stderr=subprocess.DEVNULL,
-                      check=False,
-                      timeout=git_timeout_seconds,
-                  ).returncode
-              except subprocess.TimeoutExpired as error:
-                  raise SystemExit(
-                      f"bounded git status query timed out: {' '.join(args)}"
-                  ) from error
-
-          errors = []
-          candidates = sorted(
-              (
-                  check
-                  for check in checks
-                  if check.get("name") == "SpecSync archive binding"
-              ),
-              key=lambda check: int(check.get("id", 0)),
-              reverse=True,
-          )
-          for check in candidates:
-              try:
-                  if check.get("head_sha") != release_commit:
-                      raise ValueError("wrong check head SHA")
-                  if (
-                      check.get("status") != "completed"
-                      or check.get("conclusion") != "success"
-                  ):
-                      raise ValueError("check is not successful")
-                  app = check.get("app") or {}
-                  if (
-                      app.get("id") != github_actions_app.get("id")
-                      or app.get("slug") != github_actions_app.get("slug")
-                  ):
-                      raise ValueError("check is not from GitHub Actions")
-                  external = re.fullmatch(
-                      r"specsync-archive:(CHG-[0-9]{4,}-.+):([0-9a-f]{64})",
-                      str(check.get("external_id") or ""),
-                  )
-                  if external is None:
-                      raise ValueError("invalid archive-binding external_id")
-                  change_id, recorded_digest = external.groups()
-                  details = re.fullmatch(
-                      (
-                          rf"{re.escape(server_url)}/{re.escape(repository)}"
-                          r"/actions/runs/([0-9]+)"
-                      ),
-                      str(check.get("details_url") or ""),
-                  )
-                  if details is None:
-                      raise ValueError("invalid archive-binding details URL")
-                  run_id = int(details.group(1))
-                  workflow_run = api(
-                      f"repos/{repository}/actions/runs/{run_id}"
-                  )
-                  if workflow_run.get("id") != run_id:
-                      raise ValueError("wrong workflow run ID")
-                  if workflow_run.get("html_url") != check.get("details_url"):
-                      raise ValueError("details URL does not identify the resolved run")
-                  if workflow_run.get("head_sha") != release_commit:
-                      raise ValueError("workflow run has the wrong head SHA")
-                  if workflow_run.get("event") != "pull_request":
-                      raise ValueError(
-                          "workflow run is not for the merged pull request"
-                      )
-                  if (
-                      workflow_run.get("status") != "completed"
-                      or workflow_run.get("conclusion") != "success"
-                  ):
-                      raise ValueError("workflow run is not successful")
-                  if (
-                      str(workflow_run.get("path") or "").split("@", 1)[0]
-                      != ".github/workflows/post-merge-archive.yml"
-                  ):
-                      raise ValueError("workflow run has the wrong path")
-                  if (workflow_run.get("repository") or {}).get(
-                      "full_name"
-                  ) != repository:
-                      raise ValueError("workflow run belongs to another repository")
-
-                  summary_match = re.match(
-                      (
-                          rf"^SpecSync finalized \*\*{re.escape(change_id)}\*\* "
-                          r"in PR #([0-9]+)\.\n"
-                      ),
-                      str((check.get("output") or {}).get("summary") or ""),
-                  )
-                  if summary_match is None:
-                      raise ValueError(
-                          "archive-binding summary has no exact pull request binding"
-                      )
-                  pull_request_number = int(summary_match.group(1))
-                  associated_pull_requests = {
-                      item.get("number")
-                      for item in workflow_run.get("pull_requests") or []
-                      if isinstance(item.get("number"), int)
-                  }
-                  if (
-                      associated_pull_requests
-                      and pull_request_number not in associated_pull_requests
-                  ):
-                      raise ValueError(
-                          "archive-binding summary and workflow-run PR disagree"
-                      )
-                  pull_request = api(
-                      f"repos/{repository}/pulls/{pull_request_number}"
-                  )
-                  if pull_request.get("merged") is not True:
-                      raise ValueError("bound pull request was not merged")
-                  if pull_request.get("merge_commit_sha") != release_commit:
-                      raise ValueError("bound pull request has a different merge commit")
-
-                  archive_pattern = re.compile(
-                      rf"^\.specsync/archive/changes/"
-                      rf"[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}-"
-                      rf"{re.escape(change_id)}$"
-                  )
-                  archive_paths = [
-                      item
-                      for item in git(
-                          "ls-tree",
-                          "-d",
-                          "-r",
-                          "--name-only",
-                          release_commit,
-                          "--",
-                          ".specsync/archive/changes",
-                      ).splitlines()
-                      if archive_pattern.fullmatch(item)
-                  ]
-                  if len(archive_paths) != 1:
-                      raise ValueError(
-                          "external_id does not resolve one exact archived change"
-                      )
-                  archive_path = archive_paths[0]
-                  state = json.loads(
-                      git("show", f"{release_commit}:{archive_path}/state.json")
-                  )
-                  if (
-                      state.get("id") != change_id
-                      or state.get("state") != "archived"
-                  ):
-                      raise ValueError("archive state does not match external_id")
-                  if state.get("workflow_version") != 2:
-                      raise ValueError("archive binding is not workflow_version=2")
-                  finalization = json.loads(
-                      git(
-                          "show",
-                          f"{release_commit}:{archive_path}/finalization.json",
-                      )
-                  )
-                  if (
-                      finalization.get("schema_version") != 2
-                      or finalization.get("change_id") != change_id
-                  ):
-                      raise ValueError("archive has invalid finalization evidence")
-                  implementation_head = (pull_request.get("head") or {}).get("sha")
-                  if re.fullmatch(
-                      r"[0-9a-f]{40}",
-                      str(implementation_head or ""),
-                  ) is None:
-                      raise ValueError("pull request has no exact implementation head")
-                  if git_status(
-                      "cat-file",
-                      "-e",
-                      f"{implementation_head}^{{commit}}",
-                  ) != 0:
-                      git(
-                          "fetch",
-                          "--no-tags",
-                          "origin",
-                          f"refs/pull/{pull_request_number}/head",
-                      )
-                      if git("rev-parse", "FETCH_HEAD") != implementation_head:
-                          raise ValueError("fetched pull-request head has the wrong SHA")
-                  introduction_result = json.loads(
-                      subprocess.check_output(
-                          [
-                              sys.executable,
-                              str(
-                                  Path(
-                                      ".github/scripts/"
-                                      "verify-archive-introduction.py"
-                                  )
-                              ),
-                              "--git-root",
-                              os.getcwd(),
-                              "--head",
-                              implementation_head,
-                              "--archive-path",
-                              archive_path,
-                          ],
-                          text=True,
-                          timeout=git_timeout_seconds,
-                      )
-                  )
-                  archive_introduction_commit = introduction_result[
-                      "archive_introduction_commit"
-                  ]
-                  changed_components = sorted(
-                      set(state.get("affected_specs") or [])
-                  )
-                  event = {
-                      "schema_version": 1,
-                      "change_id": change_id,
-                      "pull_request": pull_request_number,
-                      "pull_request_url": pull_request.get("html_url"),
-                      "implementation_head": implementation_head,
-                      "merge_commit": release_commit,
-                      "merge_tree": git(
-                          "rev-parse",
-                          f"{release_commit}^{{tree}}",
-                      ),
-                      "archive_introduction_commit": archive_introduction_commit,
-                      "archive_path": archive_path,
-                      "archive_tree": git(
-                          "rev-parse",
-                          f"{release_commit}:{archive_path}",
-                      ),
-                      "finalization_digest": finalization.get(
-                          "finalization_digest"
-                      ),
-                      "changed_components": changed_components,
-                      "checks": [
-                          "Required CI gate",
-                          "trust",
-                          "SpecSync scoped review",
-                          "Validate archive-only finalization",
-                      ],
-                      "outcome": "merged",
-                  }
-                  event_bytes = (
-                      json.dumps(
-                          event,
-                          ensure_ascii=False,
-                          indent=2,
-                          sort_keys=True,
-                      )
-                      + "\n"
-                  ).encode()
-                  actual_digest = hashlib.sha256(event_bytes).hexdigest()
-                  if actual_digest != recorded_digest:
-                      raise ValueError(
-                          "external_id digest does not reproduce merged archive binding"
-                      )
-                  print(
-                      f"Validated archive binding check {check.get('id')} from "
-                      f"post-merge run {run_id} for {change_id}."
-                  )
-                  break
-              except (
-                  json.JSONDecodeError,
-                  subprocess.CalledProcessError,
-                  TypeError,
-                  ValueError,
-              ) as error:
-                  errors.append(f"check {check.get('id')}: {error}")
-          else:
-              detail = "; ".join(errors) if errors else "no matching checks"
-              raise SystemExit(
-                  "release commit has no proven archive-binding check: " + detail
-              )
-          PY
 
   qualify:
     needs: [resolve, validate]

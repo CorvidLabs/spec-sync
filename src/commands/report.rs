@@ -192,10 +192,21 @@ pub fn cmd_report(
                 SpecBaseline::Commit(spec_commit) => {
                     let mut behind_max = 0usize;
                     let mut is_stale = false;
+                    let mut measured_any = false;
                     for source_file in &fm.files {
-                        if !root.join(source_file).exists() {
+                        let absolute = root.join(source_file);
+                        // A cited file that is absent, or that names a
+                        // directory, cannot be compared against anything. It
+                        // used to be skipped, which left `behind_max` at 0 and
+                        // reported the module current — the same mistake as
+                        // #572 one level down: there the missing input was the
+                        // history, here it is the file, and both were answered
+                        // with a confident `false`/`0`.
+                        if !absolute.exists() || crate::exports::files_entry_is_directory(&absolute)
+                        {
                             continue;
                         }
+                        measured_any = true;
                         let behind = git_commits_since(root, &spec_commit, source_file);
                         // Always track the real drift: `commits_behind` must
                         // reflect sub-threshold drift too, not only once the
@@ -205,8 +216,17 @@ pub fn cmd_report(
                             is_stale = true;
                         }
                     }
-                    stale = Some(is_stale);
-                    max_behind = Some(behind_max);
+                    if measured_any {
+                        stale = Some(is_stale);
+                        max_behind = Some(behind_max);
+                    } else {
+                        // Every cited file was unreadable as a git subject, so
+                        // nothing was measured. `None` is what the existing
+                        // `unmeasured_stale_modules` / `staleness_inconclusive`
+                        // machinery is for; it was simply never wired here.
+                        stale = None;
+                        max_behind = None;
+                    }
                 }
                 // History exists; git simply has no record of this spec yet, so
                 // there is nothing for it to be behind. A measured zero.
@@ -294,13 +314,26 @@ pub fn cmd_report(
     // question git was never able to answer. Threaded into the finding count so
     // the project's own `enforcement` decides: a `warn` project still exits 0
     // with honest `n/a` cells, a gating project fails closed.
-    let staleness_note = history_missing.map(|missing| {
-        format!(
+    // One flag for one concept. `history_missing` is only ONE reason staleness
+    // can be unmeasurable — a module whose cited files are all absent is just
+    // as unmeasurable, and reporting `staleness_inconclusive: false` beside
+    // `unmeasured_stale_modules: 1` tells a consumer the run was conclusive
+    // when it was not. Keyed off the count so any future reason is covered by
+    // construction rather than by remembering to add it here.
+    let staleness_note = if let Some(missing) = history_missing {
+        Some(format!(
             "Staleness inconclusive: {} — {unmeasured_stale_count} module(s) could not be checked \
              for drift against their source files",
             missing.reason()
-        )
-    });
+        ))
+    } else if unmeasured_stale_count > 0 {
+        Some(format!(
+            "Staleness inconclusive: {unmeasured_stale_count} module(s) cite no file that could be \
+             measured, so their drift is unknown rather than zero"
+        ))
+    } else {
+        None
+    };
     // Re-derived here with a hardcoded 100.0 fallback until #582; now the one
     // implementation on `CoverageReport`, which has no percentage to give when
     // the denominator is zero.

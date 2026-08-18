@@ -703,6 +703,9 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     let mut git_penalty = 0u32;
     let mut git_behind: usize = 0;
     let mut git_baseline_available = false;
+    // Set when a cited file was deleted: the drift question has no answer for
+    // that spec, and reporting `Measured` would assert one.
+    let mut git_drift_withheld = false;
     let mut source_newer_than_spec = false;
     let mut history_missing: Option<git_utils::MissingHistory> = None;
     if !fm.files.is_empty() {
@@ -715,15 +718,30 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
             git_utils::SpecBaseline::Commit(spec_commit) => {
                 git_baseline_available = true;
                 let mut max_behind: usize = 0;
+                let mut deleted_cited: Vec<&String> = Vec::new();
                 for file in &fm.files {
                     let full_path = root.join(file);
                     if full_path.exists() && !crate::exports::files_entry_is_directory(&full_path) {
                         let behind = git_utils::git_commits_since(root, &spec_commit, file);
                         max_behind = max_behind.max(behind);
+                    } else if git_utils::source_was_deleted(root, &spec_commit, file) {
+                        // Skipping this left `max_behind` at 0 and reported the
+                        // git half MEASURED — a spec whose source was deleted
+                        // scored as perfectly fresh on drift. The deletion is a
+                        // fact git can state, so state it.
+                        deleted_cited.push(file);
                     }
                 }
                 git_behind = max_behind;
-                if max_behind >= 10 {
+                // Deliberately NO extra penalty: the file-existence criterion
+                // already charges for a cited file that is gone, and charging
+                // again here would bill one defect twice and silently move
+                // every affected spec's score. What was wrong was the CLAIM —
+                // the git half reported `Measured` at 0 commits behind over a
+                // file it never looked at. It is withheld instead.
+                if !deleted_cited.is_empty() {
+                    git_drift_withheld = true;
+                } else if max_behind >= 10 {
                     git_penalty = FRESH_GIT_MAX;
                     fresh_points = fresh_points.saturating_sub(git_penalty);
                     score.suggestions.push(format!(
@@ -782,10 +800,13 @@ pub fn score_spec(spec_path: &Path, root: &Path, config: &SpecSyncConfig) -> Spe
     }
 
     score.freshness_score = fresh_points;
-    score.git_freshness = match (fm.files.is_empty(), history_missing) {
-        (true, _) => GitFreshness::NotApplicable,
-        (false, Some(_)) => GitFreshness::Withheld,
-        (false, None) => GitFreshness::Measured,
+    score.git_freshness = match (fm.files.is_empty(), history_missing, git_drift_withheld) {
+        (true, _, _) => GitFreshness::NotApplicable,
+        (false, Some(_), _) => GitFreshness::Withheld,
+        // A deleted cited file withholds the drift answer just as surely as
+        // absent history does; the reason differs, the honesty does not.
+        (false, None, true) => GitFreshness::Withheld,
+        (false, None, false) => GitFreshness::Measured,
     };
     // Budget the dimension so the --explain criteria sum EXACTLY to the
     // reported score (previously criteria summed to 15+5+variable ≠ 20 — the

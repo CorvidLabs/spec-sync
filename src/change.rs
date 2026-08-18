@@ -21,6 +21,12 @@ const ARCHIVE_PATH: &str = ".specsync/archive/changes";
 const LEGACY_BASELINE_PATH: &str = ".specsync/archive/legacy-baseline.json";
 const WORKFLOW_V2_BASELINE_PATH: &str = ".specsync/workflow-v2-baseline.json";
 const LOCK_PATH: &str = ".specsync/change.lock";
+/// How far back to read the ledger's own history when looking for a
+/// downward rewrite. Bounded so `check` stays cheap on a long-lived repo; a
+/// regression is detected within this many revisions of the ledger, which is
+/// far more than any real branch accumulates before it is noticed.
+const SEQUENCE_HISTORY_SCAN_LIMIT: usize = 200;
+
 const SEQUENCE_PATH: &str = ".specsync/change-sequence.json";
 const BOOTSTRAP_RECORD_PATH: &str = ".specsync/bootstrap.json";
 /// Protected SDD paths `specsync init` creates for a fresh project.
@@ -1735,6 +1741,57 @@ fn load_change_sequence_ledger(root: &Path) -> Result<Option<ChangeSequenceLedge
 /// punish the wrong person for a race they cannot see. Returning the old value
 /// lets the caller say so, because silently rewriting lifecycle state is how
 /// this class of bug survives unnoticed in the first place.
+/// The highest sequence this branch's own history has ever recorded.
+///
+/// Reads every revision of the ledger reachable from HEAD in one `git log -p`
+/// and takes the maximum. This is the branch asking a question about itself,
+/// which is the only question whose answer can convict it:
+///
+/// - A branch merely BEHIND the default branch has never recorded anything
+///   higher than it holds now, so it is never accused. Comparing against
+///   `origin/main` accused every unrebased branch (#533 regression).
+/// - A branch that RAISED the ledger and then rewrote it downwards is caught
+///   even when the rewrite happened entirely after it diverged — the case a
+///   merge-base comparison misses, because the merge-base predates the raise.
+///
+/// Returns `None` only when git cannot be asked at all; callers must not treat
+/// that as evidence of health.
+fn branch_sequence_high_water(root: &Path) -> Option<u64> {
+    let tracked = git_repo_relative_path(root, SEQUENCE_PATH).ok()?;
+    // One invocation, not one per revision: this runs inside `check` and
+    // `audit`, and a repo with a few hundred lifecycle commits would otherwise
+    // pay a git process per commit that ever touched the ledger.
+    let log = git_output(
+        root,
+        &[
+            "log",
+            "-p",
+            "--format=",
+            &format!("-n{SEQUENCE_HISTORY_SCAN_LIMIT}"),
+            "HEAD",
+            "--",
+            &tracked,
+        ],
+    )?;
+    let mut high = None;
+    for line in log.lines() {
+        // Added lines only: a removed `"sequence": N` is the old value, and
+        // counting it would make every ordinary increment look like a rewrite.
+        let Some(rest) = line.strip_prefix('+') else {
+            continue;
+        };
+        let rest = rest.trim();
+        let Some(value) = rest.strip_prefix("\"sequence\":") else {
+            continue;
+        };
+        let value = value.trim().trim_end_matches(',');
+        if let Ok(parsed) = value.parse::<u64>() {
+            high = Some(high.map_or(parsed, |current: u64| current.max(parsed)));
+        }
+    }
+    high
+}
+
 pub fn floor_sequence_ledger_to_committed(root: &Path) -> Result<Option<(u64, u64)>, String> {
     let Some(local) = load_change_sequence_ledger(root)? else {
         return Ok(None);
@@ -2046,20 +2103,18 @@ fn validate_change_sequences(root: &Path) -> Result<(), String> {
                 ledger.sequence
             ));
         }
-        // Nor may the ledger fall behind the mark the default branch has already
-        // published. `maximum` above is what is ON DISK, so a ledger regressed
-        // below a remote high-water passes that check whenever the higher-numbered
-        // workspaces are simply absent — which is the ordinary state of a fresh
-        // clone or a branch that has not fetched them. #523 floors allocation
-        // against this same source; nothing floored validation, so a regressed
-        // ledger could be audited clean and merged, and the next allocation would
-        // remint an ordinal the default branch had already used.
-        if let Some(remote) = remote_sequence_high_water(root)
-            && remote > ledger.sequence
+        // Nor may the ledger fall below the highest mark this branch itself has
+        // already recorded. Asked of the branch's OWN history, because that is
+        // the only history it is accountable for: a branch behind origin has
+        // recorded nothing higher and is innocent, while a branch that raised
+        // the ledger and then rewrote it downwards is guilty regardless of
+        // where it diverged.
+        if let Some(recorded) = branch_sequence_high_water(root)
+            && recorded > ledger.sequence
         {
             return Err(format!(
-                "change sequence ledger claims CHG-{:04} but the default branch has already recorded CHG-{remote:04}; \
-restore it with `git checkout origin/HEAD -- {SEQUENCE_PATH}` before continuing",
+                "change sequence ledger claims CHG-{:04} but this branch already recorded CHG-{recorded:04}; \
+restore it with `git checkout HEAD -- {SEQUENCE_PATH}` before continuing",
                 ledger.sequence
             ));
         }

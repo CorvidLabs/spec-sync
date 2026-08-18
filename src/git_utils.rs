@@ -176,6 +176,48 @@ pub struct StaleInfo {
     pub max_commits_behind: usize,
     /// Per-source-file commit distances (file, commits_behind).
     pub source_details: Vec<(String, usize)>,
+    /// Cited files that no longer exist. A spec is stale on this alone,
+    /// whatever the drift threshold, and every renderer needs it: a row
+    /// reading `0 commits behind` with no drifted files is stale with no
+    /// visible cause.
+    pub deleted_files: Vec<String>,
+}
+
+/// Was this path known to git at `since`, and is it gone now?
+///
+/// Distinguishes a DELETION — a definite fact git can state, with a commit that
+/// performed it — from a path git never knew, which is genuinely unmeasurable.
+/// Collapsing the two loses the stronger claim: `stale` would shrug at a
+/// deletion that `lifecycle` can name.
+pub fn source_was_deleted(root: &Path, since: &str, path: &str) -> bool {
+    if root.join(path).exists() {
+        return false;
+    }
+    // `<rev>:./<path>` resolves relative to cwd, which is `root`; the
+    // repo-root-relative form would answer the wrong question whenever the
+    // project sits in a subdirectory of the repository.
+    std::process::Command::new("git")
+        .args(["cat-file", "-e", &format!("{since}:./{path}")])
+        .current_dir(root)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// A spec whose staleness could not be measured at all.
+///
+/// Distinct from a fresh spec. A fresh spec was compared against its sources
+/// and found current; this one had nothing to compare, because every file it
+/// cites is absent or is a directory. Counting it fresh spends it against the
+/// "up to date" total using evidence that was never gathered.
+pub struct UnmeasurableSpec {
+    pub spec_path: String,
+    pub module_name: String,
+    /// Each unmeasurable file and why, so the report names the cause rather
+    /// than only the effect.
+    pub files: Vec<(String, &'static str)>,
 }
 
 #[cfg(test)]

@@ -1,0 +1,38 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1787023899,
+      "digest": "b3934af892e95b445ff71212d931ceedfe0b2f0ab74553dd18d8c65dae9a9045",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin",
+        "title": "The sequence ledger gate must judge a branch by its own history, not by origin",
+        "description": "the sequence ledger gate must judge a branch by its own history, not by origin",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "fixes a regression shipped in adbfb442: the read-side gate compared the ledger against origin/main, so any branch merely behind origin was refused with a message telling the operator to restore a file that was not corrupt",
+        "acceptance_criteria": [
+          "a branch merely behind the default branch can still run change new and allocates past origin's high-water mark rather than onto it; a branch that lowered the ledger below the highest mark it itself recorded is still refused, including when it raised the ledger first and the rewrite stays above the point it diverged; the gate needs no remote and does not silently disable itself when origin is absent; the error names the mark that was lost and the recovery command that applies"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

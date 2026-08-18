@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 142,
-  "id": "CHG-0142-watch-must-disclose-a-dropped-directory-and-not-claim-a-pass-over-an-empty-check",
+  "sequence": 143,
+  "id": "CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin",
   "acknowledged_collisions": [
     {
       "sequence": 16,

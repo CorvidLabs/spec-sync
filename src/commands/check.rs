@@ -754,8 +754,15 @@ pub fn cmd_check(
 
             let mut max_behind: usize = 0;
             let mut drifted_files: Vec<(String, usize)> = Vec::new();
+            let mut unmeasurable_files: Vec<String> = Vec::new();
             for source_file in &fm.files {
-                if !root.join(source_file).exists() {
+                let absolute = root.join(source_file);
+                // Absent or a directory: nothing for git to compare. Skipping
+                // silently left `max_behind` at 0 and reported the spec current
+                // — the same defect as `stale` and `report`, which is why all
+                // three are corrected together rather than where it was noticed.
+                if !absolute.exists() || crate::exports::files_entry_is_directory(&absolute) {
+                    unmeasurable_files.push(source_file.clone());
                     continue;
                 }
                 let behind = git_utils::git_commits_since(root, &spec_commit, source_file);
@@ -763,6 +770,24 @@ pub fn cmd_check(
                     drifted_files.push((source_file.clone(), behind));
                 }
                 max_behind = max_behind.max(behind);
+            }
+
+            // Disclose what could not be measured even when something could:
+            // a spec citing two files where one was deleted still yields a
+            // number, and presenting that number alone implies the whole spec
+            // was checked.
+            if !unmeasurable_files.is_empty() && matches!(format, types::OutputFormat::Text) {
+                let module = fm.module.as_deref().unwrap_or(&rel_spec);
+                println!(
+                    "  {} {module}: drift unknown for {} — {}",
+                    "?".yellow(),
+                    if unmeasurable_files.len() == 1 {
+                        "1 cited file".to_string()
+                    } else {
+                        format!("{} cited files", unmeasurable_files.len())
+                    },
+                    unmeasurable_files.join(", ")
+                );
             }
 
             if max_behind >= threshold {

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 148,
-  "id": "CHG-0148-a-reopened-change-must-be-closeable-again",
+  "sequence": 149,
+  "id": "CHG-0149-an-archived-change-package-must-not-leave-an-untrackable-husk",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1787083011,
+      "commit": "200add8f74ea826f271db0fa3432db0d68aec5e9",
+      "contract_digest": "58c0cf9eadc2b78312d45e7dcbaaf7915da6958d659a19113db2076b5b85cb84",
+      "execution_digest": "45e1be5f8f5c672b52a0e97af1e97b9e910fcee8cbbccdcd957aa3e711ae3fcd",
+      "workspace_digest": "0cd492691e41546e082f455ef547361f1f9dbc88f9ff90a378edf380264b9085",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-074"
+      ]
+    },
+    {
+      "timestamp": 1787084449,
+      "commit": "200add8f74ea826f271db0fa3432db0d68aec5e9",
+      "contract_digest": "58c0cf9eadc2b78312d45e7dcbaaf7915da6958d659a19113db2076b5b85cb84",
+      "execution_digest": "45e1be5f8f5c672b52a0e97af1e97b9e910fcee8cbbccdcd957aa3e711ae3fcd",
+      "workspace_digest": "0cd492691e41546e082f455ef547361f1f9dbc88f9ff90a378edf380264b9085",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-074"
+      ]
+    }
+  ]
+}

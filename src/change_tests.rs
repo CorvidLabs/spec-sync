@@ -3172,6 +3172,66 @@ fn legacy_archive_tombstones_without_lifecycle_state_are_skipped() {
 }
 
 #[test]
+fn archive_husk_of_empty_directories_is_skipped_by_enumeration() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    // Exactly what a checkout of a pre-archive commit strands: the dated
+    // package's tracked files are gone, the untrackable directory remains.
+    fs::create_dir_all(
+        root.join(ARCHIVE_PATH)
+            .join("2026-08-18-CHG-0001-husk/deltas"),
+    )
+    .unwrap();
+    assert!(list_all_changes_checked(root).unwrap().is_empty());
+    assert!(located_change_sequences(root).unwrap().is_empty());
+}
+
+#[test]
+fn archive_directory_with_files_but_no_state_is_still_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let package = root.join(ARCHIVE_PATH).join("2026-08-18-CHG-0001-broken");
+    fs::create_dir_all(&package).unwrap();
+    // A file git *could* track means the checkout theory does not apply: this
+    // package is damaged, not absent, and skipping it would hide corruption.
+    fs::write(package.join("change.md"), "# truncated\n").unwrap();
+    let error = list_all_changes_checked(root).unwrap_err();
+    assert!(error.contains("failed to read archived state"), "{error}");
+    let error = located_change_sequences(root).unwrap_err();
+    assert!(
+        error.contains("failed to read archived change state"),
+        "{error}"
+    );
+}
+
+#[test]
+fn archive_husk_nested_below_an_empty_directory_is_still_a_husk() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(
+        root.join(ARCHIVE_PATH)
+            .join("2026-08-18-CHG-0001-husk/deltas/nested"),
+    )
+    .unwrap();
+    assert!(list_all_changes_checked(root).unwrap().is_empty());
+}
+
+#[test]
+fn archived_package_keeps_directories_that_hold_files_and_drops_the_rest() {
+    let temp = TempDir::new().unwrap();
+    let package = temp.path().join("2026-08-18-CHG-0001-demo");
+    fs::create_dir_all(package.join("deltas")).unwrap();
+    fs::create_dir_all(package.join("evidence/nested")).unwrap();
+    fs::write(package.join("state.json"), "{}").unwrap();
+    fs::write(package.join("evidence/nested/proof.md"), "kept\n").unwrap();
+    prune_empty_package_directories(&package);
+    assert!(!package.join("deltas").exists());
+    assert!(package.join("evidence/nested/proof.md").is_file());
+    assert!(package.join("state.json").is_file());
+    assert!(package.is_dir());
+}
+
+#[test]
 fn legacy_archive_baseline_bytes_are_canonical_sorted_and_definition_digestible() {
     let entry = |id: &str, path: &str| LegacyArchiveBaselineEntryV1 {
         id: id.into(),

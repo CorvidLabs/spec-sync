@@ -1,6 +1,6 @@
 ---
 id: CHG-0149-an-archived-change-package-must-not-leave-an-untrackable-husk
-state: implementing
+state: archived
 type: feature
 base_commit: 200add8f74ea826f271db0fa3432db0d68aec5e9
 ---

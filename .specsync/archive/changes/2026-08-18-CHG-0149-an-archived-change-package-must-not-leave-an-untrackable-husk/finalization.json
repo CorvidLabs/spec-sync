@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0149-an-archived-change-package-must-not-leave-an-untrackable-husk",
+  "implementation_commit": "8875bfe699a35a53d61c2638f10d11b3a6e0dc48",
+  "implementation_tree": "b92b6bc9264b27824c69442632fa4a42053852d2",
+  "contract_digest": "58c0cf9eadc2b78312d45e7dcbaaf7915da6958d659a19113db2076b5b85cb84",
+  "workspace_digest": "0cd492691e41546e082f455ef547361f1f9dbc88f9ff90a378edf380264b9085",
+  "closing_digest": "c5be267a3ee7c99cf200ffd551da1a00fcfecb63b68ae1ecebbbb9ba4c9f95f3",
+  "review_digest": "b42a5f1ba66872a247eaba463bb8820c6a8bc1e8fd868d323885b4a30b5c3651",
+  "finalization_digest": "8eacdb889c8c5cc264e2c90079ebdc5fb4a0d73fb8959920042a42e6216263a0",
+  "timestamp": 1787085926
+}

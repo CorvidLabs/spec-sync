@@ -93,6 +93,63 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1787090525,
+      "commit": "708eba80616757dbbf0f7e8ce93a62ede1585f58",
+      "contract_digest": "6b36496b7215b69edfc9e91e871a55e50e8d5f181dee193b02b0ce7dfc3ea4c3",
+      "execution_digest": "cc9655fd50105299455aef1791f2ef208c1789fe6d4d4143121dfd5ff983125f",
+      "workspace_digest": "6e99ffd334c298a4e50af108178381ac3973ba6d9a27bf838cd118c94a689b3d",
+      "acceptance_input_digest": "66fc9621a97c58bdf7d1214f98afb354e8f077892dd23e925ad3c56555a42e04",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".github/workflows/release.yml",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7196704ff78a25184845f8bd752d911f5aff28503bb8fa95730ea9182b16a31d",
+            "entry_digest": "307685fc78a98152dfcd0e3ed7d5c8161ec467988ab198c2d6b953be8b8706d4",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".specsync/change-sequence.json",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4dcee90a014cc300d5a3c98006a467963d155f76099d10b97b8a217da5cba156",
+            "entry_digest": "8a82ec69d1ae69396cb95420d665bb5a43ff3f5d594a66c347c28d5f771999a3",
+            "owners": [
+              "@exact:delivery"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

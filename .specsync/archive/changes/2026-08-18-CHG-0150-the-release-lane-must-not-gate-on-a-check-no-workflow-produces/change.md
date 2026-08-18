@@ -1,6 +1,6 @@
 ---
 id: CHG-0150-the-release-lane-must-not-gate-on-a-check-no-workflow-produces
-state: implementing
+state: archived
 type: feature
 base_commit: 8fad38d405d51c8ac40f78fb18ef28ee632573a7
 ---

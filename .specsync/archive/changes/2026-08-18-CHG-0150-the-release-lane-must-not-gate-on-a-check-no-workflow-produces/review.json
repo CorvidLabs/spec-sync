@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0150-the-release-lane-must-not-gate-on-a-check-no-workflow-produces",
+  "reviewer": "Peer150",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "708eba80616757dbbf0f7e8ce93a62ede1585f58",
+  "contract_digest": "6b36496b7215b69edfc9e91e871a55e50e8d5f181dee193b02b0ce7dfc3ea4c3",
+  "execution_digest": "cc9655fd50105299455aef1791f2ef208c1789fe6d4d4143121dfd5ff983125f",
+  "workspace_digest": "6e99ffd334c298a4e50af108178381ac3973ba6d9a27bf838cd118c94a689b3d",
+  "timestamp": 1787091016
+}

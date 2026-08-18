@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 143,
-  "id": "CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin",
+  "sequence": 144,
+  "id": "CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness",
   "acknowledged_collisions": [
     {
       "sequence": 16,

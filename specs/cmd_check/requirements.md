@@ -178,3 +178,12 @@ Acceptance Criteria
 - A skipped spec is counted in `specs_checked` and its warnings are named.
 - A genuinely clean spec still reports clean, so replay does not manufacture findings.
 - `--force` and `--no-cache` are unaffected.
+
+### REQ-cmd-check-014
+
+`check` SHALL disclose cited files whose drift it could not measure, including on specs where other files were measured.
+
+Acceptance Criteria
+- A cited file that is absent or is a directory is named as unmeasurable rather than skipped without record.
+- The disclosure appears even when the spec's other files produced a drift number, so that number is not read as covering the whole spec.
+

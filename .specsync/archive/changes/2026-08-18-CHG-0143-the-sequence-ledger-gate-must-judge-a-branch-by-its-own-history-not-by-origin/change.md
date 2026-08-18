@@ -1,6 +1,6 @@
 ---
 id: CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 06c1bcca162750d5761b0e530b9da52ce9995c53
 ---

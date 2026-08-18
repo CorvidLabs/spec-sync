@@ -7,11 +7,11 @@
   "title": "The sequence ledger gate must judge a branch by its own history, not by origin",
   "description": "the sequence ledger gate must judge a branch by its own history, not by origin",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "06c1bcca162750d5761b0e530b9da52ce9995c53",
   "created_at": 1787023700,
-  "updated_at": 1787031675,
+  "updated_at": 1787031689,
   "affected_specs": [
     "change"
   ],

@@ -7,11 +7,11 @@
   "title": "A reopened change must be closeable again",
   "description": "a reopened change must be closeable again",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "34ade838f19840dfae90611e8959480c07b70f6b",
   "created_at": 1787074803,
-  "updated_at": 1787077645,
+  "updated_at": 1787077656,
   "affected_specs": [
     "change"
   ],

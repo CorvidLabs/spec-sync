@@ -1,6 +1,6 @@
 ---
 id: CHG-0148-a-reopened-change-must-be-closeable-again
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 34ade838f19840dfae90611e8959480c07b70f6b
 ---

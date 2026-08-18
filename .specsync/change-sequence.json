@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 150,
-  "id": "CHG-0150-the-release-lane-must-not-gate-on-a-check-no-workflow-produces",
+  "sequence": 151,
+  "id": "CHG-0151-a-test-that-pinned-deleted-release-lane-behaviour-must-go-with-it",
   "acknowledged_collisions": [
     {
       "sequence": 16,

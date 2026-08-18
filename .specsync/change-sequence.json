@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 147,
-  "id": "CHG-0147-an-explicit-enforcement-policy-must-survive-migrate",
+  "sequence": 148,
+  "id": "CHG-0148-a-reopened-change-must-be-closeable-again",
   "acknowledged_collisions": [
     {
       "sequence": 16,

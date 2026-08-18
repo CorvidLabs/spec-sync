@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1787074987,
+      "digest": "e5a4ff42bb48ec6e7a4d927809f882a9dd801ab80fa17f020e5c370a681ecd8e",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0148-a-reopened-change-must-be-closeable-again",
+        "title": "A reopened change must be closeable again",
+        "description": "a reopened change must be closeable again",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "the evidence walk admitted a move between a change's two canonical homes in one direction only, so reopen stranded the change in accepted with finalize refusing permanently and audit reporting passed over it",
+        "acceptance_criteria": [
+          "a change that has been finalized, reopened, re-checked and re-reviewed can be finalized again, producing exactly one archive package and clearing its active workspace; a move of scoped review evidence to any location other than the change's two canonical homes is still refused; the ordinary first close is unchanged"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

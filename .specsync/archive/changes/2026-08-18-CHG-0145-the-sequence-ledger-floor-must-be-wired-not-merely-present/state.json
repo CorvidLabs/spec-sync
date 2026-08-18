@@ -7,11 +7,11 @@
   "title": "The sequence ledger floor must be wired, not merely present",
   "description": "the sequence ledger floor must be wired, not merely present",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "48999610542d9e04edff64e69cc4fa794d2d61fb",
   "created_at": 1787034991,
-  "updated_at": 1787035165,
+  "updated_at": 1787035421,
   "affected_specs": [
     "cmd_change"
   ],

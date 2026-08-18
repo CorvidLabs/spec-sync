@@ -1,6 +1,6 @@
 ---
 id: CHG-0145-the-sequence-ledger-floor-must-be-wired-not-merely-present
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 48999610542d9e04edff64e69cc4fa794d2d61fb
 ---

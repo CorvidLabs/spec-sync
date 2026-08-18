@@ -1298,14 +1298,15 @@ class ArtifactValidationTests(unittest.TestCase):
 class WorkflowSourceContractTests(unittest.TestCase):
     """Narrow regressions for the CHG-0075 workflow contracts."""
 
-    def test_release_reconstruction_requires_actual_pull_request_event(self) -> None:
-        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
-        start = release.index('          export CHECKS_FILE="$checks_file"')
-        end = release.index("\n  qualify:\n", start)
-        reconstruction = release[start:end]
-        accepted_event = 'workflow_run.get("event") != "pull_request"'
-        self.assertEqual(reconstruction.count(accepted_event), 1)
-        self.assertNotIn('"pull_request_target"', reconstruction)
+    # test_release_reconstruction_requires_actual_pull_request_event was removed
+    # with the code it described. It pinned one property of `validate`'s
+    # archive-binding reconstruction — that the workflow run behind the binding
+    # check was reached via `pull_request` and never `pull_request_target`.
+    # That reconstruction is gone (#635): its input, the `SpecSync archive
+    # binding` check run, has had no producer since #499 deleted
+    # post-merge-archive.yml, so the block it guarded was unreachable. A test
+    # whose subject no longer exists cannot fail, and keeping it would only
+    # assert something about a string that is not in the file.
 
     def test_development_and_release_platform_topology(self) -> None:
         continuous_integration = (ROOT / ".github/workflows/ci.yml").read_text(

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0150-the-release-lane-must-not-gate-on-a-check-no-workflow-produces",
+  "implementation_commit": "708eba80616757dbbf0f7e8ce93a62ede1585f58",
+  "implementation_tree": "4bb23be98f552e92439d8d80e5a4dd8788996fc3",
+  "contract_digest": "6b36496b7215b69edfc9e91e871a55e50e8d5f181dee193b02b0ce7dfc3ea4c3",
+  "workspace_digest": "6e99ffd334c298a4e50af108178381ac3973ba6d9a27bf838cd118c94a689b3d",
+  "closing_digest": "d0b319989a45ce4e767474cf59bc446c8081a2e277d8642c022357848bb613d4",
+  "review_digest": "9c859abce85f7deaf457085a6af7af16070a59d20fac9ec5b0864364357125c0",
+  "finalization_digest": "db13c0dade457f4b64fd6e012d1ac4d3ac17a64015ab64999ccead2fb39aa810",
+  "timestamp": 1787091031
+}

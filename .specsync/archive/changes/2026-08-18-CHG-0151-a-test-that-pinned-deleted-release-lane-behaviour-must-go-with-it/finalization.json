@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0151-a-test-that-pinned-deleted-release-lane-behaviour-must-go-with-it",
+  "implementation_commit": "3230fb032d83f30ecf52d081424ce164e686a3d8",
+  "implementation_tree": "66e11e335ee8d172aeadfae1c30c527b9a7e431f",
+  "contract_digest": "695be7ec6855f394a82416bc813fb5ed17bcb39417dd85dcbd8a60e1b0dce070",
+  "workspace_digest": "f6c5f252b7efb485f59a4cdb7c504a4d5d65af44c52b4c4b3a112a7e8d96f744",
+  "closing_digest": "01946e5cffa3d2239d8e3b5abc17850fd18cfa1838e8a9af2736b16d69c77cb0",
+  "review_digest": "a36d18109a546ff2e74902ca7a8b07f538146e50cd9d5a13a0e159e19a80f772",
+  "finalization_digest": "68ac902b641c82fc8c6a60794db0425e3e0e760013e70bd9ff380f869381ce80",
+  "timestamp": 1787093851
+}

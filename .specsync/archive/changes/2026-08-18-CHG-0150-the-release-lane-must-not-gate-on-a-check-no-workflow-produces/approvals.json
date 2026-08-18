@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787087948,
+      "digest": "6b36496b7215b69edfc9e91e871a55e50e8d5f181dee193b02b0ce7dfc3ea4c3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0150-the-release-lane-must-not-gate-on-a-check-no-workflow-produces",
+        "title": "The release lane must not gate on a check no workflow produces",
+        "description": "the release lane must not gate on a check no workflow produces",
+        "kind": "feature",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/workflows/release.yml",
+          ".specsync/change-sequence.json"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "release.yml is CI configuration under .github/ with no owning spec module; precedent CHG-0014",
+        "acceptance_criteria": [
+          "release.yml's validate job no longer waits for a check run named 'SpecSync archive binding', so an RC tag reaches the qualify job instead of failing before it; the checks validate does keep (tag version equals the Cargo package version, the checkout is the resolved candidate, the candidate is an ancestor of origin/main) still fail closed when violated; and release.yml gains a workflow_dispatch dry-run path that exercises the lane up to but not including tag creation, so the workflow can be executed without pushing a tag."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787091030,
+      "digest": "d0b319989a45ce4e767474cf59bc446c8081a2e277d8642c022357848bb613d4",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -327,6 +327,21 @@ jobs:
         # Ptrace can abort this special-file/process-spawning suite with
         # munmap/ECHILD failures. LLVM instrumentation preserves the full test
         # set and 50% gate without relying on ptrace trap delivery.
+        env:
+          # One profraw per BINARY, not per spawned PID (#624).
+          #
+          # `--follow-exec` instruments every child, and this suite spawns the
+          # binary constantly by design: each integration test invokes it, the
+          # lifecycle tests shell out to git repeatedly. The default per-PID
+          # naming produced ~1000 profraw files (measured: 999 and 994 on two
+          # runs), and merging them in a single pass killed the runner every
+          # time — always at "Merging coverage reports", never during the tests,
+          # which all passed first.
+          #
+          # `%m` names by module signature instead, so the runtime merges
+          # online into one file per binary rather than accumulating a file per
+          # process. The profile data is the same; the file count is not.
+          LLVM_PROFILE_FILE: "target/tarpaulin/profraws/%m.profraw"
         run: >-
           cargo tarpaulin
           --engine llvm

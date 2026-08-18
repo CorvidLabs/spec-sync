@@ -1880,7 +1880,8 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 Err(error)
                     if archived
                         && error.kind() == std::io::ErrorKind::NotFound
-                        && is_positive_legacy_tombstone(&entry.path()) =>
+                        && (is_positive_legacy_tombstone(&entry.path())
+                            || is_untrackable_husk(&entry.path())) =>
                 {
                     continue;
                 }
@@ -6267,7 +6268,42 @@ fn archive_change_with_options(
             )),
         };
     }
+    // Git cannot represent an empty directory, so one committed into an archive
+    // package survives a checkout of any commit that predates the package while
+    // every tracked sibling disappears. What is left is a husk: a dated
+    // directory with no `state.json`, invisible to `git status`. Prune after
+    // validation so the rollback paths above still restore an intact source.
+    prune_empty_package_directories(&destination);
     Ok(destination)
+}
+
+/// Removes directories that hold no regular file at any depth, deepest first.
+///
+/// An archived package is immutable history; a directory that git could not
+/// commit carries no information and is exactly what a later checkout strands.
+/// Best effort by design — failing to remove an empty directory must not undo
+/// an archive that already validated.
+fn prune_empty_package_directories(package: &Path) {
+    let mut directories = Vec::new();
+    collect_package_directories(package, &mut directories);
+    // Deepest first, so a parent emptied by its children is removed in the same pass.
+    directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
+    for directory in directories {
+        let _ = fs::remove_dir(&directory);
+    }
+}
+
+fn collect_package_directories(directory: &Path, found: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            collect_package_directories(&path, found);
+            found.push(path);
+        }
+    }
 }
 
 pub fn summarize_change(root: &Path, record: &ChangeRecord) -> ChangeSummary {
@@ -14828,7 +14864,8 @@ fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecor
             Ok(content) => content,
             Err(error)
                 if error.kind() == std::io::ErrorKind::NotFound
-                    && is_positive_legacy_tombstone(&entry.path()) =>
+                    && (is_positive_legacy_tombstone(&entry.path())
+                        || is_untrackable_husk(&entry.path())) =>
             {
                 continue;
             }
@@ -14851,6 +14888,35 @@ fn list_all_changes_uncached(root: &Path) -> Result<BTreeMap<String, ChangeRecor
         }
     }
     Ok(records)
+}
+
+/// True when `path` is a directory holding no regular file at any depth.
+///
+/// Git cannot track an empty directory. Checking out a commit that predates a
+/// change package therefore removes every tracked file in it and strands the
+/// directories — a husk that `git status` reports as clean. A husk is the
+/// absence of a change, not a damaged one, so enumeration skips it.
+///
+/// A directory that does hold files but no `state.json` is damaged, not a husk,
+/// and its caller still refuses it: this predicate cannot be satisfied by
+/// ignoring corruption.
+fn is_untrackable_husk(path: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(path) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let Ok(kind) = entry.file_type() else {
+            return false;
+        };
+        if kind.is_dir() {
+            if !is_untrackable_husk(&entry.path()) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    true
 }
 
 fn is_positive_legacy_tombstone(path: &Path) -> bool {

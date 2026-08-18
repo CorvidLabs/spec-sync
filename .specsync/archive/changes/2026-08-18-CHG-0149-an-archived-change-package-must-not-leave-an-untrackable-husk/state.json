@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0149-an-archived-change-package-must-not-leave-an-untrackable-husk",
+  "slug": "an-archived-change-package-must-not-leave-an-untrackable-husk",
+  "title": "An archived change package must not leave an untrackable husk",
+  "description": "an archived change package must not leave an untrackable husk",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "200add8f74ea826f271db0fa3432db0d68aec5e9",
+  "created_at": 1787078783,
+  "updated_at": 1787086194,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "ship of a change whose deltas/ is empty leaves no untrackable empty directory in the dated archive package, so a checkout of a pre-archive commit removes the package entirely; a stray archive directory that contains no regular file at any depth is skipped by change new, change audit, change adopt and check instead of hard-failing with a raw OS error; a stray archive directory that does contain files but no state.json still hard-fails, so the tolerance cannot be satisfied by ignoring corruption."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

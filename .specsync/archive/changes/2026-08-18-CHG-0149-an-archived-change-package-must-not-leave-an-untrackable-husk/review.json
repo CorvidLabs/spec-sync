@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0149-an-archived-change-package-must-not-leave-an-untrackable-husk",
+  "reviewer": "Peer149",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "8875bfe699a35a53d61c2638f10d11b3a6e0dc48",
+  "contract_digest": "58c0cf9eadc2b78312d45e7dcbaaf7915da6958d659a19113db2076b5b85cb84",
+  "execution_digest": "45e1be5f8f5c672b52a0e97af1e97b9e910fcee8cbbccdcd957aa3e711ae3fcd",
+  "workspace_digest": "0cd492691e41546e082f455ef547361f1f9dbc88f9ff90a378edf380264b9085",
+  "timestamp": 1787085912
+}

@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787081346,
+      "digest": "58c0cf9eadc2b78312d45e7dcbaaf7915da6958d659a19113db2076b5b85cb84",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0149-an-archived-change-package-must-not-leave-an-untrackable-husk",
+        "title": "An archived change package must not leave an untrackable husk",
+        "description": "an archived change package must not leave an untrackable husk",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship of a change whose deltas/ is empty leaves no untrackable empty directory in the dated archive package, so a checkout of a pre-archive commit removes the package entirely; a stray archive directory that contains no regular file at any depth is skipped by change new, change audit, change adopt and check instead of hard-failing with a raw OS error; a stray archive directory that does contain files but no state.json still hard-fails, so the tolerance cannot be satisfied by ignoring corruption."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787085926,
+      "digest": "c5be267a3ee7c99cf200ffd551da1a00fcfecb63b68ae1ecebbbb9ba4c9f95f3",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

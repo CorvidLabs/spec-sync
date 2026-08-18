@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0147-an-explicit-enforcement-policy-must-survive-migrate",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "cc0b26eac63abf661a24f15df9a934f666a9b620",
+  "contract_digest": "63f7847efa5b8bdc602b38fd384bb8e603dbbb14b3d8881aa0e8d81db748c9de",
+  "execution_digest": "5266ed1247f8741ec38c710d9fe919d49de24ff36f41a6a66203830ad4869238",
+  "workspace_digest": "2e2320539a1bd0eda9e10cc518e40f4ec614bcc2cf67e9b65d4f854524ddd1f6",
+  "timestamp": 1787068595
+}

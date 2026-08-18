@@ -1,6 +1,6 @@
 ---
 id: CHG-0147-an-explicit-enforcement-policy-must-survive-migrate
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 2db49c6cc4ea38aa13e0d40f4e19245bb9d41435
 ---

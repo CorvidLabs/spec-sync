@@ -7,11 +7,11 @@
   "title": "An explicit enforcement policy must survive migrate",
   "description": "an explicit enforcement policy must survive migrate",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "2db49c6cc4ea38aa13e0d40f4e19245bb9d41435",
   "created_at": 1787066199,
-  "updated_at": 1787068560,
+  "updated_at": 1787068603,
   "affected_specs": [
     "config"
   ],

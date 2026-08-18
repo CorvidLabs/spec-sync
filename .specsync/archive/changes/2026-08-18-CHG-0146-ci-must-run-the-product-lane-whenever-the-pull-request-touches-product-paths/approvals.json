@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1787060391,
+      "digest": "e967af3339188611284e19702f71fc48a588ce0bfaed02046308463d71ac6349",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0146-ci-must-run-the-product-lane-whenever-the-pull-request-touches-product-paths",
+        "title": "CI must run the product lane whenever the pull request touches product paths",
+        "description": "CI must run the product lane whenever the pull request touches product paths",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/scripts/select-ci-lane.sh",
+          ".github/scripts/test-classify-ci-paths.sh",
+          ".github/workflows/ci.yml",
+          ".specsync/change-sequence.json"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "the tip-only classification overrode the whole-PR one unconditionally, and change ship always makes an archive commit last, so every lifecycle pull request skipped test/fmt/coverage/audit/spec-check while the required aggregate reported green",
+        "acceptance_criteria": [
+          "a pull request whose diff touches product paths runs the product lane even when its tip commit is a lifecycle archive move; a pull request that is genuinely archive-only still narrows the lane and skips the product jobs; the selection rule lives in a script with tests rather than in inline workflow bash; the tests fail against the previous unconditional override"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787061642,
+      "digest": "97b39de5bcb05e229483e22e8f602f72298ae8a4142523226f34d07ccd159a8f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

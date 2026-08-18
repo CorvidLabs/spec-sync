@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0146-ci-must-run-the-product-lane-whenever-the-pull-request-touches-product-paths",
+  "implementation_commit": "9d1eeec7fbb32a6c81f7abb88a0aa4c83d0c97e5",
+  "implementation_tree": "43559b17c966ecc2b8472fed5daed44cb1f9fa5b",
+  "contract_digest": "e967af3339188611284e19702f71fc48a588ce0bfaed02046308463d71ac6349",
+  "workspace_digest": "73b1f37761e62cf9225bb73f0a3e0253e5dcba2c42bc862fe8a01fd8d7f77728",
+  "closing_digest": "97b39de5bcb05e229483e22e8f602f72298ae8a4142523226f34d07ccd159a8f",
+  "review_digest": "fa6726c80d24882fd5f76d2437de1d16749748b68945787390fb2ed2b0f511a7",
+  "finalization_digest": "00a4c72001a0bddd0d996f4e48e5de4bdec5795e4c403cdf22928b1a98524b3e",
+  "timestamp": 1787061642
+}

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 145,
-  "id": "CHG-0145-the-sequence-ledger-floor-must-be-wired-not-merely-present",
+  "sequence": 146,
+  "id": "CHG-0146-ci-must-run-the-product-lane-whenever-the-pull-request-touches-product-paths",
   "acknowledged_collisions": [
     {
       "sequence": 16,

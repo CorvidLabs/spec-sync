@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0148-a-reopened-change-must-be-closeable-again",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "44146773b95e7cf41ed6d33f1d46f253cf222bc5",
+      "contract_digest": "e5a4ff42bb48ec6e7a4d927809f882a9dd801ab80fa17f020e5c370a681ecd8e",
+      "execution_digest": "fb27e32595fa7b2e2a5aa5908bbc34356b13a13476026429cafac1a19530c0d6",
+      "workspace_digest": "a60a7a4b694a02390c12472ac3b1c780b5fb8a1fe54007c9c785240beecf6dcf",
+      "timestamp": 1787077648
+    }
+  ]
+}

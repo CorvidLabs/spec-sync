@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0148-a-reopened-change-must-be-closeable-again",
+  "slug": "a-reopened-change-must-be-closeable-again",
+  "title": "A reopened change must be closeable again",
+  "description": "a reopened change must be closeable again",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "34ade838f19840dfae90611e8959480c07b70f6b",
+  "created_at": 1787074803,
+  "updated_at": 1787077656,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": "the evidence walk admitted a move between a change's two canonical homes in one direction only, so reopen stranded the change in accepted with finalize refusing permanently and audit reporting passed over it",
+  "acceptance_criteria": [
+    "a change that has been finalized, reopened, re-checked and re-reviewed can be finalized again, producing exactly one archive package and clearing its active workspace; a move of scoped review evidence to any location other than the change's two canonical homes is still refused; the ordinary first close is unchanged"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

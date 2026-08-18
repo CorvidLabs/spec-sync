@@ -5316,10 +5316,23 @@ fn validate_scoped_review_history_transition(
         return Err("scoped review history did not begin with one append".into());
     };
     if current_ledger == previous_ledger {
-        if current_path == previous_path
-            || (previous_path.contains(".specsync/changes/")
-                && current_path.contains(".specsync/archive/changes/"))
-        {
+        // A change has exactly two homes: the active workspace and the archive.
+        // Evidence moves between them twice in a full round trip — `finalize`
+        // carries it active -> archive, and `reopen` carries the same bytes back
+        // archive -> active. Only the first direction was admitted, so the walk
+        // reached a reopen commit, saw an unchanged ledger at a path it did not
+        // recognise, and refused (#540). The refusal surfaced at the NEXT
+        // finalize rather than at the reopen, because it comes from a walk over
+        // committed history and not from the command performing the move —
+        // which is also why re-running `review` could never clear it.
+        //
+        // A move to any third location is still refused: this admits the two
+        // canonical homes, not arbitrary relocation.
+        let moved_to_archive = previous_path.contains(".specsync/changes/")
+            && current_path.contains(".specsync/archive/changes/");
+        let moved_to_active = previous_path.contains(".specsync/archive/changes/")
+            && current_path.contains(".specsync/changes/");
+        if current_path == previous_path || moved_to_archive || moved_to_active {
             return Ok(());
         }
         return Err("scoped review history moved evidence outside finalization".into());

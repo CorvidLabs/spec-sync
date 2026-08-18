@@ -319,4 +319,33 @@ reverted_review="$(classify M specs/parser/parser.spec.md)"
 expect_value "$reverted_review" review_required true
 expect_value "$reverted_review" review_required_change_id CHG-0002-active-widget
 
+# ── lane selection: a tip-only answer may narrow, never contradict (#626) ──
+#
+# `specsync change ship` always produces an archive commit last, so before this
+# rule existed the tip-only classification overrode the whole-PR one on EVERY
+# lifecycle pull request. PR #629 changed nine source files and merged with
+# test, fmt, coverage, audit and spec-check all skipped, aggregate green.
+select_lane="$script_dir/select-ci-lane.sh"
+
+lane_full="$(mktemp)"; lane_tip="$(mktemp)"
+trap 'rm -f "$lane_full" "$lane_tip"' EXIT
+
+# whole PR touched product paths; tip is an archive move
+printf 'src/main.rs\0' | "$classifier" "$fixture" >"$lane_full"
+printf 'archive_only=true\nlegacy_archive_only=false\narchive_attempted=true\nreview_only=false\nreview_required=false\nfull=false\nsite=false\nvscode=false\n' >"$lane_tip"
+selected="$("$select_lane" "$lane_full" "$lane_tip")"
+expect_value "$selected" full true
+expect_value "$selected" archive_only false
+
+# whole PR is archive-only too; the tip answer may narrow
+printf '.specsync/archive/changes/x/state.json\0' | "$classifier" "$fixture" \
+    | sed 's/^full=true/full=false/' >"$lane_full"
+selected_narrow="$("$select_lane" "$lane_full" "$lane_tip")"
+expect_value "$selected_narrow" archive_only true
+
+# no tip candidate at all: the whole-PR answer stands
+printf 'src/main.rs\0' | "$classifier" "$fixture" >"$lane_full"
+selected_none="$("$select_lane" "$lane_full" "")"
+expect_value "$selected_none" full true
+
 echo "classify-ci-paths tests passed"

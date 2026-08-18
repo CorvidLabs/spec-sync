@@ -128,9 +128,12 @@ jobs:
                     | .github/scripts/classify-ci-paths.sh \
                         "$GITHUB_WORKSPACE" false name-status "$parent"
                 )"
-                if grep -Eq '^(archive_only|legacy_archive_only|review_only)=true$' <<<"$child_output"; then
-                  output="$child_output"
-                fi
+                # Hold the tip-only answer as a CANDIDATE only. It may narrow the
+                # lane, but never contradict the whole-PR classification —
+                # `change ship` always makes an archive commit last, so overriding
+                # here unconditionally skipped the product lane on EVERY lifecycle
+                # pull request (#626). select-ci-lane.sh applies the rule.
+                tip_output="$child_output"
               fi
               ;;
             push)
@@ -166,12 +169,21 @@ jobs:
           PY
           fi
 
-          if [[ -n "${output:-}" ]]; then
-            :
-          elif [[ "$force_full" == "true" ]]; then
+          if [[ "$force_full" == "true" ]]; then
             output="$(printf '' | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE" true)"
           else
             output="$(git diff --name-only -z "$base" "$HEAD_SHA" | .github/scripts/classify-ci-paths.sh "$GITHUB_WORKSPACE")"
+            # The whole-PR answer is computed FIRST and unconditionally. It used
+            # to be skipped entirely whenever a tip-only answer had been set,
+            # which is why a pull request touching nine source files could be
+            # routed as archive-only.
+            if [[ -n "${tip_output:-}" ]]; then
+              full_file="$(mktemp)"; tip_file="$(mktemp)"
+              printf '%s\n' "$output" >"$full_file"
+              printf '%s\n' "$tip_output" >"$tip_file"
+              output="$(.github/scripts/select-ci-lane.sh "$full_file" "$tip_file")"
+              rm -f "$full_file" "$tip_file"
+            fi
           fi
 
           printf '%s\n' "$output" | tee -a "$GITHUB_OUTPUT"

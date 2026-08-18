@@ -7,11 +7,11 @@
   "title": "A staleness answer must not read an unreadable source as freshness",
   "description": "a staleness answer must not read an unreadable source as freshness",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "efa8d70ee29bdb5d16ef8cdb9177096d63e44ee7",
   "created_at": 1787026148,
-  "updated_at": 1787033074,
+  "updated_at": 1787033334,
   "affected_specs": [
     "cmd_stale",
     "cmd_report",

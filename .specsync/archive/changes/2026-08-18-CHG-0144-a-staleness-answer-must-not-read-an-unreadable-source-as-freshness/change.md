@@ -1,6 +1,6 @@
 ---
 id: CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness
-state: implementing
+state: archived
 type: bug_fix
 base_commit: efa8d70ee29bdb5d16ef8cdb9177096d63e44ee7
 ---

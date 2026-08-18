@@ -835,16 +835,27 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         crate::types::ParseMode::Regex => {} // default, omit
     }
 
-    // Enforcement
-    match config.enforcement {
-        crate::types::EnforcementMode::Warn => {} // default, omit
-        crate::types::EnforcementMode::EnforceNew => {
-            lines.push("enforcement = \"enforce-new\"".to_string());
+    // Enforcement — written ALWAYS, never omitted as "the default".
+    //
+    // This used to skip `Warn` with the comment "default, omit". `Warn` has not
+    // been the default since the default moved to `Strict`, so `migrate` dropped
+    // an explicit `enforcement = "warn"` and the project silently became gating
+    // on the next load. The adopter's CI went red with nothing in the diff to
+    // explain it: the file did not GAIN a strict line, it LOST a warn line, and
+    // the person debugging looks for something added.
+    //
+    // Omitting on equality with a default is only safe while the default never
+    // moves, and an absent key is byte-identical to a key holding the default,
+    // so nothing downstream can tell the two apart afterwards. Stating the value
+    // costs one line and cannot rot.
+    lines.push(format!(
+        "enforcement = \"{}\"",
+        match config.enforcement {
+            crate::types::EnforcementMode::Warn => "warn",
+            crate::types::EnforcementMode::EnforceNew => "enforce-new",
+            crate::types::EnforcementMode::Strict => "strict",
         }
-        crate::types::EnforcementMode::Strict => {
-            lines.push("enforcement = \"strict\"".to_string());
-        }
-    }
+    ));
 
     if let Some(days) = config.task_archive_days {
         lines.push(format!("task_archive_days = {days}"));

@@ -84,7 +84,7 @@ All keys use `snake_case`. `specsync migrate` preserves explicit empty arrays an
 | `include_extensionless` | boolean | `false` | Add files without a filename extension to source discovery |
 | `export_level` | `member` or `type` | `member` | Public-symbol validation depth |
 | `parse_mode` | `regex` or `ast` | `regex` | Extraction strategy where AST support exists |
-| `enforcement` | `warn`, `enforce-new`, or `strict` | `warn` | Default failure policy |
+| `enforcement` | `warn`, `enforce-new`, or `strict` | `strict` | Default failure policy. `strict` exits 1 on any validation error; `warn` reports and exits 0 |
 | `task_archive_days` | integer | unset | Age threshold used by task archival |
 
 An omitted or empty `source_extensions` list continues to select all supported language extensions. Set `include_extensionless = true` to additionally discover files such as `bin/tool`; it is additive whether `source_extensions` uses the defaults or an explicit list.

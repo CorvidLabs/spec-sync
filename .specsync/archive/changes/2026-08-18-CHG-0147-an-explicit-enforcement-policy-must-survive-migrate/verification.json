@@ -1,0 +1,119 @@
+{
+  "timestamp": 1787068558,
+  "commit": "cc0b26eac63abf661a24f15df9a934f666a9b620",
+  "contract_digest": "63f7847efa5b8bdc602b38fd384bb8e603dbbb14b3d8881aa0e8d81db748c9de",
+  "execution_digest": "5266ed1247f8741ec38c710d9fe919d49de24ff36f41a6a66203830ad4869238",
+  "workspace_digest": "2e2320539a1bd0eda9e10cc518e40f4ec614bcc2cf67e9b65d4f854524ddd1f6",
+  "acceptance_input_digest": "6b3e8fe31dbb43dea11087909f0184434c41bc9dfb750c25eda87ad156bb2420",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "365e45ed22d7b19dc9127bfd45cd645125040eaa17ddf4239c762a4aa813ac6c",
+        "entry_digest": "32c5b89b5dc719d9f8e1f60cfdba29759feb881db1b7f3173d0d1a7a9159261f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/configuration.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "340b8b63f09023c96efbba432251626289a02b69c3e3a5562e21387c3b322f6a",
+        "entry_digest": "4b7515aeb317a53d65df56c4073cfd5d314544b4a876404440239eed8c4fbeea",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/config/config.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "305f2e26f814cae68727ba0b3f4c7c00ef64f576af538206b5085264e0542cbc",
+        "entry_digest": "3c2b4a23a9ea27d990c47cc75c4d3e82f1c3ae18985e9274634133742aaa8dce",
+        "owners": [
+          "config"
+        ]
+      },
+      {
+        "path": "specs/config/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "907bd04b11824366436780dad17922603feb4d4bbe56ae9f2d88ab2f5acca7e6",
+        "entry_digest": "5207ed24050e9a26dffd9638a2c31406c114f3b812fc522de9b67266ed9fb6e5",
+        "owners": [
+          "config"
+        ]
+      },
+      {
+        "path": "specs/config/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6937c46829d14f54f1f8b6f67b6cfd2f22554d8b01463ba385eee832b9ae858b",
+        "entry_digest": "895d62360ed026403386843aa1a2425863ba123c17a3857abb5a28ce9bdb2593",
+        "owners": [
+          "config"
+        ]
+      },
+      {
+        "path": "specs/config/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a5db13d2a0eae405cd7cce493e326ff8da92c770842095e6c5ec0ffe253a7562",
+        "entry_digest": "7c141e9e5f37850b3997be64ae5918711c2df2afea3932a85ff4eacb5a6652a9",
+        "owners": [
+          "config"
+        ]
+      },
+      {
+        "path": "specs/config/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d590789f14ad353ab139439dc6f462514f5c352c69696124c233bf949fa2b018",
+        "entry_digest": "cc34e8e64816b596f79fb7c1096ec3749702cc037de3f4c64c36ed12f4256ca8",
+        "owners": [
+          "config"
+        ]
+      },
+      {
+        "path": "src/config.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "21a6417a55cc073b062a51280e67af860c2e798f4040a4c4fb6cf278a1c42bc5",
+        "entry_digest": "d19dd2946121fb5e7957a2a731213e9b0f5cca416dc88cf5e57b15aa6db740ac",
+        "owners": [
+          "config"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-config-012"
+  ]
+}

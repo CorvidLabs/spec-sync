@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0147-an-explicit-enforcement-policy-must-survive-migrate",
+  "implementation_commit": "cc0b26eac63abf661a24f15df9a934f666a9b620",
+  "implementation_tree": "301b957b797d51b568965edb119011316e981572",
+  "contract_digest": "63f7847efa5b8bdc602b38fd384bb8e603dbbb14b3d8881aa0e8d81db748c9de",
+  "workspace_digest": "2e2320539a1bd0eda9e10cc518e40f4ec614bcc2cf67e9b65d4f854524ddd1f6",
+  "closing_digest": "6a5d0260eb9c7ef0e67b1b1b11e47e07015a8aaf067b310251e6e184368d1fa1",
+  "review_digest": "dcbb7bf9d5c73123c6e85741136be6cfeff53b22fb0b611914d7a1972d91b708",
+  "finalization_digest": "5044146dca0fc62878b704abddb7d2f60bc768fd8224d70e921d2253ca168a19",
+  "timestamp": 1787068603
+}

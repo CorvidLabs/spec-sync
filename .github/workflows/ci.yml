@@ -328,7 +328,9 @@ jobs:
         # munmap/ECHILD failures. LLVM instrumentation preserves the full test
         # set and 50% gate without relying on ptrace trap delivery.
         #
-        # Instruments the LIBRARY suite only (2299 tests), deliberately.
+        # Instruments the BINARY target's own test modules only (2299 tests),
+        # deliberately. `specsync` is a `[[bin]]` crate with no `[lib]`, so the
+        # unit tests live in the binary target and `--lib` selects nothing.
         #
         # `--follow-exec` over the integration suite produced ~1000 profraw
         # files — measured 999 and 994 — because nearly every integration test
@@ -341,12 +343,12 @@ jobs:
         # The integration suite still RUNS, in the `test` job. It is simply not
         # coverage-instrumented, because instrumenting a suite whose work
         # happens in hundreds of short-lived child processes is what cannot be
-        # merged on a 16 GB runner. Coverage therefore reports what the library
+        # merged on a 16 GB runner. Coverage therefore reports what the unit
         # tests reach, which is where the measurable logic lives.
         run: >-
           cargo tarpaulin
           --engine llvm
-          --lib
+          --bins
           --skip-clean
           --fail-under 50
           --

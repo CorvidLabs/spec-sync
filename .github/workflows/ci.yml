@@ -327,26 +327,26 @@ jobs:
         # Ptrace can abort this special-file/process-spawning suite with
         # munmap/ECHILD failures. LLVM instrumentation preserves the full test
         # set and 50% gate without relying on ptrace trap delivery.
-        env:
-          # One profraw per BINARY, not per spawned PID (#624).
-          #
-          # `--follow-exec` instruments every child, and this suite spawns the
-          # binary constantly by design: each integration test invokes it, the
-          # lifecycle tests shell out to git repeatedly. The default per-PID
-          # naming produced ~1000 profraw files (measured: 999 and 994 on two
-          # runs), and merging them in a single pass killed the runner every
-          # time — always at "Merging coverage reports", never during the tests,
-          # which all passed first.
-          #
-          # `%m` names by module signature instead, so the runtime merges
-          # online into one file per binary rather than accumulating a file per
-          # process. The profile data is the same; the file count is not.
-          LLVM_PROFILE_FILE: "target/tarpaulin/profraws/%m.profraw"
+        #
+        # Instruments the LIBRARY suite only (2299 tests), deliberately.
+        #
+        # `--follow-exec` over the integration suite produced ~1000 profraw
+        # files — measured 999 and 994 — because nearly every integration test
+        # spawns the binary as a subprocess, and each child wrote its own
+        # profile. Merging that many in one pass killed the runner on every
+        # run, always at "Merging coverage reports" and never during the tests,
+        # which passed first every time (#624). Naming cannot be overridden
+        # from here: tarpaulin sets LLVM_PROFILE_FILE per child itself.
+        #
+        # The integration suite still RUNS, in the `test` job. It is simply not
+        # coverage-instrumented, because instrumenting a suite whose work
+        # happens in hundreds of short-lived child processes is what cannot be
+        # merged on a 16 GB runner. Coverage therefore reports what the library
+        # tests reach, which is where the measurable logic lives.
         run: >-
           cargo tarpaulin
           --engine llvm
-          --follow-exec
-          --post-test-delay 10
+          --lib
           --skip-clean
           --fail-under 50
           --

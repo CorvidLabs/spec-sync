@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0145-the-sequence-ledger-floor-must-be-wired-not-merely-present",
+  "implementation_commit": "d8d25f2ee23599fd43110cf27c6e4f060515156a",
+  "implementation_tree": "773ae690e51835db6351b34913bcae91a734178c",
+  "contract_digest": "9bace9689e79f97f73d317f54b19a01b747210ce8254e5bd1e9ca97210f392a5",
+  "workspace_digest": "4e17cb4acdcd086ca38b6ae8fd7aeaae8d986f68a31c1f657384a34ccb3dc300",
+  "closing_digest": "9ea9414ba8bcd3838cb8b8d1762322d4811fbcbd59b85404b660ed74e93dd5e5",
+  "review_digest": "1128ce0dacfa79994643b7c88dfe25e6954d9415b68601301b7b98e796b4e27f",
+  "finalization_digest": "47228fe9c1efd7b4cfa7b112018aa9896c6e8015bd9ab7c038d77008501f1b73",
+  "timestamp": 1787035176
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness",
+  "implementation_commit": "b5ee239731d4f7349bad08aa4f8085ca46f03159",
+  "implementation_tree": "f999586d52221905c0857c393263893735a386f8",
+  "contract_digest": "2f818431b2a0273ebcde7b0400d636f0ce94051ba10c9965356cf2b511a28eeb",
+  "workspace_digest": "5df0d0ee7dce60102674d2e2ac4ca1bc140fadccc0977b5002cc6df14732dd15",
+  "closing_digest": "f20015fc54f02bbbff13076bdc30e7dbfe35d734990c696ad3cac53017497a80",
+  "review_digest": "4bb7e2bf8fb7f747d4edf2296a072352a55ee4512994447f5335a27b871a5c11",
+  "finalization_digest": "c954127726b408e94350258afdecca0a4ab53be9f3113eb5887cd62017beb944",
+  "timestamp": 1787033087
+}

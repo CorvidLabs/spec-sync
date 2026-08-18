@@ -82,3 +82,11 @@ Acceptance Criteria
 - Scoring remains a metric rather than a hard failure, so explain and machine-readable output still render for the affected spec.
 - A spec naming a real source file is scored exactly as before, so the rule cannot be satisfied by lowering scores generally.
 
+### REQ-scoring-006
+
+The git half of the freshness dimension SHALL report itself withheld when a cited file was deleted, rather than reporting a measured zero.
+
+Acceptance Criteria
+- A spec citing a deleted file yields a withheld git-freshness verdict instead of a measured verdict at zero commits behind.
+- No additional penalty is applied for the deletion, because the file-existence criterion already charges for it; the reported score is unchanged.
+

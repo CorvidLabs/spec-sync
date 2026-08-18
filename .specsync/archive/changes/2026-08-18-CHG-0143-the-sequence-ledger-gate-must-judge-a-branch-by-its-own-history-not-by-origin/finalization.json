@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin",
+  "implementation_commit": "f9862c09d17be3576ccf49294d622d190cf9f3b7",
+  "implementation_tree": "78ea98dad0410f0449a3e67d6f14e85ccfac1c80",
+  "contract_digest": "b3934af892e95b445ff71212d931ceedfe0b2f0ab74553dd18d8c65dae9a9045",
+  "workspace_digest": "5df0d0ee7dce60102674d2e2ac4ca1bc140fadccc0977b5002cc6df14732dd15",
+  "closing_digest": "d336a1414d45c3aef1ba771f67c6231427f832fbf8e449327ef96c9b2795118e",
+  "review_digest": "a9b38383dee59d74cdbd272e535e789f33c26c8de7851d939fb4344494d80451",
+  "finalization_digest": "41faddbaef944b65426b7197245bda06912d9ed0598ea5b65490a9feb2927eff",
+  "timestamp": 1787031689
+}

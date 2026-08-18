@@ -58,3 +58,11 @@ Acceptance Criteria
 - A total equal to the configured minimum passes; only a total below it fails.
 - A spec whose `files:` entry is a directory scores zero and therefore fails any positive minimum, matching the hard failure `check` already produces for the same mapping.
 
+### REQ-cmd-lifecycle-004
+
+The no-stale guard SHALL fail when a spec cites a source file that no longer exists.
+
+Acceptance Criteria
+- A deleted cited file fails the guard regardless of the configured threshold, since it measures a single commit and would otherwise pass on any threshold above one.
+- The failure names the file and states that it is still cited by the spec.
+

@@ -2069,6 +2069,77 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    /// The floor must be WIRED, not merely present (#533).
+    ///
+    /// `floor_sequence_ledger_to_committed` has its own unit tests, but those
+    /// exercise the function directly. Nothing asserted that `git_commit_all`
+    /// actually calls it, so deleting the call left the entire suite green
+    /// while every lifecycle commit went back to staging a stale ledger over a
+    /// higher committed mark — the exact regression #533 is about.
+    ///
+    /// This test drives the real staging path and inspects what landed in the
+    /// commit, so it fails if the call is removed.
+    #[test]
+    fn git_commit_all_raises_a_stale_ledger_before_staging_it() {
+        use std::process::Command;
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .expect("git")
+                    .success(),
+                "git {args:?}"
+            );
+        };
+        let write_ledger = |sequence: u64| {
+            std::fs::create_dir_all(root.join(".specsync")).unwrap();
+            std::fs::write(
+                root.join(".specsync/change-sequence.json"),
+                format!(
+                    "{{\n  \"schema_version\": 1,\n  \"sequence\": {sequence},\n  \"id\": \"CHG-{sequence:04}-fixture\",\n  \"acknowledged_collisions\": []\n}}\n"
+                ),
+            )
+            .unwrap();
+        };
+        let committed_sequence = || -> u64 {
+            let out = Command::new("git")
+                .args(["show", "HEAD:.specsync/change-sequence.json"])
+                .current_dir(root)
+                .output()
+                .expect("git show");
+            let text = String::from_utf8_lossy(&out.stdout);
+            let value: serde_json::Value = serde_json::from_str(&text).expect("ledger json");
+            value["sequence"].as_u64().expect("sequence")
+        };
+
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        write_ledger(3);
+        std::fs::write(root.join("README.md"), "base\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "committed high-water mark"]);
+        assert_eq!(committed_sequence(), 3);
+
+        // The precondition: a ledger written before the branch caught up.
+        write_ledger(1);
+        std::fs::write(root.join("README.md"), "work\n").unwrap();
+
+        git_commit_all(root, "lifecycle commit").expect("commit");
+
+        assert_eq!(
+            committed_sequence(),
+            3,
+            "the staging path must raise the stale ledger before `git add -A`; \
+committing 1 over a committed 3 is the #533 regression, and it is what happens \
+if the floor call is removed from this function"
+        );
+    }
+
     #[test]
     fn draft_text_surfaces_require_complete_artifacts_before_approval() {
         let temp = TempDir::new().expect("temp project");

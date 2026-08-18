@@ -67,3 +67,13 @@ Acceptance Criteria
 - Text says the count is unknown; JSON emits `null`.
 - A number appears only when at least one module's staleness was actually measured.
 - A tree with real git history reports its count exactly as before, so the count is made honest rather than removed.
+
+### REQ-cmd-report-005
+
+`report` SHALL decline to state a staleness it could not measure.
+
+Acceptance Criteria
+- A module whose cited files are all absent or are directories reports its staleness as unmeasured rather than as false with zero commits behind.
+- Such a module is counted by the existing unmeasured-staleness total rather than by the stale or the current total.
+- The run-level inconclusive flag is set whenever any module was unmeasured, for any reason, so it cannot disagree with that total.
+

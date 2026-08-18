@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 6
+version: 7
 status: stable
 files:
   - src/git_utils.rs
@@ -26,6 +26,7 @@ Shared git utility functions for querying repository history. Provides the stale
 | `spec_baseline` | `root: &Path, spec_file: &str` | `SpecBaseline` | Resolve the commit a spec's staleness is measured from, distinguishing an untracked spec from a tree with no history. Probes for missing history only when no commit came back, so a healthy repository still costs one `git log` per spec |
 | `missing_history` | `root: &Path` | `Option<MissingHistory>` | Whether the tree has committed history to measure staleness against; `None` means history is usable |
 | `git_commits_since` | `root: &Path, spec_commit: &str, source_file: &str` | `usize` | Count commits to source_file since a precomputed spec commit hash |
+| `source_was_deleted` | `root: &Path, since: &str, path: &str` | `bool` | Whether a cited path was known to git at `since` and is now absent. The single place that question is answered, so every staleness consumer gives the same verdict: a DELETION is a fact git can name a commit for, distinct from a path git never tracked, whose drift is genuinely unknown. Resolves `<rev>:./<path>` relative to the project root, so a project inside a repository subdirectory is answered correctly |
 | `is_git_repo` | `root: &Path` | `bool` | Check if a directory is inside a git work tree |
 | `has_commits` | `root: &Path` | `bool` | Whether the repository has any history. An unborn `HEAD` is a work tree by every other test, but nothing can be newer or older than a history that does not exist |
 
@@ -42,7 +43,8 @@ Shared git utility functions for querying repository history. Provides the stale
 |--------|-----------|---------|-------------|
 | `reason` | `self: MissingHistory` | `&'static str` | Lowercase reason (`not a git repository` / `repository has no commits`), for machine payloads and mid-sentence use |
 | `sentence` | `self: MissingHistory` | `&'static str` | Sentence-cased reason (`Not a git repository` / `Repository has no commits`), for the head of a human-readable error line |
-| `StaleInfo` | struct | Staleness summary for a single spec: path, module name, max commits behind, per-file details |
+| `UnmeasurableSpec` | struct | A spec whose staleness could not be measured at all: path, module name, and each unmeasurable file with its reason. Distinct from a fresh spec — a fresh spec was compared and found current, this one had nothing to compare, and counting it fresh spends it against the up-to-date total on evidence never gathered |
+| `StaleInfo` | struct | Staleness summary for a single spec: path, module name, max commits behind, per-file details, and any cited files that no longer exist — a spec is stale on a deletion alone, whatever the threshold, and every renderer needs the cause or a row reads `0 commits behind` with nothing to act on |
 
 ## Invariants
 
@@ -96,3 +98,4 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-08-13 | CHG-0113-staleness-detection-must-refuse-a-repository-with-no-commits-instead-of-reportin: Staleness detection must refuse a repository with no commits instead of reporting every spec current |
 | 2026-08-14 | #572: Made `git_last_commit_hash` private and replaced it with `spec_baseline -> SpecBaseline`, plus `missing_history -> Option<MissingHistory>`. The old `Option<String>` conflated "spec not in history" with "no history", and four of five callers read the second as the first |
 | 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |
+| 2026-08-18 | CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness: A staleness answer must not read an unreadable source as freshness |

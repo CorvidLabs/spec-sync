@@ -1,6 +1,6 @@
 ---
 module: change
-version: 81
+version: 82
 status: active
 files:
   - src/change.rs
@@ -389,3 +389,4 @@ Acceptance Criteria
 | 2026-08-17 | CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent: An unreadable change workspace must be reported, not counted as absent |
 | 2026-08-17 | CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives: Declaring a module must never reduce the verification a change receives |
 | 2026-08-17 | CHG-0140-a-stale-sequence-ledger-must-not-be-committed-backwards: A stale sequence ledger must not be committed backwards |
+| 2026-08-18 | CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin: The sequence ledger gate must judge a branch by its own history, not by origin |

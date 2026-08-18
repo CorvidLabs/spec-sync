@@ -221,6 +221,22 @@ pub fn evaluate_guards(
                             match git_utils::spec_baseline(root, &rel) {
                                 git_utils::SpecBaseline::Commit(spec_commit) => {
                                     for source_file in &parsed.frontmatter.files {
+                                        // A deletion measures as a single commit,
+                                        // which the default threshold of 5 buries.
+                                        // The guard asks whether the spec still
+                                        // matches its sources; a source that no
+                                        // longer exists answers that on its own,
+                                        // whatever the threshold tolerates.
+                                        if git_utils::source_was_deleted(
+                                            root,
+                                            &spec_commit,
+                                            source_file,
+                                        ) {
+                                            failures.push(format!(
+                                                "guard: stale — {source_file} no longer exists but is still cited by the spec"
+                                            ));
+                                            continue;
+                                        }
                                         let commits = git_utils::git_commits_since(
                                             root,
                                             &spec_commit,

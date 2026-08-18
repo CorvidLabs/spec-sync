@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin",
+  "slug": "the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin",
+  "title": "The sequence ledger gate must judge a branch by its own history, not by origin",
+  "description": "the sequence ledger gate must judge a branch by its own history, not by origin",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "06c1bcca162750d5761b0e530b9da52ce9995c53",
+  "created_at": 1787023700,
+  "updated_at": 1787031689,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": "fixes a regression shipped in adbfb442: the read-side gate compared the ledger against origin/main, so any branch merely behind origin was refused with a message telling the operator to restore a file that was not corrupt",
+  "acceptance_criteria": [
+    "a branch merely behind the default branch can still run change new and allocates past origin's high-water mark rather than onto it; a branch that lowered the ledger below the highest mark it itself recorded is still refused, including when it raised the ledger first and the rewrite stays above the point it diverged; the gate needs no remote and does not silently disable itself when origin is absent; the error names the mark that was lost and the recovery command that applies"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

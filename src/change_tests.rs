@@ -6496,6 +6496,188 @@ fn ledger_divergence_fixture(root: &Path, committed: u64, working: u64) {
     write(working);
 }
 
+/// Build a repo with an `origin` whose main carries `origin_seq`, and a local
+/// branch whose ledger is `local_seq`. `diverged` decides which shape:
+///
+/// - `false` — the branch is honestly BEHIND: it was cut from origin at
+///   `local_seq` and simply has not caught up. Nothing is wrong with it.
+/// - `true` — the branch was cut from origin's tip and then REWROTE the ledger
+///   downwards, which is the #533 regression.
+///
+/// On disk these two are indistinguishable: both show a ledger below origin with
+/// no higher workspaces present. Only the history separates them, which is why
+/// the gate compares against the merge-base and not against origin.
+fn remote_divergence_fixture(root: &Path, origin_seq: u64, local_seq: u64, diverged: bool) {
+    let git = |dir: &Path, args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    let origin = root.join("origin.git");
+    let work = root.join("work");
+    fs::create_dir_all(&work).unwrap();
+    git(root, &["init", "--bare", "origin.git"]);
+    git(root, &["init", "-b", "main", "work"]);
+    git(&work, &["config", "user.email", "test@example.com"]);
+    git(&work, &["config", "user.name", "Test"]);
+    git(
+        &work,
+        &["remote", "add", "origin", origin.to_str().unwrap()],
+    );
+    fs::create_dir_all(work.join(".specsync")).unwrap();
+    let write = |dir: &Path, sequence: u64| {
+        fs::write(
+            dir.join(SEQUENCE_PATH),
+            serde_json::to_string_pretty(&ChangeSequenceLedger {
+                schema_version: 1,
+                sequence,
+                id: format!("CHG-{sequence:04}-fixture"),
+                acknowledged_collisions: Vec::new(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+    };
+
+    // Commit the branch point at `local_seq`.
+    write(&work, local_seq);
+    fs::write(work.join("README.md"), "base\n").unwrap();
+    git(&work, &["add", "."]);
+    git(&work, &["commit", "-m", "branch point"]);
+
+    if diverged {
+        // Origin advances FIRST, so the branch point is origin's tip; the local
+        // commit below then lowers the ledger relative to where it diverged.
+        write(&work, origin_seq);
+        git(&work, &["add", "."]);
+        git(&work, &["commit", "-m", "origin high-water"]);
+        git(&work, &["push", "origin", "main"]);
+        write(&work, local_seq);
+        git(&work, &["add", "."]);
+        git(&work, &["commit", "-m", "hand-regressed ledger"]);
+    } else {
+        // Push the branch point, then advance origin on a throwaway branch so
+        // local's HEAD stays an ancestor of origin/main — honestly behind.
+        git(&work, &["push", "origin", "main"]);
+        git(&work, &["checkout", "-q", "-b", "ahead"]);
+        write(&work, origin_seq);
+        git(&work, &["add", "."]);
+        git(&work, &["commit", "-m", "origin advanced"]);
+        git(&work, &["push", "origin", "ahead:main"]);
+        git(&work, &["checkout", "-q", "main"]);
+        write(&work, local_seq);
+    }
+    git(&work, &["fetch", "-q", "origin"]);
+}
+
+/// A branch that is merely BEHIND the default branch must not be refused (#533
+/// regression).
+///
+/// The first attempt at the read-side gate compared the ledger against
+/// `origin/main` directly. Every unrebased branch trips that: its ledger is
+/// older than origin's and perfectly consistent with its own history. `change
+/// new` returned exit 1 and told the user to `git checkout origin/HEAD --` a
+/// file that was not corrupt.
+#[test]
+fn a_branch_merely_behind_the_default_branch_is_not_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    remote_divergence_fixture(root, 4, 2, false);
+    let work = root.join("work");
+
+    let result = validate_change_sequences(&work);
+    assert!(
+        result.is_ok(),
+        "a branch that is behind origin has an older ledger by definition; \
+refusing it punishes the ordinary state of every unrebased branch: {result:?}"
+    );
+}
+
+/// The vacuity control for the test above: a branch that actually rewrote the
+/// ledger downwards must still be refused, so "stop comparing against the
+/// remote" cannot be satisfied by removing the gate.
+#[test]
+fn a_branch_that_lowered_the_ledger_after_diverging_is_still_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    remote_divergence_fixture(root, 4, 2, true);
+    let work = root.join("work");
+
+    let error = validate_change_sequences(&work).expect_err(
+        "a ledger rewritten below the mark this branch diverged from is the #533 regression",
+    );
+    assert!(
+        error.contains("CHG-0004"),
+        "the error must name the mark that was lost, not merely say something is wrong: {error}"
+    );
+}
+
+/// A branch that RAISED the ledger and then rewrote it downwards is caught,
+/// even though it never fell below the mark it diverged at.
+///
+/// This is the case that decided the oracle. A merge-base comparison acquits
+/// it: the branch diverged at 2, raised to 9, rewrote to 3, and 3 is still
+/// above the divergence point. Only the branch's own recorded history — which
+/// contains the 9 — convicts. The ledger is not a distance from the default
+/// branch; it is a high-water mark this branch is accountable for.
+#[test]
+fn a_branch_that_raised_then_rewrote_the_ledger_is_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    let write = |sequence: u64| {
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(SEQUENCE_PATH),
+            serde_json::to_string_pretty(&ChangeSequenceLedger {
+                schema_version: 1,
+                sequence,
+                id: format!("CHG-{sequence:04}-fixture"),
+                acknowledged_collisions: Vec::new(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+    };
+
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    write(2);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "branch point at 2"]);
+    write(9);
+    git(&["add", "."]);
+    git(&["commit", "-m", "raised to 9"]);
+    write(3);
+    git(&["add", "."]);
+    git(&["commit", "-m", "rewrote down to 3"]);
+
+    let error = validate_change_sequences(root).expect_err(
+        "a ledger below the highest mark this branch itself recorded is the #533 regression, \
+even when it is still above where the branch diverged",
+    );
+    assert!(
+        error.contains("CHG-0009"),
+        "the error must name the mark that was lost: {error}"
+    );
+}
+
 /// A ledger that went stale while the branch sat must not be committed backwards
 /// (#533).
 ///

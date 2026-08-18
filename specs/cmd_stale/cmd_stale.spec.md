@@ -1,6 +1,6 @@
 ---
 module: cmd_stale
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/stale.rs
@@ -81,3 +81,4 @@ Implements the `specsync stale` command — a focused staleness detection tool t
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-13 | CHG-0113-staleness-detection-must-refuse-a-repository-with-no-commits-instead-of-reportin: Staleness detection must refuse a repository with no commits instead of reporting every spec current |
 | 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |
+| 2026-08-18 | CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness: A staleness answer must not read an unreadable source as freshness |

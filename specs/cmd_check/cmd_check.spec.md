@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 23
+version: 24
 status: stable
 files:
   - src/commands/check.rs
@@ -135,3 +135,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-14 | CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable: Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text |
 | 2026-08-15 | A warm cache skip must replay stored findings: the same tree cannot go from `specs_checked: 1` with a warning to `specs_checked: 0` with none (#429) |
 | 2026-08-16 | CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without: A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked |
+| 2026-08-18 | CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness: A staleness answer must not read an unreadable source as freshness |

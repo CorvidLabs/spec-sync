@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "f9862c09d17be3576ccf49294d622d190cf9f3b7",
+      "contract_digest": "b3934af892e95b445ff71212d931ceedfe0b2f0ab74553dd18d8c65dae9a9045",
+      "execution_digest": "494da89b2d667b92adfaea5e36c8f11cffb5abfbc11be92b821bf52d0c8b6196",
+      "workspace_digest": "5df0d0ee7dce60102674d2e2ac4ca1bc140fadccc0977b5002cc6df14732dd15",
+      "timestamp": 1787031678
+    }
+  ]
+}

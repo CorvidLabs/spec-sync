@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5-author",
+      "timestamp": 1787035153,
+      "digest": "9bace9689e79f97f73d317f54b19a01b747210ce8254e5bd1e9ca97210f392a5",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0145-the-sequence-ledger-floor-must-be-wired-not-merely-present",
+        "title": "The sequence ledger floor must be wired, not merely present",
+        "description": "the sequence ledger floor must be wired, not merely present",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": "floor_sequence_ledger_to_committed had unit tests but nothing asserted git_commit_all calls it, so deleting the call left the whole suite green while every lifecycle commit staged a stale ledger again",
+        "acceptance_criteria": [
+          "a test drives git_commit_all against a tree whose working ledger is below its committed mark and asserts the committed ledger did not regress, so removing the floor call from that function fails the suite instead of leaving it green"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

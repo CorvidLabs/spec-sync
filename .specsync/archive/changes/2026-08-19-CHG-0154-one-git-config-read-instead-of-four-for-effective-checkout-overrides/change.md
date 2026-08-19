@@ -1,6 +1,6 @@
 ---
 id: CHG-0154-one-git-config-read-instead-of-four-for-effective-checkout-overrides
-state: implementing
+state: archived
 type: feature
 base_commit: 03210d94dbf5993692edb302ef3f399b77bcf787
 ---

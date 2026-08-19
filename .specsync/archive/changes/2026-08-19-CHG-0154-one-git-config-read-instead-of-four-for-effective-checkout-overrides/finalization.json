@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0154-one-git-config-read-instead-of-four-for-effective-checkout-overrides",
+  "implementation_commit": "5d0e9460d9fd197010d976d92729a8a6daf2eb34",
+  "implementation_tree": "efd25289597c0159af1b891d3f851c92428c88f4",
+  "contract_digest": "0d7f6c25d4d91fc54cd27d7974858d714a5160153280866a26fb18607cf67140",
+  "workspace_digest": "2116dea639c05e886579368de21f035c2a005cb7835ac0721b79c1dfc5a61b05",
+  "closing_digest": "3bf76176c5e6ed9c923997d4c629be972192c517794c6e4b72a729f4142d15fa",
+  "review_digest": "9ae41231f042d6114979bf93c40d57cdf47191c38dceee5f27f8fcb0fe800507",
+  "finalization_digest": "d8b65e7bf7836d0d3338a5ee0adacd0bad60434c14339c1a3fab74ea23122f2f",
+  "timestamp": 1787148693
+}

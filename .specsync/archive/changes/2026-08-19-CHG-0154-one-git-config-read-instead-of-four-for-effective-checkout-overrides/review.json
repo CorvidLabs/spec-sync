@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0154-one-git-config-read-instead-of-four-for-effective-checkout-overrides",
+  "reviewer": "Peer154",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "5d0e9460d9fd197010d976d92729a8a6daf2eb34",
+  "contract_digest": "0d7f6c25d4d91fc54cd27d7974858d714a5160153280866a26fb18607cf67140",
+  "execution_digest": "22dcdbaacb7fe039c37393630f1733709ccf18ec30c73d7ea70663a1ff38246f",
+  "workspace_digest": "2116dea639c05e886579368de21f035c2a005cb7835ac0721b79c1dfc5a61b05",
+  "timestamp": 1787148684
+}

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 84
+version: 85
 status: active
 files:
   - src/change.rs
@@ -264,6 +264,7 @@ Acceptance Criteria
 |-----------|----------|
 | Missing acceptance criteria or affected scope | Definition approval fails |
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
+| Populated semantic delta with no recognized operation heading | Approval and historical validation name the allowed `## Added`, `## Modified`, and `## Removed` headings instead of reporting the file empty |
 | Verification command contains shell operators | Command is rejected without execution |
 | HEAD changes after verification | Acceptance requires re-verification |
 | Any intervening commit changes a disallowed path, even if later reverted | Status and strict checking require re-verification in every environment |
@@ -392,3 +393,4 @@ Acceptance Criteria
 | 2026-08-18 | CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin: The sequence ledger gate must judge a branch by its own history, not by origin |
 | 2026-08-18 | CHG-0148-a-reopened-change-must-be-closeable-again: A reopened change must be closeable again |
 | 2026-08-18 | CHG-0149-an-archived-change-package-must-not-leave-an-untrackable-husk: An archived change package must not leave an untrackable husk |
+| 2026-08-18 | CHG-0152-a-populated-semantic-delta-must-not-report-as-empty: A populated semantic delta must not report as empty |

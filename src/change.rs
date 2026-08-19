@@ -8395,7 +8395,11 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
                 "ADDED" => Some(DeltaOperation::Added),
                 "MODIFIED" => Some(DeltaOperation::Modified),
                 "REMOVED" => Some(DeltaOperation::Removed),
-                _ => return Err(format!("invalid delta operation heading `## {header}`")),
+                _ => {
+                    return Err(format!(
+                        "invalid delta operation heading `## {header}` — expected one of: ## Added, ## Modified, ## Removed"
+                    ));
+                }
             };
             continue;
         }
@@ -8407,9 +8411,11 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
                 &current_key,
                 &mut body,
             );
-            let (target, key) = if let Some(value) = header.strip_prefix("REQUIREMENT ") {
+            let (target, key) = if let Some(value) =
+                strip_ascii_prefix_ignore_case(header, "REQUIREMENT ")
+            {
                 (DeltaTarget::Requirement, value)
-            } else if let Some(value) = header.strip_prefix("SPEC SECTION ") {
+            } else if let Some(value) = strip_ascii_prefix_ignore_case(header, "SPEC SECTION ") {
                 (DeltaTarget::SpecSection, value)
             } else if current_target.is_some() {
                 // A `###` that is not one of this grammar's item headings, met
@@ -8446,7 +8452,30 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
     if items.iter().any(|item| item.key.is_empty()) {
         return Err("semantic delta contains an item with an empty key".into());
     }
+    if items.is_empty() && !content.trim().is_empty() {
+        if operation.is_some() {
+            return Err(
+                "semantic delta contains no items under a recognized operation heading; each ## Added, ## Modified, or ## Removed section must contain ### REQUIREMENT <id> or ### SPEC SECTION <name>"
+                    .into(),
+            );
+        }
+        return Err(
+            "semantic delta contains no recognized operation headings; expected one of: ## Added, ## Modified, ## Removed"
+                .into(),
+        );
+    }
     Ok(items)
+}
+
+fn strip_ascii_prefix_ignore_case<'a>(value: &'a str, prefix: &str) -> Option<&'a str> {
+    let prefix_len = prefix.len();
+    if value.len() >= prefix_len
+        && value.as_bytes()[..prefix_len].eq_ignore_ascii_case(prefix.as_bytes())
+    {
+        Some(&value[prefix_len..])
+    } else {
+        None
+    }
 }
 
 fn prepare_delta_application(

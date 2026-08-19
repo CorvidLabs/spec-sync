@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif",
+      "timestamp": 1787097231,
+      "digest": "677ddb1867ec9d36de51ba5ef1eeba6dd17bd0098215ac9c84d17709294fbdaf",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0152-a-populated-semantic-delta-must-not-report-as-empty",
+        "title": "A populated semantic delta must not report as empty",
+        "description": "a populated semantic delta must not report as empty",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A semantic delta file that contains text but no recognized operation heading reports that it has no recognized operation section and names the allowed headings, instead of reporting that the file is empty; the same correction applies to the historical delta path, which carries the identical wording today. A file that is empty or whitespace-only still reports that it is empty. Item headings are accepted case-insensitively, matching the operation headings that already are, so ### requirement parses exactly as ### REQUIREMENT does; an unrecognized heading is still refused and still names the allowed values. A valid uppercase delta still approves unchanged, and every archived delta still parses to the same items, since widening acceptance cannot alter files that were already grammar-conformant when they were approved."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787105799,
+      "digest": "ea922fb5746c800dd5149b8f40f1e8f184003f7224d6ce6d55c69334f1461aeb",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

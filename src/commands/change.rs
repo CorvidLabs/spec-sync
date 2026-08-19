@@ -768,41 +768,50 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     let lifecycle_next = text_mode_next_action(root, record, &questions);
     let tip = classify_head_tip(root)?;
 
-    let verification_path = root
-        .join(".specsync/changes")
-        .join(&record.id)
-        .join("verification.json");
-    let (verification_commit, verification_present, verification_ancestor) = if verification_path
-        .is_file()
-    {
-        let raw = fs::read_to_string(&verification_path)
-            .map_err(|error| format!("failed to read {}: {error}", verification_path.display()))?;
-        let value: serde_json::Value = serde_json::from_str(&raw)
-            .map_err(|error| format!("invalid verification.json for {}: {error}", record.id))?;
-        let commit = value
-            .get("commit")
-            .and_then(|value| value.as_str())
-            .map(str::to_owned);
-        match commit {
-            Some(commit) if commit.len() == 40 => {
-                let present = git_commit_present(root, &commit)?;
-                let ancestor = if present {
-                    git_is_ancestor(root, &commit, "HEAD")?
-                } else {
-                    false
-                };
-                (Some(commit), present, ancestor)
-            }
-            _ => (None, false, false),
-        }
-    } else {
-        (None, false, false)
-    };
+    // Resolve the workspace wherever the change actually lives. Both reads below used
+    // to hard-code `.specsync/changes/<id>/`, a parallel implementation of `change_dir`
+    // that an archived change has moved out of — so a finalized change reported
+    // `Verification: none` / `Review: missing` for evidence sitting in its archive
+    // package (#534). `find_change_dir` already answers active-or-archive and is the
+    // primitive to reuse; adding a third resolver beside it is how this class recurs.
+    //
+    // Falling back to the active path keeps this read-only helper total: resolution can
+    // fail on an ambiguous or malformed id, and a status command must still render.
+    let evidence_dir = change::find_change_dir(root, &record.id)
+        .unwrap_or_else(|_| root.join(".specsync/changes").join(&record.id));
 
-    let review_path = root
-        .join(".specsync/changes")
-        .join(&record.id)
-        .join("review.json");
+    let verification_path = evidence_dir.join("verification.json");
+    let (verification_commit, verification_present, verification_ancestor) =
+        if verification_path.is_file() {
+            // Lenient by design. A strict `?` here turns `ship-status` and `ship` from rc=0
+            // into rc=1 on a repository whose archived evidence is already damaged — the fix
+            // for an inspection command must not be the thing that bricks inspection. An
+            // unreadable or unparseable artifact degrades to "no evidence recorded".
+            let value = fs::read_to_string(&verification_path)
+                .ok()
+                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+                .unwrap_or(serde_json::Value::Null);
+            let commit = value
+                .get("commit")
+                .and_then(|value| value.as_str())
+                .map(str::to_owned);
+            match commit {
+                Some(commit) if commit.len() == 40 => {
+                    let present = git_commit_present(root, &commit)?;
+                    let ancestor = if present {
+                        git_is_ancestor(root, &commit, "HEAD")?
+                    } else {
+                        false
+                    };
+                    (Some(commit), present, ancestor)
+                }
+                _ => (None, false, false),
+            }
+        } else {
+            (None, false, false)
+        };
+
+    let review_path = evidence_dir.join("review.json");
     let review_present = review_path.is_file();
 
     let mut blockers = Vec::new();
@@ -912,9 +921,24 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                 sibling_active_ids.join(", ")
             )
         }
-    } else if !blockers.is_empty() {
-        blockers[0].clone()
+    } else if matches!(
+        record.state,
+        ChangeState::Draft | ChangeState::Accepted | ChangeState::Archived
+    ) {
+        // The ship lane may narrow the next action; it may never contradict the
+        // lifecycle state. Outside the shipping window the lane's own advice is
+        // premature or spent, and obeying it fails: at draft this printed
+        // `change check --commit` while the change was still in its interview, and at
+        // archived it printed the same on a change that was finished (#534). Same rule
+        // as the CI lane classification in #626 — narrowing is allowed, contradiction
+        // is not.
+        lifecycle_next.clone()
     } else {
+        // A blocker says what is wrong, not what to do. This arm used to return
+        // `blockers[0]` verbatim whenever any blocker existed, which put
+        // "no verification evidence recorded yet" on a line whose whole job is to name
+        // a runnable command. Blockers already render on their own `Blocker:` lines, so
+        // repeating one here bought nothing and cost the reader their next step.
         current_stage
             .get("action")
             .and_then(|value| value.as_str())
@@ -2184,6 +2208,160 @@ if the floor call is removed from this function"
                 "{surface} text recommended premature approval: {next}"
             );
         }
+    }
+
+    fn draft_fixture(root: &Path) -> ChangeRecord {
+        change::write_default_policy(root, Vec::new()).expect("write default policy");
+        change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Ship status next action".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft")
+    }
+
+    /// The ship lane may narrow the next action; it may never contradict the
+    /// lifecycle state (#534). At draft the lane wanted `change check --commit`
+    /// while the change was still in its interview, so obeying the printed line
+    /// failed against the same binary that printed it.
+    #[test]
+    fn draft_ship_next_defers_to_the_lifecycle_next_action() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let record = draft_fixture(root);
+
+        let report = ship_status_report(root, &record).expect("ship status");
+        let ship_next = report["ship_next"].as_str().expect("ship_next");
+        let lifecycle_next = report["lifecycle_next"].as_str().expect("lifecycle_next");
+
+        assert_eq!(ship_next, lifecycle_next, "{report}");
+        assert!(
+            !ship_next.contains("--commit"),
+            "a draft must not be told to commit verification: {ship_next}"
+        );
+    }
+
+    /// `ship_next` must name a runnable action, never restate a blocker. Blockers
+    /// already render on their own `Blocker:` lines, so repeating one here cost the
+    /// reader their next step and bought nothing (#534).
+    ///
+    /// Honest label: this is an INVARIANT, not a discriminator. It passes on the
+    /// unfixed binary too, because a draft carries no blockers and the defect lives at
+    /// `Approved` — which this fixture cannot reach without driving a full interview and
+    /// approval. Drill 053's approved-state gate is what actually judges that half; this
+    /// guards against a future regression reintroducing the restatement anywhere.
+    #[test]
+    fn ship_next_is_an_action_never_a_blocker_restatement() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let record = draft_fixture(root);
+
+        let report = ship_status_report(root, &record).expect("ship status");
+        let ship_next = report["ship_next"].as_str().expect("ship_next");
+        let blockers: Vec<&str> = report["blockers"]
+            .as_array()
+            .map(|values| values.iter().filter_map(|v| v.as_str()).collect())
+            .unwrap_or_default();
+
+        for blocker in blockers {
+            assert_ne!(
+                ship_next, blocker,
+                "Next: restated a blocker instead of naming an action: {report}"
+            );
+        }
+    }
+
+    /// Evidence must be resolved from wherever the change lives. Both reads used a
+    /// hard-coded `.specsync/changes/<id>/` — a parallel implementation of
+    /// `change_dir` that an archived change has moved out of — so a finalized change
+    /// reported `Verification: none` / `Review: missing` for artifacts sitting in its
+    /// own archive package (#534).
+    #[test]
+    fn archived_evidence_is_resolved_from_the_archive_package() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let record = draft_fixture(root);
+
+        // Move the workspace to the archive exactly as finalize does, leaving the
+        // active path empty, then teach the record it is archived.
+        let active = root.join(".specsync/changes").join(&record.id);
+        let archived = root
+            .join(".specsync/archive/changes")
+            .join(format!("2026-08-19-{}", record.id));
+        fs::create_dir_all(archived.parent().expect("archive parent")).expect("archive root");
+        fs::rename(&active, &archived).expect("archive the workspace");
+        fs::write(
+            archived.join("review.json"),
+            "{\"reviewer\":\"peer\",\"verdict\":\"pass\"}\n",
+        )
+        .expect("write review evidence");
+        fs::write(
+            archived.join("verification.json"),
+            format!("{{\"commit\":\"{}\",\"passed\":true}}\n", "a".repeat(40)),
+        )
+        .expect("write verification evidence");
+        let mut archived_record = record.clone();
+        archived_record.state = ChangeState::Archived;
+        fs::write(
+            archived.join("state.json"),
+            serde_json::to_string(&archived_record).expect("serialize archived state"),
+        )
+        .expect("write archived state");
+
+        let report = ship_status_report(root, &archived_record).expect("ship status");
+
+        assert_eq!(
+            report["verification_commit"].as_str(),
+            Some("a".repeat(40).as_str()),
+            "archived verification was not resolved: {report}"
+        );
+        assert_eq!(
+            report["review_present"].as_bool(),
+            Some(true),
+            "archived review was not resolved: {report}"
+        );
+    }
+
+    /// The read must be lenient. A strict `?` on the archived artifact turns
+    /// `ship-status` and `ship` from rc=0 into rc=1 on a repository whose evidence is
+    /// already damaged — the fix for an inspection command must not be the thing that
+    /// breaks inspection (#534).
+    #[test]
+    fn a_corrupt_archived_verification_degrades_instead_of_failing() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let record = draft_fixture(root);
+
+        let active = root.join(".specsync/changes").join(&record.id);
+        let archived = root
+            .join(".specsync/archive/changes")
+            .join(format!("2026-08-19-{}", record.id));
+        fs::create_dir_all(archived.parent().expect("archive parent")).expect("archive root");
+        fs::rename(&active, &archived).expect("archive the workspace");
+        fs::write(archived.join("verification.json"), "not json at all\n")
+            .expect("write corrupt evidence");
+        let mut archived_record = record.clone();
+        archived_record.state = ChangeState::Archived;
+        fs::write(
+            archived.join("state.json"),
+            serde_json::to_string(&archived_record).expect("serialize archived state"),
+        )
+        .expect("write archived state");
+
+        let report = ship_status_report(root, &archived_record)
+            .expect("a corrupt archived artifact must not fail the command");
+
+        assert!(
+            report["verification_commit"].is_null(),
+            "corrupt evidence must read as absent, not as a commit: {report}"
+        );
     }
 
     // Verifies REQ-cmd-change-009.

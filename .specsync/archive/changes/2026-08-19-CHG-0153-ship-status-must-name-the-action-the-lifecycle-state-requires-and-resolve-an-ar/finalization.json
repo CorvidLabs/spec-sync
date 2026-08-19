@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar",
+  "implementation_commit": "e46c14e21c4ac4e80e8fe7f01b3b1a954db51fa4",
+  "implementation_tree": "68dd6d9097eb8abb128dc00e142a8f2a73619c0b",
+  "contract_digest": "ee7573f7c6219d216063f4c28a7aba41bd517f350214b6a2439382a5de2ac7fd",
+  "workspace_digest": "6c5ecfeaf578745c9865bbce8d345a944898cb93faea8d264c9370efd9c57123",
+  "closing_digest": "8d873f0feee0e913c4212a8058185c5ac873118e89a2ea4fda65a00f973f0032",
+  "review_digest": "bfec3f2601c4b5288c08d6a5ccb405b9f5f1f1ee11a711829c6fc32f33899440",
+  "finalization_digest": "8417b9b11b49fd51533d698c1f597295dcd2292792b74acf9c64741fd9c97d0d",
+  "timestamp": 1787111968
+}

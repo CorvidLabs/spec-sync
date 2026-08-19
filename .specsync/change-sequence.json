@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 152,
-  "id": "CHG-0152-a-populated-semantic-delta-must-not-report-as-empty",
+  "sequence": 153,
+  "id": "CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar",
   "acknowledged_collisions": [
     {
       "sequence": 16,

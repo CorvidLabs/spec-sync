@@ -1458,6 +1458,107 @@ fn scoped_review_requires_an_independent_passing_verdict() {
     assert_eq!(attempts.reviews[1].verdict, ScopedReviewVerdict::Pass);
 }
 
+fn review_ledger_fixture(reviewer: &str) -> ScopedReviewAttemptLedger {
+    ScopedReviewAttemptLedger {
+        schema_version: 1,
+        reviews: vec![ScopedReviewRecord {
+            schema_version: 1,
+            change_id: "CHG-0001-round-trip".into(),
+            reviewer: reviewer.into(),
+            provenance: ScopedReviewProvenanceV1 {
+                schema_version: 1,
+                provider: ScopedReviewProvenanceProvider::GithubActionsCheck,
+                required_check: "SpecSync scoped review".into(),
+            },
+            verdict: ScopedReviewVerdict::Pass,
+            implementation_commit: "a".repeat(40),
+            contract_digest: "b".repeat(64),
+            execution_digest: None,
+            workspace_digest: "c".repeat(64),
+            timestamp: 1_787_000_000,
+        }],
+    }
+}
+
+/// A change has exactly two homes, and evidence moves between them in BOTH directions.
+///
+/// `finalize` carries the ledger active -> archive; `reopen` carries the same bytes back
+/// archive -> active. Only the first direction was admitted, so a reopened change could never be
+/// finalized again (#540) — and the refusal surfaced at the next finalize rather than at the
+/// reopen, because it comes from a walk over committed history rather than from the command
+/// performing the move.
+///
+/// #540 shipped with no test at all. Reverting its fix left the entire suite green, so drill 049
+/// was its only protection — and that drill passes on a binary with the guard deleted outright.
+#[test]
+fn scoped_review_evidence_may_move_between_a_change_s_two_homes_in_either_direction() {
+    let active = (
+        ".specsync/changes/CHG-0001-round-trip/review-attempts.json".to_string(),
+        review_ledger_fixture("Independent reviewer"),
+    );
+    let archived = (
+        ".specsync/archive/changes/2026-08-19-CHG-0001-round-trip/review-attempts.json".to_string(),
+        review_ledger_fixture("Independent reviewer"),
+    );
+
+    // finalize: active -> archive. Admitted before #540 and still admitted.
+    validate_scoped_review_history_transition(Some(&active), Some(&archived), false)
+        .expect("finalize moves evidence into the archive");
+
+    // reopen: archive -> active. This is the direction #540 restored.
+    validate_scoped_review_history_transition(Some(&archived), Some(&active), false)
+        .expect("reopen moves the same evidence back to the active workspace");
+
+    // An unchanged path is unaffected either way.
+    validate_scoped_review_history_transition(Some(&active), Some(&active), false)
+        .expect("an unchanged path is not a move");
+}
+
+/// The allowance admits the two canonical homes, not arbitrary relocation.
+///
+/// This refusal is the reason the guard exists, and before this test nothing asserted it:
+/// `grep -rn 'moved evidence outside finalization' src/` returned exactly one hit, in the
+/// product. Widening #540's fix to "any move is fine" would have passed every other check,
+/// including drill 049.
+#[test]
+fn scoped_review_evidence_moved_to_a_third_location_is_refused() {
+    let active = (
+        ".specsync/changes/CHG-0001-round-trip/review-attempts.json".to_string(),
+        review_ledger_fixture("Independent reviewer"),
+    );
+    let elsewhere = (
+        "docs/attic/review-attempts.json".to_string(),
+        review_ledger_fixture("Independent reviewer"),
+    );
+
+    let error = validate_scoped_review_history_transition(Some(&active), Some(&elsewhere), false)
+        .expect_err("a move outside the two canonical homes must be refused");
+    assert!(
+        error.contains("moved evidence outside finalization"),
+        "{error}"
+    );
+
+    // And back the other way: a third location is not a valid origin either.
+    let error = validate_scoped_review_history_transition(Some(&elsewhere), Some(&active), false)
+        .expect_err("a move from outside the two canonical homes must be refused");
+    assert!(
+        error.contains("moved evidence outside finalization"),
+        "{error}"
+    );
+}
+
+/// Deleting committed evidence is refused regardless of where it lived.
+#[test]
+fn scoped_review_evidence_may_not_be_deleted() {
+    let active = (
+        ".specsync/changes/CHG-0001-round-trip/review-attempts.json".to_string(),
+        review_ledger_fixture("Independent reviewer"),
+    );
+    let error = validate_scoped_review_history_transition(Some(&active), None, false)
+        .expect_err("committed evidence may not vanish");
+    assert!(error.contains("deleted committed evidence"), "{error}");
+}
+
 #[test]
 fn scoped_review_attempt_history_rejects_erasing_a_committed_block() {
     let temp = TempDir::new().unwrap();

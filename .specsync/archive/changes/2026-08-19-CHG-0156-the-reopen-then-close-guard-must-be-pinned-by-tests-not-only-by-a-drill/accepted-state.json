@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0156-the-reopen-then-close-guard-must-be-pinned-by-tests-not-only-by-a-drill",
+  "slug": "the-reopen-then-close-guard-must-be-pinned-by-tests-not-only-by-a-drill",
+  "title": "The reopen-then-close guard must be pinned by tests, not only by a drill",
+  "description": "the reopen-then-close guard must be pinned by tests, not only by a drill",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "eb8f863af9a7e5822bf0a207f30a87302da7891a",
+  "created_at": 1787156032,
+  "updated_at": 1787158481,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Removing the archive-to-active direction from the scoped review history guard, which is the defect a reopened change could never be closed again, fails a test rather than leaving the suite green; deleting the guard entirely also fails a test, and fails a different one, so neither the fix nor the refusal it lives inside can be removed silently; the refusal of a move to any location other than a change's two homes is asserted for the first time, in both directions; and deleting committed review evidence is still refused."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

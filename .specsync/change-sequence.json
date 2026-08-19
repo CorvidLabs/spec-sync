@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 156,
-  "id": "CHG-0156-the-reopen-then-close-guard-must-be-pinned-by-tests-not-only-by-a-drill",
+  "sequence": 157,
+  "id": "CHG-0157-a-newer-six-must-be-readable-by-an-older-six",
   "acknowledged_collisions": [
     {
       "sequence": 16,

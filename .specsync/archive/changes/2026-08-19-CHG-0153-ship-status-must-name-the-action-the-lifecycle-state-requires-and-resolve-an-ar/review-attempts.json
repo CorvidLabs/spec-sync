@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar",
+      "reviewer": "Peer153",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "e46c14e21c4ac4e80e8fe7f01b3b1a954db51fa4",
+      "contract_digest": "ee7573f7c6219d216063f4c28a7aba41bd517f350214b6a2439382a5de2ac7fd",
+      "execution_digest": "47101ba2a83644dda210d9767ff3a3bf24de35ca76e5b8e2d811515e746ed6a6",
+      "workspace_digest": "6c5ecfeaf578745c9865bbce8d345a944898cb93faea8d264c9370efd9c57123",
+      "timestamp": 1787111959
+    }
+  ]
+}

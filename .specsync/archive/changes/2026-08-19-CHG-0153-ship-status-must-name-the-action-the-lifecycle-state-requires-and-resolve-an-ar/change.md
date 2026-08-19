@@ -1,6 +1,6 @@
 ---
 id: CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar
-state: implementing
+state: archived
 type: feature
 base_commit: 81f752c0c0cef613ef2f75740cf645592f51eb39
 ---

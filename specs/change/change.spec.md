@@ -1,6 +1,6 @@
 ---
 module: change
-version: 88
+version: 89
 status: active
 files:
   - src/change.rs
@@ -398,3 +398,4 @@ Acceptance Criteria
 | 2026-08-19 | CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar: Ship-status must name the action the lifecycle state requires, and resolve an archived change's evidence |
 | 2026-08-19 | CHG-0154-one-git-config-read-instead-of-four-for-effective-checkout-overrides: One git config read instead of four for effective checkout overrides |
 | 2026-08-19 | CHG-0155-the-batched-config-read-must-not-overflow-the-bound-sized-for-a-single-key: The batched config read must not overflow the bound sized for a single key |
+| 2026-08-19 | CHG-0156-the-reopen-then-close-guard-must-be-pinned-by-tests-not-only-by-a-drill: The reopen-then-close guard must be pinned by tests, not only by a drill |

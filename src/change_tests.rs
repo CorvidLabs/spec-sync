@@ -5466,6 +5466,123 @@ fn unknown_delta_operation_heading_is_rejected() {
     let typo = "## ADDED\n### REQUIREMENT REQ-auth-001\nThe system SHALL work.\n\nAcceptance Criteria\n- Works.\n\n## REMVOED\n### REQUIREMENT REQ-auth-002\nRetired.\n";
     let error = parse_delta(typo).unwrap_err();
     assert!(error.contains("invalid delta operation heading"));
+    assert!(
+        error.contains("## Added") && error.contains("## Modified") && error.contains("## Removed"),
+        "invalid operation heading must name the allowed values: {error}"
+    );
+}
+
+#[test]
+fn populated_delta_without_operation_headings_is_not_empty() {
+    let error = parse_delta("# greeter\n\nAdds greeting format docs.\n").unwrap_err();
+    assert!(
+        error.contains("no recognized operation headings"),
+        "populated unrecognized file must not pretend to be empty: {error}"
+    );
+    assert!(
+        !error.contains("is empty"),
+        "populated unrecognized file must not say is empty: {error}"
+    );
+    assert!(
+        error.contains("## Added") && error.contains("## Modified") && error.contains("## Removed"),
+        "must name allowed operation headings: {error}"
+    );
+}
+
+#[test]
+fn whitespace_delta_parses_as_empty() {
+    assert!(parse_delta("").unwrap().is_empty());
+    assert!(parse_delta("   \n\n\t\n").unwrap().is_empty());
+}
+
+#[test]
+fn recognized_operation_without_items_is_not_empty() {
+    let error = parse_delta("## ADDED\n").unwrap_err();
+    assert!(
+        error.contains("no items under a recognized operation heading"),
+        "a heading with no items must not pretend to be an empty file: {error}"
+    );
+    assert!(
+        !error.contains("is empty"),
+        "a heading with no items must not say is empty: {error}"
+    );
+    assert!(
+        error.contains("### REQUIREMENT") && error.contains("### SPEC SECTION"),
+        "must name the required item forms: {error}"
+    );
+}
+
+#[test]
+fn item_headings_are_accepted_case_insensitively() {
+    let requirement = parse_delta(
+        "## added\n### requirement REQ-auth-001\nThe system SHALL work.\n\nAcceptance Criteria\n- Works.\n",
+    )
+    .unwrap();
+    assert_eq!(requirement.len(), 1);
+    assert_eq!(requirement[0].target, DeltaTarget::Requirement);
+    assert_eq!(requirement[0].key, "REQ-auth-001");
+
+    let section =
+        parse_delta("## Modified\n### spec section Public API\n| `login` | Login |\n").unwrap();
+    assert_eq!(section.len(), 1);
+    assert_eq!(section[0].target, DeltaTarget::SpecSection);
+    assert_eq!(section[0].key, "Public API");
+}
+
+#[test]
+fn non_item_subheading_inside_an_item_remains_content() {
+    let items = parse_delta(
+        "## MODIFIED\n### SPEC SECTION Public API\n### Structs & Enums\n| `login` | Login |\n",
+    )
+    .unwrap();
+    assert!(
+        items
+            .iter()
+            .any(|item| item.content.contains("### Structs & Enums")),
+        "scaffold subheadings must stay item content, not an error: {items:?}"
+    );
+}
+
+#[test]
+fn lowercase_item_heading_inside_a_body_opens_a_new_item() {
+    let items = parse_delta(
+        "## MODIFIED\n### SPEC SECTION Public API\nintro\n### requirement REQ-auth-002\nThe system SHALL work.\n\nAcceptance Criteria\n- Works.\n",
+    )
+    .unwrap();
+    assert_eq!(items.len(), 2, "{items:?}");
+    assert_eq!(items[0].target, DeltaTarget::SpecSection);
+    assert_eq!(items[0].key, "Public API");
+    assert_eq!(items[1].target, DeltaTarget::Requirement);
+    assert_eq!(items[1].key, "REQ-auth-002");
+}
+
+#[test]
+fn live_populated_delta_without_headings_is_not_empty() {
+    let temp = TempDir::new().unwrap();
+    let record = completed_record(temp.path());
+    fs::write(
+        delta_path(temp.path(), &record, "auth"),
+        "# auth\n\nAdds docs.\n",
+    )
+    .unwrap();
+    let error = validate_delta_files(temp.path(), &record).unwrap_err();
+    assert!(
+        error.contains("no recognized operation headings"),
+        "{error}"
+    );
+    assert!(!error.contains("is empty"), "{error}");
+}
+
+#[test]
+fn live_empty_delta_still_reports_empty() {
+    let temp = TempDir::new().unwrap();
+    let record = completed_record(temp.path());
+    fs::write(delta_path(temp.path(), &record, "auth"), "\n").unwrap();
+    let error = validate_delta_files(temp.path(), &record).unwrap_err();
+    assert!(
+        error.contains("semantic delta for `auth` is empty"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -12327,7 +12444,18 @@ fn historical_tombstone_corruption_fails_closed() {
 
     fs::write(historical.join("auth.md"), "plain garbage\n").unwrap();
     let error = validate_delta_files(root, &record).unwrap_err();
-    assert!(error.contains("historical semantic delta is empty"));
+    assert!(
+        error.contains("historical semantic delta"),
+        "unexpected error: {error}"
+    );
+    assert!(
+        error.contains("no recognized operation headings"),
+        "populated historical garbage must not be reported as empty: {error}"
+    );
+    assert!(
+        !error.contains("is empty"),
+        "populated historical garbage must not say is empty: {error}"
+    );
 
     fs::write(
         historical.join("auth.md"),

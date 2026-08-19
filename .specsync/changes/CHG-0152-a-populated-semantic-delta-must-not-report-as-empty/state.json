@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0152-a-populated-semantic-delta-must-not-report-as-empty",
+  "slug": "a-populated-semantic-delta-must-not-report-as-empty",
+  "title": "A populated semantic delta must not report as empty",
+  "description": "a populated semantic delta must not report as empty",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "cf38520e965a8c7d616c8a81689fcc1bfd0e4e06",
+  "created_at": 1787095831,
+  "updated_at": 1787104447,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/context.md",
+    "specs/change/testing.md",
+    "specs/change/tasks.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A semantic delta file that contains text but no recognized operation heading reports that it has no recognized operation section and names the allowed headings, instead of reporting that the file is empty; the same correction applies to the historical delta path, which carries the identical wording today. A file that is empty or whitespace-only still reports that it is empty. Item headings are accepted case-insensitively, matching the operation headings that already are, so ### requirement parses exactly as ### REQUIREMENT does; an unrecognized heading is still refused and still names the allowed values. A valid uppercase delta still approves unchanged, and every archived delta still parses to the same items, since widening acceptance cannot alter files that were already grammar-conformant when they were approved."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

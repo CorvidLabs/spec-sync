@@ -1021,3 +1021,20 @@ Acceptance Criteria
 - A directory under the archive that holds at least one regular file but no `state.json` is still refused, so the allowance cannot be satisfied by ignoring corruption.
 - Directories in an archived package that do hold files are preserved, so pruning removes only what git could never have committed.
 
+### REQ-change-075
+
+A semantic delta parser SHALL distinguish a file that is empty from a file that has content
+but no recognized operation heading, SHALL name the allowed operation headings in that
+second case, SHALL accept item headings case-insensitively, and SHALL apply the same empty
+versus unrecognized wording on the historical delta path.
+
+Acceptance Criteria
+- A file whose only content is prose or unrecognized text reports that it contains no recognized operation headings and names `## Added`, `## Modified`, and `## Removed`, instead of reporting that the file is empty.
+- A file that is empty or whitespace-only still reports that it is empty.
+- `### requirement` and `### spec section` parse as `### REQUIREMENT` and `### SPEC SECTION`.
+- An unrecognized `##` heading is still refused and names the allowed operation values.
+- An unrecognized `###` heading before any item is still refused and still names both valid item forms.
+- A `###` line that is not an item keyword, met while an item is open, remains that item's content.
+- A valid uppercase delta still parses to the same items.
+- The historical delta walk uses the same empty-versus-unrecognized distinction and does not report a populated unrecognized file as empty.
+

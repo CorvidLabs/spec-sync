@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0157-a-newer-six-must-be-readable-by-an-older-six",
+  "implementation_commit": "ddcb24615ba588791c6f135dbe4792b26701bdaa",
+  "implementation_tree": "b028e42bfeba2541fb8b5b4e82abcaf9095fdc51",
+  "contract_digest": "955c2940f3b0e7fc7fac0161ab752c353c8d24000e0def0a0afe29e890a0d3d1",
+  "workspace_digest": "6a535f25a9b6ddaa9b6c989f6ae24fb879a984e1635acb1c5b6fa6e62f114f99",
+  "closing_digest": "77d8eb3c5f49b9783d3db9829fcc1ab4ff332de832bd496c2f0ac9b7c9c68f9e",
+  "review_digest": "2c5f7d217060d2ff7c08522058aacf3e3d346b68526df30dd7e90ff3bbad1b22",
+  "finalization_digest": "6733ffe4c73a24f994083ec0dcfb9a3bd78c19ddbacef82c5ce4bc4f1c2016a5",
+  "timestamp": 1787168866
+}

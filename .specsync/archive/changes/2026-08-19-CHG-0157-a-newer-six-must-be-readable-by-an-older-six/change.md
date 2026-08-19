@@ -1,6 +1,6 @@
 ---
 id: CHG-0157-a-newer-six-must-be-readable-by-an-older-six
-state: implementing
+state: archived
 type: feature
 base_commit: ad65908f66fe42cb201e4d736431e94f534c70b0
 ---

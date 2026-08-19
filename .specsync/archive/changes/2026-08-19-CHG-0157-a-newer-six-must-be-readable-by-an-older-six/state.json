@@ -7,11 +7,11 @@
   "title": "A newer six must be readable by an older six",
   "description": "a newer six must be readable by an older six",
   "kind": "feature",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "ad65908f66fe42cb201e4d736431e94f534c70b0",
   "created_at": 1787160794,
-  "updated_at": 1787168789,
+  "updated_at": 1787169156,
   "affected_specs": [
     "change"
   ],

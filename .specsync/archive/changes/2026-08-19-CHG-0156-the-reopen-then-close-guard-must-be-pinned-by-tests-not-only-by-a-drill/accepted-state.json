@@ -7,11 +7,11 @@
   "title": "The reopen-then-close guard must be pinned by tests, not only by a drill",
   "description": "the reopen-then-close guard must be pinned by tests, not only by a drill",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "eb8f863af9a7e5822bf0a207f30a87302da7891a",
   "created_at": 1787156032,
-  "updated_at": 1787158416,
+  "updated_at": 1787158481,
   "affected_specs": [
     "change"
   ],

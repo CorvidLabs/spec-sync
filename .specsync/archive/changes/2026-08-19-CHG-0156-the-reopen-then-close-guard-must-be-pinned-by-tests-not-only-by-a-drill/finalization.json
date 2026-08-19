@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0156-the-reopen-then-close-guard-must-be-pinned-by-tests-not-only-by-a-drill",
+  "implementation_commit": "c3cd7b3bb53eb8a76a5c807b9efd052b01c6a037",
+  "implementation_tree": "ec751c6ff2574957801038973665022a6ea3d04a",
+  "contract_digest": "4fe583971f66bc44493bbb9cf0903748409c5a473b643e8fbd381c81b6e31b33",
+  "workspace_digest": "07fa1e83013461f195ea4c2717143e09124592bed7566833b7ee171cdda7595c",
+  "closing_digest": "7982db8a3d9dd1b12ab8796434477198ab03c33063ef663dd9034b877b506c82",
+  "review_digest": "497ba76d87bc9ee61b2dd86dd2fc00509884803646027bd2e3473168647e66b3",
+  "finalization_digest": "d02df0ed506d6a7634100072d7db19f1732e65557ddc9370ed193eb43cd0b04e",
+  "timestamp": 1787158481
+}

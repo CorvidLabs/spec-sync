@@ -1,6 +1,6 @@
 ---
 id: CHG-0156-the-reopen-then-close-guard-must-be-pinned-by-tests-not-only-by-a-drill
-state: implementing
+state: archived
 type: feature
 base_commit: eb8f863af9a7e5822bf0a207f30a87302da7891a
 ---

@@ -7,11 +7,11 @@
   "title": "The forward-compatibility valve must be true everywhere it is claimed",
   "description": "the forward-compatibility valve must be true everywhere it is claimed",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "7bec5b3128ccf0c9265ee3863af63638979b6ace",
   "created_at": 1787173819,
-  "updated_at": 1787177923,
+  "updated_at": 1787178019,
   "affected_specs": [
     "change",
     "agents"

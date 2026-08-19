@@ -1,6 +1,6 @@
 ---
 id: CHG-0158-the-forward-compatibility-valve-must-be-true-everywhere-it-is-claimed
-state: implementing
+state: archived
 type: feature
 base_commit: 7bec5b3128ccf0c9265ee3863af63638979b6ace
 ---

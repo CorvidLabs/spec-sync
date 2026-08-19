@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0158-the-forward-compatibility-valve-must-be-true-everywhere-it-is-claimed",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "b77717dd16b96b237cc9a9c8f0459b289960511a",
+  "contract_digest": "33299cc87f5dae9f23eb46b4db08917b9d063b8f8aacda9c022f04fa1c04bd2a",
+  "execution_digest": "759d88352803ab929fd360d03534a11d611d0a0365f5e61732a64193e8cc456c",
+  "workspace_digest": "852c005b05a7a8ab06100b87020b37f671c86ca1e0acdab44f4c7638ef26c7ae",
+  "timestamp": 1787177998
+}

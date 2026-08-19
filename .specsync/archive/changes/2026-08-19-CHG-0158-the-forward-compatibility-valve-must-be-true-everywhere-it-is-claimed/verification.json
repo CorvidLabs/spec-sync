@@ -1,0 +1,186 @@
+{
+  "timestamp": 1787177921,
+  "commit": "b77717dd16b96b237cc9a9c8f0459b289960511a",
+  "contract_digest": "33299cc87f5dae9f23eb46b4db08917b9d063b8f8aacda9c022f04fa1c04bd2a",
+  "execution_digest": "759d88352803ab929fd360d03534a11d611d0a0365f5e61732a64193e8cc456c",
+  "workspace_digest": "852c005b05a7a8ab06100b87020b37f671c86ca1e0acdab44f4c7638ef26c7ae",
+  "acceptance_input_digest": "bb9f36203a22125ee7fdc4dd3461f7f5c58171627bf835a32c6c21b67eab1feb",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/change-sequence.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "86e689cf3b59b6635ba5e08d4b3f1068178e966ddfa1d46c15b9a3171ee030c5",
+        "entry_digest": "7d34758990485df0c6447fb72007963306a0f1a1a650d62754e8845e73185c80",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/agents/agents.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "819b7b501c233bacc9b8b9c73752a85b3cfaec0c9355d640e39ba2eb8174a084",
+        "entry_digest": "e0ad0e8dfd698a087e8f7126de8cb1dfe7ff8a4bc566a069c6b4d41ca02f220a",
+        "owners": [
+          "agents"
+        ]
+      },
+      {
+        "path": "specs/agents/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9e711f6d737193aa8b4cc50d243bd7237c04201fcc30ef86e77e1a9d13aee501",
+        "entry_digest": "b3cba3a2469c2638c0d1f609b0f14d2b9df1d8bb0371f4a991b87b9669c36354",
+        "owners": [
+          "agents"
+        ]
+      },
+      {
+        "path": "specs/agents/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "aeba0ed02d0a0308362ccbdd771970df93103811f42b20d21c6dec86f70ece44",
+        "entry_digest": "ff8269f120a90bea90564789a9135eede58a06c529cf0e0e8a2914d6268b4120",
+        "owners": [
+          "agents"
+        ]
+      },
+      {
+        "path": "specs/agents/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8a04dfd9accad7db0f6a5602c24d3c7260b0b20265ea0216cec2ec31ac605482",
+        "entry_digest": "f1a387b4bfd055d87ffeea59acf05accd9d85153b04728b7774fe22ddfb5217f",
+        "owners": [
+          "agents"
+        ]
+      },
+      {
+        "path": "specs/agents/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c4871375f762d41e9bb321ecb68ed79cdacdac343a78069db8666dba0cb6a2d8",
+        "entry_digest": "0e655f7884750f3f2471202bc9b379d15196cc3a5c46bc5c77ba231a69082e19",
+        "owners": [
+          "agents"
+        ]
+      },
+      {
+        "path": "specs/change/change.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fcb0f9cf688f4e9e28ee796619c714e377ec55776975a364469631d9a5e481d2",
+        "entry_digest": "018056362d432ce8d93f509b34bc0eedb9067fdbf40c73ef755e384df1c1f855",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "specs/change/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7ac231b91c6e4a2eed2e427d0fe155197be63beb8047c7babb2d050881e022c0",
+        "entry_digest": "46024bb47f3f7b26b415b1435ea4ce1e78a0a687b7072144f79a16a15c0baea0",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "specs/change/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "493ea95c4953f7de6b4753b1db9ea6091210ceb4e02720912d5c6a0c672774df",
+        "entry_digest": "1adcf881d993f61f0cf7a7eeb811fb5b51a4e649a4c07ed8b1944880441ea3bb",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "specs/change/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "023e48077cc479cf01b8a53160b3e9e6a5099fb24c7b5cb4aa208cf0e82cb981",
+        "entry_digest": "171079eee46b5e88bcaf82c80856bb2e4d9ce15062b44c21130c03f3fa409ddd",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "specs/change/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c323c622e831dfdcb6c1dbfbf479bce7ef8da7017451cdc737bc654b42498835",
+        "entry_digest": "e13673a75d2c232caa06b5c18bd6c81f96f7ce7ada05c7f839c299fe12a912b4",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "src/agents.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c5d20ad8dc2e578bcf3821048ed3b42a8f5f255c07cd1acf895440d121c93c77",
+        "entry_digest": "d7beb59d345e2e08e121448bed6aa640a9d50fa73097ebfb6552343f978ff359",
+        "owners": [
+          "agents"
+        ]
+      },
+      {
+        "path": "src/change.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6a28122fb90a563905d4883af5b7c5dc373d55debe20a2df6c626a02df342764",
+        "entry_digest": "d50435b049904591a1533ca9e430de17886074cc2e2320ec65108af77a0c91ff",
+        "owners": [
+          "change"
+        ]
+      },
+      {
+        "path": "src/change_tests.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3dec55722a18e31dcb8b41d6a312f9e5d8e0bd93a6fd03d79cce6c1e97b6bc6d",
+        "entry_digest": "9ca444056cd488c61a8aafb3478bb9beae028187e9ad7bc53e44b822b0a2d1b6",
+        "owners": [
+          "change"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "cargo test change::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test agents::",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-agents-005",
+    "REQ-change-079",
+    "REQ-change-080"
+  ]
+}

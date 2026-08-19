@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-opus-5",
+      "timestamp": 1787174134,
+      "digest": "33299cc87f5dae9f23eb46b4db08917b9d063b8f8aacda9c022f04fa1c04bd2a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0158-the-forward-compatibility-valve-must-be-true-everywhere-it-is-claimed",
+        "title": "The forward-compatibility valve must be true everywhere it is claimed",
+        "description": "the forward-compatibility valve must be true everywhere it is claimed",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/agents/agents.spec.md",
+          "specs/agents/requirements.md",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An adversarial pass over CHG-0157 found the valve claimed in three places it does not hold. (1) The code comment states that agents.rs discards and rebuilds an unrecognised manifest; it returns Err, and .specsync/agent-artifacts.json is git-tracked and team-shared, so deny_unknown_fields there is exactly the 6.x lockout CHG-0157 set out to remove. (2) The regenerable-cache test names the map 'entries'; HashCache calls it 'hashes' and does not default it, so the parse failed on the missing field regardless and the test passes with deny_unknown_fields stripped from both hash_cache structs. (3) The test asserts WorkflowV2Baseline parses a forward field, which is true at type level and operationally meaningless: read_workflow_v2_baseline and validate_legacy_archive_baseline_bytes require bytes_match_canonical_json, a byte round-trip gate strictly stronger than the attribute. Separately, SddPolicy has the mirror defect in the other direction: no field is optional on deserialize, so the day 6.x adds a ninth field, every sdd.json written before it becomes unreadable by the binary that added it. Done when: the manifest structs tolerate unknown fields with the three required fields still required; the comment says what the code does; the cache test fails when the attribute is stripped; the baseline limit is pinned by a test rather than contradicted by one; SddPolicy carries a container-level serde default whose values fail closed; every digest is unchanged."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

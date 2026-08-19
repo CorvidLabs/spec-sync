@@ -616,7 +616,21 @@ impl ArtifactKind {
     }
 }
 
+// The other half of the forward-compatibility valve.
+//
+// Removing `deny_unknown_fields` lets an OLD binary read a file a NEW binary wrote. This is the
+// reverse direction: it lets a NEW binary read a file an OLD binary wrote, by supplying the
+// `Default` value for any field that did not exist when the file was written.
+//
+// Without it, not one of these eight fields is optional on deserialize. That works today only
+// because SpecSync always writes every field — so the day a ninth field is added in 6.x, every
+// `sdd.json` written before it becomes unreadable by the binary that added it. Same one-way
+// door as `deny_unknown_fields`, walked from the other side.
+//
+// `#[serde(default)]` on the container uses the existing `Default` impl below, so a field added
+// later needs no per-field attribute to stay readable.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SddPolicy {
     pub version: u32,
     pub enabled: bool,
@@ -727,8 +741,23 @@ pub struct ChangeRecord {
 // digest-safe for those three. Read-time tolerance was never part of any preimage, so removing
 // it changes no digest.
 //
-// Regenerable caches keep `deny_unknown_fields`: `hash_cache.rs` and `agents.rs` discard and
-// rebuild on an unrecognised shape, which is correct and costs nothing.
+// Where the line actually falls, checked rather than assumed:
+//
+// - `hash_cache.rs` keeps `deny_unknown_fields`. `.specsync/hashes.json` is gitignored and
+//   `HashCache::load` returns `Self::default()` on any parse error, so an unrecognised shape
+//   costs one rebuild. That is a real cache.
+// - `agents.rs` does NOT keep it. An earlier version of this comment claimed
+//   `.specsync/agent-artifacts.json` was the same kind of thing; it is not.
+//   `load_agent_artifact_manifest` returns `Err`, the file is git-tracked and shared with the
+//   team, and its content — the digest of exactly the bytes SpecSync last generated — is what
+//   distinguishes "unchanged since we wrote it" from "the user edited it". Losing it is not
+//   free, so it is evidence and it is tolerant.
+//
+// Two files gain nothing from tolerance and it would be dishonest to imply otherwise:
+// `workflow-v2-baseline` and the legacy archive baseline are read through
+// `bytes_match_canonical_json`, a round-trip byte-equality gate strictly stronger than this
+// attribute. An added field survives `from_slice` and then fails the byte comparison. See
+// `a_baseline_is_still_frozen_by_its_canonical_byte_gate`.
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AcceptanceOwnerCorrection {

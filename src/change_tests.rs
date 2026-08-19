@@ -1585,19 +1585,32 @@ fn evidence_written_by_a_later_six_still_parses() {
         "timestamp": 1_787_000_000u64,
         "future_review_field": {"nested": true}
     });
+    // Read the way production does — `from_slice` over raw bytes (src/change.rs:5300, :5394),
+    // not `from_value` over an already-parsed tree. An external reviewer pointed out that the
+    // first draft tested only the latter and therefore overclaimed the valve for the files that
+    // actually matter.
     let parsed: ScopedReviewRecord =
-        serde_json::from_value(review).expect("a newer review record must still parse");
+        serde_json::from_slice(serde_json::to_vec(&review).unwrap().as_slice())
+            .expect("a newer review record must still parse from committed bytes");
     assert_eq!(parsed.reviewer, "Peer");
 
-    let baseline = serde_json::json!({
+    let finalization = serde_json::json!({
         "schema_version": 1,
-        "domain": "specsync.workflow-v2-baseline.v1",
-        "cutoff_commit": "d".repeat(40),
-        "future_baseline_field": 7
+        "change_id": "CHG-0001-forward",
+        "implementation_commit": "a".repeat(40),
+        "implementation_tree": "b".repeat(40),
+        "contract_digest": "c".repeat(64),
+        "workspace_digest": "d".repeat(64),
+        "closing_digest": "e".repeat(64),
+        "review_digest": "f".repeat(64),
+        "finalization_digest": "0".repeat(64),
+        "timestamp": 1_787_000_000u64,
+        "future_finalization_field": ["anything"]
     });
-    let parsed: WorkflowV2Baseline =
-        serde_json::from_value(baseline).expect("a newer baseline must still parse");
-    assert_eq!(parsed.schema_version, 1);
+    let parsed: FinalizationRecord =
+        serde_json::from_slice(serde_json::to_vec(&finalization).unwrap().as_slice())
+            .expect("a newer finalization record must still parse from committed bytes");
+    assert_eq!(parsed.change_id, "CHG-0001-forward");
 
     let ledger = serde_json::json!({
         "schema_version": 1,
@@ -1605,7 +1618,8 @@ fn evidence_written_by_a_later_six_still_parses() {
         "future_ledger_field": "x"
     });
     let parsed: CorrectionLedger =
-        serde_json::from_value(ledger).expect("a newer correction ledger must still parse");
+        serde_json::from_slice(serde_json::to_vec(&ledger).unwrap().as_slice())
+            .expect("a newer correction ledger must still parse from committed bytes");
     assert!(parsed.corrections.is_empty());
 }
 
@@ -1615,14 +1629,100 @@ fn evidence_written_by_a_later_six_still_parses() {
 /// that cannot be understood should be thrown away, not tolerated.
 #[test]
 fn regenerable_caches_still_reject_what_they_cannot_understand() {
+    // The first draft of this test named the map `entries`. `HashCache` calls it `hashes` and
+    // does not default it, so the parse failed with "missing field `hashes`" no matter what
+    // `deny_unknown_fields` did — it passed with the attribute stripped from both structs, and
+    // guarded nothing. The payload below is otherwise complete, so the ONLY thing that can
+    // reject it is the unknown field, and the assertion says so by name.
     let value = serde_json::json!({
         "format_version": 1,
-        "entries": {},
+        "hashes": {},
         "future_cache_field": true
     });
+    let error = serde_json::from_value::<crate::hash_cache::HashCache>(value)
+        .expect_err("a cache is regenerable, so an unrecognised shape must be discarded");
+    let error = error.to_string();
     assert!(
-        serde_json::from_value::<crate::hash_cache::HashCache>(value).is_err(),
-        "a cache is regenerable, so an unrecognised shape must be discarded rather than accepted"
+        error.contains("future_cache_field"),
+        "the rejection must be caused by the unknown field, not by a malformed payload: {error}"
+    );
+
+    // Control: the same payload without the unknown field parses. Without this, a future typo
+    // in a required field name would silently make the assertion above unreachable again.
+    let known = serde_json::json!({"format_version": 1, "hashes": {}});
+    assert!(
+        serde_json::from_value::<crate::hash_cache::HashCache>(known).is_ok(),
+        "the payload must be valid apart from the unknown field"
+    );
+}
+
+/// The other direction: a NEW binary reading a policy an OLD binary wrote.
+///
+/// `deny_unknown_fields` is the old-reads-new door. This is the new-reads-old one: not one of
+/// `SddPolicy`'s fields was optional on deserialize, which worked only because SpecSync always
+/// writes all of them. The day 6.x adds a ninth, every `sdd.json` written before it becomes
+/// unreadable by the binary that added it — the same one-way door, walked from the other side.
+///
+/// The defaults are the safe ones, so a policy that loses a field enforces more, not less.
+#[test]
+fn a_policy_written_before_a_field_existed_still_loads_and_fails_closed() {
+    // Stands in for a 6.0-era file read by a later 6.x: every field this binary knows is
+    // present except the two whose absence would matter most.
+    let older = serde_json::json!({
+        "version": 2,
+        "meaningful_paths": ["src/"],
+        "ignored_paths": [],
+        "verification_commands": [],
+        "custom_artifacts": {}
+    });
+    let policy: SddPolicy = serde_json::from_slice(serde_json::to_vec(&older).unwrap().as_slice())
+        .expect("a policy missing a field this binary added must still load");
+    assert_eq!(policy.meaningful_paths, vec!["src/".to_string()]);
+    assert!(
+        policy.enabled,
+        "an absent `enabled` must not read as disabled"
+    );
+    assert!(
+        policy.require_change_for_meaningful_files,
+        "an absent requirement must not read as no requirement"
+    );
+}
+
+/// Tolerance is not enough for the two baselines, and this pins the limit rather than hiding it.
+///
+/// `read_workflow_v2_baseline` and `validate_legacy_archive_baseline_bytes` re-serialize what
+/// they parsed and require the result to equal the bytes on disk. A field added by a newer 6.x
+/// survives `from_slice` and is then dropped by the re-serialization, so the comparison fails.
+/// The byte gate is deliberate — these files anchor history and must not drift — but it means
+/// the forward-compatibility valve buys them nothing, and a reader of the tolerant structs
+/// above should not conclude otherwise.
+#[test]
+fn a_baseline_is_still_frozen_by_its_canonical_byte_gate() {
+    let canonical = WorkflowV2Baseline {
+        schema_version: 1,
+        domain: "specsync.workflow-v2-baseline.v1".into(),
+        cutoff_commit: Some("d".repeat(40)),
+    };
+
+    // The type is tolerant: a newer baseline parses.
+    let extended = serde_json::json!({
+        "schema_version": 1,
+        "domain": "specsync.workflow-v2-baseline.v1",
+        "cutoff_commit": "d".repeat(40),
+        "future_baseline_field": 7
+    });
+    let bytes = serde_json::to_vec_pretty(&extended).unwrap();
+    let parsed: WorkflowV2Baseline = serde_json::from_slice(bytes.as_slice())
+        .expect("the type itself tolerates the unknown field");
+    assert_eq!(parsed, canonical, "the unknown field is dropped on parse");
+
+    // The file-level reader is not: dropping the field breaks the byte round-trip.
+    let round_tripped = json_content(&parsed).unwrap();
+    assert_ne!(
+        String::from_utf8(bytes).unwrap(),
+        round_tripped,
+        "a newer baseline cannot survive the canonical-bytes gate; if this ever passes, the gate \
+         moved and the two baselines became genuinely extensible"
     );
 }
 

@@ -205,8 +205,12 @@ const AGENT_ARTIFACT_MANIFEST_VERSION: u32 = 1;
 const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 3;
 const AGENT_ARTIFACT_MANIFEST_PATH: &str = ".specsync/agent-artifacts.json";
 
+// `.specsync/agent-artifacts.json` is committed and shared, and `load_agent_artifact_manifest`
+// hard-errors rather than rebuilding, so `deny_unknown_fields` here was a 6.x lockout in a
+// team-shared file: a manifest written by a newer 6.x would stop `agents install` and `init`
+// dead for everyone still on the older binary. The three known fields stay required — nothing
+// here fails open — the struct only stops refusing fields it does not need.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
 struct AgentArtifactRecord {
     tool: String,
     template_version: u32,
@@ -214,7 +218,6 @@ struct AgentArtifactRecord {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
 struct AgentArtifactManifest {
     version: u32,
     artifacts: BTreeMap<String, AgentArtifactRecord>,
@@ -1639,5 +1642,50 @@ mod tests {
         assert!(!skill_dir.join("SKILL.md").exists());
         assert_eq!(fs::read_to_string(&sibling).unwrap(), "user notes");
         assert!(skill_dir.exists());
+    }
+
+    /// A manifest written by a newer 6.x must not brick `agents install` for everyone else.
+    ///
+    /// `.specsync/agent-artifacts.json` is committed, so one teammate on a later 6.x adding a
+    /// field used to hard-fail the command for every teammate still on the older binary, in a
+    /// file they all share. Read tolerance is the whole fix; the three fields this binary needs
+    /// are still required, so nothing here starts accepting a manifest it cannot use.
+    #[test]
+    fn a_manifest_written_by_a_newer_six_is_still_usable() {
+        let extended = serde_json::json!({
+            "version": 1,
+            "artifacts": {
+                "claude:skill": {
+                    "tool": "claude",
+                    "template_version": 3,
+                    "digest": "a".repeat(64),
+                    "future_record_field": "written by 6.4"
+                }
+            },
+            "future_manifest_field": {"nested": true}
+        });
+        let bytes = serde_json::to_vec(&extended).unwrap();
+        let manifest: AgentArtifactManifest = serde_json::from_slice(bytes.as_slice())
+            .expect("a manifest from a newer 6.x must still be readable");
+        let record = manifest
+            .artifacts
+            .get("claude:skill")
+            .expect("the fields this binary needs must survive the unknown ones");
+        assert_eq!(record.tool, "claude");
+        assert_eq!(record.template_version, 3);
+
+        // Control: a record still missing a field this binary requires is still refused, so the
+        // tolerance above cannot be mistaken for "accept any shape".
+        let incomplete = serde_json::json!({
+            "version": 1,
+            "artifacts": {"claude:skill": {"tool": "claude", "digest": "a".repeat(64)}}
+        });
+        assert!(
+            serde_json::from_slice::<AgentArtifactManifest>(
+                serde_json::to_vec(&incomplete).unwrap().as_slice()
+            )
+            .is_err(),
+            "a manifest missing a required field must still be refused"
+        );
     }
 }

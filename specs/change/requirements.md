@@ -1081,6 +1081,16 @@ Acceptance Criteria
 - A file read through a canonical-bytes round trip gains nothing from tolerance, because the unknown field is dropped on parse and the re-serialized bytes then differ from the bytes on disk. This limit is deliberate for the files that anchor history, and is pinned by a test rather than left to be discovered.
 - Every digest is unchanged, because tolerance at read time was never part of any preimage.
 
+### REQ-change-081
+
+A gate SHALL determine a change's identity from its persisted state rather than from the shape of a directory or file name, and a gate that cannot determine identity SHALL withhold the permission it grants rather than granting it.
+
+Acceptance Criteria
+- An archived package that has lost its lifecycle state is refused as damaged whatever it is named, because a naming convention is not evidence that a package is real and skipping a damaged package hides corruption.
+- A genuine pre-lifecycle record, holding deltas and nothing else, continues to be skipped, so refusing damage is not achieved by refusing everything.
+- Continuous integration determines which changes require an independent review by reading persisted state, so no identity shape can reduce the set of changes needing review to zero and let a pull request merge unreviewed while reporting success.
+- A gate that cannot read identity withholds what it grants: an archive fast lane is not taken when the archived state is unreadable, so the full verification runs instead.
+
 ### REQ-change-080
 
 A persisted policy SHALL load even when it omits a field this SpecSync knows, and each omitted field SHALL take a value that enforces rather than relaxes.

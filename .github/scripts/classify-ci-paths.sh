@@ -243,12 +243,23 @@ record_archive_path() {
             ;;
     esac
 
-    if [[ ! "$candidate_dir" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-(CHG-[0-9]{4,}-.+)$ ]]; then
+    # Identity comes from state.json, never from the shape of the directory name. The
+    # `YYYY-MM-DD-CHG-NNNN-slug` regex that used to sit here made the archive fast lane
+    # silently unavailable for any other naming shape — and it fails OPEN in the sibling
+    # review check below, which is why both moved to state.json in one change.
+    #
+    # No identity means no fast lane: the full product matrix runs. That is the safe
+    # direction, and it is what happens when jq is missing or the state is unreadable.
+    dated_id="$candidate_dir"
+    archive_state_path="$root/.specsync/archive/changes/$candidate_dir/state.json"
+    change_id=""
+    if [[ -f "$archive_state_path" ]] && command -v jq >/dev/null 2>&1; then
+        change_id="$(jq -r '.id // ""' "$archive_state_path" 2>/dev/null || true)"
+    fi
+    if [[ -z "$change_id" ]]; then
         archive_candidate=false
         return
     fi
-    dated_id="${BASH_REMATCH[0]}"
-    change_id="${BASH_REMATCH[1]}"
     if [[ -n "$archive_change_id" && "$archive_change_id" != "$change_id" ]]; then
         archive_candidate=false
         return
@@ -272,14 +283,14 @@ record_review_change() {
         review_candidate=false
         return
     fi
-    if [[ "$path" =~ ^\.specsync/changes/(CHG-[0-9]{4,}-.+)/review\.json$ ]]; then
+    if [[ "$path" =~ ^\.specsync/changes/([^/]+)/review\.json$ ]]; then
         candidate_id="${BASH_REMATCH[1]}"
         if [[ "$review_seen" == "true" ]]; then
             review_candidate=false
             return
         fi
         review_seen=true
-    elif [[ "$path" =~ ^\.specsync/changes/(CHG-[0-9]{4,}-.+)/review-attempts\.json$ ]]; then
+    elif [[ "$path" =~ ^\.specsync/changes/([^/]+)/review-attempts\.json$ ]]; then
         candidate_id="${BASH_REMATCH[1]}"
         if [[ "$review_attempts_seen" == "true" ]]; then
             review_candidate=false
@@ -430,7 +441,11 @@ review_required=false
 review_required_change_id=""
 if [[ "$archive_only" != "true" && "$review_only" != "true" ]] && command -v jq >/dev/null 2>&1; then
     review_candidates=0
-    for state_path in "$root"/.specsync/changes/CHG-*/state.json; do
+    # Globbing `CHG-*` here gated the one mandatory human review on a naming convention: any
+    # identity shape the glob missed produced review_candidates=0, review_required=false, and a
+    # PR that merged without the review while CI went green faster. The loop already reads `.id`
+    # from state.json below — the glob was the only thing that did not.
+    for state_path in "$root"/.specsync/changes/*/state.json; do
         [[ -f "$state_path" ]] || continue
         change_dir="${state_path%/state.json}"
         verification_path="$change_dir/verification.json"

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 91
+version: 92
 status: active
 files:
   - src/change.rs
@@ -401,3 +401,4 @@ Acceptance Criteria
 | 2026-08-19 | CHG-0156-the-reopen-then-close-guard-must-be-pinned-by-tests-not-only-by-a-drill: The reopen-then-close guard must be pinned by tests, not only by a drill |
 | 2026-08-19 | CHG-0157-a-newer-six-must-be-readable-by-an-older-six: A newer six must be readable by an older six |
 | 2026-08-19 | CHG-0158-the-forward-compatibility-valve-must-be-true-everywhere-it-is-claimed: The forward-compatibility valve must be true everywhere it is claimed |
+| 2026-08-19 | CHG-0159-identity-must-come-from-state-json-never-from-the-shape-of-a-name: Identity must come from state.json, never from the shape of a name |

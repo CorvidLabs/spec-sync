@@ -3636,6 +3636,72 @@ fn legacy_archive_tombstones_without_lifecycle_state_are_skipped() {
     assert!(list_all_changes_checked(root).unwrap().is_empty());
 }
 
+/// A real package that lost its lifecycle files is corruption, whatever it is called.
+///
+/// The old discriminator was `name.contains("-CHG-")`. An UNDATED package — `CHG-0001-foo` —
+/// does not contain that substring, so this exact case was already being swallowed before any
+/// identity redesign: `list_all_changes_uncached` and `located_change_sequences` skipped a
+/// damaged archive instead of refusing it. The name never carried the meaning the check
+/// attributed to it.
+#[test]
+fn an_undated_package_stripped_of_its_lifecycle_files_is_still_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let package = root.join(ARCHIVE_PATH).join("CHG-0001-foo");
+    fs::create_dir_all(package.join("deltas")).unwrap();
+    fs::write(
+        package.join("deltas/auth.md"),
+        "## REMOVED\n### REQUIREMENT REQ-auth-001\nRetired.\n",
+    )
+    .unwrap();
+    // One artifact git could track. The package is damaged, not absent.
+    fs::write(package.join("plan.md"), "# plan\n").unwrap();
+
+    let error =
+        list_all_changes_checked(root).expect_err("a damaged package must be refused, not skipped");
+    assert!(error.contains("failed to read archived state"), "{error}");
+    let error =
+        located_change_sequences(root).expect_err("a damaged package must be refused, not skipped");
+    assert!(
+        error.contains("failed to read archived change state"),
+        "{error}"
+    );
+}
+
+/// The identity shape must not decide it either. Same package, name with no ordinal at all.
+#[test]
+fn a_slug_named_package_stripped_of_its_lifecycle_files_is_still_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let package = root.join(ARCHIVE_PATH).join("retire-the-auth-module");
+    fs::create_dir_all(package.join("deltas")).unwrap();
+    fs::write(package.join("deltas/auth.md"), "## REMOVED\n").unwrap();
+    fs::write(package.join("context.md"), "# context\n").unwrap();
+
+    assert!(
+        list_all_changes_checked(root).is_err(),
+        "a damaged package must be refused whatever it is named"
+    );
+}
+
+/// Vacuity control: a genuine legacy tombstone is still skipped, so this is not simply
+/// "refuse everything". It must behave identically on both binaries.
+#[test]
+fn a_deltas_only_legacy_tombstone_is_still_skipped_whatever_it_is_named() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    // Only names WITHOUT a lifecycle ordinal. A dated or undated `CHG-NNNN` name is a real
+    // package by signal 3 and must stay refused — see `an_undated_package_...` above.
+    for name in ["legacy", "retired-auth", "pre-lifecycle-removals"] {
+        let package = root.join(ARCHIVE_PATH).join(name);
+        fs::create_dir_all(package.join("deltas")).unwrap();
+        fs::write(package.join("deltas/auth.md"), "## REMOVED\n").unwrap();
+    }
+    // None carries an ordinal and none holds a file outside `deltas/`, so all three are
+    // tombstones and all three are skipped — on this binary and on the one before it.
+    assert!(list_all_changes_checked(root).unwrap().is_empty());
+}
+
 #[test]
 fn archive_husk_of_empty_directories_is_skipped_by_enumeration() {
     let temp = TempDir::new().unwrap();

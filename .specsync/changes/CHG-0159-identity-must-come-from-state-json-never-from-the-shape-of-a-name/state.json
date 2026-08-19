@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0159-identity-must-come-from-state-json-never-from-the-shape-of-a-name",
+  "slug": "identity-must-come-from-state-json-never-from-the-shape-of-a-name",
+  "title": "Identity must come from state.json, never from the shape of a name",
+  "description": "identity must come from state.json, never from the shape of a name",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "0387678fbbbd9b37ec9db6f94ddb503878b7d3f6",
+  "created_at": 1787180492,
+  "updated_at": 1787183284,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    ".github/scripts/classify-ci-paths.sh",
+    ".github/scripts/test-classify-ci-paths.sh",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Two gates currently decide identity from the shape of a name rather than from state.json, and both fail open. (1) is_positive_legacy_tombstone treats a directory as a real lifecycle package only if its name contains the literal '-CHG-'. An undated package named CHG-0001-foo does not contain that substring, so a real archived change that lost its lifecycle files is silently skipped by list_all_changes_uncached and located_change_sequences instead of being refused as corrupt. This is live today, not hypothetical. (2) classify-ci-paths.sh decides which pull requests need the mandatory independent review by globbing .specsync/changes/CHG-*/state.json, and parses archive directory names with a regex requiring a date prefix and a CHG-NNNN ordinal. ci.yml gates the review job on that count, so any identity shape the glob does not match means review_required=false and the one mandatory human review silently stops running while CI goes green faster. Done when: a package is classified by what it contains rather than by what it is called, so a directory holding any regular file outside deltas is a lifecycle package and is refused when its state is unreadable; the CI classifier finds candidate changes and parses archive directories without assuming any ID shape; and both are pinned by tests that fail against the current binary."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

@@ -1,6 +1,6 @@
 ---
 id: CHG-0155-the-batched-config-read-must-not-overflow-the-bound-sized-for-a-single-key
-state: implementing
+state: archived
 type: feature
 base_commit: 76ef32b1ab2ce13ffdc40445dfb89b58fbf6c7cb
 ---

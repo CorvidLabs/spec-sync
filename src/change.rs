@@ -707,8 +707,30 @@ pub struct ChangeRecord {
     pub answers: BTreeMap<String, String>,
 }
 
+// Evidence persisted to disk is deliberately TOLERANT of unknown fields.
+//
+// These structs carried `#[serde(deny_unknown_fields)]`, which meant an older 6.x binary could
+// not read a file written by a newer 6.x binary that had added a field — so no evidence shape
+// could be extended during 6's lifetime without breaking installations already deployed. That
+// is the mechanism by which "just add a field in 6.4" becomes "we need 7.0".
+//
+// The tolerant structs are where growth has actually happened: `ChangeRecord`, `SddPolicy`,
+// `ApprovalLedger`, `VerificationRecord` and `ChangeSequenceLedger` have absorbed
+// `workflow_version`, `canonical_applied`, `correction_count`, `supersedes`,
+// `acceptance_owner_corrections` and `reopenings` without incident, and `approvals.json` files
+// written before `reopenings` existed still parse today.
+//
+// What this does NOT buy: `ApprovedScopeV1`, `CorrectionRecord` and `ScopedReviewRecord` are
+// digest preimages (scope_digest, correction digests, finalization review_digest). Adding a
+// field to one of those still changes its serialized bytes and therefore its digest. Tolerance
+// lets an older reader PARSE such a file instead of erroring; it does not make field addition
+// digest-safe for those three. Read-time tolerance was never part of any preimage, so removing
+// it changes no digest.
+//
+// Regenerable caches keep `deny_unknown_fields`: `hash_cache.rs` and `agents.rs` discard and
+// rebuild on an unrecognised shape, which is correct and costs nothing.
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct AcceptanceOwnerCorrection {
     pub schema_version: u32,
     pub sequence: u64,
@@ -720,7 +742,6 @@ pub struct AcceptanceOwnerCorrection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct LegacyArchiveBaselineV1 {
     pub schema_version: u32,
     pub domain: String,
@@ -730,7 +751,6 @@ pub struct LegacyArchiveBaselineV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct WorkflowV2Baseline {
     schema_version: u32,
     domain: String,
@@ -752,7 +772,6 @@ struct WorkflowV2AdoptionCandidate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct LegacyArchiveBaselineEntryV1 {
     pub id: String,
     pub archive_path: String,
@@ -785,7 +804,6 @@ pub struct CreateChangeRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ApprovedScopeV1 {
     pub schema_version: u32,
     pub change_id: String,
@@ -812,7 +830,6 @@ pub enum NonMaterialScopeChangeCategory {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct NonMaterialScopeChangeV1 {
     pub path: String,
     pub category: NonMaterialScopeChangeCategory,
@@ -820,7 +837,6 @@ pub struct NonMaterialScopeChangeV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ScopeApprovalMigrationV1 {
     pub schema_version: u32,
     pub source_definition_digest: String,
@@ -841,7 +857,6 @@ pub enum ScopeAdoptionEquivalenceClaim {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ScopeAdoptionAnchorV1 {
     pub base_commit: String,
     pub commit: String,
@@ -850,7 +865,6 @@ pub struct ScopeAdoptionAnchorV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ScopeAdoptionAuthorizationV1 {
     pub actor: String,
     pub recorded_at: u64,
@@ -858,7 +872,6 @@ pub struct ScopeAdoptionAuthorizationV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ScopeAdoptionV1 {
     pub schema_version: u32,
     pub change_id: String,
@@ -896,7 +909,6 @@ pub enum DefinitionApprovalPairRole {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct DefinitionApprovalPairV1 {
     pub schema_version: u32,
     pub projection: String,
@@ -973,7 +985,6 @@ impl CorrectionField {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct CorrectionRecord {
     pub schema_version: u32,
     pub sequence: u64,
@@ -1018,7 +1029,6 @@ pub(crate) struct DefinitionMutationResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct CorrectionLedger {
     schema_version: u32,
     corrections: Vec<CorrectionRecord>,
@@ -1070,7 +1080,6 @@ pub struct VerificationRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ScopedReviewRecord {
     pub schema_version: u32,
     pub change_id: String,
@@ -1092,7 +1101,6 @@ pub enum ScopedReviewProvenanceProvider {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ScopedReviewProvenanceV1 {
     pub schema_version: u32,
     pub provider: ScopedReviewProvenanceProvider,
@@ -1100,7 +1108,6 @@ pub struct ScopedReviewProvenanceV1 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct ScopedReviewAttemptLedger {
     schema_version: u32,
     reviews: Vec<ScopedReviewRecord>,
@@ -1167,7 +1174,6 @@ fn validate_scoped_reviewer_claim(reviewer: &str) -> Result<&str, String> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct FinalizationRecord {
     pub schema_version: u32,
     pub change_id: String,
@@ -16499,8 +16505,13 @@ fn validate_loaded_change(
     validate_change_id(&record.id)
         .map_err(|error| format!("invalid change state {}: {error}", state_path.display()))?;
     if !matches!(record.workflow_version, 1 | 2) {
+        // A version this binary does not know means the record was written by a NEWER
+        // SpecSync, not that it is corrupt. Reporting it as an "invalid change state" made
+        // those two indistinguishable, so the operator's correct action — upgrade — was the
+        // one thing the message did not say. Naming it is what lets a later workflow version
+        // exist without every older 6.x install reporting the repository as broken.
         return Err(format!(
-            "invalid change state {}: unsupported workflow version {}",
+            "{} was written by a newer SpecSync (workflow version {}); upgrade specsync to read it",
             state_path.display(),
             record.workflow_version
         ));
@@ -16545,9 +16556,10 @@ fn validate_workflow_version_anchor(record: &ChangeRecord) -> Result<(), String>
         (version, Some(origin)) => Err(format!(
             "workflow version {version} conflicts with immutable origin {origin}"
         )),
+        // As above: an unknown version is a newer writer, not corruption.
         _ => Err(format!(
-            "unsupported workflow version {}",
-            record.workflow_version
+            "change `{}` was written by a newer SpecSync (workflow version {}); upgrade specsync to read it",
+            record.id, record.workflow_version
         )),
     }
 }
@@ -16558,9 +16570,10 @@ fn validate_historical_workflow_version_anchor(record: &ChangeRecord) -> Result<
         (version, Some(origin)) => Err(format!(
             "workflow version {version} conflicts with immutable origin {origin}"
         )),
+        // As above: an unknown version is a newer writer, not corruption.
         _ => Err(format!(
-            "unsupported workflow version {}",
-            record.workflow_version
+            "change `{}` was written by a newer SpecSync (workflow version {}); upgrade specsync to read it",
+            record.id, record.workflow_version
         )),
     }
 }

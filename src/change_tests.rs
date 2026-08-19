@@ -1559,6 +1559,102 @@ fn scoped_review_evidence_may_not_be_deleted() {
     assert!(error.contains("deleted committed evidence"), "{error}");
 }
 
+/// Evidence written by a later 6.x must still be READABLE by this one.
+///
+/// These structs carried `#[serde(deny_unknown_fields)]`, so an older 6.x binary rejected any
+/// file a newer 6.x had extended. That made every evidence shape unextendable for the whole of
+/// 6's life — the mechanism by which "add a field in 6.4" becomes "we need 7.0".
+///
+/// Each case below deserializes a payload carrying a field this binary does not know.
+#[test]
+fn evidence_written_by_a_later_six_still_parses() {
+    let review = serde_json::json!({
+        "schema_version": 2,
+        "change_id": "CHG-0001-forward",
+        "reviewer": "Peer",
+        "provenance": {
+            "schema_version": 1,
+            "provider": "github_actions_check",
+            "required_check": "SpecSync scoped review",
+            "future_provenance_field": "ignored by this binary"
+        },
+        "verdict": "pass",
+        "implementation_commit": "a".repeat(40),
+        "contract_digest": "b".repeat(64),
+        "workspace_digest": "c".repeat(64),
+        "timestamp": 1_787_000_000u64,
+        "future_review_field": {"nested": true}
+    });
+    let parsed: ScopedReviewRecord =
+        serde_json::from_value(review).expect("a newer review record must still parse");
+    assert_eq!(parsed.reviewer, "Peer");
+
+    let baseline = serde_json::json!({
+        "schema_version": 1,
+        "domain": "specsync.workflow-v2-baseline.v1",
+        "cutoff_commit": "d".repeat(40),
+        "future_baseline_field": 7
+    });
+    let parsed: WorkflowV2Baseline =
+        serde_json::from_value(baseline).expect("a newer baseline must still parse");
+    assert_eq!(parsed.schema_version, 1);
+
+    let ledger = serde_json::json!({
+        "schema_version": 1,
+        "corrections": [],
+        "future_ledger_field": "x"
+    });
+    let parsed: CorrectionLedger =
+        serde_json::from_value(ledger).expect("a newer correction ledger must still parse");
+    assert!(parsed.corrections.is_empty());
+}
+
+/// Regenerable caches keep rejecting unknown shapes — discarding and rebuilding costs nothing.
+///
+/// The distinction is the point: tolerance is for EVIDENCE, which cannot be recomputed. A cache
+/// that cannot be understood should be thrown away, not tolerated.
+#[test]
+fn regenerable_caches_still_reject_what_they_cannot_understand() {
+    let value = serde_json::json!({
+        "format_version": 1,
+        "entries": {},
+        "future_cache_field": true
+    });
+    assert!(
+        serde_json::from_value::<crate::hash_cache::HashCache>(value).is_err(),
+        "a cache is regenerable, so an unrecognised shape must be discarded rather than accepted"
+    );
+}
+
+/// An unknown workflow version means a NEWER writer, not corruption.
+///
+/// It previously reported "invalid change state … unsupported workflow version", which is
+/// indistinguishable from a damaged file — so the operator's correct action, upgrading, was the
+/// one thing the message did not say.
+#[test]
+fn an_unknown_workflow_version_says_upgrade_rather_than_invalid() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_default_policy(root, Vec::new()).unwrap();
+    let mut record = completed_no_spec_record(root);
+    record.workflow_version = 9;
+    save_change(root, &record).unwrap();
+
+    let error = load_change(root, &record.id).expect_err("an unknown workflow version must fail");
+    assert!(
+        error.contains("written by a newer SpecSync"),
+        "must name the cause: {error}"
+    );
+    assert!(
+        error.contains("upgrade specsync"),
+        "must name the remedy: {error}"
+    );
+    assert!(
+        !error.contains("invalid change state"),
+        "must not read as corruption: {error}"
+    );
+}
+
 #[test]
 fn scoped_review_attempt_history_rejects_erasing_a_committed_block() {
     let temp = TempDir::new().unwrap();

@@ -1,0 +1,47 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787166746,
+      "digest": "955c2940f3b0e7fc7fac0161ab752c353c8d24000e0def0a0afe29e890a0d3d1",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0157-a-newer-six-must-be-readable-by-an-older-six",
+        "title": "A newer six must be readable by an older six",
+        "description": "a newer six must be readable by an older six",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Evidence written by a later six that carries a field this six does not know is still read rather than rejected, so a shape can be extended during six's lifetime without breaking installations already deployed; a change recording a workflow version this six does not support is reported as written by a newer spec-sync that the reader should upgrade to read, rather than as an invalid change state indistinguishable from corruption; regenerable caches keep rejecting unknown fields, because discarding and rebuilding them is correct and costs nothing; and every existing evidence file still loads and every digest is unchanged, since rejecting unknown input on read was never part of what any digest covers."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787168866,
+      "digest": "77d8eb3c5f49b9783d3db9829fcc1ab4ff332de832bd496c2f0ac9b7c9c68f9e",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

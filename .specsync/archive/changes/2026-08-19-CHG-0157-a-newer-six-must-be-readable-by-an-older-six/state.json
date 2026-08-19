@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0157-a-newer-six-must-be-readable-by-an-older-six",
+  "slug": "a-newer-six-must-be-readable-by-an-older-six",
+  "title": "A newer six must be readable by an older six",
+  "description": "a newer six must be readable by an older six",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "ad65908f66fe42cb201e4d736431e94f534c70b0",
+  "created_at": 1787160794,
+  "updated_at": 1787169156,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Evidence written by a later six that carries a field this six does not know is still read rather than rejected, so a shape can be extended during six's lifetime without breaking installations already deployed; a change recording a workflow version this six does not support is reported as written by a newer spec-sync that the reader should upgrade to read, rather than as an invalid change state indistinguishable from corruption; regenerable caches keep rejecting unknown fields, because discarding and rebuilding them is correct and costs nothing; and every existing evidence file still loads and every digest is unchanged, since rejecting unknown input on read was never part of what any digest covers."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

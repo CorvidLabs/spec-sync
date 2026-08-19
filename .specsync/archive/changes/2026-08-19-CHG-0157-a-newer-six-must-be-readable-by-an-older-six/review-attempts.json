@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0157-a-newer-six-must-be-readable-by-an-older-six",
+      "reviewer": "Peer157",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "ddcb24615ba588791c6f135dbe4792b26701bdaa",
+      "contract_digest": "955c2940f3b0e7fc7fac0161ab752c353c8d24000e0def0a0afe29e890a0d3d1",
+      "execution_digest": "eab531023f97bd6bc8b890976caae99644b64824cd06b986d880bd87d34b7a50",
+      "workspace_digest": "6a535f25a9b6ddaa9b6c989f6ae24fb879a984e1635acb1c5b6fa6e62f114f99",
+      "timestamp": 1787168858
+    }
+  ]
+}

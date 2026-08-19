@@ -1,6 +1,6 @@
 ---
 module: change
-version: 86
+version: 87
 status: active
 files:
   - src/change.rs
@@ -396,3 +396,4 @@ Acceptance Criteria
 | 2026-08-18 | CHG-0149-an-archived-change-package-must-not-leave-an-untrackable-husk: An archived change package must not leave an untrackable husk |
 | 2026-08-18 | CHG-0152-a-populated-semantic-delta-must-not-report-as-empty: A populated semantic delta must not report as empty |
 | 2026-08-19 | CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar: Ship-status must name the action the lifecycle state requires, and resolve an archived change's evidence |
+| 2026-08-19 | CHG-0154-one-git-config-read-instead-of-four-for-effective-checkout-overrides: One git config read instead of four for effective checkout overrides |

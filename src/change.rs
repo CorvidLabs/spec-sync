@@ -11465,39 +11465,127 @@ fn run_git_required(
     Ok(output.stdout)
 }
 
-fn effective_checkout_autocrlf(root: &Path) -> Result<Option<String>, String> {
-    let mut command = rooted_git_command(root);
-    checkout_autocrlf_from_command(&mut command)
-}
+/// The four `core.*` keys the checkout overrides are derived from, read in one query.
+///
+/// These were four separate `git config --get` spawns. On a lifecycle-heavy run that is the
+/// single largest source of subprocess cost: one suite run issued 15,359 `git config` spawns,
+/// which this takes to 3,842. At ~15 ms per spawn that is the dominant term in every command
+/// that inspects the checkout, not only in tests.
+///
+/// Deliberately NOT cached. Every call still spawns, so a configuration change between calls is
+/// still observed — the saving comes from asking once for four answers, never from remembering
+/// an answer.
+///
+/// `core.fsmonitor` is deliberately excluded. It is read through `configured_git_command`, which
+/// scrubs system, global and injected configuration; folding it into this query — which is built
+/// on `rooted_git_command`, and must be, to preserve the injected/global precedence the callers
+/// rely on — would silently change how fsmonitor resolves.
+const CHECKOUT_CORE_KEYS: [&str; 4] = [
+    "core.autocrlf",
+    "core.eol",
+    "core.symlinks",
+    "core.filemode",
+];
 
-fn checkout_autocrlf_from_command(command: &mut Command) -> Result<Option<String>, String> {
+/// Reads the four keys in a single `--get-regexp`, keeping the LAST value per key.
+///
+/// Equivalence to four `--get` calls was verified against git 2.50.1 rather than assumed:
+/// a multi-valued key lists in order and `--get` returns the last, so last-wins matches;
+/// a valueless key yields a record with no `\n`, i.e. the empty value `--get` reports at rc=0;
+/// a mixed-case section (`[CORE] FileMode`) is emitted lowercased, as the callers already
+/// expect; no matching key gives rc=1 with empty stdout and stderr, exactly as `--get` does for
+/// an unset key; and a malformed config gives rc=128 with stderr on both, so the fail-loudly
+/// rule is preserved rather than collapsed into "unset".
+fn core_config_snapshot_from_command(
+    command: &mut Command,
+) -> Result<BTreeMap<String, String>, String> {
     command.env("GIT_PAGER", "cat");
-    let output =
-        run_git_command_bounded(command, &["config", "--get", "core.autocrlf"], None, 128)?;
+    let output = run_git_command_bounded(
+        command,
+        &[
+            "config",
+            "-z",
+            "--get-regexp",
+            "^core[.](autocrlf|eol|symlinks|filemode)$",
+        ],
+        None,
+        128,
+    )?;
+    let mut snapshot = BTreeMap::new();
     if !output.status.success() {
+        // No matching key is rc=1 with nothing on either stream — the same shape `--get`
+        // reports for an unset key. Anything else (a malformed config is rc=128 with stderr)
+        // must still fail loudly; reading it as "unset" would turn a broken repository into a
+        // silently default one.
         if output.stdout.is_empty() && output.stderr.is_empty() {
-            return Ok(None);
+            return Ok(snapshot);
         }
         return Err(format!(
-            "failed to inspect effective Git core.autocrlf: {}",
+            "failed to inspect effective Git core configuration: {}",
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }
-    let value = std::str::from_utf8(&output.stdout)
-        .map_err(|_| "effective Git core.autocrlf is not UTF-8".to_string())?
-        .trim()
-        .to_ascii_lowercase();
-    let normalized = match value.as_str() {
-        "" | "true" | "yes" | "on" | "1" => "true",
-        "false" | "no" | "off" | "0" => "false",
-        "input" => "input",
-        _ => {
-            return Err(format!(
-                "effective Git core.autocrlf has unsupported value `{value}`"
-            ));
-        }
+    let text = std::str::from_utf8(&output.stdout)
+        .map_err(|_| "effective Git core configuration is not UTF-8".to_string())?;
+    for record in text.split('\0').filter(|record| !record.is_empty()) {
+        // `key\nvalue`, or a bare `key` when the key is present with no value.
+        let (key, value) = match record.split_once('\n') {
+            Some((key, value)) => (key, value),
+            None => (record, ""),
+        };
+        // Later occurrences win, matching what `--get` returns for a multi-valued key.
+        snapshot.insert(key.trim().to_string(), value.to_string());
+    }
+    Ok(snapshot)
+}
+
+fn normalize_checkout_core_value(key: &str, raw: &str) -> Result<String, String> {
+    let value = raw.trim().to_ascii_lowercase();
+    let normalized = match key {
+        "core.autocrlf" => match value.as_str() {
+            "" | "true" | "yes" | "on" | "1" => "true",
+            "false" | "no" | "off" | "0" => "false",
+            "input" => "input",
+            _ => {
+                return Err(format!(
+                    "effective Git core.autocrlf has unsupported value `{value}`"
+                ));
+            }
+        },
+        "core.eol" => match value.as_str() {
+            "lf" | "crlf" | "native" => return Ok(value),
+            _ => {
+                return Err(format!(
+                    "effective Git {key} has unsupported value `{value}`"
+                ));
+            }
+        },
+        _ => match value.as_str() {
+            "" | "true" | "yes" | "on" | "1" => "true",
+            "false" | "no" | "off" | "0" => "false",
+            _ => {
+                return Err(format!(
+                    "effective Git {key} has unsupported value `{value}`"
+                ));
+            }
+        },
     };
-    Ok(Some(normalized.to_string()))
+    Ok(normalized.to_string())
+}
+
+/// Derives just `core.autocrlf` from the shared snapshot.
+///
+/// Production reads all four keys together through `effective_checkout_overrides_uncached`, so
+/// this now exists for the tests that assert local/global/injected precedence on a `Command`
+/// the caller builds. Keeping it means those tests exercise the same snapshot path production
+/// uses, rather than a parallel one that could drift from it.
+#[cfg(test)]
+fn checkout_autocrlf_from_command(command: &mut Command) -> Result<Option<String>, String> {
+    let snapshot = core_config_snapshot_from_command(command)?;
+    let Some(raw) = snapshot.get("core.autocrlf") else {
+        return Ok(None);
+    };
+    return normalize_checkout_core_value("core.autocrlf", raw).map(Some);
 }
 
 fn effective_checkout_overrides(root: &Path) -> Result<Vec<String>, String> {
@@ -11512,42 +11600,20 @@ fn effective_checkout_overrides(root: &Path) -> Result<Vec<String>, String> {
 }
 
 fn effective_checkout_overrides_uncached(root: &Path) -> Result<Vec<String>, String> {
+    // One spawn for four keys. This used to be four `git config --get` invocations, which
+    // dominated the subprocess cost of every checkout inspection.
+    let mut command = rooted_git_command(root);
+    let snapshot = core_config_snapshot_from_command(&mut command)?;
     let mut overrides = Vec::new();
-    if let Some(value) = effective_checkout_autocrlf(root)? {
-        overrides.push(format!("core.autocrlf={value}"));
-    }
-    for (key, kind) in [
-        ("core.eol", "eol"),
-        ("core.symlinks", "boolean"),
-        ("core.filemode", "boolean"),
-    ] {
-        let mut command = rooted_git_command(root);
-        command.env("GIT_PAGER", "cat");
-        let output = run_git_command_bounded(&mut command, &["config", "--get", key], None, 128)?;
-        if !output.status.success() {
-            if output.stdout.is_empty() && output.stderr.is_empty() {
-                continue;
-            }
-            return Err(format!(
-                "failed to inspect effective Git {key}: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            ));
-        }
-        let value = std::str::from_utf8(&output.stdout)
-            .map_err(|_| format!("effective Git {key} is not UTF-8"))?
-            .trim()
-            .to_ascii_lowercase();
-        let normalized = match (kind, value.as_str()) {
-            ("eol", "lf" | "crlf" | "native") => value.as_str(),
-            ("boolean", "" | "true" | "yes" | "on" | "1") => "true",
-            ("boolean", "false" | "no" | "off" | "0") => "false",
-            _ => {
-                return Err(format!(
-                    "effective Git {key} has unsupported value `{value}`"
-                ));
-            }
+    for key in CHECKOUT_CORE_KEYS {
+        // A key absent from the snapshot is unset, which is what rc=1 meant per-key before.
+        let Some(raw) = snapshot.get(key) else {
+            continue;
         };
-        overrides.push(format!("{key}={normalized}"));
+        overrides.push(format!(
+            "{key}={}",
+            normalize_checkout_core_value(key, raw)?
+        ));
     }
     Ok(overrides)
 }

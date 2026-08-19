@@ -11509,7 +11509,14 @@ fn core_config_snapshot_from_command(
             "^core[.](autocrlf|eol|symlinks|filemode)$",
         ],
         None,
-        128,
+        // Four `--get` calls each returned about six bytes, so the 128-byte bound they shared
+        // was never near the limit. `--get-regexp` returns every occurrence of all four keys
+        // across every scope, so the ordinary global-plus-local layout is already 144 bytes and
+        // tripped the deterministic-bounds guard — turning a routine read into a hard error and
+        // breaking every git-evidence capture on that machine. Bounded like the sibling
+        // `core.fsmonitor` read, which faces the same "one query, unknown number of records"
+        // shape.
+        16 * 1024,
     )?;
     let mut snapshot = BTreeMap::new();
     if !output.status.success() {

@@ -2049,6 +2049,63 @@ fn one_config_read_matches_four_for_every_case_git_distinguishes() {
     );
 }
 
+/// The batched read must survive the ordinary global-plus-local config layout.
+///
+/// Four `git config --get` calls each returned about six bytes, so the 128-byte stdout cap they
+/// shared was never near the limit. One `--get-regexp` returns EVERY occurrence of ALL four keys
+/// across EVERY scope into that same cap: four keys in two scopes is 144 bytes, which tripped
+/// the deterministic-bounds guard and turned a routine read into a hard error — breaking every
+/// git-evidence capture on a machine whose `~/.gitconfig` and repo-local config both set them.
+///
+/// The dev box this was written on has only `core.filemode` set (20 bytes), and the equivalence
+/// test above uses a single scope, so neither could see it. This one sets all four keys twice.
+#[test]
+fn the_batched_config_read_survives_two_config_scopes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+
+    // An included file plus local overrides: every key resolves twice.
+    fs::write(
+        root.join("team.gitconfig"),
+        "[core]\n\tautocrlf = input\n\teol = lf\n\tsymlinks = true\n\tfilemode = false\n",
+    )
+    .unwrap();
+    quiet_git(root, &["config", "include.path", "../team.gitconfig"]);
+    quiet_git(root, &["config", "core.autocrlf", "false"]);
+    quiet_git(root, &["config", "core.eol", "crlf"]);
+    quiet_git(root, &["config", "core.symlinks", "false"]);
+    quiet_git(root, &["config", "core.filemode", "true"]);
+
+    let overrides = effective_checkout_overrides_uncached(root)
+        .expect("two config scopes must not overflow the read bound");
+
+    // Assert the PROPERTY, not a guess about which scope wins. Whichever value
+    // `git config --get` resolves is the one the batched read must derive — that is the whole
+    // contract. An earlier version of this test hardcoded "local overrides the include", which
+    // git does not do here, so the test failed while the code was right.
+    for key in [
+        "core.autocrlf",
+        "core.eol",
+        "core.symlinks",
+        "core.filemode",
+    ] {
+        let raw = Command::new("git")
+            .args(["config", "--get", key])
+            .current_dir(root)
+            .output()
+            .expect("git config --get");
+        let expected = String::from_utf8(raw.stdout)
+            .expect("utf8")
+            .trim()
+            .to_ascii_lowercase();
+        assert!(
+            overrides.contains(&format!("{key}={expected}")),
+            "batched read disagrees with `git config --get {key}` (= {expected}): {overrides:?}"
+        );
+    }
+}
+
 /// A malformed config must still fail loudly (git exits 128 with stderr), never read as unset.
 ///
 /// This is the vacuity control for the batching change: collapsing "no matching key" and

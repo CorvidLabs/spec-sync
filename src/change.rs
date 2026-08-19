@@ -16359,7 +16359,13 @@ fn change_dir(root: &Path, id: &str) -> PathBuf {
     root.join(CHANGES_PATH).join(id)
 }
 
-fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
+/// Resolves a change's workspace wherever it currently lives — active or archived.
+///
+/// This is the single answer to "where are this change's artifacts?". Callers that
+/// hard-code `.specsync/changes/<id>/` are correct only until the change is archived,
+/// which is exactly how `ship-status` came to report `Verification: none` on a change
+/// that had verified (#534). Reuse this rather than growing a third idiom beside it.
+pub fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
     validate_change_id(id)?;
     let active = change_dir(root, id);
     let mut matches = Vec::new();

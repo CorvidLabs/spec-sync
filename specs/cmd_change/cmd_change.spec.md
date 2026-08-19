@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 26
+version: 27
 status: active
 files:
   - src/commands/change.rs
@@ -131,3 +131,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-17 | CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent: An unreadable change workspace must be reported, not counted as absent |
 | 2026-08-17 | CHG-0140-a-stale-sequence-ledger-must-not-be-committed-backwards: A stale sequence ledger must not be committed backwards |
 | 2026-08-18 | CHG-0145-the-sequence-ledger-floor-must-be-wired-not-merely-present: The sequence ledger floor must be wired, not merely present |
+| 2026-08-19 | CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar: Ship-status must name the action the lifecycle state requires, and resolve an archived change's evidence |

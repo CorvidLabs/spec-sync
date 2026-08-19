@@ -1,6 +1,6 @@
 ---
 id: CHG-0152-a-populated-semantic-delta-must-not-report-as-empty
-state: implementing
+state: archived
 type: bug_fix
 base_commit: cf38520e965a8c7d616c8a81689fcc1bfd0e4e06
 ---

@@ -7,11 +7,11 @@
   "title": "A populated semantic delta must not report as empty",
   "description": "a populated semantic delta must not report as empty",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "cf38520e965a8c7d616c8a81689fcc1bfd0e4e06",
   "created_at": 1787095831,
-  "updated_at": 1787105602,
+  "updated_at": 1787105799,
   "affected_specs": [
     "change"
   ],

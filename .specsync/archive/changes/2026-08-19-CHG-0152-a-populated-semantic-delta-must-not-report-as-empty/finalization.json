@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0152-a-populated-semantic-delta-must-not-report-as-empty",
+  "implementation_commit": "5221798bae53721480c123980f738386c43258e8",
+  "implementation_tree": "01c7adb30883535807a885be0ad3e81eb253761c",
+  "contract_digest": "677ddb1867ec9d36de51ba5ef1eeba6dd17bd0098215ac9c84d17709294fbdaf",
+  "workspace_digest": "0e180b7b2cd912a039a2f9aa09e3f4297087d1edefd6a76ed6809f817de3b985",
+  "closing_digest": "ea922fb5746c800dd5149b8f40f1e8f184003f7224d6ce6d55c69334f1461aeb",
+  "review_digest": "8f06000f400b3753ba6d15429351216e9dab6e510116106229feefefb5078341",
+  "finalization_digest": "a067f6c0a8df67671c65f1b7f69f99672f8a7f17e2c04da430c2d048d9a1713e",
+  "timestamp": 1787105799
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0152-a-populated-semantic-delta-must-not-report-as-empty",
+      "reviewer": "Peer152",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "5221798bae53721480c123980f738386c43258e8",
+      "contract_digest": "677ddb1867ec9d36de51ba5ef1eeba6dd17bd0098215ac9c84d17709294fbdaf",
+      "execution_digest": "bc9f090aa002fe89536abef0fd62bac40823d17404787bad1e379fdc21347e77",
+      "workspace_digest": "0e180b7b2cd912a039a2f9aa09e3f4297087d1edefd6a76ed6809f817de3b985",
+      "timestamp": 1787105790
+    }
+  ]
+}

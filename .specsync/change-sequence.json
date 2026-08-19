@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 157,
-  "id": "CHG-0157-a-newer-six-must-be-readable-by-an-older-six",
+  "sequence": 158,
+  "id": "CHG-0158-the-forward-compatibility-valve-must-be-true-everywhere-it-is-claimed",
   "acknowledged_collisions": [
     {
       "sequence": 16,

@@ -1968,6 +1968,117 @@ fn checkout_autocrlf_resolution_honors_local_global_and_injected_values() {
     );
 }
 
+/// The four core keys are read in ONE `git config --get-regexp`, not four `--get` calls.
+///
+/// Each case below is one git behaviour where `--get-regexp` could plausibly differ from
+/// `--get`. Every expectation was confirmed against git 2.50.1 before being written here, not
+/// derived from the docs.
+#[test]
+fn one_config_read_matches_four_for_every_case_git_distinguishes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+
+    // Nothing matching set: rc=1 with empty stdout AND stderr, which must read as "unset"
+    // rather than as a failure. git init writes core.filemode on some platforms, so unset
+    // every key first and assert only that the absent ones do not appear.
+    for key in [
+        "core.autocrlf",
+        "core.eol",
+        "core.symlinks",
+        "core.filemode",
+    ] {
+        let _ = Command::new("git")
+            .args(["config", "--unset-all", key])
+            .current_dir(root)
+            .output();
+    }
+    let empty = effective_checkout_overrides_uncached(root).unwrap();
+    assert!(
+        !empty.iter().any(|entry| entry.starts_with("core.autocrlf")),
+        "an unset key must not appear: {empty:?}"
+    );
+
+    // Multi-valued key: git lists every occurrence and `--get` returns the LAST, so the
+    // snapshot must keep the last too.
+    quiet_git(root, &["config", "core.autocrlf", "true"]);
+    quiet_git(root, &["config", "--add", "core.autocrlf", "input"]);
+    let multi = effective_checkout_overrides_uncached(root).unwrap();
+    assert!(
+        multi.contains(&"core.autocrlf=input".to_string()),
+        "last value must win for a multi-valued key: {multi:?}"
+    );
+
+    // Valueless key: the record carries no newline, which is the empty value `--get` reports
+    // at rc=0, and the empty value normalizes to true for a boolean.
+    quiet_git(root, &["config", "--unset-all", "core.autocrlf"]);
+    fs::write(
+        root.join(".git/config"),
+        "[core]\n\trepositoryformatversion = 0\n\tsymlinks\n",
+    )
+    .unwrap();
+    let valueless = effective_checkout_overrides_uncached(root).unwrap();
+    assert!(
+        valueless.contains(&"core.symlinks=true".to_string()),
+        "a valueless key must normalize like the empty value: {valueless:?}"
+    );
+
+    // Mixed-case section and surrounding whitespace: git emits the key lowercased and the
+    // value is trimmed, so both normalize.
+    fs::write(
+        root.join(".git/config"),
+        "[CORE]\n\trepositoryformatversion = 0\n\tFileMode =  FALSE \n",
+    )
+    .unwrap();
+    let mixed = effective_checkout_overrides_uncached(root).unwrap();
+    assert!(
+        mixed.contains(&"core.filemode=false".to_string()),
+        "mixed case and padding must normalize: {mixed:?}"
+    );
+
+    // eol passes its value through rather than mapping to a boolean.
+    fs::write(
+        root.join(".git/config"),
+        "[core]\n\trepositoryformatversion = 0\n\teol = NATIVE\n",
+    )
+    .unwrap();
+    let eol = effective_checkout_overrides_uncached(root).unwrap();
+    assert!(
+        eol.contains(&"core.eol=native".to_string()),
+        "eol must pass through lowercased: {eol:?}"
+    );
+}
+
+/// A malformed config must still fail loudly (git exits 128 with stderr), never read as unset.
+///
+/// This is the vacuity control for the batching change: collapsing "no matching key" and
+/// "config is broken" into one empty result would make every assertion above pass while turning
+/// a broken repository into a silently default one.
+///
+/// It asserts the PROPERTY, not the wording. Batching changed the message from naming one key
+/// to naming the group, and pinning the new text would make this discriminate on an
+/// implementation detail. For a behaviour-preserving refactor the right bar is equivalence:
+/// this passes before and after, and the evidence for the change is the spawn count, not a
+/// test that only the new code can satisfy.
+#[test]
+fn a_malformed_config_fails_loudly_rather_than_reading_as_unset() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    fs::write(
+        root.join(".git/config"),
+        "[core\n\trepositoryformatversion = 0\n",
+    )
+    .unwrap();
+
+    let error = effective_checkout_overrides_uncached(root)
+        .expect_err("a malformed config must not read as unset");
+    assert!(
+        error.contains("failed to inspect effective Git"),
+        "a broken config must name the inspection failure: {error}"
+    );
+}
+
 #[test]
 fn checkout_override_allowlist_normalizes_all_supported_settings() {
     let temp = TempDir::new().unwrap();

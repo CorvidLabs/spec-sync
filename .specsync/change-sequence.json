@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 153,
-  "id": "CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar",
+  "sequence": 154,
+  "id": "CHG-0154-one-git-config-read-instead-of-four-for-effective-checkout-overrides",
   "acknowledged_collisions": [
     {
       "sequence": 16,

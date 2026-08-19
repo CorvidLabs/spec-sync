@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "CHG-0154-one-git-config-read-instead-of-four-for-effective-checkout-overrides",
+  "slug": "one-git-config-read-instead-of-four-for-effective-checkout-overrides",
+  "title": "One git config read instead of four for effective checkout overrides",
+  "description": "one git config read instead of four for effective checkout overrides",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "03210d94dbf5993692edb302ef3f399b77bcf787",
+  "created_at": 1787143682,
+  "updated_at": 1787148970,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    ".specsync/change-sequence.json"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Reading the effective checkout overrides issues one git subprocess instead of four, by asking for the four core keys in a single --get-regexp query rather than four --get queries; the values derived are identical to the four-query result for every case git distinguishes, including a multi-valued key resolving to its last value, a valueless key normalizing as the empty value does, a mixed-case section name, surrounding whitespace, no key set at all, and a malformed config file which must still fail loudly rather than read as unset; nothing is cached, so each call still spawns and a configuration change between calls is still observed; and core.fsmonitor is deliberately left on its own path because it is read through a command that scrubs system, global and injected configuration, so folding it in would silently change how it resolves."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

@@ -1081,6 +1081,17 @@ Acceptance Criteria
 - A file read through a canonical-bytes round trip gains nothing from tolerance, because the unknown field is dropped on parse and the re-serialized bytes then differ from the bytes on disk. This limit is deliberate for the files that anchor history, and is pinned by a test rather than left to be discovered.
 - Every digest is unchanged, because tolerance at read time was never part of any preimage.
 
+### REQ-change-085
+
+Terminal evidence SHALL be trusted only against the commit where that evidence entered history, and no later commit that re-introduces the same package SHALL be usable as its anchor.
+
+Acceptance Criteria
+- A commit that re-introduces a package cannot authenticate the evidence it carries, because the check compares committed bytes against the working tree and would otherwise be satisfied by any commit of the current state, whatever that state has become.
+- The rule applies wherever a package can be re-introduced, not only where it is archived: a package moved back to an active workspace and archived again is re-introduced at a path SpecSync itself writes, and is covered.
+- A package is identified for this purpose by the identity recorded inside its evidence, not by the name of the directory holding it, because the directory name is not part of a package's identity anywhere else.
+- Relocating a package without altering it continues to authenticate, so history can be reorganised and the earlier evidence still stands.
+- Every archive that authenticates before this rule is applied continues to authenticate after it.
+
 ### REQ-change-084
 
 A change identity SHALL be accepted or refused on the properties that make a string a safe path component, and SHALL NOT be required to begin with any particular prefix.

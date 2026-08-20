@@ -12965,6 +12965,236 @@ fn consider_accepted_evidence_anchor(
     }
 }
 
+/// One reachable commit that introduced a change's archived package into history, together with
+/// the repository-relative package directory that commit created and the number of reopen events
+/// the package's approval ledger recorded there.
+#[derive(Clone, Debug)]
+struct ArchiveIntroduction {
+    commit: String,
+    directory: String,
+    generation: usize,
+}
+
+type ArchiveIntroductionIndex = BTreeMap<String, Vec<ArchiveIntroduction>>;
+static ARCHIVE_INTRODUCTION_CACHE: OnceLock<
+    Mutex<BTreeMap<String, Arc<ArchiveIntroductionIndex>>>,
+> = OnceLock::new();
+
+/// Indexes every reachable commit that ADDS an archived change package, keyed by the change ID
+/// recorded inside the committed `state.json` rather than by the directory the package occupies.
+///
+/// `find_change_dir` resolves an archived package by parsing every `state.json` under the archive
+/// root and matching `record.id`, so the directory name is not part of a package's identity. An
+/// anchor search keyed by path therefore accepts a commit that merely re-adds an already committed
+/// package under a different name, which is what lets a `git mv` mint a fresh anchor for evidence
+/// rewritten after archiving. Keying this index the way `find_change_dir` keys its lookup takes the
+/// directory name out of the trust decision entirely.
+///
+/// Rename detection is disabled deliberately. With `diff.renames` on -- the default since Git 2.9
+/// -- a relocation is reported as `R` and disappears from `--diff-filter=A`, which would make the
+/// hole look closed while resting on a similarity heuristic that an attacker controls. Forcing
+/// every first appearance of a path to surface as an addition puts the ordering rule in
+/// `admissible_archive_introductions`, not Git's guesswork, in charge of the decision.
+fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionIndex>, String> {
+    let repo_prefix = git_repo_prefix(root)?;
+    let archive_root = format!("{repo_prefix}{ARCHIVE_PATH}");
+    let history_pathspec = format!(":(top,literal){archive_root}");
+    let directory_prefix = format!("{archive_root}/");
+    let mut references = vec!["HEAD".to_string()];
+    if let Some(remote_default) = remote_default_ref(root)
+        && !references.contains(&remote_default)
+    {
+        references.push(remote_default);
+    }
+    let resolved: Vec<String> = references
+        .iter()
+        .map(|reference| {
+            git_output(
+                root,
+                &["rev-parse", "--verify", &format!("{reference}^{{commit}}")],
+            )
+            .unwrap_or_default()
+        })
+        .collect();
+    let cache_key = format!("{}|{archive_root}|{}", root.display(), resolved.join(","));
+    if let Some(cached) = ARCHIVE_INTRODUCTION_CACHE
+        .get_or_init(|| Mutex::new(BTreeMap::new()))
+        .lock()
+        .ok()
+        .and_then(|cache| cache.get(&cache_key).cloned())
+    {
+        return Ok(cached);
+    }
+    let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+    let mut args = vec![
+        "log".to_string(),
+        "--format=%H".to_string(),
+        "--diff-filter=A".to_string(),
+        "--no-renames".to_string(),
+        max_count,
+    ];
+    args.extend(references.iter().cloned());
+    args.extend(["--".to_string(), history_pathspec.clone()]);
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let output = run_git_bounded(root, &arg_refs, None, MAX_GIT_COMMAND_OUTPUT_BYTES)
+        .map_err(|error| format!("failed to inspect archived acceptance history: {error}"))?;
+    if !output.status.success() {
+        return Err("failed to inspect archived acceptance history".into());
+    }
+    let history = String::from_utf8_lossy(&output.stdout);
+    let commits: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();
+    if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+        return Err(format!(
+            "archived acceptance history exceeds the deterministic {}-commit bound",
+            MAX_TRUSTED_HISTORY_COMMITS
+        ));
+    }
+    let mut index: ArchiveIntroductionIndex = BTreeMap::new();
+    for commit in commits {
+        let output = run_git_bounded(
+            root,
+            &[
+                "diff-tree",
+                "--root",
+                "-m",
+                "--no-commit-id",
+                "--name-only",
+                "-r",
+                "-z",
+                "--no-renames",
+                "--diff-filter=A",
+                commit,
+                "--",
+                history_pathspec.as_str(),
+            ],
+            None,
+            MAX_GIT_COMMAND_OUTPUT_BYTES,
+        )
+        .map_err(|error| {
+            format!("failed to inspect archived acceptance introduction `{commit}`: {error}")
+        })?;
+        if !output.status.success() {
+            return Err(format!(
+                "failed to inspect archived acceptance introduction `{commit}`"
+            ));
+        }
+        let names = String::from_utf8_lossy(&output.stdout);
+        for path in names.split('\0').filter(|path| !path.is_empty()) {
+            let Some(directory) = path.strip_suffix("/state.json") else {
+                continue;
+            };
+            let Some(package) = directory.strip_prefix(&directory_prefix) else {
+                continue;
+            };
+            if package.is_empty() || package.contains('/') {
+                continue;
+            }
+            let Some(archived) = git_change_record_at(root, commit, path) else {
+                continue;
+            };
+            let generation = git_object_bytes(root, commit, &format!("{directory}/approvals.json"))
+                .and_then(|bytes| serde_json::from_slice::<ApprovalLedger>(&bytes).ok())
+                .map_or(0, |ledger| ledger.reopenings.len());
+            let introductions = index.entry(archived.id).or_default();
+            if introductions
+                .iter()
+                .any(|existing| existing.commit == commit && existing.directory == directory)
+            {
+                continue;
+            }
+            introductions.push(ArchiveIntroduction {
+                commit: commit.to_string(),
+                directory: directory.to_string(),
+                generation,
+            });
+        }
+    }
+    for introductions in index.values_mut() {
+        introductions.sort_by(|left, right| {
+            (&left.commit, &left.directory).cmp(&(&right.commit, &right.directory))
+        });
+    }
+    let index = Arc::new(index);
+    if let Ok(mut cache) = ARCHIVE_INTRODUCTION_CACHE
+        .get_or_init(|| Mutex::new(BTreeMap::new()))
+        .lock()
+    {
+        cache.insert(cache_key, Arc::clone(&index));
+    }
+    Ok(index)
+}
+
+/// Selects the archived-package introductions that may anchor `record`'s acceptance.
+///
+/// A change's package can legitimately enter history more than once: `reopen` un-archives an
+/// accepted package and a later `finalize` archives it again, so history holds an earlier
+/// introduction of superseded evidence and a later introduction of the evidence in the tree.
+/// What an attacker produces instead is a re-introduction of the SAME generation -- a relocation,
+/// or a delete-and-re-add -- carrying evidence rewritten after archiving. The two are told apart
+/// by the approval ledger's reopen count, which a genuine reopen increments and a copy does not.
+///
+/// An introduction is admissible only when no strictly earlier introduction of the same change
+/// already recorded at least as many reopen events as the package being authenticated. On a
+/// package that was never reopened this reduces to "the earliest introduction wins", which is the
+/// property a `git mv` cannot mint.
+fn admissible_archive_introductions(
+    root: &Path,
+    record: &ChangeRecord,
+    current_generation: usize,
+) -> Result<Vec<ArchiveIntroduction>, String> {
+    let index = archive_introduction_index(root)?;
+    let Some(candidates) = index.get(&record.id) else {
+        return Ok(Vec::new());
+    };
+    let mut admissible = Vec::new();
+    for candidate in candidates {
+        let superseded = candidates.iter().any(|earlier| {
+            earlier.commit != candidate.commit
+                && earlier.generation >= current_generation
+                && ensure_git_ancestor(
+                    root,
+                    &earlier.commit,
+                    &candidate.commit,
+                    "archived acceptance introduction",
+                )
+                .is_ok()
+        });
+        if !superseded {
+            admissible.push(candidate.clone());
+        }
+    }
+    Ok(admissible)
+}
+
+/// Number of reopen events an approval ledger records, used as a package's evidence generation.
+fn approval_ledger_generation(approvals: &[u8]) -> usize {
+    serde_json::from_slice::<ApprovalLedger>(approvals).map_or(0, |ledger| ledger.reopenings.len())
+}
+
+/// True when `anchor` lies in the history that produced one of `introductions`.
+///
+/// The active-workspace stages authenticate an archived change from `.specsync/changes/<id>/`,
+/// where a genuine acceptance transition was recorded before the package was archived -- and where
+/// a forged `reopen`/`archive` pair writes the same shape afterwards. Requiring the anchor to
+/// precede the package's introduction keeps the first and rejects the second without depending on
+/// the directory name, on a diff being empty, or on Git's rename detection.
+fn anchor_precedes_an_introduction(
+    root: &Path,
+    anchor: &str,
+    introductions: &[ArchiveIntroduction],
+) -> bool {
+    introductions.iter().any(|introduction| {
+        introduction.commit == anchor
+            || ensure_git_ancestor(
+                root,
+                anchor,
+                &introduction.commit,
+                "archived acceptance introduction",
+            )
+            .is_ok()
+    })
+}
+
 fn authenticated_accepted_transition(
     root: &Path,
     record: &ChangeRecord,
@@ -12985,7 +13215,31 @@ fn authenticated_accepted_transition(
     let verification_path = git_repo_relative_path(root, &format!("{active}/verification.json"))?;
     let approvals_path = git_repo_relative_path(root, &format!("{active}/approvals.json"))?;
     let mut eligible = BTreeMap::new();
+    // Once this change's archived package exists in reachable history, that history is the only
+    // authority for its acceptance. The active-workspace stages and the working-tree fallback each
+    // accept any commit that merely carries the bytes being checked, which is how a forged
+    // `reopen`/`archive` pair mints an anchor without ever touching the archive directory. They are
+    // therefore admitted only for commits that PRECEDE the package's introduction -- the genuine
+    // pre-archive acceptance transition -- and not at all once history holds the package. Before
+    // the package is committed there is no history to consult and they remain the only evidence
+    // there is, so the gate is "is the package in history", not "is the record archived".
+    let introductions = if record.state == ChangeState::Archived {
+        admissible_archive_introductions(
+            root,
+            record,
+            approval_ledger_generation(&current_approvals),
+        )?
+    } else {
+        Vec::new()
+    };
+    let archived_package_is_in_history = record.state == ChangeState::Archived
+        && archive_introduction_index(root)?.contains_key(&record.id);
     for anchor in accepted_transition_anchors(root, record)? {
+        if archived_package_is_in_history
+            && !anchor_precedes_an_introduction(root, &anchor, &introductions)
+        {
+            continue;
+        }
         consider_accepted_evidence_anchor(
             root,
             record,
@@ -12999,80 +13253,36 @@ fn authenticated_accepted_transition(
         );
     }
     if record.state == ChangeState::Archived {
-        let project_directory = strict_portable_project_path(root, &workspace)?;
-        let repository_directory = git_repo_relative_path(root, &project_directory)?;
-        let accepted_state_path = format!("{repository_directory}/accepted-state.json");
-        let verification_path = format!("{repository_directory}/verification.json");
-        let approvals_path = format!("{repository_directory}/approvals.json");
-        let accepted_state_pathspec = format!(":(top,literal){accepted_state_path}");
-        let mut references = vec!["HEAD".to_string()];
-        if let Some(remote_default) = remote_default_ref(root)
-            && !references.contains(&remote_default)
-        {
-            references.push(remote_default);
-        }
-        let mut args = vec![
-            "log".to_string(),
-            "--format=%H".to_string(),
-            "--diff-filter=A".to_string(),
-            format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1),
-        ];
-        args.extend(references);
-        args.extend(["--".to_string(), accepted_state_pathspec.clone()]);
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let output = run_git_bounded(root, &arg_refs, None, MAX_GIT_COMMAND_OUTPUT_BYTES)
-            .map_err(|error| format!("failed to inspect archived acceptance history: {error}"))?;
-        if !output.status.success() {
-            return Err("failed to inspect archived acceptance history".into());
-        }
-        let history = String::from_utf8_lossy(&output.stdout);
-        let anchors: Vec<&str> = history
-            .lines()
-            .filter(|anchor| !anchor.is_empty())
-            .collect();
-        if anchors.len() > MAX_TRUSTED_HISTORY_COMMITS {
-            return Err(format!(
-                "archived acceptance history exceeds the deterministic {}-commit bound",
-                MAX_TRUSTED_HISTORY_COMMITS
-            ));
-        }
-        for anchor in anchors {
-            let Some(state_bytes) = git_object_bytes(root, anchor, &accepted_state_path) else {
-                continue;
-            };
-            let Some(verification_bytes) = git_object_bytes(root, anchor, &verification_path)
-            else {
-                continue;
-            };
-            let Some(approval_bytes) = git_object_bytes(root, anchor, &approvals_path) else {
-                continue;
-            };
-            if verification_bytes != current_verification || approval_bytes != current_approvals {
-                continue;
-            }
-            let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes) else {
-                continue;
-            };
-            if accepted.id != record.id || accepted.state != ChangeState::Accepted {
-                continue;
-            }
-            let mut projection = record.clone();
-            projection.state = ChangeState::Accepted;
-            projection.updated_at = accepted.updated_at;
-            if projection == accepted {
-                let key = accepted_evidence_key(&state_bytes, &verification_bytes, &approval_bytes);
-                eligible
-                    .entry(key)
-                    .or_insert((anchor.to_string(), state_bytes, accepted));
-            }
+        for introduction in &introductions {
+            let accepted_state_path = format!("{}/accepted-state.json", introduction.directory);
+            let archived_verification_path =
+                format!("{}/verification.json", introduction.directory);
+            let archived_approvals_path = format!("{}/approvals.json", introduction.directory);
+            consider_accepted_evidence_anchor(
+                root,
+                record,
+                &introduction.commit,
+                &accepted_state_path,
+                &archived_verification_path,
+                &archived_approvals_path,
+                &current_verification,
+                &current_approvals,
+                &mut eligible,
+            );
         }
     }
     if eligible.is_empty() {
         // Squash merges discard the original acceptance-transition commits while preserving
         // the accepted evidence bytes in later default-branch commits. Trust any in-history
         // commit that records this change as accepted when it carries byte-identical
-        // evidence; the per-anchor checks and the exactly-one rule still fail closed.
+        // evidence; the per-anchor checks, the introduction bound above and the exactly-one
+        // rule still fail closed.
         for anchor in accepted_recording_anchors(root, record)? {
+            if archived_package_is_in_history
+                && !anchor_precedes_an_introduction(root, &anchor, &introductions)
+            {
+                continue;
+            }
             consider_accepted_evidence_anchor(
                 root,
                 record,
@@ -13087,6 +13297,7 @@ fn authenticated_accepted_transition(
         }
     }
     if eligible.is_empty()
+        && !archived_package_is_in_history
         && let Ok(state_bytes) = fs::read(workspace.join("accepted-state.json"))
         && let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes)
     {

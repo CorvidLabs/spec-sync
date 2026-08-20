@@ -1,0 +1,38 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787253275,
+      "digest": "11e94eb2144af4739e441c4fba1fdd64fddfbd2a9ded0defc6af6cf1a92ac629",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0164-a-change-without-an-ordinal-must-not-brick-the-workspace",
+        "title": "A change without an ordinal must not brick the workspace",
+        "description": "a change without an ordinal must not brick the workspace",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "CHG-0162 stopped validate_change_id requiring the CHG- prefix, so a record whose ID carries no ordinal now loads successfully. It then reaches a question-mark on change_sequence in located_change_sequences, which turns it into 'invalid change ID'. validate_change_sequences sits on both the change audit and change new paths, so one such directory anywhere on disk means no further change can be created at all, and every archive's manifest recomputation fails too because historical_sequence_ledger_acceptance_content calls the same function. Meanwhile change status lists every change as healthy and says nothing, because sequence_ledger_freeze_next_action pattern-matches error strings and returns None for one it does not recognise: the project looks fine and is bricked. The ordinal is read at that site for exactly one purpose, detecting two changes that claimed the same number, and an ID with no number cannot collide. Done when: a workspace holding an ordinal-free change still enumerates, audits and can create further changes; the ordinal-free change is simply absent from ordinal collision detection rather than fatal to it; and two changes claiming the same ordinal are still refused."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

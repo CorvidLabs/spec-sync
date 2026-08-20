@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 163,
-  "id": "CHG-0163-a-trust-anchor-must-be-where-evidence-entered-history-not-any-commit-that-re-introduces-it",
+  "sequence": 164,
+  "id": "CHG-0164-a-change-without-an-ordinal-must-not-brick-the-workspace",
   "acknowledged_collisions": [
     {
       "sequence": 16,

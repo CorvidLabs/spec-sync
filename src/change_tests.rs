@@ -3746,6 +3746,70 @@ fn an_ordinary_description_slugifies_exactly_as_before() {
 /// `validate_change_id` opened with `id.starts_with("CHG-")`, which hard-rejected every shape
 /// without an ordinal. It gates `find_change_dir` and `validate_loaded_change`, so it gated the
 /// whole system on a prefix anyone can type.
+/// One slug-only change must not stop the workspace working.
+///
+/// `validate_change_id` stopped requiring the `CHG-` prefix in CHG-0162, so a record whose ID
+/// carries no ordinal now loads successfully — and then reached a `?` in
+/// `located_change_sequences` that turned it into `invalid change ID`. Because
+/// `validate_change_sequences` sits on both the `change audit` and `change new` paths, a single
+/// such directory meant **no further change could be created at all**, while `change status`
+/// went on listing every change as healthy.
+///
+/// The ordinal is read here for exactly one purpose: detecting two changes that claimed the
+/// same number. An ID with no number cannot collide, so it simply does not participate.
+#[test]
+fn a_workspace_holding_an_ordinal_free_change_still_enumerates() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_default_policy(root, Vec::new()).unwrap();
+
+    let mut numbered = completed_no_spec_record(root);
+    numbered.id = "CHG-0001-a-normal-change".into();
+    save_change(root, &numbered).unwrap();
+
+    let mut slug_only = numbered.clone();
+    slug_only.id = "a-slug-only-change".into();
+    save_change(root, &slug_only).unwrap();
+
+    let located = located_change_sequences(root)
+        .expect("an ordinal-free change must not make enumeration fail");
+    assert!(
+        located
+            .iter()
+            .any(|entry| entry.id == "CHG-0001-a-normal-change"),
+        "the numbered change must still be enumerated for collision detection: {located:?}"
+    );
+    assert!(
+        !located.iter().any(|entry| entry.id == "a-slug-only-change"),
+        "an ordinal-free change has no ordinal to collide and must not be listed: {located:?}"
+    );
+}
+
+/// Vacuity control: two changes claiming the same ordinal are still refused.
+///
+/// Without this, skipping ordinal-free IDs could have been achieved by skipping everything.
+#[test]
+fn two_changes_claiming_one_ordinal_are_still_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_default_policy(root, Vec::new()).unwrap();
+
+    let mut first = completed_no_spec_record(root);
+    first.id = "CHG-0001-a-normal-change".into();
+    save_change(root, &first).unwrap();
+
+    let mut clash = first.clone();
+    clash.id = "CHG-0001-a-duplicate-ordinal".into();
+    save_change(root, &clash).unwrap();
+
+    let error = validate_change_sequences(root)
+        .expect_err("two changes claiming CHG-0001 must still be refused");
+    assert!(
+        error.contains("duplicate numeric change sequence"),
+        "collision detection must survive: {error}"
+    );
+}
+
 #[test]
 fn a_change_id_without_an_ordinal_is_accepted() {
     for id in [

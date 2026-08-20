@@ -1081,6 +1081,14 @@ Acceptance Criteria
 - A file read through a canonical-bytes round trip gains nothing from tolerance, because the unknown field is dropped on parse and the re-serialized bytes then differ from the bytes on disk. This limit is deliberate for the files that anchor history, and is pinned by a test rather than left to be discovered.
 - Every digest is unchanged, because tolerance at read time was never part of any preimage.
 
+### REQ-change-086
+
+A change whose identity carries no ordinal SHALL be absent from ordinal collision detection rather than fatal to it.
+
+Acceptance Criteria
+- A workspace holding a change with no ordinal continues to enumerate, audit, and create further changes, because an identity the tool accepts on load must not be one it refuses on enumeration.
+- Two changes claiming the same ordinal are still refused, so tolerating an absent ordinal does not disable the check that reading ordinals exists for.
+
 ### REQ-change-085
 
 Terminal evidence SHALL be trusted only against the commit where that evidence entered history, and no later commit that re-introduces the same package SHALL be usable as its anchor.

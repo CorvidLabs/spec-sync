@@ -1955,8 +1955,22 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 })?
             };
             validate_loaded_change(&record, &expected_id, &state_path)?;
-            let sequence = change_sequence(&record.id)
-                .ok_or_else(|| format!("invalid change ID `{}`", record.id.escape_default()))?;
+            // A change whose ID carries no ordinal does not participate in ordinal collision
+            // detection — there is no number to collide. It is not an error.
+            //
+            // This used to be `?` on `change_sequence(...)`, which meant a single slug-only
+            // change anywhere on disk made this function — and therefore `validate_change_sequences`,
+            // and therefore `change audit` AND `change new` — fail with `invalid change ID`.
+            // One such directory stopped any further change from being created at all, while
+            // `change status` went on reporting every change as healthy.
+            //
+            // `validate_change_id` stopped requiring the `CHG-` prefix in CHG-0162, so a
+            // slug-only record now loads successfully and reaches this line. The two
+            // validators disagreed, and this one was the stricter by accident rather than by
+            // decision: collision detection is the only thing the ordinal is read for here.
+            let Some(sequence) = change_sequence(&record.id) else {
+                continue;
+            };
             let historical = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
                 || reopened_change_preserves_sequence_history(root, &record);
             located.push(LocatedChangeSequence {

@@ -16605,16 +16605,42 @@ pub fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
     }
 }
 
+/// Longest change ID accepted, in bytes.
+///
+/// A change ID is a single path component, so the filesystem's 255-byte component limit is the
+/// hard ceiling. This is deliberately the *ceiling* and not the slug cap: `MAX_SLUG_BYTES`
+/// bounds what SpecSync mints, while this bounds what it will read — an ID minted by a
+/// different version, or by hand, must still load if it is legal. The longest ID in this
+/// repository's own archive is 90 bytes.
+///
+/// There was no bound here at all. That was survivable only because every ID began with a
+/// generated `CHG-NNNN-` prefix over a capped slug; the moment an arbitrary name is accepted,
+/// an unbounded one is a path this process cannot open and a directory it cannot create.
+const MAX_CHANGE_ID_BYTES: usize = 255;
+
+/// Validate a change ID as one safe, portable path component.
+///
+/// The `id.starts_with("CHG-")` test that used to lead this function was doing two jobs at
+/// once: proving the ID was well-formed, and proving it was ours. It was never evidence of
+/// either — `CHG-` is a prefix anyone can type — and it hard-rejected every identity shape
+/// without an ordinal, which is the shape this release is moving to.
+///
+/// What replaces it is the set of properties that actually matter for something used as a
+/// directory name: one component, no separators, no control characters, non-empty, bounded,
+/// and not a name a supported platform reserves. Every check here is about what the string
+/// *is*; none is about how it begins.
 fn validate_change_id(id: &str) -> Result<(), String> {
     let is_single_component = {
         let mut components = Path::new(id).components();
         matches!(components.next(), Some(std::path::Component::Normal(_)))
             && components.next().is_none()
     };
-    if id.starts_with("CHG-")
+    if !id.is_empty()
+        && id.len() <= MAX_CHANGE_ID_BYTES
         && is_single_component
         && !id.contains(['/', '\\'])
         && !id.chars().any(char::is_control)
+        && !crate::commands::is_reserved_module_name(&id.to_ascii_lowercase())
     {
         return Ok(());
     }

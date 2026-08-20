@@ -3741,6 +3741,77 @@ fn an_ordinary_description_slugifies_exactly_as_before() {
     assert_eq!(slugify("Add reversal"), "add-reversal");
 }
 
+/// An identity with no ordinal is a legal change ID.
+///
+/// `validate_change_id` opened with `id.starts_with("CHG-")`, which hard-rejected every shape
+/// without an ordinal. It gates `find_change_dir` and `validate_loaded_change`, so it gated the
+/// whole system on a prefix anyone can type.
+#[test]
+fn a_change_id_without_an_ordinal_is_accepted() {
+    for id in [
+        "retire-the-auth-module",
+        "a-slug-only-identity",
+        "CHG-0158-and-the-old-shape-too",
+    ] {
+        assert!(
+            validate_change_id(id).is_ok(),
+            "`{id}` must be a legal change ID"
+        );
+    }
+}
+
+/// The safety half is unchanged, and gained the bounds it never had.
+///
+/// The prefix test was never evidence of well-formedness. These are the properties that
+/// actually matter for a string used as a directory component — and two of them were
+/// unenforced, survivable only because every ID was generated from a capped slug.
+#[test]
+fn an_unsafe_or_unbounded_change_id_is_still_refused() {
+    let cases: [(&str, &str); 8] = [
+        ("../escape", "path traversal"),
+        ("a/b", "forward slash"),
+        ("a\\b", "backslash"),
+        (".", "current directory"),
+        ("..", "parent directory"),
+        ("", "empty"),
+        ("nul", "Windows reserved device"),
+        ("con", "Windows reserved device"),
+    ];
+    for (id, why) in cases {
+        assert!(
+            validate_change_id(id).is_err(),
+            "`{}` must be refused ({why})",
+            id.escape_default()
+        );
+    }
+    assert!(
+        validate_change_id(&"a".repeat(MAX_CHANGE_ID_BYTES + 1)).is_err(),
+        "an ID longer than a path component must be refused"
+    );
+    assert!(
+        validate_change_id(&"a".repeat(MAX_CHANGE_ID_BYTES)).is_ok(),
+        "an ID exactly at the limit must be accepted"
+    );
+    assert!(
+        validate_change_id("has\u{7f}control").is_err(),
+        "control characters must be refused"
+    );
+}
+
+/// Vacuity control: every ID this repository has ever minted is still legal.
+///
+/// Without this, "reject everything" would satisfy the refusal test above.
+#[test]
+fn every_historical_identity_shape_remains_legal() {
+    for id in [
+        "CHG-0001-bootstrap-and-ship-the-verified-specsync-5-0-full-sdd-lifecycle",
+        "CHG-0091-add-change-ship-status-for-local-ship-readiness-and-merge-before-finalize-warning",
+        "CHG-10000-large-sequence",
+    ] {
+        assert!(validate_change_id(id).is_ok(), "`{id}` must remain legal");
+    }
+}
+
 #[test]
 fn an_undated_package_stripped_of_its_lifecycle_files_is_still_refused() {
     let temp = TempDir::new().unwrap();

@@ -7,11 +7,11 @@
   "title": "Succession must be ordered by when a change happened, not by how it is named",
   "description": "succession must be ordered by when a change happened, not by how it is named",
   "kind": "refactor",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "e8d84107eee2aafd6d61586eea87612aa0842a4a",
   "created_at": 1787185964,
-  "updated_at": 1787189284,
+  "updated_at": 1787189296,
   "affected_specs": [
     "change"
   ],

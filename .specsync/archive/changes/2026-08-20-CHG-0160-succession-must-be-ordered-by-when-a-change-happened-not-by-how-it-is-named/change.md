@@ -1,6 +1,6 @@
 ---
 id: CHG-0160-succession-must-be-ordered-by-when-a-change-happened-not-by-how-it-is-named
-state: implementing
+state: archived
 type: refactor
 base_commit: e8d84107eee2aafd6d61586eea87612aa0842a4a
 ---

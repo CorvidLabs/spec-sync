@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0160-succession-must-be-ordered-by-when-a-change-happened-not-by-how-it-is-named",
+  "implementation_commit": "5e3c6c832af3afe77fd1e6247ca57420ed6a9802",
+  "implementation_tree": "c187afa888d458ffb08d33714a4be1296b7bb756",
+  "contract_digest": "345388ca5215d19b33c7e00048ddb647305a3251956493243c8400c2ecbedd29",
+  "workspace_digest": "d17a88cdb50993787af676459cf9c3b5be1567d524319713c94b42fcb44e9e58",
+  "closing_digest": "a9b2a686e5b33fe7ce10e6065b5aa2fae06a28b5de3e23641a0dfad7e2aab116",
+  "review_digest": "e459a3e853b1fab98c227cdd1d981461279a8749d5e08520f89163bd266a507f",
+  "finalization_digest": "5d2eb5ffebadd48d517825ab2b7132adabd003578c782b52d02cef657d1840a6",
+  "timestamp": 1787189296
+}

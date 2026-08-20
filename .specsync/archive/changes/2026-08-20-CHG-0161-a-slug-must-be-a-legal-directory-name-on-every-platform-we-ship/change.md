@@ -1,6 +1,6 @@
 ---
 id: CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship
-state: implementing
+state: archived
 type: bug_fix
 base_commit: ac17bfbc31fbc2a78062af02f3f97dddfdc0c7b5
 ---

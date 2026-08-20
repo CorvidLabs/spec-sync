@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship",
+  "implementation_commit": "eefad31bbf28b24aedd81041207842237ade3989",
+  "implementation_tree": "2e0121e4b2c4929f3ce5a8c7a9a93f479be679e7",
+  "contract_digest": "33cdc23478a8ddf3eeb59bb5b0f63fac91649ddb98e0594a48d557dc21c699e4",
+  "workspace_digest": "ccb856077c796ff6ae5de57d1e19ca6c4e7dfcae920baf97c0bc9835e8972497",
+  "closing_digest": "5fffc8c8d0943008900fbc75507cf2be0cf2ae9c9fd10d32f6d4b8a45a3c1294",
+  "review_digest": "962d4ec70fa946a971b0afa224395f0b33be8c7e33c44007b9166bb6e7b99434",
+  "finalization_digest": "92f8e4e96057ca0c77ad030c105837217470f82a11d56af513a0b7725aff136c",
+  "timestamp": 1787196492
+}

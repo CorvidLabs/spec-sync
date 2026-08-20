@@ -1,6 +1,6 @@
 ---
 module: change
-version: 92
+version: 93
 status: active
 files:
   - src/change.rs
@@ -402,3 +402,4 @@ Acceptance Criteria
 | 2026-08-19 | CHG-0157-a-newer-six-must-be-readable-by-an-older-six: A newer six must be readable by an older six |
 | 2026-08-19 | CHG-0158-the-forward-compatibility-valve-must-be-true-everywhere-it-is-claimed: The forward-compatibility valve must be true everywhere it is claimed |
 | 2026-08-19 | CHG-0159-identity-must-come-from-state-json-never-from-the-shape-of-a-name: Identity must come from state.json, never from the shape of a name |
+| 2026-08-20 | CHG-0160-succession-must-be-ordered-by-when-a-change-happened-not-by-how-it-is-named: Succession must be ordered by when a change happened, not by how it is named |

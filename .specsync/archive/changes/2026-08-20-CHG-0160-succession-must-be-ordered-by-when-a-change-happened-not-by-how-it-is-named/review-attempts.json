@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0160-succession-must-be-ordered-by-when-a-change-happened-not-by-how-it-is-named",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "5e3c6c832af3afe77fd1e6247ca57420ed6a9802",
+      "contract_digest": "345388ca5215d19b33c7e00048ddb647305a3251956493243c8400c2ecbedd29",
+      "execution_digest": "43dd50e6cb8a8391cef6255d04d2519301dbe9baa383826c7d878519976df3f6",
+      "workspace_digest": "d17a88cdb50993787af676459cf9c3b5be1567d524319713c94b42fcb44e9e58",
+      "timestamp": 1787189287
+    }
+  ]
+}

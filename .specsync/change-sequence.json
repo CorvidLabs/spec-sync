@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 159,
-  "id": "CHG-0159-identity-must-come-from-state-json-never-from-the-shape-of-a-name",
+  "sequence": 160,
+  "id": "CHG-0160-succession-must-be-ordered-by-when-a-change-happened-not-by-how-it-is-named",
   "acknowledged_collisions": [
     {
       "sequence": 16,

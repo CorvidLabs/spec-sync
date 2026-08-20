@@ -2442,9 +2442,14 @@ pub(crate) fn add_supersedes_obligation_with_snapshot(
             .cmp(&right.path)
             .then_with(|| left.module.cmp(&right.module))
     });
+    // Lexicographic, to agree with `approved_scope`, which sorts the same list by
+    // `predecessor_id.cmp` and hashes the result into `scope_digest`. The previous numeric
+    // key agreed with it only while every ordinal was four digits: at five they invert
+    // (`CHG-9999 < CHG-10000` numerically, `CHG-10000 < CHG-9999` lexicographically), so
+    // `approved_scope` would emit an order `validate_supersedes_edges` then rejected.
     record
         .supersedes
-        .sort_by_key(|edge| succession_change_key(&edge.predecessor_id));
+        .sort_by(|left, right| left.predecessor_id.cmp(&right.predecessor_id));
     validate_supersedes_edges(&record)?;
     validate_supersedes_semantics(root, &record)?;
     record.updated_at = now();
@@ -7455,13 +7460,15 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
 fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {
     const MAX_SUCCESSION_TUPLES: usize = 100_000;
     let mut count = 0_usize;
-    let mut previous_edge: Option<(u64, &str)> = None;
+    let mut previous_edge: Option<&str> = None;
     for edge in &record.supersedes {
-        let key = succession_change_key(&edge.predecessor_id);
-        if previous_edge.is_some_and(|previous| previous >= (key.0, key.1.as_str())) {
-            return Err("supersedes edges must be strictly sorted by numeric sequence and full predecessor ID".into());
+        if previous_edge.is_some_and(|previous| previous >= edge.predecessor_id.as_str()) {
+            return Err(
+                "supersedes edges must be strictly sorted by predecessor ID and must not repeat"
+                    .into(),
+            );
         }
-        previous_edge = Some((key.0, edge.predecessor_id.as_str()));
+        previous_edge = Some(edge.predecessor_id.as_str());
         if edge.predecessor_id.len() > 256 || edge.obligations.is_empty() {
             return Err(format!("invalid supersedes edge `{}`", edge.predecessor_id));
         }
@@ -7516,9 +7523,19 @@ fn validate_supersedes_semantics(root: &Path, record: &ChangeRecord) -> Result<(
                 edge.predecessor_id
             ));
         }
-        if succession_change_key(&edge.predecessor_id) >= succession_change_key(&record.id) {
+        // The predecessor record is loaded immediately above, so comparing when the two were
+        // created costs nothing the ID comparison saved.
+        //
+        // What this guard is actually for is narrower than it looks. `:7511` already requires
+        // the predecessor to be accepted or archived, `supersedes_reaches` below is a real
+        // cycle check over the edge graph, and a successor declares `supersede` before
+        // definition approval — so an honest backwards edge cannot be declared at all, since
+        // `load_change` would fail on a predecessor that did not yet exist. What remains is
+        // resistance to a hand-edited `supersedes` edge, and `created_at` serves that exactly
+        // as well as an ordinal did while meaning the right thing.
+        if !happens_after(record, &predecessor) {
             return Err(format!(
-                "superseded change `{}` must sort before successor `{}`",
+                "superseded change `{}` must have been created before successor `{}`",
                 edge.predecessor_id, record.id
             ));
         }
@@ -7623,8 +7640,22 @@ fn is_canonical_commit_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-fn succession_change_key(id: &str) -> (u64, String) {
-    (change_sequence(id).unwrap_or(u64::MAX), id.to_string())
+/// Whether `later` happened after `earlier`.
+///
+/// This replaced `succession_change_key`, which derived a total temporal order from the ID
+/// string alone — `(change_sequence(id).unwrap_or(u64::MAX), id)`. That worked only because
+/// IDs carry a monotonically allocated ordinal, so "supersedes" silently meant "has a bigger
+/// number". Under any identity scheme without one it would have degraded to *alphabetical*
+/// order with no error, no compile failure and no failing test: `retire-auth` would have
+/// "happened before" `add-billing` because `a` sorts before `r`.
+///
+/// `created_at` says what the ordinal was standing in for. The tiebreak on ID keeps the
+/// relation a total order when two changes share a timestamp, which matters because callers
+/// use it to enforce strict sorting.
+///
+/// Both records are already loaded at every call site, so this costs no I/O the ordinal saved.
+fn happens_after(later: &ChangeRecord, earlier: &ChangeRecord) -> bool {
+    (later.created_at, later.id.as_str()) > (earlier.created_at, earlier.id.as_str())
 }
 
 fn is_legacy_self_adoption_record(record: &ChangeRecord) -> bool {
@@ -10884,9 +10915,12 @@ fn build_semantic_succession_evidence(
             });
         }
     }
+    // Any deterministic total order will do here — this feeds a digest, so only stability
+    // matters, not chronology. Lexicographic keeps it consistent with every other ordering in
+    // the succession path now that the ordinal is gone.
     tuples.sort_by(|left, right| {
-        succession_change_key(&left.predecessor_id)
-            .cmp(&succession_change_key(&right.predecessor_id))
+        left.predecessor_id
+            .cmp(&right.predecessor_id)
             .then_with(|| left.path.cmp(&right.path))
             .then_with(|| left.module.cmp(&right.module))
     });
@@ -14719,7 +14753,7 @@ fn validate_accepted_inputs_recursive(
                             ChangeState::Accepted | ChangeState::Archived
                         )
                         || candidate.no_spec_change
-                        || succession_change_key(&candidate.id) <= succession_change_key(&record.id)
+                        || !happens_after(candidate, record)
                     {
                         continue;
                     }
@@ -14839,7 +14873,7 @@ fn later_sequence_owner_covers_historical_input(
     };
     if owner.id == predecessor.id
         || !matches!(owner.state, ChangeState::Accepted | ChangeState::Archived)
-        || succession_change_key(&owner.id) <= succession_change_key(&predecessor.id)
+        || !happens_after(owner, predecessor)
     {
         return Ok(false);
     }

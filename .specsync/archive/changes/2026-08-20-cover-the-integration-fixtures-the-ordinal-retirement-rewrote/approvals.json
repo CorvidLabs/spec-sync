@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787261069,
+      "digest": "0cf4d39867ceb0a3b5b92b60e664b3f8f1d993932c4d6802647a5eaa5edb2d9e",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cover-the-integration-fixtures-the-ordinal-retirement-rewrote",
+        "title": "Cover the integration fixtures the ordinal retirement rewrote",
+        "description": "cover the integration fixtures the ordinal retirement rewrote",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          "tests/integration/change.rs",
+          "tests/integration/comment.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Integration fixtures asserting the old CHG-NNNN identity shape; the behaviour they cover is specified by REQ-change-086, which the retirement change already added",
+        "acceptance_criteria": [
+          "The ordinal retirement rewrote assertions in tests/integration/change.rs and tests/integration/comment.rs that hard-coded the CHG-NNNN identity shape, but those two paths were not in its declared scope, so the workspace has meaningful changed paths no active change covers. Done when both files are covered by an accepted change and audit --strict is clean."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787262087,
+      "digest": "6cc5063c618ff7526d0ffefd33adb130e53e83d62a0e397138a5e5a02fb92e07",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

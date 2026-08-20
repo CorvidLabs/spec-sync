@@ -38,7 +38,7 @@ fn setup_active_change(root: &Path, verification_commands: &[&str]) -> PathBuf {
         ])
         .assert()
         .success();
-    let id = "CHG-0001-harden-ci-evidence";
+    let id = "harden-ci-evidence";
     for (question, answer) in [
         ("acceptance_criteria", "CI rejects missing evidence"),
         ("public_contract", "no"),

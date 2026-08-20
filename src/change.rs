@@ -1280,7 +1280,10 @@ struct ChangeSequenceLedger {
 
 #[derive(Debug)]
 struct LocatedChangeSequence {
-    sequence: u64,
+    /// `None` for a slug-only ID, which claims no ordinal and therefore takes part in no
+    /// numeric collision. Ordinals are only ever read from IDs minted before the allocator
+    /// was retired; nothing mints a new one.
+    sequence: Option<u64>,
     id: String,
     path: String,
     historical: bool,
@@ -1470,19 +1473,13 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         crate::commands::validate_module_name(module)
             .map_err(|error| format!("invalid affected spec: {error}"))?;
     }
-    let mut affected_paths: Vec<String> = affected_paths
+    let affected_paths: Vec<String> = affected_paths
         .iter()
         .map(|path| {
             normalize_project_path(path).map_err(|error| format!("invalid affected path: {error}"))
         })
         .collect::<Result<_, _>>()?;
-    if !affected_paths
-        .iter()
-        .any(|scope| path_matches_scope(SEQUENCE_PATH, scope))
-    {
-        affected_paths.push(SEQUENCE_PATH.into());
-    }
-    let slug = slugify(&description);
+    let slug = mint_change_slug(&description)?;
     let now = now();
     let mut artifacts = adaptive_artifacts(kind, &affected_specs, &affected_paths);
     for artifact in requested_artifacts {
@@ -1500,9 +1497,6 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
     if workflow_version >= 2 {
         ensure_workflow_v2_baseline(root)?;
     }
-    // Allocate id + exclusive directory (retries on shared-FS races). Multi-clone
-    // still needs SPECSYNC_SEQUENCE_BASE or post-merge renumber — exclusive create
-    // only serializes agents that share a working tree / volume.
     let (id, dir) = allocate_change_workspace(root, &slug)?;
     let record = ChangeRecord {
         schema_version: 1,
@@ -1542,7 +1536,6 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
                 .map_err(|error| format!("failed to write {}: {error}", path.display()))?;
         }
     }
-    update_change_sequence_claim(root, &record.id)?;
     Ok(record)
 }
 
@@ -1724,14 +1717,27 @@ fn change_sequence(id: &str) -> Option<u64> {
     (digits == canonical).then_some(sequence)
 }
 
-#[cfg(test)]
-fn change_id_sorts_after(candidate: &str, predecessor: &str) -> bool {
-    match (change_sequence(candidate), change_sequence(predecessor)) {
-        (Some(candidate_sequence), Some(predecessor_sequence)) => {
-            (candidate_sequence, candidate) > (predecessor_sequence, predecessor)
-        }
-        _ => false,
+/// The ordinal a located record claims, distinguishing "claims none" from "claims one badly".
+///
+/// A slug-only ID claims no ordinal: `Ok(None)`, and it is simply absent from numeric
+/// collision accounting. A `CHG-`-prefixed ID whose leading segment is all digits is
+/// claiming one, so a non-canonical width still fails closed — dropping it silently would
+/// take it out of the acknowledged-collision ID-set check that guards the archived
+/// collision members.
+fn located_change_ordinal(id: &str) -> Result<Option<u64>, String> {
+    let claims_ordinal = id
+        .strip_prefix("CHG-")
+        .and_then(|rest| rest.split('-').next())
+        .is_some_and(|digits| !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()));
+    if !claims_ordinal {
+        return Ok(None);
     }
+    change_sequence(id).map(Some).ok_or_else(|| {
+        format!(
+            "change ID `{}` claims a CHG ordinal in a non-canonical notation; historical ordinals are four zero-padded digits below 10000 and unpadded decimal digits at or above it",
+            id.escape_default()
+        )
+    })
 }
 
 fn load_change_sequence_ledger(root: &Path) -> Result<Option<ChangeSequenceLedger>, String> {
@@ -1868,22 +1874,6 @@ pub fn floor_sequence_ledger_to_committed(root: &Path) -> Result<Option<(u64, u6
     Ok(Some((local.sequence, committed.sequence)))
 }
 
-fn update_change_sequence_claim(root: &Path, id: &str) -> Result<(), String> {
-    let sequence = change_sequence(id).ok_or_else(|| format!("invalid change ID `{id}`"))?;
-    let acknowledged_collisions = load_change_sequence_ledger(root)?
-        .map(|ledger| ledger.acknowledged_collisions)
-        .unwrap_or_default();
-    write_json(
-        &root.join(SEQUENCE_PATH),
-        &ChangeSequenceLedger {
-            schema_version: 1,
-            sequence,
-            id: id.to_string(),
-            acknowledged_collisions,
-        },
-    )
-}
-
 fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, String> {
     let mut located = Vec::new();
     for (base, archived) in [
@@ -1955,8 +1945,7 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 })?
             };
             validate_loaded_change(&record, &expected_id, &state_path)?;
-            let sequence = change_sequence(&record.id)
-                .ok_or_else(|| format!("invalid change ID `{}`", record.id.escape_default()))?;
+            let sequence = located_change_ordinal(&record.id)?;
             let historical = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
                 || reopened_change_preserves_sequence_history(root, &record);
             located.push(LocatedChangeSequence {
@@ -2044,18 +2033,45 @@ fn sequence_ledger_freeze_next_action(root: &Path) -> Option<String> {
             ))
         }
         Err(reason) if reason.contains("duplicate numeric change sequence") => Some(format!(
-            "{reason}; update from the default branch (or set SPECSYNC_SEQUENCE_BASE for multi-clone fleets), then create a new change"
+            "{reason}; acknowledge the historical collision in `{SEQUENCE_PATH}` once every member is accepted or archived, then re-run `specsync change status`"
         )),
-        Err(_) => None,
+        // Everything else the gate can now report is a hand-edit, a bad merge, or a duplicate
+        // identity on a frozen file. Returning `None` here reported a healthy next action
+        // while `change new` and `change audit` were both refusing, which is how a bricked
+        // repository looked fine in `change status`.
+        Err(reason) => Some(format!(
+            "resolve the change sequence ledger problem ({reason}), then re-run `specsync change status`"
+        )),
     }
 }
 
 fn validate_change_sequences(root: &Path) -> Result<(), String> {
     let located = located_change_sequences(root)?;
     let ledger = load_change_sequence_ledger(root)?;
+    // Two workspaces claiming one identity. The ordinal used to make this impossible by
+    // construction and the numeric gate below caught it as a side effect; a slug-only ID is
+    // unique only by convention, and two clones can archive the same slug on different days
+    // into differently dated directories that git merges without a conflict. This is the
+    // gate that used to be implicit, made explicit — it must not go through the ordinal,
+    // because the IDs that need it no longer have one.
+    //
+    // It has to live here rather than in `list_all_changes_uncached`, which already refuses
+    // the same shape: `change audit` runs with `include_archive_integrity = false` and never
+    // loads the archive at all, so on a repository with no active change nothing else looks.
+    let mut seen: BTreeMap<&str, &LocatedChangeSequence> = BTreeMap::new();
+    for change in &located {
+        if let Some(previous) = seen.insert(change.id.as_str(), change) {
+            return Err(format!(
+                "duplicate change ID `{}`: {} and {}; a change ID identifies exactly one workspace, so one of these packages must be removed or re-identified",
+                change.id, previous.path, change.path
+            ));
+        }
+    }
     let mut groups: BTreeMap<u64, Vec<&LocatedChangeSequence>> = BTreeMap::new();
     for change in &located {
-        groups.entry(change.sequence).or_default().push(change);
+        if let Some(sequence) = change.sequence {
+            groups.entry(sequence).or_default().push(change);
+        }
     }
     for changes in groups.values_mut() {
         changes.sort_by(|left, right| left.id.cmp(&right.id));
@@ -2122,20 +2138,21 @@ fn validate_change_sequences(root: &Path) -> Result<(), String> {
                 .collect::<Vec<_>>()
                 .join(", ");
             return Err(format!(
-                "duplicate numeric change sequence CHG-{sequence:04}: {conflicts}; update from the default branch and create a new change ID"
+                "duplicate numeric change sequence CHG-{sequence:04}: {conflicts}; acknowledge the historical collision in `{SEQUENCE_PATH}` once every member is accepted or archived. A change created now claims no ordinal, so recreating one of these is no longer a way out of a collision between two that already have one."
             ));
         }
     }
     if let Some(ledger) = ledger {
         let maximum = located
             .iter()
-            .map(|change| change.sequence)
+            .filter_map(|change| change.sequence)
             .max()
             .unwrap_or(0);
         // Disk must never run ahead of the ledger high-water mark.
         if maximum > ledger.sequence {
             return Err(format!(
-                "change sequence ledger claims CHG-{:04} but the highest recorded sequence is CHG-{maximum:04}",
+                "change sequence ledger claims CHG-{:04} but the highest recorded sequence is CHG-{maximum:04}; \
+restore it with `git checkout HEAD -- {SEQUENCE_PATH}` (nothing writes this file any more, so it cannot be repaired by allocating)",
                 ledger.sequence
             ));
         }
@@ -2189,11 +2206,7 @@ pub fn next_questions(record: &ChangeRecord) -> Vec<InterviewQuestion> {
             recommended: None,
         });
     }
-    if !record
-        .affected_paths
-        .iter()
-        .any(|path| path != SEQUENCE_PATH)
-    {
+    if record.affected_paths.is_empty() {
         questions.push(InterviewQuestion {
             id: "affected_paths".into(),
             prompt: "Which source, test, documentation, or configuration paths are in scope?"
@@ -2255,19 +2268,13 @@ pub(crate) fn answer_question_with_snapshot(
         }
         "affected_paths" => {
             let values = split_values(answer);
-            let mut affected_paths: Vec<String> = values
+            let affected_paths: Vec<String> = values
                 .iter()
                 .map(|path| {
                     normalize_project_path(path)
                         .map_err(|error| format!("invalid affected path: {error}"))
                 })
                 .collect::<Result<_, _>>()?;
-            if !affected_paths
-                .iter()
-                .any(|scope| path_matches_scope(SEQUENCE_PATH, scope))
-            {
-                affected_paths.push(SEQUENCE_PATH.into());
-            }
             record.affected_paths = affected_paths;
         }
         "public_contract" => {
@@ -10962,7 +10969,7 @@ fn validate_semantic_succession(
         })
         .collect();
     let mut actual = BTreeSet::new();
-    let mut previous: Option<(u64, &str, &str, &str)> = None;
+    let mut previous: Option<(&str, &str, &str)> = None;
     for tuple in &evidence.tuples {
         if tuple.predecessor_id.len() > 256
             || tuple.path.len() > MAX_ACCEPTANCE_PATH_BYTES
@@ -10983,10 +10990,12 @@ fn validate_semantic_succession(
             &tuple.successor_entry_digest,
             "semantic successor entry digest",
         )?;
-        let sequence = change_sequence(&tuple.predecessor_id)
-            .ok_or_else(|| format!("invalid semantic predecessor ID `{}`", tuple.predecessor_id))?;
+        // Keyed on the ID alone. The ordinal was here to make `CHG-10000` follow `CHG-9999`,
+        // which lexicographic order gets wrong — but a slug-only predecessor has no ordinal to
+        // parse and this hard-errored on one. Every ID that ever reached this key is
+        // `CHG-` plus exactly four digits, for which the two orders coincide, so no recorded
+        // evidence changes. The digest below never framed the ordinal, so no digest changes.
         let key = (
-            sequence,
             tuple.predecessor_id.as_str(),
             tuple.path.as_str(),
             tuple.module.as_str(),
@@ -11016,12 +11025,11 @@ fn validate_semantic_succession(
 fn semantic_succession_digest(evidence: &SemanticSuccessionEvidenceV1) -> Result<String, String> {
     let mut digest = FramedDigest::new(SEMANTIC_SUCCESSION_DOMAIN);
     digest.frame(b"schema-version", &evidence.schema_version.to_be_bytes());
-    let mut previous: Option<(u64, &str, &str, &str)> = None;
+    let mut previous: Option<(&str, &str, &str)> = None;
     for tuple in &evidence.tuples {
-        let sequence = change_sequence(&tuple.predecessor_id)
-            .ok_or_else(|| format!("invalid semantic predecessor ID `{}`", tuple.predecessor_id))?;
+        // See `validate_semantic_succession`: the ordinal is not framed into the digest and
+        // is not needed for the order, so a slug-only predecessor is orderable here.
         let key = (
-            sequence,
             tuple.predecessor_id.as_str(),
             tuple.path.as_str(),
             tuple.module.as_str(),
@@ -13482,8 +13490,11 @@ fn historical_sequence_ledger_acceptance_content(
     let Some(ledger) = load_change_sequence_ledger(root)? else {
         return Ok(None);
     };
-    let sequence = change_sequence(&record.id)
-        .ok_or_else(|| format!("invalid change ID `{}`", record.id.escape_default()))?;
+    // A slug-only change has no earlier ledger revision to reconstruct: it never claimed a
+    // sequence, so the frozen file it may have scoped is the same file it signed.
+    let Some(sequence) = located_change_ordinal(&record.id)? else {
+        return Ok(None);
+    };
     if ledger.sequence <= sequence {
         return Ok(None);
     }
@@ -15203,8 +15214,10 @@ fn ensure_no_sequence_collision(root: &Path, record: &ChangeRecord) -> Result<()
     }
     Err(format!(
         "change ordinal CHG-{ordinal:04} is claimed by {} and {} from the same base commit {base}. \
-         Two workspaces allocated it independently. Recreate one of them with `specsync change new` \
-         so each change owns a distinct ordinal.",
+         Two workspaces allocated it independently while ordinals were still minted. Acknowledge the \
+         collision in `.specsync/change-sequence.json` once both are accepted or archived, or recreate \
+         one of them with `specsync change new` — a change created now claims no ordinal and so cannot \
+         collide.",
         record.id,
         conflicting.join(", ")
     ))
@@ -16401,9 +16414,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         .into_iter()
         .map(|record| record.description)
         .collect();
-    let mut next_sequence = change_sequence(&next_change_id(root, "import")?)
-        .ok_or_else(|| "failed to allocate imported change sequence".to_string())?;
-    let mut last_imported_id = None;
+    let mut minted_ids: BTreeSet<String> = BTreeSet::new();
     for entry in entries {
         let entry_path = entry.path();
         reject_symlink_components(root, &entry_path)?;
@@ -16435,20 +16446,11 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         if known_descriptions.contains(&description) {
             continue;
         }
-        let slug = slugify(&description);
-        let id = if next_sequence < 10_000 {
-            format!("CHG-{next_sequence:04}-{slug}")
-        } else {
-            format!("CHG-{next_sequence}-{slug}")
-        };
-        next_sequence += 1;
-        let mut affected_paths = vec![portable_project_path(root, &entry_path)];
-        if !affected_paths
-            .iter()
-            .any(|scope| path_matches_scope(SEQUENCE_PATH, scope))
-        {
-            affected_paths.push(SEQUENCE_PATH.into());
+        let id = mint_change_slug(&description)?;
+        if find_change_dir(root, &id).is_ok() || !minted_ids.insert(id.clone()) {
+            return Err(change_name_taken_error(root, &id));
         }
+        let affected_paths = vec![portable_project_path(root, &entry_path)];
         let mut selected_artifacts = adaptive_artifacts(ChangeKind::Feature, &[], &affected_paths);
         for artifact in [
             ArtifactKind::Requirements,
@@ -16465,7 +16467,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
             workflow_version: 2,
             workflow_origin_version: Some(2),
             id: id.clone(),
-            slug,
+            slug: id.clone(),
             title: title_from_description(&description),
             description: description.clone(),
             kind: ChangeKind::Feature,
@@ -16508,23 +16510,6 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         let destination = change_dir(root, &record.id).join("imported");
         prepare_markdown_files(root, &entry_path, &destination, &mut prepared)?;
         known_descriptions.insert(description);
-        last_imported_id = Some(record.id);
-    }
-    if let Some(id) = last_imported_id {
-        let sequence =
-            change_sequence(&id).ok_or_else(|| format!("invalid imported change ID `{id}`"))?;
-        let acknowledged_collisions = load_change_sequence_ledger(root)?
-            .map(|ledger| ledger.acknowledged_collisions)
-            .unwrap_or_default();
-        prepared.push((
-            root.join(SEQUENCE_PATH),
-            json_content(&ChangeSequenceLedger {
-                schema_version: 1,
-                sequence,
-                id,
-                acknowledged_collisions,
-            })?,
-        ));
     }
     Ok(prepared)
 }
@@ -17916,8 +17901,11 @@ fn accepted_change_has_current_canonical_successors(root: &Path, record: &Change
             candidate.id != record.id
                 && !candidate.no_spec_change
                 && (candidate.canonical_applied || candidate.state == ChangeState::Accepted)
-                && candidate.created_at >= record.created_at
-                && change_id_sorts_after(&candidate.id, &record.id)
+                // `happens_after` is the production successor relation (CHG-0160 moved it off
+                // the ordinal and onto `(created_at, id)`). This helper kept its own
+                // ordinal-parsing copy, which returned false for any ID without an ordinal —
+                // a second implementation of one concept, disagreeing with the first.
+                && happens_after(candidate, record)
                 && accepted_change_is_recorded_in_current_history(root, candidate)
         })
         .collect();
@@ -17937,94 +17925,73 @@ fn accepted_change_has_current_canonical_successors(root: &Path, record: &Change
     specs_governed && paths_governed
 }
 
-fn maximum_observed_sequence(root: &Path) -> Result<u64, String> {
-    let mut maximum = 0_u64;
-    for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
-        if let Ok(entries) = fs::read_dir(base) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if let Some(index) = name.find("CHG-") {
-                    let digits: String = name[index + 4..]
-                        .chars()
-                        .take_while(char::is_ascii_digit)
-                        .collect();
-                    if let Ok(value) = digits.parse::<u64>() {
-                        maximum = maximum.max(value);
-                    }
-                }
-            }
-        }
-    }
-    if let Some(ledger) = load_change_sequence_ledger(root)? {
-        maximum = maximum.max(ledger.sequence);
-    }
-    // Prefer the remote default-branch ledger high-water when the clone has fetched it.
-    // Concurrent clones that have not fetched each other still need SPECSYNC_SEQUENCE_BASE
-    // (or post-merge renumber); this only floors agents who lag behind origin.
-    if let Some(remote) = remote_sequence_high_water(root) {
-        maximum = maximum.max(remote);
-    }
-    // Multi-agent / multi-clone: set SPECSYNC_SEQUENCE_BASE to a disjoint high-water
-    // (e.g. agent A=100, agent B=200) so parallel clones do not mint the same CHG-NNNN.
-    if let Ok(base) = std::env::var("SPECSYNC_SEQUENCE_BASE") {
-        let base = base.trim();
-        if !base.is_empty() {
-            let value: u64 = base.parse().map_err(|_| {
-                format!(
-                    "SPECSYNC_SEQUENCE_BASE must be a positive integer, got `{}`",
-                    base.escape_default()
-                )
-            })?;
-            if value == 0 {
-                return Err("SPECSYNC_SEQUENCE_BASE must be >= 1".into());
-            }
-            // Treat BASE as the next sequence this agent may mint (high-water exclusive).
-            maximum = maximum.max(value.saturating_sub(1));
-        }
-    }
-    Ok(maximum)
-}
-
-/// Best-effort high-water from `origin/*` default-branch `.specsync/change-sequence.json`.
+/// Refusal naming the workspace that already owns a change ID.
 ///
-/// Missing remotes or missing ledgers return `None` (local-only allocation).
-fn remote_sequence_high_water(root: &Path) -> Option<u64> {
-    let candidates = git_output(
-        root,
-        &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+/// A change ID is now derived from the description alone, so a duplicate description is a
+/// duplicate identity. Naming the existing package and its description is what makes the
+/// refusal actionable: the two changes may share no words if either ID went through the
+/// reserved-name escape.
+fn change_name_taken_error(root: &Path, id: &str) -> String {
+    let location = find_change_dir(root, id)
+        .map(|path| portable_project_path(root, &path))
+        .unwrap_or_else(|_| portable_project_path(root, &change_dir(root, id)));
+    let existing = load_change(root, id)
+        .map(|record| {
+            format!(
+                "\n  it is: {} ({})",
+                record.description,
+                record.state.as_str()
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "a change named `{id}` already exists\n  {location}{existing}\nA change ID is derived from its description, so this description is already taken. Rephrase it, or work on the existing change."
     )
-    .into_iter()
-    .chain(["origin/main".into(), "origin/master".into()])
-    .collect::<Vec<_>>();
-    for remote in candidates {
-        let remote = remote.trim();
-        if remote.is_empty() {
-            continue;
-        }
-        let spec = format!("{remote}:{SEQUENCE_PATH}");
-        let Some(raw) = git_output(root, &["show", &spec]) else {
-            continue;
-        };
-        let Ok(ledger) = serde_json::from_str::<ChangeSequenceLedger>(&raw) else {
-            continue;
-        };
-        if ledger.schema_version == 1 {
-            return Some(ledger.sequence);
-        }
-    }
-    None
 }
 
-fn next_change_id(root: &Path, slug: &str) -> Result<String, String> {
-    let maximum = maximum_observed_sequence(root)?;
-    Ok(format!("CHG-{:04}-{slug}", maximum + 1))
-}
-
-/// Pick the next CHG id and create its workspace directory exclusively.
+/// The change ID a description mints.
 ///
-/// Retries when the directory already exists (shared-filesystem multi-process races).
-/// Separate git clones still need `SPECSYNC_SEQUENCE_BASE` (or post-merge renumber)
-/// because they cannot see each other's uncommitted workspaces.
+/// The slug is now the whole path component, so a description that slugifies to nothing can
+/// no longer be papered over with a shared fallback: under ordinals every such description
+/// became a distinct `CHG-NNNN-untitled-change`, and without them the first one to be created
+/// would permanently own the only ID any of them can produce. A team writing descriptions in
+/// a non-Latin script would get exactly one change, ever.
+fn mint_change_slug(description: &str) -> Result<String, String> {
+    if !description.chars().any(|c| c.is_ascii_alphanumeric()) {
+        // Not `escape_default()`: it renders every non-ASCII character as `\u{...}`, so the
+        // one class of description this rejects is exactly the one it would render unreadable.
+        let shown: String = description
+            .trim()
+            .chars()
+            .filter(|character| !character.is_control())
+            .take(80)
+            .collect();
+        return Err(format!(
+            "cannot derive a change ID from `{shown}`: a change ID is the description slugified, and this description contains no ASCII letters or digits to slugify. Include a few ASCII words in the description."
+        ));
+    }
+    let slug = slugify(description);
+    validate_change_id(&slug)?;
+    Ok(slug)
+}
+
+/// Create the change workspace for `slug`, which is also its ID.
+///
+/// The allocator this replaces looped up to 10,000 times looking for a free ordinal. With the
+/// ID equal to the slug the candidate directory is loop-invariant, so the loop would have
+/// issued 10,000 identical `mkdir`s and then reported `exhausted change sequence allocation
+/// retries` for what is simply a taken name.
+///
+/// Refusing rather than disambiguating with a suffix is deliberate. The archive directory is
+/// `<date>-<id>`, so two same-named changes archived on different days produce two archives
+/// with one `record.id`; `find_change_dir` then reports ambiguous locations and every command
+/// in the repository fails with no clean recovery. Refusing converts an unrecoverable
+/// repository state into "retype the sentence". A `-2` suffix would also make the ID worse at
+/// its only job, which is being typed into every later command.
+///
+/// The existence probe covers the archive as well as the active workspace, because archiving
+/// empties the active directory and an exclusive `create_dir` cannot see an archived twin. The
+/// exclusive `create_dir` is still what serializes two processes sharing one volume.
 fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf), String> {
     let changes = root.join(CHANGES_PATH);
     fs::create_dir_all(&changes).map_err(|error| {
@@ -18033,26 +18000,22 @@ fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf
             changes.display()
         )
     })?;
-    let mut maximum = maximum_observed_sequence(root)?;
-    for _ in 0..10_000u32 {
-        let sequence = maximum + 1;
-        let id = format!("CHG-{:04}-{slug}", sequence);
-        let dir = change_dir(root, &id);
-        match fs::create_dir(&dir) {
-            Ok(()) => return Ok((id, dir)),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                maximum = maximum.max(sequence);
-                continue;
-            }
-            Err(error) => {
-                return Err(format!(
-                    "failed to create change workspace {}: {error}",
-                    dir.display()
-                ));
-            }
-        }
+    let id = slug.to_string();
+    validate_change_id(&id)?;
+    if find_change_dir(root, &id).is_ok() {
+        return Err(change_name_taken_error(root, &id));
     }
-    Err("exhausted change sequence allocation retries".into())
+    let dir = change_dir(root, &id);
+    match fs::create_dir(&dir) {
+        Ok(()) => Ok((id, dir)),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            Err(change_name_taken_error(root, &id))
+        }
+        Err(error) => Err(format!(
+            "failed to create change workspace {}: {error}",
+            dir.display()
+        )),
+    }
 }
 
 /// Longest slug this mints, in bytes.

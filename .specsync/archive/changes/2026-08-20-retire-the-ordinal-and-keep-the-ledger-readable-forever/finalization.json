@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "retire-the-ordinal-and-keep-the-ledger-readable-forever",
+  "implementation_commit": "f1ea707971163b3613d0e7612e1feeaab7a8d73d",
+  "implementation_tree": "a94f6471e503bb555b6cdf66ac8eaa3771539ca0",
+  "contract_digest": "07854d00181c81d715987e8f5ddc95c77cd0b1ac9d53f17cb244530a64cfe123",
+  "workspace_digest": "1c27e24dadb89748da0e47281111f3469c9546ca7d28c7b6ef69c8c81290606a",
+  "closing_digest": "e13f698fb5532251d593c749ee52ef3eb8028bee121ccbc74a72e3c8947b825f",
+  "review_digest": "1cb14047c993df47acdc50166471b9aad9d3bfd503eec0b308735ba1bf5435b0",
+  "finalization_digest": "0d8fb4495e752f5416807eb1fb753908bd3bd6d7ffef57bae6769461e9c1be74",
+  "timestamp": 1787260687
+}

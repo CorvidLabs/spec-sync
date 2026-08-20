@@ -1,6 +1,6 @@
 ---
 module: change
-version: 96
+version: 97
 status: active
 files:
   - src/change.rs
@@ -406,3 +406,4 @@ Acceptance Criteria
 | 2026-08-20 | CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship: A slug must be a legal directory name on every platform we ship |
 | 2026-08-20 | CHG-0162-a-change-identity-must-be-validated-for-what-it-is-not-for-how-it-starts: A change identity must be validated for what it is, not for how it starts |
 | 2026-08-20 | CHG-0163-a-trust-anchor-must-be-where-evidence-entered-history-not-any-commit-that-re-introduces-it: A trust anchor must be where evidence entered history, not any commit that re-introduces it |
+| 2026-08-20 | retire-the-ordinal-and-keep-the-ledger-readable-forever: Retire the ordinal and keep the ledger readable forever |

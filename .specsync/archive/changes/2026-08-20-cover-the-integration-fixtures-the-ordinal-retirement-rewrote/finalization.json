@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-integration-fixtures-the-ordinal-retirement-rewrote",
+  "implementation_commit": "1494ad26ac23a4557bf780852bcfd9a1d92777ec",
+  "implementation_tree": "c9dd75e2048f646b149b5395a4e938ff0fc9bb41",
+  "contract_digest": "0cf4d39867ceb0a3b5b92b60e664b3f8f1d993932c4d6802647a5eaa5edb2d9e",
+  "workspace_digest": "1c27e24dadb89748da0e47281111f3469c9546ca7d28c7b6ef69c8c81290606a",
+  "closing_digest": "6cc5063c618ff7526d0ffefd33adb130e53e83d62a0e397138a5e5a02fb92e07",
+  "review_digest": "8460d55b674ab17eb8d95b2436923b12b6411a0dbe178dbaec6814a92999d454",
+  "finalization_digest": "36b4f73549f08ee0b454ed10c5edbf9aca48edf98d0375833eb1481ce774b4ae",
+  "timestamp": 1787262087
+}

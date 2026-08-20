@@ -14074,3 +14074,255 @@ fn speckit_import_rejects_a_symlinked_constitution_ancestor() {
             .exists()
     );
 }
+
+/// Issue #660: an archived package must be authenticated by WHERE its evidence entered the
+/// reachable history, never by the mere fact that some commit contains the bytes being checked.
+///
+/// The fixture is deliberately the hard one: a workflow-v2 change taken through the real
+/// lifecycle on a branch, squash-merged into `main`, then inspected from a fresh clone in which
+/// the original acceptance-transition commits do not exist. That is the shape 142 of this
+/// repository's 161 archived packages actually have, and it is the shape any fix must not break.
+///
+/// Every scenario is evaluated and reported together rather than short-circuiting, so a reviewer
+/// sees which specific properties a candidate fix satisfies instead of only the first failure.
+#[test]
+fn an_archived_package_is_authenticated_only_by_where_its_evidence_entered_history() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("source");
+    fs::create_dir_all(&root).unwrap();
+    let git = |directory: &Path, args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(directory)
+                .status()
+                .unwrap()
+                .success(),
+            "git command failed: {args:?}"
+        );
+    };
+    git(&root, &["init", "-b", "main"]);
+    git(&root, &["config", "user.email", "test@example.com"]);
+    git(&root, &["config", "user.name", "Test"]);
+    git(&root, &["config", "core.autocrlf", "false"]);
+    git(&root, &["config", "core.eol", "lf"]);
+    fs::write(
+        root.join(".gitattributes"),
+        "*.json text eol=lf\n*.md text eol=lf\n",
+    )
+    .unwrap();
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&root, &["add", "README.md", ".gitattributes"]);
+    git(&root, &["commit", "-m", "base"]);
+    git(&root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    git(
+        &root,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ],
+    );
+    git(&root, &["switch", "-c", "feature"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "// implementation\n").unwrap();
+    git(&root, &["add", "src/lib.rs"]);
+    git(&root, &["commit", "-m", "implementation"]);
+
+    let record = current_workflow_record(&root, completed_no_spec_record(&root));
+    approve_definition(&root, &record.id, Some("Scope owner".into()), None).unwrap();
+    check_change(&root, Some(&record.id)).unwrap();
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-m", "Implement approved change"]);
+    check_change(&root, Some(&record.id)).unwrap();
+    record_scoped_review(&root, &record.id, "Independent reviewer".into()).unwrap();
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-m", "Record passing scoped review"]);
+    let acceptance_commit = git_output(&root, &["rev-parse", "HEAD"]).unwrap();
+    finalize_change(&root, &record.id).unwrap();
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-m", "Finalize change"]);
+
+    git(&root, &["switch", "main"]);
+    git(&root, &["merge", "--squash", "feature"]);
+    git(&root, &["commit", "-m", "Squash feature"]);
+    git(&root, &["branch", "-D", "feature"]);
+
+    let fresh = temp.path().join("fresh");
+    let root_text = root.to_string_lossy().to_string();
+    let fresh_text = fresh.to_string_lossy().to_string();
+    git(
+        temp.path(),
+        &[
+            "-c",
+            "core.autocrlf=false",
+            "-c",
+            "core.eol=lf",
+            "clone",
+            "--no-local",
+            "--single-branch",
+            "--branch",
+            "main",
+            &root_text,
+            &fresh_text,
+        ],
+    );
+    git(&fresh, &["config", "user.email", "test@example.com"]);
+    git(&fresh, &["config", "user.name", "Test"]);
+    git(&fresh, &["config", "core.autocrlf", "false"]);
+    git(&fresh, &["config", "core.eol", "lf"]);
+
+    // ---- vacuity control -------------------------------------------------------------------
+    // The squash discarded the acceptance-transition commit, so the only history this clone has
+    // is the squash commit that created the archive package. If a fix cannot authenticate THIS,
+    // it has un-authenticated the majority of the corpus. Must hold identically before and after.
+    assert!(
+        git_output(
+            &fresh,
+            &[
+                "rev-parse",
+                "--verify",
+                &format!("{acceptance_commit}^{{commit}}"),
+            ],
+        )
+        .is_none(),
+        "fixture must reproduce the squash-orphaned shape: the acceptance commit must be absent"
+    );
+    let archived = load_change(&fresh, &record.id).unwrap();
+    assert_eq!(archived.state, ChangeState::Archived);
+    validate_archived_integrity(&fresh, &archived)
+        .expect("a pristine squash-merged archive must authenticate from a fresh clone");
+
+    let base = git_output(&fresh, &["rev-parse", "HEAD"]).unwrap();
+    let archive_relative = find_change_dir(&fresh, &record.id)
+        .unwrap()
+        .strip_prefix(&fresh)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    let relocated_relative = format!("{archive_relative}-relocated");
+    let active_relative = format!(".specsync/changes/{}", record.id);
+    let pristine_state = fs::read(fresh.join(&archive_relative).join("state.json")).unwrap();
+
+    let reset = |directory: &Path| {
+        git(directory, &["reset", "--hard", base.as_str()]);
+        git(directory, &["clean", "-fdxq"]);
+    };
+    // Rewrites the approving actor: a field no workflow-v2 digest covers, so only the anchor
+    // stands between it and an authenticated archive.
+    let tamper = |package: &Path| {
+        let path = package.join("approvals.json");
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("Scope owner"),
+            "fixture must record the scope owner in approvals.json"
+        );
+        fs::write(&path, text.replace("Scope owner", "Impostor")).unwrap();
+    };
+    let resolve = |directory: &Path| -> Result<String, String> {
+        let current = load_change(directory, &record.id)?;
+        authenticated_accepted_transition(directory, &current).map(|(anchor, _, _)| anchor)
+    };
+
+    let mut failures: Vec<String> = Vec::new();
+    let mut record_outcome = |name: &str,
+                              must_authenticate: bool,
+                              outcome: Result<String, String>| {
+        match (must_authenticate, outcome) {
+            (true, Err(error)) => {
+                failures.push(format!("{name}: expected an anchor, got Err({error})"));
+            }
+            (false, Ok(anchor)) => {
+                failures.push(format!("{name}: expected refusal, got anchor `{anchor}`"));
+            }
+            _ => {}
+        }
+    };
+
+    // 1. Pristine squash-merged archive resolves an anchor. (Passes before and after.)
+    record_outcome("pristine-squash-merged-archive", true, resolve(&fresh));
+
+    // 2. A legitimate relocation with ZERO content change must still authenticate. This is the
+    //    assertion that a fix which simply refuses relocations -- or refuses any commit whose
+    //    diff is empty -- cannot satisfy.
+    reset(&fresh);
+    git(&fresh, &["mv", &archive_relative, &relocated_relative]);
+    git(&fresh, &["commit", "-qm", "relocate the archived package"]);
+    record_outcome("legitimate-relocation", true, resolve(&fresh));
+
+    // 3. Rewriting archived evidence and committing it must be refused, with no relocation
+    //    involved. A working-tree fallback that reads the bytes it is authenticating cannot
+    //    satisfy this.
+    reset(&fresh);
+    tamper(&fresh.join(&archive_relative));
+    git(&fresh, &["add", "."]);
+    git(
+        &fresh,
+        &["commit", "-qm", "rewrite archived approval evidence"],
+    );
+    record_outcome("committed-tamper", false, resolve(&fresh));
+
+    // 4. The issue's reproduction: tamper, then relocate in a separate commit that changes no
+    //    content at all.
+    reset(&fresh);
+    tamper(&fresh.join(&archive_relative));
+    git(&fresh, &["add", "."]);
+    git(
+        &fresh,
+        &["commit", "-qm", "rewrite archived approval evidence"],
+    );
+    git(&fresh, &["mv", &archive_relative, &relocated_relative]);
+    git(&fresh, &["commit", "-qm", "relocate the archived package"]);
+    record_outcome("tamper-then-relocate", false, resolve(&fresh));
+
+    // 5. Tamper and relocate in ONE commit. A fix that recognises the reproduction by its empty
+    //    diff never sees this one.
+    reset(&fresh);
+    tamper(&fresh.join(&archive_relative));
+    git(&fresh, &["mv", &archive_relative, &relocated_relative]);
+    git(&fresh, &["add", "."]);
+    git(
+        &fresh,
+        &["commit", "-qm", "rewrite and relocate in one commit"],
+    );
+    record_outcome("tamper-and-relocate-in-one-commit", false, resolve(&fresh));
+
+    // 6. A forged reopen/re-archive pair. The archive directory keeps its original name
+    //    throughout, so no rename rule of any kind can see this; the laundering happens at the
+    //    ACTIVE workspace path, which is where `reopen` legitimately writes.
+    reset(&fresh);
+    fs::create_dir_all(fresh.join(".specsync/changes")).unwrap();
+    git(&fresh, &["mv", &archive_relative, &active_relative]);
+    let accepted_snapshot =
+        fs::read(fresh.join(&active_relative).join("accepted-state.json")).unwrap();
+    fs::write(
+        fresh.join(&active_relative).join("state.json"),
+        &accepted_snapshot,
+    )
+    .unwrap();
+    tamper(&fresh.join(&active_relative));
+    git(&fresh, &["add", "-A", "."]);
+    git(
+        &fresh,
+        &[
+            "commit",
+            "-qm",
+            "chore(lifecycle): reopen for fresh verification",
+        ],
+    );
+    git(&fresh, &["mv", &active_relative, &archive_relative]);
+    fs::write(
+        fresh.join(&archive_relative).join("state.json"),
+        &pristine_state,
+    )
+    .unwrap();
+    git(&fresh, &["add", "-A", "."]);
+    git(&fresh, &["commit", "-qm", "chore(lifecycle): archive"]);
+    record_outcome("forged-reopen-and-re-archive", false, resolve(&fresh));
+
+    assert!(
+        failures.is_empty(),
+        "an archived package must be authenticated only by where its evidence entered history:\n{}",
+        failures.join("\n")
+    );
+}

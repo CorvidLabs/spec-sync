@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0163-a-trust-anchor-must-be-where-evidence-entered-history-not-any-commit-that-re-introduces-it",
+  "implementation_commit": "250ffc4bbf89c5093a340d2d26a4a37cf17ebd25",
+  "implementation_tree": "3117ed485234e8f38cca9db8006efbea02b1db02",
+  "contract_digest": "5533d5f6ccaa2d572a3c163f7f8119d903c64821f5824db5d0b188b51a84f08d",
+  "workspace_digest": "84677489cef88d3b881d9cd5504bc1a0605c52bdcca65c9b0adbf5da13cb7ae2",
+  "closing_digest": "769295e173395e888168591f92d8bb198c4aa1a9146af60305c881ba099b6df4",
+  "review_digest": "c739d319467c71fe8fe10167c839e2751bdb2d9557f8401c5cced1c59f61709f",
+  "finalization_digest": "04bc2f80b7627fd7c178fb758971e6550986e59d1c1002c1d46e06dd82490f80",
+  "timestamp": 1787222713
+}

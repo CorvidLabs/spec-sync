@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 162,
-  "id": "CHG-0162-a-change-identity-must-be-validated-for-what-it-is-not-for-how-it-starts",
+  "sequence": 163,
+  "id": "CHG-0163-a-trust-anchor-must-be-where-evidence-entered-history-not-any-commit-that-re-introduces-it",
   "acknowledged_collisions": [
     {
       "sequence": 16,

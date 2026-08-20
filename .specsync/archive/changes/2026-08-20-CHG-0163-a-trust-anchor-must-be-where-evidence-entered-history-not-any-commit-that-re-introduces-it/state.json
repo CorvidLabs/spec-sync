@@ -7,11 +7,11 @@
   "title": "A trust anchor must be where evidence entered history, not any commit that re-introduces it",
   "description": "a trust anchor must be where evidence entered history, not any commit that re-introduces it",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "65755ac7e27693ae88ea39fd0c681ecc1949b412",
   "created_at": 1787220199,
-  "updated_at": 1787222701,
+  "updated_at": 1787223018,
   "affected_specs": [
     "change"
   ],

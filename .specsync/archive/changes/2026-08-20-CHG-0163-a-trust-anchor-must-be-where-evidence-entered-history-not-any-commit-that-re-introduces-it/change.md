@@ -1,6 +1,6 @@
 ---
 id: CHG-0163-a-trust-anchor-must-be-where-evidence-entered-history-not-any-commit-that-re-introduces-it
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 65755ac7e27693ae88ea39fd0c681ecc1949b412
 ---

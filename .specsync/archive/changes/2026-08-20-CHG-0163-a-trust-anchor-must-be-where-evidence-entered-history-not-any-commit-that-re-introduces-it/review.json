@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0163-a-trust-anchor-must-be-where-evidence-entered-history-not-any-commit-that-re-introduces-it",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "250ffc4bbf89c5093a340d2d26a4a37cf17ebd25",
+  "contract_digest": "5533d5f6ccaa2d572a3c163f7f8119d903c64821f5824db5d0b188b51a84f08d",
+  "execution_digest": "59cad0125785f3d5452877ddeb57f79c38bfc54d3f2e7401d296642009d1e688",
+  "workspace_digest": "84677489cef88d3b881d9cd5504bc1a0605c52bdcca65c9b0adbf5da13cb7ae2",
+  "timestamp": 1787222704
+}

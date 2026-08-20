@@ -15056,12 +15056,73 @@ fn is_untrackable_husk(path: &Path) -> bool {
     true
 }
 
+/// Whether an archive directory name carries a `CHG-NNNN` lifecycle ordinal, dated or not.
+///
+/// `2026-08-19-CHG-0001-foo` and `CHG-0001-foo` both do. The previous test was
+/// `name.contains("-CHG-")`, which silently missed the undated form.
+fn name_carries_a_lifecycle_ordinal(name: &str) -> bool {
+    let segments: Vec<&str> = name.split('-').collect();
+    segments.windows(2).any(|pair| {
+        pair[0] == "CHG" && pair[1].len() >= 4 && pair[1].chars().all(|c| c.is_ascii_digit())
+    })
+}
+
+/// Whether a directory holds a regular file at any depth.
+///
+/// No depth counter: archive packages are a handful of levels, and a symlink loop cannot occur
+/// because `read_dir` reports a symlink as neither file nor directory here.
+fn directory_holds_a_regular_file(path: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(path) else {
+        return false;
+    };
+    entries.flatten().any(|entry| match entry.file_type() {
+        Ok(kind) if kind.is_file() => true,
+        Ok(kind) if kind.is_dir() => directory_holds_a_regular_file(&entry.path()),
+        _ => false,
+    })
+}
+
+/// A pre-lifecycle archive directory: a `deltas/`-only record with no lifecycle state.
+///
+/// These are skipped by enumeration. A real lifecycle package that has *lost* its state must
+/// NOT be skipped — that is corruption, and hiding it is how a damaged archive reads as an
+/// absent one.
+///
+/// Three signals say "real package, therefore not a tombstone". They are a UNION on purpose:
+/// each one only ever moves a directory from skipped to refused, so adding one cannot weaken
+/// the gate.
+///
+/// 1. It holds a regular file outside `deltas/`. All 159 archived packages do; a tombstone
+///    holds none. Strictly stronger than the four-file allowlist it joins — a package that
+///    kept only `plan.md` was previously misread.
+/// 2. It holds one of the four lifecycle marker files.
+/// 3. Its name carries a lifecycle ordinal.
+///
+/// Signal 3 was `name.contains("-CHG-")`, which is wrong today: an undated package named
+/// `CHG-0001-foo` does not contain that substring, so a real archived change stripped of its
+/// lifecycle files vanished silently. `name_carries_a_lifecycle_ordinal` accepts both forms.
+///
+/// Signal 3 is also the one that cannot survive an identity scheme without ordinals, and 1 and
+/// 2 do not fully replace it: a dated package reduced to `deltas/auth.md` alone is refused
+/// today *only* because of its name. Retiring the ordinal therefore needs a provenance signal
+/// to take signal 3's place — git history of the package's `state.json` is the obvious
+/// candidate. That is a decision for the identity migration, not something to quietly drop here.
 fn is_positive_legacy_tombstone(path: &Path) -> bool {
-    let dated_lifecycle_name = path
+    let holds_a_file_outside_deltas = fs::read_dir(path).is_ok_and(|entries| {
+        entries.flatten().any(|entry| match entry.file_type() {
+            Ok(kind) if kind.is_file() => true,
+            Ok(kind) if kind.is_dir() && entry.file_name() != "deltas" => {
+                directory_holds_a_regular_file(&entry.path())
+            }
+            _ => false,
+        })
+    });
+    let names_a_lifecycle_ordinal = path
         .file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name.contains("-CHG-"));
-    if dated_lifecycle_name
+        .is_some_and(name_carries_a_lifecycle_ordinal);
+    if holds_a_file_outside_deltas
+        || names_a_lifecycle_ordinal
         || [
             "change.md",
             "approvals.json",

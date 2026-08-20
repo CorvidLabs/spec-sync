@@ -18,15 +18,15 @@ mkdir -p "$fixture/.specsync/archive/changes/CHG-0001" \
     "$fixture/site/src" \
     "$fixture/vscode-extension/src"
 cp "$script_dir/lifecycle-validation-limits.json" "$fixture/.github/scripts/"
-printf '%s\n' '{"workflow_version":2}' \
+printf '%s\n' '{"id":"CHG-0001-finalize-widget","workflow_version":2}' \
     > "$fixture/.specsync/archive/changes/2026-07-29-CHG-0001-finalize-widget/state.json"
-printf '%s\n' '{"workflow_version":2}' \
+printf '%s\n' '{"id":"CHG-0003-other-change","workflow_version":2}' \
     > "$fixture/.specsync/archive/changes/2026-07-29-CHG-0003-other-change/state.json"
-printf '%s\n' '{"workflow_version":1}' \
+printf '%s\n' '{"id":"CHG-0004-legacy-change","workflow_version":1}' \
     > "$fixture/.specsync/archive/changes/2026-07-29-CHG-0004-legacy-change/state.json"
-printf '%s\n' '{}' \
+printf '%s\n' '{"id":"CHG-0005-legacy-without-version"}' \
     > "$fixture/.specsync/archive/changes/2026-07-29-CHG-0005-legacy-without-version/state.json"
-printf '%s\n' '{"workflow_version":2}' \
+printf '%s\n' '{"id":"CHG-10000-large-sequence","workflow_version":2}' \
     > "$fixture/.specsync/archive/changes/2026-07-29-CHG-10000-large-sequence/state.json"
 printf '%s\n' \
     '{"id":"CHG-0002-active-widget","state":"verifying"}' \
@@ -108,11 +108,11 @@ mkdir -p "$legacy_fixture/.specsync/changes/CHG-0004-legacy-change" \
     "$legacy_fixture/.specsync/changes/CHG-0006-v2-downgrade"
 mkdir -p "$legacy_fixture/.github/scripts"
 cp "$script_dir/lifecycle-validation-limits.json" "$legacy_fixture/.github/scripts/"
-printf '%s\n' '{"workflow_version":1}' \
+printf '%s\n' '{"id":"CHG-0004-legacy-change","workflow_version":1}' \
     > "$legacy_fixture/.specsync/changes/CHG-0004-legacy-change/state.json"
-printf '%s\n' '{}' \
+printf '%s\n' '{"id":"CHG-0005-legacy-without-version"}' \
     > "$legacy_fixture/.specsync/changes/CHG-0005-legacy-without-version/state.json"
-printf '%s\n' '{"workflow_version":2}' \
+printf '%s\n' '{"id":"CHG-0006-v2-downgrade","workflow_version":2}' \
     > "$legacy_fixture/.specsync/changes/CHG-0006-v2-downgrade/state.json"
 git -C "$legacy_fixture" init -q
 git -C "$legacy_fixture" config user.email classifier@specsync.dev
@@ -132,7 +132,7 @@ mv "$legacy_fixture/.specsync/changes/CHG-0006-v2-downgrade/state.json" \
 rmdir "$legacy_fixture/.specsync/changes/CHG-0004-legacy-change" \
     "$legacy_fixture/.specsync/changes/CHG-0005-legacy-without-version" \
     "$legacy_fixture/.specsync/changes/CHG-0006-v2-downgrade"
-printf '%s\n' '{"workflow_version":1}' \
+printf '%s\n' '{"id":"CHG-0006-v2-downgrade","workflow_version":1}' \
     > "$legacy_fixture/.specsync/archive/changes/2026-07-29-CHG-0006-v2-downgrade/state.json"
 
 classify_bound_legacy() {
@@ -347,5 +347,37 @@ expect_value "$selected_narrow" archive_only true
 printf 'src/main.rs\0' | "$classifier" "$fixture" >"$lane_full"
 selected_none="$("$select_lane" "$lane_full" "")"
 expect_value "$selected_none" full true
+
+# The mandatory independent review must be required for a change whose ID carries no
+# ordinal. Globbing `CHG-*` here meant review_candidates=0, review_required=false, and a PR
+# that merged without the review while CI went green FASTER — the worst possible failure
+# shape for a gate. Identity is read from state.json, so the name must not matter.
+shape_fixture="$fixture/shape-independent"
+mkdir -p "$shape_fixture/.specsync/changes/retire-the-widget" "$shape_fixture/.github/scripts"
+cp "$script_dir/lifecycle-validation-limits.json" "$shape_fixture/.github/scripts/"
+printf '%s\n' \
+    '{"id":"retire-the-widget","state":"verifying"}' \
+    > "$shape_fixture/.specsync/changes/retire-the-widget/state.json"
+printf '%s\n' \
+    '{"passed":true,"contract_digest":"contract","execution_digest":"execution","workspace_digest":"current"}' \
+    > "$shape_fixture/.specsync/changes/retire-the-widget/verification.json"
+printf '%s\n' \
+    '{"approvals":[{"gate":"definition","actor":"Scope owner","timestamp":1,"digest":"scope"}]}' \
+    > "$shape_fixture/.specsync/changes/retire-the-widget/approvals.json"
+printf '%s\n' \
+    '{"change_id":"retire-the-widget","contract_digest":"contract","workspace_digest":"stale"}' \
+    > "$shape_fixture/.specsync/changes/retire-the-widget/review.json"
+printf '%s\n' \
+    '{"schema_version":1,"reviews":[{"change_id":"retire-the-widget","contract_digest":"contract","workspace_digest":"stale"}]}' \
+    > "$shape_fixture/.specsync/changes/retire-the-widget/review-attempts.json"
+git -C "$shape_fixture" init -q
+git -C "$shape_fixture" config user.email classifier@specsync.dev
+git -C "$shape_fixture" config user.name "SpecSync Classifier"
+git -C "$shape_fixture" add .
+git -C "$shape_fixture" commit -qm "slug-only identity"
+shape_result="$(printf '%s\0' src/main.rs \
+    | "$classifier" "$shape_fixture" false name-status)"
+expect_value "$shape_result" review_required true
+expect_value "$shape_result" review_required_change_id retire-the-widget
 
 echo "classify-ci-paths tests passed"

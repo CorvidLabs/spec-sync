@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0159-identity-must-come-from-state-json-never-from-the-shape-of-a-name",
+  "implementation_commit": "688e189f0085f94f016078052f84e60c784243d4",
+  "implementation_tree": "62f11059247421f79f91937d7bcdd721251a2d95",
+  "contract_digest": "99dde3bf09b869e7fabff910f71e7faf2bca1e87ebb01960be88829cac23f145",
+  "workspace_digest": "ce595b181a4f281d2084a471b303fdad85f05df890a88cfc52137729ea3b89cd",
+  "closing_digest": "4421de66f1286375ebe914c70f461369f4b26b6b859109e4b1cd52ffa8832ca6",
+  "review_digest": "7efc8ce01c43d76c075931e6b23c78860b34870c849f1da38b086bdc5adbe9ad",
+  "finalization_digest": "f51d4ed7cda0fbe90fcbdb15ece5b70ed6ac70d7a6bde1a9cabc70516f21fe25",
+  "timestamp": 1787184726
+}

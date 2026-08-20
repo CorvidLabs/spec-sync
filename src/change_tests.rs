@@ -4673,6 +4673,167 @@ fn persisted_supersedes_cycle_fails_before_predecessor_manifest_use() {
     assert!(error.contains("succession cycle"), "{error}");
 }
 
+/// Two sorts over one list disagreed at five digits, and one of them fed a digest.
+///
+/// `validate_supersedes_edges` enforced a NUMERIC strict sort while `approved_scope` sorted the
+/// same edges lexicographically and hashed the result into `scope_digest`. Those agree only
+/// while every ordinal is four digits:
+///
+/// ```text
+/// numeric:        CHG-9999  <  CHG-10000
+/// lexicographic:  CHG-10000 <  CHG-9999
+/// ```
+///
+/// So at `CHG-10000` — a shape the CI harness already exercises — `approved_scope` emitted an
+/// order `validate_supersedes_edges` then rejected. Ordering succession by creation time rather
+/// than by the name settles it: everything is lexicographic now, and all three agree.
+#[test]
+fn supersedes_edges_sort_the_same_way_everywhere_at_five_digits() {
+    let obligation = |module: &str| SuccessionObligation {
+        path: format!("src/{module}.rs"),
+        module: module.into(),
+        predecessor_entry_digest: sha256_hex(b"entry"),
+    };
+    // Lexicographic order puts CHG-10000 first; numeric order puts CHG-9999 first.
+    let edges = vec![
+        SupersedesEdge {
+            predecessor_id: "CHG-10000-large-sequence".into(),
+            obligations: vec![obligation("auth")],
+        },
+        SupersedesEdge {
+            predecessor_id: "CHG-9999-earlier-ordinal".into(),
+            obligations: vec![obligation("billing")],
+        },
+    ];
+    let temp = TempDir::new().unwrap();
+    let mut record = completed_no_spec_record(temp.path());
+    record.supersedes = edges.clone();
+    record.affected_specs = vec!["auth".into(), "billing".into()];
+
+    validate_supersedes_edges(&record)
+        .expect("lexicographic order must be accepted by the strict-sort gate");
+
+    // And the reverse order must be refused, so the gate is a real sort check and not a
+    // check that happens to accept anything.
+    let mut reversed = record.clone();
+    reversed.supersedes.reverse();
+    assert!(
+        validate_supersedes_edges(&reversed).is_err(),
+        "the strict sort must still reject an out-of-order list"
+    );
+}
+
+/// A predecessor created after its successor is refused even when its name sorts first.
+///
+/// Exercised through `validate_supersedes_semantics`, not through the new helper, so it runs on
+/// both binaries and actually discriminates. The old guard compared `succession_change_key`,
+/// which sees only the ID: a predecessor named `CHG-0001-...` satisfied it regardless of when
+/// either change was created. Ordering by `created_at` is what makes "supersedes" mean
+/// "came after" instead of "has a smaller name".
+#[test]
+fn a_predecessor_created_after_its_successor_is_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let base = completed_no_spec_record(root);
+
+    // Sorts FIRST by name, created LAST in time.
+    let mut predecessor = ChangeRecord {
+        id: "CHG-0001-aaa-sorts-first".into(),
+        created_at: 2_000,
+        state: ChangeState::Accepted,
+        ..base.clone()
+    };
+    predecessor.supersedes.clear();
+    save_change(root, &predecessor).unwrap();
+
+    let successor = ChangeRecord {
+        id: "CHG-0002-bbb-sorts-second".into(),
+        created_at: 1_000,
+        supersedes: vec![SupersedesEdge {
+            predecessor_id: predecessor.id.clone(),
+            obligations: vec![SuccessionObligation {
+                path: "src/lib.rs".into(),
+                module: "change".into(),
+                predecessor_entry_digest: sha256_hex(b"entry"),
+            }],
+        }],
+        ..base.clone()
+    };
+
+    let error = validate_supersedes_semantics(root, &successor)
+        .expect_err("a predecessor created after its successor must be refused");
+    assert!(
+        error.contains("created before successor"),
+        "must refuse on creation order, not on some later gate: {error}"
+    );
+}
+
+/// Vacuity control: the ordinary case is accepted past the ordering guard on both binaries.
+///
+/// Same fixture with the timestamps the right way round. It must NOT fail on the ordering
+/// guard — proving the change did not simply make succession refuse everything.
+#[test]
+fn a_predecessor_created_before_its_successor_passes_the_ordering_guard() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let base = completed_no_spec_record(root);
+
+    let mut predecessor = ChangeRecord {
+        id: "CHG-0001-aaa-sorts-first".into(),
+        created_at: 1_000,
+        state: ChangeState::Accepted,
+        ..base.clone()
+    };
+    predecessor.supersedes.clear();
+    save_change(root, &predecessor).unwrap();
+
+    let successor = ChangeRecord {
+        id: "CHG-0002-bbb-sorts-second".into(),
+        created_at: 2_000,
+        supersedes: vec![SupersedesEdge {
+            predecessor_id: predecessor.id.clone(),
+            obligations: vec![SuccessionObligation {
+                path: "src/lib.rs".into(),
+                module: "change".into(),
+                predecessor_entry_digest: sha256_hex(b"entry"),
+            }],
+        }],
+        ..base.clone()
+    };
+
+    // It may still fail further along on manifest evidence — that is a different gate and not
+    // what this pins. It must not fail on ORDERING.
+    if let Err(error) = validate_supersedes_semantics(root, &successor) {
+        assert!(
+            !error.contains("created before successor") && !error.contains("must sort before"),
+            "the ordinary direction must clear the ordering guard: {error}"
+        );
+    }
+}
+
+/// Equal timestamps must still yield a strict total order, because callers enforce strict sorts.
+#[test]
+fn changes_created_in_the_same_second_are_still_strictly_ordered() {
+    let temp = TempDir::new().unwrap();
+    let base = completed_no_spec_record(temp.path());
+    let first = ChangeRecord {
+        id: "CHG-0001-alpha".into(),
+        created_at: 1_000,
+        ..base.clone()
+    };
+    let second = ChangeRecord {
+        id: "CHG-0002-beta".into(),
+        created_at: 1_000,
+        ..base.clone()
+    };
+    assert!(happens_after(&second, &first));
+    assert!(!happens_after(&first, &second));
+    assert!(
+        !happens_after(&first, &first),
+        "the relation is irreflexive"
+    );
+}
+
 #[test]
 fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry() {
     let temp = TempDir::new().unwrap();

@@ -1081,6 +1081,16 @@ Acceptance Criteria
 - A file read through a canonical-bytes round trip gains nothing from tolerance, because the unknown field is dropped on parse and the re-serialized bytes then differ from the bytes on disk. This limit is deliberate for the files that anchor history, and is pinned by a test rather than left to be discovered.
 - Every digest is unchanged, because tolerance at read time was never part of any preimage.
 
+### REQ-change-082
+
+Succession SHALL be ordered by when a change was created rather than by how it is named, and every ordering applied to a change's succession edges SHALL agree with the ordering that is signed.
+
+Acceptance Criteria
+- A superseded change that was created after its successor is refused whatever the two are called, because succession is a claim about what happened first and a name is not evidence of that.
+- Succession ordering does not read a number out of an identifier, so an identifier that carries no number cannot silently reduce the relation to alphabetical order.
+- Every sort applied to a change's succession edges produces the same order as the sort whose result is signed, so a canonical form cannot be rejected by the gate that validates it.
+- Changes created in the same second remain strictly ordered, because the surrounding gates enforce strict sorts and a tie would make a valid record unrepresentable.
+
 ### REQ-change-081
 
 A gate SHALL determine a change's identity from its persisted state rather than from the shape of a directory or file name, and a gate that cannot determine identity SHALL withhold the permission it grants rather than granting it.

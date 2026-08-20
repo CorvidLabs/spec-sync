@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "cover-the-integration-fixtures-the-ordinal-retirement-rewrote",
+  "slug": "cover-the-integration-fixtures-the-ordinal-retirement-rewrote",
+  "title": "Cover the integration fixtures the ordinal retirement rewrote",
+  "description": "cover the integration fixtures the ordinal retirement rewrote",
+  "kind": "operations",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "36041a548e31d6999df5a64df273a3e6da530b0c",
+  "created_at": 1787261041,
+  "updated_at": 1787261574,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/change.rs",
+    "tests/integration/comment.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Integration fixtures asserting the old CHG-NNNN identity shape; the behaviour they cover is specified by REQ-change-086, which the retirement change already added",
+  "acceptance_criteria": [
+    "The ordinal retirement rewrote assertions in tests/integration/change.rs and tests/integration/comment.rs that hard-coded the CHG-NNNN identity shape, but those two paths were not in its declared scope, so the workspace has meaningful changed paths no active change covers. Done when both files are covered by an accepted change and audit --strict is clean."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

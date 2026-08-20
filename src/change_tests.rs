@@ -3643,6 +3643,104 @@ fn legacy_archive_tombstones_without_lifecycle_state_are_skipped() {
 /// identity redesign: `list_all_changes_uncached` and `located_change_sequences` skipped a
 /// damaged archive instead of refusing it. The name never carried the meaning the check
 /// attributed to it.
+/// A description that slugifies to a Windows device name must not become that directory.
+///
+/// `slugify("NUL")` produced `"nul"`. Harmless while the directory was `CHG-0091-nul`, and
+/// fatal the moment the slug is the whole component: Windows cannot create or open a directory
+/// called `nul`, and it matches device names case-insensitively so lowercasing is no escape.
+#[test]
+fn a_description_that_slugifies_to_a_reserved_device_is_not_left_as_one() {
+    for reserved in ["NUL", "con", "AUX", "prn", "COM1", "lpt9"] {
+        let slug = slugify(reserved);
+        assert!(
+            !crate::commands::is_reserved_module_name(&slug),
+            "`{reserved}` slugified to the reserved name `{slug}`"
+        );
+        assert!(
+            slug.starts_with(&reserved.to_ascii_lowercase()),
+            "the transform must stay recognisable: {reserved} -> {slug}"
+        );
+    }
+    // `change` and `specs` are reserved for a different reason — they collide with the
+    // workspace layout — and the empty fallback used to be exactly `change`.
+    assert!(!crate::commands::is_reserved_module_name(&slugify("!!!")));
+    assert!(!crate::commands::is_reserved_module_name(&slugify(
+        "change"
+    )));
+}
+
+/// The cap bounds BYTES of output, not characters of input.
+///
+/// `take(80)` counted input characters, so runs of punctuation collapsed into single hyphens
+/// and a "capped" slug could finish well under 80 — 43 of this repository's 159 archived slugs
+/// land at exactly 80 for that reason. Bounding the output is what makes the cap actually
+/// bound the path component.
+#[test]
+fn the_slug_cap_bounds_the_directory_component_not_the_input() {
+    let long = "a".repeat(400);
+    assert!(
+        slugify(&long).len() <= MAX_SLUG_BYTES,
+        "a long single word must still fit the component budget"
+    );
+
+    // Punctuation-heavy input: many input characters, few output bytes. The old cap counted
+    // the former and so under-filled the slug.
+    let spaced = (0..200)
+        .map(|i| format!("w{i}"))
+        .collect::<Vec<_>>()
+        .join("   ---   ");
+    let slug = slugify(&spaced);
+    assert!(slug.len() <= MAX_SLUG_BYTES, "{} bytes", slug.len());
+    assert!(
+        slug.len() > 80,
+        "the cap must actually be larger than the old one here: {} bytes",
+        slug.len()
+    );
+}
+
+/// Truncation stops at a word boundary rather than mid-word.
+///
+/// 52 of this repository's 159 archived slugs end mid-word (`...preserved-audited-guara`).
+/// Trimming back to the last separator costs a handful of characters and is the whole
+/// readability fix — the cap itself buys nothing else, since slug uniqueness across those 159
+/// saturates at 50 bytes.
+///
+/// The exact expected value is asserted rather than a property, because a property like "every
+/// segment is a whole word" is satisfied by accident at the old 80-character cap: a shorter cut
+/// lands somewhere else and may happen to be clean. Pinning the string discriminates.
+#[test]
+fn a_truncated_slug_does_not_end_mid_word() {
+    let words = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike \
+                 november oscar papa quebec romeo sierra tango uniform victor whiskey";
+    let slug = slugify(words);
+    // The raw 120-byte cut would end `...sierra-ta`. The trim gives back the whole word.
+    assert_eq!(
+        slug,
+        "alpha-bravo-charlie-delta-echo-foxtrot-golf-hotel-india-juliet-kilo-lima-mike-november-oscar-papa-quebec-romeo-sierra"
+    );
+    assert!(slug.len() <= MAX_SLUG_BYTES, "{} bytes", slug.len());
+    let source: Vec<&str> = words.split_whitespace().collect();
+    for segment in slug.split('-') {
+        assert!(
+            source.contains(&segment),
+            "`{segment}` is a fragment, not a whole word: {slug}"
+        );
+    }
+}
+
+/// Vacuity control: an ordinary description is unchanged by all of the above.
+///
+/// Must produce the same slug on this binary and the one before it, so the change cannot be
+/// satisfied by mangling every slug.
+#[test]
+fn an_ordinary_description_slugifies_exactly_as_before() {
+    assert_eq!(
+        slugify("Identity must come from state.json, never from the shape of a name"),
+        "identity-must-come-from-state-json-never-from-the-shape-of-a-name"
+    );
+    assert_eq!(slugify("Add reversal"), "add-reversal");
+}
+
 #[test]
 fn an_undated_package_stripped_of_its_lifecycle_files_is_still_refused() {
     let temp = TempDir::new().unwrap();

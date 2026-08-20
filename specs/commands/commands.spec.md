@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 22
+version: 23
 status: stable
 files:
   - src/commands/mod.rs
@@ -44,6 +44,7 @@ suppression, exit handling, and GitHub drift diagnostics.
 | `load_and_discover` | `root: &Path, allow_empty: bool` | `(SpecSyncConfig, Vec<PathBuf>)` | Load config and discover all spec files (excluding `_`-prefixed); exits if empty and `allow_empty` is false |
 | `refuse_unloadable_config` | `config: &SpecSyncConfig` | `()` | Exit rather than report a verdict derived from a config file that exists but could not be loaded; applied once inside `load_and_discover` so no command can omit it |
 | `validate_module_name` | `module_name: &str` | `Result<(), String>` | Validate a user-supplied module name as one portable path segment: reject traversal/control/Windows-invalid characters, trailing spaces/dots, Windows reserved device basenames (including before extensions), and names whose `<name>.spec.md` filename exceeds 255 UTF-8 bytes |
+| `is_reserved_module_name` | `lower: &str` | `bool` | Whether a lowercased name cannot be a directory component on a supported platform: Windows device basenames (`con`, `prn`, `aux`, `nul`, `com1`-`com9`, `lpt1`-`lpt9`) plus names that collide with the workspace layout (`change`, `changes`, `spec`, `specs`). Shared with `change::slugify`, which mints directory names from free text; defined once so the two cannot disagree about whether a name is legal |
 | `filter_specs` | `root: &Path, spec_files: &[PathBuf], filters: &[String]` | `Vec<PathBuf>` | Filter spec files by user-provided names/paths (exact path, relative path, filename, module name); returns all if filters is empty |
 | `filter_by_status` | `spec_files: &[PathBuf], exclude: &[String], only: &[String]` | `Vec<PathBuf>` | Filter spec files by their frontmatter status field; supports exclude-list and allow-list modes |
 | `build_schema_columns` | `root: &Path, config: &SpecSyncConfig` | `HashMap<String, SchemaTable>` | Compatibility column-map wrapper; checked command validation uses one fallible snapshot internally |
@@ -209,3 +210,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-14 | CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
 | 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |
 | 2026-08-16 | CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without: A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked |
+| 2026-08-20 | CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship: A slug must be a legal directory name on every platform we ship |

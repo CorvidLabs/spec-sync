@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "eefad31bbf28b24aedd81041207842237ade3989",
+      "contract_digest": "33cdc23478a8ddf3eeb59bb5b0f63fac91649ddb98e0594a48d557dc21c699e4",
+      "execution_digest": "535d87fa8541b55eafabf8eaa0605d187bf1edf4f4a936aa0f4ae2b782906680",
+      "workspace_digest": "ccb856077c796ff6ae5de57d1e19ca6c4e7dfcae920baf97c0bc9835e8972497",
+      "timestamp": 1787196481
+    }
+  ]
+}

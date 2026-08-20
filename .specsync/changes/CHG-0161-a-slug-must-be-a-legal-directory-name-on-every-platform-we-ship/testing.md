@@ -26,4 +26,5 @@ discriminator, and is labelled as such rather than counted as one.
 
 | Requirement | Evidence |
 |-------------|----------|
+| REQ-commands-013 | `a_description_that_slugifies_to_a_reserved_device_is_not_left_as_one` calls `crate::commands::is_reserved_module_name` directly on `slugify`'s output, so the assertion is against the one shared definition rather than against a restated copy; if a second list were introduced the test would still pass against the wrong one, which is why the production code imports rather than duplicates |
 | REQ-change-083 | The cap test and the boundary test both fail against a separate checkout of `origin/main` and pass here, covering the two halves of "the cap must bound the component": counting the right thing, and cutting in the right place. The reserved-device test covers every name on the shared list plus the empty-input fallback. The control asserts an ordinary description is unchanged, so none of this was achieved by mangling slugs generally |

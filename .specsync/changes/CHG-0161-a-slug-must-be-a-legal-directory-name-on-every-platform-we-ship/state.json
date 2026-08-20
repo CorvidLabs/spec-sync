@@ -7,12 +7,14 @@
   "title": "A slug must be a legal directory name on every platform we ship",
   "description": "a slug must be a legal directory name on every platform we ship",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "ac17bfbc31fbc2a78062af02f3f97dddfdc0c7b5",
   "created_at": 1787191375,
-  "updated_at": 1787191738,
+  "updated_at": 1787193706,
   "affected_specs": [
-    "change"
+    "change",
+    "commands"
   ],
   "affected_paths": [
     "src/change.rs",

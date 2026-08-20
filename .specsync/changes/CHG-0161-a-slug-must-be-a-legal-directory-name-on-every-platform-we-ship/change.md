@@ -1,6 +1,6 @@
 ---
 id: CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship
-state: draft
+state: implementing
 type: bug_fix
 base_commit: ac17bfbc31fbc2a78062af02f3f97dddfdc0c7b5
 ---
@@ -14,6 +14,7 @@ a slug must be a legal directory name on every platform we ship
 ## Affected Canonical Specs
 
 - `change`
+- `commands`
 
 ## Acceptance Criteria
 

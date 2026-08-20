@@ -1,4 +1,40 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787192556,
+      "digest": "33cdc23478a8ddf3eeb59bb5b0f63fac91649ddb98e0594a48d557dc21c699e4",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship",
+        "title": "A slug must be a legal directory name on every platform we ship",
+        "description": "a slug must be a legal directory name on every platform we ship",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "commands"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/mod.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "slugify mints the directory name a change lives in, and three of its properties do not survive the slug becoming the whole path component. It caps at 80 INPUT characters rather than output bytes, so the cap does not actually bound the component and 43 of this repository's 159 archived slugs land at exactly 80 only because separator runs collapsed. It truncates mid-word, leaving 52 of 159 reading like preserved-audited-guara. And it can emit a Windows reserved device name: slugify of NUL is nul, which Windows cannot create or open and matches case-insensitively, while the empty-input fallback is literally change, itself reserved because it collides with the workspace layout. Done when: the cap bounds emitted bytes and is sized against Windows MAX_PATH rather than the looser 255-byte component limit; truncation stops at a word boundary; a description that slugifies to a reserved name does not become one; and an ordinary description slugifies exactly as it did before."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
   "reopenings": []
 }

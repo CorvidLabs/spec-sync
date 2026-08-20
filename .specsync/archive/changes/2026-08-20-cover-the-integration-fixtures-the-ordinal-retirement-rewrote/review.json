@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-integration-fixtures-the-ordinal-retirement-rewrote",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "1494ad26ac23a4557bf780852bcfd9a1d92777ec",
+  "contract_digest": "0cf4d39867ceb0a3b5b92b60e664b3f8f1d993932c4d6802647a5eaa5edb2d9e",
+  "execution_digest": "10610f7881c955fa134be3010ddad54b8568e21ebad4a3ff70edab79d31e8ddd",
+  "workspace_digest": "1c27e24dadb89748da0e47281111f3469c9546ca7d28c7b6ef69c8c81290606a",
+  "timestamp": 1787262080
+}

@@ -62,6 +62,63 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1787262075,
+      "commit": "1494ad26ac23a4557bf780852bcfd9a1d92777ec",
+      "contract_digest": "0cf4d39867ceb0a3b5b92b60e664b3f8f1d993932c4d6802647a5eaa5edb2d9e",
+      "execution_digest": "10610f7881c955fa134be3010ddad54b8568e21ebad4a3ff70edab79d31e8ddd",
+      "workspace_digest": "1c27e24dadb89748da0e47281111f3469c9546ca7d28c7b6ef69c8c81290606a",
+      "acceptance_input_digest": "46daa3da747244cf23e3d52b45412b646f1890446dfeb436376e23ea374fc7f6",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "tests/integration/change.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "803272e430a28c479de2ba95aff3f37a92ee19e1b0d852ebd66b1123cfe29cb2",
+            "entry_digest": "c7184fa7cada8a0dfaa548b483ddf73db7d001f9f3a6a049861751e08a8c9321",
+            "owners": [
+              "@exact:test"
+            ]
+          },
+          {
+            "path": "tests/integration/comment.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "12bad3937fcd1c806cac880d111b345cbbb01e3168a66cf72812ef2ecff25c67",
+            "entry_digest": "3dddc9e09325a7ec4ff5e356ccc0dccb828a664e6272687a3f72af8b808287d0",
+            "owners": [
+              "@exact:test"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

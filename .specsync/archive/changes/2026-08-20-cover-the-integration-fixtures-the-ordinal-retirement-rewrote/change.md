@@ -1,6 +1,6 @@
 ---
 id: cover-the-integration-fixtures-the-ordinal-retirement-rewrote
-state: implementing
+state: archived
 type: operations
 base_commit: 36041a548e31d6999df5a64df273a3e6da530b0c
 ---

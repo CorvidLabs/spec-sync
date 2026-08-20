@@ -203,7 +203,13 @@ pub fn validate_module_name(module_name: &str) -> Result<(), String> {
 /// Maximum module-name length.
 pub(crate) const MAX_MODULE_NAME_LEN: usize = 64;
 
-fn is_reserved_module_name(lower: &str) -> bool {
+/// Names that cannot be a directory component on a platform we ship for.
+///
+/// Shared with `change::slugify`, which mints directory names from free text and would
+/// otherwise produce `nul` from the description "NUL". Windows device names are matched
+/// case-insensitively by the OS, so a lowercase slug is not an escape. Reused rather than
+/// reimplemented — a second copy of this list is exactly how these drift apart.
+pub(crate) fn is_reserved_module_name(lower: &str) -> bool {
     const RESERVED: &[&str] = &[
         "change", "changes", "spec", "specs", "con", "prn", "aux", "nul", "com1", "com2", "com3",
         "com4", "com5", "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5",

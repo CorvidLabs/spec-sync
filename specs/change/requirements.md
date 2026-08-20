@@ -1081,6 +1081,16 @@ Acceptance Criteria
 - A file read through a canonical-bytes round trip gains nothing from tolerance, because the unknown field is dropped on parse and the re-serialized bytes then differ from the bytes on disk. This limit is deliberate for the files that anchor history, and is pinned by a test rather than left to be discovered.
 - Every digest is unchanged, because tolerance at read time was never part of any preimage.
 
+### REQ-change-083
+
+A minted change slug SHALL be a legal directory component on every platform SpecSync ships a binary for, and SHALL remain readable when the description is too long to keep.
+
+Acceptance Criteria
+- The length limit bounds the bytes of the name that reaches the filesystem rather than the characters of the description it came from, and is sized so the deepest path a change produces stays within the shortest maximum path length of any supported platform.
+- A name that must be shortened is cut at a word boundary rather than mid-word whenever a boundary is near enough for the result to stay legible, because the description is stored in full elsewhere and the directory name exists to be read.
+- A description that would reduce to a reserved directory name does not become one, including the name substituted when a description reduces to nothing.
+- A description that needs none of this produces exactly the name it produced before.
+
 ### REQ-change-082
 
 Succession SHALL be ordered by when a change was created rather than by how it is named, and every ordering applied to a change's succession edges SHALL agree with the ordering that is signed.

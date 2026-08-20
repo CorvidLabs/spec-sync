@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 160,
-  "id": "CHG-0160-succession-must-be-ordered-by-when-a-change-happened-not-by-how-it-is-named",
+  "sequence": 161,
+  "id": "CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship",
   "acknowledged_collisions": [
     {
       "sequence": 16,

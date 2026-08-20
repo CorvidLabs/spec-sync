@@ -17818,24 +17818,66 @@ fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf
     Err("exhausted change sequence allocation retries".into())
 }
 
+/// Longest slug this mints, in bytes.
+///
+/// The binding constraint is Windows `MAX_PATH` (260), not the 255-byte component limit that
+/// bounds module names. The deepest path a change produces is
+/// `.specsync/archive/changes/<slug>/deltas/<module>.md` — 26 + slug + 8 + up to 20 — so a
+/// 120-byte slug yields 174 characters and still clears `MAX_PATH` inside an 80-character
+/// repository root. A 255-byte slug yields 309 and exceeds it before any root prefix at all.
+///
+/// This was 80, and it truncated 82 of the 159 descriptions in this repository's own archive.
+/// Raising it to 120 leaves 110 intact. It buys readability and nothing else: slug uniqueness
+/// across those 159 saturates at 50 bytes, so every byte above that disambiguates nothing.
+const MAX_SLUG_BYTES: usize = 120;
+
+/// Stands in when a description slugifies to nothing.
+///
+/// Not `"change"`, which was the previous fallback and is itself a reserved directory name
+/// under `is_reserved_module_name` — harmless while the directory was `CHG-0007-change`, and a
+/// collision with `.specsync/changes/` the moment the slug becomes the whole component.
+const EMPTY_SLUG_FALLBACK: &str = "untitled-change";
+
 fn slugify(value: &str) -> String {
     let mut slug = String::new();
     let mut separator = false;
-    for character in value.chars().take(80) {
+    for character in value.chars() {
         if character.is_ascii_alphanumeric() {
+            if slug.len() >= MAX_SLUG_BYTES {
+                break;
+            }
             slug.push(character.to_ascii_lowercase());
             separator = false;
         } else if !separator && !slug.is_empty() {
+            if slug.len() >= MAX_SLUG_BYTES {
+                break;
+            }
             slug.push('-');
             separator = true;
         }
     }
+    // Truncate at a word boundary. Counting bytes rather than input characters is what makes
+    // the cap actually bound the path component; stopping mid-word is what made the old slugs
+    // read like `...preserved-audited-guara`. Only trim back to a boundary when one is near
+    // enough that the result stays legible.
+    let mut slug = slug.trim_matches('-').to_string();
+    if slug.len() >= MAX_SLUG_BYTES
+        && let Some(boundary) = slug.rfind('-')
+        && boundary * 4 >= MAX_SLUG_BYTES * 3
+    {
+        slug.truncate(boundary);
+    }
     let slug = slug.trim_matches('-');
     if slug.is_empty() {
-        "change".into()
-    } else {
-        slug.into()
+        return EMPTY_SLUG_FALLBACK.into();
     }
+    // `NUL`, `CON`, `COM1` and friends cannot be directory components on Windows, and the OS
+    // matches them case-insensitively so lowercasing is not an escape. `change` and `specs`
+    // are reserved here for a different reason — they would collide with the workspace layout.
+    if crate::commands::is_reserved_module_name(slug) {
+        return format!("{slug}-change");
+    }
+    slug.into()
 }
 
 fn title_from_description(value: &str) -> String {

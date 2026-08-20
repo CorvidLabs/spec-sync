@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0162-a-change-identity-must-be-validated-for-what-it-is-not-for-how-it-starts",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "a979acd6c39c59faffa001f865f3f3171a908bad",
+  "contract_digest": "a51cdc675ea8aac9c4b94f30be502686545693b8775e23277326c686095ed881",
+  "execution_digest": "5ea8cea0badd7f7fd1c43ee7e03846f770919df21c10c93d965a4142bc321ba4",
+  "workspace_digest": "239e3c0c205d03956c62f336e1e26e8dbc4b528545486f314f2119c293e09ff9",
+  "timestamp": 1787207383
+}

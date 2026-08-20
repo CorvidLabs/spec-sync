@@ -7,11 +7,11 @@
   "title": "A change identity must be validated for what it is, not for how it starts",
   "description": "a change identity must be validated for what it is, not for how it starts",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "c476cf9792366205db4e3cb7569079bc19d1012b",
   "created_at": 1787203570,
-  "updated_at": 1787207379,
+  "updated_at": 1787207392,
   "affected_specs": [
     "change"
   ],

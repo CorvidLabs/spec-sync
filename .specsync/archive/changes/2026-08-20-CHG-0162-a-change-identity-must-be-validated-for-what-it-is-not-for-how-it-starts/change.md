@@ -1,6 +1,6 @@
 ---
 id: CHG-0162-a-change-identity-must-be-validated-for-what-it-is-not-for-how-it-starts
-state: implementing
+state: archived
 type: bug_fix
 base_commit: c476cf9792366205db4e3cb7569079bc19d1012b
 ---

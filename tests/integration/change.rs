@@ -299,7 +299,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
         };
     for environment in ["local", "ci", "github"] {
         assert_surfaces(
-            "run `specsync change review CHG-0001-harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
+            "run `specsync change review harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
             Some(true),
             environment,
         );
@@ -313,7 +313,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
     git(&["commit", "-m", "change governed input"]);
     for environment in ["local", "ci", "github"] {
         assert_surfaces(
-            "run `specsync change check CHG-0001-harden-verification-freshness`",
+            "run `specsync change check harden-verification-freshness`",
             None,
             environment,
         );
@@ -324,7 +324,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
         .success();
     for environment in ["local", "ci", "github"] {
         assert_surfaces(
-            "run `specsync change review CHG-0001-harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
+            "run `specsync change review harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
             None,
             environment,
         );
@@ -354,11 +354,11 @@ fn change_new_json_returns_state_and_interview() {
         .clone();
     let value: Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["change"]["state"], "draft");
-    assert_eq!(value["change"]["id"], "CHG-0001-add-passkeys");
+    assert_eq!(value["change"]["id"], "add-passkeys");
     assert!(value["questions"].as_array().unwrap().len() >= 3);
     assert!(
         temp.path()
-            .join(".specsync/changes/CHG-0001-add-passkeys/change.md")
+            .join(".specsync/changes/add-passkeys/change.md")
             .is_file()
     );
 }
@@ -933,7 +933,7 @@ fn workflow_v2_cannot_downgrade_by_omitting_workflow_version() {
         ])
         .assert()
         .success();
-    let id = "CHG-0001-update-contributor-documentation";
+    let id = "update-contributor-documentation";
     specsync()
         .args(["--root", root.to_str().unwrap(), "change", "accept", id])
         .assert()
@@ -1005,7 +1005,7 @@ fn first_reachable_workflow_v1_state_requires_the_trusted_pre_v2_cutoff() {
         ])
         .assert()
         .success();
-    let id = "CHG-0001-update-contributor-documentation";
+    let id = "update-contributor-documentation";
     let state_path = root.join(".specsync/changes").join(id).join("state.json");
     let mut legacy_state: Value =
         serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
@@ -1112,7 +1112,7 @@ fn change_supersede_persists_an_exact_predecessor_obligation_through_the_cli() {
         ])
         .assert()
         .success();
-    let predecessor = "CHG-0001-govern-authentication";
+    let predecessor = "govern-authentication";
     for (question, answer) in [
         ("acceptance_criteria", "Authentication remains governed"),
         ("public_contract", "yes"),
@@ -1194,7 +1194,7 @@ fn change_supersede_persists_an_exact_predecessor_obligation_through_the_cli() {
         ])
         .assert()
         .success();
-    let successor = "CHG-0002-evolve-authentication";
+    let successor = "evolve-authentication";
     let output = specsync()
         .args([
             "--root",
@@ -1358,7 +1358,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
         ])
         .assert()
         .success();
-    let id = "CHG-0001-update-review-instructions";
+    let id = "update-review-instructions";
     for (question, answer) in [
         (
             "acceptance_criteria",
@@ -1424,7 +1424,7 @@ fn stale_accepted_change_reopens_through_cli_with_deterministic_audit_json() {
             "accepted change verification is stale for current delivery inputs",
         ))
         .stderr(predicate::str::contains(
-            "exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen CHG-0001-update-review-instructions` to re-verify the accepted change",
+            "exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen update-review-instructions` to re-verify the accepted change",
         ));
     let output = specsync()
         .args([
@@ -1915,7 +1915,7 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
         ])
         .assert()
         .success();
-    let id = "CHG-0001-correct-lifecycle-classification";
+    let id = "correct-lifecycle-classification";
     for (question, answer) in [
         ("acceptance_criteria", "Correction evidence is inspectable"),
         ("public_contract", "no"),
@@ -2032,7 +2032,7 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
     );
     assert_eq!(
         show["summary"]["next_action"],
-        "run `specsync change approve CHG-0001-correct-lifecycle-classification --actor <name>`"
+        "run `specsync change approve correct-lifecycle-classification --actor <name>`"
     );
 
     specsync()
@@ -2191,11 +2191,11 @@ fn indirect_recursive_lifecycle_subcommands_fail_once_with_context() {
 fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let workspace = root.join(".specsync/changes/CHG-0001-adopt-trust");
+    let workspace = root.join(".specsync/changes/adopt-trust");
     fs::create_dir_all(&workspace).unwrap();
     let reopening = serde_json::json!({
         "schema_version": 1,
-        "change_id": "CHG-0001-adopt-trust",
+        "change_id": "adopt-trust",
         "actor": "0xLeif",
         "reason": "5.0.1-era reopen",
         "timestamp": 100,

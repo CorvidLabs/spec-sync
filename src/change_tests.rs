@@ -136,12 +136,65 @@ fn ensure_auth_spec_owns_its_source(root: &Path) {
         .unwrap();
 }
 
+/// A description no change in `root` has already taken.
+///
+/// While IDs carried a `CHG-NNNN-` prefix, two fixture changes could share one description
+/// and still land on distinct IDs. The ID is now the description slugified, so a fixture that
+/// builds two changes has to describe them differently — which is what a human would always
+/// have had to do. That six shared-fixture tests relied on the collision being papered over is
+/// the corpus's own evidence for refusing duplicates rather than suffixing them.
+fn distinct_fixture_description(root: &Path, base: &str) -> String {
+    let mut candidate = base.to_string();
+    let mut suffix = 1;
+    while find_change_dir(root, &slugify(&candidate)).is_ok() {
+        suffix += 1;
+        candidate = format!("{base} {suffix}");
+    }
+    candidate
+}
+
+/// Re-identify a freshly created change under a historical `CHG-NNNN-` ID.
+///
+/// `create_change` no longer mints ordinals, but the sequence-ledger machinery exists purely
+/// to read a corpus that is full of them, so its tests must still be able to build an
+/// ordinal-bearing record. They build one the way the archive has one: a directory name and a
+/// `state.json` that carry the ID. This is a rename, not a lifecycle verb — nothing in
+/// production can produce an ordinal any more.
+fn reidentify_as_ordinal(root: &Path, record: &ChangeRecord, id: &str) -> ChangeRecord {
+    let mut renamed = record.clone();
+    let dir = change_dir(root, id);
+    fs::rename(change_dir(root, &record.id), &dir).unwrap();
+    renamed.slug = id
+        .strip_prefix("CHG-")
+        .and_then(|rest| rest.split_once('-'))
+        .map(|(_, slug)| slug.to_string())
+        .unwrap_or_else(|| id.to_string());
+    renamed.id = id.to_string();
+    // Artifact and delta front matter names the change, so the rename has to reach it too.
+    let mut stack = vec![dir.clone()];
+    while let Some(current) = stack.pop() {
+        for entry in fs::read_dir(&current).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "md")
+                && let Ok(body) = fs::read_to_string(&path)
+                && body.contains(&record.id)
+            {
+                fs::write(&path, body.replace(&record.id, id)).unwrap();
+            }
+        }
+    }
+    save_change(root, &renamed).unwrap();
+    renamed
+}
+
 fn completed_record_with_workflow(root: &Path, legacy: bool) -> ChangeRecord {
     ensure_test_verification_policy(root);
     let mut record = create_change(
         root,
         CreateChangeRequest {
-            description: "add passkeys".into(),
+            description: distinct_fixture_description(root, "add passkeys"),
             kind: ChangeKind::Feature,
             affected_specs: vec!["auth".into()],
             affected_paths: vec!["src/auth.rs".into()],
@@ -188,7 +241,7 @@ fn completed_no_spec_record_with_workflow(root: &Path, legacy: bool) -> ChangeRe
     let mut record = create_change(
         root,
         CreateChangeRequest {
-            description: "harden verification".into(),
+            description: distinct_fixture_description(root, "harden verification"),
             kind: ChangeKind::BugFix,
             affected_specs: vec!["change".into()],
             affected_paths: vec!["src/".into()],
@@ -3504,7 +3557,7 @@ fn invalid_supersedes_mutation_is_transactional() {
             "## MODIFIED\n### SPEC SECTION Invariants\n\nPredecessor.\n",
         ),
     );
-    let successor = create_change(
+    let mut successor = create_change(
         root,
         CreateChangeRequest {
             description: "Successor".into(),
@@ -5309,7 +5362,7 @@ fn legacy_reconstruction_deduplicates_identical_transitions_but_rejects_distinct
 }
 
 #[test]
-fn change_ids_are_sequential_and_readable() {
+fn change_ids_are_the_description_slugified_and_a_taken_name_is_refused() {
     let temp = TempDir::new().unwrap();
     let first = create_change(
         temp.path(),
@@ -5337,8 +5390,51 @@ fn change_ids_are_sequential_and_readable() {
         },
     )
     .unwrap();
-    assert_eq!(first.id, "CHG-0001-add-passkeys");
-    assert_eq!(second.id, "CHG-0002-fix-login");
+    assert_eq!(first.id, "add-passkeys");
+    assert_eq!(second.id, "fix-login");
+    // The ordinal was what made two identical descriptions produce two IDs. Without it a
+    // repeated description is a repeated identity, and the refusal names the existing change
+    // rather than minting a near-twin the author would have to tell apart by a trailing digit.
+    let taken = create_change(
+        temp.path(),
+        CreateChangeRequest {
+            description: "Add passkeys".into(),
+            kind: ChangeKind::Feature,
+            affected_specs: vec![],
+            affected_paths: vec![],
+            requested_artifacts: vec![],
+            no_spec_change: true,
+            rationale: Some("test".into()),
+        },
+    )
+    .unwrap_err();
+    assert!(
+        taken.contains("a change named `add-passkeys` already exists"),
+        "got: {taken}"
+    );
+    assert!(
+        taken.contains(".specsync/changes/add-passkeys"),
+        "got: {taken}"
+    );
+    // A description with nothing to slugify would otherwise land every non-Latin description
+    // in a repository on one shared fallback ID, of which only the first could ever be created.
+    let unslugifiable = create_change(
+        temp.path(),
+        CreateChangeRequest {
+            description: "缓存必须在写入前失效".into(),
+            kind: ChangeKind::Feature,
+            affected_specs: vec![],
+            affected_paths: vec![],
+            requested_artifacts: vec![],
+            no_spec_change: true,
+            rationale: Some("test".into()),
+        },
+    )
+    .unwrap_err();
+    assert!(
+        unslugifiable.contains("no ASCII letters or digits"),
+        "got: {unslugifiable}"
+    );
 }
 
 #[test]
@@ -5471,6 +5567,9 @@ fn sequence_ledger_rejects_unacknowledged_active_and_archived_collisions() {
         },
     )
     .unwrap();
+    // Ordinals are no longer minted, so a fixture that needs one builds it the way the
+    // archive carries one — the machinery under test exists only to read such records.
+    let first = reidentify_as_ordinal(root, &first, "CHG-0001-first-claim");
     let mut archived = first.clone();
     archived.id = "CHG-0001-archived-claim".into();
     archived.slug = "archived-claim".into();
@@ -5493,7 +5592,7 @@ fn sequence_ledger_rejects_unacknowledged_active_and_archived_collisions() {
 fn exact_historical_collision_baseline_preserves_immutable_records() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut first = create_change(
+    let first = create_change(
         root,
         CreateChangeRequest {
             description: "First claim".into(),
@@ -5506,6 +5605,7 @@ fn exact_historical_collision_baseline_preserves_immutable_records() {
         },
     )
     .unwrap();
+    let mut first = reidentify_as_ordinal(root, &first, "CHG-0001-first-claim");
     first.state = ChangeState::Accepted;
     save_change(root, &first).unwrap();
     let mut second = first.clone();
@@ -5557,6 +5657,7 @@ fn acknowledged_collision_rejects_mutable_active_records() {
         },
     )
     .unwrap();
+    let first = reidentify_as_ordinal(root, &first, "CHG-0001-first-mutable-claim");
     let mut second = first.clone();
     second.id = "CHG-0001-second-mutable-claim".into();
     second.slug = "second-mutable-claim".into();
@@ -5610,6 +5711,7 @@ fn acknowledged_collision_allows_only_valid_audited_reopen_history() {
     git(&["config", "user.name", "Test"]);
     write_default_policy(root, Vec::new()).unwrap();
     let mut record = completed_no_spec_record(root);
+    record = reidentify_as_ordinal(root, &record, "CHG-0001-harden-verification");
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
@@ -5677,22 +5779,18 @@ fn change_sequences_allow_more_than_four_digits() {
     assert_eq!(change_sequence("CHG-abcd-malformed"), None);
     assert_eq!(change_sequence("CHG-09999-noncanonical-width"), None);
     assert_eq!(change_sequence("CHG-18446744073709551616-overflow"), None);
-    assert!(change_id_sorts_after(
-        "CHG-10000-first-five-digit",
-        "CHG-9999-last-four-digit"
-    ));
-    assert!(change_id_sorts_after(
-        "CHG-9999-second-collision",
-        "CHG-9999-first-collision"
-    ));
-    assert!(!change_id_sorts_after(
-        "CHG-09999-noncanonical-width",
-        "CHG-9999-last-four-digit"
-    ));
-    assert!(!change_id_sorts_after(
-        "CHG-10000-first-five-digit",
-        "not-a-change-id"
-    ));
+    // `change_id_sorts_after` used to be asserted here. It was `#[cfg(test)]`, and its only
+    // caller was another `#[cfg(test)]` helper: a fossil of the ordinal successor ordering that
+    // CHG-0160 replaced with `happens_after` on `(created_at, id)`. Parsing width still has to
+    // fail closed, which the `change_sequence` assertions above cover.
+    assert_eq!(
+        located_change_ordinal("CHG-9999-last-four-digit").unwrap(),
+        Some(9999)
+    );
+    assert_eq!(located_change_ordinal("a-slug-only-change").unwrap(), None);
+    assert_eq!(located_change_ordinal("CHG-abcd-malformed").unwrap(), None);
+    assert!(located_change_ordinal("CHG-09999-noncanonical-width").is_err());
+    assert!(located_change_ordinal("CHG-123-too-short").is_err());
 }
 
 #[test]
@@ -7777,79 +7875,6 @@ fn a_sequence_ledger_equal_to_the_committed_mark_is_not_reported() {
 }
 
 #[test]
-fn maximum_observed_sequence_floors_on_remote_ledger() {
-    let temp = TempDir::new().unwrap();
-    let root = temp.path();
-    let git = |args: &[&str]| {
-        assert!(
-            Command::new("git")
-                .args(args)
-                .current_dir(root)
-                .status()
-                .unwrap()
-                .success()
-        );
-    };
-    git(&["init", "-b", "main"]);
-    git(&["config", "user.email", "test@example.com"]);
-    git(&["config", "user.name", "Test"]);
-    fs::create_dir_all(root.join(".specsync")).unwrap();
-    let ledger = ChangeSequenceLedger {
-        schema_version: 1,
-        sequence: 42,
-        id: "CHG-0042-remote-high-water".into(),
-        acknowledged_collisions: Vec::new(),
-    };
-    fs::write(
-        root.join(SEQUENCE_PATH),
-        serde_json::to_string_pretty(&ledger).unwrap(),
-    )
-    .unwrap();
-    fs::write(root.join("README.md"), "base\n").unwrap();
-    git(&["add", "."]);
-    git(&["commit", "-m", "base with remote ledger"]);
-    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
-    git(&[
-        "symbolic-ref",
-        "refs/remotes/origin/HEAD",
-        "refs/remotes/origin/main",
-    ]);
-    // Local working tree has no active changes and a stale/low ledger deleted.
-    fs::remove_file(root.join(SEQUENCE_PATH)).unwrap();
-    assert_eq!(maximum_observed_sequence(root).unwrap(), 42);
-    assert_eq!(next_change_id(root, "feature").unwrap(), "CHG-0043-feature");
-}
-
-#[test]
-fn sequence_base_env_raises_high_water() {
-    let temp = TempDir::new().unwrap();
-    let root = temp.path();
-    fs::create_dir_all(root.join(CHANGES_PATH)).unwrap();
-    // SAFETY: single-threaded test; env is restored before the test ends.
-    unsafe {
-        std::env::set_var("SPECSYNC_SEQUENCE_BASE", "200");
-    }
-    let maximum = maximum_observed_sequence(root).unwrap();
-    unsafe {
-        std::env::remove_var("SPECSYNC_SEQUENCE_BASE");
-    }
-    assert_eq!(maximum, 199);
-    assert_eq!(
-        {
-            unsafe {
-                std::env::set_var("SPECSYNC_SEQUENCE_BASE", "200");
-            }
-            let id = next_change_id(root, "agent-b").unwrap();
-            unsafe {
-                std::env::remove_var("SPECSYNC_SEQUENCE_BASE");
-            }
-            id
-        },
-        "CHG-0200-agent-b"
-    );
-}
-
-#[test]
 fn definition_digest_caps_canonical_bytes_not_larger_checkout_bytes() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
@@ -8219,6 +8244,11 @@ fn approved_change_does_not_cover_delivery_paths_until_started() {
     git(&["add", "src/lib.rs"]);
     git(&["commit", "-m", "feature"]);
     let mut record = completed_record(root);
+    // The ledger used to appear in the working tree because `change new` wrote it. Nothing
+    // writes it now, so the fixture puts it there: the subject of this test is a *changed*
+    // protected path that an approved change scopes, and it needs one to be changed.
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(SEQUENCE_PATH), "{}\n").unwrap();
     record.affected_paths = vec!["src/".into(), SEQUENCE_PATH.into(), POLICY_PATH.into()];
     record.state = ChangeState::Approved;
     assert_eq!(
@@ -11465,8 +11495,16 @@ fn generated_sequence_scope_does_not_suppress_delivery_scope_question() {
             .any(|question| question.id == "affected_paths")
     );
     let answered = answer_question(root, &record.id, "affected_paths", "src/lib.rs").unwrap();
-    assert!(answered.affected_paths.contains(&"src/lib.rs".into()));
-    assert!(answered.affected_paths.contains(&SEQUENCE_PATH.into()));
+    assert_eq!(answered.affected_paths, vec!["src/lib.rs".to_string()]);
+    // The interview records exactly what the author said. It used to append the generated
+    // sequence-ledger claim, which made every change sign an `@exact:delivery` obligation on a
+    // file it never touched — and made a change scoped only to the ledger unable to leave the
+    // interview, because the delivery-scope question filtered that one path back out.
+    assert!(
+        !next_questions(&answered)
+            .iter()
+            .any(|question| question.id == "affected_paths")
+    );
 }
 
 // Verifies REQ-change-031.
@@ -11526,7 +11564,7 @@ fn interview_preserves_prose_and_requires_explicit_multiple_criteria() {
             .affected_paths
             .contains(&"tests/integration/change.rs".into())
     );
-    assert!(answered.affected_paths.contains(&SEQUENCE_PATH.into()));
+    assert!(!answered.affected_paths.contains(&SEQUENCE_PATH.into()));
 }
 
 // Verifies REQ-change-030.
@@ -12305,7 +12343,11 @@ fn later_sequence_claim_reuses_the_committed_collision_owner_ledger() {
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
 
-    let mut first = completed_no_spec_record(root);
+    let mut first = reidentify_as_ordinal(
+        root,
+        &completed_no_spec_record(root),
+        "CHG-0001-first-collision-member",
+    );
     first.state = ChangeState::Accepted;
     save_change(root, &first).unwrap();
     let mut collision_owner = first.clone();
@@ -12362,10 +12404,27 @@ fn later_sequence_claim_reuses_the_committed_collision_owner_ledger() {
 fn valid_later_sequence_claim_preserves_historical_acceptance_input() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut record = current_workflow_record(root, completed_no_spec_record(root));
+    let record = reidentify_as_ordinal(
+        root,
+        &completed_no_spec_record(root),
+        "CHG-0001-earlier-owner",
+    );
+    let mut record = current_workflow_record(root, record);
     record.state = ChangeState::Implementing;
     record.affected_paths = vec![".specsync".into()];
     save_change(root, &record).unwrap();
+    // The ledger this test is about is no longer written by `change new`, so the fixture
+    // writes the earlier owner's claim itself, exactly as the archived corpus carries it.
+    write_json(
+        &root.join(SEQUENCE_PATH),
+        &ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: 1,
+            id: record.id.clone(),
+            acknowledged_collisions: Vec::new(),
+        },
+    )
+    .unwrap();
     let first_workspace = project_input_digest(root).unwrap();
     let first_acceptance = acceptance_input_digest(root, &record, &[]).unwrap();
 
@@ -12379,6 +12438,17 @@ fn valid_later_sequence_claim_preserves_historical_acceptance_input() {
             requested_artifacts: Vec::new(),
             no_spec_change: true,
             rationale: Some("fixture".into()),
+        },
+    )
+    .unwrap();
+    let successor = reidentify_as_ordinal(root, &successor, "CHG-0002-later-sequence-owner");
+    write_json(
+        &root.join(SEQUENCE_PATH),
+        &ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: 2,
+            id: successor.id.clone(),
+            acknowledged_collisions: Vec::new(),
         },
     )
     .unwrap();
@@ -12396,13 +12466,27 @@ fn valid_later_sequence_claim_preserves_historical_acceptance_input() {
 fn later_collision_acknowledgements_do_not_stale_earlier_sequence_evidence() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut predecessor = completed_no_spec_current_record(root);
+    let mut predecessor = reidentify_as_ordinal(
+        root,
+        &completed_no_spec_current_record(root),
+        "CHG-0001-earlier-evidence",
+    );
     predecessor.state = ChangeState::Implementing;
     predecessor.affected_paths = vec![SEQUENCE_PATH.into()];
     save_change(root, &predecessor).unwrap();
+    write_json(
+        &root.join(SEQUENCE_PATH),
+        &ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: 1,
+            id: predecessor.id.clone(),
+            acknowledged_collisions: Vec::new(),
+        },
+    )
+    .unwrap();
     let before = acceptance_input_digest(root, &predecessor, &[]).unwrap();
 
-    let mut successor = create_change(
+    let successor = create_change(
         root,
         CreateChangeRequest {
             description: "Later sequence owner".into(),
@@ -12415,6 +12499,7 @@ fn later_collision_acknowledgements_do_not_stale_earlier_sequence_evidence() {
         },
     )
     .unwrap();
+    let mut successor = reidentify_as_ordinal(root, &successor, "CHG-0002-later-sequence-owner");
     successor.state = ChangeState::Accepted;
     save_change(root, &successor).unwrap();
     let mut duplicate = successor.clone();
@@ -12469,7 +12554,37 @@ fn accepted_later_sequence_owner_covers_post_acceptance_collision_acknowledgemen
     legacy_policy.version = 1;
     write_json(&root.join(POLICY_PATH), &legacy_policy).unwrap();
 
-    let mut predecessor = completed_no_spec_record(root);
+    // `change new` used to write this file and add it to the change's own scope. Nothing
+    // writes it now, so the fixture plays the allocator: it scopes the ledger into each
+    // record and advances the claim at the point the allocator used to, which is what makes
+    // an earlier accepted record's exact ledger evidence go stale and need covering.
+    let claim = |sequence: u64, id: &str, acknowledged: Vec<ChangeSequenceCollision>| {
+        write_json(
+            &root.join(SEQUENCE_PATH),
+            &ChangeSequenceLedger {
+                schema_version: 1,
+                sequence,
+                id: id.to_string(),
+                acknowledged_collisions: acknowledged,
+            },
+        )
+        .unwrap();
+    };
+    let scope_ledger = |record: &ChangeRecord| {
+        let mut scoped = record.clone();
+        scoped.affected_paths.push(SEQUENCE_PATH.into());
+        scoped.affected_paths.sort();
+        scoped.affected_paths.dedup();
+        save_change(root, &scoped).unwrap();
+        scoped
+    };
+
+    let mut predecessor = scope_ledger(&reidentify_as_ordinal(
+        root,
+        &completed_no_spec_record(root),
+        "CHG-0001-predecessor",
+    ));
+    claim(1, &predecessor.id, Vec::new());
     git(&["add", "."]);
     git(&["commit", "-m", "base predecessor"]);
     predecessor = approve_definition(root, &predecessor.id, Some("Reviewer".into()), None).unwrap();
@@ -12480,7 +12595,12 @@ fn accepted_later_sequence_owner_covers_post_acceptance_collision_acknowledgemen
     git(&["commit", "-m", "accept predecessor"]);
     git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
 
-    let mut intermediate = completed_no_spec_record(root);
+    let mut intermediate = scope_ledger(&reidentify_as_ordinal(
+        root,
+        &completed_no_spec_record(root),
+        "CHG-0002-intermediate",
+    ));
+    claim(2, &intermediate.id, Vec::new());
     intermediate =
         approve_definition(root, &intermediate.id, Some("Reviewer".into()), None).unwrap();
     intermediate = start_implementation(root, &intermediate.id).unwrap();
@@ -12497,18 +12617,15 @@ fn accepted_later_sequence_owner_covers_post_acceptance_collision_acknowledgemen
     save_change(root, &duplicate).unwrap();
     let mut ids = vec![predecessor.id.clone(), duplicate.id];
     ids.sort();
-    write_json(
-        &root.join(SEQUENCE_PATH),
-        &ChangeSequenceLedger {
-            schema_version: 1,
-            sequence: 2,
-            id: intermediate.id.clone(),
-            acknowledged_collisions: vec![ChangeSequenceCollision { sequence: 1, ids }],
-        },
-    )
-    .unwrap();
+    let acknowledged = vec![ChangeSequenceCollision { sequence: 1, ids }];
+    claim(2, &intermediate.id, acknowledged.clone());
 
-    let mut owner = completed_no_spec_record(root);
+    let mut owner = scope_ledger(&reidentify_as_ordinal(
+        root,
+        &completed_no_spec_record(root),
+        "CHG-0003-ledger-owner",
+    ));
+    claim(3, &owner.id, acknowledged);
     owner = approve_definition(root, &owner.id, Some("Reviewer".into()), None).unwrap();
     owner = start_implementation(root, &owner.id).unwrap();
     verify_change(root, &owner.id).unwrap();
@@ -12555,10 +12672,24 @@ fn accepted_later_sequence_owner_covers_post_acceptance_collision_acknowledgemen
 fn current_sequence_owner_binds_exact_ledger_content() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut record = completed_no_spec_record(root);
+    let mut record = reidentify_as_ordinal(
+        root,
+        &completed_no_spec_record(root),
+        "CHG-0001-ledger-owner",
+    );
     record.state = ChangeState::Implementing;
     record.affected_paths = vec![".specsync".into()];
     save_change(root, &record).unwrap();
+    write_json(
+        &root.join(SEQUENCE_PATH),
+        &ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: 1,
+            id: record.id.clone(),
+            acknowledged_collisions: Vec::new(),
+        },
+    )
+    .unwrap();
     let canonical = acceptance_input_digest(root, &record, &[]).unwrap();
     let ledger = load_change_sequence_ledger(root).unwrap().unwrap();
     fs::write(
@@ -12578,7 +12709,11 @@ fn current_sequence_owner_binds_exact_ledger_content() {
 fn invalid_later_sequence_claim_cannot_replace_historical_ledger_input() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let mut record = completed_no_spec_record(root);
+    let mut record = reidentify_as_ordinal(
+        root,
+        &completed_no_spec_record(root),
+        "CHG-0001-ledger-owner",
+    );
     record.state = ChangeState::Implementing;
     record.affected_paths = vec![".specsync".into()];
     save_change(root, &record).unwrap();
@@ -14325,4 +14460,293 @@ fn an_archived_package_is_authenticated_only_by_where_its_evidence_entered_histo
         "an archived package must be authenticated only by where its evidence entered history:\n{}",
         failures.join("\n")
     );
+}
+
+#[test]
+fn p5_corpus_census() {
+    let Ok(root) = std::env::var("P5_ROOT") else {
+        return;
+    };
+    let root = std::path::Path::new(&root);
+    let _scope = ensure_change_read_scope(root);
+    let records = list_all_changes_uncached(root).expect("load all records");
+    let mut integ = Vec::new();
+    let mut cache = ArchivedIntegrityCache::default();
+    let mut n = 0;
+    for record in records
+        .values()
+        .filter(|r| r.state == ChangeState::Archived)
+    {
+        n += 1;
+        match validate_archived_integrity_with_cache(root, record, &mut cache) {
+            Ok(()) => integ.push(format!("INTEGRITY_OK {}", record.id)),
+            Err(e) => integ.push(format!("INTEGRITY_ERR {} :: {}", record.id, e)),
+        }
+    }
+    // Reconciliation census: recompute the SEQUENCE_PATH manifest entry each archive signed.
+    let live = std::fs::read(root.join(SEQUENCE_PATH)).ok();
+    let mut seq = Vec::new();
+    for record in records.values() {
+        let dir = find_change_dir(root, &record.id).expect("dir");
+        let vpath = dir.join("verification.json");
+        let Ok(raw) = std::fs::read_to_string(&vpath) else {
+            continue;
+        };
+        let v: serde_json::Value = serde_json::from_str(&raw).expect("verification json");
+        let Some(entries) = v
+            .pointer("/acceptance_manifest/entries")
+            .and_then(|e| e.as_array())
+        else {
+            seq.push(format!("NOMANIFEST {}", record.id));
+            continue;
+        };
+        let Some(signed) = entries
+            .iter()
+            .find(|e| e.get("path").and_then(|p| p.as_str()) == Some(SEQUENCE_PATH))
+        else {
+            seq.push(format!("NOSEQENTRY {}", record.id));
+            continue;
+        };
+        let signed_digest = signed
+            .get("payload_digest")
+            .and_then(|d| d.as_str())
+            .unwrap_or("")
+            .to_string();
+        match historical_sequence_ledger_acceptance_content(root, record) {
+            Err(e) => seq.push(format!("RECON_ERR {} :: {}", record.id, e)),
+            Ok(Some(bytes)) => {
+                let d = sha256_hex(&bytes);
+                if d == signed_digest {
+                    seq.push(format!("RECONSTRUCTED {}", record.id));
+                } else {
+                    seq.push(format!("MISMATCH_RECON {}", record.id));
+                }
+            }
+            Ok(None) => {
+                let d = live.as_ref().map(|b| sha256_hex(b)).unwrap_or_default();
+                if d == signed_digest {
+                    seq.push(format!("LIVE_BYTES {}", record.id));
+                } else {
+                    seq.push(format!("MISMATCH_LIVE {}", record.id));
+                }
+            }
+        }
+    }
+    integ.sort();
+    seq.sort();
+    let mut out = String::new();
+    for l in &integ {
+        out.push_str(l);
+        out.push('\n');
+    }
+    for l in &seq {
+        out.push_str(l);
+        out.push('\n');
+    }
+    out.push_str(&format!("SUMMARY archived={} seq_lines={}\n", n, seq.len()));
+    std::fs::write(std::env::var("P5_OUT").unwrap(), out).unwrap();
+}
+
+/// A minimal located record: what the archive carries, without any lifecycle verb.
+#[cfg(test)]
+fn write_located_fixture(root: &Path, dir: &Path, id: &str, state: ChangeState) {
+    let record = ChangeRecord {
+        schema_version: 1,
+        workflow_version: 1,
+        workflow_origin_version: Some(1),
+        id: id.to_string(),
+        slug: id.to_string(),
+        title: id.to_string(),
+        description: id.to_string(),
+        kind: ChangeKind::Operations,
+        state,
+        canonical_applied: false,
+        correction_count: 0,
+        base_commit: None,
+        created_at: 1_752_364_800,
+        updated_at: 1_752_364_800,
+        affected_specs: Vec::new(),
+        affected_paths: vec!["ops/fixture".into()],
+        no_spec_change: true,
+        no_spec_change_rationale: Some("fixture".into()),
+        acceptance_criteria: vec!["fixture".into()],
+        selected_artifacts: Vec::new(),
+        dependencies: Vec::new(),
+        supersedes: Vec::new(),
+        acceptance_owner_corrections: Vec::new(),
+        legacy_archive_baseline_digest: None,
+        answers: BTreeMap::new(),
+    };
+
+    let _ = root;
+    fs::create_dir_all(dir).unwrap();
+    write_json(&dir.join("state.json"), &record).unwrap();
+}
+
+/// DISCRIMINATOR. Fails on `b3f3201a` with `invalid change ID`.
+///
+/// One ordinal-free workspace anywhere on disk made `validate_change_sequences` refuse the
+/// whole repository, which took `change new`, `change audit` and — because both reconciliation
+/// functions call it first — every one of the 120 archives that signed the sequence ledger
+/// down with it.
+#[test]
+fn ordinal_free_change_ids_do_not_block_numeric_sequence_validation() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let frozen_owner = "CHG-0163-frozen-owner";
+    write_located_fixture(
+        root,
+        &root
+            .join(ARCHIVE_PATH)
+            .join("2026-08-20-CHG-0163-frozen-owner"),
+        frozen_owner,
+        ChangeState::Archived,
+    );
+    write_json(
+        &root.join(SEQUENCE_PATH),
+        &ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: 163,
+            id: frozen_owner.into(),
+            acknowledged_collisions: Vec::new(),
+        },
+    )
+    .unwrap();
+    // Vacuity control: the fixture must already validate, or a validator that always returned
+    // Ok would satisfy the assertion below without doing anything.
+    validate_change_sequences(root).expect("the frozen ledger fixture must validate on its own");
+
+    write_located_fixture(
+        root,
+        &change_dir(root, "a-slug-only-change"),
+        "a-slug-only-change",
+        ChangeState::Draft,
+    );
+    validate_change_sequences(root)
+        .expect("an ID that claims no ordinal must not fail numeric sequence validation");
+
+    // Two of them. A skip implemented as `unwrap_or(0)` passes the single-record case and then
+    // reports `duplicate numeric change sequence CHG-0000` for the second slug-only change ever
+    // created, with remediation that is impossible once nothing mints.
+    write_located_fixture(
+        root,
+        &change_dir(root, "a-second-slug-only-change"),
+        "a-second-slug-only-change",
+        ChangeState::Draft,
+    );
+    validate_change_sequences(root)
+        .expect("two IDs that claim no ordinal collide with each other in no numeric sequence");
+
+    let mut located: Vec<String> = located_change_sequences(root)
+        .unwrap()
+        .into_iter()
+        .map(|change| change.id)
+        .collect();
+    located.sort();
+    assert_eq!(
+        located,
+        vec![
+            frozen_owner.to_string(),
+            "a-second-slug-only-change".to_string(),
+            "a-slug-only-change".to_string(),
+        ],
+        "an ordinal-free record must still be located; it is only absent from ordinal accounting"
+    );
+}
+
+/// DISCRIMINATOR. Fails on `b3f3201a`, which reports `invalid change ID` instead.
+///
+/// The ordinal made a change ID unique by construction and the numeric-collision gate caught a
+/// duplicate as a side effect. A slug-only ID is unique only by convention: two clones can
+/// archive the same slug on different days into differently dated directories, which git
+/// merges without a conflict. `change audit` runs with `include_archive_integrity = false`, so
+/// nothing else in the product ever looks at two archives together.
+#[test]
+fn two_workspaces_claiming_one_change_id_are_refused() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    for date in ["2026-08-20", "2026-08-21"] {
+        write_located_fixture(
+            root,
+            &root
+                .join(ARCHIVE_PATH)
+                .join(format!("{date}-greeter-must-support-a-custom-salutation")),
+            "greeter-must-support-a-custom-salutation",
+            ChangeState::Archived,
+        );
+    }
+    let error = validate_change_sequences(root)
+        .expect_err("two packages claiming one change ID must fail closed");
+    assert!(
+        error.contains("duplicate change ID `greeter-must-support-a-custom-salutation`"),
+        "got: {error}"
+    );
+    assert!(error.contains("2026-08-20-greeter"), "got: {error}");
+    assert!(error.contains("2026-08-21-greeter"), "got: {error}");
+}
+
+/// VACUITY CONTROL. Passes on `b3f3201a` and after.
+///
+/// Skipping ordinal-free IDs must not neuter the gate for the IDs that do carry one: eleven
+/// archived packages in this repository share five ordinals, and the acknowledgement that
+/// makes them legal is the only thing standing between them and a hard refusal.
+#[test]
+fn two_archived_packages_sharing_an_ordinal_are_still_refused_until_acknowledged() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let ids = ["CHG-0007-first-claim", "CHG-0007-second-claim"];
+    for (date, id) in ["2026-07-11", "2026-07-13"].iter().zip(ids) {
+        write_located_fixture(
+            root,
+            &root.join(ARCHIVE_PATH).join(format!("{date}-{id}")),
+            id,
+            ChangeState::Archived,
+        );
+    }
+    let error = validate_change_sequences(root)
+        .expect_err("an unacknowledged ordinal collision must still fail closed");
+    assert!(
+        error.contains("duplicate numeric change sequence CHG-0007"),
+        "got: {error}"
+    );
+    for id in ids {
+        assert!(error.contains(id), "got: {error}");
+    }
+
+    write_json(
+        &root.join(SEQUENCE_PATH),
+        &ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: 7,
+            id: ids[1].into(),
+            acknowledged_collisions: vec![ChangeSequenceCollision {
+                sequence: 7,
+                ids: ids.iter().map(|id| id.to_string()).collect(),
+            }],
+        },
+    )
+    .unwrap();
+    validate_change_sequences(root)
+        .expect("an exact, fully immutable acknowledgement restores validity");
+}
+
+/// VACUITY CONTROL. Passes on `b3f3201a` and after.
+///
+/// An ID that claims an ordinal and gets the notation wrong must keep failing closed. Skipping
+/// every unparseable ID — rather than only the ones that claim nothing — would drop such a
+/// record out of the acknowledged-collision ID-set check that guards the archived collision
+/// members, silently.
+#[test]
+fn a_non_canonical_ordinal_notation_still_fails_closed() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_located_fixture(
+        root,
+        &root.join(ARCHIVE_PATH).join("2026-07-13-CHG-16-narrow"),
+        "CHG-16-narrow",
+        ChangeState::Archived,
+    );
+    let error = validate_change_sequences(root)
+        .expect_err("a malformed ordinal claim must not be silently skipped");
+    assert!(error.contains("CHG-16-narrow"), "got: {error}");
 }

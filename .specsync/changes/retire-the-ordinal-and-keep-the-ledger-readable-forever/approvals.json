@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787258695,
+      "digest": "07854d00181c81d715987e8f5ddc95c77cd0b1ac9d53f17cb244530a64cfe123",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "retire-the-ordinal-and-keep-the-ledger-readable-forever",
+        "title": "Retire the ordinal and keep the ledger readable forever",
+        "description": "retire the ordinal and keep the ledger readable forever",
+        "kind": "refactor",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Steps one through four carried a slug-only identity all the way through the lifecycle: on the previous binary a hand-converted slug-only workspace already passes list, status, show, answer, approve, check, review and finalize. Three surfaces still fail, and all three through one line in located_change_sequences that turns an ID carrying no ordinal into invalid change ID: change audit cannot even count the change, change new is dead repo-wide, and change status reports a healthy next action while both are bricked because sequence_ledger_freeze_next_action ends Err underscore arrow None. Separately the allocator still mints CHG-NNNN, and its retry loop escapes a taken directory by incrementing the ordinal, so with no ordinal it would retry the same path ten thousand times and report exhausted change sequence allocation retries for what is really a repeated description. And the ordinal was quietly the only guarantee that two changes cannot share an identity: remove it with no replacement and two same-named packages report audit passed. Done when: change new mints a slug; an ID that claims no ordinal takes part in no numeric accounting while one that claims an ordinal badly still fails closed; a repeated description is refused by name rather than by a retry-exhaustion message; an explicit duplicate-identity gate replaces what the numeric gate was doing by accident; the sequence ledger stops growing but stays readable and reconcilable for the hundred and twenty archives that signed it; and no archive changes validity."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

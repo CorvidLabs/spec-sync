@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0164-a-change-without-an-ordinal-must-not-brick-the-workspace",
+  "implementation_commit": "8000d2297daf948769b393c75f559bec63fae4bf",
+  "implementation_tree": "4499447b4556ed8f22b621e0621ca5bbf63df96e",
+  "contract_digest": "11e94eb2144af4739e441c4fba1fdd64fddfbd2a9ded0defc6af6cf1a92ac629",
+  "workspace_digest": "60c51b1a13fac075e56f5d504b3232fb1262f21d5603e13219e8ae708a85dc7b",
+  "closing_digest": "a29a365a4f8c551c281359d70af45ac94bf46c5d555ca4113a839203ba8f98c1",
+  "review_digest": "1e8a8b5f74d24c96c8e0bf577737cfd747f62f206107a363da4a5f88cbfa7b95",
+  "finalization_digest": "a59dde070d408160ed7af52293338f06a1a8c782ab485277b55cb6cde65f6d72",
+  "timestamp": 1787255452
+}

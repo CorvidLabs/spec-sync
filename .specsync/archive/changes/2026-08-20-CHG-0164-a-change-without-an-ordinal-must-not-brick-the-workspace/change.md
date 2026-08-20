@@ -1,6 +1,6 @@
 ---
 id: CHG-0164-a-change-without-an-ordinal-must-not-brick-the-workspace
-state: implementing
+state: archived
 type: bug_fix
 base_commit: b3f3201aaa7f924ec4d6e4368b02afa6e2c87ded
 ---

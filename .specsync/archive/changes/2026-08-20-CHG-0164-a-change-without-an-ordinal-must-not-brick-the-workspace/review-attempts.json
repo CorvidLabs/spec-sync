@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "CHG-0164-a-change-without-an-ordinal-must-not-brick-the-workspace",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "8000d2297daf948769b393c75f559bec63fae4bf",
+      "contract_digest": "11e94eb2144af4739e441c4fba1fdd64fddfbd2a9ded0defc6af6cf1a92ac629",
+      "execution_digest": "b357e386e29942e52f44385e1c57cdccc5c3ac8006d62036ad15486b05987a96",
+      "workspace_digest": "60c51b1a13fac075e56f5d504b3232fb1262f21d5603e13219e8ae708a85dc7b",
+      "timestamp": 1787255444
+    }
+  ]
+}

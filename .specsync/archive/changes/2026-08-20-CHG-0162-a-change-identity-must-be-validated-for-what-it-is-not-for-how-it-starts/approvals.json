@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787204952,
+      "digest": "a51cdc675ea8aac9c4b94f30be502686545693b8775e23277326c686095ed881",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "CHG-0162-a-change-identity-must-be-validated-for-what-it-is-not-for-how-it-starts",
+        "title": "A change identity must be validated for what it is, not for how it starts",
+        "description": "a change identity must be validated for what it is, not for how it starts",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          ".specsync/change-sequence.json",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "validate_change_id opens with id.starts_with('CHG-'), and it gates find_change_dir and validate_loaded_change, so the whole system is gated on a prefix. That prefix was never evidence of anything: CHG- is four characters anyone can type, so it proves neither that an ID is well-formed nor that SpecSync minted it. Meanwhile the checks that do matter for a string used as a directory component were incomplete: there is no length bound at all, and no reserved-name check, both survivable only because every ID was generated as CHG-NNNN over a capped slug. Done when: an identity carrying no ordinal is accepted; the properties that make a string a safe path component are all enforced, including a length ceiling at the filesystem component limit and the shared reserved-name predicate; and every identity shape this repository has ever minted remains legal."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787207392,
+      "digest": "cd4ab9222d2ca31ba5e7326fa55dc3d51833ac99cc5abdf654063026eaddec13",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

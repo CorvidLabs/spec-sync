@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "CHG-0162-a-change-identity-must-be-validated-for-what-it-is-not-for-how-it-starts",
+  "implementation_commit": "a979acd6c39c59faffa001f865f3f3171a908bad",
+  "implementation_tree": "3172d5098f3418df07936fb20e5300d9371af251",
+  "contract_digest": "a51cdc675ea8aac9c4b94f30be502686545693b8775e23277326c686095ed881",
+  "workspace_digest": "239e3c0c205d03956c62f336e1e26e8dbc4b528545486f314f2119c293e09ff9",
+  "closing_digest": "cd4ab9222d2ca31ba5e7326fa55dc3d51833ac99cc5abdf654063026eaddec13",
+  "review_digest": "60fa411a3f071fb86eb8df83a11b7b9533a905ce1e5ae61041e7accaa0a4f556",
+  "finalization_digest": "7e24106ff30dd21584c4aa9425d00ae181d73a1f6a17074cd83b4cc52800510f",
+  "timestamp": 1787207392
+}

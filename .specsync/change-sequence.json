@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "sequence": 161,
-  "id": "CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship",
+  "sequence": 162,
+  "id": "CHG-0162-a-change-identity-must-be-validated-for-what-it-is-not-for-how-it-starts",
   "acknowledged_collisions": [
     {
       "sequence": 16,

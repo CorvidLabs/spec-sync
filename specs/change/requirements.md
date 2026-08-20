@@ -1081,6 +1081,15 @@ Acceptance Criteria
 - A file read through a canonical-bytes round trip gains nothing from tolerance, because the unknown field is dropped on parse and the re-serialized bytes then differ from the bytes on disk. This limit is deliberate for the files that anchor history, and is pinned by a test rather than left to be discovered.
 - Every digest is unchanged, because tolerance at read time was never part of any preimage.
 
+### REQ-change-084
+
+A change identity SHALL be accepted or refused on the properties that make a string a safe path component, and SHALL NOT be required to begin with any particular prefix.
+
+Acceptance Criteria
+- An identity carrying no ordinal is accepted, because a prefix is text any caller can type and is therefore evidence neither that an identity is well-formed nor that SpecSync minted it.
+- An identity is refused when it is empty, is not a single path component, contains a path separator or a control character, exceeds the longest name a path component may hold, or is a name a supported platform reserves.
+- Every identity shape SpecSync has previously minted remains acceptable, so relaxing what is required does not orphan history.
+
 ### REQ-change-083
 
 A minted change slug SHALL be a legal directory component on every platform SpecSync ships a binary for, and SHALL remain readable when the description is too long to keep.

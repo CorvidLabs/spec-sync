@@ -1,6 +1,6 @@
 ---
 id: CHG-0159-identity-must-come-from-state-json-never-from-the-shape-of-a-name
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 0387678fbbbd9b37ec9db6f94ddb503878b7d3f6
 ---

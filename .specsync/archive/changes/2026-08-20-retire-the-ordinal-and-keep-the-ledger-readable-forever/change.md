@@ -1,6 +1,6 @@
 ---
 id: retire-the-ordinal-and-keep-the-ledger-readable-forever
-state: implementing
+state: archived
 type: refactor
 base_commit: b3f3201aaa7f924ec4d6e4368b02afa6e2c87ded
 ---

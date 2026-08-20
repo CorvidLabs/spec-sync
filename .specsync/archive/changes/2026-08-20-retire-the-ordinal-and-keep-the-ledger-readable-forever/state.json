@@ -7,11 +7,11 @@
   "title": "Retire the ordinal and keep the ledger readable forever",
   "description": "retire the ordinal and keep the ledger readable forever",
   "kind": "refactor",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "b3f3201aaa7f924ec4d6e4368b02afa6e2c87ded",
   "created_at": 1787258572,
-  "updated_at": 1787260676,
+  "updated_at": 1787260992,
   "affected_specs": [
     "change"
   ],

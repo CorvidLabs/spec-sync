@@ -214,11 +214,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PACKAGE_VERSION="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "specsync") | .version')"
-          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
-            echo "::error::Tag version $TAG_VERSION does not match Cargo package version $PACKAGE_VERSION"
-            exit 1
-          fi
+          # Order matters. `cargo metadata` runs the candidate's own build scripts and
+          # manifests, so it must not run until the candidate has been proven to be
+          # integrated into `origin/main`. The ancestor check is what makes this checkout
+          # trustworthy at all; it used to be the LAST thing here, which meant cargo touched
+          # unverified code first. Nothing about a legitimate candidate changes.
           release_commit="$(git rev-parse "${RELEASE_COMMIT}^{commit}")"
           if [ "$(git rev-parse HEAD)" != "$release_commit" ]; then
             echo "::error::Checkout is not the resolved release candidate"
@@ -227,6 +227,11 @@ jobs:
           git fetch origin main
           if ! git merge-base --is-ancestor "$release_commit" origin/main; then
             echo "::error::Release commit is not integrated into origin/main"
+            exit 1
+          fi
+          PACKAGE_VERSION="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "specsync") | .version')"
+          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "::error::Tag version $TAG_VERSION does not match Cargo package version $PACKAGE_VERSION"
             exit 1
           fi
 
@@ -262,6 +267,16 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@451ce45ce31d200b52705aadd15ce75018b006de # 1.89.0
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
+        with:
+          # Restore, never save. This runner has checked out `candidate_sha`, which on a
+          # `workflow_dispatch` is derived from an operator-supplied tag, and the run carries
+          # default-branch privileges. Writing a cache entry from that tree is what lets a
+          # candidate that is not what the operator believes seed a cache later restored by
+          # default-branch workflows. Reading one is harmless.
+          #
+          # The cost is a cold build on the release lane, which runs rarely and is the one
+          # place where a slower build is obviously worth an unpoisonable one.
+          save-if: false
 
       - name: Prepare Windows integration shell
         if: runner.os == 'Windows'
@@ -444,6 +459,16 @@ jobs:
       checks: read
       contents: read
     steps:
+      # This checkout IS needed, despite appearances: the verification step below runs
+      # `git show-ref`, `git rev-parse HEAD` and `.github/scripts/validate-release-candidate.py`
+      # against `--repository .`, all of which require the tree.
+      #
+      # It is checked out at `candidate_sha`, and the CodeQL cache-poisoning finding on this
+      # job is therefore real rather than spurious. What makes it tolerable is that nothing
+      # in this job populates the Actions cache — no `rust-cache`, no `cargo`, no
+      # `actions/cache`. The exposure the rule describes needs a cache write, and there is
+      # none here. If a caching step is ever added to this job, it must carry `save-if: false`
+      # like the build jobs do.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
@@ -664,6 +689,16 @@ jobs:
           echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
+        with:
+          # Restore, never save. This runner has checked out `candidate_sha`, which on a
+          # `workflow_dispatch` is derived from an operator-supplied tag, and the run carries
+          # default-branch privileges. Writing a cache entry from that tree is what lets a
+          # candidate that is not what the operator believes seed a cache later restored by
+          # default-branch workflows. Reading one is harmless.
+          #
+          # The cost is a cold build on the release lane, which runs rarely and is the one
+          # place where a slower build is obviously worth an unpoisonable one.
+          save-if: false
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}

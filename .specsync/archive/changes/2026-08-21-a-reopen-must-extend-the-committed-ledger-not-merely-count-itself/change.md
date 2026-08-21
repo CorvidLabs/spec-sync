@@ -1,6 +1,6 @@
 ---
 id: a-reopen-must-extend-the-committed-ledger-not-merely-count-itself
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 7cbe820ebc1da9160f6711dc9e0f7058459a7162
 ---

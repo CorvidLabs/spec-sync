@@ -7,11 +7,11 @@
   "title": "A reopen must extend the committed ledger, not merely count itself",
   "description": "a reopen must extend the committed ledger, not merely count itself",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "7cbe820ebc1da9160f6711dc9e0f7058459a7162",
   "created_at": 1787332815,
-  "updated_at": 1787335079,
+  "updated_at": 1787335414,
   "affected_specs": [
     "change"
   ],

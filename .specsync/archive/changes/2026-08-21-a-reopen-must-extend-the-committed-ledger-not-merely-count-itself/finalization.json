@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-reopen-must-extend-the-committed-ledger-not-merely-count-itself",
+  "implementation_commit": "3e4ef8a7a87545eb6b7b261bfcf1d18612810d19",
+  "implementation_tree": "65f6f4e6650dfbd28308f964eb055f0b725d614c",
+  "contract_digest": "91b9377587b8e90c501a739bd0bf819224f9ad7047c024a4821bd6c942107b99",
+  "workspace_digest": "cd823fef9170f36fbdbb3b06ed26402e96343668a1755167fbd4d7cf8b9fdd49",
+  "closing_digest": "99db5e81988ebb3e4a53a7536cfa54edfaf041013943134de627298f629fd8fc",
+  "review_digest": "59a4fc6a23570f8a02168ee78717352625dec62ff13f9cc673a56d9ba257d46c",
+  "finalization_digest": "e648992042b9e96e6d198edb0e7a9d7b7837aeae6aec084b04558c7013ac9195",
+  "timestamp": 1787335098
+}

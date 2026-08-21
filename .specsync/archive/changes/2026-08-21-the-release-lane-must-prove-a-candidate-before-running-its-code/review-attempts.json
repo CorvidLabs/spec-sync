@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "the-release-lane-must-prove-a-candidate-before-running-its-code",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "2b3adc4d7d2752f84f5ea42dce418b77b0e2adb8",
+      "contract_digest": "1208618177291c07599a467abc7b370e70023a74c4f1c79bf7c551fb877dd92c",
+      "execution_digest": "efa818c80bb9dabc207bd46df73f61150e62d55249d05300ff5180af2952ab3c",
+      "workspace_digest": "b1382bebff7001d0c6f7d72ef4d86bcba963b32ab458a612ab8850d9c9614f31",
+      "timestamp": 1787344560
+    }
+  ]
+}

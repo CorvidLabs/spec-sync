@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "a-reopen-must-extend-the-committed-ledger-not-merely-count-itself",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "3e4ef8a7a87545eb6b7b261bfcf1d18612810d19",
+      "contract_digest": "91b9377587b8e90c501a739bd0bf819224f9ad7047c024a4821bd6c942107b99",
+      "execution_digest": "5c0805815ca2516138ec06af241fa22b2a389811e18c09a6bbfd0869115cfc53",
+      "workspace_digest": "cd823fef9170f36fbdbb3b06ed26402e96343668a1755167fbd4d7cf8b9fdd49",
+      "timestamp": 1787335083
+    }
+  ]
+}

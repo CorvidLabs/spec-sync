@@ -5223,14 +5223,37 @@ fn validate_committed_scoped_review_history(
         ),
     )?;
     let mut ledger_paths = vec![active_attempts];
+    let add_ledger_path = |path: String, paths: &mut Vec<String>| {
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    };
     if record.state == ChangeState::Archived {
         let workspace = find_change_dir(root, &record.id)?;
         let archive_attempts = git_repo_relative_path(
             root,
             &portable_project_path(root, &workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE)),
         )?;
-        if !ledger_paths.contains(&archive_attempts) {
-            ledger_paths.push(archive_attempts);
+        add_ledger_path(archive_attempts, &mut ledger_paths);
+    }
+    // A change has two homes, but over a reopen round trip it occupies several archive
+    // DIRECTORIES: `reopen` moves the package out of a dated directory and the next `finalize`
+    // creates one for the new close. The walk below reads "the ledger is absent from every path I
+    // know" as deleted evidence, so a path set built only from where the package sits right now
+    // reports the reopen's own move as a deletion -- which is what refused the second reopen of
+    // any change, and what refused the first one from inside `reopen` itself, since `reopen`
+    // un-archives BEFORE validating and `find_change_dir` then answers with the active workspace.
+    // Every directory this change's package has occupied in reachable history is admitted instead.
+    // A repository whose introduction index cannot be built (a shallow clone, say) degrades to the
+    // narrower set, which is the behaviour that shipped.
+    if let Ok(index) = archive_introduction_index(root)
+        && let Some(introductions) = index.get(&record.id)
+    {
+        for introduction in introductions {
+            add_ledger_path(
+                format!("{}/{SCOPED_REVIEW_ATTEMPTS_FILE}", introduction.directory),
+                &mut ledger_paths,
+            );
         }
     }
     let mut history_paths = Vec::with_capacity(ledger_paths.len() * 2);
@@ -5363,31 +5386,45 @@ fn validate_scoped_review_history_transition(
         }
         return Err("scoped review history did not begin with one append".into());
     };
-    if current_ledger == previous_ledger {
-        // A change has exactly two homes: the active workspace and the archive.
-        // Evidence moves between them twice in a full round trip — `finalize`
-        // carries it active -> archive, and `reopen` carries the same bytes back
-        // archive -> active. Only the first direction was admitted, so the walk
-        // reached a reopen commit, saw an unchanged ledger at a path it did not
-        // recognise, and refused (#540). The refusal surfaced at the NEXT
-        // finalize rather than at the reopen, because it comes from a walk over
-        // committed history and not from the command performing the move —
-        // which is also why re-running `review` could never clear it.
-        //
-        // A move to any third location is still refused: this admits the two
-        // canonical homes, not arbitrary relocation.
-        let moved_to_archive = previous_path.contains(".specsync/changes/")
-            && current_path.contains(".specsync/archive/changes/");
-        let moved_to_active = previous_path.contains(".specsync/archive/changes/")
-            && current_path.contains(".specsync/changes/");
-        if current_path == previous_path || moved_to_archive || moved_to_active {
-            return Ok(());
-        }
+    // A change has exactly two homes: the active workspace and the archive.
+    // Evidence moves between them twice in a full round trip — `finalize`
+    // carries it active -> archive, and `reopen` carries the same bytes back
+    // archive -> active. Only the first direction was admitted, so the walk
+    // reached a reopen commit, saw an unchanged ledger at a path it did not
+    // recognise, and refused (#540). The refusal surfaced at the NEXT
+    // finalize rather than at the reopen, because it comes from a walk over
+    // committed history and not from the command performing the move —
+    // which is also why re-running `review` could never clear it.
+    //
+    // A move to any third location is still refused: this admits the two
+    // canonical homes, not arbitrary relocation. Archive -> archive is one of
+    // them: a reopen round trip closes into a directory dated by the day of the
+    // second close, which need not be the first close's directory.
+    let moved_within_archive = previous_path.contains(".specsync/archive/changes/")
+        && current_path.contains(".specsync/archive/changes/");
+    let moved_to_archive = previous_path.contains(".specsync/changes/")
+        && current_path.contains(".specsync/archive/changes/");
+    let moved_to_active = previous_path.contains(".specsync/archive/changes/")
+        && current_path.contains(".specsync/changes/");
+    if current_path != previous_path
+        && !(moved_to_archive || moved_to_active || moved_within_archive)
+    {
         return Err("scoped review history moved evidence outside finalization".into());
     }
-    if current_path == previous_path
-        && current_ledger.reviews.len() == previous_ledger.reviews.len() + 1
-        && current_ledger.reviews[..previous_ledger.reviews.len()] == previous_ledger.reviews
+    if current_ledger == previous_ledger {
+        return Ok(());
+    }
+    // Appending a review and moving the package can land in ONE commit: the whole
+    // `review` + `finalize` pair is routinely committed together, and after a reopen the
+    // previous home is already in history, so the append no longer arrives as a first
+    // appearance. Growth is still append-only — every review the parent committed has to
+    // survive byte-identical — and only the count restriction is relaxed across a move,
+    // where a squash can legitimately collapse several attempts into one commit.
+    let appended_only = current_ledger.reviews.len() > previous_ledger.reviews.len()
+        && current_ledger.reviews[..previous_ledger.reviews.len()] == previous_ledger.reviews;
+    if appended_only
+        && (current_path != previous_path
+            || current_ledger.reviews.len() == previous_ledger.reviews.len() + 1)
     {
         return Ok(());
     }
@@ -6184,16 +6221,28 @@ fn archive_change_with_options(
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
+    // The package is being closed out of the change's own active workspace by this process, so
+    // the closing evidence under `current_location` may speak for a generation history has not
+    // seen yet -- but only here, and only under `closing_ledger_extends_all_introductions`. A
+    // post-move resume found its package already in the archive and gets no such token, because
+    // that shape is what an attacker reanimating a committed package presents.
+    let pending_close = (!resume_post_move).then_some(PendingArchiveClose {
+        package: current_location,
+    });
     let accepted_snapshot = current_location.join("accepted-state.json");
-    let accepted_state_bytes = authenticated_accepted_transition(root, &record)
-        .map(|(_, bytes, _)| bytes)
-        .unwrap_or_else(|_| original_state_bytes.clone());
+    let accepted_state_bytes =
+        authenticated_accepted_transition_for(root, &record, pending_close.as_ref())
+            .map(|(_, bytes, _)| bytes)
+            .unwrap_or_else(|_| original_state_bytes.clone());
     atomic_write_durable(&accepted_snapshot, &accepted_state_bytes)
         .map_err(|error| format!("failed to stage authenticated accepted state: {error}"))?;
     let mut simulated = list_all_changes_checked(root)?;
     let mut archived_projection = record.clone();
     archived_projection.state = ChangeState::Archived;
-    if let Err(error) = validate_archived_integrity(root, &archived_projection) {
+    if let Err(error) = match pending_close.as_ref() {
+        Some(pending) => validate_archived_integrity_closing(root, &archived_projection, pending),
+        None => validate_archived_integrity(root, &archived_projection),
+    } {
         let _ = remove_file_durable(&accepted_snapshot);
         return Err(format!(
             "archive target historical-integrity preflight failed: {error}"
@@ -6281,7 +6330,13 @@ fn archive_change_with_options(
             )),
         };
     }
-    if let Err(error) = validate_archived_integrity(root, &archived) {
+    let moved_close = (!resume_post_move).then_some(PendingArchiveClose {
+        package: &destination,
+    });
+    if let Err(error) = match moved_close.as_ref() {
+        Some(pending) => validate_archived_integrity_closing(root, &archived, pending),
+        None => validate_archived_integrity(root, &archived),
+    } {
         if resume_post_move {
             let restore =
                 atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
@@ -12974,13 +13029,17 @@ fn consider_accepted_evidence_anchor(
 }
 
 /// One reachable commit that introduced a change's archived package into history, together with
-/// the repository-relative package directory that commit created and the number of reopen events
-/// the package's approval ledger recorded there.
+/// the repository-relative package directory that commit created and the approval ledger the
+/// package carried there.
+///
+/// The ledger is carried whole rather than reduced to its reopen count. The count is a number the
+/// attacker writes next to the evidence it is supposed to qualify; the ledger is evidence already
+/// in history, which a later generation must be shown to CONTAIN. See `ledger_succession`.
 #[derive(Clone, Debug)]
 struct ArchiveIntroduction {
     commit: String,
     directory: String,
-    generation: usize,
+    approvals: Option<Vec<u8>>,
 }
 
 type ArchiveIntroductionIndex = BTreeMap<String, Vec<ArchiveIntroduction>>;
@@ -13100,9 +13159,7 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
             let Some(archived) = git_change_record_at(root, commit, path) else {
                 continue;
             };
-            let generation = git_object_bytes(root, commit, &format!("{directory}/approvals.json"))
-                .and_then(|bytes| serde_json::from_slice::<ApprovalLedger>(&bytes).ok())
-                .map_or(0, |ledger| ledger.reopenings.len());
+            let approvals = git_object_bytes(root, commit, &format!("{directory}/approvals.json"));
             let introductions = index.entry(archived.id).or_default();
             if introductions
                 .iter()
@@ -13113,7 +13170,7 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
             introductions.push(ArchiveIntroduction {
                 commit: commit.to_string(),
                 directory: directory.to_string(),
-                generation,
+                approvals,
             });
         }
     }
@@ -13132,23 +13189,107 @@ fn archive_introduction_index(root: &Path) -> Result<Arc<ArchiveIntroductionInde
     Ok(index)
 }
 
+/// Whether a package's current approval ledger lawfully continues one already in history.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LedgerSuccession {
+    /// The current ledger does not extend the committed one: it is the same generation, it is
+    /// shorter, or it rewrote something the committed ledger already recorded.
+    NotASuccessor,
+    /// The current ledger keeps every approval and every reopen event the committed one recorded,
+    /// adds at least one reopen event, and that event supersedes exactly the approval the
+    /// committed package closed on.
+    LawfulSuccessor,
+}
+
+/// The array named `field` in an approval-ledger JSON document, compared as raw JSON.
+///
+/// Raw values rather than `ApprovalLedger` structs on purpose: round-tripping through the typed
+/// form silently drops fields the struct does not know, which is exactly where an attacker would
+/// hide a difference between the ledger history committed and the one being presented.
+fn ledger_entries(ledger: &serde_json::Value, field: &str) -> Vec<serde_json::Value> {
+    ledger
+        .get(field)
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// Decide whether `current` lawfully continues the ledger an earlier introduction committed.
+///
+/// `reopen` is append-only: `reopen_unarchived_change` leaves `approvals` untouched and pushes one
+/// `ReopenRecord` whose `superseded_approval` is the package's own terminal approval, and the
+/// `finalize` that follows only appends. A genuine later generation therefore CONTAINS the earlier
+/// ledger verbatim. A relocation or a delete-and-re-add of the same package does not grow at all,
+/// and a package whose committed approvals were rewritten -- the #660 laundering, whose payload is
+/// an approval `actor` that no digest covers -- fails the prefix.
+///
+/// This is what the reopen count was asked to prove and could not. `reopenings.len()` is a number
+/// written next to the evidence it is supposed to qualify, so appending one hand-made record used
+/// to promote a rewritten package past the introduction that contradicts it. Extension is instead
+/// checked against bytes that are already committed, which cannot be changed without rewriting
+/// history itself.
+///
+/// `scope_adoptions` is deliberately not covered: `append_approval` clears it whenever a renewed
+/// definition approval lands, so it legitimately shrinks across a reopen. It carries no actor and
+/// `validate_scope_adoption` admits it for one hard-coded legacy change only.
+fn ledger_succession(earlier: Option<&[u8]>, current: &[u8]) -> LedgerSuccession {
+    let Some(earlier) = earlier else {
+        return LedgerSuccession::NotASuccessor;
+    };
+    let (Ok(earlier), Ok(current)) = (
+        serde_json::from_slice::<serde_json::Value>(earlier),
+        serde_json::from_slice::<serde_json::Value>(current),
+    ) else {
+        return LedgerSuccession::NotASuccessor;
+    };
+    let earlier_approvals = ledger_entries(&earlier, "approvals");
+    let current_approvals = ledger_entries(&current, "approvals");
+    let earlier_reopenings = ledger_entries(&earlier, "reopenings");
+    let current_reopenings = ledger_entries(&current, "reopenings");
+    if current_reopenings.len() <= earlier_reopenings.len()
+        || current_approvals.len() < earlier_approvals.len()
+        || current_approvals[..earlier_approvals.len()] != earlier_approvals[..]
+        || current_reopenings[..earlier_reopenings.len()] != earlier_reopenings[..]
+    {
+        return LedgerSuccession::NotASuccessor;
+    }
+    // The first reopen event the successor adds must supersede exactly the approval the earlier
+    // package closed on, so that a new generation names the package it supersedes instead of
+    // merely counting past it.
+    let Some(superseded) = current_reopenings[earlier_reopenings.len()].get("superseded_approval")
+    else {
+        return LedgerSuccession::NotASuccessor;
+    };
+    let earlier_terminal = earlier_approvals.iter().rev().find(|approval| {
+        approval
+            .get("gate")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|gate| matches!(gate, "acceptance" | "finalization"))
+    });
+    if earlier_terminal != Some(superseded) {
+        return LedgerSuccession::NotASuccessor;
+    }
+    LedgerSuccession::LawfulSuccessor
+}
+
 /// Selects the archived-package introductions that may anchor `record`'s acceptance.
 ///
 /// A change's package can legitimately enter history more than once: `reopen` un-archives an
 /// accepted package and a later `finalize` archives it again, so history holds an earlier
 /// introduction of superseded evidence and a later introduction of the evidence in the tree.
-/// What an attacker produces instead is a re-introduction of the SAME generation -- a relocation,
-/// or a delete-and-re-add -- carrying evidence rewritten after archiving. The two are told apart
-/// by the approval ledger's reopen count, which a genuine reopen increments and a copy does not.
+/// What an attacker produces instead is a re-introduction of the SAME evidence -- a relocation, or
+/// a delete-and-re-add -- carrying bytes rewritten after archiving.
 ///
-/// An introduction is admissible only when no strictly earlier introduction of the same change
-/// already recorded at least as many reopen events as the package being authenticated. On a
-/// package that was never reopened this reduces to "the earliest introduction wins", which is the
-/// property a `git mv` cannot mint.
+/// The two are told apart by whether the package being authenticated CONTAINS the ledger the
+/// earlier introduction committed. An introduction is admissible only when no strictly earlier
+/// introduction of the same change committed a ledger the current package fails to extend. On a
+/// package that was never reopened this reduces to "the earliest introduction wins", the property
+/// a `git mv` cannot mint; on a reopened one it admits the new generation without ever consulting
+/// a count the attacker controls.
 fn admissible_archive_introductions(
     root: &Path,
     record: &ChangeRecord,
-    current_generation: usize,
+    current_approvals: &[u8],
 ) -> Result<Vec<ArchiveIntroduction>, String> {
     let index = archive_introduction_index(root)?;
     let Some(candidates) = index.get(&record.id) else {
@@ -13158,7 +13299,8 @@ fn admissible_archive_introductions(
     for candidate in candidates {
         let superseded = candidates.iter().any(|earlier| {
             earlier.commit != candidate.commit
-                && earlier.generation >= current_generation
+                && ledger_succession(earlier.approvals.as_deref(), current_approvals)
+                    == LedgerSuccession::NotASuccessor
                 && ensure_git_ancestor(
                     root,
                     &earlier.commit,
@@ -13174,9 +13316,25 @@ fn admissible_archive_introductions(
     Ok(admissible)
 }
 
-/// Number of reopen events an approval ledger records, used as a package's evidence generation.
-fn approval_ledger_generation(approvals: &[u8]) -> usize {
-    serde_json::from_slice::<ApprovalLedger>(approvals).map_or(0, |ledger| ledger.reopenings.len())
+/// True when `current_approvals` lawfully extends every ledger history holds for this change.
+///
+/// Used only by the closing-evidence fallback, where the package being authenticated is not in
+/// history yet because the commit that would introduce it has not been made. Every generation
+/// already committed must be contained in the one about to be, so a reopen may add evidence and
+/// may never rewrite what an earlier archive of the same change recorded.
+fn closing_ledger_extends_all_introductions(
+    root: &Path,
+    record: &ChangeRecord,
+    current_approvals: &[u8],
+) -> Result<bool, String> {
+    let index = archive_introduction_index(root)?;
+    Ok(index.get(&record.id).is_some_and(|introductions| {
+        !introductions.is_empty()
+            && introductions.iter().all(|introduction| {
+                ledger_succession(introduction.approvals.as_deref(), current_approvals)
+                    == LedgerSuccession::LawfulSuccessor
+            })
+    }))
 }
 
 /// True when `anchor` lies in the history that produced one of `introductions`.
@@ -13203,9 +13361,41 @@ fn anchor_precedes_an_introduction(
     })
 }
 
+/// The archive this process is creating right now, named by the package directory it is closing.
+///
+/// `archive_change_with_options` both writes a package and validates it. Only the writing process
+/// knows that the closing evidence under `package` is evidence it authenticated out of the
+/// change's own ACTIVE workspace moments ago, and that the commit which would introduce the
+/// package is the one this command is preparing. Every reading path -- `status`, `audit`, `list`,
+/// `ship-status`, the corpus census, the successor and legacy-baseline checks -- passes `None` and
+/// is judged entirely by history, which is what #660 requires.
+///
+/// The token is deliberately NOT minted for a post-move resume whose package was found already
+/// sitting in the archive. That shape cannot be told from an attacker flipping a committed
+/// package's `state.json` back to `accepted` and re-running `finalize`, so it keeps HEAD's rule.
+struct PendingArchiveClose<'a> {
+    package: &'a Path,
+}
+
+impl PendingArchiveClose<'_> {
+    /// True when `workspace` is the very package directory this process is closing.
+    fn is_closing(&self, workspace: &Path) -> bool {
+        let resolve = |path: &Path| path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        resolve(self.package) == resolve(workspace)
+    }
+}
+
 fn authenticated_accepted_transition(
     root: &Path,
     record: &ChangeRecord,
+) -> Result<(String, Vec<u8>, ChangeRecord), String> {
+    authenticated_accepted_transition_for(root, record, None)
+}
+
+fn authenticated_accepted_transition_for(
+    root: &Path,
+    record: &ChangeRecord,
+    pending: Option<&PendingArchiveClose<'_>>,
 ) -> Result<(String, Vec<u8>, ChangeRecord), String> {
     let workspace = find_change_dir(root, &record.id)?;
     let workspace_relative = strict_portable_project_path(root, &workspace)?;
@@ -13223,20 +13413,16 @@ fn authenticated_accepted_transition(
     let verification_path = git_repo_relative_path(root, &format!("{active}/verification.json"))?;
     let approvals_path = git_repo_relative_path(root, &format!("{active}/approvals.json"))?;
     let mut eligible = BTreeMap::new();
-    // Once this change's archived package exists in reachable history, that history is the only
-    // authority for its acceptance. The active-workspace stages and the working-tree fallback each
-    // accept any commit that merely carries the bytes being checked, which is how a forged
-    // `reopen`/`archive` pair mints an anchor without ever touching the archive directory. They are
-    // therefore admitted only for commits that PRECEDE the package's introduction -- the genuine
-    // pre-archive acceptance transition -- and not at all once history holds the package. Before
-    // the package is committed there is no history to consult and they remain the only evidence
-    // there is, so the gate is "is the package in history", not "is the record archived".
+    // Once this change's archived package exists in reachable history, that history is the
+    // authority for its acceptance. The active-workspace stages accept any commit that merely
+    // carries the bytes being checked, which is how a forged `reopen`/`archive` pair mints an
+    // anchor without ever touching the archive directory. They are therefore admitted only for
+    // commits that PRECEDE the package's introduction -- the genuine pre-archive acceptance
+    // transition -- and not at all once history holds the package. The working-tree fallback below
+    // is bounded separately, because the one package history cannot hold is the one this command
+    // is about to create.
     let introductions = if record.state == ChangeState::Archived {
-        admissible_archive_introductions(
-            root,
-            record,
-            approval_ledger_generation(&current_approvals),
-        )?
+        admissible_archive_introductions(root, record, &current_approvals)?
     } else {
         Vec::new()
     };
@@ -13304,8 +13490,25 @@ fn authenticated_accepted_transition(
             );
         }
     }
+    // A reopened change's SECOND package is not in history at the moment it is created: the
+    // commit that would introduce it is the one this `finalize` is preparing. History holds only
+    // the superseded generation, whose bytes stage B refuses exactly as it should, so #663's
+    // "once the package is in history, history is the only authority" left a genuine re-finalize
+    // with nothing to authenticate against (#540). The fallback is reopened for that case alone,
+    // under two conditions no reader of a repository can satisfy together:
+    //
+    //   * this process is the one WRITING the package (`is_closing`), never true on a read path;
+    //   * the ledger it is about to commit contains, unrewritten, every ledger history already
+    //     holds for this change -- so a reopen may append evidence and may never restate what an
+    //     earlier archive of the same change recorded.
+    //
+    // Both are required. The first alone would let `finalize` bless a package it merely found in
+    // the archive; the second alone would let any working tree speak for a committed package.
+    let closing_evidence_may_speak = !archived_package_is_in_history
+        || (pending.is_some_and(|pending| pending.is_closing(&workspace))
+            && closing_ledger_extends_all_introductions(root, record, &current_approvals)?);
     if eligible.is_empty()
-        && !archived_package_is_in_history
+        && closing_evidence_may_speak
         && let Ok(state_bytes) = fs::read(workspace.join("accepted-state.json"))
         && let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes)
     {
@@ -14060,7 +14263,7 @@ fn authenticate_accepted_evidence(
 ) -> Result<VerificationRecord, String> {
     validate_acceptance_owner_correction_records(record)?;
     if record.state == ChangeState::Archived {
-        validate_archived_accepted_snapshot(root, record)?;
+        validate_archived_accepted_snapshot(root, record, None)?;
     }
     let verification = load_verification(root, record)?;
     if !verification.passed {
@@ -14117,10 +14320,15 @@ fn authenticate_accepted_evidence(
     Ok(verification)
 }
 
-fn validate_archived_accepted_snapshot(root: &Path, archived: &ChangeRecord) -> Result<(), String> {
+fn validate_archived_accepted_snapshot(
+    root: &Path,
+    archived: &ChangeRecord,
+    pending: Option<&PendingArchiveClose<'_>>,
+) -> Result<(), String> {
     let workspace = find_change_dir(root, &archived.id)?;
     let path = workspace.join("accepted-state.json");
-    let (_, historical_bytes, historical) = authenticated_accepted_transition(root, archived)?;
+    let (_, historical_bytes, historical) =
+        authenticated_accepted_transition_for(root, archived, pending)?;
     let accepted = match fs::read(&path) {
         Ok(content) => {
             if content != historical_bytes {
@@ -14186,12 +14394,36 @@ fn validate_archived_integrity_with_cache(
     archived: &ChangeRecord,
     cache: &mut ArchivedIntegrityCache,
 ) -> Result<(), String> {
+    validate_archived_integrity_inner(root, archived, cache, None)
+}
+
+/// The archive preflight run by the command that is creating the package, which is the only caller
+/// allowed to present closing evidence history has not seen yet. See `PendingArchiveClose`.
+fn validate_archived_integrity_closing(
+    root: &Path,
+    archived: &ChangeRecord,
+    pending: &PendingArchiveClose<'_>,
+) -> Result<(), String> {
+    validate_archived_integrity_inner(
+        root,
+        archived,
+        &mut ArchivedIntegrityCache::default(),
+        Some(pending),
+    )
+}
+
+fn validate_archived_integrity_inner(
+    root: &Path,
+    archived: &ChangeRecord,
+    cache: &mut ArchivedIntegrityCache,
+    pending: Option<&PendingArchiveClose<'_>>,
+) -> Result<(), String> {
     validate_acceptance_owner_correction_records(archived)?;
     let workspace = find_change_dir(root, &archived.id)?;
     if !workspace.join("accepted-state.json").exists() {
         return authenticate_legacy_archive_baseline(root, archived, &workspace, cache);
     }
-    validate_archived_accepted_snapshot(root, archived)?;
+    validate_archived_accepted_snapshot(root, archived, pending)?;
     let verification = load_verification(root, archived)?;
     if !verification.passed {
         return Err("archived change has failed verification evidence".into());

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-reopen-must-extend-the-committed-ledger-not-merely-count-itself",
+  "slug": "a-reopen-must-extend-the-committed-ledger-not-merely-count-itself",
+  "title": "A reopen must extend the committed ledger, not merely count itself",
+  "description": "a reopen must extend the committed ledger, not merely count itself",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "7cbe820ebc1da9160f6711dc9e0f7058459a7162",
+  "created_at": 1787332815,
+  "updated_at": 1787335098,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The #660 anchor fix bounded acceptance anchors to the earliest commit that introduced a package, and used approval_ledger_generation, the length of approvals.json reopenings, to tell a legitimate reopen apart from a forged one. That count is written by whoever writes the file, so it is not evidence: one hand-written ReopenRecord relaunders vectors four, five and six on the current binary, which report authenticated-history where they should report corrupt. The same fix also gated stage D, the working-tree closing evidence fallback, on the package already being in history. Stage D is the only stage that ever supplies an anchor in a reopen lifecycle, because acceptance is reached in the working tree between review and finalize and never committed, so a reopened change could no longer be finalized at all. Done when: a new generation must contain the committed ledger history unrewritten rather than merely outnumber it; the working-tree fallback is available to the process writing a package out of the active workspace and to nothing else; all three laundering vectors are refused with and without a forged generation; a reopened change finalizes again; and no archive that authenticates today stops doing so."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

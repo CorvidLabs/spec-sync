@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-release-lane-must-prove-a-candidate-before-running-its-code",
+  "slug": "the-release-lane-must-prove-a-candidate-before-running-its-code",
+  "title": "The release lane must prove a candidate before running its code",
+  "description": "the release lane must prove a candidate before running its code",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "4d12c7a567bcacca3f37543dce3e9a04c5ecc7a1",
+  "created_at": 1787343401,
+  "updated_at": 1787344833,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/release.yml"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Workflow ordering and cache-save policy in the release lane; no module contract changes and no production source in scope",
+  "acceptance_criteria": [
+    "Three open high-severity CodeQL cache-poisoning alerts sit in release.yml, and the lane has never executed, so the first time these steps run for real will be the 6.0 RC. In the validate job, cargo metadata runs the candidate's own manifests and build scripts before anything has established that the candidate is an ancestor of origin/main; the ancestor check is what makes the checkout trustworthy and it runs last. In the build jobs, rust-cache writes cache entries from a tree checked out at an operator-supplied candidate on a run carrying default-branch privileges, which is the actual poisoning vector. Done when: the ancestor proof runs before any cargo invocation; cache entries are restored but never saved from a candidate tree; and the checkout that authorize-release genuinely needs is kept with its reason recorded rather than removed on the mistaken belief that it is unused."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

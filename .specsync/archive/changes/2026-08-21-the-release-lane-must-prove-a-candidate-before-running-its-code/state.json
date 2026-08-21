@@ -7,11 +7,11 @@
   "title": "The release lane must prove a candidate before running its code",
   "description": "the release lane must prove a candidate before running its code",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "4d12c7a567bcacca3f37543dce3e9a04c5ecc7a1",
   "created_at": 1787343401,
-  "updated_at": 1787344557,
+  "updated_at": 1787344833,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/release.yml"

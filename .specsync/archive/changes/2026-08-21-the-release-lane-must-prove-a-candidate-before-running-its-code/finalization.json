@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-release-lane-must-prove-a-candidate-before-running-its-code",
+  "implementation_commit": "2b3adc4d7d2752f84f5ea42dce418b77b0e2adb8",
+  "implementation_tree": "84219fdc7d1867aa91c70a77ece134d5a5ba2b05",
+  "contract_digest": "1208618177291c07599a467abc7b370e70023a74c4f1c79bf7c551fb877dd92c",
+  "workspace_digest": "b1382bebff7001d0c6f7d72ef4d86bcba963b32ab458a612ab8850d9c9614f31",
+  "closing_digest": "49fdbff8424c05e692062ad0f70fb4d03463236b47f8bd60bd4e28e7e52be8d7",
+  "review_digest": "07ea1b96ff3d7546cad65d0e1f41e931a3fb3ab4ca0f8413deb943b3703b02b4",
+  "finalization_digest": "fc8036c9f70825cb218fe17efdae937c1249434bb32d5073ef5f3506c29f7992",
+  "timestamp": 1787344574
+}

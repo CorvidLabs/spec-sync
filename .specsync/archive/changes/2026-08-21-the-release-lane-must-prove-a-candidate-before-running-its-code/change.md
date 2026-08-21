@@ -1,6 +1,6 @@
 ---
 id: the-release-lane-must-prove-a-candidate-before-running-its-code
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 4d12c7a567bcacca3f37543dce3e9a04c5ecc7a1
 ---

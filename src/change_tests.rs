@@ -14462,6 +14462,337 @@ fn an_archived_package_is_authenticated_only_by_where_its_evidence_entered_histo
     );
 }
 
+/// Issues #540 and #660 in one fixture: a reopened change must be able to close again, and
+/// restoring that path must not restore the laundering the introduction bound exists to refuse.
+///
+/// The fixture is deliberately the shape
+/// `an_archived_package_is_authenticated_only_by_where_its_evidence_entered_history` cannot build.
+/// That test squash-merges and reads from a fresh clone, so the acceptance commit is absent and
+/// `verification_commit_is_accepted_current` can never hold -- which leaves the closing-evidence
+/// fallback unreachable there and every claim about it unwitnessed. This change closes on `main`
+/// with its acceptance commits intact, so the fallback is live and these scenarios reach it.
+///
+/// Every scenario runs over ONE fixture and they are reported together, so a fix that recognises
+/// this fixture and waives the bound for it fails the adversarial scenarios in the same function
+/// in which it passes the genuine one.
+#[test]
+fn a_reopened_change_closes_again_without_reopening_what_the_bound_refuses() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().to_path_buf();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success(),
+            "git command failed: {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "core.autocrlf", "false"]);
+    git(&["config", "core.eol", "lf"]);
+    fs::write(
+        root.join(".gitattributes"),
+        "*.json text eol=lf\n*.md text eol=lf\n",
+    )
+    .unwrap();
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md", ".gitattributes"]);
+    git(&["commit", "-m", "base"]);
+
+    let record = current_workflow_record(&root, completed_no_spec_record(&root));
+    assert!(record.workflow_version >= 2);
+    approve_definition(&root, &record.id, Some("Scope owner".into()), None).unwrap();
+    check_change(&root, Some(&record.id)).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "Implement approved change"]);
+    let accepted_verification = check_change(&root, Some(&record.id)).unwrap().unwrap();
+    // `review` and `finalize` are committed together, which is what `specsync change finalize`
+    // followed by one commit produces and what drill 049 does. It also matters for what this test
+    // can witness: committing the review at the ACTIVE path first makes `load_scoped_review` --
+    // and therefore `validate_finalization_evidence`, and therefore the whole closing-evidence
+    // fallback -- fail on today's build for an unrelated reason, which would silently turn every
+    // adversarial scenario below into a pass for the wrong reason.
+    record_scoped_review(&root, &record.id, "Independent reviewer".into()).unwrap();
+    finalize_change(&root, &record.id).expect("the first close must archive");
+    git(&["add", "."]);
+    git(&[
+        "commit",
+        "-m",
+        "chore(lifecycle): scoped review and archive",
+    ]);
+    let closed = git_output(&root, &["rev-parse", "HEAD"]).unwrap();
+
+    // The property that makes this fixture able to witness the closing-evidence fallback at all:
+    // the acceptance commit is IN history, so `verification_commit_is_accepted_current` holds and
+    // the fallback's other preconditions are satisfiable. Without this the adversarial scenarios
+    // below would be refused by ancestry rather than by the bound under test, and the test would
+    // certify a property it never exercised.
+    let verification_commit = accepted_verification
+        .commit
+        .clone()
+        .expect("workflow-v2 verification must record its commit");
+    assert!(
+        Command::new("git")
+            .args(["merge-base", "--is-ancestor", &verification_commit, "HEAD"])
+            .current_dir(&root)
+            .status()
+            .unwrap()
+            .success(),
+        "fixture must keep the acceptance commit reachable from HEAD"
+    );
+
+    let archive_relative = find_change_dir(&root, &record.id)
+        .unwrap()
+        .strip_prefix(&root)
+        .unwrap()
+        .to_string_lossy()
+        .replace('\\', "/");
+    let relocated_relative = format!("{archive_relative}-relocated");
+
+    let reset = || {
+        git(&["reset", "--hard", closed.as_str()]);
+        git(&["clean", "-fdxq"]);
+    };
+    // Rewrites the approving actor: a field no workflow-v2 digest covers, so only the anchor
+    // stands between it and an authenticated archive.
+    let tamper = |package: &Path| {
+        let path = package.join("approvals.json");
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(
+            text.contains("Scope owner"),
+            "fixture must record the scope owner in approvals.json"
+        );
+        fs::write(&path, text.replace("Scope owner", "Impostor")).unwrap();
+    };
+    // The hand-written generation bump: everything `reopen` would have written, produced by
+    // copying the package's own terminal approval and verification record. Nothing in the schema
+    // is signed, so this is exactly as forgeable as the real thing -- which is the point.
+    let forge_reopen_record = |package: &Path| {
+        let path = package.join("approvals.json");
+        let mut ledger: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap())
+            .expect("archived approvals must parse");
+        let verification: serde_json::Value =
+            serde_json::from_slice(&fs::read(package.join("verification.json")).unwrap())
+                .expect("archived verification must parse");
+        let terminal = ledger["approvals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .rev()
+            .find(|approval| {
+                matches!(
+                    approval["gate"].as_str(),
+                    Some("acceptance") | Some("finalization")
+                )
+            })
+            .cloned()
+            .expect("archived ledger must record a terminal approval");
+        let forged = serde_json::json!({
+            "schema_version": 1,
+            "change_id": record.id,
+            "actor": "Impostor",
+            "reason": "forged reopen",
+            "timestamp": 1_u64,
+            "from_state": "accepted",
+            "to_state": "verifying",
+            "superseded_approval": terminal,
+            "prior_verification": verification,
+            "stale_acceptance_input_digest": verification["acceptance_input_digest"].clone(),
+            "current_acceptance_input_digest": "f".repeat(64),
+        });
+        ledger["reopenings"]
+            .as_array_mut()
+            .expect("ledger must carry a reopenings array")
+            .push(forged);
+        fs::write(&path, serde_json::to_vec_pretty(&ledger).unwrap()).unwrap();
+    };
+    let drift = |note: &str| {
+        fs::write(
+            root.join("src/lib.rs"),
+            format!("// implementation\npub fn ready() -> bool {{ {note} }}\n"),
+        )
+        .unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "post-archive drift"]);
+    };
+    // Two resolvers on purpose. `anchor` isolates the bound under test, so an adversarial
+    // scenario cannot be scored a pass because some unrelated validator happened to refuse it
+    // first -- which is exactly how a laundering vector hides. `authenticates` is the whole read
+    // path a person actually sees, asserted where authentication must SUCCEED.
+    let anchor = |directory: &Path| -> Result<String, String> {
+        let current = load_change(directory, &record.id)?;
+        authenticated_accepted_transition(directory, &current).map(|(found, _, _)| found)
+    };
+    let authenticates = |directory: &Path| -> Result<String, String> {
+        let current = load_change(directory, &record.id)?;
+        validate_archived_integrity(directory, &current)?;
+        anchor(directory)
+    };
+
+    // One reopen round trip, run end to end through the product's own verbs. `rewrite_committed`
+    // is the only difference between the honest round trip and the front-door laundering, so the
+    // two scenarios below cannot diverge anywhere except in the property under test.
+    //
+    // The reviewer is never the definition approver: otherwise the laundering would be refused by
+    // separation of duties before the anchor bound is ever consulted.
+    let reopen_and_reclose = |actor: &str, rewrite_committed: bool| -> Result<String, String> {
+        reopen_change(
+            &root,
+            &record.id,
+            actor.to_string(),
+            "delivery evidence went stale".into(),
+        )?;
+        if rewrite_committed {
+            tamper(&change_dir(&root, &record.id));
+        }
+        check_change(&root, Some(&record.id))?;
+        git(&["add", "."]);
+        git(&["commit", "-m", "chore(lifecycle): re-verify"]);
+        check_change(&root, Some(&record.id))?;
+        record_scoped_review(&root, &record.id, "Independent reviewer".into())?;
+        finalize_change(&root, &record.id).map(|path| path.display().to_string())
+    };
+
+    let mut failures: Vec<String> = Vec::new();
+    let mut record_outcome =
+        |name: &str, must_authenticate: bool, outcome: Result<String, String>| {
+            // Every scenario reports, pass or fail. A refusal that arrives for the wrong reason is
+            // the failure mode this whole area keeps producing, so the reason is always printed.
+            eprintln!(
+                "SCENARIO {name} must_authenticate={must_authenticate} -> {}",
+                match &outcome {
+                    Ok(value) => format!("Ok({value})"),
+                    Err(error) => format!("Err({error})"),
+                }
+            );
+            match (must_authenticate, outcome) {
+                (true, Err(error)) => {
+                    failures.push(format!("{name}: expected an anchor, got Err({error})"));
+                }
+                (false, Ok(anchor)) => {
+                    failures.push(format!("{name}: expected refusal, got `{anchor}`"));
+                }
+                _ => {}
+            }
+        };
+
+    // 1. VACUITY CONTROL. A pristine close whose acceptance commits are still in history must
+    //    authenticate. Holds on every build in this review, including the ones that ship the bug;
+    //    a candidate that fails it has un-authenticated the ordinary case.
+    record_outcome("pristine-in-history-archive", true, authenticates(&root));
+
+    // 2. VACUITY CONTROL. An honest relocation with zero content change must still authenticate,
+    //    the assertion no "refuse relocated archives" shortcut can satisfy.
+    reset();
+    git(&["mv", &archive_relative, &relocated_relative]);
+    git(&["commit", "-qm", "relocate the archived package"]);
+    record_outcome("honest-relocation", true, authenticates(&root));
+
+    // 3. #660 vector 3 on the shape that can witness it. Rewriting a committed approval actor and
+    //    committing it must be refused. This is the scenario that fails if the introduction bound
+    //    is simply reverted: with the closing-evidence fallback ungated, the working tree -- which
+    //    in a clean checkout is the tampered bytes -- authenticates itself, and the fallback never
+    //    inspects `approvals.json` for workflow v2.
+    reset();
+    tamper(&root.join(&archive_relative));
+    git(&["add", "."]);
+    git(&["commit", "-qm", "rewrite archived approval evidence"]);
+    record_outcome("committed-ledger-rewrite", false, anchor(&root));
+
+    // 4. The same rewrite, promoted by a hand-written reopen event and a relocation. A rule that
+    //    admits a re-introduction because the ledger next to it claims a higher reopen count is
+    //    trusting the attacker's own arithmetic; the successor must be shown to CONTAIN the ledger
+    //    history committed, which a rewritten one does not.
+    reset();
+    tamper(&root.join(&archive_relative));
+    forge_reopen_record(&root.join(&archive_relative));
+    git(&["add", "."]);
+    git(&[
+        "commit",
+        "-qm",
+        "rewrite archived evidence and claim a reopen",
+    ]);
+    git(&["mv", &archive_relative, &relocated_relative]);
+    git(&["commit", "-qm", "relocate the archived package"]);
+    record_outcome("forged-generation-then-relocate", false, anchor(&root));
+
+    // 5. #540. A genuine reopen closes again, and the package it writes authenticates -- both
+    //    through the command that creates it and, once committed, through the ordinary read path
+    //    with no knowledge of that command.
+    reset();
+    drift("false");
+    let reclosed = reopen_and_reclose("Release reviewer", false);
+    let reclosed_ok = reclosed.is_ok();
+    record_outcome("genuine-reopen-then-close", true, reclosed);
+    if reclosed_ok {
+        git(&["add", "."]);
+        git(&["commit", "-m", "chore(lifecycle): archive again"]);
+        record_outcome(
+            "genuine-reopen-then-close-reads-back",
+            true,
+            authenticates(&root),
+        );
+    }
+    // Vacuity guard for scenario 5: the reopen really did put a SECOND introduction of this
+    // package into history. Without this a fix that quietly declined to re-archive, or a fixture
+    // that never reached the bound, would satisfy the scenario above by doing nothing.
+    let introductions = archive_introduction_index(&root)
+        .unwrap()
+        .get(&record.id)
+        .cloned()
+        .unwrap_or_default();
+    record_outcome(
+        "genuine-reopen-then-close-second-introduction",
+        true,
+        match introductions.len() {
+            2 => Ok("two introductions".to_string()),
+            found => Err(format!(
+                "history holds {found} introductions of the package"
+            )),
+        },
+    );
+
+    // 6. The closing-evidence fallback must stay unavailable to a package this process merely
+    //    FOUND in the archive. Flipping a committed package's `state.json` back to `accepted` and
+    //    re-running the close is the shape a post-move resume also has, so a fallback keyed on
+    //    "am I archiving something" rather than "am I closing the active workspace" blesses it.
+    reset();
+    let archive_package = root.join(&archive_relative);
+    fs::copy(
+        archive_package.join("accepted-state.json"),
+        archive_package.join("state.json"),
+    )
+    .unwrap();
+    tamper(&archive_package);
+    record_outcome(
+        "reanimated-committed-package",
+        false,
+        finalize_change(&root, &record.id).map(|path| path.display().to_string()),
+    );
+
+    // 7. The front door. `reopen` legitimately mints a new generation, so an attacker who can run
+    //    the product can reach a re-close with the ledger open in front of them. Appending to it is
+    //    their right; rewriting what an earlier archive of this change already committed is not.
+    reset();
+    drift("true");
+    record_outcome(
+        "reopen-then-rewrite-a-committed-approval",
+        false,
+        reopen_and_reclose("Impostor", true),
+    );
+
+    assert!(
+        failures.is_empty(),
+        "a reopened change must close again without reopening what the bound refuses:\n{}",
+        failures.join("\n")
+    );
+}
+
 #[test]
 fn p5_corpus_census() {
     let Ok(root) = std::env::var("P5_ROOT") else {

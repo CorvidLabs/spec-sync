@@ -1081,6 +1081,16 @@ Acceptance Criteria
 - A file read through a canonical-bytes round trip gains nothing from tolerance, because the unknown field is dropped on parse and the re-serialized bytes then differ from the bytes on disk. This limit is deliberate for the files that anchor history, and is pinned by a test rather than left to be discovered.
 - Every digest is unchanged, because tolerance at read time was never part of any preimage.
 
+### REQ-change-088
+
+A later generation of a change's terminal evidence SHALL be trusted only when it extends the generation already committed, and closing evidence that history has not seen SHALL be presentable only by the process writing that package out of the active workspace.
+
+Acceptance Criteria
+- A generation is accepted as later only when it contains, unrewritten, every approval and reopen event the committed generation already holds, because a count of reopen events is written by whoever writes the file and so distinguishes nothing.
+- Rewriting any earlier entry while appending a new one is refused, so a forged reopen cannot launder a tampered approval by appearing to advance the ledger.
+- A change that has been genuinely reopened can be closed again, because the evidence for a new generation necessarily does not yet exist in history at the moment it is being written.
+- Evidence that history has not seen is accepted only from the process writing the package out of the active workspace, so a working tree cannot speak for a package that history already holds.
+
 ### REQ-change-086
 
 A change identity SHALL be minted from its description alone, and identity uniqueness SHALL be enforced directly rather than as a side effect of allocating a number.

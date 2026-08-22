@@ -113,7 +113,19 @@ verb — a mis-scoped change past approval has no clean exit. Get the scope righ
 
 **Every path you touch needs an owning module.** Production source declared under
 `--no-spec-change` is refused: that flag means "no spec text changes", not "no module owns this".
-The refusal arrives at `ship`, several stages after the only place you could have fixed it.
+The refusal arrives at `ship`, several stages after the only place you could have fixed it —
+and scope freezes at approval, so by then the only exit is to redo the change.
+
+The remedy is to declare the owning specs **and** `--no-spec-change` together. They are not
+mutually exclusive, which is not obvious:
+
+    specsync change new "<summary>" --kind fix \
+      --spec change --spec cmd_change \
+      --path src/change.rs --path src/commands/change.rs \
+      --no-spec-change --rationale "behaviour only, no spec text changes"
+
+Find the owning spec for a path by grepping the `files:` list in each `specs/<module>/*.spec.md`.
+A path with no owner is itself the problem — fix that before creating the change.
 
 **The reviewer may not be the approver.** Separation of duties is enforced, and the comparison is
 case-insensitive, so `Alice` cannot review what `alice` approved. Solo adopters hit this at the

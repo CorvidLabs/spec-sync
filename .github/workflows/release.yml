@@ -43,6 +43,17 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
+          # `fetch-depth: 0` fetches history but NOT tag objects: `fetch-tags` defaults to
+          # false, so a tag-triggered run lands a lightweight ref at the tag name even when
+          # the tag on the server is annotated. `resolve_annotated_rc_tag` then runs
+          # `git cat-file -t refs/tags/<tag>` against that local ref, sees `commit`, and
+          # refuses a correctly annotated tag with
+          #   "must be an annotated tag, not a lightweight tag".
+          #
+          # Measured on v6.0.0-rc.1: the GitHub API reports type=tag, tagger=0xLeif,
+          # target=89886855, and the run it triggered 8 seconds later still refused it.
+          # The lane has never released, and this is why: it could not accept any tag.
+          fetch-tags: true
 
       - name: Resolve immutable release candidate
         id: resolve

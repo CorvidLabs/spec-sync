@@ -208,7 +208,7 @@ Acceptance Criteria
 The lifecycle SHALL provide an audited recovery transition when accepted verification is genuinely stale after exact and semantic-successor validation.
 
 Acceptance Criteria
-- Reopen requires an explicit non-empty human actor and reason and rejects exact or successor-covered accepted evidence using the shared validity reason.
+- Reopen requires an explicit non-empty human actor and reason and rejects accepted evidence that is both exact-or-successor-covered AND still anchored in current history, using the shared validity reason.
 - Reopen moves stale accepted evidence to verifying so strict checks remain red until a fresh verification run succeeds.
 - Prior definition approval, verification, closing approval, manifests, successor evidence, and accepted snapshot remain inspectable in append-only audit history.
 - Reacceptance requires a new closing approval and does not reapply canonical deltas already accepted.
@@ -221,7 +221,7 @@ Audited reopening SHALL recognize only provable canonical acceptance and determi
 
 Acceptance Criteria
 - Definition digest, passed evidence, closing approval, stale delivery inputs, actor, and reason remain mandatory.
-- An unreachable verification commit is allowed only when the exact accepted-transition anchor or explicit predecessor/path/module/digest successor evidence is provable from trusted history.
+- An unreachable verification commit is an admissible staleness axis for reopen in its own right, recorded as an explicit cause in the reopen ledger. It never substitutes for the succession evidence reacceptance requires, and every other authentication check remains fatal.
 - ID order, timestamps, lexicographic ordering, and independent path/spec scope overlap are never succession evidence.
 - Repeated trusted commits yielding identical canonical reconstructed evidence are deduplicated; distinct reconstructions fail as ambiguous.
 - A descendant feature branch preserves squash-accepted evidence only when the remote default branch records the same accepted state, definition, delivery inputs, and closing approval.
@@ -432,6 +432,7 @@ Acceptance Criteria
 - Reopen succeeds when attempt history contains the acceptance-bound verification the closing approval signed.
 - After reopen, re-verify and re-accept (or finalize on workflow v2) restore a matching closing approval.
 - Definition approval can be refreshed while accepted when the definition digest is stale.
+- Commit reachability is a second staleness axis alongside delivery-input drift. Reopen admits exactly the axes for which no restore exists: content that drifted can be put back, but an orphaned commit can only be superseded.
 
 ### REQ-change-035
 
@@ -442,6 +443,7 @@ superseded closing approval, and exact accepted-to-verifying transition remain v
 Acceptance Criteria
 
 - A structurally valid audited reopen keeps the collision acknowledgement usable during verification.
+- A reopen caused by an unreachable verification commit records identical stale and current delivery-input digests and still preserves immutable sequence history; the recorded cause, not digest inequality, is what proves the evidence was stale.
 - Missing, tampered, definition-stale, unapplied, or non-verifying reopen evidence remains mutable.
 - The reopened member still requires fresh verification and a new closing approval before acceptance.
 - Collision IDs are never renumbered, deleted, or silently rewritten.

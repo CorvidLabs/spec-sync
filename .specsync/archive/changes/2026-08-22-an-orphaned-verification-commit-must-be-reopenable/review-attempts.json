@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "an-orphaned-verification-commit-must-be-reopenable",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "df123667c01bf9584b57243d5f9afb139f046bd5",
+      "contract_digest": "6f38f489cbfec80544700239bd16ca06665902c285b93a3cb19169c5cc127626",
+      "execution_digest": "c8f7f687c3b626085a886a1a7744762324e10c4e4cb1b19829437378fb7c8c87",
+      "workspace_digest": "e43ef89d03b42ca1633860ac38426f16e485d5b1af91c433b2ca6feb2fb9ab70",
+      "timestamp": 1787416658
+    },
+    {
+      "schema_version": 2,
+      "change_id": "an-orphaned-verification-commit-must-be-reopenable",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "bca85955fea9c685e5c7cf04b6233ffce5da8d06",
+      "contract_digest": "6f38f489cbfec80544700239bd16ca06665902c285b93a3cb19169c5cc127626",
+      "execution_digest": "c8f7f687c3b626085a886a1a7744762324e10c4e4cb1b19829437378fb7c8c87",
+      "workspace_digest": "150e3b37a198e05828592b33103ee4facdbb0286aeb588f43a307ad9f705f599",
+      "timestamp": 1787418775
+    }
+  ]
+}

@@ -6109,16 +6109,50 @@ fn accepted_evidence_survives_squash_merge_from_nested_project_root() {
     assert!(accepted_change_is_recorded_in_current_history(
         &root, &record
     ));
-    git(&["update-ref", "-d", "refs/remotes/origin/main"]);
-    assert!(ensure_closing_approval_valid(&root, &record).is_err());
-    let error = reopen_change(
+    // CONTROL (#673): while the evidence is still anchored — the remote default records the
+    // squash — reopen must REFUSE even though the verification commit itself is unreachable.
+    // This is the vacuity control for the widening below: without it, a fix that made reopen
+    // admit everything would pass just as happily.
+    let anchored_refusal = reopen_change(
         &root,
         &record.id,
         "Reviewer".into(),
         "The verification commit is off history".into(),
     )
-    .unwrap_err();
-    assert!(error.contains("delivery inputs are current"), "{error}");
+    .expect_err("anchored evidence with current inputs must still refuse reopen");
+    assert!(
+        anchored_refusal.contains("still anchored in current history"),
+        "{anchored_refusal}"
+    );
+
+    // Now drop the anchor. Delivery inputs are BYTE-IDENTICAL throughout; the only thing that
+    // changed is that no reachable history records the acceptance any more.
+    git(&["update-ref", "-d", "refs/remotes/origin/main"]);
+    assert!(ensure_closing_approval_valid(&root, &record).is_err());
+
+    // #673: this asserted `unwrap_err()` with "delivery inputs are current" until 6.0. That
+    // pinned the dead end the field report hit: `check` refused because the commit was
+    // unreachable while `reopen` refused because the inputs were current, both true at once and
+    // no verb in between. Amended invariants 15/18 of specs/change/change.spec.md make commit
+    // reachability a staleness axis in its own right, so the recovery verb now fires.
+    let reopened = reopen_change(
+        &root,
+        &record.id,
+        "Reviewer".into(),
+        "The verification commit is off history".into(),
+    )
+    .expect("an unanchored verification commit must be reopenable");
+    assert_eq!(reopened.change.state, ChangeState::Verifying);
+    assert_eq!(
+        reopened.audit.stale_acceptance_input_digest,
+        reopened.audit.current_acceptance_input_digest,
+        "the inputs never drifted — the anchor is what went stale"
+    );
+    assert_eq!(
+        reopened.audit.stale_evidence_cause,
+        Some(ReopenCauseV1::VerificationCommitUnanchored),
+        "the ledger must record WHY, because a sibling validator reads digest equality as proof"
+    );
 }
 
 #[test]
@@ -15080,4 +15114,97 @@ fn a_non_canonical_ordinal_notation_still_fails_closed() {
     let error = validate_change_sequences(root)
         .expect_err("a malformed ordinal claim must not be silently skipped");
     assert!(error.contains("CHG-16-narrow"), "got: {error}");
+}
+
+/// Discriminating test for #673: a verification commit orphaned by a rebase, with
+/// byte-identical delivery inputs, must be reopenable.
+#[test]
+fn orphaned_verification_commit_reopens_even_though_inputs_are_unchanged() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "core.autocrlf", "false"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    write_default_policy(root, Vec::new()).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    git(&["switch", "-c", "feature"]);
+
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implement"]);
+    verify_change(root, &record.id).unwrap();
+    record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "accept"]);
+    assert!(ensure_closing_approval_valid(root, &record).is_ok());
+    let verification = load_verification(root, &record).unwrap();
+    let signed = verification.acceptance_input_digest.clone().unwrap();
+
+    // Orphan the verification commit; leave the remote default behind.
+    git(&["switch", "main"]);
+    git(&["merge", "--squash", "feature"]);
+    git(&["commit", "-m", "squash feature"]);
+
+    // The delivery inputs did NOT drift.
+    let live = if let Some(manifest) = &verification.acceptance_manifest {
+        let current = acceptance_manifest_with_signed_owners(root, &record, &[], manifest).unwrap();
+        acceptance_manifest_digest(&current).unwrap()
+    } else {
+        acceptance_input_digest(root, &record, &[]).unwrap()
+    };
+    assert_eq!(live, signed, "delivery inputs must be byte-identical");
+    // But the evidence is unanchored, and `check` says so.
+    assert!(!accepted_evidence_is_anchored(root, &record, &verification));
+    let closing = ensure_closing_approval_valid(root, &record).unwrap_err();
+    assert!(closing.contains("not in current history"), "{closing}");
+    assert_eq!(
+        summarize_change(root, &record).next_action,
+        format!(
+            "run `specsync change reopen {} --actor <name> --reason <reason>`",
+            record.id
+        )
+    );
+
+    // The verb `status` names must actually work.
+    let reopened = reopen_change(
+        root,
+        &record.id,
+        "Release reviewer".into(),
+        "the verification commit was orphaned by a rebase".into(),
+    )
+    .expect("reopen must fire when the verification commit is unreachable");
+    assert_eq!(reopened.change.state, ChangeState::Verifying);
+    assert_eq!(
+        reopened.audit.stale_acceptance_input_digest,
+        reopened.audit.current_acceptance_input_digest
+    );
+    assert_eq!(
+        reopened.audit.stale_evidence_cause,
+        Some(ReopenCauseV1::VerificationCommitUnanchored)
+    );
+    // The sibling sequence-history validator must accept this reopen too.
+    let reloaded = load_change(root, &record.id).unwrap();
+    assert!(reopened_change_preserves_sequence_history(root, &reloaded));
 }

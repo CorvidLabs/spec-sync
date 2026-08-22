@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-windows-rc-sidecar-must-be-readable-by-the-tool-that-verifies-it",
+  "implementation_commit": "08ad3cd5cc93d49b21c63ee2bdd08d6ba3ad8e2e",
+  "implementation_tree": "ce9afd487abfc7cd670c70d76425a95e788e7cbb",
+  "contract_digest": "eb19836fcf40c63bed03a0779bf9e1d5237507de951aeec3ad96f15b118a3f96",
+  "workspace_digest": "1f60264864104f27ed78f24f2eb50e045eaa8617df9af2d070201e4fbf7c1ec0",
+  "closing_digest": "b50c6ee434819a2341d720afe51e02e8354b0c2a25b10b6480bbea5610ae55ae",
+  "review_digest": "ca76ead9d399440979bbad5d8872f580230540e51f03c7502cacb1375a7fc161",
+  "finalization_digest": "38ca332d416488efc3f6dbec0979c725e8f8263578ace097f2158acf8095ec17",
+  "timestamp": 1787369484
+}

@@ -130,16 +130,31 @@ jobs:
           shasum -a 256 "${ARTIFACT}.tar.gz" > "${ARTIFACT}.tar.gz.sha256"
 
       - name: Package (Windows)
+        # Copied verbatim from release.yml's Package (Windows), deliberately. An earlier
+        # version of this step was written from scratch in bash and got the sidecar wrong:
+        # msys `sha256sum` defaults to BINARY mode and emits `HASH *name`, so reformatting
+        # with `awk '{print $1"  "$2}'` carried the `*` into the filename field while
+        # spelling the line as text mode. `HASH  *name` is valid in neither mode, and
+        # `shasum -c` looked for a file literally named `*specsync-windows-x86_64.exe.zip`.
+        #
+        # Get-FileHash yields the digest alone, so the line is built from parts that carry
+        # no mode marker at all. WriteAllBytes, not Set-Content, because PowerShell's default
+        # encoding would prepend a BOM. The bytes this produces match the sidecar shipped
+        # with v5.2.0 exactly: HASH, two spaces, bare name, LF.
         if: runner.os == 'Windows'
+        shell: pwsh
         env:
           TARGET: ${{ matrix.target }}
           ARTIFACT: ${{ matrix.artifact }}
-        shell: bash
         run: |
-          set -euo pipefail
-          cp "target/${TARGET}/release/specsync.exe" "$ARTIFACT"
-          7z a "${ARTIFACT}.zip" "$ARTIFACT"
-          sha256sum "${ARTIFACT}.zip" | awk '{print $1"  "$2}' > "${ARTIFACT}.zip.sha256"
+          Copy-Item "target/$env:TARGET/release/specsync.exe" $env:ARTIFACT
+          Compress-Archive -Path $env:ARTIFACT -DestinationPath "$env:ARTIFACT.zip"
+          $hash = (Get-FileHash "$env:ARTIFACT.zip" -Algorithm SHA256).Hash.ToLower()
+          $line = "$hash  $env:ARTIFACT.zip`n"
+          [IO.File]::WriteAllBytes(
+            "$env:ARTIFACT.zip.sha256",
+            [Text.Encoding]::ASCII.GetBytes($line)
+          )
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

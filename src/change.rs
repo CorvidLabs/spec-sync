@@ -964,6 +964,14 @@ pub struct ReopenRecord {
     pub prior_verification: VerificationRecord,
     pub stale_acceptance_input_digest: String,
     pub current_acceptance_input_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stale_evidence_cause: Option<ReopenCauseV1>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReopenCauseV1 {
+    VerificationCommitUnanchored,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1976,7 +1984,8 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
         || reopening.from_state != ChangeState::Accepted
         || reopening.to_state != ChangeState::Verifying
         || !reopening.prior_verification.passed
-        || reopening.stale_acceptance_input_digest == reopening.current_acceptance_input_digest
+        || (reopening.stale_acceptance_input_digest == reopening.current_acceptance_input_digest
+            && reopening.stale_evidence_cause != Some(ReopenCauseV1::VerificationCommitUnanchored))
         || reopening
             .prior_verification
             .acceptance_input_digest
@@ -3119,19 +3128,21 @@ fn reopen_unarchived_change(
         } else {
             acceptance_input_digest(root, &record, &[])?
         };
-    if current_acceptance_input_digest == stale_acceptance_input_digest {
+    let inputs_drifted = current_acceptance_input_digest != stale_acceptance_input_digest;
+    let tip_matches_closing = current_verification.passed
+        && superseded_approval.digest == closing_digest(&record, &current_verification);
+    let anchored = if tip_matches_closing {
+        authenticate_accepted_evidence_with_anchor(root, &record)?.1
+    } else {
+        accepted_evidence_is_anchored(root, &record, &prior_verification)
+    };
+    if !inputs_drifted && anchored {
         return Err(
-            "accepted change delivery inputs are current (exact or successor-covered); reopen is allowed only when delivery evidence is stale"
+            "accepted change delivery inputs are current (exact or successor-covered) and its verification commit is still anchored in current history; reopen is allowed only when accepted evidence is stale"
                 .into(),
         );
     }
-    let tip_matches_closing = current_verification.passed
-        && superseded_approval.digest == closing_digest(&record, &current_verification);
-    // When verification.json still matches the closing approval, fully authenticate and
-    // honor successor coverage. When only a historical attempt matches (tip re-verify or
-    // ledger drift), bind to that prior — live vs stale above already proved content drift.
-    if tip_matches_closing {
-        authenticate_accepted_evidence(root, &record)?;
+    if tip_matches_closing && anchored {
         let records = list_all_changes_checked(root)?;
         let mut visiting = BTreeSet::new();
         let mut memo = BTreeMap::new();
@@ -3139,7 +3150,7 @@ fn reopen_unarchived_change(
             .is_ok()
         {
             return Err(
-                "accepted change delivery inputs are current (exact or successor-covered); reopen is allowed only when delivery evidence is stale"
+                "accepted change delivery inputs are current (exact or successor-covered) and its verification commit is still anchored in current history; reopen is allowed only when accepted evidence is stale"
                     .into(),
             );
         }
@@ -3156,6 +3167,7 @@ fn reopen_unarchived_change(
         prior_verification,
         stale_acceptance_input_digest,
         current_acceptance_input_digest,
+        stale_evidence_cause: (!anchored).then_some(ReopenCauseV1::VerificationCommitUnanchored),
     };
     ledger.reopenings.push(audit.clone());
     record.state = ChangeState::Verifying;
@@ -14257,10 +14269,10 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo).map(|_| ())
 }
 
-fn authenticate_accepted_evidence(
+fn authenticate_accepted_evidence_with_anchor(
     root: &Path,
     record: &ChangeRecord,
-) -> Result<VerificationRecord, String> {
+) -> Result<(VerificationRecord, bool), String> {
     validate_acceptance_owner_correction_records(record)?;
     if record.state == ChangeState::Archived {
         validate_archived_accepted_snapshot(root, record, None)?;
@@ -14311,13 +14323,29 @@ fn authenticate_accepted_evidence(
             );
         }
     }
-    if !verification_commit_is_accepted_current(root, &verification)
-        && !accepted_workspace_is_integrated(root, record)
-        && !accepted_change_is_recorded_on_remote_default(root, record)
-    {
-        return Err("accepted change verification commit is not in current history and canonical acceptance is not recorded on the remote default branch".into());
+    let anchored = accepted_evidence_is_anchored(root, record, &verification);
+    Ok((verification, anchored))
+}
+
+/// True when accepted evidence is still tied to history somebody can reach.
+fn accepted_evidence_is_anchored(
+    root: &Path,
+    record: &ChangeRecord,
+    evidence: &VerificationRecord,
+) -> bool {
+    verification_commit_is_accepted_current(root, evidence)
+        || accepted_workspace_is_integrated(root, record)
+        || accepted_change_is_recorded_on_remote_default(root, record)
+}
+
+fn authenticate_accepted_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<VerificationRecord, String> {
+    match authenticate_accepted_evidence_with_anchor(root, record)? {
+        (verification, true) => Ok(verification),
+        (_, false) => Err("accepted change verification commit is not in current history and canonical acceptance is not recorded on the remote default branch".into()),
     }
-    Ok(verification)
 }
 
 fn validate_archived_accepted_snapshot(

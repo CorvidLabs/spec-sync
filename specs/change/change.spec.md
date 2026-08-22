@@ -1,6 +1,6 @@
 ---
 module: change
-version: 98
+version: 99
 status: active
 files:
   - src/change.rs
@@ -76,7 +76,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `ScopeAdoptionV1` | Frozen adopted stable scope, anchor, authorization, and non-material classification evidence |
 | `DefinitionApprovalPairRole` | Current/full or legacy/projected role for one marked portable definition member |
 | `DefinitionApprovalPairV1` | Versioned pair identity, projection, role, change/correction coordinates, event index, and both digests |
-| `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, and stale/current input digests |
+| `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, stale/current input digests, and the staleness cause when the digests are equal |
+| `ReopenCauseV1` | Why accepted evidence was stale when delivery-input digests alone cannot show it; absent means the inputs drifted |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
 | `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |
 | `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
@@ -189,10 +190,10 @@ Acceptance Criteria
 12. Verification command detection prefers portable project-manifest commands and uses Fledge only when no native manifest is available.
 13. Persisted and hashed project paths use forward slashes on every operating system.
 14. Quiet reporting executes every configured command and preserves failures while suppressing only child stdout and stderr; normal checking and verification continue streaming diagnostics.
-15. Reopening current accepted evidence is rejected, and reopening stale evidence never reapplies an already canonical semantic delta.
+15. Reopening accepted evidence is rejected only when its delivery inputs are current AND its verification commit is still anchored in current history; reopening stale evidence never reapplies an already canonical semantic delta.
 16. Reacceptance of an already-applied change requires the definition digest captured by the latest audited reopen event unless every difference is a validated additive exact-owner correction.
 17. False default lifecycle fields remain absent from new persisted state, while definition validation recognizes both omitted and transitional explicit-false encodings so upgrades preserve existing approvals and verification; explicit acceptance appends stable definition evidence when the latest compatible approval uses the transitional encoding.
-18. Audited reopen accepts unreachable verification commits only when canonical acceptance is recorded in current history or later recorded canonical changes govern every affected contract surface.
+18. An unreachable verification commit is itself an admissible staleness axis for audited reopen, recorded as an explicit cause in the reopen ledger; every other authentication check stays fatal, and reacceptance still requires canonical acceptance or deterministic semantic succession provable from trusted history.
 19. Acceptance appends a Change Log row matching the canonical table's existing column schema and uses the post-bump version when the schema includes `Version`.
 20. Generated bookkeeping never replaces explicit delivery scope; registry authority, policy enablement, and native command identity are evaluated consistently before lifecycle enforcement.
 21. Trusted correction-history discovery ignores unresolved remote-default references and parses Git tree paths without quoting ambiguity; regression fixtures preserve quoted-path coverage where supported while remaining valid on Windows.
@@ -269,7 +270,8 @@ Acceptance Criteria
 | Verification command contains shell operators | Command is rejected without execution |
 | HEAD changes after verification | Acceptance requires re-verification |
 | Any intervening commit changes a disallowed path, even if later reverted | Status and strict checking require re-verification in every environment |
-| Accepted delivery evidence is still current | Reopen is rejected without changing lifecycle or audit state |
+| Accepted delivery evidence is still current AND its verification commit is still anchored | Reopen is rejected without changing lifecycle or audit state |
+| Accepted verification commit is unreachable and no reachable history records the acceptance | Reopen is admitted and records `VerificationCommitUnanchored`, even when delivery inputs are byte-identical |
 | Reopen actor or reason is empty | Reopen is rejected before any mutation |
 | Concurrent changes edit the same semantic key | Progress requires dependency ordering or rebase |
 | Ownership correction is not exact, additive, in-scope, and canonically provable | Correction is rejected transactionally |
@@ -408,3 +410,4 @@ Acceptance Criteria
 | 2026-08-20 | CHG-0163-a-trust-anchor-must-be-where-evidence-entered-history-not-any-commit-that-re-introduces-it: A trust anchor must be where evidence entered history, not any commit that re-introduces it |
 | 2026-08-20 | retire-the-ordinal-and-keep-the-ledger-readable-forever: Retire the ordinal and keep the ledger readable forever |
 | 2026-08-21 | a-reopen-must-extend-the-committed-ledger-not-merely-count-itself: A reopen must extend the committed ledger, not merely count itself |
+| 2026-08-22 | an-orphaned-verification-commit-must-be-reopenable: An orphaned verification commit must be reopenable |

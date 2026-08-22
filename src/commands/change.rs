@@ -678,6 +678,28 @@ fn print_change_text_identity(record: &ChangeRecord) {
     let state = record.state.as_str();
     println!("{} {}", id.bold(), title);
     println!("  State: {state}");
+    print_legacy_workflow_notice(record);
+}
+
+/// Name the lifecycle when — and only when — it is the weaker one.
+///
+/// A repository upgraded from 5.x keeps `version: 1` in its policy, `init` short-circuits on an
+/// existing project without raising it, and every change created there is workflow-v1. Nothing said
+/// so until `ship` refused several verbs later, by which point the change cannot be re-created on
+/// the other lifecycle without redoing the work.
+///
+/// This announces STATE, not a verb. A reader who believes they are on v2 needs their assumption
+/// contradicted; being told a command exists does not contradict anything, because they had no
+/// reason to think it applied to them. v2 stays silent so the normal path gains no noise.
+fn print_legacy_workflow_notice(record: &ChangeRecord) {
+    if record.workflow_version >= 2 {
+        return;
+    }
+    println!(
+        "  {} workflow v1 (legacy) — this change uses `change accept` and `change archive`, not `change finalize`",
+        "!".yellow().bold()
+    );
+    println!("    adopt the current lifecycle for NEW changes with `specsync change adopt`");
 }
 
 /// Print only non-sensitive correction counts from state.json for human text sinks.

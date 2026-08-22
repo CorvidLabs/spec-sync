@@ -77,13 +77,13 @@ pub fn cmd_init(root: &Path, repair: bool, format: OutputFormat) {
     match execute_init(root, repair) {
         Ok(report) => {
             let should_bootstrap = report.created && matches!(format, OutputFormat::Text);
-            render_init_report(&report, format);
+            render_init_report(root, &report, format);
             if should_bootstrap {
                 guided_sdd_bootstrap(root);
             }
         }
         Err(report) => {
-            render_init_report(&report, format);
+            render_init_report(root, &report, format);
             process::exit(1);
         }
     }
@@ -255,7 +255,7 @@ fn legacy_init_report(config: &str) -> InitReport {
     }
 }
 
-fn render_init_report(report: &InitReport, format: OutputFormat) {
+fn render_init_report(root: &Path, report: &InitReport, format: OutputFormat) {
     match format {
         OutputFormat::Json => {
             println!(
@@ -305,11 +305,11 @@ fn render_init_report(report: &InitReport, format: OutputFormat) {
                 csv_field(report.error.as_deref().unwrap_or_default())
             );
         }
-        OutputFormat::Text => render_init_text(report),
+        OutputFormat::Text => render_init_text(root, report),
     }
 }
 
-fn render_init_text(report: &InitReport) {
+fn render_init_text(root: &Path, report: &InitReport) {
     if !report.success {
         eprintln!(
             "{} {}",
@@ -356,6 +356,7 @@ fn render_init_text(report: &InitReport) {
             println!("{config} already exists (legacy 3.x layout — run `specsync migrate`)");
         } else {
             println!("{config} already exists");
+            print_legacy_policy_notice(root);
             if !report.missing.is_empty() {
                 println!(
                     "  {} missing support file(s): {}",
@@ -973,4 +974,37 @@ mod tests {
         assert_eq!(found, root.canonicalize().unwrap());
         assert!(find_initialized_ancestor(root).is_none());
     }
+}
+
+/// Say so when re-running `init` on a project that is still on the legacy lifecycle.
+///
+/// `init` short-circuits on an existing project, and "already exists" reads as "nothing to do
+/// here". For a repository upgraded from 5.x it is not: the policy still carries `version: 1`, so
+/// every change created is workflow-v1, and nothing reports that until `ship` refuses. This is the
+/// one moment `init` has the reader's attention with the fact in hand.
+fn print_legacy_policy_notice(root: &Path) {
+    if root.join(".specsync/workflow-v2-baseline.json").is_file() {
+        return;
+    }
+    let Ok(text) = fs::read_to_string(root.join(".specsync/sdd.json")) else {
+        return;
+    };
+    let Ok(policy) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return;
+    };
+    if policy
+        .get("version")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(2)
+        >= 2
+    {
+        return;
+    }
+    println!(
+        "  {} this project is on workflow v1 (legacy) — new changes will use `change accept`/`change archive`, not `change finalize`",
+        "!".yellow()
+    );
+    println!(
+        "  Run `specsync change adopt` to adopt the current lifecycle for new changes (existing v1 evidence is preserved)."
+    );
 }

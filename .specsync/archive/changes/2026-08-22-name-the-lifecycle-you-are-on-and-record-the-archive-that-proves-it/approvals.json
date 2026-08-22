@@ -1,0 +1,48 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787430583,
+      "digest": "81a1977cf148eebeda9243fca38e8a1775870d04e6cdf1dbcdd779531c0b146e",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "name-the-lifecycle-you-are-on-and-record-the-archive-that-proves-it",
+        "title": "Name the lifecycle you are on and record the archive that proves it",
+        "description": "name the lifecycle you are on and record the archive that proves it",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change",
+          "cmd_init"
+        ],
+        "affected_paths": [
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "src/commands/init.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "behaviour and diagnostics only within existing module contracts; no spec text changes",
+        "acceptance_criteria": [
+          "A squash-merged workflow-v2 archive is recognised as recorded on the default branch: measured across this repository's 172 archives, the anchor predicate moves from 71 anchored to 172, with zero remaining unanchored and no archive moving from valid to invalid. A repository still on the legacy policy names that fact at both entry points (init and change new) while a workflow-v2 repository stays completely silent. The discriminating test fails on a binary built from a separate checkout at 4e861401 and its control passes on both."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787435224,
+      "digest": "31074a2b715bf619c127b71bb373f2eac61d595eed5da70308499b8b2d30b279",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

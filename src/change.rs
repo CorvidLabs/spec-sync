@@ -17972,8 +17972,51 @@ fn accepted_change_is_recorded_on_remote_default(root: &Path, record: &ChangeRec
 }
 
 fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, reference: &str) -> bool {
+    // A workflow-v2 change is created, verified, and archived inside ONE pull request. Squash-merge
+    // that and the default branch receives a single commit in which the workspace is ALREADY under
+    // the archive — `.specsync/changes/<id>/state.json` never appears on the default branch at all.
+    // Asking only about the active path therefore fails for every squash-merged v2 change: measured
+    // on this repository, the active path is present for 83 of 172 archives while the archive path
+    // is present for 172 of 172. Ask about the archive too, and require the state each location can
+    // actually hold.
+    if recorded_in_ref_at(root, record, reference, ChangeState::Accepted) {
+        return true;
+    }
+    if record.state == ChangeState::Archived
+        && let Ok(workspace) = find_change_dir(root, &record.id)
+    {
+        let archived_state = portable_project_path(root, &workspace.join("state.json"));
+        if recorded_state_path_in_ref(
+            root,
+            record,
+            reference,
+            &archived_state,
+            ChangeState::Archived,
+        ) {
+            return true;
+        }
+    }
+    false
+}
+
+fn recorded_in_ref_at(
+    root: &Path,
+    record: &ChangeRecord,
+    reference: &str,
+    expected: ChangeState,
+) -> bool {
     let state = format!("{CHANGES_PATH}/{}/state.json", record.id);
-    let Ok(repo_state) = git_repo_relative_path(root, &state) else {
+    recorded_state_path_in_ref(root, record, reference, &state, expected)
+}
+
+fn recorded_state_path_in_ref(
+    root: &Path,
+    record: &ChangeRecord,
+    reference: &str,
+    state: &str,
+    expected: ChangeState,
+) -> bool {
+    let Ok(repo_state) = git_repo_relative_path(root, state) else {
         return false;
     };
     let top_state = format!(":(top,literal){repo_state}");
@@ -18010,7 +18053,7 @@ fn accepted_change_is_recorded_in_ref(root: &Path, record: &ChangeRecord, refere
             .flatten()
             .is_some_and(|snapshot| {
                 serde_json::from_slice::<ChangeRecord>(&snapshot).is_ok_and(|historical| {
-                    historical.id == record.id && historical.state == ChangeState::Accepted
+                    historical.id == record.id && historical.state == expected
                 })
             })
     })

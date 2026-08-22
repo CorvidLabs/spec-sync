@@ -15208,3 +15208,128 @@ fn orphaned_verification_commit_reopens_even_though_inputs_are_unchanged() {
     let reloaded = load_change(root, &record.id).unwrap();
     assert!(reopened_change_preserves_sequence_history(root, &reloaded));
 }
+
+/// #677: a squash-merged workflow-v2 change is recorded on the default branch under its ARCHIVE
+/// path, never its active one — `finalize` accepts and archives inside the same pull request, so a
+/// squash collapses create-and-archive into one commit where the workspace is already archived.
+///
+/// DISCRIMINATOR. Before the fix `accepted_change_is_recorded_in_ref` asked only about
+/// `.specsync/changes/<id>/state.json`, which such a branch never contains, so this returned false.
+/// Measured across this repository's own archives, that made 100 of 172 read as unanchored.
+#[test]
+fn a_squash_merged_archive_is_recorded_under_its_archive_path() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    write_default_policy(root, Vec::new()).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+    git(&["switch", "-c", "feature"]);
+
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implement"]);
+    verify_change(root, &record.id).unwrap();
+    record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    archive_change(root, &record.id).unwrap();
+    record = load_change(root, &record.id).unwrap();
+    assert_eq!(record.state, ChangeState::Archived);
+    git(&["add", "-A"]);
+    git(&["commit", "-m", "archive"]);
+
+    // Squash the whole branch onto main: main gets ONE commit in which the workspace is already
+    // archived, so the ACTIVE path never appears on main at any commit.
+    git(&["switch", "main"]);
+    git(&["merge", "--squash", "feature"]);
+    git(&["commit", "-m", "squash feature"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+    let active = format!(".specsync/changes/{}/state.json", record.id);
+    let log = Command::new("git")
+        .args(["log", "--format=%H", "main", "--", &active])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    assert!(
+        String::from_utf8_lossy(&log.stdout).trim().is_empty(),
+        "the active path must be absent from main — that is the whole premise"
+    );
+
+    assert!(
+        accepted_change_is_recorded_on_remote_default(root, &record),
+        "a squash-merged archive is recorded on the default branch under its archive path"
+    );
+}
+
+/// CONTROL for the above: a record the default branch has never seen in ANY location must still
+/// read as unrecorded. Without this, widening the predicate to consult the archive path could be
+/// satisfied by matching nothing at all.
+#[test]
+fn an_archive_absent_from_the_default_branch_is_not_recorded() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    write_default_policy(root, Vec::new()).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+    // origin/main is pinned to the base commit and never advances.
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    git(&["switch", "-c", "feature"]);
+
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implement"]);
+    verify_change(root, &record.id).unwrap();
+    record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    archive_change(root, &record.id).unwrap();
+    record = load_change(root, &record.id).unwrap();
+    git(&["add", "-A"]);
+    git(&["commit", "-m", "archive"]);
+
+    assert!(
+        !accepted_change_is_recorded_on_remote_default(root, &record),
+        "the default branch has never seen this change in any location"
+    );
+}

@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "7c6100fc5e97e92ab83b40ef912c166069366c24",
   "created_at": 1787365504,
-  "updated_at": 1787368039,
+  "updated_at": 1787368593,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/rc-assets.yml"

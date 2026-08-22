@@ -1,6 +1,6 @@
 ---
 id: the-release-lane-must-be-able-to-read-the-tag-that-triggered-it
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 89886855c6df280075582e332553744dce76d7a9
 ---

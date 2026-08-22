@@ -7,11 +7,11 @@
   "title": "The release lane must be able to read the tag that triggered it",
   "description": "the release lane must be able to read the tag that triggered it",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "89886855c6df280075582e332553744dce76d7a9",
   "created_at": 1787357511,
-  "updated_at": 1787358598,
+  "updated_at": 1787358881,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/release.yml"

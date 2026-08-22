@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "name-the-lifecycle-you-are-on-and-record-the-archive-that-proves-it",
+  "implementation_commit": "6aa75568cb7e8f45051102b50c536a011810507e",
+  "implementation_tree": "e5970d834b99fd6a3e9b5998770ea8a03227154d",
+  "contract_digest": "81a1977cf148eebeda9243fca38e8a1775870d04e6cdf1dbcdd779531c0b146e",
+  "workspace_digest": "bfe41fe3f1f7a1dbfa1aaf3aa0ac593fdb2f4c9958efda0fc6ac298e73a8a0ab",
+  "closing_digest": "31074a2b715bf619c127b71bb373f2eac61d595eed5da70308499b8b2d30b279",
+  "review_digest": "46d78b89dadafe41a6cfa2b2387203757ce29458bcfc633caa94aa204a9b3cc5",
+  "finalization_digest": "3a93e098250b6eac290812f1a94e33e1b44ac39f32b5de0c4e33bd9e242b1a6a",
+  "timestamp": 1787435224
+}

@@ -1,6 +1,6 @@
 ---
 id: name-the-lifecycle-you-are-on-and-record-the-archive-that-proves-it
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 4e86140199762e66900b26bbc4f1ea3177bdfde3
 ---

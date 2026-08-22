@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "name-the-lifecycle-you-are-on-and-record-the-archive-that-proves-it",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6aa75568cb7e8f45051102b50c536a011810507e",
+  "contract_digest": "81a1977cf148eebeda9243fca38e8a1775870d04e6cdf1dbcdd779531c0b146e",
+  "execution_digest": "b87ac5de23b4e470bc9a1c3cd4e46cf3c17d3f55f57c67e54812f03173302a73",
+  "workspace_digest": "bfe41fe3f1f7a1dbfa1aaf3aa0ac593fdb2f4c9958efda0fc6ac298e73a8a0ab",
+  "timestamp": 1787433988
+}

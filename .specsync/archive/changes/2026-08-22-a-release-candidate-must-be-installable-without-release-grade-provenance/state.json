@@ -7,11 +7,11 @@
   "title": "A release candidate must be installable without release-grade provenance",
   "description": "a release candidate must be installable without release-grade provenance",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "77461a4a75895593e741f73160ea62838cffd87c",
   "created_at": 1787362045,
-  "updated_at": 1787363057,
+  "updated_at": 1787363302,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/release.yml",

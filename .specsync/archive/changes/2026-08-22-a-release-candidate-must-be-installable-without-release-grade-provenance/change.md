@@ -1,6 +1,6 @@
 ---
 id: a-release-candidate-must-be-installable-without-release-grade-provenance
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 77461a4a75895593e741f73160ea62838cffd87c
 ---

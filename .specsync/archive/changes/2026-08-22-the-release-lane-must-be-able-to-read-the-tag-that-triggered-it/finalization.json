@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-release-lane-must-be-able-to-read-the-tag-that-triggered-it",
+  "implementation_commit": "bf1227b5ff84434b00d5ae0e3a6bd48f5b5b01c0",
+  "implementation_tree": "6ab200fd6c04f044bfe548a28fb7b88fa49174e9",
+  "contract_digest": "f706bcd7c7019fa7c7166370ea9f4cf8e66dbda61caff8f81e7ccd07a4a766a7",
+  "workspace_digest": "fc215955a45f8077a703524ef4e7308064d6a517632c6c80111bce62a82f44c8",
+  "closing_digest": "3f09af147d2a87e4bb91b9be1c37b2a60708e25e13145febabc7c6da3a373db1",
+  "review_digest": "283b74b13b1f8d555a4b96c57b02fb3af743b185b59a7253f2397478f9075373",
+  "finalization_digest": "f0313ae09cef293beb69096342857162d85a44d56d3ea0569dfd44bf95ff4ecb",
+  "timestamp": 1787358614
+}

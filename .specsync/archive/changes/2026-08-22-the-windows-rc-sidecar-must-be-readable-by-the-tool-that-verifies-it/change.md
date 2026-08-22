@@ -1,6 +1,6 @@
 ---
 id: the-windows-rc-sidecar-must-be-readable-by-the-tool-that-verifies-it
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 7c6100fc5e97e92ab83b40ef912c166069366c24
 ---

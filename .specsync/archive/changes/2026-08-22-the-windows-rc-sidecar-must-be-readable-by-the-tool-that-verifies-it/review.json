@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "the-windows-rc-sidecar-must-be-readable-by-the-tool-that-verifies-it",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "08ad3cd5cc93d49b21c63ee2bdd08d6ba3ad8e2e",
+  "contract_digest": "eb19836fcf40c63bed03a0779bf9e1d5237507de951aeec3ad96f15b118a3f96",
+  "execution_digest": "17fd3ab26ca993a45ac0a3be48a12ede8794e7ddda1c105bf048054f3c9ff76f",
+  "workspace_digest": "1f60264864104f27ed78f24f2eb50e045eaa8617df9af2d070201e4fbf7c1ec0",
+  "timestamp": 1787368649
+}

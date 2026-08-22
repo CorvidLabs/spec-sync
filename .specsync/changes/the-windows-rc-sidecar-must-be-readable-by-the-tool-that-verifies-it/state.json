@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-windows-rc-sidecar-must-be-readable-by-the-tool-that-verifies-it",
+  "slug": "the-windows-rc-sidecar-must-be-readable-by-the-tool-that-verifies-it",
+  "title": "The Windows RC sidecar must be readable by the tool that verifies it",
+  "description": "the Windows RC sidecar must be readable by the tool that verifies it",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "7c6100fc5e97e92ab83b40ef912c166069366c24",
+  "created_at": 1787365504,
+  "updated_at": 1787367274,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/rc-assets.yml"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "the packaging step writes a checksum sidecar; no module spec text describes CI workflow files",
+  "acceptance_criteria": [
+    "The RC assets lane attaches all twelve files to a pre-release tag. The Windows sidecar it produces is HASH, two spaces, bare filename, LF — byte-identical in form to the sidecar shipped with v5.2.0 — and `shasum -a 256 -c` on it reports OK rather than looking for a file named `*specsync-windows-x86_64.exe.zip`. The bash reimplementation of Windows packaging is gone, leaving one implementation shared with release.yml."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

@@ -1,0 +1,197 @@
+name: RC assets
+
+# Build and attach binaries to an existing pre-release.
+#
+# WHY THIS EXISTS, SEPARATELY FROM release.yml
+# `release.yml` is the gated lane for FINAL releases. It qualifies a candidate against
+# three tag rulesets, a protected `release` environment, and a GitHub App identity, and
+# it should keep doing all of that — a final tag is a promise to every consumer.
+#
+# A release candidate is a different thing. Its whole job is to be installed by people
+# who have agreed to test it, and gating it behind release-grade provenance means it
+# cannot be installed at all: `v6.0.0-rc.1` shipped with zero assets because the lane
+# refused before reaching `build`, and every consumer of the packaged action 404s.
+#
+# So this workflow does exactly one thing — build the same six targets `release.yml`
+# builds, with the same names `action.yml` downloads, and attach them to a release that
+# already exists and is already marked pre-release. It creates no tag, promotes nothing,
+# and refuses to touch anything that is not a pre-release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing pre-release tag to attach assets to (e.g. v6.0.0-rc.2)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: Refuse anything that is not a pre-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Fail closed before spending six build jobs, and before any chance of attaching
+      # an unverified binary to something consumers treat as final.
+      - name: Verify the target is an existing pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*-rc.[0-9]*) ;;
+            *) echo "::error::${TAG} is not an RC tag (vX.Y.Z-rc.N)"; exit 1 ;;
+          esac
+          release="$(gh api "repos/${REPOSITORY}/releases/tags/${TAG}")"
+          if [[ "$(jq -r '.prerelease' <<<"$release")" != "true" ]]; then
+            echo "::error::${TAG} exists but is not marked pre-release; refusing"
+            exit 1
+          fi
+          if [[ "$(jq -r '.draft' <<<"$release")" != "false" ]]; then
+            echo "::error::${TAG} is a draft; publish it first"
+            exit 1
+          fi
+          echo "${TAG} is a published pre-release."
+
+  build:
+    name: ${{ matrix.artifact }}
+    needs: [guard]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: specsync-linux-x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact: specsync-linux-x86_64-musl
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: specsync-linux-aarch64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: specsync-macos-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: specsync-macos-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: specsync-windows-x86_64.exe
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: dtolnay/rust-toolchain@451ce45ce31d200b52705aadd15ce75018b006de # 1.89.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install aarch64 cross linker (Linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+
+      - name: Install musl toolchain (Linux musl)
+        if: contains(matrix.target, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
+          echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+
+      # Restore, never save: this tree is checked out at a candidate tag.
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
+        with:
+          save-if: false
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        env:
+          TARGET: ${{ matrix.target }}
+          ARTIFACT: ${{ matrix.artifact }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "target/${TARGET}/release/specsync" "$ARTIFACT"
+          chmod +x "$ARTIFACT"
+          tar czf "${ARTIFACT}.tar.gz" "$ARTIFACT"
+          shasum -a 256 "${ARTIFACT}.tar.gz" > "${ARTIFACT}.tar.gz.sha256"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        env:
+          TARGET: ${{ matrix.target }}
+          ARTIFACT: ${{ matrix.artifact }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "target/${TARGET}/release/specsync.exe" "$ARTIFACT"
+          7z a "${ARTIFACT}.zip" "$ARTIFACT"
+          sha256sum "${ARTIFACT}.zip" | awk '{print $1"  "$2}' > "${ARTIFACT}.zip.sha256"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rc-asset-${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.tar.gz.sha256
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}.zip.sha256
+          if-no-files-found: error
+
+  attach:
+    name: Attach to the pre-release
+    needs: [guard, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: rc-asset-*
+          merge-multiple: true
+          path: assets
+
+      - name: Verify every checksum before attaching
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd assets
+          # Attaching a binary whose checksum does not match its own sidecar is worse than
+          # attaching nothing: the action verifies the sidecar, so a mismatch fails at every
+          # consumer instead of here.
+          shopt -s nullglob
+          count=0
+          for sum in *.sha256; do
+            shasum -a 256 -c "$sum"
+            count=$((count + 1))
+          done
+          if [[ "$count" -eq 0 ]]; then
+            echo "::error::no checksum files present"
+            exit 1
+          fi
+          echo "verified ${count} checksums"
+          ls -la
+
+      - name: Attach
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" assets/* --clobber --repo "${{ github.repository }}"
+          echo "Attached $(ls assets | wc -l | tr -d ' ') files to ${TAG}."

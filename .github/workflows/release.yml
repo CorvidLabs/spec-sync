@@ -43,17 +43,6 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
-          # `fetch-depth: 0` fetches history but NOT tag objects: `fetch-tags` defaults to
-          # false, so a tag-triggered run lands a lightweight ref at the tag name even when
-          # the tag on the server is annotated. `resolve_annotated_rc_tag` then runs
-          # `git cat-file -t refs/tags/<tag>` against that local ref, sees `commit`, and
-          # refuses a correctly annotated tag with
-          #   "must be an annotated tag, not a lightweight tag".
-          #
-          # Measured on v6.0.0-rc.1: the GitHub API reports type=tag, tagger=0xLeif,
-          # target=89886855, and the run it triggered 8 seconds later still refused it.
-          # The lane has never released, and this is why: it could not accept any tag.
-          fetch-tags: true
 
       - name: Resolve immutable release candidate
         id: resolve
@@ -104,6 +93,21 @@ jobs:
               echo "::error::RC qualification requires a newly created, non-forced tag ref"
               exit 1
             fi
+            # Re-fetch the tag OBJECT, exactly as the dispatch path above does.
+            #
+            # `actions/checkout` does not leave one behind. With `fetch-depth: 0` it ignores
+            # `fetch-tags` entirely, then runs its own ref check: for `refs/tags/*` it compares
+            # the resolved commit against `git rev-parse refs/tags/<tag>`, which for an
+            # ANNOTATED tag is the tag object's own SHA and therefore never equal. It reacts by
+            # fetching `+<commit>:refs/tags/<tag>`, force-overwriting the annotated ref with a
+            # lightweight one pointing at the commit.
+            #
+            # `resolve_annotated_rc_tag` then asks `git cat-file -t refs/tags/<tag>`, sees
+            # `commit`, and refuses a correctly annotated tag. Measured on v6.0.0-rc.1: the API
+            # reports `type=tag`, tagger 0xLeif, target 89886855; the run it triggered eight
+            # seconds later refused it. `fetch-tags: true` does not help — it is silently
+            # dropped on this code path — so this restores the object the checkout destroyed.
+            git fetch --force origin "refs/tags/${rc_tag}:refs/tags/${rc_tag}"
           else
             echo "::error::Unsupported release event/ref: ${EVENT_NAME}/${REF_NAME}"
             exit 1
@@ -218,6 +222,14 @@ jobs:
       # itself, in `change ship` and archive validation, which is where #499 put
       # the lifecycle. The release lane no longer re-derives it from Git
       # topology.
+      # The only bare `cargo` invocation in any workflow here. Without this, the rustup shim
+      # reads the CANDIDATE's `rust-toolchain.toml` and downloads whatever it names, inside a
+      # 5-minute timeout and with no cache in this job — an unpinned toolchain fetch driven by
+      # candidate-controlled content, on the step whose whole job is to decide whether that
+      # candidate can be trusted. Pinning it makes the toolchain a property of the lane rather
+      # than of the thing under test.
+      - uses: dtolnay/rust-toolchain@451ce45ce31d200b52705aadd15ce75018b006de # 1.89.0
+
       - name: Validate candidate source
         env:
           RELEASE_COMMIT: ${{ needs.resolve.outputs.candidate_sha }}
@@ -352,7 +364,20 @@ jobs:
 
       - name: Write SHA-bound platform evidence
         if: always()
-        shell: python
+        # `shell: python` is a literal PATH lookup for `python` with no `python3` fallback
+        # (actions/runner ScriptHandlerHelpers maps it to "{0}"). macOS runner images install
+        # only `python3` — the readme lists Python3/Pip3 and no bare `Python` — so this step
+        # fails there with "Unable to locate executable file: python".
+        #
+        # It is `if: always()`, so the failure is silent in the step list and lands as a MISSING
+        # ARTIFACT: no `macos.json`, so the evidence upload is `if-no-files-found: error`, so
+        # `record-qualification` never gets its three platform files, so the RC gate posts
+        # `failure` and can never go green. A missing interpreter three jobs upstream presents
+        # as an unqualifiable release candidate.
+        #
+        # `shell: python3` is not a built-in keyword; the custom form below is what works
+        # everywhere, and `python3` exists on all three runner images.
+        shell: python3 {0}
         env:
           PLATFORM: ${{ matrix.platform }}
           RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
@@ -523,13 +548,45 @@ jobs:
             echo "::error::The newest exact RC gate is not successful"
             exit 1
           fi
-          details_url="$(jq -r '.details_url' "$check_file")"
-          details_prefix="${SERVER_URL}/${REPOSITORY}/actions/runs/"
-          if [[ "$details_url" != "$details_prefix"* ]]; then
-            echo "::error::RC gate does not identify a repository Actions run"
+          # Do NOT derive the run from `details_url`.
+          #
+          # GitHub discards the `details_url` posted to POST /check-runs from an Actions token
+          # and persists its own canonical `/runs/<check-run-id>`. So the prefix test below used
+          # to reject every green gate, and had it passed, the id extracted would have been a
+          # CHECK-RUN id used as a WORKFLOW-RUN id — a wrong answer rather than an error.
+          #
+          # This repository already learned this once. CHG-0076, "accept GitHub's rewritten
+          # trusted policy check URL while preserving exact base control", records the rule:
+          #
+          #     A display URL is not a stable provenance field. Acceptance must instead bind
+          #     the official check and a successful base-controlled workflow run to the same
+          #     repository, candidate SHA, trusted revision, workflow path, and PR.
+          #
+          # The gate is already bound to the right check by `external_id` above, which GitHub
+          # does persist verbatim. The run is now found the same way: by the properties that
+          # identify it, not by a link rendered for humans. Every assertion the old path made
+          # about the run is unchanged and still applies below.
+          runs_file="${RUNNER_TEMP}/specsync-rc-runs.json"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${REPOSITORY}/actions/runs?head_sha=${CANDIDATE_SHA}&event=push&status=success&per_page=100" \
+            > "$runs_file"
+          run_id="$(jq -r \
+            --arg rc "$RC_TAG" \
+            '
+              [ .workflow_runs[]
+                | select((.path | split("@")[0]) == ".github/workflows/release.yml")
+                | select(.head_branch == $rc)
+              ]
+              | sort_by(.run_started_at)
+              | last
+              | .id // empty
+            ' "$runs_file")"
+          if [[ -z "$run_id" ]]; then
+            echo "::error::No successful release-lane run found for ${RC_TAG} at ${CANDIDATE_SHA}"
             exit 1
           fi
-          run_id="${details_url#"$details_prefix"}"
           run_file="${RUNNER_TEMP}/specsync-rc-run.json"
           gh api \
             -H "Accept: application/vnd.github+json" \
@@ -742,7 +799,20 @@ jobs:
           )
 
       - name: Verify packaged checksum
-        shell: python
+        # `shell: python` is a literal PATH lookup for `python` with no `python3` fallback
+        # (actions/runner ScriptHandlerHelpers maps it to "{0}"). macOS runner images install
+        # only `python3` — the readme lists Python3/Pip3 and no bare `Python` — so this step
+        # fails there with "Unable to locate executable file: python".
+        #
+        # It is `if: always()`, so the failure is silent in the step list and lands as a MISSING
+        # ARTIFACT: no `macos.json`, so the evidence upload is `if-no-files-found: error`, so
+        # `record-qualification` never gets its three platform files, so the RC gate posts
+        # `failure` and can never go green. A missing interpreter three jobs upstream presents
+        # as an unqualifiable release candidate.
+        #
+        # `shell: python3` is not a built-in keyword; the custom form below is what works
+        # everywhere, and `python3` exists on all three runner images.
+        shell: python3 {0}
         env:
           ARTIFACT: ${{ matrix.artifact }}
           CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_sha }}

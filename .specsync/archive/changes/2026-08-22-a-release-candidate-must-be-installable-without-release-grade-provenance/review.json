@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "a-release-candidate-must-be-installable-without-release-grade-provenance",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "a26fab35eeb5677d092a34d6c1824619d82fea3a",
+  "contract_digest": "41b2b6e066d66c8919d2e78ad131387e6cee95834101643fa17931a3876ef63c",
+  "execution_digest": "1aa7e2b9f17219e52b09818a60f509e187d2c522e0cd1f10118dfeab3cb4b9fe",
+  "workspace_digest": "60cb73ce16312d640df6983b062af626360107bb17d9453f870f8d021d14867d",
+  "timestamp": 1787363060
+}

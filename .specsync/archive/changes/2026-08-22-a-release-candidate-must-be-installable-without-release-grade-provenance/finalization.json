@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-release-candidate-must-be-installable-without-release-grade-provenance",
+  "implementation_commit": "a26fab35eeb5677d092a34d6c1824619d82fea3a",
+  "implementation_tree": "f1acd4180f0009f6cb105f767d976df85939a68c",
+  "contract_digest": "41b2b6e066d66c8919d2e78ad131387e6cee95834101643fa17931a3876ef63c",
+  "workspace_digest": "60cb73ce16312d640df6983b062af626360107bb17d9453f870f8d021d14867d",
+  "closing_digest": "23f1150cb105c8cda7ee5d61f6975043ca76f8484f74ea6b045b981e73b2aa17",
+  "review_digest": "deaf7aaac444f2741b59f244151166ce490461a7c9d449771aa336dd94f82e77",
+  "finalization_digest": "352dbd1a2e8e74b2d38fa8ddcdcb2e291c5c4c6eab392022ce22a757c32e36cd",
+  "timestamp": 1787363073
+}

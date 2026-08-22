@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787362051,
+      "digest": "41b2b6e066d66c8919d2e78ad131387e6cee95834101643fa17931a3876ef63c",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-release-candidate-must-be-installable-without-release-grade-provenance",
+        "title": "A release candidate must be installable without release-grade provenance",
+        "description": "a release candidate must be installable without release-grade provenance",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/workflows/rc-assets.yml",
+          ".github/workflows/release.yml"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Release-lane repairs and a separate pre-release asset workflow; no module contract changes and no production source in scope",
+        "acceptance_criteria": [
+          "v6.0.0-rc.1 shipped with zero assets because the gated release lane refuses before reaching build, so every consumer of the packaged action still 404s. An audit of the six lane jobs that had never executed found four defects that are mine to fix: fetch-tags is silently ignored when fetch-depth is zero and actions/checkout then force-overwrites the annotated ref with a lightweight one, so resolve refuses every annotated tag; shell python is a literal PATH lookup with no python3 fallback and macOS runners have no bare python, which fails silently under if always and presents three jobs later as an unqualifiable candidate; the RC gate derives a workflow run id from details_url, which GitHub rewrites, a rule this repository already established in CHG-0076 and then reintroduced; and validate runs the only bare cargo invocation in any workflow, downloading a toolchain named by the candidate under test. Three further blockers are repository configuration the owner must provide and are out of scope here. Done when: those four are fixed; and a release candidate can be made installable without them, by a workflow that builds the same targets under the same names and attaches them to an existing pre-release, refusing anything that is not one."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787363073,
+      "digest": "23f1150cb105c8cda7ee5d61f6975043ca76f8484f74ea6b045b981e73b2aa17",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

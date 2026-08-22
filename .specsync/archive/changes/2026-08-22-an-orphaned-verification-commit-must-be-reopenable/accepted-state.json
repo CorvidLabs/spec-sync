@@ -7,11 +7,11 @@
   "title": "An orphaned verification commit must be reopenable",
   "description": "an orphaned verification commit must be reopenable",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "3997fc5bedfb634ee0ba7262b9fe6d79a681accc",
   "created_at": 1787409958,
-  "updated_at": 1787418751,
+  "updated_at": 1787420689,
   "affected_specs": [
     "change"
   ],

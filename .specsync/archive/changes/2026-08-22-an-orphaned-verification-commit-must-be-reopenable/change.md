@@ -1,6 +1,6 @@
 ---
 id: an-orphaned-verification-commit-must-be-reopenable
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 3997fc5bedfb634ee0ba7262b9fe6d79a681accc
 ---

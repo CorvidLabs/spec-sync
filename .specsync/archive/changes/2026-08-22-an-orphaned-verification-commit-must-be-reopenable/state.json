@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "an-orphaned-verification-commit-must-be-reopenable",
+  "slug": "an-orphaned-verification-commit-must-be-reopenable",
+  "title": "An orphaned verification commit must be reopenable",
+  "description": "an orphaned verification commit must be reopenable",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "3997fc5bedfb634ee0ba7262b9fe6d79a681accc",
+  "created_at": 1787409958,
+  "updated_at": 1787421082,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "An accepted change whose verification commit is unreachable can be reopened even when its delivery inputs are byte-identical, and the reopen ledger records VerificationCommitUnanchored as the cause. Evidence that is still anchored continues to refuse reopen, so the widening is bounded. The sibling validator reopened_change_preserves_sequence_history accepts an equal-digest reopen carrying that cause, so no project-wide sequence freeze occurs. Amended invariants 15 and 18 and REQ-change-017/018/034/035 describe the admitted axis."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

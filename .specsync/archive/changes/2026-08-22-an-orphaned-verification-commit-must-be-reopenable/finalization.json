@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "an-orphaned-verification-commit-must-be-reopenable",
+  "implementation_commit": "bca85955fea9c685e5c7cf04b6233ffce5da8d06",
+  "implementation_tree": "debab3461ad79fbf5abe9a474bb8421c5f9565a0",
+  "contract_digest": "6f38f489cbfec80544700239bd16ca06665902c285b93a3cb19169c5cc127626",
+  "workspace_digest": "150e3b37a198e05828592b33103ee4facdbb0286aeb588f43a307ad9f705f599",
+  "closing_digest": "cb2b773d2529e451a89f4ae566822ca6e04ff5abac5443ed216a4baf848225ab",
+  "review_digest": "f1f14d28f075f4929c92ef84ce7af5adbb1f99458a8bba474fad0e4056aabdc0",
+  "finalization_digest": "15fb292b72353f7e8af8c2de8b8d6dbe21ba022a8a1feb0047c8e5eddb8dba0d",
+  "timestamp": 1787420689
+}

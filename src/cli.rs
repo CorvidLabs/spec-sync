@@ -517,7 +517,8 @@ pub enum ChangeAction {
     },
     /// Finalize and archive the reviewed change on its existing pull request.
     /// Writes an archive tip for the same PR — merge only after finalize; merging first
-    /// orphans verification evidence.
+    /// orphans verification evidence and blocks every earlier accepted change sharing a
+    /// delivery input from archiving until this one is finalized.
     Finalize {
         /// Change ID
         id: String,

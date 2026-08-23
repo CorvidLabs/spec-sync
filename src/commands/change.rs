@@ -761,7 +761,7 @@ fn text_mode_next_action(
         }
         ChangeState::Verifying => {
             format!(
-                "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — independent review then finalize before merging; merging first orphans verification evidence"
+                "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — independent review then finalize before merging; merging first orphans verification evidence and blocks earlier accepted changes sharing a delivery input from archiving"
             )
         }
         ChangeState::Accepted if record.workflow_version >= 2 => {
@@ -861,10 +861,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             );
         }
         if record.state == ChangeState::Verifying {
-            warnings.push(
-                "do not merge the PR before finalize — merging first orphans verification evidence and strands the change"
-                    .to_string(),
-            );
+            warnings.push(merge_before_finalize_warning(false));
         }
         if tip.tip_class == "archive_only" && record.state != ChangeState::Archived {
             warnings.push(
@@ -886,10 +883,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             .iter()
             .any(|warning| warning.contains("merge the PR before finalize"))
         {
-            warnings.push(
-                "do not merge the PR while this change is still active — merging first orphans verification evidence and strands the change"
-                    .to_string(),
-            );
+            warnings.push(merge_before_finalize_warning(true));
         }
         warnings.push(
             "review then ship without an intermediate commit — committing between review and finalize stales the scoped review workspace digest"
@@ -1123,6 +1117,30 @@ fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
             "guidance": SHIP_TRUST_LOCAL_GUIDANCE,
         }),
     }
+}
+
+/// What merging before `finalize` actually costs.
+///
+/// The warning used to say it "orphans verification evidence and strands the change", which
+/// prices the loss as ONE record — the reader's own, recoverable. Measured on a real repository,
+/// the cost is larger and lands on other people's work: an unfinalized change never reaches
+/// `accepted` or `archived`, so it never becomes an "accepted or archived successor", and every
+/// EARLIER accepted change sharing a delivery input with it can no longer archive.
+///
+/// That second-order effect is why an accepted pile can grow without any single merge decision
+/// looking wrong. Each one is individually small and locally recoverable; the aggregate is a
+/// lifecycle that cannot drain. Say the real price at the moment the decision is made.
+fn merge_before_finalize_warning(still_active: bool) -> String {
+    let opening = if still_active {
+        "do not merge the PR while this change is still active"
+    } else {
+        "do not merge the PR before finalize"
+    };
+    format!(
+        "{opening} — merging first orphans its verification evidence AND blocks every earlier \
+accepted change sharing a delivery input from archiving, until this one is finalized or those \
+are reopened"
+    )
 }
 
 /// Warnings when more than one change is active on the same branch/PR.
@@ -2493,6 +2511,30 @@ if the floor call is removed from this function"
             ]),
             "product"
         );
+    }
+
+    /// #687: the warning must name the cost that lands on OTHER changes, not only this one.
+    /// Pins the disclosure so a future refactor cannot quietly shrink it back to "strands the
+    /// change", which under-prices the decision it exists to inform.
+    #[test]
+    fn the_merge_warning_names_the_cost_to_earlier_accepted_changes() {
+        for still_active in [false, true] {
+            let warning = merge_before_finalize_warning(still_active);
+            assert!(
+                warning.contains("every earlier accepted change sharing a delivery input"),
+                "must name whose work is blocked: {warning}"
+            );
+            assert!(
+                warning.contains("from archiving"),
+                "must name what is blocked: {warning}"
+            );
+            assert!(
+                warning.contains("finalized or those are reopened"),
+                "must name both exits: {warning}"
+            );
+        }
+        assert!(merge_before_finalize_warning(false).contains("before finalize"));
+        assert!(merge_before_finalize_warning(true).contains("still active"));
     }
 
     #[test]

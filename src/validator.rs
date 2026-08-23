@@ -88,9 +88,31 @@ pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<S
 
     let snapshot = match schema::build_schema_snapshot(&schema_dir) {
         Ok(snapshot) => snapshot,
+        // The schema could not be replayed. Returning an empty set here would be read by
+        // `add_missing_db_table_error` as "these tables do not exist", which is a different
+        // claim entirely — see `schema_table_names_available`.
         Err(_) => return HashSet::new(),
     };
     schema_table_names_from_snapshot(&snapshot, config).unwrap_or_default()
+}
+
+/// Whether the declared table set is KNOWN, as opposed to merely empty.
+///
+/// `get_schema_table_names` collapses three outcomes into one empty `HashSet`: a schema that
+/// genuinely declares no tables, a schema that failed to replay, and a `schema_pattern` that
+/// failed to compile. Only the first justifies telling a user their table is missing.
+///
+/// Conflating them is how one unparseable migration reports EVERY declared table as absent,
+/// including tables created correctly in an unrelated file. A parse failure must degrade to
+/// "unknown", never to "not there".
+pub fn schema_table_names_available(root: &Path, config: &SpecSyncConfig) -> bool {
+    let Some(schema_dir) = config.schema_dir.as_ref().map(|dir| root.join(dir)) else {
+        return false;
+    };
+    let Ok(snapshot) = schema::build_schema_snapshot(&schema_dir) else {
+        return false;
+    };
+    schema_table_names_from_snapshot(&snapshot, config).is_ok()
 }
 
 pub(crate) fn schema_table_names_from_snapshot(
@@ -2260,6 +2282,7 @@ fn validate_spec_content_internal(
         );
     }
 
+    let mut schema_tables_known: Option<bool> = None;
     for table in &fm.db_tables {
         if validate_db_table_identifier(table, &mut result).is_err() {
             continue;
@@ -2267,7 +2290,18 @@ fn validate_spec_content_internal(
         if config.schema_dir.is_some() {
             match schema_table_exists(table, schema_tables) {
                 Ok(true) => {}
-                Ok(false) => add_missing_db_table_error(table, &mut result),
+                // Only claim a table is MISSING when the schema was actually readable. An
+                // unparseable migration already reports its own error; adding "every declared
+                // table is absent" on top buries the real cause and suggests writing a
+                // `CREATE TABLE` that is already present and correct. Resolved lazily so the
+                // happy path never re-replays the schema.
+                Ok(false) => {
+                    let known = *schema_tables_known
+                        .get_or_insert_with(|| schema_table_names_available(root, config));
+                    if known {
+                        add_missing_db_table_error(table, &mut result);
+                    }
+                }
                 Err(error) => add_schema_resolution_error(
                     format!("Invalid DB table identifier `{table}`: {error}"),
                     &mut result,

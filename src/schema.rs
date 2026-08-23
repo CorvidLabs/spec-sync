@@ -871,12 +871,24 @@ fn apply_operation(
                     format!("ALTER TABLE ADD references missing canonical table `{table}`"),
                 )
             })?;
-            if schema_table
+            if let Some(existing) = schema_table
                 .columns
                 .iter()
-                .any(|existing| existing.name == column.name)
+                .find(|existing| existing.name == column.name)
             {
                 if if_not_exists {
+                    return Ok(());
+                }
+                // SQLite has no `ADD COLUMN IF NOT EXISTS`, so the only way to add a column to
+                // existing databases while keeping fresh ones correct is to carry it in
+                // `CREATE TABLE` AND replay a bare `ALTER TABLE ADD COLUMN`, executed with the
+                // error deliberately discarded. The duplicate is intentional and load-bearing:
+                // remove either half and one of the two database populations is wrong.
+                //
+                // A redeclaration that AGREES with the existing column is therefore a no-op, not
+                // a defect. A redeclaration that CONTRADICTS it still fails — that is a genuine
+                // mistake and the check keeps its value exactly there.
+                if existing.col_type == column.col_type {
                     return Ok(());
                 }
                 return Err(SchemaError::at(
@@ -885,8 +897,8 @@ fn apply_operation(
                     sql,
                     offset,
                     format!(
-                        "ALTER TABLE ADD duplicates existing column `{table}.{}`",
-                        column.name
+                        "ALTER TABLE ADD redeclares existing column `{table}.{}` with a different type (`{}` then `{}`)",
+                        column.name, existing.col_type, column.col_type
                     ),
                 ));
             }
@@ -2139,5 +2151,82 @@ CREATE TABLE b (id INTEGER PRIMARY KEY, ref_a INTEGER);
         assert!(tables.contains_key("a"));
         assert!(tables.contains_key("b"));
         assert_eq!(tables.get("b").unwrap().columns.len(), 2);
+    }
+
+    /// #672: SQLite has no `ADD COLUMN IF NOT EXISTS`, so the only way to add a column to
+    /// existing databases while keeping fresh ones correct is to carry it in `CREATE TABLE` AND
+    /// replay a bare `ALTER TABLE ADD COLUMN` whose error the caller discards. The duplicate is
+    /// intentional and load-bearing.
+    ///
+    /// DISCRIMINATOR. Before the fix this returned `Err(DuplicateColumn)`, which aborted the
+    /// whole replay.
+    #[test]
+    fn an_agreeing_add_column_redeclaration_is_a_no_op() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join("001_init.sql"),
+            "CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, url TEXT NOT NULL DEFAULT '');",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("002_backfill.sql"),
+            "ALTER TABLE events ADD COLUMN url TEXT NOT NULL DEFAULT '';",
+        )
+        .unwrap();
+
+        let snapshot = build_schema_snapshot(tmp.path()).expect("the back-fill must replay");
+        let events = snapshot.tables.get("events").expect("events must exist");
+        assert_eq!(
+            events.columns.iter().filter(|c| c.name == "url").count(),
+            1,
+            "the agreeing redeclaration must not duplicate the column"
+        );
+    }
+
+    /// CONTROL for the above. A redeclaration that CONTRADICTS the existing column is a genuine
+    /// mistake and must still fail — otherwise the fix would have removed the check rather than
+    /// narrowed it.
+    #[test]
+    fn a_contradicting_add_column_redeclaration_still_fails() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join("001_init.sql"),
+            "CREATE TABLE events (id TEXT PRIMARY KEY, url TEXT NOT NULL DEFAULT '');",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("002_backfill.sql"),
+            "ALTER TABLE events ADD COLUMN url INTEGER NOT NULL DEFAULT 0;",
+        )
+        .unwrap();
+
+        let error = build_schema_snapshot(tmp.path())
+            .expect_err("a contradicting redeclaration must still fail");
+        let text = format!("{error:?}");
+        assert!(text.contains("redeclares"), "{text}");
+        assert!(text.contains("TEXT") && text.contains("INTEGER"), "{text}");
+    }
+
+    /// TRUE VACUITY CONTROL. Behaviour only, no message text, so it passes on BOTH the fixed and
+    /// unfixed binaries. It pins the property that matters: narrowing the duplicate-column check
+    /// to agreeing redeclarations must not stop it rejecting contradicting ones. A fix that
+    /// simply deleted the check would pass the discriminator above and fail this.
+    #[test]
+    fn the_duplicate_column_check_still_rejects_a_type_conflict() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(
+            tmp.path().join("001_init.sql"),
+            "CREATE TABLE events (id TEXT PRIMARY KEY, url TEXT NOT NULL DEFAULT '');",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("002_backfill.sql"),
+            "ALTER TABLE events ADD COLUMN url INTEGER NOT NULL DEFAULT 0;",
+        )
+        .unwrap();
+        assert!(
+            build_schema_snapshot(tmp.path()).is_err(),
+            "a type conflict must remain an error on any binary"
+        );
     }
 }

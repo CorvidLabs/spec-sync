@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-schema-that-cannot-be-parsed-must-not-report-every-table-as-missing",
+  "slug": "a-schema-that-cannot-be-parsed-must-not-report-every-table-as-missing",
+  "title": "A schema that cannot be parsed must not report every table as missing",
+  "description": "a schema that cannot be parsed must not report every table as missing",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "1d474ed905f8f1155f50488ba1f4906311de8940",
+  "created_at": 1787448008,
+  "updated_at": 1787449416,
+  "affected_specs": [
+    "schema",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/schema.rs",
+    "src/validator.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "behaviour within existing module contracts: an unreadable schema degrades to unknown instead of absent, and an agreeing ADD COLUMN redeclaration is a no-op; no spec text changes",
+  "acceptance_criteria": [
+    "The two-migration SQLite idempotent back-fill reported in #672 validates cleanly: a CREATE TABLE carrying a column plus a later bare ALTER TABLE ADD COLUMN goes from three errors to one spec passing. An unparseable schema reports only its own parse error and no longer claims every declared table is absent, including tables created correctly in unrelated files. A genuinely missing table still reports missing, and an ALTER that redeclares a column with a CONTRADICTING type still fails on any binary."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

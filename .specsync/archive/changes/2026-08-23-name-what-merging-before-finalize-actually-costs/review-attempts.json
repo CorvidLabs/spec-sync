@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "name-what-merging-before-finalize-actually-costs",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "9a72bedb4b854378db0c44a87d2baaa93660a890",
+      "contract_digest": "6bc57de3cbc9f2b597545c4279fea4613fd2a352b82af79264949b0d87a5c2fe",
+      "execution_digest": "f58e5600828ce0fc505d6dc16c17bb70341d784d197f9c53a654a1d156ec2afe",
+      "workspace_digest": "72ae6602750c53cc5bbb5b096b51f937f8bea2222e90532f8feaa17511d8f05b",
+      "timestamp": 1787494742
+    }
+  ]
+}

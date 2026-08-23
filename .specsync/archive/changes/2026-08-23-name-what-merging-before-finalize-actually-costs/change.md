@@ -1,6 +1,6 @@
 ---
 id: name-what-merging-before-finalize-actually-costs
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e6afd395d7fa4ece945f4c1a30e1062a52a75a68
 ---

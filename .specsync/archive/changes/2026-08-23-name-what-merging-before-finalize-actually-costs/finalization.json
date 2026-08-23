@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "name-what-merging-before-finalize-actually-costs",
+  "implementation_commit": "9a72bedb4b854378db0c44a87d2baaa93660a890",
+  "implementation_tree": "95a06e4625f1491af8d57cf206424b46aa2a98bc",
+  "contract_digest": "6bc57de3cbc9f2b597545c4279fea4613fd2a352b82af79264949b0d87a5c2fe",
+  "workspace_digest": "72ae6602750c53cc5bbb5b096b51f937f8bea2222e90532f8feaa17511d8f05b",
+  "closing_digest": "ca8505dd823e7900b4704a67424e94527823be33986241db95afcaa8a223ff7d",
+  "review_digest": "422ea76c482d6bafa2e24c85fa0264235b670881cc8acbd0a0d177450eefb3e3",
+  "finalization_digest": "1f005e26324ec92d85d82be91f77958ae7b02b98c842e6ea3adc61179db14a38",
+  "timestamp": 1787495325
+}

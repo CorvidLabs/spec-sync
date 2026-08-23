@@ -414,6 +414,25 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             } else {
                 change::check_change(root, id.as_deref())
             };
+            // A failed check is the moment a lesson exists: an approach was tried and did not
+            // work. Say so while it is still true, and name where it goes.
+            //
+            // Verification failures surface as an Err from `verify_change`, NOT as a record with
+            // `passed: false` — a first attempt at this hint sat in that branch and never fired
+            // for the common case. Measured, not assumed.
+            //
+            // Only on failure, deliberately. Nudging on every green check would be noise, and
+            // there is usually nothing to record.
+            if verification.is_err()
+                && !matches!(format, OutputFormat::Json)
+                && let Some(change_id) = id.as_deref()
+            {
+                eprintln!(
+                    "  {} if this failure taught you something, record it in .specsync/changes/{}/context.md while it is fresh — dead ends are what the next change to this module needs, and `finalize` folds them into the spec",
+                    "Lesson:".bold(),
+                    change_id
+                );
+            }
             match format {
                 OutputFormat::Json => match &verification {
                     Ok(Some(record)) => {

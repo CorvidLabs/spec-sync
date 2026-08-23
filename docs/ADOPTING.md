@@ -123,8 +123,16 @@ repository is squash-only (`merge: false, rebase: false, squash: true`), and 89%
 archived changes have an unreachable verification commit — 19 of 172. Telling you to rebase-merge
 would be telling you to do something the tool's own repository cannot do.
 
-So: expect a re-verify and a fresh review after each merge, and budget for it. Issue #689 tracks
-making the evidence model independent of the merge strategy, which is the actual fix.
+**Half of this is now fixed.** Ship readiness no longer depends on the recorded commit being
+reachable — it asks whether the recorded plan and tree still match what was verified, which is true
+under every merge strategy. Measured: squash, rebase, and merge-commit all reach `ready to
+finalize`, and a squash no longer forces a re-verification.
+
+What a squash still costs you is the **independent review**. That check walks the commits between
+the review and `HEAD` to prove nothing changed except the change's own records, and a squash makes
+that walk impossible rather than merely false. So: expect a fresh review after a squash, not a
+full re-verification. Issue #694 tracks it, and it needs a decision about what a review proves
+rather than a patch.
 
 **Merging before `finalize` costs more than it says.** It orphans that change's evidence — and it
 also blocks **every earlier accepted change sharing a delivery input** from archiving, until the

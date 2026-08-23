@@ -17862,6 +17862,23 @@ fn verification_is_current(
     verification_is_current_checked(root, record, evidence).is_ok()
 }
 
+/// Whether a change's recorded verification is current, loading the evidence itself.
+///
+/// One export rather than two: callers outside this module need the answer, not the record.
+/// Missing or unreadable evidence is not current, which keeps this total for an inspection
+/// command — a strict `?` here would turn `ship-status` from rc=0 into rc=1 on a workspace whose
+/// evidence is already damaged, and the fix for an inspection command must not brick inspection.
+///
+/// Deliberately NOT "is the recorded commit an ancestor of HEAD". That predicate was removed from
+/// the currency paths above with the reasoning recorded inline: it is a history-trust question,
+/// it is `attest`'s job, and it is what made squash-merged changes permanently unfinalizable.
+/// `ship-status` was the one caller that never got the change, which is #689.
+pub fn recorded_verification_is_current(root: &Path, record: &ChangeRecord) -> bool {
+    load_verification(root, record)
+        .map(|evidence| verification_is_current(root, record, &evidence))
+        .unwrap_or(false)
+}
+
 fn verification_is_current_checked(
     root: &Path,
     record: &ChangeRecord,

@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 27
+version: 28
 status: active
 files:
   - src/commands/change.rs
@@ -48,6 +48,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 3. `change check` runs scoped verification for one change only and fails when that verification fails; it does not rewalk archived terminal evidence.
 4. `change audit` reports active-workspace and living-spec integrity only and exits non-zero on report errors.
 5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge.
+6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact.
 
 ## Behavioral Examples
 
@@ -132,3 +133,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-17 | CHG-0140-a-stale-sequence-ledger-must-not-be-committed-backwards: A stale sequence ledger must not be committed backwards |
 | 2026-08-18 | CHG-0145-the-sequence-ledger-floor-must-be-wired-not-merely-present: The sequence ledger floor must be wired, not merely present |
 | 2026-08-19 | CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar: Ship-status must name the action the lifecycle state requires, and resolve an archived change's evidence |
+| 2026-08-23 | ship-readiness-is-a-content-question-not-a-history-one: Ship readiness is a content question, not a history one |

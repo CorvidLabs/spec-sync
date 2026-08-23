@@ -105,7 +105,7 @@ pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<S
 /// Conflating them is how one unparseable migration reports EVERY declared table as absent,
 /// including tables created correctly in an unrelated file. A parse failure must degrade to
 /// "unknown", never to "not there".
-pub fn schema_table_names_available(root: &Path, config: &SpecSyncConfig) -> bool {
+fn schema_table_names_available(root: &Path, config: &SpecSyncConfig) -> bool {
     let Some(schema_dir) = config.schema_dir.as_ref().map(|dir| root.join(dir)) else {
         return false;
     };

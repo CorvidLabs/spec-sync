@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "db-tables-without-schema-dir-must-not-gate-a-release-on-advice-the-reader-cannot-take",
+  "implementation_commit": "f127446a873058596e37188682df1f58ee14a801",
+  "implementation_tree": "579d502f835f811c9fa1284d5c795054b3ce0ad6",
+  "contract_digest": "84225b7478b7a6e8a452931898110a0c9942789b7997ded96bfe2cfe567a8a46",
+  "workspace_digest": "1bbcc8e1c02bc0bb4d508f88192427c146d8da7077c45101672529588b53369d",
+  "closing_digest": "72affd2928fc89674aa9a8455f818e9306d6471ef1c46703d3693c9f2ddc21a2",
+  "review_digest": "032172dc0d3a7e171555d2f6efebe36d11504e987d4e01e3c85ae01b43636bf6",
+  "finalization_digest": "d97c3a9804a2897bfa1ce6afd986c3b321edd99bdbfd4cdc56d338262443e0c7",
+  "timestamp": 1787455864
+}

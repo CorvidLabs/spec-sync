@@ -7,11 +7,11 @@
   "title": "Db_tables without schema_dir must not gate a release on advice the reader cannot take",
   "description": "db_tables without schema_dir must not gate a release on advice the reader cannot take",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "f94ff7e473ef6300180b9d79c1be3fe48c9ab527",
   "created_at": 1787455193,
-  "updated_at": 1787455263,
+  "updated_at": 1787456094,
   "affected_specs": [
     "validator"
   ],

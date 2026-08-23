@@ -1,6 +1,6 @@
 ---
 id: db-tables-without-schema-dir-must-not-gate-a-release-on-advice-the-reader-cannot-take
-state: implementing
+state: archived
 type: bug_fix
 base_commit: f94ff7e473ef6300180b9d79c1be3fe48c9ab527
 ---

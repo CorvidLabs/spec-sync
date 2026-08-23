@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1787455236,
+      "commit": "f94ff7e473ef6300180b9d79c1be3fe48c9ab527",
+      "contract_digest": "84225b7478b7a6e8a452931898110a0c9942789b7997ded96bfe2cfe567a8a46",
+      "execution_digest": "9123d8321e1b810b2541779644bcc52a5a87e477b9960ea2a56214ae02d3854c",
+      "workspace_digest": "1bbcc8e1c02bc0bb4d508f88192427c146d8da7077c45101672529588b53369d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787455257,
+      "commit": "f94ff7e473ef6300180b9d79c1be3fe48c9ab527",
+      "contract_digest": "84225b7478b7a6e8a452931898110a0c9942789b7997ded96bfe2cfe567a8a46",
+      "execution_digest": "9123d8321e1b810b2541779644bcc52a5a87e477b9960ea2a56214ae02d3854c",
+      "workspace_digest": "1bbcc8e1c02bc0bb4d508f88192427c146d8da7077c45101672529588b53369d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787455261,
+      "commit": "4b5056e1ce08a7b31a8d89170361c9a97383c8ae",
+      "contract_digest": "84225b7478b7a6e8a452931898110a0c9942789b7997ded96bfe2cfe567a8a46",
+      "execution_digest": "9123d8321e1b810b2541779644bcc52a5a87e477b9960ea2a56214ae02d3854c",
+      "workspace_digest": "1bbcc8e1c02bc0bb4d508f88192427c146d8da7077c45101672529588b53369d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787455261,
+      "commit": "f127446a873058596e37188682df1f58ee14a801",
+      "contract_digest": "84225b7478b7a6e8a452931898110a0c9942789b7997ded96bfe2cfe567a8a46",
+      "execution_digest": "9123d8321e1b810b2541779644bcc52a5a87e477b9960ea2a56214ae02d3854c",
+      "workspace_digest": "1bbcc8e1c02bc0bb4d508f88192427c146d8da7077c45101672529588b53369d",
+      "acceptance_input_digest": "2b71cbcf074fd7bb23bc44f4451aee6c212ea3f4d4190a68666ef0bbf85f8c6c",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/validator/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c6b7498a9b4345db9d4c9936648af800c65bf0213574596e289ca34b27f1bf56",
+            "entry_digest": "20e0c30624450b31cac86e7be70f507d9953bb589d243819d98c634e5ebf7f1a",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4b19ecaf304366b8331fb60d10517aba84e025a5030b18a7532d2673f9c6bb13",
+            "entry_digest": "c3fc4198119ad86c62b4a5ecb716bdea402d15b248e90082d1e65a2e9da79b19",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8a63359ac4b8bb403202131a82498133359c5063d5a9386a0a1b4671a997f950",
+            "entry_digest": "26943c838defe3ac7db44470c37585a37beaf1416c64fa74691e13b2b983d04a",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "88aa38ed2586874febd5226e8194e1c3cf79c1ca650c03d69a328d7c4e27fc8c",
+            "entry_digest": "04efa7f260cfc557bf1cf0ce30efe3d81a9ad92386d02feb8896d6dfd0fc65d7",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/validator.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "14cca5a1ce0e03793f3315e7ee50346b5dac1dcc21e7101e2478c0d81441a9da",
+            "entry_digest": "ee58156b9d48dbf6339594fe9b8a706b682c1fa9df3ee3a3b8d8b70597599763",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "src/validator.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "20940ce097008d0e8f9841afaf76b6eb0595f79075c7bce90c4b2677f266fe4b",
+            "entry_digest": "4dd7c6a6b973cb78ec89bef93e2cf6da640e3b9e597139b6e9c0dd9daaca7ab2",
+            "owners": [
+              "validator"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

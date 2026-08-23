@@ -1,6 +1,6 @@
 ---
 id: ship-readiness-is-a-content-question-not-a-history-one
-state: implementing
+state: archived
 type: bug_fix
 base_commit: db36230a1b56717ec92501239a3219dbf9b58219
 ---

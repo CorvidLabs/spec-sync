@@ -32,6 +32,22 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1787455261,
+      "commit": "4b5056e1ce08a7b31a8d89170361c9a97383c8ae",
+      "contract_digest": "84225b7478b7a6e8a452931898110a0c9942789b7997ded96bfe2cfe567a8a46",
+      "execution_digest": "9123d8321e1b810b2541779644bcc52a5a87e477b9960ea2a56214ae02d3854c",
+      "workspace_digest": "1bbcc8e1c02bc0bb4d508f88192427c146d8da7077c45101672529588b53369d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

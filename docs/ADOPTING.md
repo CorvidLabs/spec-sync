@@ -116,9 +116,15 @@ Check this before you adopt, not after:
     gh api repos/OWNER/REPO --jq '{merge:.allow_merge_commit, squash:.allow_squash_merge, rebase:.allow_rebase_merge}'
 
 If rebase-merge is disabled and squash is the only option, **you will hit this every time**, and
-`gh pr merge --rebase` will silently fall back to squash without telling you. There is no
-configuration that avoids it today — see issue #689. Prefer rebase-merge or merge-commits for
-branches carrying lifecycle commits.
+`gh pr merge --rebase` will silently fall back to squash without telling you.
+
+**There is no configuration that avoids this today, and no advice worth giving.** spec-sync's own
+repository is squash-only (`merge: false, rebase: false, squash: true`), and 89% of its own
+archived changes have an unreachable verification commit — 19 of 172. Telling you to rebase-merge
+would be telling you to do something the tool's own repository cannot do.
+
+So: expect a re-verify and a fresh review after each merge, and budget for it. Issue #689 tracks
+making the evidence model independent of the merge strategy, which is the actual fix.
 
 **Merging before `finalize` costs more than it says.** It orphans that change's evidence — and it
 also blocks **every earlier accepted change sharing a delivery input** from archiving, until the

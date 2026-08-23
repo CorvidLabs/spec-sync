@@ -106,6 +106,25 @@ CI passes over drift. With it, drift gates.
 
 ## Things that will bite you, in the order they will
 
+**Your merge strategy decides whether the lifecycle works at all.** Verification evidence is
+recorded against a commit hash and checked as an ancestor of `HEAD`. **A squash-merge rewrites that
+hash**, so a change reads as unverified the moment its own PR lands — forcing a full re-verify AND
+a fresh independent review, which is the one step that needs a human.
+
+Check this before you adopt, not after:
+
+    gh api repos/OWNER/REPO --jq '{merge:.allow_merge_commit, squash:.allow_squash_merge, rebase:.allow_rebase_merge}'
+
+If rebase-merge is disabled and squash is the only option, **you will hit this every time**, and
+`gh pr merge --rebase` will silently fall back to squash without telling you. There is no
+configuration that avoids it today — see issue #689. Prefer rebase-merge or merge-commits for
+branches carrying lifecycle commits.
+
+**Merging before `finalize` costs more than it says.** It orphans that change's evidence — and it
+also blocks **every earlier accepted change sharing a delivery input** from archiving, until the
+merged one is finalized or those predecessors are reopened. One early merge can stall an unbounded
+set of older changes. Finalize first, every time.
+
 **Scope freezes at approval, not at creation.** You can widen `affected_specs` and
 `affected_paths` while the change is `draft`. Once approved you cannot, and there is no withdraw
 verb — a mis-scoped change past approval has no clean exit. Get the scope right before
@@ -139,8 +158,42 @@ evidence you just recorded.
 **Making a symbol more visible is a contract change.** Widening something to `pub(crate)` makes
 it an export the spec must document. This is the drift check working, not a bug.
 
+**Two state traps, with escapes that are not in the error text.**
+
+- `check --commit` then `accept` can deadlock on a reopened workflow-v1 change: the
+  verification-recording commit leaves `HEAD` one ahead of the evidence it records, and looping
+  `check --commit` never converges because each run recreates the condition. **Escape: run `check`
+  WITHOUT `--commit`.**
+- `ship` refuses a stale review while `review` refuses to run in `accepted` state, so the verb that
+  would fix it is unreachable from the state you discover it in. **Escape: `finalize` rather than
+  `ship`.**
+
+**`db_tables` needs `.sql` migrations to be checkable.** If your schema lives in application code,
+declare `db_tables` anyway — as of 6.0.0-rc.5 it is a notice, not a `strict`-gating warning. Point
+`schema_dir` at your migrations only if you actually have them.
+
 **A repeated description is refused by name.** Change identities are slugs derived from the
 description, so two changes described the same way collide. The error names the existing one.
+
+## Close the learning loop
+
+The point of archival is not filing — it is that a module accumulates what was learned about it.
+
+- At `change new`, spec-sync prints what the modules you declared already learned. **Read it before
+  scoping**; it is there because a previous change paid for it.
+- While building, put what you learn in the change's own `context.md` — prior attempts, dead ends,
+  anything already ruled out.
+- At `finalize`, spec-sync writes a `lesson-bundle.md` into the archive and names the step:
+
+      Next: write lessons into specs/<module>/context.md from <archive>/lesson-bundle.md,
+            then merge the PR on GitHub
+
+  **Do that before merging.** A change's own `context.md` is archived and read by nobody; the
+  spec's `context.md` is read before every future change to that module. This is the only point in
+  the lifecycle where knowledge compounds instead of merely being recorded.
+
+If a module's lessons grow long, treat that as a signal the module is too large or too hot — not as
+something to compact away.
 
 ## Verify the adoption
 

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "ship-readiness-is-a-content-question-not-a-history-one",
+  "implementation_commit": "a2d5969fe39b993a91a0b15c80682c7b8b152b88",
+  "implementation_tree": "ac282febfbe10c8658208d219691310759bf8fa8",
+  "contract_digest": "9f2de8a7e3e3c41b2dd6c05667b58cdb4585229f76c96064849e500bbe30fadd",
+  "workspace_digest": "8be65046b31687bfc7908f8e5faa99ff6c5b526393c3e3a6cf1ebd9ca881c108",
+  "closing_digest": "4e6444d62c2dfb1a5b7faca5becb64f2f2752a6e5de79926761e2398f518d528",
+  "review_digest": "669c23c56a02645783e95a3ea0b002012eec0d1efc5ba640ef6dda9ed76e59e4",
+  "finalization_digest": "554e0fe899e1fb407d00d3282047c38bb5b2a72523c2c7723ecf683c12beca15",
+  "timestamp": 1787527224
+}

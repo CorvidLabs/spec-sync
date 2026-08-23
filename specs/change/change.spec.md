@@ -1,6 +1,6 @@
 ---
 module: change
-version: 99
+version: 100
 status: active
 files:
   - src/change.rs
@@ -78,6 +78,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `DefinitionApprovalPairV1` | Versioned pair identity, projection, role, change/correction coordinates, event index, and both digests |
 | `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, stale/current input digests, and the staleness cause when the digests are equal |
 | `ReopenCauseV1` | Why accepted evidence was stale when delivery-input digests alone cannot show it; absent means the inputs drifted |
+| `recorded_verification_is_current` | Whether a change's recorded verification still matches the tree and plan on disk, as a content question; missing or unreadable evidence is not current |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
 | `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |
 | `CorrectionField` | Closed supported accepted-metadata field set: public contract and architecture risk |
@@ -411,3 +412,4 @@ Acceptance Criteria
 | 2026-08-20 | retire-the-ordinal-and-keep-the-ledger-readable-forever: Retire the ordinal and keep the ledger readable forever |
 | 2026-08-21 | a-reopen-must-extend-the-committed-ledger-not-merely-count-itself: A reopen must extend the committed ledger, not merely count itself |
 | 2026-08-22 | an-orphaned-verification-commit-must-be-reopenable: An orphaned verification commit must be reopenable |
+| 2026-08-23 | ship-readiness-is-a-content-question-not-a-history-one: Ship readiness is a content question, not a history one |

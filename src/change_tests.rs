@@ -15333,3 +15333,127 @@ fn an_archive_absent_from_the_default_branch_is_not_recorded() {
         "the default branch has never seen this change in any location"
     );
 }
+
+/// #689: a squash-merge rewrites the recorded verification commit, so ancestry can never hold
+/// again. Readiness is a CONTENT question — the evidence passed, the plan on disk is the plan that
+/// was verified, the tree on disk is the tree that was verified.
+///
+/// HONEST LABEL: this is a CHARACTERIZATION test, not a discriminator. It passes on the unfixed
+/// binary too, because `verification_is_current` was ALWAYS content-only — the ancestry walk was
+/// removed from these paths long ago, with the reasoning recorded at `verification_is_current`
+/// and `validate_verification_for_commit_binding`. Nothing here was broken.
+///
+/// What #689 fixed is that ship-status never asked this question; it asked about commit
+/// reachability instead. That defect lives in `ship_status_report`, and the behaviour change is
+/// judged by `ship_status_is_ready_after_a_squash_that_preserves_content` beside it. This test
+/// pins the property that fix RELIES ON: that content currency is indifferent to a squash.
+#[test]
+fn recorded_verification_survives_a_squash_that_preserves_content() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "t@example.com"]);
+    git(&["config", "user.name", "T"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    write_default_policy(root, Vec::new()).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+    git(&["switch", "-c", "feature"]);
+
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implement"]);
+    verify_change(root, &record.id).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "record verification"]);
+    let verification = load_verification(root, &record).unwrap();
+
+    // Squash the branch onto main: content identical, recorded commit unreachable.
+    git(&["switch", "main"]);
+    git(&["merge", "--squash", "feature"]);
+    git(&["commit", "-m", "squash feature"]);
+
+    assert!(
+        !verification_commit_is_accepted_current(root, &verification),
+        "the premise: the recorded commit is no longer reachable after the squash"
+    );
+    assert!(
+        recorded_verification_is_current(root, &record),
+        "content is unchanged, so the evidence is current regardless of the squash"
+    );
+}
+
+/// VACUITY CONTROL for the above. Behaviour only, no message text, and it passes on BOTH the fixed
+/// and unfixed binaries: evidence that does not match the tree must read as stale.
+///
+/// Asserts against the comparison directly rather than by mutating the tree and re-reading it.
+/// `project_input_digest` memoizes into a thread-local read scope, so a single process cannot
+/// observe the digest move — the CLI can, because each invocation is a new process, but a unit
+/// test cannot, and a control that measures a cache is not a control. Substituting a
+/// non-matching `workspace_digest` tests the same predicate without depending on re-hashing.
+#[test]
+fn recorded_verification_is_stale_when_the_workspace_digest_does_not_match() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "t@example.com"]);
+    git(&["config", "user.name", "T"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    write_default_policy(root, Vec::new()).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implement"]);
+    verify_change(root, &record.id).unwrap();
+
+    let mut evidence = load_verification(root, &record).unwrap();
+    assert!(
+        verification_is_current(root, &record, &evidence),
+        "control precondition: the recorded evidence matches the tree"
+    );
+
+    // A workspace digest that does not describe this tree is stale, whatever the commit says.
+    evidence.workspace_digest = "0".repeat(64);
+    assert!(
+        !verification_is_current(root, &record, &evidence),
+        "a workspace digest that does not match the tree must read as stale on any binary"
+    );
+}

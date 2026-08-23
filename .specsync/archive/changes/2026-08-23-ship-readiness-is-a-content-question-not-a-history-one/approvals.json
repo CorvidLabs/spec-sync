@@ -1,0 +1,48 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787521310,
+      "digest": "9f2de8a7e3e3c41b2dd6c05667b58cdb4585229f76c96064849e500bbe30fadd",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "ship-readiness-is-a-content-question-not-a-history-one",
+        "title": "Ship readiness is a content question, not a history one",
+        "description": "ship readiness is a content question, not a history one",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A change whose verification commit was destroyed by a squash-merge, with its content unchanged, reports ready_to_finalize with no blockers. Evidence whose workspace digest does not match the tree still reads as stale. The discriminating test fails on a binary built from a separate checkout at db36230a with ready_to_finalize false and the ancestry blocker present."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787527224,
+      "digest": "4e6444d62c2dfb1a5b7faca5becb64f2f2752a6e5de79926761e2398f518d528",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

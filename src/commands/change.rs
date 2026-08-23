@@ -849,9 +849,14 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                 "verification commit is not in this repository (orphaned by squash merge, rebase, amend, or force-push); re-run change check --commit"
                     .to_string(),
             );
-        } else if !verification_ancestor {
+        } else if !change::recorded_verification_is_current(root, record) {
+            // #689: the question is whether the CONTENT still matches, not whether the recorded
+            // commit is still reachable. A squash-merge guarantees it is not — and squash is the
+            // only strategy this repository, and most repositories, permit. Blocking on
+            // reachability made a squash-merged change permanently unfinalizable while its
+            // evidence was perfectly good.
             blockers.push(
-                "verification commit is not an ancestor of HEAD; re-run change check --commit before review/finalize"
+                "verification evidence is stale for the current tree; re-run change check --commit before review/finalize"
                     .to_string(),
             );
         }
@@ -896,9 +901,13 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         warnings.extend(multi_active_ordering_warnings(&sibling_active_ids));
     }
 
+    // #689: readiness is a CONTENT question, not a history one. The rest of this module settled
+    // that (see `verification_is_current`); ship-status was the caller that never got the change,
+    // so a squash-merged repo could never reach `ready_to_finalize`.
+    let verification_current = change::recorded_verification_is_current(root, record);
     let ready_to_finalize = record.state == ChangeState::Verifying
         && verification_present
-        && verification_ancestor
+        && verification_current
         && review_present
         && blockers.is_empty();
 
@@ -2265,6 +2274,101 @@ if the floor call is removed from this function"
             },
         )
         .expect("create draft")
+    }
+
+    /// #689: TRUE DISCRIMINATOR. A squash-merge rewrites the recorded verification commit, so
+    /// `merge-base --is-ancestor` can never hold again — and this repository, like most, permits
+    /// only squash merges. Before the fix `ready_to_finalize` required that ancestry, so a
+    /// squash-merged change was permanently unfinalizable while its evidence was perfectly good.
+    ///
+    /// Fails on the unfixed binary: it reports `ready_to_finalize: false` with the blocker
+    /// "verification commit is not an ancestor of HEAD".
+    #[test]
+    fn ship_status_is_ready_after_a_squash_that_preserves_content() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let git = |args: &[&str]| {
+            assert!(
+                std::process::Command::new("git")
+                    .args(args)
+                    .current_dir(root)
+                    .status()
+                    .unwrap()
+                    .success(),
+                "git {args:?}"
+            );
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "t@example.com"]);
+        git(&["config", "user.name", "T"]);
+        fs::write(root.join("README.md"), "# fixture\n").unwrap();
+        change::write_default_policy(root, vec!["true".to_string()]).expect("policy");
+        git(&["add", "."]);
+        git(&["commit", "-m", "base"]);
+        git(&["switch", "-c", "feature"]);
+
+        let record = draft_fixture(root);
+        let id = record.id.clone();
+        for (question, answer) in [
+            ("acceptance_criteria", "the fixture verifies"),
+            ("public_contract", "no"),
+            ("architecture_risk", "no"),
+        ] {
+            change::answer_question(root, &id, question, answer).expect("answer");
+        }
+        // Fill whatever artifacts the adaptive interview selected; approval refuses on any
+        // scaffold left incomplete.
+        let workspace = root.join(".specsync/changes").join(&id);
+        for entry in fs::read_dir(&workspace).expect("workspace") {
+            let path = entry.expect("entry").path();
+            if path.extension().and_then(|e| e.to_str()) == Some("md")
+                && path.file_name().and_then(|n| n.to_str()) != Some("change.md")
+            {
+                let artifact = path.file_stem().unwrap().to_string_lossy().to_string();
+                fs::write(
+                    &path,
+                    format!("---\nchange: {id}\nartifact: {artifact}\n---\n\n# {artifact}\n\nFilled by the fixture.\n"),
+                )
+                .expect("fill artifact");
+            }
+        }
+        change::approve_definition(root, &id, Some("Reviewer".into()), None).expect("approve");
+        change::start_implementation(root, &id).expect("implement");
+        git(&["add", "."]);
+        git(&["commit", "-m", "implement"]);
+        change::verify_change(root, &id).expect("verify");
+        git(&["add", "."]);
+        git(&["commit", "-m", "record verification"]);
+        change::record_scoped_review_with_verdict(
+            root,
+            &id,
+            "Independent".into(),
+            change::ScopedReviewVerdict::Pass,
+        )
+        .expect("review");
+
+        // Squash onto main: content identical, recorded commit unreachable. Exactly what GitHub
+        // does, and the only strategy many repositories permit.
+        git(&["switch", "main"]);
+        git(&["merge", "--squash", "feature"]);
+        git(&["commit", "-m", "squash feature"]);
+
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+
+        assert_eq!(
+            report["verification_ancestor_of_head"], false,
+            "the premise: the squash destroyed the recorded commit"
+        );
+        assert_eq!(
+            report["ready_to_finalize"], true,
+            "content is unchanged, so the change is finalizable despite the squash: {report}"
+        );
+        let blockers = report["blockers"].as_array().expect("blockers");
+        assert!(
+            blockers.is_empty(),
+            "a preserved-content squash must raise no blocker: {blockers:?}"
+        );
     }
 
     /// The ship lane may narrow the next action; it may never contradict the

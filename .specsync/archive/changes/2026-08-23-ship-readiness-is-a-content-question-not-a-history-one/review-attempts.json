@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "ship-readiness-is-a-content-question-not-a-history-one",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "a2d5969fe39b993a91a0b15c80682c7b8b152b88",
+      "contract_digest": "9f2de8a7e3e3c41b2dd6c05667b58cdb4585229f76c96064849e500bbe30fadd",
+      "execution_digest": "4a99d8239ccabcf1f403021cb23d96a3c9f9c9fe0c69c949c46c0530395be70a",
+      "workspace_digest": "8be65046b31687bfc7908f8e5faa99ff6c5b526393c3e3a6cf1ebd9ca881c108",
+      "timestamp": 1787525988
+    }
+  ]
+}

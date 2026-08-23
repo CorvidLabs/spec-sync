@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "ship-readiness-is-a-content-question-not-a-history-one",
+  "slug": "ship-readiness-is-a-content-question-not-a-history-one",
+  "title": "Ship readiness is a content question, not a history one",
+  "description": "ship readiness is a content question, not a history one",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "db36230a1b56717ec92501239a3219dbf9b58219",
+  "created_at": 1787521290,
+  "updated_at": 1787527481,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/commands/change.rs",
+    "specs/change/change.spec.md",
+    "specs/cmd_change/cmd_change.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A change whose verification commit was destroyed by a squash-merge, with its content unchanged, reports ready_to_finalize with no blockers. Evidence whose workspace digest does not match the tree still reads as stale. The discriminating test fails on a binary built from a separate checkout at db36230a with ready_to_finalize false and the ancestry blocker present."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

@@ -18,6 +18,7 @@ const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is inv
 const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
+const LESSON_BUNDLE_FILE: &str = "lesson-bundle.md";
 const LEGACY_BASELINE_PATH: &str = ".specsync/archive/legacy-baseline.json";
 const WORKFLOW_V2_BASELINE_PATH: &str = ".specsync/workflow-v2-baseline.json";
 const LOCK_PATH: &str = ".specsync/change.lock";
@@ -6157,7 +6158,13 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         validate_finalization_evidence(root, &record, &verification)
             .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))?;
     }
-    archive_change_with_options(root, id, false, true)
+    let archive = archive_change_with_options(root, id, false, true)?;
+    // Archival is the only place the system COMPOUNDS rather than merely records: knowledge
+    // moves from the change into the spec. Assemble the material here; the agent that just ran
+    // `finalize` writes the lessons, guided by `next_action`. A bundle failure must not undo a
+    // completed archival, so this is best-effort.
+    let _ = write_lesson_bundle(root, &record, &archive);
+    Ok(archive)
 }
 
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
@@ -6176,6 +6183,100 @@ fn archive_change_with_finalize_failure(
 #[cfg(test)]
 fn archive_change_with_same_pr_finalize_failure(root: &Path, id: &str) -> Result<PathBuf, String> {
     archive_change_with_options(root, id, true, true)
+}
+
+/// Assemble the material an agent needs to fold this change's lessons into the SPEC's context.
+///
+/// Lessons belong in `specs/<module>/context.md`, not in the change — a per-change lessons file
+/// dies with the change, and the point is that a module accumulates what was learned about it
+/// across every change that touched it (docs/6-0-findings.md, finding 10).
+///
+/// This does not write the lessons. SpecSync must not shell out to a particular agent, and it
+/// does not need to: the agent driving the lifecycle just ran `finalize`. So `finalize` assembles
+/// the bundle and `next_action` names the step. Neither blocking nor nagging.
+///
+/// Everything here is read from disk. No network, so `finalize` keeps working offline and in CI.
+fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Result<(), String> {
+    let mut out = String::new();
+    out.push_str(&format!("# Lesson bundle — {}\n\n", record.id));
+    out.push_str(
+        "Material for folding this change's lessons into the affected specs' `context.md`.\n\
+         Synthesise from what actually happened below; do not restate the change description.\n\n",
+    );
+
+    out.push_str("## What this change was\n\n");
+    out.push_str(&format!("- **Title**: {}\n", record.title));
+    out.push_str(&format!("- **Kind**: {:?}\n", record.kind));
+    if !record.affected_specs.is_empty() {
+        out.push_str(&format!(
+            "- **Specs**: {}\n",
+            record.affected_specs.join(", ")
+        ));
+    }
+    if !record.affected_paths.is_empty() {
+        out.push_str(&format!(
+            "- **Paths**: {}\n",
+            record.affected_paths.join(", ")
+        ));
+    }
+    for criterion in &record.acceptance_criteria {
+        out.push_str(&format!("- **Acceptance**: {criterion}\n"));
+    }
+    out.push('\n');
+
+    if let Ok(verification) = load_verification(root, record) {
+        out.push_str("## Evidence\n\n");
+        if let Some(commit) = &verification.commit {
+            out.push_str(&format!("- Verification commit: `{commit}`\n"));
+        }
+        if let Some(base) = &record.base_commit {
+            out.push_str(&format!("- Base commit: `{base}`\n"));
+        }
+        let commands: Vec<&str> = verification
+            .commands
+            .iter()
+            .map(|command| command.command.as_str())
+            .collect();
+        if !commands.is_empty() {
+            out.push_str(&format!("- Verified by: `{}`\n", commands.join("`, `")));
+        }
+        out.push('\n');
+    }
+
+    // The change's own working record is the richest source and is exactly what would otherwise
+    // be lost: it is archived with the change and read by nobody afterwards.
+    for artifact in ["context", "design", "testing"] {
+        let path = archive.join(format!("{artifact}.md"));
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let body = text
+            .split("---")
+            .nth(2)
+            .unwrap_or(&text)
+            .trim()
+            .to_string();
+        if body.is_empty() {
+            continue;
+        }
+        out.push_str(&format!("## From the change's {artifact}.md\n\n"));
+        out.push_str(&body);
+        out.push_str("\n\n");
+    }
+
+    out.push_str("## Where these lessons go\n\n");
+    if record.affected_specs.is_empty() {
+        out.push_str(
+            "This change declared no affected specs, so there is no module context to fold into.\n",
+        );
+    } else {
+        for module in &record.affected_specs {
+            out.push_str(&format!("- `specs/{module}/context.md`\n"));
+        }
+    }
+
+    fs::write(archive.join(LESSON_BUNDLE_FILE), out)
+        .map_err(|error| format!("failed to write lesson bundle: {error}"))
 }
 
 fn archive_change_with_options(

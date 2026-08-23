@@ -40,7 +40,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     },
                 )
             })
-            .and_then(|record| print_record(root, &record, format, true, strict)),
+            .and_then(|record| {
+                if !matches!(format, OutputFormat::Json) {
+                    print_accumulated_lessons(root, &record);
+                }
+                print_record(root, &record, format, true, strict)
+            }),
         ChangeAction::Answer {
             id,
             question,
@@ -378,14 +383,15 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     "review_digest": finalization.review_digest,
                     "finalization_digest": finalization.finalization_digest,
                     "ready_for_github_merge": true,
-                    "next_action": "merge the PR on GitHub",
+                    "lesson_bundle": path.join("lesson-bundle.md"),
+                    "next_action": lessons_next_action(root, &id, &path),
                 })),
                 _ => {
                     // Digests stay in --json only; text mode names the archive + commit.
                     println!("{} {} finalized on this PR", "✓".green(), id);
                     println!("  Archive: {}", path.display());
                     println!("  Implementation: {}", finalization.implementation_commit);
-                    println!("  Next: merge the PR on GitHub");
+                    println!("  Next: {}", lessons_next_action(root, &id, &path));
                 }
             }
             Ok(())
@@ -1126,6 +1132,82 @@ fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
             "guidance": SHIP_TRUST_LOCAL_GUIDANCE,
         }),
     }
+}
+
+/// Point a new change at what its modules already learned.
+///
+/// The other end of the loop `finalize` closes. Lessons are folded into `specs/<module>/context.md`
+/// at archival precisely so the NEXT change to that module can read them — but nothing surfaced
+/// them, so they accumulated where nobody looked.
+///
+/// Deliberately a pointer and not a dump: the file can be long, and a wall of text at creation
+/// time gets scrolled past. Naming it with its size is enough to make reading it a choice the
+/// author knows they are making.
+fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
+    let mut found = Vec::new();
+    for module in &record.affected_specs {
+        let path = root.join(format!("specs/{module}/context.md"));
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        // Scaffold prompts are HTML comments so an unwritten artifact reads as incomplete.
+        // Count only real prose, or a fresh scaffold would advertise itself as knowledge.
+        //
+        // Strip frontmatter by its delimiters rather than by "contains a colon" — real lessons
+        // are full of colons, and filtering on one would silently drop the very content this
+        // exists to surface.
+        let body = match text.split("---").nth(2) {
+            Some(after_frontmatter) if text.trim_start().starts_with("---") => after_frontmatter,
+            _ => text.as_str(),
+        };
+        let substantive = body
+            .lines()
+            .filter(|line| {
+                let line = line.trim();
+                !line.is_empty() && !line.starts_with("<!--") && !line.starts_with('#')
+            })
+            .count();
+        if substantive > 0 {
+            found.push((format!("specs/{module}/context.md"), substantive));
+        }
+    }
+    if found.is_empty() {
+        return;
+    }
+    println!("\n  {} what these modules already learned:", "Lessons:".bold());
+    for (path, lines) in found {
+        println!("    {path} ({lines} line(s)) — read before scoping this change");
+    }
+}
+
+/// Name the fold-back step archival exists for, then the merge.
+///
+/// Archival is the only point at which the system compounds rather than merely records: knowledge
+/// moves out of the change, which is about to become inert history, and into the spec, which is
+/// read by everyone who touches the module next. A change's own `context.md` is archived and read
+/// by nobody; `specs/<module>/context.md` is read before every future change to that module.
+///
+/// SpecSync does not write the lessons and must not — it would have to shell out to a particular
+/// agent. It does not need to: whoever just ran `finalize` is right there. So name the step and
+/// point at the material. `next_action` is the mechanism the lifecycle already uses everywhere,
+/// and drill 032 confirms agents follow it to termination.
+fn lessons_next_action(root: &Path, id: &str, archive: &Path) -> String {
+    let modules = change::load_change(root, id)
+        .map(|record| record.affected_specs)
+        .unwrap_or_default();
+    if modules.is_empty() {
+        return "merge the PR on GitHub".to_string();
+    }
+    let targets = modules
+        .iter()
+        .map(|module| format!("specs/{module}/context.md"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "write lessons into {} from {}, then merge the PR on GitHub",
+        targets,
+        archive.join("lesson-bundle.md").display()
+    )
 }
 
 /// What merging before `finalize` actually costs.

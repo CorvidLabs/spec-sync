@@ -2269,15 +2269,23 @@ fn validate_spec_content_internal(
         }
     }
 
-    // Check db_tables exist in the canonical replayed schema. An omitted
-    // schema_dir is visible instead of silently disabling every declaration.
+    // Check db_tables exist in the canonical replayed schema. An omitted `schema_dir` stays
+    // VISIBLE rather than silently disabling every declaration — but it is a NOTICE, not a
+    // warning, because it describes what this run did not do rather than a defect in the spec.
+    //
+    // Warnings escalate to errors under `--strict` (`compute_exit_code`). That made this
+    // unactionable for any project whose schema lives in application code rather than `.sql`
+    // migrations: there is nothing to point `schema_dir` at, `schema_dir` is not a spec
+    // frontmatter field, and the only ways to clear it were deleting the `db_tables`
+    // documentation or abandoning `strict`. Gating on advice the reader cannot take is not
+    // drift detection.
     if !fm.db_tables.is_empty() && config.schema_dir.is_none() {
-        result.warnings.push(
+        result.notices.push(
             "DB table validation skipped: `db_tables` is declared but `schema_dir` is not configured"
                 .to_string(),
         );
         result.fixes.push(
-            "Configure `schema_dir` to validate declared database tables against migrations"
+            "Configure `schema_dir` to validate declared database tables against migrations, or leave it unset if the schema is defined in application code"
                 .to_string(),
         );
     }
@@ -5430,6 +5438,84 @@ Test
                 .iter()
                 .any(|e| e.contains("Dependency spec not found")),
             "bare dep name should resolve via specs dir: {:?}",
+            result.errors
+        );
+    }
+
+    /// #684: a project whose schema lives in application code cannot configure `schema_dir` —
+    /// there are no `.sql` migrations to point it at, and `schema_dir` is not a spec frontmatter
+    /// field. Carrying "validation skipped" as a WARNING escalated it to an error under
+    /// `--strict`, so the only ways to clear it were deleting the `db_tables` documentation or
+    /// abandoning `strict`. Gating on advice the reader cannot take is not drift detection.
+    ///
+    /// DISCRIMINATOR. Before the fix this message was pushed to `warnings`.
+    #[test]
+    fn db_tables_without_schema_dir_is_a_notice_not_a_warning() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("specs/tracker")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/tracker.rs"), "pub fn track() {}\n").unwrap();
+        let spec_path = root.join("specs/tracker/tracker.spec.md");
+        let content = "---\nmodule: tracker\nversion: 1\nstatus: draft\nfiles:\n  - src/tracker.rs\ndb_tables:\n  - events\n---\n";
+        fs::write(&spec_path, content).unwrap();
+
+        let config = SpecSyncConfig::default();
+        assert!(config.schema_dir.is_none(), "premise: no schema_dir");
+        let result = validate_spec_content(
+            &spec_path,
+            content,
+            root,
+            &HashSet::new(),
+            &HashMap::new(),
+            &config,
+        );
+
+        let skipped = |v: &Vec<String>| v.iter().any(|m| m.contains("DB table validation skipped"));
+        assert!(
+            skipped(&result.notices),
+            "the disclosure must survive as a notice: {:?}",
+            result.notices
+        );
+        assert!(
+            !skipped(&result.warnings),
+            "it must not be a warning — warnings escalate under --strict: {:?}",
+            result.warnings
+        );
+    }
+
+    /// VACUITY CONTROL. Behaviour only: when `schema_dir` IS configured, a declared table the
+    /// schema does not contain must still be an ERROR. A fix that simply stopped checking
+    /// `db_tables` would pass the discriminator above and fail this.
+    #[test]
+    fn a_missing_db_table_is_still_an_error_when_schema_dir_is_configured() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("specs/tracker")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/tracker.rs"), "pub fn track() {}\n").unwrap();
+        let spec_path = root.join("specs/tracker/tracker.spec.md");
+        let content = "---\nmodule: tracker\nversion: 1\nstatus: draft\nfiles:\n  - src/tracker.rs\ndb_tables:\n  - events\n---\n";
+        fs::write(&spec_path, content).unwrap();
+
+        // The schema must be READABLE for "missing" to be a legitimate verdict — an unreadable
+        // schema correctly degrades to "unknown" (#672), so a fixture without a real schema
+        // directory would prove nothing here.
+        fs::create_dir_all(root.join("schema")).unwrap();
+        fs::write(root.join("schema/001.sql"), "CREATE TABLE other (id TEXT);").unwrap();
+        let mut config = SpecSyncConfig::default();
+        config.schema_dir = Some("schema".to_string());
+        let mut tables = HashSet::new();
+        tables.insert("other".to_string());
+
+        let result =
+            validate_spec_content(&spec_path, content, root, &tables, &HashMap::new(), &config);
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|m| m.contains("DB table not found in schema: events")),
+            "a genuinely absent table must remain an error: {:?}",
             result.errors
         );
     }

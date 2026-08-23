@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "db-tables-without-schema-dir-must-not-gate-a-release-on-advice-the-reader-cannot-take",
+  "slug": "db-tables-without-schema-dir-must-not-gate-a-release-on-advice-the-reader-cannot-take",
+  "title": "Db_tables without schema_dir must not gate a release on advice the reader cannot take",
+  "description": "db_tables without schema_dir must not gate a release on advice the reader cannot take",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "f94ff7e473ef6300180b9d79c1be3fe48c9ab527",
+  "created_at": 1787455193,
+  "updated_at": 1787456094,
+  "affected_specs": [
+    "validator"
+  ],
+  "affected_paths": [
+    "src/validator.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "behaviour within the validator contract: an unactionable disclosure moves from warnings to notices; no spec text changes",
+  "acceptance_criteria": [
+    "A spec declaring db_tables in a project with no schema_dir passes 'specsync check --strict' with exit 0, while the 'DB table validation skipped' disclosure remains visible as a notice. Where schema_dir IS configured, a declared table absent from the readable schema still errors, unchanged. The discriminating test fails on a binary built from a separate checkout at f94ff7e4 and its vacuity control passes on both."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

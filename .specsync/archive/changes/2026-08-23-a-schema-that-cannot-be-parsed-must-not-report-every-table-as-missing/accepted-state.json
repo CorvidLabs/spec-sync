@@ -7,11 +7,11 @@
   "title": "A schema that cannot be parsed must not report every table as missing",
   "description": "a schema that cannot be parsed must not report every table as missing",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "1d474ed905f8f1155f50488ba1f4906311de8940",
   "created_at": 1787448008,
-  "updated_at": 1787448872,
+  "updated_at": 1787449416,
   "affected_specs": [
     "schema",
     "validator"

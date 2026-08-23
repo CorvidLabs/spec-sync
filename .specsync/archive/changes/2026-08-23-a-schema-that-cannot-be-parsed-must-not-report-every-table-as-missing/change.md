@@ -1,6 +1,6 @@
 ---
 id: a-schema-that-cannot-be-parsed-must-not-report-every-table-as-missing
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 1d474ed905f8f1155f50488ba1f4906311de8940
 ---

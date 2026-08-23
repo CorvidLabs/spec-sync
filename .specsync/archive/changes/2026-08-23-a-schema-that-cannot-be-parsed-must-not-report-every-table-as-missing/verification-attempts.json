@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1787448075,
+      "commit": "1d474ed905f8f1155f50488ba1f4906311de8940",
+      "contract_digest": "45e94d2a1f2c9c2f0026622509c466e056a3d92f57f24332ea1e1ea3decd362d",
+      "execution_digest": "6559399efd88c4b676751d56d2105984c874742c38e545fbf0f3e395650a3d1a",
+      "workspace_digest": "4bbfa268e3eb75d8a5127b352f2093c3443fbf8e62f89b0176a76bc4ee3bc47e",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test schema::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787448095,
+      "commit": "1d474ed905f8f1155f50488ba1f4906311de8940",
+      "contract_digest": "45e94d2a1f2c9c2f0026622509c466e056a3d92f57f24332ea1e1ea3decd362d",
+      "execution_digest": "6559399efd88c4b676751d56d2105984c874742c38e545fbf0f3e395650a3d1a",
+      "workspace_digest": "4bbfa268e3eb75d8a5127b352f2093c3443fbf8e62f89b0176a76bc4ee3bc47e",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test schema::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787448100,
+      "commit": "1cc2b8e56e96bb2721db65590843064f48819e01",
+      "contract_digest": "45e94d2a1f2c9c2f0026622509c466e056a3d92f57f24332ea1e1ea3decd362d",
+      "execution_digest": "6559399efd88c4b676751d56d2105984c874742c38e545fbf0f3e395650a3d1a",
+      "workspace_digest": "4bbfa268e3eb75d8a5127b352f2093c3443fbf8e62f89b0176a76bc4ee3bc47e",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test schema::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787448865,
+      "commit": "4d331afe2191ea143fa721b11c8fc01e2252fd6e",
+      "contract_digest": "45e94d2a1f2c9c2f0026622509c466e056a3d92f57f24332ea1e1ea3decd362d",
+      "execution_digest": "6559399efd88c4b676751d56d2105984c874742c38e545fbf0f3e395650a3d1a",
+      "workspace_digest": "4bc29eb64f91bcec269802e333e8752ed0e2737edcdb228b070ea6ea23c8f66b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test schema::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787448870,
+      "commit": "079dcc8197aa1d3883d5647b3eaab5805ef8667b",
+      "contract_digest": "45e94d2a1f2c9c2f0026622509c466e056a3d92f57f24332ea1e1ea3decd362d",
+      "execution_digest": "6559399efd88c4b676751d56d2105984c874742c38e545fbf0f3e395650a3d1a",
+      "workspace_digest": "4bc29eb64f91bcec269802e333e8752ed0e2737edcdb228b070ea6ea23c8f66b",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test schema::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787448870,
+      "commit": "e9c9011ae6ab04a6dcda7a2c8ef4dadae16134dc",
+      "contract_digest": "45e94d2a1f2c9c2f0026622509c466e056a3d92f57f24332ea1e1ea3decd362d",
+      "execution_digest": "6559399efd88c4b676751d56d2105984c874742c38e545fbf0f3e395650a3d1a",
+      "workspace_digest": "4bc29eb64f91bcec269802e333e8752ed0e2737edcdb228b070ea6ea23c8f66b",
+      "acceptance_input_digest": "50fc40c0053e1e2cf7c7a4fffc54a219868c1aee7b6a1b56eb213849d3bbe4ae",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/schema/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a8b28f38502bf7b131fce8f0c1a55d5cf28d4ab912b590af8820fe5419c7aa27",
+            "entry_digest": "b293b92764718739a308e277c447ca58ab06e2359e25cdebdd8350f7e852e1c0",
+            "owners": [
+              "schema"
+            ]
+          },
+          {
+            "path": "specs/schema/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "cb67ed67d75a646549ed6aff7489ffe776b73b6eebd42d276aef06e10dfb4b49",
+            "entry_digest": "d868d424285d151791d4aad89e243130158d0ad9fcb5e7c3158be0cbb1ef4be2",
+            "owners": [
+              "schema"
+            ]
+          },
+          {
+            "path": "specs/schema/schema.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3d2fb44d39b0e91cbfb788854516969b656069fa81c8ac21436226482d786080",
+            "entry_digest": "283bbd2172f26727c11c04a3fc9934d925136fc983bea192e44ec4d0e0c8b14e",
+            "owners": [
+              "schema"
+            ]
+          },
+          {
+            "path": "specs/schema/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a8cbf7871a2c3d41b787e4491202c6d1ca0cba13d1c64a1a1de6a9b77c15d8aa",
+            "entry_digest": "45e46cfa11902fbb02aac929d62b53e4f79b66799265c301671dfd80853b0d17",
+            "owners": [
+              "schema"
+            ]
+          },
+          {
+            "path": "specs/schema/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "88085631526383a4fe5900720f2a3504d554e352a6702abd21e45bf87c594f60",
+            "entry_digest": "82e9831fe99bf581214b86673f40007342eb3f8875592a59607f13303f85c777",
+            "owners": [
+              "schema"
+            ]
+          },
+          {
+            "path": "specs/validator/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c6b7498a9b4345db9d4c9936648af800c65bf0213574596e289ca34b27f1bf56",
+            "entry_digest": "20e0c30624450b31cac86e7be70f507d9953bb589d243819d98c634e5ebf7f1a",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4b19ecaf304366b8331fb60d10517aba84e025a5030b18a7532d2673f9c6bb13",
+            "entry_digest": "c3fc4198119ad86c62b4a5ecb716bdea402d15b248e90082d1e65a2e9da79b19",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8a63359ac4b8bb403202131a82498133359c5063d5a9386a0a1b4671a997f950",
+            "entry_digest": "26943c838defe3ac7db44470c37585a37beaf1416c64fa74691e13b2b983d04a",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "88aa38ed2586874febd5226e8194e1c3cf79c1ca650c03d69a328d7c4e27fc8c",
+            "entry_digest": "04efa7f260cfc557bf1cf0ce30efe3d81a9ad92386d02feb8896d6dfd0fc65d7",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/validator.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "14cca5a1ce0e03793f3315e7ee50346b5dac1dcc21e7101e2478c0d81441a9da",
+            "entry_digest": "ee58156b9d48dbf6339594fe9b8a706b682c1fa9df3ee3a3b8d8b70597599763",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "src/schema.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "00185b9f57c866e448781e32b43c4d1a87c9c2fe1587765abbed6ae75e30b6f2",
+            "entry_digest": "6f55f4e79db69dd45727ee709bed812825a7856b8ab0fd4a0bf3993f270879ca",
+            "owners": [
+              "schema"
+            ]
+          },
+          {
+            "path": "src/validator.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "64891f179c6cbf9983a7e8d4f82948ff2ad8d72deaf52e7bb369262dbeaafeeb",
+            "entry_digest": "721bc9f49431577db021ce47d8c4e3d23bedc0b697c358f0d3d6ddd05c7f12bf",
+            "owners": [
+              "validator"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test schema::tests::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test validator::tests::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

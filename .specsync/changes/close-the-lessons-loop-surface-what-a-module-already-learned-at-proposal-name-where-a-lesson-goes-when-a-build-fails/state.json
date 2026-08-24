@@ -9,28 +9,31 @@
   "kind": "feature",
   "state": "verifying",
   "canonical_applied": true,
-  "base_commit": "376682de8361c93813ad987cd7f5974d1eb63dc0",
-  "created_at": 1787534467,
-  "updated_at": 1787535613,
+  "base_commit": "ffbcf524b4847c5cebbed107975849b6427af324",
+  "created_at": 1787539287,
+  "updated_at": 1787540349,
   "affected_specs": [
     "change",
-    "cmd_change"
+    "cmd_change",
+    "generator"
   ],
   "affected_paths": [
     "src/change.rs",
     "src/change_tests.rs",
     "src/commands/change.rs",
+    "src/generator.rs",
     "specs/change/change.spec.md",
-    "specs/cmd_change/cmd_change.spec.md"
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/generator/generator.spec.md"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,
   "acceptance_criteria": [
-    "change new names each affected module context.md with its substantive line count, and stays silent for a module whose context holds only scaffold",
-    "a FAILED change check names where the lesson goes; a passing check prints nothing",
-    "finalize writes lesson-bundle.md into the archive and next_action names the fold-back targets before the merge",
-    "lessons policy lives in src/change.rs and the command layer only renders it",
-    "frontmatter stripping has one definition inside the change module, matching view::strip_frontmatter, pinned by a horizontal-rule regression test"
+    "change new names each affected module context.md with its substantive line count, counting only authored prose and never a generated scaffold",
+    "a FAILED change check names where the lesson goes, including for a bare check with no id; a passing check prints nothing",
+    "finalize writes lesson-bundle.md into the archive durably and next_action names the fold-back targets before the merge",
+    "lessons policy lives in src/change.rs and the generator owns what a scaffold looks like; the command layer only renders",
+    "frontmatter stripping has one definition matching view::strip_frontmatter, pinned by a discriminating multi-rule regression test"
   ],
   "selected_artifacts": [
     "context",

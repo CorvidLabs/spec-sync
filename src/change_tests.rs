@@ -15458,14 +15458,14 @@ fn recorded_verification_is_stale_when_the_workspace_digest_does_not_match() {
     );
 }
 
-// A body containing a Markdown horizontal rule is NOT frontmatter. This is the sibling that
-// `write_lesson_bundle` carried: it split on `---` unconditionally, so any artifact using a
-// horizontal rule but no frontmatter was silently truncated to a mid-document fragment — and
-// truncated material in a lesson bundle is indistinguishable from material that was never
-// written. Guarding on the opening delimiter is what makes the two call sites agree.
+// Honest label: with ONE horizontal rule this is an INVARIANT, not a discriminator — the old
+// `split("---").nth(2).unwrap_or(&text)` also returned the whole string, because `nth(2)` is
+// `None` when there are only two fields. It is kept because it pins the documented behaviour,
+// and a SECOND rule is added so the case actually discriminates: with two rules the old
+// expression returns a mid-document fragment and this assertion fails against it.
 #[test]
-fn strip_frontmatter_keeps_a_body_whose_horizontal_rule_is_not_frontmatter() {
-    let text = "# Notes\n\nFirst lesson.\n\n---\n\nSecond lesson after a rule.\n";
+fn strip_frontmatter_keeps_a_body_whose_horizontal_rules_are_not_frontmatter() {
+    let text = "# Notes\n\nFirst lesson.\n\n---\n\nSecond lesson.\n\n---\n\nThird lesson.\n";
 
     assert_eq!(strip_frontmatter(text), text);
 }
@@ -15481,20 +15481,44 @@ fn strip_frontmatter_removes_real_frontmatter_and_keeps_later_rules() {
     assert!(body.contains("More prose."));
 }
 
-// A fresh scaffold must not advertise itself as knowledge: an unwritten context.md is prompts
-// and headings only, and surfacing it would train the reader to ignore the pointer.
+// A fresh scaffold must not advertise itself as knowledge: pointing an author at a file that
+// has learned nothing trains them to ignore the pointer, which kills the surface entirely.
+//
+// The fixture is the REAL generated companion, not an invented one. A previous version of this
+// test used `<!-- What did this module learn? -->`, a string the product never writes for a spec
+// companion, so it passed while the shipped behaviour surfaced every untouched scaffold in the
+// repository. A fixture the product cannot produce proves nothing about the product.
 #[test]
-fn accumulated_lessons_ignores_a_context_holding_only_scaffold() {
+fn accumulated_lessons_ignores_a_context_holding_only_generated_scaffold() {
     let temp = TempDir::new().expect("temp");
     let root = temp.path();
     fs::create_dir_all(root.join("specs/canary")).expect("mkdir");
-    fs::write(
-        root.join("specs/canary/context.md"),
-        "---\nspec: canary.spec.md\n---\n\n# Context\n\n<!-- What did this module learn? -->\n",
-    )
-    .expect("write");
+    let scaffold = "---\nspec: canary.spec.md\n---\n\n## Key Decisions\n\n\
+- Record architectural or design decisions relevant to this spec.\n\n## Files to Read First\n\n\
+- List the most important files an agent or new developer should read.\n\n## Current Status\n\n\
+- Summarize implemented behavior, active work, and known blockers.\n\n## Notes\n\n\
+- Capture useful links, investigation notes, and operational context.\n";
+    fs::write(root.join("specs/canary/context.md"), scaffold).expect("write");
 
     assert!(accumulated_lessons(root, &["canary".to_string()]).is_empty());
+}
+
+// The complement: a scaffold an author HAS written into still surfaces, and counts only the
+// lines they added — otherwise the fix above would silence real lessons.
+#[test]
+fn accumulated_lessons_counts_only_what_an_author_added_to_a_scaffold() {
+    let temp = TempDir::new().expect("temp");
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/canary")).expect("mkdir");
+    let written = "---\nspec: canary.spec.md\n---\n\n## Key Decisions\n\n\
+- Record architectural or design decisions relevant to this spec.\n\
+- The retry budget is per-host, not per-request; a shared budget starved slow hosts.\n";
+    fs::write(root.join("specs/canary/context.md"), written).expect("write");
+
+    assert_eq!(
+        accumulated_lessons(root, &["canary".to_string()]),
+        vec![("specs/canary/context.md".to_string(), 1)]
+    );
 }
 
 #[test]

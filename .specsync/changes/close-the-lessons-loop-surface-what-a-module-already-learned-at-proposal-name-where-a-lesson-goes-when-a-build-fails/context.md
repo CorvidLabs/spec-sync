@@ -45,3 +45,31 @@ stated architectural invariant.
 The policy was moved to `src/change.rs` (`accumulated_lessons`, `lesson_fold_targets`,
 `module_context_path`) and the command layer reduced to rendering. The loop caught a design flaw
 in the change that adds the loop.
+
+## What the independent review caught, and what it cost
+
+An independent reviewer BLOCKED the first shippable version. Both blockers were the loop's own
+failure mode aimed back at it.
+
+**The scaffold detection was false.** The code documented "scaffold prompts are HTML comments".
+The real `CONTEXT_TEMPLATE` is plain bullets, so every untouched `specs/<module>/context.md`
+counted as four lines of knowledge. Stage 1 would have pointed every new adopter at a file that
+had learned nothing — the exact behaviour the design doc says kills the surface. It survived
+dogfooding because all 62 specs in this repository already have prose, so no untouched scaffold
+existed here to trip over. `validator.rs` already enumerated those bullet strings; the fix asks
+the generator instead, so the definition lives with the template rather than beside it.
+
+**A delta silently deleted three unrelated documented behaviours.** The delta declared five
+Behavioral Examples scenarios; the living spec ended up with one. `### Scenario:` in the section
+body collides with the delta format's own `### SPEC SECTION` level. `change.spec.md` uses bold
+scenarios and was unharmed; `cmd_change.spec.md` uses `###` and lost two-thirds of its section.
+Filed as #699. The corruption depends on the TARGET file's convention, and 59 of 62 spec files
+use the vulnerable style.
+
+**Two tests proved nothing.** One fixture used a string the product never emits. One was labelled
+a discriminator but is an invariant: with a single `---`, the old `split("---").nth(2)` also
+returned the whole string. Both corrected, the second with an honest label and a second rule.
+
+The lesson worth carrying: **dogfooding on a mature repository cannot see a new-adopter defect.**
+Every affordance keyed on "has the author written anything yet" needs a fixture that is the real
+generated artifact, because the mature repository no longer contains one.

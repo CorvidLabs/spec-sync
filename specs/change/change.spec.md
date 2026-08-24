@@ -116,6 +116,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `accept_change` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Record closing approval and atomically apply semantic deltas only when not already canonical |
 | `acceptance_entries` | `root: &Path, record: &ChangeRecord` | `Vec<AcceptanceInputEntryV1>` | Accepted acceptance-input entries, so `change show --json` can surface the `specsync.acceptance-entry.v1` digests `change supersede --digest` requires; empty when evidence is absent |
 | `accumulated_lessons` | `root, modules` | `Vec<(String, usize)>` | Substantive-prose line count for each module context that holds any, so a new change can be pointed at what its modules already learned |
+| `active_change_id` | `root` | `Option<String>` | The change a bare lifecycle command acts on: the single active implementing/verifying record, or none |
 | `add_acceptance_owner_correction` | `root, id, path, module, actor, reason` | `Result<ChangeRecord, String>` | Append one audited exact canonical owner correction to a reopened already-applied change |
 | `add_acceptance_owner_corrections` | `root, id, entries, actor, reason` | `Result<ChangeRecord, String>` | Validate every exact path/module owner correction, then append all as sequenced audit entries in one transactional write |
 | `add_dependency` | `root, id, dependency` | `Result<ChangeRecord, String>` | Production domain API that validates ledger health under lock, declares ordering between active changes, and invalidates stale approval digests |
@@ -218,7 +219,7 @@ Acceptance Criteria
 
 ## Behavioral Examples
 
-### Scenario: Archival compounds knowledge into the spec
+**Scenario: Archival compounds knowledge into the spec**
 
 - **Given** a change is finalized
 - **When** `finalize_change` archives it

@@ -53,12 +53,23 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 
 ## Behavioral Examples
 
-### Scenario: A failed verification names where the lesson goes
+### Scenario: Agent creates a change
 
-- **Given** `specsync change check <id>` fails verification
-- **When** the failure is rendered in text mode
-- **Then** output names `.specsync/changes/<id>/context.md` as where to record the dead end
-- **And** a PASSING check prints no such hint
+- **Given** `specsync --json change new "Add passkeys"`
+- **When** creation succeeds
+- **Then** JSON includes the record, gate summary, and deterministic questions
+
+### Scenario: Agent reopens stale accepted evidence
+
+- **Given** current governed inputs no longer match an accepted change's closing evidence
+- **When** `specsync --json change reopen <id> --actor <human> --reason <text>` succeeds
+- **Then** JSON contains the verifying change and versioned audit record with the superseded approval and prior verification
+
+### Scenario: Finalize an implementation PR
+
+- **Given** verification and the configured scoped-review check are current
+- **When** `specsync change finalize <id>` succeeds
+- **Then** output names the dated archive and says the PR is ready for GitHub merge without merging it
 
 ## Error Cases
 

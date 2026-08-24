@@ -48,6 +48,22 @@ spec: {module}.spec.md
 - List behaviors or responsibilities intentionally handled by other modules.
 "#;
 
+/// Whether a line is one the context scaffold generated, rather than something an author wrote.
+///
+/// The module that WRITES the scaffold decides what the scaffold looks like. Callers that need to
+/// tell "this module has recorded knowledge" from "this file is still the template" ask here, so
+/// there is one definition rather than a copy of these strings somewhere else drifting out of
+/// sync with the template above it.
+pub(crate) fn is_generated_context_line(line: &str) -> bool {
+    let line = line.trim();
+    if line.is_empty() {
+        return true;
+    }
+    CONTEXT_TEMPLATE
+        .lines()
+        .any(|template_line| template_line.trim() == line)
+}
+
 const CONTEXT_TEMPLATE: &str = r#"---
 spec: {module}.spec.md
 ---

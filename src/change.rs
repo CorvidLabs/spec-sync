@@ -6207,6 +6207,25 @@ fn strip_frontmatter(text: &str) -> &str {
     text
 }
 
+/// The change a bare lifecycle command acts on: the single active implementing/verifying record.
+///
+/// Policy, so it lives here. The command layer had this resolution inline in one arm and not in
+/// another, which is exactly how the build-stage lesson hint came to be silent for the bare
+/// `change check` while the success path resolved the ID fine.
+pub(crate) fn active_change_id(root: &Path) -> Option<String> {
+    list_changes(root)
+        .ok()?
+        .records
+        .into_iter()
+        .find(|record| {
+            matches!(
+                record.state,
+                ChangeState::Implementing | ChangeState::Verifying
+            )
+        })
+        .map(|record| record.id)
+}
+
 /// Where a module's accumulated lessons live.
 ///
 /// One definition of the convention, so surfacing at `new` and folding at `finalize` can never
@@ -6221,8 +6240,10 @@ pub(crate) fn module_context_path(module: &str) -> String {
 /// that rule three separate ways, and deciding what counts as a lesson IS policy. The command
 /// layer renders what this returns and decides nothing.
 ///
-/// Scaffold prompts are HTML comments so an unwritten artifact reads as incomplete. Count only
-/// real prose, or a fresh scaffold would advertise itself as knowledge.
+/// A freshly generated scaffold must not advertise itself as knowledge. The scaffold is NOT
+/// HTML comments — `specs/<module>/context.md` is generated with plain prompt bullets — so the
+/// generator is asked which lines it wrote rather than this module guessing at their shape.
+/// Guessing is how the copy drifts from the template it is supposed to track.
 ///
 /// Frontmatter is stripped by its delimiters rather than by "contains a colon" — real lessons are
 /// full of colons, and filtering on one would silently drop the very content this exists to
@@ -6242,7 +6263,10 @@ pub(crate) fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(Strin
             .lines()
             .filter(|line| {
                 let line = line.trim();
-                !line.is_empty() && !line.starts_with("<!--") && !line.starts_with('#')
+                !line.is_empty()
+                    && !line.starts_with("<!--")
+                    && !line.starts_with('#')
+                    && !crate::generator::is_generated_context_line(line)
             })
             .count();
         if substantive > 0 {
@@ -6354,7 +6378,10 @@ fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Re
         }
     }
 
-    fs::write(archive.join(LESSON_BUNDLE_FILE), out)
+    // Durable like every other artifact this lifecycle writes: a crash mid-write would leave a
+    // TRUNCATED bundle, and truncated lessons read exactly like lessons nobody wrote — the same
+    // failure this whole change exists to prevent.
+    atomic_write_durable(&archive.join(LESSON_BUNDLE_FILE), out.as_bytes())
         .map_err(|error| format!("failed to write lesson bundle: {error}"))
 }
 

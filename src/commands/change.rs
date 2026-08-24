@@ -425,7 +425,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             // there is usually nothing to record.
             if verification.is_err()
                 && !matches!(format, OutputFormat::Json)
-                && let Some(change_id) = id.as_deref()
+                && let Some(change_id) = id
+                    .clone()
+                    .or_else(|| change::active_change_id(root))
+                    .as_deref()
             {
                 eprintln!(
                     "  {} if this failure taught you something, record it in .specsync/changes/{}/context.md while it is fresh — dead ends are what the next change to this module needs, and `finalize` folds them into the spec",
@@ -455,19 +458,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 _ => match &verification {
                     Ok(Some(record)) => {
                         // Prefer the ID from the change workspace after verify.
-                        let verified_id = id.clone().or_else(|| {
-                            change::list_changes(root)
-                                .ok()?
-                                .records
-                                .into_iter()
-                                .find(|record| {
-                                    matches!(
-                                        record.state,
-                                        ChangeState::Implementing | ChangeState::Verifying
-                                    )
-                                })
-                                .map(|record| record.id)
-                        });
+                        let verified_id =
+                            id.clone().or_else(|| change::active_change_id(root));
                         let label = verified_id.as_deref().unwrap_or(display_id.as_str());
                         if record.passed {
                             println!("{} {} verified", "✓".green(), label);

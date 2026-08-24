@@ -1,4 +1,4 @@
-# Change command lessons-loop delta
+# cmd_change lessons-loop delta
 
 ## MODIFIED
 
@@ -11,40 +11,6 @@
 5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge.
 6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact.
 7. The lessons loop surfaces at each of the three moments a lesson exists: `change new` names every affected module's `specs/<module>/context.md` that holds substantive prose, a FAILED `change check` names where to record what the failure taught, and `finalize` names folding the archived bundle into those specs before the merge. Every surface is a pointer, never a dump, and none can fail a lifecycle command. A passing `change check` says nothing.
-
-### SPEC SECTION Behavioral Examples
-
-### Scenario: Agent creates a change
-
-- **Given** `specsync --json change new "Add passkeys"`
-- **When** creation succeeds
-- **Then** JSON includes the record, gate summary, and deterministic questions
-
-### Scenario: Agent reopens stale accepted evidence
-
-- **Given** current governed inputs no longer match an accepted change's closing evidence
-- **When** `specsync --json change reopen <id> --actor <human> --reason <text>` succeeds
-- **Then** JSON contains the verifying change and versioned audit record with the superseded approval and prior verification
-
-### Scenario: Finalize an implementation PR
-
-- **Given** verification and the configured scoped-review check are current
-- **When** `specsync change finalize <id>` succeeds
-- **Then** output names the dated archive and says the PR is ready for GitHub merge without merging it
-
-### Scenario: A new change is pointed at what its modules already learned
-
-- **Given** an affected module's `specs/<module>/context.md` holds substantive prose
-- **When** `specsync change new` succeeds against that module in text mode
-- **Then** output names the context file with its substantive line count and says to read it before scoping
-- **And** `--json` output is unchanged, because surfacing is an authoring affordance
-
-### Scenario: A failed verification names where the lesson goes
-
-- **Given** `specsync change check <id>` fails verification
-- **When** the failure is rendered in text mode
-- **Then** output names `.specsync/changes/<id>/context.md` as where to record the dead end
-- **And** a PASSING check prints no such hint
 
 ### SPEC SECTION Error Cases
 

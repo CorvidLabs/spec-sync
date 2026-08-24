@@ -47,6 +47,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 
 | Name | Description |
 |------|-------------|
+| `LESSON_BUNDLE_FILE` | Filename of the lesson bundle written into an archive, shared with the command layer so the two cannot name different files |
 | `SDD_VERSION` | Current SDD project-layout version written by initialization |
 
 **Exported Types**

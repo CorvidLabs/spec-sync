@@ -50,10 +50,14 @@ spec: {module}.spec.md
 
 /// Whether a line is one the context scaffold generated, rather than something an author wrote.
 ///
-/// The module that WRITES the scaffold decides what the scaffold looks like. Callers that need to
-/// tell "this module has recorded knowledge" from "this file is still the template" ask here, so
-/// there is one definition rather than a copy of these strings somewhere else drifting out of
-/// sync with the template above it.
+/// The module that WRITES the scaffold decides what the scaffold looks like, so callers asking
+/// "has this module recorded anything, or is it still the template" read `CONTEXT_TEMPLATE`
+/// below rather than keeping their own copy of these strings.
+///
+/// This is not yet the single definition in the repository: `validator.rs` still holds a
+/// hardcoded copy of three of the four prompt bullets, and that copy has ALREADY drifted — it
+/// omits the Notes bullet. Unifying it is outside this change's delivery scope; until then, this
+/// is the definition that tracks the template, and that one does not.
 pub(crate) fn is_generated_context_line(line: &str) -> bool {
     let line = line.trim();
     if line.is_empty() {

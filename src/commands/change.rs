@@ -383,7 +383,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     "review_digest": finalization.review_digest,
                     "finalization_digest": finalization.finalization_digest,
                     "ready_for_github_merge": true,
-                    "lesson_bundle": path.join("lesson-bundle.md"),
+                    "lesson_bundle": path.join(change::LESSON_BUNDLE_FILE),
                     "next_action": lessons_next_action(root, &id, &path),
                 })),
                 _ => {
@@ -1187,7 +1187,7 @@ fn lessons_next_action(root: &Path, id: &str, archive: &Path) -> String {
     format!(
         "write lessons into {} from {}, then merge the PR on GitHub",
         targets.join(", "),
-        archive.join("lesson-bundle.md").display()
+        archive.join(change::LESSON_BUNDLE_FILE).display()
     )
 }
 

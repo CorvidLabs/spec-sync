@@ -18,7 +18,7 @@ const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is inv
 const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
-const LESSON_BUNDLE_FILE: &str = "lesson-bundle.md";
+pub(crate) const LESSON_BUNDLE_FILE: &str = "lesson-bundle.md";
 const LEGACY_BASELINE_PATH: &str = ".specsync/archive/legacy-baseline.json";
 const WORKFLOW_V2_BASELINE_PATH: &str = ".specsync/workflow-v2-baseline.json";
 const LOCK_PATH: &str = ".specsync/change.lock";
@@ -6218,9 +6218,12 @@ pub(crate) fn active_change_id(root: &Path) -> Option<String> {
         .records
         .into_iter()
         .find(|record| {
+            // The SAME states `check_change` selects. A narrower set here is how the hint came
+            // to be silent on a failing first check of an approved change: two selections of
+            // "the current change" that disagree.
             matches!(
                 record.state,
-                ChangeState::Implementing | ChangeState::Verifying
+                ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
             )
         })
         .map(|record| record.id)

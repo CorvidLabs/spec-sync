@@ -7,11 +7,11 @@
   "title": "Ship must name the lesson fold-back too: the archive bundle is written and only finalize says so",
   "description": "Ship must name the lesson fold-back too: the archive bundle is written and only finalize says so",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "fb88b9acaafe99abd83a637876331e83330e49fb",
   "created_at": 1787576869,
-  "updated_at": 1787582714,
+  "updated_at": 1787584044,
   "affected_specs": [
     "cmd_change"
   ],

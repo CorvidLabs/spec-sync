@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "ship-must-name-the-lesson-fold-back-too-the-archive-bundle-is-written-and-only-finalize-says-so",
+  "implementation_commit": "bfd3ef6224b2b311890ad9299a5d9bb3c8e371a0",
+  "implementation_tree": "0ecaedcd93e5c7c89fbd8adda899fa0faa30f39b",
+  "contract_digest": "7569dadacb62db4ae795d4e0139289cce2a6b73296f0c4f4ff6c4548f23278fb",
+  "workspace_digest": "ee562505ede91285c8c73a4e983f2ba1892dbdd585c5f8ff5eef32b224232f6e",
+  "closing_digest": "4ca3815a2f4022aa37f426a1f65f0bf8230800bddfb7d2196b59612f3357c7bf",
+  "review_digest": "6a26e1753a09261f8659b43e61f553e73e432ca9b5173c5289b64d823fc575bd",
+  "finalization_digest": "dc32032e9e536c0d62f3dec3bdc50b3ff9559882b4de8607663ee83b238a8cbe",
+  "timestamp": 1787584044
+}

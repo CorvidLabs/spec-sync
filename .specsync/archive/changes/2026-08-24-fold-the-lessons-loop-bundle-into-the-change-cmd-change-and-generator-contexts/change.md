@@ -1,6 +1,6 @@
 ---
 id: fold-the-lessons-loop-bundle-into-the-change-cmd-change-and-generator-contexts
-state: implementing
+state: archived
 type: documentation
 base_commit: fb88b9acaafe99abd83a637876331e83330e49fb
 ---

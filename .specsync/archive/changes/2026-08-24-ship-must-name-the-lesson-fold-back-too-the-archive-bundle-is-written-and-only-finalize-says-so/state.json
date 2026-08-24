@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "ship-must-name-the-lesson-fold-back-too-the-archive-bundle-is-written-and-only-finalize-says-so",
+  "slug": "ship-must-name-the-lesson-fold-back-too-the-archive-bundle-is-written-and-only-finalize-says-so",
+  "title": "Ship must name the lesson fold-back too: the archive bundle is written and only finalize says so",
+  "description": "Ship must name the lesson fold-back too: the archive bundle is written and only finalize says so",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "fb88b9acaafe99abd83a637876331e83330e49fb",
+  "created_at": 1787576869,
+  "updated_at": 1787584276,
+  "affected_specs": [
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    "specs/cmd_change/cmd_change.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change ship names the lesson fold-back targets and the bundle path before the merge step, exactly as change finalize already does",
+    "a change owning no specs gets guidance byte-identical to before the fix, so the prefix cannot leak into cases with nothing to fold",
+    "the sibling do-not-merge blocker survives the fold-back prefix rather than being displaced by it",
+    "the shared guidance is one pure function pinned by tests, not a string duplicated per verb"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

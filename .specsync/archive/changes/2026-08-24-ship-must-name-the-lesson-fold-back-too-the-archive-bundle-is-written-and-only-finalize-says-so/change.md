@@ -1,6 +1,6 @@
 ---
 id: ship-must-name-the-lesson-fold-back-too-the-archive-bundle-is-written-and-only-finalize-says-so
-state: implementing
+state: archived
 type: bug_fix
 base_commit: fb88b9acaafe99abd83a637876331e83330e49fb
 ---

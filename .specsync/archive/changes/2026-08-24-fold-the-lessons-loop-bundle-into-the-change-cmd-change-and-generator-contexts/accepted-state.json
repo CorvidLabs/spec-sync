@@ -7,11 +7,11 @@
   "title": "Fold the lessons-loop bundle into the change, cmd_change and generator contexts",
   "description": "Fold the lessons-loop bundle into the change, cmd_change and generator contexts",
   "kind": "documentation",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "fb88b9acaafe99abd83a637876331e83330e49fb",
   "created_at": 1787576885,
-  "updated_at": 1787583224,
+  "updated_at": 1787584294,
   "affected_specs": [],
   "affected_paths": [
     "specs/change/context.md",

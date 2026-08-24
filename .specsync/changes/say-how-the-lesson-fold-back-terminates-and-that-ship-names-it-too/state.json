@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "say-how-the-lesson-fold-back-terminates-and-that-ship-names-it-too",
+  "slug": "say-how-the-lesson-fold-back-terminates-and-that-ship-names-it-too",
+  "title": "Say how the lesson fold-back terminates, and that ship names it too",
+  "description": "Say how the lesson fold-back terminates, and that ship names it too",
+  "kind": "documentation",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "875752ee991d458db172dec6ceb712462fe2a614",
+  "created_at": 1787609877,
+  "updated_at": 1787611854,
+  "affected_specs": [],
+  "affected_paths": [
+    "docs/ADOPTING.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Documentation only: adds fold-back termination guidance to docs/ADOPTING.md and corrects a stale claim that only finalize names the step; no canonical spec text, requirement, or behaviour changes.",
+  "acceptance_criteria": [
+    "docs/ADOPTING.md's 'Close the learning loop' section states that the fold-back is itself a change, that scoping it to the modules it edits reproduces the fold-back instruction, and that a fold change declaring no affected specs terminates it; it gives a copy-pasteable 'change new --kind documentation --no-spec-change' command with rationale wording; and the section names both finalize and ship as the verbs that print the step, not finalize alone."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

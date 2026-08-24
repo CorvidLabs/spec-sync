@@ -8837,10 +8837,17 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
     if items.iter().any(|item| item.key.is_empty()) {
         return Err("semantic delta contains an item with an empty key".into());
     }
-    // Two items with the same operation/target/key silently overwrite: application keeps the
-    // last and the earlier bodies vanish with no diagnostic. That is how a section can lose
-    // content nobody meant to touch, so refuse it rather than picking a winner. This is a
-    // separate route into the same silent loss the flush ordering above produced.
+    // Two items with the same operation/target/key under `## MODIFIED` silently overwrite:
+    // application keeps the last and the earlier bodies vanish with no diagnostic. Be precise
+    // about the scope — duplicate `## ADDED` already fails loudly ("cannot add existing block
+    // ... with different content") and duplicate `## REMOVED` fails as a missing block. MODIFIED
+    // is the one that resolves silently, so it is the one worth refusing.
+    //
+    // COUPLED TO THE FLUSH ORDERING ABOVE — do not ship this guard on its own. Two archived
+    // deltas (CHG-0121 types.md, CHG-0131 deps.md) contain duplicate MODIFIED keys that exist
+    // ONLY because the old ordering split one section into several items. With the reordering
+    // they parse as single items and pass; without it, this guard would refuse them and their
+    // changes could no longer be re-materialized.
     for (index, item) in items.iter().enumerate() {
         if let Some(earlier) = items[..index].iter().find(|candidate| {
             candidate.operation == item.operation
@@ -8848,9 +8855,10 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
                 && candidate.key == item.key
         }) {
             return Err(format!(
-                "semantic delta declares `{}` more than once under the same operation; \
-                 applying it would keep only the last and silently discard the earlier body \
-                 ({} bytes)",
+                "semantic delta declares {:?} {:?} `{}` more than once; applying it would keep \
+                 only the last and silently discard the earlier body ({} bytes)",
+                item.operation,
+                item.target,
                 item.key,
                 earlier.content.len()
             ));

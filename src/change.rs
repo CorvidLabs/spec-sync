@@ -6207,7 +6207,8 @@ fn strip_frontmatter(text: &str) -> &str {
     text
 }
 
-/// The change a bare lifecycle command acts on: the single active implementing/verifying record.
+/// The change a bare lifecycle command acts on: the single active approved/implementing/verifying
+/// record — the same states `check_change` selects.
 ///
 /// Policy, so it lives here. The command layer had this resolution inline in one arm and not in
 /// another, which is exactly how the build-stage lesson hint came to be silent for the bare

@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "f9d034fe1630023e082ed0088ac08862248379e0",
   "created_at": 1787594665,
-  "updated_at": 1787595196,
+  "updated_at": 1787597080,
   "affected_specs": [],
   "affected_paths": [
     "tests/integration/staleness_unmeasurable.rs"

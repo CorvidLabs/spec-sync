@@ -43,8 +43,16 @@ fn init_repo(root: &Path) {
     // Honest about the evidence: this is a plausible cause, not a proven one. Seven
     // commits sit far below the 6700 loose-object gc threshold, and a local probe
     // found no leftover artifacts — though it could not have detected a transient
-    // lock. These settings remove the known background writers; the retry below is
-    // what actually makes the removal reliable.
+    // lock. These settings remove the known background writers; the retry below makes
+    // the removal tolerant of a SHORT-LIVED one. A writer holding for seconds — a real
+    // repack — would still exhaust it, so this is not a guarantee.
+    //
+    // `maintenance.auto` is the load-bearing setting: measured with GIT_TRACE, `git
+    // commit` spawns `git maintenance run --auto --quiet --detach` and setting this to
+    // false stops it entirely, while `gc.auto=0` alone does not (3 of 3 commits still
+    // spawned the child). Keep both — `gc.auto` covers older git where `gc --auto`
+    // daemonizes itself — and do NOT drop `maintenance.auto` as redundant, which would
+    // silently remove the whole guard.
     git(root, &["config", "gc.auto", "0"]);
     git(root, &["config", "maintenance.auto", "false"]);
 }
@@ -71,6 +79,14 @@ fn remove_git_dir(root: &Path) {
             Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
         }
     }
+    // Unreachable: the `attempt == 9` arm panics on the final iteration. Asserted anyway
+    // so the NotFound early return is self-evidently safe rather than safe only because
+    // std's `remove_dir_all` reports NotFound for the deletion ROOT and not for a child
+    // that vanished mid-walk.
+    assert!(
+        !root.join(".git").exists(),
+        "`.git` still present after removal"
+    );
 }
 
 /// A one-module project whose spec lists one source file that exists.

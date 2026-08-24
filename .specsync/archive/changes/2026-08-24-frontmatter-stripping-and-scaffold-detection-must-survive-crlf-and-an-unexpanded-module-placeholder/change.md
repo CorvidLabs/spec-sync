@@ -1,6 +1,6 @@
 ---
 id: frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 9b6e03cd10d33d1278430b59b8a393d6d672e277
 ---

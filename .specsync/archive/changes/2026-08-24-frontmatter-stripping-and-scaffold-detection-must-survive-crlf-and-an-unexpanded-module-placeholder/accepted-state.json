@@ -7,11 +7,11 @@
   "title": "Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder",
   "description": "Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "9b6e03cd10d33d1278430b59b8a393d6d672e277",
   "created_at": 1787585191,
-  "updated_at": 1787590327,
+  "updated_at": 1787591571,
   "affected_specs": [
     "change",
     "generator"

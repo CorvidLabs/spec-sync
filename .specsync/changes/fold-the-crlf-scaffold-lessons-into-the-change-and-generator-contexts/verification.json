@@ -1,16 +1,11 @@
 {
-  "timestamp": 1787590326,
-  "commit": "acee783c0c51a62b7588f7055b702ca6849d08d0",
-  "contract_digest": "8caae05bbd128148a273a22b14667c814e07585b47a5e23c9f419b1495150098",
-  "execution_digest": "71919883d6903f2569dddcfa74273ca35b2f8145ad584d472c9fe68171c6ea31",
-  "workspace_digest": "d31d81ab98768940bc74e1a2fcf38b42e87e914a8b1ada7fc383b468d984c3fd",
+  "timestamp": 1787592362,
+  "commit": "ea9d8921c68241b193f7a38a7e92ac50fd10412d",
+  "contract_digest": "96c8cebbf680d83dcb4534e724ef61386c5620dfa3375358b16d8e4819d16e3c",
+  "execution_digest": "51998ef1867d843c818f408deb4f49946287f6cfa6eaa5da26ea914fe96b49ca",
+  "workspace_digest": "db3b1890645f49446bfe2148ab3a10d17113c65c5343cdfac72b39fe702afae1",
   "passed": true,
   "commands": [
-    {
-      "command": "cargo test change::",
-      "success": true,
-      "exit_code": 0
-    },
     {
       "command": "ruby --version",
       "success": true,

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "fold-the-crlf-scaffold-lessons-into-the-change-and-generator-contexts",
+  "slug": "fold-the-crlf-scaffold-lessons-into-the-change-and-generator-contexts",
+  "title": "Fold the CRLF scaffold lessons into the change and generator contexts",
+  "description": "Fold the CRLF scaffold lessons into the change and generator contexts",
+  "kind": "documentation",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "ea9d8921c68241b193f7a38a7e92ac50fd10412d",
+  "created_at": 1787591832,
+  "updated_at": 1787592364,
+  "affected_specs": [],
+  "affected_paths": [
+    "specs/change/context.md",
+    "specs/generator/context.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Folding an archived lesson bundle into module context companions is the fold-back step finalize instructs; it records knowledge in context.md companions and changes no canonical spec text, requirement, or behaviour.",
+  "acceptance_criteria": [
+    "the change and generator contexts record the durable lessons from the CRLF bundle, synthesised rather than restated",
+    "no canonical spec text, requirement or behaviour changes",
+    "the next change to these modules reads a higher substantive line count at change new"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

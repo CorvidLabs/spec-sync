@@ -197,7 +197,8 @@ The point of archival is not filing — it is that a module accumulates what was
   scoping**; it is there because a previous change paid for it.
 - While building, put what you learn in the change's own `context.md` — prior attempts, dead ends,
   anything already ruled out.
-- At `finalize`, spec-sync writes a `lesson-bundle.md` into the archive and names the step:
+- At `finalize` — and at `ship`, which finalizes for you — spec-sync writes a `lesson-bundle.md`
+  into the archive, and both verbs name the step ahead of their remaining guidance:
 
       Next: write lessons into specs/<module>/context.md from <archive>/lesson-bundle.md,
             then merge the PR on GitHub
@@ -205,6 +206,34 @@ The point of archival is not filing — it is that a module accumulates what was
   **Do that before merging.** A change's own `context.md` is archived and read by nobody; the
   spec's `context.md` is read before every future change to that module. This is the only point in
   the lifecycle where knowledge compounds instead of merely being recorded.
+
+**The fold-back is itself a change, and the obvious scoping makes it recurse.** Writing into
+`specs/<module>/context.md` touches tracked paths, so the fold needs its own lifecycle record.
+Declare that record against the modules it edits — the obvious thing to do — and its own
+`finalize` hands you the same instruction for the same specs, which needs another change, which
+gets the instruction again. There is no cycle detection and no warning; the instruction just never
+stops.
+
+What stops it is declaring no specs at all. A change with no affected specs owns no modules, so
+there is nothing to fold into, and both verbs print their plain merge guidance instead:
+
+    specsync change new "Fold the <topic> lessons into the <module> contexts" \
+      --kind documentation --path specs/<module>/context.md \
+      --no-spec-change \
+      --rationale "fold-back of an archived lesson bundle; no spec text or behaviour changes"
+
+Note what is absent: no `--spec`. That is the mechanism. `--no-spec-change` on its own is not
+enough, because it coexists with `--spec` (above), and a fold that declares specs is told to fold
+again. The rationale has to be true of this change in particular — it folds an already-archived
+bundle into `context.md` companions and alters no canonical spec text, requirement, or behaviour.
+If that is not true, it is not a fold-back and must not be scoped as one.
+
+Keep such a change to `context.md` paths. A spec companion is not production source, so it does
+not trip the owning-module refusal above; production source in the same change does — and it would
+have lessons of its own to fold. Fold separately.
+
+Measured on this repository: 6 of 183 archived changes have ever touched a spec's `context.md`.
+The fold-back is the step that gets skipped.
 
 If a module's lessons grow long, treat that as a signal the module is too large or too hot — not as
 something to compact away.

@@ -31,3 +31,9 @@ A defect in scaffold handling is invisible to dogfooding on this repository: all
 have authored prose, so no untouched scaffold exists here to trip over. Any affordance keyed on
 "has the author written anything yet" needs a fixture that is the real generated artifact,
 because the mature repository no longer contains one.
+
+Anything comparing text against a template must compare against the EXPANDED template. The raw
+`CONTEXT_TEMPLATE` carries `{module}`, so its `spec:` line can never equal a real companion's, and
+a caller comparing against the raw text silently fails to recognise a line it wrote itself. That
+mismatch stayed invisible for as long as frontmatter was being stripped before it mattered, and
+appeared the instant stripping failed on CRLF — two defects where either alone is silent.

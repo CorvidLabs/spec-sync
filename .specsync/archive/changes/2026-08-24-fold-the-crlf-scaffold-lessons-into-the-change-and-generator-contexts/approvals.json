@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787591851,
+      "digest": "96c8cebbf680d83dcb4534e724ef61386c5620dfa3375358b16d8e4819d16e3c",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fold-the-crlf-scaffold-lessons-into-the-change-and-generator-contexts",
+        "title": "Fold the CRLF scaffold lessons into the change and generator contexts",
+        "description": "Fold the CRLF scaffold lessons into the change and generator contexts",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "specs/change/context.md",
+          "specs/generator/context.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Folding an archived lesson bundle into module context companions is the fold-back step finalize instructs; it records knowledge in context.md companions and changes no canonical spec text, requirement, or behaviour.",
+        "acceptance_criteria": [
+          "no canonical spec text, requirement or behaviour changes",
+          "the change and generator contexts record the durable lessons from the CRLF bundle, synthesised rather than restated",
+          "the next change to these modules reads a higher substantive line count at change new"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787593185,
+      "digest": "5e207f7d120f3efee29629de5c69ad0ff1b12fdb891937318004654d38cf70bb",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

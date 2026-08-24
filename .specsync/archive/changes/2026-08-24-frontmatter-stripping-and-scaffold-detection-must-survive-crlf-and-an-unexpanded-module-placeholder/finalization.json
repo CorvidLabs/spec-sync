@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder",
+  "implementation_commit": "ea9d8921c68241b193f7a38a7e92ac50fd10412d",
+  "implementation_tree": "5e81586c3ab9417a92297012a6ff25a9bfb34474",
+  "contract_digest": "8caae05bbd128148a273a22b14667c814e07585b47a5e23c9f419b1495150098",
+  "workspace_digest": "d31d81ab98768940bc74e1a2fcf38b42e87e914a8b1ada7fc383b468d984c3fd",
+  "closing_digest": "8b1521181f1801f1c1d6681b49aea886181ee37340387c32d3021821fbf0fd26",
+  "review_digest": "5c418d38a2eee8590d000cc4d81d8cd14ac2d05d737bc7aa7eb3987aad664123",
+  "finalization_digest": "c21f26c372541bec4da44674f9875350aa90b31beaeaf65e20438a9a9c0cbd4d",
+  "timestamp": 1787591571
+}

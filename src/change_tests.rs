@@ -15536,3 +15536,63 @@ fn accumulated_lessons_counts_substantive_prose_and_skips_absent_modules() {
 
     assert_eq!(found, vec![("specs/canary/context.md".to_string(), 2)]);
 }
+
+// The defect an end-to-end sandbox found and every LF unit fixture missed: a Windows-authored
+// companion kept its frontmatter, so a PRISTINE scaffold was reported as knowledge and every new
+// adopter on CRLF was pointed at a file that had learned nothing.
+//
+// The fixture is the REAL generated artifact with its line endings converted — per the lesson
+// folded into specs/generator/context.md, a scaffold defect is invisible to any fixture this
+// repository can produce by hand, because no untouched scaffold exists here.
+#[test]
+fn accumulated_lessons_ignores_a_crlf_generated_scaffold() {
+    let temp = TempDir::new().expect("temp");
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/winmod")).expect("mkdir");
+    let scaffold = crate::generator::generated_context_scaffold("winmod").replace('\n', "\r\n");
+    fs::write(root.join("specs/winmod/context.md"), scaffold).expect("write");
+
+    assert!(accumulated_lessons(root, &["winmod".to_string()]).is_empty());
+}
+
+// The complement: CRLF must not silence a real lesson either. Suppression and counting have to
+// agree, and before the fix they did not — counting worked on CRLF while suppression did not.
+#[test]
+fn accumulated_lessons_counts_authored_crlf_prose() {
+    let temp = TempDir::new().expect("temp");
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/winmod")).expect("mkdir");
+    let written = format!(
+        "{}\r\n- The retry budget is per-host; a shared budget starved slow hosts.\r\n",
+        crate::generator::generated_context_scaffold("winmod").replace('\n', "\r\n")
+    );
+    fs::write(root.join("specs/winmod/context.md"), written).expect("write");
+
+    assert_eq!(
+        accumulated_lessons(root, &["winmod".to_string()]),
+        vec![("specs/winmod/context.md".to_string(), 1)]
+    );
+}
+
+// The placeholder hazard on its own: the raw template's `spec: {module}.spec.md` never equals a
+// real file's `spec: winmod.spec.md`, so comparing against the UNEXPANDED template leaks that one
+// line the instant frontmatter survives. Asserted directly so the expansion cannot be dropped.
+#[test]
+fn generated_scaffold_expands_the_module_placeholder() {
+    let scaffold = crate::generator::generated_context_scaffold("winmod");
+
+    assert!(scaffold.contains("spec: winmod.spec.md"));
+    assert!(!scaffold.contains("{module}"));
+}
+
+#[test]
+fn strip_frontmatter_removes_crlf_frontmatter_and_keeps_later_rules() {
+    let text =
+        "---\r\nspec: winmod.spec.md\r\n---\r\n\r\nReal prose.\r\n\r\n---\r\n\r\nMore prose.\r\n";
+
+    let body = strip_frontmatter(text);
+
+    assert!(!body.contains("spec: winmod.spec.md"));
+    assert!(body.contains("Real prose."));
+    assert!(body.contains("More prose."));
+}

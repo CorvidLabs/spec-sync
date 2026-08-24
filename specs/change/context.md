@@ -156,3 +156,13 @@ Delta file BODIES are hashed by nothing: `validate_delta_files` checks filenames
 fields. Editing `deltas/<module>.md` after review — the file that rewrites the living spec at
 acceptance — is caught only by the descendant walk, which passes 0 of 106 archived reviews
 because archiving relocates the workspace out from under its own allowlist (#694).
+
+Frontmatter handling in this module diverges from the repository's usual convention. Elsewhere the
+pattern is normalize-then-parse: `parser.rs` is LF-only (`^---\n`) and roughly 28 call sites run
+`.replace("\r\n", "\n")` before reaching it. `strip_frontmatter` here accepts both encodings
+directly, to keep its borrowed `&str` return — normalizing would force an allocation and a
+signature change. That is a deliberate divergence, not an oversight, and it means this module owns
+a parser with its own dialect until #696 decides which convention wins repo-wide.
+
+It also means this stripper is no longer interchangeable with `view::strip_frontmatter`, which is
+LF-only and rejects a closer at EOF. Any claim that unifying them is a no-op is now false.

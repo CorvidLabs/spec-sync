@@ -8787,15 +8787,12 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
             // fragment, and application kept only the last. A spec section silently lost
             // everything above its final subheading — including behaviour the change never
             // touched. Fixing the classification without moving the flush was half a fix.
-            let item_heading = if let Some(value) =
-                strip_ascii_prefix_ignore_case(header, "REQUIREMENT ")
-            {
-                Some((DeltaTarget::Requirement, value))
-            } else if let Some(value) = strip_ascii_prefix_ignore_case(header, "SPEC SECTION ") {
-                Some((DeltaTarget::SpecSection, value))
-            } else {
-                None
-            };
+            let item_heading = strip_ascii_prefix_ignore_case(header, "REQUIREMENT ")
+                .map(|value| (DeltaTarget::Requirement, value))
+                .or_else(|| {
+                    strip_ascii_prefix_ignore_case(header, "SPEC SECTION ")
+                        .map(|value| (DeltaTarget::SpecSection, value))
+                });
             let (target, key) = if let Some(parsed) = item_heading {
                 flush(
                     &mut items,

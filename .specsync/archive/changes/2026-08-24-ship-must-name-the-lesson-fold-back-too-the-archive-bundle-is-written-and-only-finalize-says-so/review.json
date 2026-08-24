@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "ship-must-name-the-lesson-fold-back-too-the-archive-bundle-is-written-and-only-finalize-says-so",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "bfd3ef6224b2b311890ad9299a5d9bb3c8e371a0",
+  "contract_digest": "7569dadacb62db4ae795d4e0139289cce2a6b73296f0c4f4ff6c4548f23278fb",
+  "execution_digest": "ab49ea01dfed05be283585dd4e311081993553ea950040748e72bb74ce5af273",
+  "workspace_digest": "ee562505ede91285c8c73a4e983f2ba1892dbdd585c5f8ff5eef32b224232f6e",
+  "timestamp": 1787583250
+}

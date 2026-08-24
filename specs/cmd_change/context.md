@@ -31,3 +31,15 @@ Structured mutation rendering also selects the normal or explicit-strict summary
 domain operation before it released the project lock. It never recomputes correction health from a
 live ledger, so one response cannot contain a validated effective definition beside a contradictory
 invalid-correction summary.
+
+Each lifecycle verb builds its own next-action string. That is why `finalize` named the lesson
+fold-back and `ship` did not: the same guidance had two authors, and only one was updated. The
+archived bundle was written and nothing told the operator it existed — on the verb the tool
+itself recommends. When guidance about the same step exists on more than one exit, extract it to
+one pure function and pin it with a test; the regression is always a future edit to one verb that
+forgets the other. `merge_before_finalize_warning` and `ship_next_action` are both that shape.
+
+Surfacing affordances fail open and never gate: an unreadable context file yields no pointer
+rather than an error. This is deliberately the opposite posture from evidence validation, which
+fails closed throughout the domain. The distinction is whether the artifact is load-bearing for
+trust or an aid to the author.

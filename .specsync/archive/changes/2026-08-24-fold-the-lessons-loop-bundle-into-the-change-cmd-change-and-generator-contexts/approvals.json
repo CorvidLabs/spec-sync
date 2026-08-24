@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787576913,
+      "digest": "d5037b438e5f06400608cef8e21de38c186087ce43714750f5da221d1e1f0259",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fold-the-lessons-loop-bundle-into-the-change-cmd-change-and-generator-contexts",
+        "title": "Fold the lessons-loop bundle into the change, cmd_change and generator contexts",
+        "description": "Fold the lessons-loop bundle into the change, cmd_change and generator contexts",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "specs/change/context.md",
+          "specs/cmd_change/context.md",
+          "specs/generator/context.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Folding an archived lesson bundle into module context companions is the fold-back step finalize instructs; it adds recorded knowledge to context.md companions and changes no canonical spec text, requirement, or behaviour.",
+        "acceptance_criteria": [
+          "each affected module context.md gains the durable lesson from the lessons-loop bundle, synthesised rather than restated from the change description",
+          "no canonical spec text, requirement or behaviour changes",
+          "the next change to these modules sees a higher substantive line count at change new, which is the loop compounding"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787584294,
+      "digest": "2573dfa974e0059bd025bbd674c6690e397260642b9cd8d2dbf6a10b67b2e11f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

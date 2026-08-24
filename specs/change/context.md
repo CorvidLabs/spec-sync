@@ -139,3 +139,20 @@ Squash/rebase fallback requires one non-root archive introduction whose exact pa
 every resolvable parent and whose subtree still matches the current archive. External post-merge
 metadata binds that source introduction and finalization digest to the actual merge commit/tree;
 the release gate independently reconstructs the same compact event.
+
+Lesson-bundle assembly at archival is best-effort and never undoes a completed archive: knowledge
+capture must not be able to fail a lifecycle operation. SpecSync assembles material and names the
+next step; it never authors a lesson, because doing so would require shelling out to a particular
+agent, and the agent that just ran `finalize` is already present.
+
+Frontmatter ends at its CLOSING delimiter, never at the next `---` in the document. `---` is a
+legal Markdown horizontal rule, so `split("---").nth(2)` truncates any body containing one, and
+truncated material is indistinguishable from material nobody wrote. Two call sites inside one
+feature drifted apart on exactly this; the repository still has five frontmatter parsers that
+disagree, and only `parser.rs` handles CRLF (#696).
+
+Delta file BODIES are hashed by nothing: `validate_delta_files` checks filenames only,
+`project_input_digest` excludes `.specsync/changes/`, and `definition_digest` hashes record
+fields. Editing `deltas/<module>.md` after review — the file that rewrites the living spec at
+acceptance — is caught only by the descendant walk, which passes 0 of 106 archived reviews
+because archiving relocates the workspace out from under its own allowlist (#694).

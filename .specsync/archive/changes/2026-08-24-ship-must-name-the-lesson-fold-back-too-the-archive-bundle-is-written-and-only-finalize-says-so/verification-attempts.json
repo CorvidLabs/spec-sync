@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1787576946,
+      "commit": "fb88b9acaafe99abd83a637876331e83330e49fb",
+      "contract_digest": "7569dadacb62db4ae795d4e0139289cce2a6b73296f0c4f4ff6c4548f23278fb",
+      "execution_digest": "bc5d2bb90c4528b1554695268a912511391358cede9d7e5b461fa70fea8c29b4",
+      "workspace_digest": "85089315264d0887708c1397620f9f5dbe844296ff72432d6a0217802eb4ddaf",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787582712,
+      "commit": "a416e37135564af90f5a3447d6b87dee303df3ad",
+      "contract_digest": "7569dadacb62db4ae795d4e0139289cce2a6b73296f0c4f4ff6c4548f23278fb",
+      "execution_digest": "ab49ea01dfed05be283585dd4e311081993553ea950040748e72bb74ce5af273",
+      "workspace_digest": "ee562505ede91285c8c73a4e983f2ba1892dbdd585c5f8ff5eef32b224232f6e",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1787582712,
+      "commit": "bfd3ef6224b2b311890ad9299a5d9bb3c8e371a0",
+      "contract_digest": "7569dadacb62db4ae795d4e0139289cce2a6b73296f0c4f4ff6c4548f23278fb",
+      "execution_digest": "ab49ea01dfed05be283585dd4e311081993553ea950040748e72bb74ce5af273",
+      "workspace_digest": "ee562505ede91285c8c73a4e983f2ba1892dbdd585c5f8ff5eef32b224232f6e",
+      "acceptance_input_digest": "e0eddc425efea8ba2ecb2cdeb772f3a1ad5c91b07aada0951770b58849c1ceb3",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/cmd_change/cmd_change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "95a1989b829d3991ca561891564337b68635fc3224a5f963b3ffd790e735f685",
+            "entry_digest": "d2213400fb3512d99b586afaccfbb9bed5ca4d34defe43f8a7fefa5dd1c5e0c0",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f265005eebfb140b0197e22f8296b434cfab96a88513fabfac9323cf5765e575",
+            "entry_digest": "9fea14c037568b551df25440ad68948f36cfeddfe19ea4f352cb9aef9bec1010",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "49786a002d42659ff9c6a8a6baaee9c9883d80cbdea84db3e1bf2bf515b36f2b",
+            "entry_digest": "764b7485a513165135093bf1dc5462dcf21380c521e6d7fb2cbc835a4b866101",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "cc4517c087f63f6bf4b30762ca03ea7c5a50b744e4ce32bc1f37a921d336c2ea",
+            "entry_digest": "064cf63104b47bcdb1206df1442eb55ec5d80ac709d495b5d70e8c71380641c0",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bf6486c250030b489b2dcc85de2d043d119d3bfbc2a2d1c0476c4d9a481fda20",
+            "entry_digest": "6fdd8fcbd36b8b948138f3ca207801ac56f9062081d940093353ff5664349e4b",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "src/commands/change.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1e9961d8129b0315ddeaf206277b529c596f398af5b4c7746501d7cb2dd6dbe3",
+            "entry_digest": "f743cb6a1aaa33d9cf5ba013493fab3022f19dfe7d856fbd658c239746192e47",
+            "owners": [
+              "cmd_change"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test commands::change::",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

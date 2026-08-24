@@ -1,6 +1,6 @@
 ---
 id: fold-the-crlf-scaffold-lessons-into-the-change-and-generator-contexts
-state: implementing
+state: archived
 type: documentation
 base_commit: ea9d8921c68241b193f7a38a7e92ac50fd10412d
 ---

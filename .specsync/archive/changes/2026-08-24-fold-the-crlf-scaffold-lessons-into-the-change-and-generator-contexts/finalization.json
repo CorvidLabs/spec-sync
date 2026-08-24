@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "fold-the-crlf-scaffold-lessons-into-the-change-and-generator-contexts",
+  "implementation_commit": "5aa60945c373e5feb70d2beb1217b5a144a2b485",
+  "implementation_tree": "95a95f40d999fd2342822c8602659d929a4aaaee",
+  "contract_digest": "96c8cebbf680d83dcb4534e724ef61386c5620dfa3375358b16d8e4819d16e3c",
+  "workspace_digest": "db3b1890645f49446bfe2148ab3a10d17113c65c5343cdfac72b39fe702afae1",
+  "closing_digest": "5e207f7d120f3efee29629de5c69ad0ff1b12fdb891937318004654d38cf70bb",
+  "review_digest": "d36b416caed7981d0c860891327c56450c4b92d9297cdf2a91777ee577dc9236",
+  "finalization_digest": "32cee2297f1d9e2e5b90f51fb832a5cbeca47358fa003a0248b53535ef50f2e0",
+  "timestamp": 1787593185
+}

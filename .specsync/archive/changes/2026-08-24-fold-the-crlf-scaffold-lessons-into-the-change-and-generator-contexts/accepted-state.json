@@ -7,11 +7,11 @@
   "title": "Fold the CRLF scaffold lessons into the change and generator contexts",
   "description": "Fold the CRLF scaffold lessons into the change and generator contexts",
   "kind": "documentation",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "ea9d8921c68241b193f7a38a7e92ac50fd10412d",
   "created_at": 1787591832,
-  "updated_at": 1787592364,
+  "updated_at": 1787593185,
   "affected_specs": [],
   "affected_paths": [
     "specs/change/context.md",

@@ -6187,10 +6187,11 @@ fn archive_change_with_same_pr_finalize_failure(root: &Path, id: &str) -> Result
 
 /// The body of a Markdown artifact, with YAML frontmatter removed.
 ///
-/// Deliberately identical in behaviour to `view::strip_frontmatter`, down to the BOM handling, so
-/// that unifying the two is a no-op rather than a behaviour change. They are siblings, and this
-/// module cannot reach that one without widening this change's delivery scope; the repo-wide
-/// unification is tracked separately.
+/// This is NO LONGER identical to `view::strip_frontmatter`: that one is LF-only and rejects a
+/// closer at EOF, both of which this accepts. Unifying them (#696) is therefore a behaviour
+/// change for `view`, not the no-op it would have been before CRLF support landed here. Said
+/// plainly because the previous version of this comment claimed the no-op and stopped being true
+/// the moment this function changed.
 ///
 /// Frontmatter ends at its CLOSING delimiter, never at the next `---` anywhere in the document.
 /// Splitting on the delimiter and taking the third field looks equivalent and is not: a body with
@@ -6199,8 +6200,14 @@ fn archive_change_with_same_pr_finalize_failure(root: &Path, id: &str) -> Result
 fn strip_frontmatter(text: &str) -> &str {
     // A leading UTF-8 BOM must not hide the opening delimiter.
     let text = text.trim_start_matches('\u{feff}');
-    // BOTH line endings. `parser.rs` accepts `---\r\n` and this did not, so a Windows-authored
-    // companion kept its frontmatter and every untouched scaffold was reported as knowledge.
+    // BOTH line endings, because a Windows-authored companion otherwise keeps its frontmatter and
+    // every untouched scaffold reports itself as recorded knowledge.
+    //
+    // Note this diverges from the repository's usual convention, which is normalize-then-parse:
+    // `parser.rs` is LF-only (`^---\n`) and ~28 call sites do `.replace("\r\n", "\n")` before
+    // reaching it. Handling CRLF here instead keeps the borrowed `&str` return — normalizing
+    // would force an allocation and a signature change — but it does mean this is a parser with
+    // its own dialect. #696 should decide which convention wins repo-wide.
     let after_open = if let Some(rest) = text.strip_prefix("---\r\n") {
         rest
     } else if let Some(rest) = text.strip_prefix("---\n") {

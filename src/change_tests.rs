@@ -15457,3 +15457,58 @@ fn recorded_verification_is_stale_when_the_workspace_digest_does_not_match() {
         "a workspace digest that does not match the tree must read as stale on any binary"
     );
 }
+
+// A body containing a Markdown horizontal rule is NOT frontmatter. This is the sibling that
+// `write_lesson_bundle` carried: it split on `---` unconditionally, so any artifact using a
+// horizontal rule but no frontmatter was silently truncated to a mid-document fragment — and
+// truncated material in a lesson bundle is indistinguishable from material that was never
+// written. Guarding on the opening delimiter is what makes the two call sites agree.
+#[test]
+fn strip_frontmatter_keeps_a_body_whose_horizontal_rule_is_not_frontmatter() {
+    let text = "# Notes\n\nFirst lesson.\n\n---\n\nSecond lesson after a rule.\n";
+
+    assert_eq!(strip_frontmatter(text), text);
+}
+
+#[test]
+fn strip_frontmatter_removes_real_frontmatter_and_keeps_later_rules() {
+    let text = "---\nspec: change.spec.md\n---\n\nReal prose.\n\n---\n\nMore prose.\n";
+
+    let body = strip_frontmatter(text);
+
+    assert!(!body.contains("spec: change.spec.md"));
+    assert!(body.contains("Real prose."));
+    assert!(body.contains("More prose."));
+}
+
+// A fresh scaffold must not advertise itself as knowledge: an unwritten context.md is prompts
+// and headings only, and surfacing it would train the reader to ignore the pointer.
+#[test]
+fn accumulated_lessons_ignores_a_context_holding_only_scaffold() {
+    let temp = TempDir::new().expect("temp");
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/canary")).expect("mkdir");
+    fs::write(
+        root.join("specs/canary/context.md"),
+        "---\nspec: canary.spec.md\n---\n\n# Context\n\n<!-- What did this module learn? -->\n",
+    )
+    .expect("write");
+
+    assert!(accumulated_lessons(root, &["canary".to_string()]).is_empty());
+}
+
+#[test]
+fn accumulated_lessons_counts_substantive_prose_and_skips_absent_modules() {
+    let temp = TempDir::new().expect("temp");
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/canary")).expect("mkdir");
+    fs::write(
+        root.join("specs/canary/context.md"),
+        "---\nspec: canary.spec.md\n---\n\n# Context\n\nOne lesson.\nAnother lesson.\n",
+    )
+    .expect("write");
+
+    let found = accumulated_lessons(root, &["canary".to_string(), "no_such_module".to_string()]);
+
+    assert_eq!(found, vec![("specs/canary/context.md".to_string(), 2)]);
+}

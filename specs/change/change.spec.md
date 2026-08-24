@@ -1,6 +1,6 @@
 ---
 module: change
-version: 100
+version: 101
 status: active
 files:
   - src/change.rs
@@ -210,8 +210,17 @@ Acceptance Criteria
 31. Immutable workflow-origin validation follows every bounded reachable canonical dated archive path for the exact change ID, preserving identity across archive, reopen, and cross-date rearchive moves.
 32. The workflow-v2 baseline retains its exact introduction bytes at every bounded touching commit and readable parent, rejecting rewrite-then-restore history.
 33. Answer, dependency, and supersession mutations load and validate correction history only after acquiring the lifecycle project lock.
+34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons; the agent that ran `finalize` writes them, guided by `next_action`.
+35. Frontmatter is stripped at its closing delimiter, never at the next `---` in the document, so an artifact containing a Markdown horizontal rule is never silently truncated to a fragment.
 
 ## Behavioral Examples
+
+### Scenario: Archival compounds knowledge into the spec
+
+- **Given** a change is finalized
+- **When** `finalize_change` archives it
+- **Then** the archive contains `lesson-bundle.md` naming the change, its specs, its paths, and the material to fold
+- **And** an unwritable bundle leaves the archive intact and the finalize successful
 
 **Scenario: Verified feature delivery**
 
@@ -413,3 +422,4 @@ Acceptance Criteria
 | 2026-08-21 | a-reopen-must-extend-the-committed-ledger-not-merely-count-itself: A reopen must extend the committed ledger, not merely count itself |
 | 2026-08-22 | an-orphaned-verification-commit-must-be-reopenable: An orphaned verification commit must be reopenable |
 | 2026-08-23 | ship-readiness-is-a-content-question-not-a-history-one: Ship readiness is a content question, not a history one |
+| 2026-08-24 | close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails: Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize |

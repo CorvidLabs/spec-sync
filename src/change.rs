@@ -6185,6 +6185,90 @@ fn archive_change_with_same_pr_finalize_failure(root: &Path, id: &str) -> Result
     archive_change_with_options(root, id, true, true)
 }
 
+/// The body of a Markdown artifact, with YAML frontmatter removed.
+///
+/// Deliberately identical in behaviour to `view::strip_frontmatter`, down to the BOM handling, so
+/// that unifying the two is a no-op rather than a behaviour change. They are siblings, and this
+/// module cannot reach that one without widening this change's delivery scope; the repo-wide
+/// unification is tracked separately.
+///
+/// Frontmatter ends at its CLOSING delimiter, never at the next `---` anywhere in the document.
+/// Splitting on the delimiter and taking the third field looks equivalent and is not: a body with
+/// a horizontal rule loses everything after it, and lost lessons read exactly like lessons nobody
+/// ever wrote.
+fn strip_frontmatter(text: &str) -> &str {
+    // A leading UTF-8 BOM must not hide the opening delimiter.
+    let text = text.trim_start_matches('\u{feff}');
+    if let Some(stripped) = text.strip_prefix("---\n")
+        && let Some(end) = stripped.find("\n---\n")
+    {
+        return &stripped[end + 5..];
+    }
+    text
+}
+
+/// Where a module's accumulated lessons live.
+///
+/// One definition of the convention, so surfacing at `new` and folding at `finalize` can never
+/// disagree about which file they mean.
+pub fn module_context_path(module: &str) -> String {
+    format!("specs/{module}/context.md")
+}
+
+/// What these modules have already learned, as substantive line counts.
+///
+/// Policy lives in the domain, never in the command layer: `specs/cmd_change/context.md` states
+/// that rule three separate ways, and deciding what counts as a lesson IS policy. The command
+/// layer renders what this returns and decides nothing.
+///
+/// Scaffold prompts are HTML comments so an unwritten artifact reads as incomplete. Count only
+/// real prose, or a fresh scaffold would advertise itself as knowledge.
+///
+/// Frontmatter is stripped by its delimiters rather than by "contains a colon" — real lessons are
+/// full of colons, and filtering on one would silently drop the very content this exists to
+/// surface.
+///
+/// An unreadable context file yields no entry rather than an error: this is an authoring
+/// affordance, and it must never be able to fail a lifecycle command.
+pub fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(String, usize)> {
+    let mut found = Vec::new();
+    for module in modules {
+        let relative = module_context_path(module);
+        let Ok(text) = fs::read_to_string(root.join(&relative)) else {
+            continue;
+        };
+        let body = strip_frontmatter(&text);
+        let substantive = body
+            .lines()
+            .filter(|line| {
+                let line = line.trim();
+                !line.is_empty() && !line.starts_with("<!--") && !line.starts_with('#')
+            })
+            .count();
+        if substantive > 0 {
+            found.push((relative, substantive));
+        }
+    }
+    found
+}
+
+/// The context files this change's lessons should be folded into at archival.
+///
+/// Returns empty when the change cannot be loaded or owns no specs, which the caller renders as
+/// the plain merge instruction. Same reason as above: never fail a completed finalize over an
+/// authoring affordance.
+pub fn lesson_fold_targets(root: &Path, id: &str) -> Vec<String> {
+    load_change(root, id)
+        .map(|record| {
+            record
+                .affected_specs
+                .iter()
+                .map(|module| module_context_path(module))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Assemble the material an agent needs to fold this change's lessons into the SPEC's context.
 ///
 /// Lessons belong in `specs/<module>/context.md`, not in the change — a per-change lessons file
@@ -6250,12 +6334,7 @@ fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Re
         let Ok(text) = fs::read_to_string(&path) else {
             continue;
         };
-        let body = text
-            .split("---")
-            .nth(2)
-            .unwrap_or(&text)
-            .trim()
-            .to_string();
+        let body = strip_frontmatter(&text).trim().to_string();
         if body.is_empty() {
             continue;
         }

@@ -1163,37 +1163,14 @@ fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
 /// time gets scrolled past. Naming it with its size is enough to make reading it a choice the
 /// author knows they are making.
 fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
-    let mut found = Vec::new();
-    for module in &record.affected_specs {
-        let path = root.join(format!("specs/{module}/context.md"));
-        let Ok(text) = fs::read_to_string(&path) else {
-            continue;
-        };
-        // Scaffold prompts are HTML comments so an unwritten artifact reads as incomplete.
-        // Count only real prose, or a fresh scaffold would advertise itself as knowledge.
-        //
-        // Strip frontmatter by its delimiters rather than by "contains a colon" — real lessons
-        // are full of colons, and filtering on one would silently drop the very content this
-        // exists to surface.
-        let body = match text.split("---").nth(2) {
-            Some(after_frontmatter) if text.trim_start().starts_with("---") => after_frontmatter,
-            _ => text.as_str(),
-        };
-        let substantive = body
-            .lines()
-            .filter(|line| {
-                let line = line.trim();
-                !line.is_empty() && !line.starts_with("<!--") && !line.starts_with('#')
-            })
-            .count();
-        if substantive > 0 {
-            found.push((format!("specs/{module}/context.md"), substantive));
-        }
-    }
+    let found = change::accumulated_lessons(root, &record.affected_specs);
     if found.is_empty() {
         return;
     }
-    println!("\n  {} what these modules already learned:", "Lessons:".bold());
+    println!(
+        "\n  {} what these modules already learned:",
+        "Lessons:".bold()
+    );
     for (path, lines) in found {
         println!("    {path} ({lines} line(s)) — read before scoping this change");
     }
@@ -1211,20 +1188,13 @@ fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
 /// point at the material. `next_action` is the mechanism the lifecycle already uses everywhere,
 /// and drill 032 confirms agents follow it to termination.
 fn lessons_next_action(root: &Path, id: &str, archive: &Path) -> String {
-    let modules = change::load_change(root, id)
-        .map(|record| record.affected_specs)
-        .unwrap_or_default();
-    if modules.is_empty() {
+    let targets = change::lesson_fold_targets(root, id);
+    if targets.is_empty() {
         return "merge the PR on GitHub".to_string();
     }
-    let targets = modules
-        .iter()
-        .map(|module| format!("specs/{module}/context.md"))
-        .collect::<Vec<_>>()
-        .join(", ");
     format!(
         "write lessons into {} from {}, then merge the PR on GitHub",
-        targets,
+        targets.join(", "),
         archive.join("lesson-bundle.md").display()
     )
 }

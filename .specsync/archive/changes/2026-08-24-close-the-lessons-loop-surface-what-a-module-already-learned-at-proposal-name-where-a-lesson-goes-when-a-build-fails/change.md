@@ -1,6 +1,6 @@
 ---
 id: close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails
-state: implementing
+state: archived
 type: feature
 base_commit: ffbcf524b4847c5cebbed107975849b6427af324
 ---

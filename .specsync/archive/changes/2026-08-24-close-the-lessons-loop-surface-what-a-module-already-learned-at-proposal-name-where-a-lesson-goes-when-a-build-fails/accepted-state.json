@@ -7,11 +7,11 @@
   "title": "Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize",
   "description": "Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "ffbcf524b4847c5cebbed107975849b6427af324",
   "created_at": 1787539287,
-  "updated_at": 1787543140,
+  "updated_at": 1787544382,
   "affected_specs": [
     "change",
     "cmd_change",

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails",
+  "slug": "close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails",
+  "title": "Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize",
+  "description": "Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "ffbcf524b4847c5cebbed107975849b6427af324",
+  "created_at": 1787539287,
+  "updated_at": 1787544621,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "generator"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/commands/change.rs",
+    "src/generator.rs",
+    "specs/change/change.spec.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/generator/generator.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change new names each affected module context.md with its substantive line count, counting only authored prose and never a generated scaffold",
+    "a FAILED change check names where the lesson goes, including for a bare check with no id; a passing check prints nothing",
+    "finalize writes lesson-bundle.md into the archive durably and next_action names the fold-back targets before the merge",
+    "lessons policy lives in src/change.rs and the generator owns what a scaffold looks like; the command layer only renders",
+    "frontmatter stripping has one definition matching view::strip_frontmatter, pinned by a discriminating multi-rule regression test"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

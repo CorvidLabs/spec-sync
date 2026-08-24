@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails",
+  "implementation_commit": "9b905e965e057a9a8b88de0f2153db42859c67dc",
+  "implementation_tree": "de51a66db8fa710d9498c7aac7ab703a9a3c666c",
+  "contract_digest": "d967e404a7c8b4dce54f1d67e0fb39be89d088cab8590244851f22e40ce99593",
+  "workspace_digest": "e75924ca000a7d46a4f9176964ee0e060da9cf345500181a26c7370343532d15",
+  "closing_digest": "7d6f8e8db4bd983f7e82db5d93c654303f24dcfa908a96fd377269d4a3075c15",
+  "review_digest": "85e3db7642c1360f131870c78eee8fc856d9ec5d11645c95a364703c5c07f03d",
+  "finalization_digest": "6b36a28aec0bf620cf026749f04ab59368ca73689525cabba87dc1f8da1771ce",
+  "timestamp": 1787544382
+}

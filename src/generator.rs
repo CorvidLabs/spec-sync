@@ -48,6 +48,26 @@ spec: {module}.spec.md
 - List behaviors or responsibilities intentionally handled by other modules.
 "#;
 
+/// Whether a line is one the context scaffold generated, rather than something an author wrote.
+///
+/// The module that WRITES the scaffold decides what the scaffold looks like, so callers asking
+/// "has this module recorded anything, or is it still the template" read `CONTEXT_TEMPLATE`
+/// below rather than keeping their own copy of these strings.
+///
+/// This is not yet the single definition in the repository: `validator.rs` still holds a
+/// hardcoded copy of three of the four prompt bullets, and that copy has ALREADY drifted — it
+/// omits the Notes bullet. Unifying it is outside this change's delivery scope; until then, this
+/// is the definition that tracks the template, and that one does not.
+pub(crate) fn is_generated_context_line(line: &str) -> bool {
+    let line = line.trim();
+    if line.is_empty() {
+        return true;
+    }
+    CONTEXT_TEMPLATE
+        .lines()
+        .any(|template_line| template_line.trim() == line)
+}
+
 const CONTEXT_TEMPLATE: &str = r#"---
 spec: {module}.spec.md
 ---

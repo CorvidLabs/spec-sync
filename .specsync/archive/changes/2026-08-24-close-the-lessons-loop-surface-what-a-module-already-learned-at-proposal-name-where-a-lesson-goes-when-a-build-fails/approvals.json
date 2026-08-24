@@ -1,0 +1,55 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787539334,
+      "digest": "d967e404a7c8b4dce54f1d67e0fb39be89d088cab8590244851f22e40ce99593",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails",
+        "title": "Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize",
+        "description": "Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change",
+          "generator"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/generator/generator.spec.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "src/generator.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a FAILED change check names where the lesson goes, including for a bare check with no id; a passing check prints nothing",
+          "change new names each affected module context.md with its substantive line count, counting only authored prose and never a generated scaffold",
+          "finalize writes lesson-bundle.md into the archive durably and next_action names the fold-back targets before the merge",
+          "frontmatter stripping has one definition matching view::strip_frontmatter, pinned by a discriminating multi-rule regression test",
+          "lessons policy lives in src/change.rs and the generator owns what a scaffold looks like; the command layer only renders"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787544382,
+      "digest": "7d6f8e8db4bd983f7e82db5d93c654303f24dcfa908a96fd377269d4a3075c15",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

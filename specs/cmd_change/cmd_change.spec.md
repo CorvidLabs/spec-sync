@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 28
+version: 29
 status: active
 files:
   - src/commands/change.rs
@@ -49,6 +49,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 4. `change audit` reports active-workspace and living-spec integrity only and exits non-zero on report errors.
 5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge.
 6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact.
+7. The lessons loop surfaces at each of the three moments a lesson exists: `change new` names every affected module's `specs/<module>/context.md` that holds substantive prose, a FAILED `change check` names where to record what the failure taught, and `finalize` names folding the archived bundle into those specs before the merge. Every surface is a pointer, never a dump, and none can fail a lifecycle command. A passing `change check` says nothing.
 
 ## Behavioral Examples
 
@@ -84,6 +85,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Scope approver records the scoped review, or the current verdict is blocking | Command reports the independent-review rejection and finalization remains blocked |
 | Invalid correction ledger before answer, depend, or supersede | Command emits the safe integrity diagnostic and leaves lifecycle files unchanged |
 | Correction ledger changes after a successful mutation | Command renders the transaction's validated snapshot and does not report a false failure after persistence |
+| Affected module has no `context.md`, or it holds only scaffold prompts | Surfacing is skipped for that module and change creation is unaffected |
 
 ## Dependencies
 
@@ -134,3 +136,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-18 | CHG-0145-the-sequence-ledger-floor-must-be-wired-not-merely-present: The sequence ledger floor must be wired, not merely present |
 | 2026-08-19 | CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar: Ship-status must name the action the lifecycle state requires, and resolve an archived change's evidence |
 | 2026-08-23 | ship-readiness-is-a-content-question-not-a-history-one: Ship readiness is a content question, not a history one |
+| 2026-08-24 | close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails: Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize |

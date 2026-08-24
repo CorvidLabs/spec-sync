@@ -40,7 +40,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     },
                 )
             })
-            .and_then(|record| print_record(root, &record, format, true, strict)),
+            .and_then(|record| {
+                if !matches!(format, OutputFormat::Json) {
+                    print_accumulated_lessons(root, &record);
+                }
+                print_record(root, &record, format, true, strict)
+            }),
         ChangeAction::Answer {
             id,
             question,
@@ -378,14 +383,15 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     "review_digest": finalization.review_digest,
                     "finalization_digest": finalization.finalization_digest,
                     "ready_for_github_merge": true,
-                    "next_action": "merge the PR on GitHub",
+                    "lesson_bundle": path.join(change::LESSON_BUNDLE_FILE),
+                    "next_action": lessons_next_action(root, &id, &path),
                 })),
                 _ => {
                     // Digests stay in --json only; text mode names the archive + commit.
                     println!("{} {} finalized on this PR", "✓".green(), id);
                     println!("  Archive: {}", path.display());
                     println!("  Implementation: {}", finalization.implementation_commit);
-                    println!("  Next: merge the PR on GitHub");
+                    println!("  Next: {}", lessons_next_action(root, &id, &path));
                 }
             }
             Ok(())
@@ -408,6 +414,28 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             } else {
                 change::check_change(root, id.as_deref())
             };
+            // A failed check is the moment a lesson exists: an approach was tried and did not
+            // work. Say so while it is still true, and name where it goes.
+            //
+            // Verification failures surface as an Err from `verify_change`, NOT as a record with
+            // `passed: false` — a first attempt at this hint sat in that branch and never fired
+            // for the common case. Measured, not assumed.
+            //
+            // Only on failure, deliberately. Nudging on every green check would be noise, and
+            // there is usually nothing to record.
+            if verification.is_err()
+                && !matches!(format, OutputFormat::Json)
+                && let Some(change_id) = id
+                    .clone()
+                    .or_else(|| change::active_change_id(root))
+                    .as_deref()
+            {
+                eprintln!(
+                    "  {} if this failure taught you something, record it in .specsync/changes/{}/context.md while it is fresh — dead ends are what the next change to this module needs, and `finalize` folds them into the spec",
+                    "Lesson:".bold(),
+                    change_id
+                );
+            }
             match format {
                 OutputFormat::Json => match &verification {
                     Ok(Some(record)) => {
@@ -430,19 +458,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 _ => match &verification {
                     Ok(Some(record)) => {
                         // Prefer the ID from the change workspace after verify.
-                        let verified_id = id.clone().or_else(|| {
-                            change::list_changes(root)
-                                .ok()?
-                                .records
-                                .into_iter()
-                                .find(|record| {
-                                    matches!(
-                                        record.state,
-                                        ChangeState::Implementing | ChangeState::Verifying
-                                    )
-                                })
-                                .map(|record| record.id)
-                        });
+                        let verified_id =
+                            id.clone().or_else(|| change::active_change_id(root));
                         let label = verified_id.as_deref().unwrap_or(display_id.as_str());
                         if record.passed {
                             println!("{} {} verified", "✓".green(), label);
@@ -1126,6 +1143,52 @@ fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
             "guidance": SHIP_TRUST_LOCAL_GUIDANCE,
         }),
     }
+}
+
+/// Point a new change at what its modules already learned.
+///
+/// The other end of the loop `finalize` closes. Lessons are folded into `specs/<module>/context.md`
+/// at archival precisely so the NEXT change to that module can read them — but nothing surfaced
+/// them, so they accumulated where nobody looked.
+///
+/// Deliberately a pointer and not a dump: the file can be long, and a wall of text at creation
+/// time gets scrolled past. Naming it with its size is enough to make reading it a choice the
+/// author knows they are making.
+fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
+    let found = change::accumulated_lessons(root, &record.affected_specs);
+    if found.is_empty() {
+        return;
+    }
+    println!(
+        "\n  {} what these modules already learned:",
+        "Lessons:".bold()
+    );
+    for (path, lines) in found {
+        println!("    {path} ({lines} line(s)) — read before scoping this change");
+    }
+}
+
+/// Name the fold-back step archival exists for, then the merge.
+///
+/// Archival is the only point at which the system compounds rather than merely records: knowledge
+/// moves out of the change, which is about to become inert history, and into the spec, which is
+/// read by everyone who touches the module next. A change's own `context.md` is archived and read
+/// by nobody; `specs/<module>/context.md` is read before every future change to that module.
+///
+/// SpecSync does not write the lessons and must not — it would have to shell out to a particular
+/// agent. It does not need to: whoever just ran `finalize` is right there. So name the step and
+/// point at the material. `next_action` is the mechanism the lifecycle already uses everywhere,
+/// and drill 032 confirms agents follow it to termination.
+fn lessons_next_action(root: &Path, id: &str, archive: &Path) -> String {
+    let targets = change::lesson_fold_targets(root, id);
+    if targets.is_empty() {
+        return "merge the PR on GitHub".to_string();
+    }
+    format!(
+        "write lessons into {} from {}, then merge the PR on GitHub",
+        targets.join(", "),
+        archive.join(change::LESSON_BUNDLE_FILE).display()
+    )
 }
 
 /// What merging before `finalize` actually costs.

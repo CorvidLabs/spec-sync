@@ -18,6 +18,7 @@ const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is inv
 const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";
 const ARCHIVE_PATH: &str = ".specsync/archive/changes";
+pub(crate) const LESSON_BUNDLE_FILE: &str = "lesson-bundle.md";
 const LEGACY_BASELINE_PATH: &str = ".specsync/archive/legacy-baseline.json";
 const WORKFLOW_V2_BASELINE_PATH: &str = ".specsync/workflow-v2-baseline.json";
 const LOCK_PATH: &str = ".specsync/change.lock";
@@ -6157,7 +6158,13 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         validate_finalization_evidence(root, &record, &verification)
             .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))?;
     }
-    archive_change_with_options(root, id, false, true)
+    let archive = archive_change_with_options(root, id, false, true)?;
+    // Archival is the only place the system COMPOUNDS rather than merely records: knowledge
+    // moves from the change into the spec. Assemble the material here; the agent that just ran
+    // `finalize` writes the lessons, guided by `next_action`. A bundle failure must not undo a
+    // completed archival, so this is best-effort.
+    let _ = write_lesson_bundle(root, &record, &archive);
+    Ok(archive)
 }
 
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
@@ -6176,6 +6183,210 @@ fn archive_change_with_finalize_failure(
 #[cfg(test)]
 fn archive_change_with_same_pr_finalize_failure(root: &Path, id: &str) -> Result<PathBuf, String> {
     archive_change_with_options(root, id, true, true)
+}
+
+/// The body of a Markdown artifact, with YAML frontmatter removed.
+///
+/// Deliberately identical in behaviour to `view::strip_frontmatter`, down to the BOM handling, so
+/// that unifying the two is a no-op rather than a behaviour change. They are siblings, and this
+/// module cannot reach that one without widening this change's delivery scope; the repo-wide
+/// unification is tracked separately.
+///
+/// Frontmatter ends at its CLOSING delimiter, never at the next `---` anywhere in the document.
+/// Splitting on the delimiter and taking the third field looks equivalent and is not: a body with
+/// a horizontal rule loses everything after it, and lost lessons read exactly like lessons nobody
+/// ever wrote.
+fn strip_frontmatter(text: &str) -> &str {
+    // A leading UTF-8 BOM must not hide the opening delimiter.
+    let text = text.trim_start_matches('\u{feff}');
+    if let Some(stripped) = text.strip_prefix("---\n")
+        && let Some(end) = stripped.find("\n---\n")
+    {
+        return &stripped[end + 5..];
+    }
+    text
+}
+
+/// The change a bare lifecycle command acts on: the single active approved/implementing/verifying
+/// record — the same states `check_change` selects.
+///
+/// Policy, so it lives here. The command layer had this resolution inline in one arm and not in
+/// another, which is exactly how the build-stage lesson hint came to be silent for the bare
+/// `change check` while the success path resolved the ID fine.
+pub(crate) fn active_change_id(root: &Path) -> Option<String> {
+    list_changes(root)
+        .ok()?
+        .records
+        .into_iter()
+        .find(|record| {
+            // The SAME states `check_change` selects. A narrower set here is how the hint came
+            // to be silent on a failing first check of an approved change: two selections of
+            // "the current change" that disagree.
+            matches!(
+                record.state,
+                ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+            )
+        })
+        .map(|record| record.id)
+}
+
+/// Where a module's accumulated lessons live.
+///
+/// One definition of the convention, so surfacing at `new` and folding at `finalize` can never
+/// disagree about which file they mean.
+pub(crate) fn module_context_path(module: &str) -> String {
+    format!("specs/{module}/context.md")
+}
+
+/// What these modules have already learned, as substantive line counts.
+///
+/// Policy lives in the domain, never in the command layer: `specs/cmd_change/context.md` states
+/// that rule three separate ways, and deciding what counts as a lesson IS policy. The command
+/// layer renders what this returns and decides nothing.
+///
+/// A freshly generated scaffold must not advertise itself as knowledge. The scaffold is NOT
+/// HTML comments — `specs/<module>/context.md` is generated with plain prompt bullets — so the
+/// generator is asked which lines it wrote rather than this module guessing at their shape.
+/// Guessing is how the copy drifts from the template it is supposed to track.
+///
+/// Frontmatter is stripped by its delimiters rather than by "contains a colon" — real lessons are
+/// full of colons, and filtering on one would silently drop the very content this exists to
+/// surface.
+///
+/// An unreadable context file yields no entry rather than an error: this is an authoring
+/// affordance, and it must never be able to fail a lifecycle command.
+pub(crate) fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(String, usize)> {
+    let mut found = Vec::new();
+    for module in modules {
+        let relative = module_context_path(module);
+        let Ok(text) = fs::read_to_string(root.join(&relative)) else {
+            continue;
+        };
+        let body = strip_frontmatter(&text);
+        let substantive = body
+            .lines()
+            .filter(|line| {
+                let line = line.trim();
+                !line.is_empty()
+                    && !line.starts_with("<!--")
+                    && !line.starts_with('#')
+                    && !crate::generator::is_generated_context_line(line)
+            })
+            .count();
+        if substantive > 0 {
+            found.push((relative, substantive));
+        }
+    }
+    found
+}
+
+/// The context files this change's lessons should be folded into at archival.
+///
+/// Returns empty when the change cannot be loaded or owns no specs, which the caller renders as
+/// the plain merge instruction. Same reason as above: never fail a completed finalize over an
+/// authoring affordance.
+pub(crate) fn lesson_fold_targets(root: &Path, id: &str) -> Vec<String> {
+    load_change(root, id)
+        .map(|record| {
+            record
+                .affected_specs
+                .iter()
+                .map(|module| module_context_path(module))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Assemble the material an agent needs to fold this change's lessons into the SPEC's context.
+///
+/// Lessons belong in `specs/<module>/context.md`, not in the change — a per-change lessons file
+/// dies with the change, and the point is that a module accumulates what was learned about it
+/// across every change that touched it (docs/6-0-findings.md, finding 10).
+///
+/// This does not write the lessons. SpecSync must not shell out to a particular agent, and it
+/// does not need to: the agent driving the lifecycle just ran `finalize`. So `finalize` assembles
+/// the bundle and `next_action` names the step. Neither blocking nor nagging.
+///
+/// Everything here is read from disk. No network, so `finalize` keeps working offline and in CI.
+fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Result<(), String> {
+    let mut out = String::new();
+    out.push_str(&format!("# Lesson bundle — {}\n\n", record.id));
+    out.push_str(
+        "Material for folding this change's lessons into the affected specs' `context.md`.\n\
+         Synthesise from what actually happened below; do not restate the change description.\n\n",
+    );
+
+    out.push_str("## What this change was\n\n");
+    out.push_str(&format!("- **Title**: {}\n", record.title));
+    out.push_str(&format!("- **Kind**: {:?}\n", record.kind));
+    if !record.affected_specs.is_empty() {
+        out.push_str(&format!(
+            "- **Specs**: {}\n",
+            record.affected_specs.join(", ")
+        ));
+    }
+    if !record.affected_paths.is_empty() {
+        out.push_str(&format!(
+            "- **Paths**: {}\n",
+            record.affected_paths.join(", ")
+        ));
+    }
+    for criterion in &record.acceptance_criteria {
+        out.push_str(&format!("- **Acceptance**: {criterion}\n"));
+    }
+    out.push('\n');
+
+    if let Ok(verification) = load_verification(root, record) {
+        out.push_str("## Evidence\n\n");
+        if let Some(commit) = &verification.commit {
+            out.push_str(&format!("- Verification commit: `{commit}`\n"));
+        }
+        if let Some(base) = &record.base_commit {
+            out.push_str(&format!("- Base commit: `{base}`\n"));
+        }
+        let commands: Vec<&str> = verification
+            .commands
+            .iter()
+            .map(|command| command.command.as_str())
+            .collect();
+        if !commands.is_empty() {
+            out.push_str(&format!("- Verified by: `{}`\n", commands.join("`, `")));
+        }
+        out.push('\n');
+    }
+
+    // The change's own working record is the richest source and is exactly what would otherwise
+    // be lost: it is archived with the change and read by nobody afterwards.
+    for artifact in ["context", "design", "testing"] {
+        let path = archive.join(format!("{artifact}.md"));
+        let Ok(text) = fs::read_to_string(&path) else {
+            continue;
+        };
+        let body = strip_frontmatter(&text).trim().to_string();
+        if body.is_empty() {
+            continue;
+        }
+        out.push_str(&format!("## From the change's {artifact}.md\n\n"));
+        out.push_str(&body);
+        out.push_str("\n\n");
+    }
+
+    out.push_str("## Where these lessons go\n\n");
+    if record.affected_specs.is_empty() {
+        out.push_str(
+            "This change declared no affected specs, so there is no module context to fold into.\n",
+        );
+    } else {
+        for module in &record.affected_specs {
+            out.push_str(&format!("- `specs/{module}/context.md`\n"));
+        }
+    }
+
+    // Durable like every other artifact this lifecycle writes: a crash mid-write would leave a
+    // TRUNCATED bundle, and truncated lessons read exactly like lessons nobody wrote — the same
+    // failure this whole change exists to prevent.
+    atomic_write_durable(&archive.join(LESSON_BUNDLE_FILE), out.as_bytes())
+        .map_err(|error| format!("failed to write lesson bundle: {error}"))
 }
 
 fn archive_change_with_options(

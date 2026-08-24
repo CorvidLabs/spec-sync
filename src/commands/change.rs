@@ -1168,17 +1168,6 @@ fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
     }
 }
 
-/// Name the fold-back step archival exists for, then the merge.
-///
-/// Archival is the only point at which the system compounds rather than merely records: knowledge
-/// moves out of the change, which is about to become inert history, and into the spec, which is
-/// read by everyone who touches the module next. A change's own `context.md` is archived and read
-/// by nobody; `specs/<module>/context.md` is read before every future change to that module.
-///
-/// SpecSync does not write the lessons and must not — it would have to shell out to a particular
-/// agent. It does not need to: whoever just ran `finalize` is right there. So name the step and
-/// point at the material. `next_action` is the mechanism the lifecycle already uses everywhere,
-/// and drill 032 confirms agents follow it to termination.
 /// What to do after `ship` finalizes.
 ///
 /// `finalize` named the lesson fold-back and `ship` did not, so on the verb the tool actually
@@ -1234,6 +1223,17 @@ fn ship_next_action(
     )
 }
 
+/// Name the fold-back step archival exists for, then the merge.
+///
+/// Archival is the only point at which the system compounds rather than merely records: knowledge
+/// moves out of the change, which is about to become inert history, and into the spec, which is
+/// read by everyone who touches the module next. A change's own `context.md` is archived and read
+/// by nobody; `specs/<module>/context.md` is read before every future change to that module.
+///
+/// SpecSync does not write the lessons and must not — it would have to shell out to a particular
+/// agent. It does not need to: whoever just ran `finalize` is right there. So name the step and
+/// point at the material. `next_action` is the mechanism the lifecycle already uses everywhere,
+/// and drill 032 confirms agents follow it to termination.
 fn lessons_next_action(root: &Path, id: &str, archive: &Path) -> String {
     let targets = change::lesson_fold_targets(root, id);
     if targets.is_empty() {
@@ -1774,6 +1774,7 @@ fn run_ship(
             "status": "finalized",
             "archived": path,
             "tip_class": "archive_only",
+            "lesson_bundle": path.join(change::LESSON_BUNDLE_FILE),
             "sibling_active_ids": siblings_before,
             "push": push_result,
             "wait": wait_result,
@@ -2902,14 +2903,44 @@ mod ship_next_action_tests {
     }
 
     // Honest label: this is the CONTROL. A change owning no specs has nothing to fold, and its
-    // guidance must be byte-identical to the guidance before this fix — otherwise the fold-back
-    // prefix would be leaking into a case that has no lessons.
+    // guidance must be BYTE-IDENTICAL to the guidance before this fix — so the expected strings
+    // are spelled out rather than probed for the absence of "write lessons", which would still
+    // pass if the tail were reworded. All four push/wait combinations, including `(false, true)`:
+    // `--wait` is independent of `--push` in the CLI, so that arm is reachable.
     #[test]
     fn ship_guidance_is_unchanged_when_there_is_nothing_to_fold() {
-        for (push, wait) in [(true, true), (true, false), (false, false)] {
-            let with_targets = ship_next_action(push, wait, &[], &[], "/archive/lesson-bundle.md");
+        let cases = [
+            (
+                true,
+                true,
+                "merge the PR on GitHub when Required CI is green",
+            ),
+            (
+                true,
+                false,
+                "wait for CI, then merge the PR (or re-run `change ship --wait`)",
+            ),
+            // `--wait` without `--push` collapses into the no-push branch, so the guidance
+            // still says to push the archive tip. That is pre-existing behaviour, unchanged
+            // here, and pinning it is the point of a control: this test exists to detect any
+            // drift in these strings, not to endorse them.
+            (
+                false,
+                true,
+                "commit if needed, push the archive tip, wait for CI, then merge the PR",
+            ),
+            (
+                false,
+                false,
+                "commit if needed, push the archive tip, wait for CI, then merge the PR",
+            ),
+        ];
 
-            assert!(!with_targets.contains("write lessons"));
+        for (push, wait, expected) in cases {
+            assert_eq!(
+                ship_next_action(push, wait, &[], &[], "/archive/lesson-bundle.md"),
+                expected
+            );
         }
     }
 

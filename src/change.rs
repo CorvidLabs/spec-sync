@@ -308,6 +308,7 @@ const LEGACY_SUBTREE_DOMAIN: &[u8] = b"specsync.legacy-archive-subtree.v1";
 const CLOSING_DIGEST_DOMAIN: &[u8] = b"specsync.closing-digest.v2";
 const FINALIZATION_DIGEST_DOMAIN: &[u8] = b"specsync.finalization-digest.v2";
 const CORRECTION_VIEW_DIGEST_DOMAIN: &[u8] = b"specsync.correction-view-digest.v1";
+const APPROVED_DELTA_DIGEST_DOMAIN: &[u8] = b"specsync.approved-delta.v1";
 const EXACT_TEST_OWNER: &str = "@exact:test";
 const EXACT_DELIVERY_OWNER: &str = "@exact:delivery";
 const MAX_ACCEPTANCE_ENTRIES: usize = 100_000;
@@ -929,6 +930,22 @@ pub struct ApprovalRecord {
     pub approved_scope: Option<ApprovedScopeV1>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope_migration: Option<ScopeApprovalMigrationV1>,
+    // Delta BODIES were bound by nothing under workflow v2 (#704).
+    //
+    // The v1 definition digest hashed every delta file's payload through
+    // `definition_artifact_snapshot`, so editing `deltas/<module>.md` after approval invalidated
+    // the approval. The v2 stable-scope projection deliberately hashes intent and boundary only,
+    // and nothing replaced that binding: `validate_delta_files` reads filenames,
+    // `project_input_digest` excludes `.specsync/changes/`. A delta swapped between `approve` and
+    // materialization therefore rewrote the canonical spec with wording no approver ever saw.
+    //
+    // `None` is the ONLY honest reading for every approval written before this field existed —
+    // 183 archived changes and counting. It means "this approval made no claim about delta
+    // bodies", never "the bodies were tampered with". Absent evidence that reads as a violation
+    // is the failure mode this repository has already shipped three times (#672, #684, #689), so
+    // the check below proceeds on `None` and judges only what an approver actually signed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approved_delta_digests: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -2704,6 +2721,11 @@ fn materialize_change_deltas(root: &Path, id: &str) -> Result<ChangeRecord, Stri
     ensure_definition_approval_valid(root, &record)?;
     validate_definition(root, &record)?;
     validate_delta_files(root, &record)?;
+    // Deliberately ABOVE the `canonical_applied` short-circuit. Once the deltas are applied this
+    // function stops writing specs, so a check placed below would never see a swap on any run
+    // after the first — and the workspace would keep shipping a delta that no longer describes
+    // the spec it produced. The delta must match its approval for as long as it is evidence.
+    ensure_approved_delta_bodies_unchanged(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     ensure_tasks_complete(root, &record)?;
@@ -5973,6 +5995,9 @@ fn accept_change_with_gate(
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     validate_delta_files(root, &record)?;
+    // Acceptance is the second place deltas reach the canonical spec (`prepare_delta_application`
+    // below, when `check` never materialized them), so it gets the same refusal.
+    ensure_approved_delta_bodies_unchanged(root, &record)?;
     let records = list_changes_checked(root)?;
     // Same as verification: acceptance reports only failures, and the project
     // surfaces report every suppression this gate applied.
@@ -6009,6 +6034,7 @@ fn accept_change_with_gate(
             definition_pair: None,
             approved_scope: None,
             scope_migration: None,
+            approved_delta_digests: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -6029,6 +6055,10 @@ fn accept_change_with_gate(
                 definition_pair: None,
                 approved_scope: None,
                 scope_migration: None,
+                // This is a definition gate, so it carries the delta binding forward rather than
+                // dropping it. The bodies it names were already checked against the superseded
+                // approval earlier in this same call, so it can only record verified wording.
+                approved_delta_digests: Some(delta_body_digests(root, &record)?),
             });
         }
         ledger.approvals.push(ApprovalRecord {
@@ -6040,6 +6070,7 @@ fn accept_change_with_gate(
             definition_pair: None,
             approved_scope: None,
             scope_migration: None,
+            approved_delta_digests: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
         prepared.push((approvals_path, json_content(&ledger)?));
@@ -8583,6 +8614,79 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
         }
     }
     Ok(())
+}
+
+/// Per-module digest over the EXACT bytes of every semantic delta file this change owns.
+///
+/// Keyed by module because that is what a refusal has to name: "the delta changed" is not an
+/// actionable message when a change owns nine specs. The module name is framed into the digest
+/// as well, so moving a body from `deltas/a.md` to `deltas/b.md` cannot preserve a digest.
+///
+/// A `no_spec_change` record yields an empty map, which is the truth: `validate_delta_files`
+/// already refuses any delta file at all for such a change, so there are no bodies to bind.
+fn delta_body_digests(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<BTreeMap<String, String>, String> {
+    let mut digests = BTreeMap::new();
+    if record.no_spec_change {
+        return Ok(digests);
+    }
+    for module in &record.affected_specs {
+        let path = delta_path_checked(root, record, module)?;
+        let body = read_bounded_change_text(&path, "semantic delta")
+            .map_err(|error| format!("semantic delta for {module}: {error}"))?;
+        let mut digest = FramedDigest::new(APPROVED_DELTA_DIGEST_DOMAIN);
+        digest.frame(b"module", module.as_bytes());
+        digest.frame(b"body", body.as_bytes());
+        digests.insert(module.clone(), digest.finish());
+    }
+    Ok(digests)
+}
+
+/// Refuses to apply a semantic delta whose body is not the body the approver signed (#704).
+///
+/// ABSENT EVIDENCE IS NOT A VIOLATION. Every approval written before `approved_delta_digests`
+/// existed carries `None`, and every one of the 183 archived changes in this repository is in
+/// that position. `None` means the approval made no claim about delta wording, so this returns
+/// `Ok(())` and leaves the judgement to the gates that did exist at the time. Reading a missing
+/// digest as tampering would fail all of recorded history on evidence nobody could have written
+/// — the exact shape of #672, #684 and #689's first design.
+fn ensure_approved_delta_bodies_unchanged(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    let ledger = load_approvals(root, record)?;
+    let approval = effective_definition_approval(root, record, &ledger)?;
+    let Some(approved) = approval.approved_delta_digests.as_ref() else {
+        return Ok(());
+    };
+    let current = delta_body_digests(root, record)?;
+    let mut changed: Vec<&str> = approved
+        .iter()
+        .filter(|(module, digest)| current.get(*module) != Some(*digest))
+        .map(|(module, _)| module.as_str())
+        .collect();
+    changed.extend(
+        current
+            .keys()
+            .filter(|module| !approved.contains_key(*module))
+            .map(String::as_str),
+    );
+    changed.sort_unstable();
+    changed.dedup();
+    if changed.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "semantic delta for {} changed after approval; the approved wording is what rewrites the canonical spec, so re-run `specsync change approve {}` to approve the current delta bodies (or restore them)",
+        changed
+            .iter()
+            .map(|module| format!("`{module}`"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        record.id
+    ))
 }
 
 /// True when living `requirements.md` already has a `### {key}` requirement heading.
@@ -14182,7 +14286,10 @@ fn validate_scope_adoption<'a>(
         && approval.note.is_none()
         && approval.definition_pair.is_none()
         && approval.approved_scope.is_none()
-        && approval.scope_migration.is_none();
+        && approval.scope_migration.is_none()
+        // The allowlist pins the ENTIRE shape of the one trusted historical event; leaving a
+        // field unpinned would let a later rewrite add evidence the allowlist never authorized.
+        && approval.approved_delta_digests.is_none();
     if !immutable_event_matches {
         return Err(
             "scope adoption source approval is outside the trusted CHG-0068 allowlist".into(),
@@ -15955,6 +16062,11 @@ fn append_approval(
         // Retaining both would make the new approval intentionally ambiguous.
         ledger.scope_adoptions.clear();
     }
+    // Only a definition gate approves wording. Closing and finalization gates bind delivery
+    // evidence, and claiming they reviewed delta bodies would be a lie recorded in the ledger.
+    let approved_delta_digests = (gate == "definition")
+        .then(|| delta_body_digests(root, record))
+        .transpose()?;
     ledger.approvals.push(ApprovalRecord {
         gate: gate.into(),
         actor: resolve_actor(root, actor)?,
@@ -15964,6 +16076,7 @@ fn append_approval(
         definition_pair: None,
         approved_scope,
         scope_migration: None,
+        approved_delta_digests,
     });
     write_json(
         &change_dir(root, &record.id).join("approvals.json"),
@@ -16019,6 +16132,7 @@ fn append_portable_definition_approval_v501(
         definition_pair: Some(metadata(DefinitionApprovalPairRole::Current)),
         approved_scope: None,
         scope_migration: None,
+        approved_delta_digests: None,
     };
     let legacy = ApprovalRecord {
         gate: "definition".into(),
@@ -16029,6 +16143,7 @@ fn append_portable_definition_approval_v501(
         definition_pair: Some(metadata(DefinitionApprovalPairRole::Legacy)),
         approved_scope: None,
         scope_migration: None,
+        approved_delta_digests: None,
     };
     let approvals = document
         .get_mut("approvals")

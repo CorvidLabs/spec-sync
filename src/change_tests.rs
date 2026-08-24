@@ -6793,6 +6793,7 @@ fn unallowlisted_scope_migration_cannot_rewrite_an_approval_projection() {
                 summary: "Refined automated evidence after scope approval.".into(),
             }],
         }),
+        approved_delta_digests: None,
     });
     write_json(
         &change_dir(root, &record.id).join("approvals.json"),
@@ -6898,6 +6899,7 @@ fn scope_adoption_fails_closed_when_anchor_is_unavailable_or_replayed() {
             definition_pair: None,
             approved_scope: None,
             scope_migration: None,
+            approved_delta_digests: None,
         }],
         scope_adoptions: vec![ScopeAdoptionV1 {
             schema_version: 1,
@@ -7067,6 +7069,7 @@ fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
             definition_pair: None,
             approved_scope: None,
             scope_migration: None,
+            approved_delta_digests: None,
         },
     );
     assert_invalid(intervening);
@@ -7110,6 +7113,7 @@ fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
         definition_pair: None,
         approved_scope: None,
         scope_migration: None,
+        approved_delta_digests: None,
     });
     assert!(
         resolve_definition_approval_event(
@@ -7136,6 +7140,7 @@ fn marked_portable_definition_pair_is_atomic_current_and_fail_closed() {
         definition_pair: None,
         approved_scope: None,
         scope_migration: None,
+        approved_delta_digests: None,
     });
     assert!(
         resolve_definition_approval_event(
@@ -13287,6 +13292,134 @@ fn semantic_application_rejects_unsafe_registry_paths() {
             .any(|error| error.contains("cannot resolve canonical spec")
                 && error.contains("unsafe registry path"))
     );
+}
+
+/// The wording an approver actually read, and the wording nobody did.
+const APPROVED_DELTA_BODY: &str = "## MODIFIED\n\n### SPEC SECTION Purpose\n\nAuth tracks credentials. Reviewed and approved wording.\n";
+const SWAPPED_DELTA_BODY: &str = "## MODIFIED\n\n### SPEC SECTION Purpose\n\nBACKDOOR: this text was never reviewed or approved by anyone.\n";
+
+/// A workflow-v2 change whose `auth` delta has been approved with the wording above.
+fn change_with_an_approved_delta(root: &Path) -> ChangeRecord {
+    let record = completed_section_only_current_record(root, APPROVED_DELTA_BODY);
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap()
+}
+
+/// Rewrite the approval ledger the way EVERY approval written before `approved_delta_digests`
+/// existed already looks on disk: the key is simply not there.
+///
+/// `skip_serializing_if = "Option::is_none"` makes this byte-identical to what the old binary
+/// wrote, which the assertion in the compatibility test below checks rather than assumes.
+fn strip_recorded_delta_digests(root: &Path, record: &ChangeRecord) {
+    let mut ledger = load_approvals(root, record).unwrap();
+    for approval in &mut ledger.approvals {
+        approval.approved_delta_digests = None;
+    }
+    write_json(
+        &change_dir(root, &record.id).join("approvals.json"),
+        &ledger,
+    )
+    .unwrap();
+}
+
+/// DISCRIMINATOR for #704. Fails on the unfixed binary, which materializes the swapped body
+/// into `specs/auth/auth.spec.md` and reports nothing.
+///
+/// The swap happens exactly where the reproduction puts it: after `approve` recorded a definition
+/// approval, before anything applied the delta. Nothing else in the pipeline covers this region —
+/// the v2 scope digest hashes intent and boundary, `validate_delta_files` reads filenames, and
+/// `project_input_digest` excludes `.specsync/changes/` — so a passing assertion here is evidence
+/// of the new binding and of nothing else.
+#[test]
+fn a_semantic_delta_swapped_after_approval_never_reaches_the_canonical_spec() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(
+        error.contains("`auth`"),
+        "a refusal must name the module whose delta drifted: {error}"
+    );
+    assert!(
+        error.contains("changed after approval"),
+        "a refusal must say what went wrong, not just that something did: {error}"
+    );
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        !spec.contains("BACKDOOR"),
+        "the living spec carries wording nobody approved: {spec}"
+    );
+    assert!(
+        !load_change(root, &record.id).unwrap().canonical_applied,
+        "a refused materialization must not record itself as applied"
+    );
+}
+
+/// Honest label: this is the CONTROL, and it passes on the unfixed binary too — that is the
+/// entire point. The check added for #704 must refuse ONLY drift; an honest change must reach
+/// the canonical spec exactly as it did before. A discriminator that fires on well-formed work
+/// is not a fix, it is an outage, and this is the assertion that would catch that.
+///
+/// It also pins the positive half of the record: the approval carries a digest keyed by module,
+/// so "the check passed" cannot silently mean "there was nothing recorded to check".
+#[test]
+fn an_approved_delta_that_was_never_touched_still_rewrites_the_canonical_spec() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    let ledger = load_approvals(root, &record).unwrap();
+    let recorded = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "definition")
+        .and_then(|approval| approval.approved_delta_digests.clone())
+        .expect("approve must record the delta bodies it approved");
+    assert_eq!(
+        recorded.keys().collect::<Vec<_>>(),
+        vec!["auth"],
+        "the recorded digest must be keyed by module: {recorded:?}"
+    );
+
+    let applied = materialize_change_deltas(root, &record.id).unwrap();
+
+    assert!(applied.canonical_applied);
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        spec.contains("Auth tracks credentials. Reviewed and approved wording."),
+        "the approved wording must still reach the canonical spec: {spec}"
+    );
+}
+
+/// COMPATIBILITY. Every one of this repository's archived changes was approved before
+/// `approved_delta_digests` existed, so every one of them carries no digest at all.
+///
+/// Absent evidence is UNKNOWN, never VIOLATED. The delta is swapped here as well, so the test
+/// fails the moment someone decides a missing digest should read as tampering: history would
+/// then start failing on evidence nobody could have written, which is #672 (unparseable schema
+/// read as "tables missing") and #684 (missing config read as a gating warning) all over again.
+#[test]
+fn an_approval_recorded_before_delta_digests_existed_is_unknown_not_violated() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    strip_recorded_delta_digests(root, &record);
+
+    let ledger_bytes =
+        fs::read_to_string(change_dir(root, &record.id).join("approvals.json")).unwrap();
+    assert!(
+        !ledger_bytes.contains("approved_delta_digests"),
+        "the fixture must be shaped like a pre-#704 ledger, not merely be missing a value: {ledger_bytes}"
+    );
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    let applied = materialize_change_deltas(root, &record.id)
+        .expect("an approval that made no claim about delta bodies must not fail on that absence");
+
+    assert!(applied.canonical_applied);
 }
 
 #[test]

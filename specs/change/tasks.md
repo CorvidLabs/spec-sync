@@ -49,3 +49,4 @@ spec: change.spec.md
 - [x] Capture normal/strict mutation summaries under lock and preserve documented production wrappers
 
 - [x] Approve fails closed on ADDED of living REQ; draft next_action waits on complete artifacts (2026-08-01)
+- [x] Bind semantic delta bodies to the definition approval and read an absent binding as unknown (2026-08-24)

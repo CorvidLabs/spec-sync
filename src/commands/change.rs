@@ -1179,6 +1179,61 @@ fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
 /// agent. It does not need to: whoever just ran `finalize` is right there. So name the step and
 /// point at the material. `next_action` is the mechanism the lifecycle already uses everywhere,
 /// and drill 032 confirms agents follow it to termination.
+/// What to do after `ship` finalizes.
+///
+/// `finalize` named the lesson fold-back and `ship` did not, so on the verb the tool actually
+/// recommends the bundle was written and nothing said it existed — knowledge produced where
+/// nobody looks, which is the exact failure the lessons loop was built to end. It reappeared
+/// inside the loop because the two verbs each built their own next-action string.
+///
+/// Pure so the wiring is pinned by a test rather than by having run it once: the regression this
+/// guards is a future edit to one verb's guidance that forgets the other.
+///
+/// Fold-back comes FIRST because it is the step a merge makes irreversible — after the merge the
+/// change is inert history and the material is archived where nobody reads it.
+fn ship_next_action(
+    push: bool,
+    wait: bool,
+    siblings_before: &[String],
+    fold_targets: &[String],
+    bundle: &str,
+) -> String {
+    let remaining = if push && wait {
+        if siblings_before.is_empty() {
+            "merge the PR on GitHub when Required CI is green".to_string()
+        } else {
+            format!(
+                "re-run `change check --commit` on remaining active changes ({}) before merge",
+                siblings_before.join(", ")
+            )
+        }
+    } else if push {
+        if siblings_before.is_empty() {
+            "wait for CI, then merge the PR (or re-run `change ship --wait`)".to_string()
+        } else {
+            format!(
+                "wait for CI; then re-run `change check --commit` on remaining active changes ({})",
+                siblings_before.join(", ")
+            )
+        }
+    } else if siblings_before.is_empty() {
+        "commit if needed, push the archive tip, wait for CI, then merge the PR".to_string()
+    } else {
+        format!(
+            "commit if needed, push the archive tip, wait for CI; then re-run `change check --commit` on remaining active changes ({}) — do not merge while any change is active",
+            siblings_before.join(", ")
+        )
+    };
+    if fold_targets.is_empty() {
+        return remaining;
+    }
+    format!(
+        "write lessons into {} from {}, then {remaining}",
+        fold_targets.join(", "),
+        bundle
+    )
+}
+
 fn lessons_next_action(root: &Path, id: &str, archive: &Path) -> String {
     let targets = change::lesson_fold_targets(root, id);
     if targets.is_empty() {
@@ -1706,32 +1761,13 @@ fn run_ship(
         wait_result = Some(wait_for_head_check_runs(root, wait_timeout_secs, format)?);
     }
 
-    let next = if push && wait {
-        if siblings_before.is_empty() {
-            "merge the PR on GitHub when Required CI is green".to_string()
-        } else {
-            format!(
-                "re-run `change check --commit` on remaining active changes ({}) before merge",
-                siblings_before.join(", ")
-            )
-        }
-    } else if push {
-        if siblings_before.is_empty() {
-            "wait for CI, then merge the PR (or re-run `change ship --wait`)".to_string()
-        } else {
-            format!(
-                "wait for CI; then re-run `change check --commit` on remaining active changes ({})",
-                siblings_before.join(", ")
-            )
-        }
-    } else if siblings_before.is_empty() {
-        "commit if needed, push the archive tip, wait for CI, then merge the PR".to_string()
-    } else {
-        format!(
-            "commit if needed, push the archive tip, wait for CI; then re-run `change check --commit` on remaining active changes ({}) — do not merge while any change is active",
-            siblings_before.join(", ")
-        )
-    };
+    let next = ship_next_action(
+        push,
+        wait,
+        &siblings_before,
+        &change::lesson_fold_targets(root, &record.id),
+        &path.join(change::LESSON_BUNDLE_FILE).display().to_string(),
+    );
     match format {
         OutputFormat::Json => print_json(&serde_json::json!({
             "id": record.id,
@@ -2841,4 +2877,56 @@ fn git_commit_all(root: &std::path::Path, message: &str) -> Result<(), String> {
         return Ok(());
     }
     run_git(root, &["commit", "-m", message])
+}
+
+#[cfg(test)]
+mod ship_next_action_tests {
+    use super::*;
+
+    // The regression: `finalize` named the lesson fold-back and `ship` did not, so on the verb
+    // the tool recommends, the bundle was written and nothing said it existed. Both exits must
+    // name it, and the fold-back must come FIRST — the merge is what makes skipping it permanent.
+    #[test]
+    fn ship_names_the_lesson_fold_back_before_the_merge() {
+        let next = ship_next_action(
+            true,
+            true,
+            &[],
+            &["specs/change/context.md".to_string()],
+            "/archive/lesson-bundle.md",
+        );
+
+        assert!(next.starts_with("write lessons into specs/change/context.md"));
+        assert!(next.contains("/archive/lesson-bundle.md"));
+        assert!(next.contains("merge the PR on GitHub when Required CI is green"));
+    }
+
+    // Honest label: this is the CONTROL. A change owning no specs has nothing to fold, and its
+    // guidance must be byte-identical to the guidance before this fix — otherwise the fold-back
+    // prefix would be leaking into a case that has no lessons.
+    #[test]
+    fn ship_guidance_is_unchanged_when_there_is_nothing_to_fold() {
+        for (push, wait) in [(true, true), (true, false), (false, false)] {
+            let with_targets = ship_next_action(push, wait, &[], &[], "/archive/lesson-bundle.md");
+
+            assert!(!with_targets.contains("write lessons"));
+        }
+    }
+
+    // Sibling changes still block the merge, and that warning must survive the prefix rather
+    // than being displaced by it.
+    #[test]
+    fn ship_keeps_the_sibling_blocker_alongside_the_fold_back() {
+        let next = ship_next_action(
+            false,
+            false,
+            &["other-change".to_string()],
+            &["specs/cmd_change/context.md".to_string()],
+            "/archive/lesson-bundle.md",
+        );
+
+        assert!(next.starts_with("write lessons into specs/cmd_change/context.md"));
+        assert!(next.contains("do not merge while any change is active"));
+        assert!(next.contains("other-change"));
+    }
 }

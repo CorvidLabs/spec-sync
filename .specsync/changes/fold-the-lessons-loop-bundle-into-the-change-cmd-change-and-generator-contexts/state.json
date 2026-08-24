@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "fold-the-lessons-loop-bundle-into-the-change-cmd-change-and-generator-contexts",
+  "slug": "fold-the-lessons-loop-bundle-into-the-change-cmd-change-and-generator-contexts",
+  "title": "Fold the lessons-loop bundle into the change, cmd_change and generator contexts",
+  "description": "Fold the lessons-loop bundle into the change, cmd_change and generator contexts",
+  "kind": "documentation",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "fb88b9acaafe99abd83a637876331e83330e49fb",
+  "created_at": 1787576885,
+  "updated_at": 1787577443,
+  "affected_specs": [],
+  "affected_paths": [
+    "specs/change/context.md",
+    "specs/cmd_change/context.md",
+    "specs/generator/context.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Folding an archived lesson bundle into module context companions is the fold-back step finalize instructs; it adds recorded knowledge to context.md companions and changes no canonical spec text, requirement, or behaviour.",
+  "acceptance_criteria": [
+    "each affected module context.md gains the durable lesson from the lessons-loop bundle, synthesised rather than restated from the change description",
+    "no canonical spec text, requirement or behaviour changes",
+    "the next change to these modules sees a higher substantive line count at change new, which is the loop compounding"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

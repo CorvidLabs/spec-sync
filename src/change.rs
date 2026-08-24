@@ -6211,7 +6211,7 @@ fn strip_frontmatter(text: &str) -> &str {
 ///
 /// One definition of the convention, so surfacing at `new` and folding at `finalize` can never
 /// disagree about which file they mean.
-pub fn module_context_path(module: &str) -> String {
+pub(crate) fn module_context_path(module: &str) -> String {
     format!("specs/{module}/context.md")
 }
 
@@ -6230,7 +6230,7 @@ pub fn module_context_path(module: &str) -> String {
 ///
 /// An unreadable context file yields no entry rather than an error: this is an authoring
 /// affordance, and it must never be able to fail a lifecycle command.
-pub fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(String, usize)> {
+pub(crate) fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(String, usize)> {
     let mut found = Vec::new();
     for module in modules {
         let relative = module_context_path(module);
@@ -6257,7 +6257,7 @@ pub fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(String, usiz
 /// Returns empty when the change cannot be loaded or owns no specs, which the caller renders as
 /// the plain merge instruction. Same reason as above: never fail a completed finalize over an
 /// authoring affordance.
-pub fn lesson_fold_targets(root: &Path, id: &str) -> Vec<String> {
+pub(crate) fn lesson_fold_targets(root: &Path, id: &str) -> Vec<String> {
     load_change(root, id)
         .map(|record| {
             record

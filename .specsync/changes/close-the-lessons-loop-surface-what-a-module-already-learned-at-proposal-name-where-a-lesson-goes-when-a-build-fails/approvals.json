@@ -3,8 +3,8 @@
     {
       "gate": "definition",
       "actor": "0xLeif",
-      "timestamp": 1787530043,
-      "digest": "f06de670e30788efc25676eceac8896790ed2f6bf28767ed095cb6837fe51563",
+      "timestamp": 1787534538,
+      "digest": "09bd10515ee23dc692a978b14d586c397179f5d50bb8656afcfa107263a487ef",
       "note": null,
       "approved_scope": {
         "schema_version": 1,
@@ -20,6 +20,7 @@
           "specs/change/change.spec.md",
           "specs/cmd_change/cmd_change.spec.md",
           "src/change.rs",
+          "src/change_tests.rs",
           "src/commands/change.rs"
         ],
         "no_spec_change": false,

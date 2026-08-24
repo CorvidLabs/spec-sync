@@ -2,7 +2,7 @@
 id: close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails
 state: implementing
 type: feature
-base_commit: e7fe36f0aacf33452ca5243741ceb7490ea336cc
+base_commit: 376682de8361c93813ad987cd7f5974d1eb63dc0
 ---
 
 # Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize

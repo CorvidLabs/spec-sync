@@ -9,15 +9,16 @@
   "kind": "feature",
   "state": "verifying",
   "canonical_applied": true,
-  "base_commit": "e7fe36f0aacf33452ca5243741ceb7490ea336cc",
-  "created_at": 1787529156,
-  "updated_at": 1787531684,
+  "base_commit": "376682de8361c93813ad987cd7f5974d1eb63dc0",
+  "created_at": 1787534467,
+  "updated_at": 1787535613,
   "affected_specs": [
     "change",
     "cmd_change"
   ],
   "affected_paths": [
     "src/change.rs",
+    "src/change_tests.rs",
     "src/commands/change.rs",
     "specs/change/change.spec.md",
     "specs/cmd_change/cmd_change.spec.md"

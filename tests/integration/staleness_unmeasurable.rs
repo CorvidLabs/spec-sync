@@ -36,6 +36,57 @@ fn init_repo(root: &Path) {
     git(root, &["config", "user.email", "fixture@test.invalid"]);
     git(root, &["config", "user.name", "Fixture"]);
     git(root, &["config", "commit.gpgsign", "false"]);
+    // Silence git's background housekeeping. `git commit` may run `gc --auto` or
+    // `maintenance run --auto` detached, and either writes into `.git` while
+    // `drifted_without_git` is removing it.
+    //
+    // Honest about the evidence: this is a plausible cause, not a proven one. Seven
+    // commits sit far below the 6700 loose-object gc threshold, and a local probe
+    // found no leftover artifacts — though it could not have detected a transient
+    // lock. These settings remove the known background writers; the retry below makes
+    // the removal tolerant of a SHORT-LIVED one. A writer holding for seconds — a real
+    // repack — would still exhaust it, so this is not a guarantee.
+    //
+    // `maintenance.auto` is the load-bearing setting: measured with GIT_TRACE, `git
+    // commit` spawns `git maintenance run --auto --quiet --detach` and setting this to
+    // false stops it entirely, while `gc.auto=0` alone does not (3 of 3 commits still
+    // spawned the child). Keep both — `gc.auto` covers older git where `gc --auto`
+    // daemonizes itself — and do NOT drop `maintenance.auto` as redundant, which would
+    // silently remove the whole guard.
+    git(root, &["config", "gc.auto", "0"]);
+    git(root, &["config", "maintenance.auto", "false"]);
+}
+
+/// Remove `.git`, tolerating a concurrent writer.
+///
+/// Three tests in this file failed on `main` with `DirectoryNotEmpty` at this exact
+/// removal, all in the same parallel run, while every one of them passes locally.
+/// `remove_dir_all` reads a directory and then unlinks; anything that creates a file
+/// in between makes it fail, and git's detached housekeeping can do exactly that.
+///
+/// The test's intent is "there is no git history here", not "`.git` can be removed on
+/// the first attempt", so a bounded retry serves the assertion rather than weakening
+/// it. It fails loudly if the directory genuinely cannot be removed.
+fn remove_git_dir(root: &Path) {
+    let git_dir = root.join(".git");
+    for attempt in 0..10 {
+        match fs::remove_dir_all(&git_dir) {
+            Ok(()) => return,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+            Err(error) if attempt == 9 => {
+                panic!("could not remove {}: {error}", git_dir.display())
+            }
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+        }
+    }
+    // Unreachable: the `attempt == 9` arm panics on the final iteration. Asserted anyway
+    // so the NotFound early return is self-evidently safe rather than safe only because
+    // std's `remove_dir_all` reports NotFound for the deletion ROOT and not for a child
+    // that vanished mid-walk.
+    assert!(
+        !root.join(".git").exists(),
+        "`.git` still present after removal"
+    );
 }
 
 /// A one-module project whose spec lists one source file that exists.
@@ -85,7 +136,7 @@ const DRIFT: usize = 6;
 /// pass against a broken build.
 fn drifted_without_git(root: &Path) {
     drifted_repo(root);
-    fs::remove_dir_all(root.join(".git")).unwrap();
+    remove_git_dir(root);
     let spec = root.join("specs/greeter/greeter.spec.md");
     let bytes = fs::read(&spec).unwrap();
     fs::write(&spec, bytes).unwrap();

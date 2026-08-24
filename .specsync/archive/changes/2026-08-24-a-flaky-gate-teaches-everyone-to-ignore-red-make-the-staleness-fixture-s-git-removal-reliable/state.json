@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-flaky-gate-teaches-everyone-to-ignore-red-make-the-staleness-fixture-s-git-removal-reliable",
+  "slug": "a-flaky-gate-teaches-everyone-to-ignore-red-make-the-staleness-fixture-s-git-removal-reliable",
+  "title": "A flaky gate teaches everyone to ignore red: make the staleness fixture's git removal reliable",
+  "description": "A flaky gate teaches everyone to ignore red: make the staleness fixture's git removal reliable",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "f9d034fe1630023e082ed0088ac08862248379e0",
+  "created_at": 1787594665,
+  "updated_at": 1787598151,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/staleness_unmeasurable.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Test-fixture reliability only: the fixture's .git removal races a concurrent writer on CI. No production source, canonical spec text, requirement, or behaviour changes.",
+  "acceptance_criteria": [
+    "the staleness_unmeasurable module no longer fails intermittently on CI at the .git removal",
+    "git background housekeeping is disabled in the fixture so the known concurrent writers are gone",
+    "the removal retries on a transient failure and still panics loudly if .git genuinely cannot be removed",
+    "no production source or spec text changes"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

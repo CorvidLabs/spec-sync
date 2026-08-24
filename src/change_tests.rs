@@ -15596,3 +15596,57 @@ fn strip_frontmatter_removes_crlf_frontmatter_and_keeps_later_rules() {
     assert!(body.contains("Real prose."));
     assert!(body.contains("More prose."));
 }
+
+// The regression #699 recorded, with the mechanism corrected: a `###` subheading inside an
+// open item used to FLUSH that item before being classified as content, so one section
+// carrying several subheadings became several items under the same key and application kept
+// only the last. A spec section silently lost everything above its final subheading —
+// including documented behaviour the change never touched.
+//
+// This fixture is the shape that did the damage on cmd_change.spec.md: three scenarios where
+// only the third survived. Under the old ordering `items` has three entries keyed
+// "Behavioral Examples"; under the fix it has one containing all three.
+#[test]
+fn a_content_subheading_does_not_split_a_delta_item() {
+    let delta = "## MODIFIED\n\n### SPEC SECTION Behavioral Examples\n\n\
+### Scenario: first\n\n- **Given** one\n\n\
+### Scenario: second\n\n- **Given** two\n\n\
+### Scenario: third\n\n- **Given** three\n";
+
+    let items = parse_delta(delta).expect("delta parses");
+
+    assert_eq!(items.len(), 1, "one section, not one item per subheading");
+    assert_eq!(items[0].key, "Behavioral Examples");
+    assert!(items[0].content.contains("### Scenario: first"));
+    assert!(items[0].content.contains("### Scenario: second"));
+    assert!(items[0].content.contains("### Scenario: third"));
+}
+
+// Honest label: this is the CONTROL. Real item headings must still end the previous item, or
+// the fix above would merge distinct sections into one.
+#[test]
+fn a_real_item_heading_still_ends_the_previous_item() {
+    let delta = "## MODIFIED\n\n### SPEC SECTION Purpose\n\nFirst body.\n\n\
+### SPEC SECTION Invariants\n\n1. Second body.\n";
+
+    let items = parse_delta(delta).expect("delta parses");
+
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0].key, "Purpose");
+    assert!(items[0].content.contains("First body."));
+    assert!(!items[0].content.contains("Second body."));
+    assert_eq!(items[1].key, "Invariants");
+}
+
+// The other route into the same silent loss: two items with one key overwrite on application,
+// keeping the last. Refused rather than resolved, and the message names what would be lost.
+#[test]
+fn a_duplicated_section_key_is_refused_rather_than_overwritten() {
+    let delta = "## MODIFIED\n\n### SPEC SECTION Purpose\n\nOriginal body that would vanish.\n\n\
+### SPEC SECTION Purpose\n\nReplacement body.\n";
+
+    let error = parse_delta(delta).expect_err("duplicate key must be refused");
+
+    assert!(error.contains("more than once"), "got: {error}");
+    assert!(error.contains("Purpose"), "got: {error}");
+}

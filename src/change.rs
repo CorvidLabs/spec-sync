@@ -8780,19 +8780,31 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
             continue;
         }
         if let Some(header) = line.strip_prefix("### ") {
-            flush(
-                &mut items,
-                operation,
-                current_target,
-                &current_key,
-                &mut body,
-            );
-            let (target, key) = if let Some(value) =
+            // Classify BEFORE flushing. #564 taught this grammar that a `###` inside an open
+            // item is content, but left the flush above the classification, so every content
+            // heading still ended the item: one `## MODIFIED / ### SPEC SECTION X` carrying
+            // `### Scenario` subheadings became SEVERAL items keyed X, each holding one
+            // fragment, and application kept only the last. A spec section silently lost
+            // everything above its final subheading — including behaviour the change never
+            // touched. Fixing the classification without moving the flush was half a fix.
+            let item_heading = if let Some(value) =
                 strip_ascii_prefix_ignore_case(header, "REQUIREMENT ")
             {
-                (DeltaTarget::Requirement, value)
+                Some((DeltaTarget::Requirement, value))
             } else if let Some(value) = strip_ascii_prefix_ignore_case(header, "SPEC SECTION ") {
-                (DeltaTarget::SpecSection, value)
+                Some((DeltaTarget::SpecSection, value))
+            } else {
+                None
+            };
+            let (target, key) = if let Some(parsed) = item_heading {
+                flush(
+                    &mut items,
+                    operation,
+                    current_target,
+                    &current_key,
+                    &mut body,
+                );
+                parsed
             } else if current_target.is_some() {
                 // A `###` that is not one of this grammar's item headings, met
                 // while inside an item, is section CONTENT — not a malformed
@@ -8827,6 +8839,25 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
     );
     if items.iter().any(|item| item.key.is_empty()) {
         return Err("semantic delta contains an item with an empty key".into());
+    }
+    // Two items with the same operation/target/key silently overwrite: application keeps the
+    // last and the earlier bodies vanish with no diagnostic. That is how a section can lose
+    // content nobody meant to touch, so refuse it rather than picking a winner. This is a
+    // separate route into the same silent loss the flush ordering above produced.
+    for (index, item) in items.iter().enumerate() {
+        if let Some(earlier) = items[..index].iter().find(|candidate| {
+            candidate.operation == item.operation
+                && candidate.target == item.target
+                && candidate.key == item.key
+        }) {
+            return Err(format!(
+                "semantic delta declares `{}` more than once under the same operation; \
+                 applying it would keep only the last and silently discard the earlier body \
+                 ({} bytes)",
+                item.key,
+                earlier.content.len()
+            ));
+        }
     }
     if items.is_empty() && !content.trim().is_empty() {
         if operation.is_some() {

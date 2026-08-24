@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787585552,
+      "digest": "8caae05bbd128148a273a22b14667c814e07585b47a5e23c9f419b1495150098",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder",
+        "title": "Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder",
+        "description": "Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "generator"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/generator/generator.spec.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/generator.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "CRLF authored prose is still counted, so suppression and counting agree on both encodings",
+          "a pristine generated context companion with CRLF line endings is silent at change new, exactly as the LF one is",
+          "frontmatter is stripped at its closing delimiter line in either encoding, and a body horizontal rule still never truncates",
+          "the generator hands out the EXPANDED scaffold, so the spec frontmatter line can match a real file instead of an unexpandable placeholder"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

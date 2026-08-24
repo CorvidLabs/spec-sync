@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder",
+  "slug": "frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder",
+  "title": "Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder",
+  "description": "Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "9b6e03cd10d33d1278430b59b8a393d6d672e277",
+  "created_at": 1787585191,
+  "updated_at": 1787586555,
+  "affected_specs": [
+    "change",
+    "generator"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/generator.rs",
+    "specs/change/change.spec.md",
+    "specs/generator/generator.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a pristine generated context companion with CRLF line endings is silent at change new, exactly as the LF one is",
+    "CRLF authored prose is still counted, so suppression and counting agree on both encodings",
+    "the generator hands out the EXPANDED scaffold, so the spec frontmatter line can match a real file instead of an unexpandable placeholder",
+    "frontmatter is stripped at its closing delimiter line in either encoding, and a body horizontal rule still never truncates"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

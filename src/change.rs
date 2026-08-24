@@ -6199,11 +6199,26 @@ fn archive_change_with_same_pr_finalize_failure(root: &Path, id: &str) -> Result
 fn strip_frontmatter(text: &str) -> &str {
     // A leading UTF-8 BOM must not hide the opening delimiter.
     let text = text.trim_start_matches('\u{feff}');
-    if let Some(stripped) = text.strip_prefix("---\n")
-        && let Some(end) = stripped.find("\n---\n")
-    {
-        return &stripped[end + 5..];
+    // BOTH line endings. `parser.rs` accepts `---\r\n` and this did not, so a Windows-authored
+    // companion kept its frontmatter and every untouched scaffold was reported as knowledge.
+    let after_open = if let Some(rest) = text.strip_prefix("---\r\n") {
+        rest
+    } else if let Some(rest) = text.strip_prefix("---\n") {
+        rest
+    } else {
+        return text;
+    };
+    // Frontmatter ends at its CLOSING delimiter LINE, never at the next `---` anywhere in the
+    // document: `---` is a legal Markdown horizontal rule, and a body that loses everything after
+    // one is indistinguishable from a body nobody wrote.
+    let mut offset = 0usize;
+    for line in after_open.split_inclusive('\n') {
+        if line.trim_end_matches(['\r', '\n']) == "---" {
+            return &after_open[offset + line.len()..];
+        }
+        offset += line.len();
     }
+    // Unterminated frontmatter: keep the whole document rather than guess where it ended.
     text
 }
 
@@ -6262,6 +6277,9 @@ pub(crate) fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(Strin
         let Ok(text) = fs::read_to_string(root.join(&relative)) else {
             continue;
         };
+        let scaffold = crate::generator::generated_context_scaffold(module);
+        let scaffold_lines: std::collections::HashSet<&str> =
+            scaffold.lines().map(str::trim).collect();
         let body = strip_frontmatter(&text);
         let substantive = body
             .lines()
@@ -6270,7 +6288,7 @@ pub(crate) fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(Strin
                 !line.is_empty()
                     && !line.starts_with("<!--")
                     && !line.starts_with('#')
-                    && !crate::generator::is_generated_context_line(line)
+                    && !scaffold_lines.contains(line)
             })
             .count();
         if substantive > 0 {

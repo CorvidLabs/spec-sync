@@ -1,6 +1,6 @@
 ---
 module: change
-version: 101
+version: 102
 status: active
 files:
   - src/change.rs
@@ -216,7 +216,7 @@ Acceptance Criteria
 32. The workflow-v2 baseline retains its exact introduction bytes at every bounded touching commit and readable parent, rejecting rewrite-then-restore history.
 33. Answer, dependency, and supersession mutations load and validate correction history only after acquiring the lifecycle project lock.
 34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons; the agent that ran `finalize` writes them, guided by `next_action`.
-35. Frontmatter is stripped at its closing delimiter, never at the next `---` in the document, so an artifact containing a Markdown horizontal rule is never silently truncated to a fragment.
+35. Frontmatter is stripped at its closing delimiter LINE, in either LF or CRLF encoding, and never at the next `---` elsewhere in the document. A Markdown horizontal rule therefore never truncates a body to a fragment, and a CRLF-authored companion is stripped exactly as an LF one is — otherwise its frontmatter survives into content counting and an untouched scaffold reports itself as recorded knowledge.
 
 ## Behavioral Examples
 
@@ -428,3 +428,4 @@ Acceptance Criteria
 | 2026-08-22 | an-orphaned-verification-commit-must-be-reopenable: An orphaned verification commit must be reopenable |
 | 2026-08-23 | ship-readiness-is-a-content-question-not-a-history-one: Ship readiness is a content question, not a history one |
 | 2026-08-24 | close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails: Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize |
+| 2026-08-24 | frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder: Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder |

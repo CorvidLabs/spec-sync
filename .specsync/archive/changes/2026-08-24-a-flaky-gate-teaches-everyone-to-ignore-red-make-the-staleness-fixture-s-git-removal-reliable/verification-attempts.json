@@ -62,6 +62,53 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1787597079,
+      "commit": "5b896a6ea491c9822457f3bb673ece80001008b4",
+      "contract_digest": "457b6cb19601ee2cf1ab846adbc5ac285065339f6d9ade902ab708ce05d6575a",
+      "execution_digest": "7883adbaf6590bce1af8a76403e084016e0d65d80130f8b51195bfbd1ed04160",
+      "workspace_digest": "ef5c7e467c7d3141e98d2f4bdfb2e99caf52a0fe4fa574594bed21acef1fa28a",
+      "acceptance_input_digest": "35e5ae6fbad369c57ef33c223aee263bcfaf1f12b5beefc65b32e721eed1822f",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "tests/integration/staleness_unmeasurable.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2de33234cb134ab684a95ad9ab5ca83fc8342264d7610975a7298856ed51d132",
+            "entry_digest": "a17415a01231502f57ee6c243087f68cf48099347eff1ff9a5c78d2600ba93ad",
+            "owners": [
+              "@exact:test"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

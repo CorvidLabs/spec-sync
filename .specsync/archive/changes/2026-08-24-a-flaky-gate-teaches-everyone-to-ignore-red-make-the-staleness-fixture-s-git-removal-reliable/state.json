@@ -7,11 +7,11 @@
   "title": "A flaky gate teaches everyone to ignore red: make the staleness fixture's git removal reliable",
   "description": "A flaky gate teaches everyone to ignore red: make the staleness fixture's git removal reliable",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "f9d034fe1630023e082ed0088ac08862248379e0",
   "created_at": 1787594665,
-  "updated_at": 1787597080,
+  "updated_at": 1787598151,
   "affected_specs": [],
   "affected_paths": [
     "tests/integration/staleness_unmeasurable.rs"

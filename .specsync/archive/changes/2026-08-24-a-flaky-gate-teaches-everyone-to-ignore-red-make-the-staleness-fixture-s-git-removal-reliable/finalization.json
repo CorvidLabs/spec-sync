@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-flaky-gate-teaches-everyone-to-ignore-red-make-the-staleness-fixture-s-git-removal-reliable",
+  "implementation_commit": "5b896a6ea491c9822457f3bb673ece80001008b4",
+  "implementation_tree": "97ccbd247b865f4a675d4f1a587f725e3f994d33",
+  "contract_digest": "457b6cb19601ee2cf1ab846adbc5ac285065339f6d9ade902ab708ce05d6575a",
+  "workspace_digest": "ef5c7e467c7d3141e98d2f4bdfb2e99caf52a0fe4fa574594bed21acef1fa28a",
+  "closing_digest": "ca039a40a423c629e95e10ecaea7a53c5628b38e12b8dd04744aae6a30c5c607",
+  "review_digest": "8d1ba69bc598d8b5d0b775350461eb712b7aa5cf093c9dc4706295bf46ac22a5",
+  "finalization_digest": "d3b45b094826f5d868b8aa11d6a1ad61913dd118843a54a34d426bf78fd2aae8",
+  "timestamp": 1787597907
+}

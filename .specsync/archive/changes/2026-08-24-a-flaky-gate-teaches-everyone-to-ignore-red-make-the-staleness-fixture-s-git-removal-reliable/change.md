@@ -1,6 +1,6 @@
 ---
 id: a-flaky-gate-teaches-everyone-to-ignore-red-make-the-staleness-fixture-s-git-removal-reliable
-state: implementing
+state: archived
 type: bug_fix
 base_commit: f9d034fe1630023e082ed0088ac08862248379e0
 ---

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "bind-semantic-delta-bodies-to-the-approval-that-signed-them",
+  "slug": "bind-semantic-delta-bodies-to-the-approval-that-signed-them",
+  "title": "Bind semantic delta bodies to the approval that signed them",
+  "description": "Bind semantic delta bodies to the approval that signed them",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "875752ee991d458db172dec6ceb712462fe2a614",
+  "created_at": 1787610971,
+  "updated_at": 1787612792,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A semantic delta body swapped after approval is refused before it rewrites the canonical spec, and the refusal names the module",
+    "An untouched approved delta still materializes into the canonical spec exactly as before",
+    "An approval that records no delta digest — every archived change in this repository — proceeds, because absent evidence is unknown and not a violation"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

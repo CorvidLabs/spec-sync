@@ -1,23 +1,6 @@
----
-module: change
-version: 103
-status: active
-files:
-  - src/change.rs
-  - src/change_tests.rs
-db_tables: []
-tracks: []
-depends_on:
-  - specs/hash_cache/hash_cache.spec.md
----
+## MODIFIED
 
-# Change
-
-## Purpose
-
-Provides the SpecSync verified spec-driven development lifecycle: one scope approval, targeted verification, one independent scoped review, same-PR finalization, and compatible audited recovery for historical evidence.
-
-## Contract
+### SPEC SECTION Contract
 
 1. Every new meaningful change follows one guided path: draft, one scope approval, implementation, verification, scoped review, same-PR finalization/archive, and GitHub merge.
 2. The scope approval is bound to a deterministic SHA-256 projection of stable intent, contract, and affected scope; volatile implementation, test/evidence, semantic-delta materialization, canonical materialization, and lifecycle metadata bind a separate execution digest. The one CHG-0068 legacy adoption declares its missing source preimage and lack of equivalence proof, and a compile-time allowlist freezes its exact commit/blob anchor, source approval, adopted scope, authorization, and classifications.
@@ -41,7 +24,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 20. Workflow-v2 adoption atomically freezes a comparison-base cutoff that precedes its unique introduction, opens its lifecycle lock without following symlinks, journals only lossless UTF-8 publication paths whose filename components cannot be confused with platform separators, confines them beneath the project without symlink traversal, leaves an existing version-1 policy byte-identical, refuses to strand v1 records absent from that cutoff, routes every subsequent change through workflow v2, and fails closed if any reachable parent introduced a subsequently absent baseline.
 21. Existing-change definition mutations validate correction-ledger integrity while holding the same project lock that guards persistence and return the validated effective-definition snapshot used by command output.
 
-## Public API
+### SPEC SECTION Public API
 
 **Exported Constants**
 
@@ -180,7 +163,7 @@ Acceptance Criteria
 - Correction inspection exposes typed portable records without exposing mutable ledger internals.
 - Acceptance-owner corrections expose only immutable audit fields and never mutable internal ledgers.
 
-## Invariants
+### SPEC SECTION Invariants
 
 1. Change IDs are monotonically assigned as `CHG-NNNN-slug` across active and archived workspaces.
 2. No emergency or force transition bypass exists.
@@ -219,215 +202,15 @@ Acceptance Criteria
 35. Frontmatter is stripped at its closing delimiter LINE, in either LF or CRLF encoding, and never at the next `---` elsewhere in the document. A Markdown horizontal rule therefore never truncates a body to a fragment, and a CRLF-authored companion is stripped exactly as an LF one is — otherwise its frontmatter survives into content counting and an untouched scaffold reports itself as recorded knowledge.
 36. Semantic delta bodies are bound to the definition approval that signed them: approval records a digest over each delta file's exact bytes keyed by module, and materialization and acceptance refuse to rewrite a canonical spec when a body no longer matches, naming every module that drifted. An approval recording no such digest predates the binding and reads as unknown, never as tampering, so every historical archive remains valid.
 
-## Behavioral Examples
+## ADDED
 
-**Scenario: Archival compounds knowledge into the spec**
+### REQUIREMENT REQ-change-089
 
-- **Given** a change is finalized
-- **When** `finalize_change` archives it
-- **Then** the archive contains `lesson-bundle.md` naming the change, its specs, its paths, and the material to fold
-- **And** an unwritable bundle leaves the archive intact and the finalize successful
+A semantic delta body SHALL be bound to the definition approval that signed it, and an approval that recorded no such binding SHALL read as unknown rather than as a violation.
 
-**Scenario: Verified feature delivery**
-
-- **Given** an approved feature with `REQ-auth-001`, completed artifacts, and configured targeted tests
-- **When** implementation verifies, receives its scoped PR review, and runs `change finalize`
-- **Then** canonical requirements/specs update and the package moves to the dated archive in the same PR, ready for GitHub merge
-
-**Scenario: Approved intent changes**
-
-- **Given** a valid definition approval
-- **When** a selected design, requirement, or delta is edited
-- **Then** progress is blocked until the new digest is approved
-
-**Scenario: Feature branch rebases onto upstream**
-
-- **Given** a change workspace created before new commits landed on the remote default branch
-- **When** the feature branch rebases and unified checking computes meaningful changed paths
-- **Then** upstream-only paths are excluded and only the feature branch diff requires change coverage
-
-**Scenario: Review fixes stale accepted evidence**
-
-- **Given** an accepted change whose governed delivery inputs changed after closing approval
-- **When** a human reopens it with an actor and reason
-- **Then** the prior verification and closing approval remain in audit history, strict checking stays red until fresh verification, and reacceptance records a new closing approval without reapplying canonical deltas
-
-**Scenario: Persisted verification evidence**
-
-- **Given** a supported verification run passed on the current commit
-- **When** one or more descendant commits persist only its canonical state, verification, and attempt-ledger files
-- **Then** local status, local strict checking, and hosted checking all keep the evidence current while matching contract and project-input digests remain mandatory
-
-**Scenario: Inert registry stub falls back to conventional paths**
-
-- **Given** a project with an inert 5.0.1-era `.specsync/registry.toml` stub and a conventional `specs/auth/auth.spec.md`
-- **When** semantic preparation resolves module `auth`
-- **Then** resolution succeeds via the conventional path without requiring a registry name
-
-**Scenario: Overlapping Git candidate batches repeat an index entry**
-
-- **Given** a delivery scope containing a tracked parent directory and enough exact tracked children to cross the pathspec batch boundary
-- **When** Git returns one child through both the parent pathspec and its later exact pathspec
-- **Then** identical mode/object pairs are represented once, while either a mode or object mismatch fails closed
-
-**Scenario: Correction history changes while a mutation waits**
-
-- **Given** an existing-change mutation blocked on the lifecycle project lock
-- **When** the correction ledger becomes invalid before that mutation acquires the lock
-- **Then** the mutation reloads and validates the ledger under lock, fails safely, and persists no lifecycle update
-
-## Error Cases
-
-| Condition | Behavior |
-|-----------|----------|
-| Missing acceptance criteria or affected scope | Definition approval fails |
-| Missing or invalid semantic delta | Approval, verification, and unified check fail |
-| Populated semantic delta with no recognized operation heading | Approval and historical validation name the allowed `## Added`, `## Modified`, and `## Removed` headings instead of reporting the file empty |
-| Verification command contains shell operators | Command is rejected without execution |
-| HEAD changes after verification | Acceptance requires re-verification |
-| Any intervening commit changes a disallowed path, even if later reverted | Status and strict checking require re-verification in every environment |
-| Accepted delivery evidence is still current AND its verification commit is still anchored | Reopen is rejected without changing lifecycle or audit state |
-| Accepted verification commit is unreachable and no reachable history records the acceptance | Reopen is admitted and records `VerificationCommitUnanchored`, even when delivery inputs are byte-identical |
-| Reopen actor or reason is empty | Reopen is rejected before any mutation |
-| Concurrent changes edit the same semantic key | Progress requires dependency ordering or rebase |
-| Ownership correction is not exact, additive, in-scope, and canonically provable | Correction is rejected transactionally |
-| Covered delivery input of an accepted change changes with no covering accepted successor | Unified check names the input path, its owner, and the `change reopen` remediation |
-| Covered delivery input changes while every covering successor is itself stale | Unified check names the input, the sorted covering successor IDs, and their stale evidence state |
-| Covered delivery input disappears from the current inventory | Unified check names the missing path and the restore-or-reopen remediation |
-| Non-inert local registry cannot be parsed while resolving a module | Canonical path resolution fails closed with `failed to parse local registry {path} while resolving `{module}`` |
-| A repeated stage-zero path has a different mode or object ID | Git candidate inspection fails closed without replacing the first observation |
-| Correction ledger is invalid when a definition mutation acquires the project lock | Mutation emits the safe integrity diagnostic and persists no lifecycle update |
-
-## Dependencies
-
-### Consumes
-
-| Module | What is used |
-|--------|-------------|
-| hash_cache | Project SHA-256 dependency for content identity |
-
-### Consumed By
-
-| Module | What is used |
-|--------|-------------|
-| cmd_change | Complete lifecycle command surface |
-| cmd_check | Unified SDD gate before canonical validation |
-| cmd_init | New-project policy and version initialization |
-
-## Change Log
-
-| 2026-07-30 | Add `audit_project`; scope CLI `change check` to one change; archives are history |
-
-| Date | Change |
-|------|--------|
-| 2026-08-01 | Approve rejects ADDED existing living REQs; draft next_action prefers complete artifacts over approve when stubs remain. |
-| 2026-07-10 | v4: normalize imported, evidence, and digest paths across Windows and Unix |
-| 2026-07-10 | v3: make approval digests and detected verification commands portable across CI checkouts |
-| 2026-07-10 | v2: compare meaningful path coverage with the current remote base after rebases |
-| 2026-07-10 | Initial 5.0 verified SDD lifecycle |
-| 2026-07-11 | CHG-0002-harden-specsync-5-0-lifecycle-safety-and-release-validation: Harden SpecSync 5.0 lifecycle safety and release validation |
-| 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
-| 2026-07-11 | CHG-0004-close-final-pr-review-gaps-in-5-0-lifecycle-enforcement: Close final PR review gaps in 5.0 lifecycle enforcement |
-| 2026-07-11 | CHG-0005-close-final-fail-closed-review-gaps-in-5-0-lifecycle-evidence-and-pr-reporting: Close final fail-closed review gaps in 5.0 lifecycle evidence and PR reporting |
-| 2026-07-11 | CHG-0006-close-final-specsync-5-0-evidence-monorepo-bootstrap-reporting-and-import-re: Close final SpecSync 5.0 evidence, monorepo, bootstrap, reporting, and import review gaps |
-| 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |
-| 2026-07-11 | CHG-0009-make-accepted-evidence-squash-safe-and-harden-the-5-0-release-path: Make accepted evidence squash-safe and harden the 5.0 release path |
-| 2026-07-13 | Add audited reopen and re-verification for stale accepted delivery evidence |
-| 2026-07-13 | CHG-0015-add-audited-stale-accepted-change-reopening: Add audited stale accepted change reopening |
-| 2026-07-13 | Preserve legacy and transitional definition evidence when canonical application state is false |
-| 2026-07-13 | CHG-0016-reject-modified-definitions-when-reaccepting-an-already-applied-change: Reject modified definitions when reaccepting an already-applied change |
-| 2026-07-13 | Normalize compatible transitional definition evidence during explicit acceptance for older contract checkers |
-| 2026-07-13 | CHG-0017-allow-audited-reopen-after-squash-and-canonical-successors: Allow audited reopen after squash and canonical successors |
-| 2026-07-13 | CHG-0018-allow-section-only-semantic-deltas-to-satisfy-verification-evidence: Allow section-only semantic deltas to satisfy verification evidence |
-| 2026-07-13 | CHG-0020-harden-reopened-acceptance-compatibility-and-canonical-governance: Harden reopened acceptance compatibility and canonical governance |
-| 2026-07-13 | CHG-0021-close-reopened-lifecycle-review-gaps: Close reopened lifecycle review gaps |
-| 2026-07-13 | CHG-0022-preserve-canonical-change-log-table-schemas-when-accepting-semantic-deltas: Preserve canonical Change Log table schemas when accepting semantic deltas |
-| 2026-07-13 | CHG-0023-allow-squash-accepted-evidence-on-descendant-branches: Allow squash-accepted evidence on descendant branches |
-| 2026-07-14 | CHG-0024-stabilize-specsync-5-lifecycle-integrity-and-strict-validation-for-5-0-2: Stabilize SpecSync 5 lifecycle integrity and strict validation for 5.0.2 |
-| 2026-07-14 | CHG-0025-address-all-unresolved-review-feedback-on-pr-366: Address all unresolved review feedback on PR 366 |
-| 2026-07-14 | CHG-0026-keep-lifecycle-recursion-detection-private-while-preserving-deterministic-nested: Keep lifecycle recursion detection private while preserving deterministic nested-command failures |
-| 2026-07-14 | CHG-0027-preserve-accepted-evidence-across-valid-later-sequence-claims: Preserve accepted evidence across valid later sequence claims |
-| 2026-07-14 | CHG-0029-address-all-remaining-review-feedback-from-pr-366: Address all remaining review feedback from PR 366 |
-| 2026-07-14 | CHG-0032-address-all-actionable-review-findings-on-pr-370-with-regression-coverage: Address all actionable review findings on PR 370 with regression coverage |
-| 2026-07-14 | CHG-0033-close-final-5-0-2-lifecycle-review-and-intent-preservation-gaps: Close final 5.0.2 lifecycle review and intent-preservation gaps |
-| 2026-07-15 | CHG-0040-support-audited-append-only-correction-of-accepted-interview-metadata-without-re: Support audited append-only correction of accepted interview metadata without replaying canonical deltas |
-| 2026-07-15 | Harden CHG-0040 trusted-history reference resolution and NUL-delimited Git path parsing during PR review |
-| 2026-07-15 | Keep the CHG-0040 Unicode-path regression valid on Windows without dropping quoted-path coverage on Unix |
-| 2026-07-15 | CHG-0043-make-accepted-change-validity-successor-aware-with-exact-per-input-evidence-rec: Make accepted-change validity successor-aware with exact per-input evidence, recursive cycle-safe validation, fail-closed legacy compatibility, and safe archived successors |
-| 2026-07-15 | CHG-0047-permit-audited-deterministic-ownership-corrections-for-reopened-already-applied: Permit audited deterministic ownership corrections for reopened already-applied changes |
-| 2026-07-16 | CHG-0044-harden-canonical-numeric-change-ordering-across-chg-9999-to-chg-10000-and-correc: Harden canonical numeric change ordering across CHG-9999 to CHG-10000 and correct 5.1 release documentation |
-| 2026-07-16 | CHG-0045-unify-local-and-ci-verification-freshness-so-descendant-evidence-only-commits-re: Unify local and CI verification freshness so descendant evidence-only commits remain current while source, test, configuration, contract, or nonancestor changes fail closed |
-| 2026-07-17 | CHG-0049-make-stale-accepted-change-verification-diagnostics-actionable-with-named-delive: Make stale accepted-change verification diagnostics actionable with named delivery inputs and remediation |
-| 2026-07-17 | CHG-0051-govern-the-deterministic-reconciliation-of-concurrent-accepted-chg-0048-sequence: Govern the deterministic reconciliation of concurrent accepted CHG-0048 sequence claims while preserving both immutable histories and the 5.1.1 release gate |
-| 2026-07-17 | CHG-0052-allow-a-fully-valid-later-sequence-owner-to-preserve-historical-exact-ledger-evi: Allow a fully valid later sequence owner to preserve historical exact ledger evidence after an accepted collision reconciliation |
-| 2026-07-17 | CHG-0053-permit-audited-reopened-collision-members-to-retain-immutable-sequence-history-s: Permit audited reopened collision members to retain immutable sequence-history status during re-verification |
-| 2026-07-18 | CHG-0054-trust-accepted-change-evidence-that-is-recorded-in-main-history-by-squash-merged: Trust accepted-change evidence that is recorded in main history by squash-merged commits so accepted and archived changes whose verification and closing approval bytes match an in-history accepted record can be archived even when the original acceptance-transition commit was discarded by a squash merge |
-| 2026-07-19 | CHG-0056-repair-archived-legacy-change-ledgers-whose-acceptance-inputs-include-production: Repair archived legacy change ledgers whose acceptance inputs include production source with no canonical owner by resolving unowned production source to the exact delivery owner during legacy acceptance-manifest reconstruction, so adoption-era archived records validate under current rules without per-repo remediation |
-| 2026-07-19 | CHG-0055-batch-mode-for-change-correct-owner-so-multiple-omitted-exact-canonical-owners-c: Batch mode for change correct-owner so multiple omitted exact canonical owners can be audited and appended in one transactional correction before a single reapprove-verify-accept cycle |
-| 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
-| 2026-07-19 | CHG-0059-tolerate-inert-5-0-1-registry-toml-stubs-so-module-resolution-falls-back-to-defa: Tolerate inert 5.0.1 registry.toml stubs so module resolution falls back to default specs layout without failing closed on empty legacy stubs |
-| 2026-07-27 | CHG-0067-fix-issue-467-by-deduplicating-identical-stage-zero-entries-from-overlapping-gi: Fix issue #467 by deduplicating identical stage-zero entries from overlapping Git pathspec batches while rejecting conflicting mode or object observations |
-| 2026-07-29 | CHG-0068: Bind one human approval to stable scope while automated evidence tracks implementation and materialization changes |
-| 2026-07-30 | CHG-0068-stabilize-specsync-6-0-with-a-low-churn-normal-workflow-preserved-audited-guara: Stabilize SpecSync 6.0 with one scope approval, same-PR finalization, lightweight archive CI, scoped review, and selected UX fixes |
-| 2026-07-30 | CHG-0068: Freeze the truthful legacy scope adoption, enforce independent pass/block review evidence, commit-by-commit freshness, symmetric scope changes, and retryable post-move finalization |
-| 2026-07-30 | CHG-0068: Fail closed on missing adoption anchors, bind append-only review attempts to authenticated hosted checks, recover partial archive transactions, share freshness bounds, and authenticate squash-surviving v2 archives |
-| 2026-07-30 | CHG-0068: Bind legacy workflow eligibility to an immutable pre-v2 project cutoff so first-reachable records cannot downgrade by omitting both version fields |
-| 2026-07-30 | CHG-0068 review hardening: Make the pre-v2 cutoff squash-stable and preserve explicitly anchored workflow-v1 records |
-| 2026-07-30 | CHG-0068 sandbox hardening: Suppress raw Git diagnostics from expected missing-history status probes |
-| 2026-07-30 | CHG-0068 sandbox hardening: Preserve exact committed collision-owner sequence ledgers when later workflow-v2 claims advance the current ledger |
-| 2026-07-30 | CHG-0068 adversarial hardening: Follow immutable workflow-origin history across cross-date rearchives |
-| 2026-07-30 | CHG-0068 review hardening: Reject workflow-v2 baseline rewrite-then-restore history |
-| 2026-07-30 | CHG-0068 review hardening: Preserve exact review-only children while enforcing every-parent verification freshness and persisted reviewer independence at native review/finalization mutations |
-| 2026-07-30 | CHG-0068 sandbox hardening: Atomically and path-safely activate workflow v2 without rewriting or stranding existing workflow-v1 evidence, and fail closed on every-parent baseline deletion |
-| 2026-07-31 | CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle: Scoped change check, change audit, and agent pack for the two-verb lifecycle |
-| 2026-08-01 | CHG-0072-heal-reopen-closing-approval-recovery-for-stale-accepted-evidence: Heal reopen closing-approval recovery for stale accepted evidence |
-| 2026-08-01 | CHG-0073-approve-rejects-living-added-reqs-and-draft-next-action-waits-on-complete-artifa: Approve rejects living ADDED REQs and draft next_action waits on complete artifacts |
-| 2026-08-03 | CHG-0080-fail-lifecycle-verification-before-running-the-suite-when-evidence-is-incomplete: Fail lifecycle verification before running the suite when evidence is incomplete, make already-applied ADDED deltas converge, and reject duplicate change ordinals from one base |
-| 2026-08-04 | CHG-0081-make-a-fresh-project-usable-out-of-the-box-stop-a-leftover-directory-from-block: Make a fresh project usable out of the box, stop a leftover directory from blocking change new, and extract a lock-free verification body |
-| 2026-08-05 | CHG-0083-let-finalize-work-in-a-repository-that-has-archived-a-change: Let finalize work in a repository that has archived a change |
-| 2026-08-05 | CHG-0084-give-the-change-module-canonical-ownership-of-its-cli-wiring: Give the change module canonical ownership of its CLI wiring |
-| 2026-08-05 | CHG-0085-resolve-canonical-ownership-at-approve-and-free-never-closed-changes: Resolve canonical ownership at approve and free never-closed changes |
-| 2026-08-05 | CHG-0086-return-src-commands-change-rs-to-its-sole-canonical-owner: Return src/commands/change.rs to its sole canonical owner |
-| 2026-08-07 | CHG-0090-harden-approve-ownership-skips-and-correct-owner-provenance-comments: Harden approve ownership skips and correct-owner provenance comments |
-| 2026-08-07 | CHG-0094-count-same-pr-archived-changes-toward-path-coverage-after-finalize: Count same-PR archived packages toward path coverage after finalize |
-| 2026-08-07 | CHG-0095-reject-hash-todo-artifact-headings-at-approve: Reject hash TODO artifact headings at approve |
-| 2026-08-07 | CHG-0096-floor-change-sequences-from-remote-ledger-and-document-multi-clone-base: Floor change sequences from remote ledger and document multi-clone BASE |
-| 2026-08-07 | CHG-0094-count-same-pr-archived-changes-toward-path-coverage-after-finalize: Count same-PR archived changes toward path coverage after finalize |
-| 2026-08-07 | CHG-0095-reject-hash-todo-artifact-headings-at-approve: Reject hash TODO artifact headings at approve |
-| 2026-08-07 | CHG-0096-floor-change-sequences-from-remote-ledger-and-document-multi-clone-base: Floor change sequences from remote ledger and document multi-clone BASE |
-| 2026-08-07 | CHG-0096-floor-change-sequences-from-remote-ledger-and-document-multi-clone-base: Floor change sequences from remote ledger and document multi-clone BASE |
-| 2026-08-08 | CHG-0100-fail-closed-in-text-lifecycle-views-when-a-correction-ledger-is-invalid: Fail closed in text lifecycle views when a correction ledger is invalid |
-| 2026-08-10 | CHG-0103: Validate correction-ledger health inside locked existing-change definition mutations |
-| 2026-08-10 | CHG-0103: Keep documented mutation wrappers in production and capture normal/strict machine summaries inside the locked transaction |
-| 2026-08-12 | CHG-0104-sever-specsync-check-and-comment-from-the-trust-layer-lifecycle-state-becomes-i: Sever specsync check and comment from the trust layer: lifecycle state becomes informational and never affects exit status |
-| 2026-08-12 | CHG-0106-make-verification-currency-a-content-question-delete-the-git-ancestry-walk-the: Make verification currency a content question: delete the git-ancestry walk, the REQ-change-016 persistence allowlist, and the verification-commit ancestry binding |
-| 2026-08-13 | CHG-0107-fix-the-first-five-minutes-of-spec-sync-init-leaves-a-repo-that-fails-check-sc: Fix the first five minutes of spec-sync: init leaves a repo that fails check, scaffold writes prose that check rejects, and a directory in files: makes check silently green |
-| 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
-| 2026-08-13 | CHG-0114-a-semantic-delta-section-body-may-contain-subheadings-so-scaffolded-specs-can-be: A semantic delta section body may contain subheadings so scaffolded specs can be changed |
-| 2026-08-16 | CHG-0133-extract-the-change-module-s-tests-into-their-own-file-so-the-file-that-manufactu: Extract the change module's tests into their own file so the file that manufactures the sibling-site defect can be read, without altering a single test |
-| 2026-08-16 | CHG-0134-a-refused-reopen-must-restore-the-archive-it-un-archived-because-the-un-archive: A refused reopen must restore the archive it un-archived, because the un-archive move happens before the preconditions are checked and a correct refusal was destroying the package |
-| 2026-08-17 | CHG-0136-an-unreadable-change-workspace-must-be-reported-not-counted-as-absent: An unreadable change workspace must be reported, not counted as absent |
-| 2026-08-17 | CHG-0139-declaring-a-module-must-never-reduce-the-verification-a-change-receives: Declaring a module must never reduce the verification a change receives |
-| 2026-08-17 | CHG-0140-a-stale-sequence-ledger-must-not-be-committed-backwards: A stale sequence ledger must not be committed backwards |
-| 2026-08-18 | CHG-0143-the-sequence-ledger-gate-must-judge-a-branch-by-its-own-history-not-by-origin: The sequence ledger gate must judge a branch by its own history, not by origin |
-| 2026-08-18 | CHG-0148-a-reopened-change-must-be-closeable-again: A reopened change must be closeable again |
-| 2026-08-18 | CHG-0149-an-archived-change-package-must-not-leave-an-untrackable-husk: An archived change package must not leave an untrackable husk |
-| 2026-08-18 | CHG-0152-a-populated-semantic-delta-must-not-report-as-empty: A populated semantic delta must not report as empty |
-| 2026-08-19 | CHG-0153-ship-status-must-name-the-action-the-lifecycle-state-requires-and-resolve-an-ar: Ship-status must name the action the lifecycle state requires, and resolve an archived change's evidence |
-| 2026-08-19 | CHG-0154-one-git-config-read-instead-of-four-for-effective-checkout-overrides: One git config read instead of four for effective checkout overrides |
-| 2026-08-19 | CHG-0155-the-batched-config-read-must-not-overflow-the-bound-sized-for-a-single-key: The batched config read must not overflow the bound sized for a single key |
-| 2026-08-19 | CHG-0156-the-reopen-then-close-guard-must-be-pinned-by-tests-not-only-by-a-drill: The reopen-then-close guard must be pinned by tests, not only by a drill |
-| 2026-08-19 | CHG-0157-a-newer-six-must-be-readable-by-an-older-six: A newer six must be readable by an older six |
-| 2026-08-19 | CHG-0158-the-forward-compatibility-valve-must-be-true-everywhere-it-is-claimed: The forward-compatibility valve must be true everywhere it is claimed |
-| 2026-08-19 | CHG-0159-identity-must-come-from-state-json-never-from-the-shape-of-a-name: Identity must come from state.json, never from the shape of a name |
-| 2026-08-20 | CHG-0160-succession-must-be-ordered-by-when-a-change-happened-not-by-how-it-is-named: Succession must be ordered by when a change happened, not by how it is named |
-| 2026-08-20 | CHG-0161-a-slug-must-be-a-legal-directory-name-on-every-platform-we-ship: A slug must be a legal directory name on every platform we ship |
-| 2026-08-20 | CHG-0162-a-change-identity-must-be-validated-for-what-it-is-not-for-how-it-starts: A change identity must be validated for what it is, not for how it starts |
-| 2026-08-20 | CHG-0163-a-trust-anchor-must-be-where-evidence-entered-history-not-any-commit-that-re-introduces-it: A trust anchor must be where evidence entered history, not any commit that re-introduces it |
-| 2026-08-20 | retire-the-ordinal-and-keep-the-ledger-readable-forever: Retire the ordinal and keep the ledger readable forever |
-| 2026-08-21 | a-reopen-must-extend-the-committed-ledger-not-merely-count-itself: A reopen must extend the committed ledger, not merely count itself |
-| 2026-08-22 | an-orphaned-verification-commit-must-be-reopenable: An orphaned verification commit must be reopenable |
-| 2026-08-23 | ship-readiness-is-a-content-question-not-a-history-one: Ship readiness is a content question, not a history one |
-| 2026-08-24 | close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails: Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize |
-| 2026-08-24 | frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder: Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder |
-| 2026-08-24 | bind-semantic-delta-bodies-to-the-approval-that-signed-them: Bind semantic delta bodies to the approval that signed them |
+Acceptance Criteria
+- Approval records a digest over the exact bytes of every semantic delta file the change owns, keyed by module, so the wording that rewrites a canonical spec is part of what a human signed.
+- Materialization and acceptance verify that binding before any delta is applied, and refuse by naming every module whose body changed after approval together with the remedy.
+- The refusal is evaluated before the already-materialized short-circuit, so a body that drifts after the first application is still caught while it remains this change's evidence.
+- An approval carrying no delta binding proceeds unchanged, because every change approved before the binding existed made no claim about wording and absent evidence is not a violation.
+- The binding is omitted from persisted JSON when it is absent, so no existing approval digest moves and ledgers written by earlier binaries stay readable and byte-identical.

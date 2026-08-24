@@ -1162,3 +1162,14 @@ Acceptance Criteria
 - A policy file written before a field existed still loads, so adding a field within a major version does not make every policy written before it unreadable by the SpecSync that added it.
 - An absent enablement flag reads as enabled and an absent change requirement reads as required, so a truncated or partial policy cannot silently disable enforcement.
 
+### REQ-change-089
+
+A semantic delta body SHALL be bound to the definition approval that signed it, and an approval that recorded no such binding SHALL read as unknown rather than as a violation.
+
+Acceptance Criteria
+- Approval records a digest over the exact bytes of every semantic delta file the change owns, keyed by module, so the wording that rewrites a canonical spec is part of what a human signed.
+- Materialization and acceptance verify that binding before any delta is applied, and refuse by naming every module whose body changed after approval together with the remedy.
+- The refusal is evaluated before the already-materialized short-circuit, so a body that drifts after the first application is still caught while it remains this change's evidence.
+- An approval carrying no delta binding proceeds unchanged, because every change approved before the binding existed made no claim about wording and absent evidence is not a violation.
+- The binding is omitted from persisted JSON when it is absent, so no existing approval digest moves and ledgers written by earlier binaries stay readable and byte-identical.
+

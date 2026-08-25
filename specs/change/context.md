@@ -148,8 +148,13 @@ agent, and the agent that just ran `finalize` is already present.
 Frontmatter ends at its CLOSING delimiter, never at the next `---` in the document. `---` is a
 legal Markdown horizontal rule, so `split("---").nth(2)` truncates any body containing one, and
 truncated material is indistinguishable from material nobody wrote. Two call sites inside one
-feature drifted apart on exactly this; the repository still has five frontmatter parsers that
-disagree, and only `parser.rs` handles CRLF (#696).
+feature drifted apart on exactly this.
+
+This module now defines no frontmatter reader at all: lesson counting, archived bundles, and
+artifact completeness read through `parser::strip_frontmatter`, the one canonical implementation
+(#696). Do not add a local stripper back. Both of the ones deleted here failed silently and in
+opposite directions — one left frontmatter in the text it counted, the other deleted body content
+above a horizontal rule — and neither raised an error in either direction.
 
 Delta file BODIES are hashed by nothing: `validate_delta_files` checks filenames only,
 `project_input_digest` excludes `.specsync/changes/`, and `definition_digest` hashes record
@@ -157,15 +162,21 @@ fields. Editing `deltas/<module>.md` after review — the file that rewrites the
 acceptance — is caught only by the descendant walk, which passes 0 of 106 archived reviews
 because archiving relocates the workspace out from under its own allowlist (#694).
 
-Frontmatter handling in this module diverges from the repository's usual convention. Elsewhere the
-pattern is normalize-then-parse: `parser.rs` is LF-only (`^---\n`) and roughly 28 call sites run
-`.replace("\r\n", "\n")` before reaching it. `strip_frontmatter` here accepts both encodings
-directly, to keep its borrowed `&str` return — normalizing would force an allocation and a
-signature change. That is a deliberate divergence, not an oversight, and it means this module owns
-a parser with its own dialect until #696 decides which convention wins repo-wide.
+There was never a repository-wide "normalize then parse" convention to diverge from. An earlier
+version of this note said there was, counted from 29 occurrences of `.replace("\r\n", "\n")` in
+`src/`. Measured against the right denominator: of the 39 `parse_frontmatter` call sites outside
+`parser.rs`, 21 normalized and 18 did not. A count of a pattern is not evidence of a convention,
+and asserting one from a grep is the specific mistake #696 was corrected for twice.
 
-It also means this stripper is no longer interchangeable with `view::strip_frontmatter`, which is
-LF-only and rejects a closer at EOF. Any claim that unifying them is a no-op is now false.
+Believing it cost a shipped Windows bug: `view.rs` read a spec raw and handed it to an LF-only
+regex, so a clone with `core.autocrlf=true` failed with "Cannot parse frontmatter" on every spec.
+`parse_frontmatter` now normalizes internally, which fixed all 18 sites without touching one of
+them; an obligation on 18 callers would have been unenforceable and silent when broken.
+
+Markdown under `.specsync/` is pinned to `eol=lf` in `.gitattributes` (#709). The pin covers this
+repository's working trees only — an adopter's repository, a tarball, or an archive extracted
+without Git is not covered — so readers of lifecycle evidence must still tolerate CRLF rather than
+assume the pin is in force.
 
 A partial fix disguises its own symptom. #564 taught `parse_delta` that a `###` inside an open
 item is content rather than a malformed item heading — and left the `flush` call above that

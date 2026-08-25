@@ -7606,6 +7606,49 @@ fn artifact_content_rejects_hash_todo_headings_and_html_todos() {
     ));
 }
 
+// `artifact_content_is_incomplete` used its own stripper, `strip_yaml_frontmatter`, which was a
+// CONTENT DELETER: it searched the WHOLE document for `\n---\n` before trying `\r\n---\r\n`, so a
+// CRLF artifact carrying one LF horizontal rule lost everything above that rule. What survived
+// here is a bare `TODO`, so a fully written design was refused as "artifact is incomplete" and
+// the author had no way to see why. Deleted in favour of `parser::strip_frontmatter` (#696).
+//
+// Discriminates: under `strip_yaml_frontmatter` this asserts `false` on a `true`.
+#[test]
+fn a_crlf_artifact_with_an_lf_body_rule_is_complete_when_its_prose_is_written() {
+    let content = "---\r\nchange: CHG-1\r\nartifact: design\r\n---\r\n\r\n\
+# Design\r\n\r\nThe retry budget is per-host, not per-request.\r\n\n---\n\r\nTODO\r\n";
+
+    assert!(
+        !artifact_content_is_incomplete(content),
+        "written prose above a body horizontal rule must not be deleted by the stripper"
+    );
+}
+
+// The same replacement closes the opposite failure: `strip_yaml_frontmatter` only ever matched a
+// closing delimiter followed by a newline, so frontmatter closed at EOF was not stripped at all
+// and its own `---` / `change:` lines read as body prose. An artifact with NO content passed the
+// completeness gate.
+//
+// Discriminates: under `strip_yaml_frontmatter` this asserts `true` on a `false`.
+#[test]
+fn an_artifact_that_is_only_frontmatter_closed_at_eof_is_incomplete() {
+    assert!(artifact_content_is_incomplete(
+        "---\nchange: CHG-1\nartifact: design\n---"
+    ));
+}
+
+// Honest label: this is the CONTROL for the two above. The LF shapes the old stripper handled
+// correctly must keep their verdicts — this is a swap of implementations, not of policy.
+#[test]
+fn artifact_completeness_verdicts_are_unchanged_for_lf_artifacts() {
+    assert!(artifact_content_is_incomplete(
+        "---\nchange: CHG-1\nartifact: design\n---\n\nTODO\n"
+    ));
+    assert!(!artifact_content_is_incomplete(
+        "---\nchange: CHG-1\nartifact: design\n---\n\nReal prose.\n\n---\n\nMore prose.\n"
+    ));
+}
+
 #[test]
 fn validate_artifacts_rejects_hash_todo_body() {
     let temp = TempDir::new().unwrap();

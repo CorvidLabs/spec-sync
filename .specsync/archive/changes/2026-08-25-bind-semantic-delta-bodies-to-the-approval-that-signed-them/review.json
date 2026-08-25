@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "bind-semantic-delta-bodies-to-the-approval-that-signed-them",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6479b5c18a72e2fbe3433cea71d5c9f17d1cdebb",
+  "contract_digest": "b0d352c61b817d174a4d2c63d004abe8e80b8480b82a2920872d4fea830e1439",
+  "execution_digest": "c0198ab7c813ca7c185d7d0ccf3222cacece5d5e040f196ee8b18d81004723ef",
+  "workspace_digest": "ce4c5ce0fbae15543cd36dcf187bfa0970d95744a253ea151dfebc29966628ff",
+  "timestamp": 1787663178
+}

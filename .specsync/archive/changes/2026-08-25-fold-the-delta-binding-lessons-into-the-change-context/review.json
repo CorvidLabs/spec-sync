@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "fold-the-delta-binding-lessons-into-the-change-context",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6479b5c18a72e2fbe3433cea71d5c9f17d1cdebb",
+  "contract_digest": "271a5b782644b7c89246429753bc9e04166284ec6f7234351cd9a99abf1d19ec",
+  "execution_digest": "20521cfa79ad4249f47feeec352c2d0b9fd45ae2b108086f41acf61223d895b1",
+  "workspace_digest": "6dc1a7fe1c14afae4a46fa1b71062f815ed48ab3eaff7ef16f7d0049f8801d90",
+  "timestamp": 1787664051
+}

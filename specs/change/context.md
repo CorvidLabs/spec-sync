@@ -151,11 +151,24 @@ truncated material is indistinguishable from material nobody wrote. Two call sit
 feature drifted apart on exactly this; the repository still has five frontmatter parsers that
 disagree, and only `parser.rs` handles CRLF (#696).
 
-Delta file BODIES are hashed by nothing: `validate_delta_files` checks filenames only,
-`project_input_digest` excludes `.specsync/changes/`, and `definition_digest` hashes record
-fields. Editing `deltas/<module>.md` after review — the file that rewrites the living spec at
-acceptance — is caught only by the descendant walk, which passes 0 of 106 archived reviews
-because archiving relocates the workspace out from under its own allowlist (#694).
+Delta file BODIES are now bound to the approval that signed them (#704). Under workflow v1 the
+definition digest hashed every delta payload through `definition_artifact_snapshot`; the v2 stable
+scope projection deliberately hashes intent and boundary only, and nothing replaced that binding —
+`validate_delta_files` checks filenames, `project_input_digest` excludes `.specsync/changes/`, and
+the descendant walk that would notice passes 0 of 107 archived reviews (#694). `approve` therefore
+records `approved_delta_digests` on the definition approval event: one digest per module over the
+delta file's exact bytes, with the module framed in so a body cannot move between files and keep
+its digest. Materialization and acceptance verify it before `prepare_delta_application` runs, and
+the materialization check sits ABOVE the `canonical_applied` short-circuit so a body that drifts
+after the first application is still caught while it remains that change's evidence.
+
+An ABSENT binding is unknown, never violated. Every approval written before the field existed —
+183 archived changes — carries none, and the check returns early on `None` rather than inventing a
+verdict from evidence nobody could have written. `Option` plus `skip_serializing_if` keeps the
+field out of persisted JSON when absent, so no existing digest moves and older ledgers re-serialize
+byte-identically; `ApprovalRecord` is a tolerant evidence struct, not a digest preimage, which is
+what makes the addition safe. Only definition gates record: closing and finalization gates review
+delivery evidence, and recording a wording claim on them would be a lie in the ledger.
 
 Frontmatter handling in this module diverges from the repository's usual convention. Elsewhere the
 pattern is normalize-then-parse: `parser.rs` is LF-only (`^---\n`) and roughly 28 call sites run
@@ -181,3 +194,18 @@ approval carrying no digest is UNKNOWN, not violated — every archived change p
 The guard and the flush ordering above are coupled: two archived deltas contain duplicate
 `MODIFIED` keys that exist only because the old ordering split one section, so shipping the
 duplicate-key refusal without the reordering would make those changes un-materializable.
+
+A digest proves the bytes did not change after signing; it cannot prove the signature covered the
+right bytes. Both failures happened on one change. `approved_delta_digests` caught its own delta
+being edited during a rebase conflict — the accidental case, not an attack — and refused to
+materialize until it was re-approved. What the guard could not see was that the re-approval was
+granted over a TRUNCATED delta: regenerating one section with a script that preserved "everything
+from the next `### SPEC SECTION` onward" dropped the trailing `## ADDED` block, because there was
+no next section and an absent tail read as an empty one. The sealed record stopped naming the
+requirement the change adds, and `collect_requirement_ids` returned `[]`, so the requirement
+evidence gate went vacuous on the very change that added the binding.
+
+Two consequences worth carrying. Currency and completeness are different questions and need
+different mechanisms: content digests answer the first, an independent reader answers the second.
+And when testing for a block heading, compare whole LINES — `"## ADDED" in text` matched the
+string inside an invariant's prose and reported the block as already restored.

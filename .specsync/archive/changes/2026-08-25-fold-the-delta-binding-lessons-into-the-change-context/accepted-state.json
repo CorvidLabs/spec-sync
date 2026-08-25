@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "fold-the-delta-binding-lessons-into-the-change-context",
+  "slug": "fold-the-delta-binding-lessons-into-the-change-context",
+  "title": "Fold the delta-binding lessons into the change context",
+  "description": "Fold the delta-binding lessons into the change context",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "6479b5c18a72e2fbe3433cea71d5c9f17d1cdebb",
+  "created_at": 1787663482,
+  "updated_at": 1787664067,
+  "affected_specs": [],
+  "affected_paths": [
+    "specs/change/context.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "fold-back of an archived lesson bundle; no spec text or behaviour changes",
+  "acceptance_criteria": [
+    "the change context records that currency and completeness need different mechanisms",
+    "it records the line-anchored comparison lesson",
+    "no canonical spec text or behaviour changes"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

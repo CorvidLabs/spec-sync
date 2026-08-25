@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "bind-semantic-delta-bodies-to-the-approval-that-signed-them",
+  "implementation_commit": "6479b5c18a72e2fbe3433cea71d5c9f17d1cdebb",
+  "implementation_tree": "40b3d8fa916399e5443ddd37bcc9ca55633128f7",
+  "contract_digest": "b0d352c61b817d174a4d2c63d004abe8e80b8480b82a2920872d4fea830e1439",
+  "workspace_digest": "ce4c5ce0fbae15543cd36dcf187bfa0970d95744a253ea151dfebc29966628ff",
+  "closing_digest": "7f3c297dc68e4dd4b394041f53cdf527d12fee08eecdddc8a73f718b53ba6cdc",
+  "review_digest": "7637f351971d1993a92cb450cf7c3edda7fe929824601f8b5111e0d3451467b7",
+  "finalization_digest": "15a598b5d55b796943cca56b5ed005a922dae4b3c16003ddf50e5ec2469b3f9c",
+  "timestamp": 1787663202
+}

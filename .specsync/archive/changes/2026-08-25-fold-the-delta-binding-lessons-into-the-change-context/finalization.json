@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "fold-the-delta-binding-lessons-into-the-change-context",
+  "implementation_commit": "6479b5c18a72e2fbe3433cea71d5c9f17d1cdebb",
+  "implementation_tree": "40b3d8fa916399e5443ddd37bcc9ca55633128f7",
+  "contract_digest": "271a5b782644b7c89246429753bc9e04166284ec6f7234351cd9a99abf1d19ec",
+  "workspace_digest": "6dc1a7fe1c14afae4a46fa1b71062f815ed48ab3eaff7ef16f7d0049f8801d90",
+  "closing_digest": "59523a0e9f17f58967a700839f736b1ccfc2f5a91a8bc17c407f6fce139d15ae",
+  "review_digest": "7e2e777fc9c25d20a2f828bd9f0640e2cebcef1d0cca74604ce48aefae6e0fec",
+  "finalization_digest": "11ab6c11e3799519287340fb8356a6d224369caccd4eb11e4a777ed04ffbe3a9",
+  "timestamp": 1787664067
+}

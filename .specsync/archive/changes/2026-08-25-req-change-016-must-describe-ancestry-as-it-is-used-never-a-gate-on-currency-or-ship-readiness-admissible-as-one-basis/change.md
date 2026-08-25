@@ -1,6 +1,6 @@
 ---
 id: req-change-016-must-describe-ancestry-as-it-is-used-never-a-gate-on-currency-or-ship-readiness-admissible-as-one-basis
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e82542d19ce8d79926b144a0e38d4d620b120715
 ---

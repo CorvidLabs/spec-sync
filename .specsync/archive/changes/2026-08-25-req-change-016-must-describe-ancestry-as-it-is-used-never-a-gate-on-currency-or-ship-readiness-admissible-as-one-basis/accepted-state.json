@@ -7,11 +7,11 @@
   "title": "REQ-change-016 must describe ancestry as it is used: never a gate on currency or ship readiness, admissible as one basis for archival anchoring",
   "description": "REQ-change-016 must describe ancestry as it is used: never a gate on currency or ship readiness, admissible as one basis for archival anchoring",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "e82542d19ce8d79926b144a0e38d4d620b120715",
   "created_at": 1787664818,
-  "updated_at": 1787669104,
+  "updated_at": 1787701554,
   "affected_specs": [
     "change"
   ],

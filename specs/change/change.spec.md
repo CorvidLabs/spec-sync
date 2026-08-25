@@ -1,6 +1,6 @@
 ---
 module: change
-version: 103
+version: 104
 status: active
 files:
   - src/change.rs
@@ -432,3 +432,4 @@ Acceptance Criteria
 | 2026-08-24 | close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails: Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize |
 | 2026-08-24 | frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder: Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder |
 | 2026-08-24 | a-subheading-inside-a-delta-item-must-not-flush-the-item-content-headings-split-one-section-into-fragments-and-the-last: A subheading inside a delta item must not flush the item: content headings split one section into fragments and the last one wins |
+| 2026-08-25 | req-change-016-must-describe-ancestry-as-it-is-used-never-a-gate-on-currency-or-ship-readiness-admissible-as-one-basis: REQ-change-016 must describe ancestry as it is used: never a gate on currency or ship readiness, admissible as one basis for archival anchoring |

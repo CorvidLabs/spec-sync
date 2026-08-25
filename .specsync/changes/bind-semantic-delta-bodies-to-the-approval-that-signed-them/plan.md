@@ -15,7 +15,7 @@ artifact: plan
 5. Extend the CHG-0068 allowlist shape pin to the new field.
 6. Write the discriminator, the control and the compatibility test; prove the discriminator fails
    with the check disabled and that the other two pass with it disabled.
-7. Update the canonical spec: correct invariant 3, add invariant 36, add `REQ-change-089`, and
+7. Update the canonical spec: correct invariant 3, add invariant 38, add `REQ-change-089`, and
    correct the `ApprovalRecord` Public API description.
 8. `cargo fmt`, `cargo clippy -- -D warnings`, full `cargo test`, `change check`,
    `change audit --strict`.

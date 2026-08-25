@@ -20,6 +20,6 @@ The message names the module and the remedy, because both legitimate ways into t
 edited the delta on purpose, or something else did — are resolved by looking at that one file and
 either re-approving it or putting it back.
 
-The durable record of the behaviour is the canonical spec: invariant 3 (corrected), invariant 36
+The durable record of the behaviour is the canonical spec: invariant 3 (corrected), invariant 38
 (new) and `REQ-change-089`, plus the paragraph in `specs/change/context.md` that previously
 described this as an open hole.

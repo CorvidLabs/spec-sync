@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "release-qualification-must-gate-on-the-two-immutable-tag-rulesets-that-exist-and-name-the-app-only-final-tag-creation",
+  "slug": "release-qualification-must-gate-on-the-two-immutable-tag-rulesets-that-exist-and-name-the-app-only-final-tag-creation",
+  "title": "Release qualification must gate on the two immutable tag rulesets that exist and name the App-only final-tag creation policy it no longer enforces",
+  "description": "Release qualification must gate on the two immutable tag rulesets that exist and name the App-only final-tag creation policy it no longer enforces",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "e82542d19ce8d79926b144a0e38d4d620b120715",
+  "created_at": 1787664872,
+  "updated_at": 1787666465,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/release.yml",
+    ".github/scripts/validate-release-candidate.py",
+    ".github/scripts/test-validate-release-candidate.py",
+    "docs/ci-confidence.md",
+    "specs/github/requirements.md",
+    "specs/github/github.spec.md",
+    "specs/github/tasks.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The resolve job of .github/workflows/release.yml resolves and validates exactly two repository tag rulesets — 'SpecSync immutable RC tags' and 'SpecSync immutable final tags' — and no longer resolves 'SpecSync final tag creation', queries the release deployment environment, or reads vars.SPECSYNC_RELEASE_APP_ID. The validator's 'rulesets' command accepts only --final-immutability-ruleset-json and --rc-ruleset-json, rejects --release-app-id and --final-creation-ruleset-json, and emits a non-empty 'unenforced' array naming the App-only final-tag creation policy and the unverified protected release environment. Every release run prints those unenforced items as GitHub warning annotations so a green run cannot be read as proof that App-only final-tag creation is enforced. Both immutability rulesets stay strict: any bypass actor, broadened include/exclude pattern, extra or missing rule type, inactive enforcement, or non-Repository source is still rejected. The 'environment' subcommand is removed with its tests. docs/ci-confidence.md, specs/github/requirements.md, specs/github/github.spec.md and specs/github/tasks.md describe two enforced rulesets and explicitly record the dropped App-only creation policy and the unverified release environment. python3 .github/scripts/test-validate-release-candidate.py passes, and running the 'rulesets' command against the live payloads of rulesets 21432132 and 21432148 exits 0."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

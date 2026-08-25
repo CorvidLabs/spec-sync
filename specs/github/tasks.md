@@ -51,8 +51,15 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Bind v2 finalization to execution/review verdict evidence and preserve v1/fork-safe CI routes
 - [x] Authenticate review check provenance and append-only attempts, share CI limits, and preserve
   exact archive-tree binding across squash/rebase integration
-- [ ] Finish binding Ubuntu/macOS/Windows release qualification and publication to one immutable
-  annotated RC tag while making Ubuntu the ordinary-PR integration authority (CHG-0075); the
-  dedicated release App and production rulesets still require provisioning and live proof
+- [x] Finish binding Ubuntu/macOS/Windows release qualification and publication to one immutable
+  annotated RC tag while making Ubuntu the ordinary-PR integration authority (CHG-0075). The two
+  immutability rulesets are provisioned and live-proven: `SpecSync immutable RC tags` (21432132)
+  and `SpecSync immutable final tags` (21432148), both active with no bypass actor.
+- [ ] Decide the fate of App-only final-tag creation. The `SpecSync final tag creation` ruleset,
+  the release GitHub App (`SPECSYNC_RELEASE_APP_ID` / `SPECSYNC_RELEASE_APP_PRIVATE_KEY`), and the
+  protected `release` environment were never provisioned, and RC qualification no longer requires
+  them — it annotates both gaps on every run instead. Either provision them, or retire `promote`'s
+  App plumbing and choose another way to push a final tag. Until then `promote` cannot run, and
+  anyone with tag-write access can create `vX.Y.Z` by hand.
 - [x] Reuse authenticated required checks across bounded review/archive metadata descendants without
   crossing code edges or allowing cancelled republications to poison exact-SHA success (CHG-0077)

@@ -1,0 +1,39 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787664980,
+      "digest": "da4c4302bb2e15cf2da6f71d523b0d5592500d72266b5d05717c3e9945d3e0e6",
+      "note": "Requirement wording decided in the #698 design pass: scope 'never a gate' to currency/ship readiness, admit ancestry as one archival-anchoring basis, and state the MUST NOT obligation the two conjunct sites violate (tracked as #706).",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "req-change-016-must-describe-ancestry-as-it-is-used-never-a-gate-on-currency-or-ship-readiness-admissible-as-one-basis",
+        "title": "REQ-change-016 must describe ancestry as it is used: never a gate on currency or ship readiness, admissible as one basis for archival anchoring",
+        "description": "REQ-change-016 must describe ancestry as it is used: never a gate on currency or ship readiness, admissible as one basis for archival anchoring",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/requirements.md"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "No source behaviour changes: verification_commit_is_accepted_current keeps all three call sites, two hard conjuncts in staged_accepted_snapshot_is_closing_authenticated and one of three disjuncts in accepted_evidence_is_anchored. The two conjuncts still violate the new MUST NOT clause; that violation is tracked separately as #706 and is deliberately out of scope here.",
+          "REQ-change-016 in specs/change/requirements.md no longer claims verification.commit is never a gate unconditionally: the claim is scoped to verification currency and ship readiness, and the requirement states that archival authentication of accepted evidence is a separate question that MAY consult commit ancestry as one basis among the integrated accepted workspace and the acceptance recorded on the remote default branch.",
+          "The materialized REQ-change-016 body in specs/change/requirements.md is byte-identical to the ### REQUIREMENT REQ-change-016 body in the semantic delta, and every other requirement in that file is untouched.",
+          "The requirement carries one testable obligation the code can be measured against: ancestry MUST NOT be the only basis on which anchoring can be established."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -193,8 +193,12 @@ Acceptance Criteria
 - Verification currency does not depend on commit ancestry, on inspecting intervening commits, or
   on restricting which paths may change after verification. Provenance of that kind is recorded by
   `attest`, keyed to commit SHAs, and is outside this tool.
-- `verification.commit` is retained as an informational correlation key and is never a gate; a
-  squash merge that discards the recorded commit does not invalidate the evidence.
+- `verification.commit` is never a gate on verification currency or ship readiness; a squash merge
+  that discards the recorded commit does not invalidate the evidence or block delivery. Archival
+  authentication of accepted evidence is a separate question — whether the acceptance is anchored
+  in history a reader can reach — and MAY consult commit ancestry there, as one basis among the
+  integrated accepted workspace and the acceptance recorded on the remote default branch. Ancestry
+  MUST NOT be the only basis on which anchoring can be established.
 - Matching effective contract and project-input digests plus consistent state, verification, and
   latest-attempt evidence remain mandatory.
 - A squash fallback for accepted closing evidence still requires matching scoped inputs and an

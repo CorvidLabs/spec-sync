@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::parser::parse_frontmatter;
+use crate::parser::{parse_frontmatter, strip_frontmatter};
 
 /// Sections visible to each role.
 fn sections_for_role(role: &str) -> Option<Vec<&'static str>> {
@@ -131,20 +131,6 @@ fn split_sections(body: &str) -> Vec<(String, String)> {
     sections
 }
 
-/// Strip YAML frontmatter from a markdown file.
-fn strip_frontmatter(content: &str) -> &str {
-    // Ignore a leading UTF-8 BOM so a BOM-prefixed spec's frontmatter is still
-    // recognized and stripped (mirrors `parser::parse_frontmatter`); otherwise
-    // `specsync view` would render the raw YAML block.
-    let content = content.trim_start_matches('\u{feff}');
-    if let Some(stripped) = content.strip_prefix("---\n")
-        && let Some(end) = stripped.find("\n---\n")
-    {
-        return &stripped[end + 5..]; // skip past closing ---\n
-    }
-    content
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,22 +154,70 @@ mod tests {
         assert_eq!(sections[2].0, "Change Log");
     }
 
+    const SPEC: &str = "---\nmodule: winmod\nversion: 1\nstatus: stable\n---\n\n\
+# Winmod\n\n## Purpose\n\nTracks account balances.\n\n## Change Log\n\n| Date | Change |\n";
+
+    // Honest label: this is the CONTROL for the two CRLF tests below. An LF spec rendered fine
+    // before this change and must keep doing so.
     #[test]
-    fn test_strip_frontmatter() {
-        let content = "---\nmodule: test\n---\n\n## Purpose\n";
-        let result = strip_frontmatter(content);
-        assert!(result.contains("## Purpose"));
+    fn test_view_spec_renders_an_lf_spec() {
+        let temp = tempfile::TempDir::new().expect("temp");
+        let spec_path = temp.path().join("winmod.spec.md");
+        fs::write(&spec_path, SPEC).expect("write");
+
+        let rendered = view_spec(&spec_path, "product").expect("LF spec renders");
+
+        assert!(rendered.contains("Tracks account balances."));
+        assert!(!rendered.contains("module: winmod"));
     }
 
+    // The shipped Windows defect (#696): `view_spec` read the file raw and handed it to an
+    // LF-only `parse_frontmatter`, so a clone with `core.autocrlf=true` failed with
+    // "Cannot parse frontmatter" on EVERY spec in the project — on the one platform we ship a
+    // binary for and never test in CI.
+    //
+    // Discriminates: before the parser normalized, this returned Err and the assertion on the
+    // rendered prose could not even run.
     #[test]
-    fn test_strip_frontmatter_leading_bom() {
-        // A leading BOM must not prevent the frontmatter from being stripped.
-        let content = "\u{feff}---\nmodule: test\n---\n\n## Purpose\n";
-        let result = strip_frontmatter(content);
-        assert!(result.contains("## Purpose"));
+    fn test_view_spec_renders_a_crlf_spec() {
+        let temp = tempfile::TempDir::new().expect("temp");
+        let spec_path = temp.path().join("winmod.spec.md");
+        fs::write(&spec_path, SPEC.replace('\n', "\r\n")).expect("write");
+
+        let rendered = view_spec(&spec_path, "product")
+            .expect("a CRLF spec must render, not fail with 'Cannot parse frontmatter'");
+
         assert!(
-            !result.contains("module: test"),
-            "frontmatter should be stripped, got: {result:?}"
+            rendered.contains("Tracks account balances."),
+            "CRLF body should be rendered, got: {rendered:?}"
+        );
+        assert!(
+            !rendered.contains("module: winmod"),
+            "frontmatter must not leak into the rendered view, got: {rendered:?}"
+        );
+    }
+
+    // The requirements companion goes through `strip_frontmatter`, not `parse_frontmatter`, so
+    // it needed the second half of the #696 fix: `view` had its own LF-only stripper and now
+    // shares the canonical one. Before that, a CRLF companion rendered its raw YAML block under
+    // the "## Requirements" heading.
+    #[test]
+    fn test_view_spec_strips_frontmatter_from_a_crlf_requirements_companion() {
+        let temp = tempfile::TempDir::new().expect("temp");
+        let spec_path = temp.path().join("winmod.spec.md");
+        fs::write(&spec_path, SPEC).expect("write");
+        fs::write(
+            temp.path().join("requirements.md"),
+            "---\r\nspec: winmod.spec.md\r\n---\r\n\r\nBalances must never go negative.\r\n",
+        )
+        .expect("write");
+
+        let rendered = view_spec(&spec_path, "product").expect("renders");
+
+        assert!(rendered.contains("Balances must never go negative."));
+        assert!(
+            !rendered.contains("spec: winmod.spec.md"),
+            "CRLF companion frontmatter must not be rendered, got: {rendered:?}"
         );
     }
 }

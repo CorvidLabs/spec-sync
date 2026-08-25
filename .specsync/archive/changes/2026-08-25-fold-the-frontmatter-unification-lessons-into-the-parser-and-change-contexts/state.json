@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "fold-the-frontmatter-unification-lessons-into-the-parser-and-change-contexts",
+  "slug": "fold-the-frontmatter-unification-lessons-into-the-parser-and-change-contexts",
+  "title": "Fold the frontmatter-unification lessons into the parser and change contexts",
+  "description": "Fold the frontmatter-unification lessons into the parser and change contexts",
+  "kind": "documentation",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "35027aafdcc71721fed277bcd6cc8535ebe47d28",
+  "created_at": 1787696149,
+  "updated_at": 1787697137,
+  "affected_specs": [],
+  "affected_paths": [
+    "specs/parser/context.md",
+    "specs/change/context.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "fold-back of an archived lesson bundle; no spec text or behaviour changes",
+  "acceptance_criteria": [
+    "the parser context records that five readers of one format disagree in different directions and that exactness cuts both ways",
+    "the change context records that two of its own lessons were wrong and why a wrong lesson is load-bearing",
+    "no canonical spec text or behaviour changes"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

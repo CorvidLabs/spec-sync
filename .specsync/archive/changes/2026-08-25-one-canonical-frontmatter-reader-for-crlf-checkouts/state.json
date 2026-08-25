@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "one-canonical-frontmatter-reader-for-crlf-checkouts",
+  "slug": "one-canonical-frontmatter-reader-for-crlf-checkouts",
+  "title": "One canonical frontmatter reader for CRLF checkouts",
+  "description": "One canonical frontmatter reader for CRLF checkouts",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "e82542d19ce8d79926b144a0e38d4d620b120715",
+  "created_at": 1787666351,
+  "updated_at": 1787696127,
+  "affected_specs": [
+    "parser",
+    "view",
+    "change"
+  ],
+  "affected_paths": [
+    "src/parser.rs",
+    "src/view.rs",
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/parser/parser.spec.md",
+    "specs/parser/context.md",
+    "specs/view/view.spec.md",
+    "specs/view/context.md",
+    "specs/change/change.spec.md",
+    "specs/change/context.md",
+    ".gitattributes"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "specsync view renders a CRLF spec instead of failing with 'Cannot parse frontmatter'; parse_frontmatter accepts CRLF input and always returns an LF-only body while an LF document still allocates nothing; a single parser::strip_frontmatter is correct on LF, CRLF, a leading BOM, unterminated frontmatter, a closer at EOF and a body horizontal rule, and view::strip_frontmatter plus change::strip_yaml_frontmatter are deleted rather than left in parallel; a CRLF change artifact with a written body is no longer refused as incomplete and a frontmatter-only artifact closed at EOF is; .specsync/**/*.md is pinned to eol=lf beside the existing JSON pin; cargo fmt, cargo clippy -D warnings and the full test suite pass."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

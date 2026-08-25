@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "one-canonical-frontmatter-reader-for-crlf-checkouts",
+  "implementation_commit": "35027aafdcc71721fed277bcd6cc8535ebe47d28",
+  "implementation_tree": "e73db09a63f78fa762c2a5d2437b143a47f8b443",
+  "contract_digest": "cf74e6866a7806604808d827b8e742a7b7c554887e2ec5329fe1e479bc1daf09",
+  "workspace_digest": "b1dba43ee081be611faff4c8883c02c94946fef995f4dca03b5c0deb57e4e4d0",
+  "closing_digest": "a9d474c7c2cda3665504fccd4e87e20b5f21c4cfbede7b11d87ce228f0152aeb",
+  "review_digest": "fbb1c009157a2fff20322935ccd8db6acd9fd098b3e9c22fde8d6a1de50f8afb",
+  "finalization_digest": "16a236ee7590eb858f23ede964a42bb9d361fbae8b829fe7505b73a808196703",
+  "timestamp": 1787695858
+}

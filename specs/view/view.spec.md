@@ -1,6 +1,6 @@
 ---
 module: view
-version: 3
+version: 4
 status: stable
 files:
   - src/view.rs
@@ -43,6 +43,8 @@ Filters spec content to show only sections relevant to a specific role (dev, qa,
 5. `agent_policy` defaults to `"full-access"` if not set in frontmatter
 6. Output includes a role-specific header line (e.g., `# ModuleName (dev view)`)
 7. Section matching is based on `## ` heading prefixes
+8. A CRLF-authored spec renders exactly as its LF twin does. `view_spec` reads the file with no normalization of its own, so a Windows clone with `core.autocrlf=true` used to fail with "Cannot parse frontmatter" on every spec in the project — on the one platform that ships a binary and is tested by no CI job. The tolerance belongs to `parser::parse_frontmatter`, and this module states the outcome it depends on rather than re-implementing it.
+9. This module owns no frontmatter stripper. The companion `requirements.md` is stripped with `parser::strip_frontmatter`, the single canonical implementation. A local copy is how `view` and `change` came to disagree about CRLF and about a closing delimiter at end of file, with no error raised in either direction.
 
 ## Behavioral Examples
 
@@ -76,7 +78,9 @@ Filters spec content to show only sections relevant to a specific role (dev, qa,
 |-----------|----------|
 | Unknown role string | Returns `Err` listing valid roles |
 | Spec file unreadable | Returns `Err` with read error description |
-| Frontmatter parse failure | Returns `Err` with parse error |
+| Frontmatter absent or unterminated | Returns `Err` with parse error |
+| CRLF line endings | Not an error condition — the spec and its companion render as they would on LF |
+| Companion `requirements.md` missing or empty after stripping | Omitted; the rest of the view still renders |
 
 ## Dependencies
 
@@ -84,7 +88,7 @@ Filters spec content to show only sections relevant to a specific role (dev, qa,
 
 | Module | What is used |
 |--------|-------------|
-| parser | `parse_frontmatter` for extracting module name, status, and agent_policy |
+| parser | `parse_frontmatter` for module name, status, and agent_policy; `strip_frontmatter` for the companion `requirements.md` |
 
 ### Consumed By
 
@@ -99,3 +103,4 @@ Filters spec content to show only sections relevant to a specific role (dev, qa,
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-08-25 | one-canonical-frontmatter-reader-for-crlf-checkouts: One canonical frontmatter reader for CRLF checkouts |

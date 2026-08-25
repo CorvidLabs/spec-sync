@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "fold-the-frontmatter-unification-lessons-into-the-parser-and-change-contexts",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "35027aafdcc71721fed277bcd6cc8535ebe47d28",
+      "contract_digest": "8df0f5ac2d1cbd772650cbb7df2a8b6afe847b7a5279ded52438e06a82ca7ded",
+      "execution_digest": "6c20a638f607f4c468fef64bf2f0a92424684ca9857a3148c6193497d6e2ba20",
+      "workspace_digest": "33a1d35657182dc5c8814e4ebb5ba60e0834a0776516520bbe2aa6580a680455",
+      "timestamp": 1787696839
+    }
+  ]
+}

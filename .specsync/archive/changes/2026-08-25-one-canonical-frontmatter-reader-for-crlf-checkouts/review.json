@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "one-canonical-frontmatter-reader-for-crlf-checkouts",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "35027aafdcc71721fed277bcd6cc8535ebe47d28",
+  "contract_digest": "cf74e6866a7806604808d827b8e742a7b7c554887e2ec5329fe1e479bc1daf09",
+  "execution_digest": "3354542b9e44475a8551f61e862c2eea17d3728a0df8a0641549cccafee67c9c",
+  "workspace_digest": "b1dba43ee081be611faff4c8883c02c94946fef995f4dca03b5c0deb57e4e4d0",
+  "timestamp": 1787695839
+}

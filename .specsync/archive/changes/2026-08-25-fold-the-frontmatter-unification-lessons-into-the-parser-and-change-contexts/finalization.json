@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "fold-the-frontmatter-unification-lessons-into-the-parser-and-change-contexts",
+  "implementation_commit": "35027aafdcc71721fed277bcd6cc8535ebe47d28",
+  "implementation_tree": "e73db09a63f78fa762c2a5d2437b143a47f8b443",
+  "contract_digest": "8df0f5ac2d1cbd772650cbb7df2a8b6afe847b7a5279ded52438e06a82ca7ded",
+  "workspace_digest": "33a1d35657182dc5c8814e4ebb5ba60e0834a0776516520bbe2aa6580a680455",
+  "closing_digest": "4677efd94c370fb54c10f571ba53c1be29423ab5bac85762acc876e617dbc418",
+  "review_digest": "81bc2d36525281b8808512644ac163749898fc022a75036d153f81fbe752ed90",
+  "finalization_digest": "4806b5b66d3a9f768db47d875f98e355124b9f43dc79b720d21250e0e0519039",
+  "timestamp": 1787696856
+}

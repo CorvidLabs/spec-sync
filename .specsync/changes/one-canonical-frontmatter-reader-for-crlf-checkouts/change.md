@@ -1,6 +1,6 @@
 ---
 id: one-canonical-frontmatter-reader-for-crlf-checkouts
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: e82542d19ce8d79926b144a0e38d4d620b120715
 ---

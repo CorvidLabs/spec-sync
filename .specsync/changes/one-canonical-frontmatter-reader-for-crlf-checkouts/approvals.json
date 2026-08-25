@@ -42,6 +42,54 @@
           "public_contract": "yes"
         }
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787672574,
+      "digest": "cf74e6866a7806604808d827b8e742a7b7c554887e2ec5329fe1e479bc1daf09",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "one-canonical-frontmatter-reader-for-crlf-checkouts",
+        "title": "One canonical frontmatter reader for CRLF checkouts",
+        "description": "One canonical frontmatter reader for CRLF checkouts",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "parser",
+          "view"
+        ],
+        "affected_paths": [
+          ".gitattributes",
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/parser/context.md",
+          "specs/parser/parser.spec.md",
+          "specs/view/context.md",
+          "specs/view/view.spec.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/parser.rs",
+          "src/view.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "specsync view renders a CRLF spec instead of failing with 'Cannot parse frontmatter'; parse_frontmatter accepts CRLF input and always returns an LF-only body while an LF document still allocates nothing; a single parser::strip_frontmatter is correct on LF, CRLF, a leading BOM, unterminated frontmatter, a closer at EOF and a body horizontal rule, and view::strip_frontmatter plus change::strip_yaml_frontmatter are deleted rather than left in parallel; a CRLF change artifact with a written body is no longer refused as incomplete and a frontmatter-only artifact closed at EOF is; .specsync/**/*.md is pinned to eol=lf beside the existing JSON pin; cargo fmt, cargo clippy -D warnings and the full test suite pass."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "26e46d5c256ce63886e5e5adde42fe72b9d60961c4a8909986db254ba67e3b2a",
+        "parser": "1d07224a35711ebb31526d4715eba5d4397fb8694e95683ab0db9b6ef2ed2bfc",
+        "view": "514fe99d23a9cad81485da85365296a3fb23ceff48b4cf134e57b61b8a6eb7e7"
+      }
     }
   ],
   "reopenings": []

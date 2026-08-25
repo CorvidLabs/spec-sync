@@ -7,11 +7,11 @@
   "title": "Bind semantic delta bodies to the approval that signed them",
   "description": "Bind semantic delta bodies to the approval that signed them",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "875752ee991d458db172dec6ceb712462fe2a614",
   "created_at": 1787610971,
-  "updated_at": 1787663007,
+  "updated_at": 1787663202,
   "affected_specs": [
     "change"
   ],

@@ -194,3 +194,18 @@ approval carrying no digest is UNKNOWN, not violated — every archived change p
 The guard and the flush ordering above are coupled: two archived deltas contain duplicate
 `MODIFIED` keys that exist only because the old ordering split one section, so shipping the
 duplicate-key refusal without the reordering would make those changes un-materializable.
+
+A digest proves the bytes did not change after signing; it cannot prove the signature covered the
+right bytes. Both failures happened on one change. `approved_delta_digests` caught its own delta
+being edited during a rebase conflict — the accidental case, not an attack — and refused to
+materialize until it was re-approved. What the guard could not see was that the re-approval was
+granted over a TRUNCATED delta: regenerating one section with a script that preserved "everything
+from the next `### SPEC SECTION` onward" dropped the trailing `## ADDED` block, because there was
+no next section and an absent tail read as an empty one. The sealed record stopped naming the
+requirement the change adds, and `collect_requirement_ids` returned `[]`, so the requirement
+evidence gate went vacuous on the very change that added the binding.
+
+Two consequences worth carrying. Currency and completeness are different questions and need
+different mechanisms: content digests answer the first, an independent reader answers the second.
+And when testing for a block heading, compare whole LINES — `"## ADDED" in text` matched the
+string inside an invariant's prose and reported the block as already restored.

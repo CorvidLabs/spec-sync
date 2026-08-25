@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787663489,
+      "digest": "271a5b782644b7c89246429753bc9e04166284ec6f7234351cd9a99abf1d19ec",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fold-the-delta-binding-lessons-into-the-change-context",
+        "title": "Fold the delta-binding lessons into the change context",
+        "description": "Fold the delta-binding lessons into the change context",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "specs/change/context.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "fold-back of an archived lesson bundle; no spec text or behaviour changes",
+        "acceptance_criteria": [
+          "it records the line-anchored comparison lesson",
+          "no canonical spec text or behaviour changes",
+          "the change context records that currency and completeness need different mechanisms"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787664067,
+      "digest": "59523a0e9f17f58967a700839f736b1ccfc2f5a91a8bc17c407f6fce139d15ae",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

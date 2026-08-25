@@ -1,6 +1,6 @@
 ---
 id: bind-semantic-delta-bodies-to-the-approval-that-signed-them
-state: verifying
+state: archived
 type: bug_fix
 base_commit: 875752ee991d458db172dec6ceb712462fe2a614
 ---

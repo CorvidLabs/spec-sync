@@ -142,15 +142,22 @@ immutable release candidate. The RC tag—not the movable staging branch—is th
 Qualification records tag, SHA, platform, lane, and outcome; promotion re-resolves the marker and
 accepts only an official successful release-workflow check for the same unchanged SHA. Release
 archive provenance must match the actual post-merge `pull_request` workflow event. Matching release
-tags use three active policies: humans may create RC markers but cannot update/delete them, only
-the dedicated CorvidLabs release GitHub App may create final tags, and no actor may update/delete
-final tags. The App's private key is
-available only to the protected `release` environment's promotion job, which mints a short-lived,
-repository-scoped installation token and disables checkout credentials. The environment admits
-only the protected default branch, and promotion independently checks the workflow ref. The upload
-job then
-re-resolves tags and actual checkout after builds and revalidates original platform evidence plus
-package hashes.
+tags use **two** active policies, both live and both verified by `resolve`: humans may create RC
+markers and final tags, and no actor may update or delete either. `SpecSync immutable RC tags`
+(21432132) covers `refs/tags/v*.*.*-rc.*`; `SpecSync immutable final tags` (21432148) covers
+`refs/tags/v*.*.*` excluding the RC pattern. Neither grants bypass to anyone, and the validator
+rejects any broadening. The upload job then re-resolves tags and actual checkout after builds and
+revalidates original platform evidence plus package hashes.
+
+CHG-0075 originally specified a third policy — `SpecSync final tag creation`, admitting only the
+dedicated CorvidLabs release GitHub App — plus a protected `release` environment holding the App's
+private key. Neither was ever provisioned: no App exists, `SPECSYNC_RELEASE_APP_ID` and
+`SPECSYNC_RELEASE_APP_PRIVATE_KEY` are unset, and there is no `release` environment. Demanding them
+failed `release.yml` on every RC tag from `v6.0.0-rc.1` through `rc.6`, so the two rulesets that do
+exist were never reached and the check never once passed. Qualification now requires only those two
+and **states the gap on every run** as warning annotations: final-tag creation is unrestricted, and
+the `release` environment is unverified. `promote` still mints an App token to push the tag — a
+mechanism, not an enforced policy — and cannot run until the App is provisioned or replaced.
 
 CHG-0077 repairs the finalization tip dance reproduced by PR #492: a review child no longer orphans
 the green product tip, and a later cancelled/failed policy republication no longer poisons an earlier

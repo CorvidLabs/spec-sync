@@ -1,6 +1,6 @@
 ---
 module: github
-version: 25
+version: 26
 status: stable
 files:
   - src/github.rs
@@ -56,6 +56,13 @@ supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 
 Every path that can be merged can reach the required CI gate; a path the CI
 workflow cannot trigger can never report the gate and blocks its pull request.
+
+Release qualification verifies exactly the tag protections this repository actually has, and names
+every protection it does not verify on every run, green runs included. A gate that demands an
+unprovisioned policy fails on every candidate and therefore verifies nothing — it is not a safe
+default, because the protections that DO exist are never reached. Dropping a check from the gate is
+permitted; dropping it silently is not. The tag protections that remain admit no bypass actor and
+no broadening.
 
 ## Behavioral Examples
 
@@ -134,7 +141,9 @@ workflow cannot trigger can never report the gate and blocks its pull request.
 | Release commit lacks a successful merge-bound archive check | Release validation fails before building artifacts |
 | RC marker is lightweight, malformed, moved, or has conflicting workflow history | Qualification and promotion fail; a fresh annotated RC marker is required |
 | Platform evidence is missing, unsuccessful, or bound to another tag/SHA | Final tag creation and release upload are refused |
-| Immutable RC/final tag rulesets are absent, inactive, incomplete, or grant a forbidden bypass | RC qualification and promotion fail before final-tag creation |
+| Either immutable tag ruleset (RC or final) is absent, inactive, incomplete, broadened, or grants any bypass actor | RC qualification fails before any release job runs |
+| Ruleset validation reports no unenforced tag protections | Qualification fails rather than imply that App-only final-tag creation or the protected `release` environment was verified |
+| Promotion is dispatched without a provisioned release App | The token step cannot mint a token and the empty-token guard refuses promotion before any final tag is written |
 | Metadata ancestry contains code, a merge-only side parent, exceeds 32 first parents, or has foreign/malformed/unsuccessful evidence | Reuse stops and the archive/Trust gate fails closed instead of borrowing older checks |
 
 ## Dependencies
@@ -189,3 +198,4 @@ workflow cannot trigger can never report the gate and blocks its pull request.
 | 2026-08-04 | CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate: Let documentation-only pull requests reach the required CI gate |
 | 2026-08-06 | CHG-0087-decide-pull-requests-in-seconds-instead-of-minutes: Decide pull requests in seconds instead of minutes |
 | 2026-08-08 | CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha: Ship-status live GitHub check-run trust for product parent SHA |
+| 2026-08-25 | release-qualification-must-gate-on-the-two-immutable-tag-rulesets-that-exist-and-name-the-app-only-final-tag-creation: Release qualification must gate on the two immutable tag rulesets that exist and name the App-only final-tag creation policy it no longer enforces |

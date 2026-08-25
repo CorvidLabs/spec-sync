@@ -36,6 +36,43 @@
       "approved_delta_digests": {
         "change": "b30dfb39748eb41c6c8cf58eda85d581765bfb04a4735c3e07ffdb39cefa1001"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787629772,
+      "digest": "b0d352c61b817d174a4d2c63d004abe8e80b8480b82a2920872d4fea830e1439",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "bind-semantic-delta-bodies-to-the-approval-that-signed-them",
+        "title": "Bind semantic delta bodies to the approval that signed them",
+        "description": "Bind semantic delta bodies to the approval that signed them",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A semantic delta body swapped after approval is refused before it rewrites the canonical spec, and the refusal names the module",
+          "An approval that records no delta digest — every archived change in this repository — proceeds, because absent evidence is unknown and not a violation",
+          "An untouched approved delta still materializes into the canonical spec exactly as before"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "b68a45d5752354147a65e31b641ae18edc73657653b544568a4fabea97146fad"
+      }
     }
   ],
   "reopenings": []

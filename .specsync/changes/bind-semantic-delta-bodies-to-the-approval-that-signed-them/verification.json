@@ -1,9 +1,9 @@
 {
-  "timestamp": 1787615212,
-  "commit": "1963d2814ed264d328274099718511b6a91f33c7",
+  "timestamp": 1787630828,
+  "commit": "5204d2f395c3accf682d96c6167b727290e47f60",
   "contract_digest": "b0d352c61b817d174a4d2c63d004abe8e80b8480b82a2920872d4fea830e1439",
-  "execution_digest": "767799c7a8ea225a40a5c9ecc8d673ef92bb9f523f0933c3f1a0368ad4529fc3",
-  "workspace_digest": "28a9dc0080a2a792932acf3c4bfec0a95e1a2a13980e27cd56d6a90ea2ae37c5",
+  "execution_digest": "17644301cc924161eac53f47f43e8a28f6c2d6371aa3d8e576f308ea42a4ece1",
+  "workspace_digest": "ce4c5ce0fbae15543cd36dcf187bfa0970d95744a253ea151dfebc29966628ff",
   "passed": true,
   "commands": [
     {
@@ -27,7 +27,5 @@
       "exit_code": 0
     }
   ],
-  "requirement_ids": [
-    "REQ-change-089"
-  ]
+  "requirement_ids": []
 }

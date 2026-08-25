@@ -200,17 +200,6 @@ Acceptance Criteria
 33. Answer, dependency, and supersession mutations load and validate correction history only after acquiring the lifecycle project lock.
 34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons; the agent that ran `finalize` writes them, guided by `next_action`.
 35. Frontmatter is stripped at its closing delimiter LINE, in either LF or CRLF encoding, and never at the next `---` elsewhere in the document. A Markdown horizontal rule therefore never truncates a body to a fragment, and a CRLF-authored companion is stripped exactly as an LF one is — otherwise its frontmatter survives into content counting and an untouched scaffold reports itself as recorded knowledge.
-36. Semantic delta bodies are bound to the definition approval that signed them: approval records a digest over each delta file's exact bytes keyed by module, and materialization and acceptance refuse to rewrite a canonical spec when a body no longer matches, naming every module that drifted. An approval recording no such digest predates the binding and reads as unknown, never as tampering, so every historical archive remains valid.
-
-## ADDED
-
-### REQUIREMENT REQ-change-089
-
-A semantic delta body SHALL be bound to the definition approval that signed it, and an approval that recorded no such binding SHALL read as unknown rather than as a violation.
-
-Acceptance Criteria
-- Approval records a digest over the exact bytes of every semantic delta file the change owns, keyed by module, so the wording that rewrites a canonical spec is part of what a human signed.
-- Materialization and acceptance verify that binding before any delta is applied, and refuse by naming every module whose body changed after approval together with the remedy.
-- The refusal is evaluated before the already-materialized short-circuit, so a body that drifts after the first application is still caught while it remains this change's evidence.
-- An approval carrying no delta binding proceeds unchanged, because every change approved before the binding existed made no claim about wording and absent evidence is not a violation.
-- The binding is omitted from persisted JSON when it is absent, so no existing approval digest moves and ledgers written by earlier binaries stay readable and byte-identical.
+36. A `###` heading inside an open semantic-delta item is section CONTENT and does not end that item. Only `### REQUIREMENT <id>` and `### SPEC SECTION <name>` start a new item, and classification happens before the previous item is flushed — otherwise one section carrying subheadings becomes several items under one key and application keeps only the last, silently discarding documented behaviour the change never touched.
+37. A semantic delta declaring the same operation, target and key more than once is REFUSED. Applying it would keep the last body and discard the earlier ones with no diagnostic.
+38. Semantic delta bodies are bound to the definition approval that signed them: approval records a digest over each delta file's exact bytes keyed by module, and materialization and acceptance refuse to rewrite a canonical spec when a body no longer matches, naming every module that drifted. An approval recording no such digest predates the binding and reads as unknown, never as tampering, so every historical archive remains valid.

@@ -1,9 +1,25 @@
 {
-  "timestamp": 1787626060,
-  "commit": "abfdbfb9c8ff76de56c89406beaf2776c3525ced",
+  "timestamp": 1787667401,
+  "commit": "df3cd0f84443bdca6e39c130703afa8461eb9e07",
   "contract_digest": "7b8ecb56b6ba0b13fef3b23b1dc82e61782d5d869aaf942bd386944f2d8718f6",
   "execution_digest": "4963c14ba29910558a3ff84c0098d7bfb14c03e45567690105bdce84173b9dd6",
-  "workspace_digest": "a00d7268ddb85c002abf92f9365a19dadcc4b00a209505cd9fe9a5411b0535bb",
+  "workspace_digest": "b375645671580fdf1b6d5f1372aeb8a5a1a99ad89d7f2ee99e8e07cf829538cf",
+  "acceptance_input_digest": "684584ea7c6bc419031cf3628f164076f516edfe6c3e9f0099007ee74b5ed794",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "docs/ADOPTING.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "986b1c4f86293489588e59e538a0896b4287e45d8f99f3faba921a312b1643c6",
+        "entry_digest": "4b1286c85bfdd4e2d077551ef074cab4a902378c100223ecfbbb8adcccb28ade",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
   "passed": true,
   "commands": [
     {

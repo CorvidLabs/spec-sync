@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "say-how-the-lesson-fold-back-terminates-and-that-ship-names-it-too",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "df3cd0f84443bdca6e39c130703afa8461eb9e07",
+  "contract_digest": "7b8ecb56b6ba0b13fef3b23b1dc82e61782d5d869aaf942bd386944f2d8718f6",
+  "execution_digest": "4963c14ba29910558a3ff84c0098d7bfb14c03e45567690105bdce84173b9dd6",
+  "workspace_digest": "b375645671580fdf1b6d5f1372aeb8a5a1a99ad89d7f2ee99e8e07cf829538cf",
+  "timestamp": 1787667411
+}

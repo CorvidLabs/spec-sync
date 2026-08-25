@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "say-how-the-lesson-fold-back-terminates-and-that-ship-names-it-too",
+  "implementation_commit": "df3cd0f84443bdca6e39c130703afa8461eb9e07",
+  "implementation_tree": "4c34897f044182b5c6e29cca7a6cfe13671d6da8",
+  "contract_digest": "7b8ecb56b6ba0b13fef3b23b1dc82e61782d5d869aaf942bd386944f2d8718f6",
+  "workspace_digest": "b375645671580fdf1b6d5f1372aeb8a5a1a99ad89d7f2ee99e8e07cf829538cf",
+  "closing_digest": "fdfc92e2efb568ccdfabecb9a4b6c0beb19eb8438e83d3ef605bbf8ebf9843b6",
+  "review_digest": "546352a1c67e8258d92b6f348260d27066b79c82fbaa2adba649e69c784dc8d2",
+  "finalization_digest": "3b251504c0b1c7a65abca2cde16b2b33661753674c41e01c2ec043794ba57053",
+  "timestamp": 1787667443
+}

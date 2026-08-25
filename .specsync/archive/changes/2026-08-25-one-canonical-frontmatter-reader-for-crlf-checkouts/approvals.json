@@ -90,6 +90,13 @@
         "parser": "1d07224a35711ebb31526d4715eba5d4397fb8694e95683ab0db9b6ef2ed2bfc",
         "view": "514fe99d23a9cad81485da85365296a3fb23ceff48b4cf134e57b61b8a6eb7e7"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787695858,
+      "digest": "a9d474c7c2cda3665504fccd4e87e20b5f21c4cfbede7b11d87ce228f0152aeb",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

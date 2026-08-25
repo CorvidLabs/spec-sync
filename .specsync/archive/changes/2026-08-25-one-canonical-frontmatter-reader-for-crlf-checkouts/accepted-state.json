@@ -7,11 +7,11 @@
   "title": "One canonical frontmatter reader for CRLF checkouts",
   "description": "One canonical frontmatter reader for CRLF checkouts",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "e82542d19ce8d79926b144a0e38d4d620b120715",
   "created_at": 1787666351,
-  "updated_at": 1787694658,
+  "updated_at": 1787695858,
   "affected_specs": [
     "parser",
     "view",

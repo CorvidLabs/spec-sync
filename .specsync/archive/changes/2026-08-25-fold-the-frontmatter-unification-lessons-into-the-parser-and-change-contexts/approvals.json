@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787696176,
+      "digest": "8df0f5ac2d1cbd772650cbb7df2a8b6afe847b7a5279ded52438e06a82ca7ded",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fold-the-frontmatter-unification-lessons-into-the-parser-and-change-contexts",
+        "title": "Fold the frontmatter-unification lessons into the parser and change contexts",
+        "description": "Fold the frontmatter-unification lessons into the parser and change contexts",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "specs/change/context.md",
+          "specs/parser/context.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "fold-back of an archived lesson bundle; no spec text or behaviour changes",
+        "acceptance_criteria": [
+          "no canonical spec text or behaviour changes",
+          "the change context records that two of its own lessons were wrong and why a wrong lesson is load-bearing",
+          "the parser context records that five readers of one format disagree in different directions and that exactness cuts both ways"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787696856,
+      "digest": "4677efd94c370fb54c10f571ba53c1be29423ab5bac85762acc876e617dbc418",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

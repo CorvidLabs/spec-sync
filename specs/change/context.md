@@ -220,3 +220,11 @@ Two consequences worth carrying. Currency and completeness are different questio
 different mechanisms: content digests answer the first, an independent reader answers the second.
 And when testing for a block heading, compare whole LINES — `"## ADDED" in text` matched the
 string inside an invariant's prose and reported the block as already restored.
+
+Two lessons recorded above were WRONG and were corrected by the change that unified frontmatter
+handling: `parser.rs` does not handle CRLF (it is LF-only), and there is no normalize-then-parse
+convention (21 of 39 call sites normalize, 18 do not). Both entered because a claim was asserted
+from a grep count rather than read from the call sites, and both were folded here before the
+correction landed. A lesson is read at `change new`, before anything is scoped, so a wrong one is
+load-bearing in a way a wrong comment is not (#714). Prefer lessons that point at evidence over
+lessons that summarise it: a stale pointer is visible, a confident summary is not.

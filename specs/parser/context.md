@@ -53,3 +53,16 @@ reapproval and final independent/repository gates remain pending.
 - `parse_checked_issue_references()` returns `(implements, tracks)` only after the entire
   frontmatter document passes real-YAML and duplicate-key validation; surfaced errors are stable
   and content-free.
+
+Five readers of the same format is not five bugs, it is one bug with five instances, and the
+instances disagree in different directions: two returned `None` on CRLF, one silently deleted the
+body before a horizontal rule, one leaked the frontmatter into the body, and one was correct. The
+correct one was not the canonical one — it lived in `change.rs`. When unifying, promote the
+implementation that is right on the most axes rather than the one that lives in the module whose
+name matches the job.
+
+Frontmatter delimiters are matched EXACTLY, and that strictness cuts both ways. Guessing at a
+malformed delimiter is how a body gets truncated at a horizontal rule, so exactness is correct —
+but it also means `---  ` with a trailing space is not frontmatter, and a caller counting prose
+then sees the YAML as content (#716). Say which axes a reader handles rather than claiming it is
+correct; "correct on six axes" was true and still left a hole.

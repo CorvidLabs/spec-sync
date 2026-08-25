@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787617280,
+      "digest": "59ecb5f8d01125fdf7a51e18c94f4e7fe80078c9c88397dadb83b221ec801d23",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fold-the-delta-parser-lessons-into-the-change-context",
+        "title": "Fold the delta-parser lessons into the change context",
+        "description": "Fold the delta-parser lessons into the change context",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "specs/change/context.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "fold-back of an archived lesson bundle; no spec text or behaviour changes",
+        "acceptance_criteria": [
+          "no canonical spec text or behaviour changes",
+          "the change context records the partial-fix lesson and the delta-digest coupling"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787617880,
+      "digest": "20652d252dd30b2fb0437cb70431d48be3c3d9e9b1c94e725e830643c2234644",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

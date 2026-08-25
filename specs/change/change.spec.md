@@ -1,6 +1,6 @@
 ---
 module: change
-version: 102
+version: 103
 status: active
 files:
   - src/change.rs
@@ -217,6 +217,8 @@ Acceptance Criteria
 33. Answer, dependency, and supersession mutations load and validate correction history only after acquiring the lifecycle project lock.
 34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons; the agent that ran `finalize` writes them, guided by `next_action`.
 35. Frontmatter is stripped at its closing delimiter LINE, in either LF or CRLF encoding, and never at the next `---` elsewhere in the document. A Markdown horizontal rule therefore never truncates a body to a fragment, and a CRLF-authored companion is stripped exactly as an LF one is — otherwise its frontmatter survives into content counting and an untouched scaffold reports itself as recorded knowledge.
+36. A `###` heading inside an open semantic-delta item is section CONTENT and does not end that item. Only `### REQUIREMENT <id>` and `### SPEC SECTION <name>` start a new item, and classification happens before the previous item is flushed — otherwise one section carrying subheadings becomes several items under one key and application keeps only the last, silently discarding documented behaviour the change never touched.
+37. A semantic delta declaring the same operation, target and key more than once is REFUSED. Applying it would keep the last body and discard the earlier ones with no diagnostic.
 
 ## Behavioral Examples
 
@@ -429,3 +431,4 @@ Acceptance Criteria
 | 2026-08-23 | ship-readiness-is-a-content-question-not-a-history-one: Ship readiness is a content question, not a history one |
 | 2026-08-24 | close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails: Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize |
 | 2026-08-24 | frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder: Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder |
+| 2026-08-24 | a-subheading-inside-a-delta-item-must-not-flush-the-item-content-headings-split-one-section-into-fragments-and-the-last: A subheading inside a delta item must not flush the item: content headings split one section into fragments and the last one wins |

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "fold-the-delta-parser-lessons-into-the-change-context",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "4e379341b822762b7d1196ac551f9b3ccaf9858f",
+      "contract_digest": "59ecb5f8d01125fdf7a51e18c94f4e7fe80078c9c88397dadb83b221ec801d23",
+      "execution_digest": "ced933ee7f64abdaf82270b8684adbb3f33b89d7ba9dd95cc821dc740a5d2433",
+      "workspace_digest": "9743f0242ccb3237eace8df85f6ac3b439d532d990a4295010b2e7dd48e330b2",
+      "timestamp": 1787617863
+    }
+  ]
+}

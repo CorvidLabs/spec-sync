@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "a-subheading-inside-a-delta-item-must-not-flush-the-item-content-headings-split-one-section-into-fragments-and-the-last",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "4e379341b822762b7d1196ac551f9b3ccaf9858f",
+      "contract_digest": "bce4f8198ed87dff198b74681fc21f7d6c5efee933f67779446ef542c829fbfe",
+      "execution_digest": "4810dc8812bb67ff1c9465351b228d8d368d401e705ab918ab26698be4c617e2",
+      "workspace_digest": "fb9e870df181eec8a963880511c0f357226bd11bd84378324061556423c7db20",
+      "timestamp": 1787616953
+    }
+  ]
+}

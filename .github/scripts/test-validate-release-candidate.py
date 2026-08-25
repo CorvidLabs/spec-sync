@@ -641,12 +641,16 @@ class RulesetValidationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         unenforced = json.loads(result.stdout)["unenforced"]
         self.assertIsInstance(unenforced, list)
-        self.assertEqual(len(unenforced), 2)
+        self.assertEqual(len(unenforced), 3)
         self.assertEqual(unenforced, list(VALIDATOR_MODULE.UNENFORCED_TAG_POLICIES))
         joined = "\n".join(unenforced)
         self.assertIn("SpecSync final tag creation", joined)
         self.assertIn("release GitHub App", joined)
-        self.assertIn("'release' deployment environment", joined)
+        # Naming GITHUB_TOKEN is the point: the tag now comes from the same permission that runs
+        # the workflow, and a reader who is told only "creation is unrestricted" would not learn
+        # that dispatching a release IS the release authority.
+        self.assertIn("GITHUB_TOKEN", joined)
+        self.assertIn("deployment-environment gate", joined)
         for entry in unenforced:
             with self.subTest(entry=entry):
                 self.assertIn("NOT", entry)
@@ -1163,19 +1167,21 @@ class WorkflowSourceContractTests(unittest.TestCase):
         )
         self.assertEqual(rulesets.count('--rc-ruleset-json "$rc_ruleset_file"'), 1)
 
-        # The App-only creation policy and the protected `release` environment are no longer
-        # required by RC qualification. Nothing may quietly reintroduce them as a gate: the
-        # repository has neither, and demanding them is what failed rc.1 through rc.6.
+        # The App-only creation policy and the `release` environment are gone from the whole
+        # workflow, not merely from qualification. The owner decided against a release App, so
+        # every reference to one is retired: a half-removed App reads as a policy that is only
+        # temporarily off, and the next reader provisions a variable instead of learning that
+        # promotion is now the workflow's own token. Demanding these is also what failed rc.1
+        # through rc.6.
         for retired in (
             'resolve_ruleset "SpecSync final tag creation"',
             "--final-creation-ruleset-json",
             "--release-app-id",
             '"repos/${REPOSITORY}/environments/release"',
             "validate-release-candidate.py environment",
-            # The app id reached `resolve` only as this env binding. `promote` still uses
-            # `vars.SPECSYNC_RELEASE_APP_ID` to mint its push token, which is a mechanism, not a
-            # policy — qualification must no longer depend on the variable existing.
-            "RELEASE_APP_ID: ${{ vars.SPECSYNC_RELEASE_APP_ID }}",
+            "SPECSYNC_RELEASE_APP_ID",
+            "SPECSYNC_RELEASE_APP_PRIVATE_KEY",
+            "create-github-app-token",
         ):
             with self.subTest(retired=retired):
                 self.assertNotIn(retired, release)
@@ -1240,40 +1246,53 @@ class WorkflowSourceContractTests(unittest.TestCase):
         upload = release[upload_start:upload_end]
         self.assertEqual(upload.count("          overwrite: true"), 1)
 
-    def test_promotion_uses_only_the_protected_release_app(self) -> None:
+    def test_promotion_mints_the_final_tag_with_the_workflow_token_alone(self) -> None:
+        """Promotion writes the final tag with GITHUB_TOKEN, scoped to this one job.
+
+        The release GitHub App is gone by owner decision, and this pins what replaced it. Two
+        properties matter and both are weaker than the design they replace, so both are asserted
+        rather than assumed:
+
+        1. Write access is granted on `promote` and nowhere else. A workflow-wide
+           `contents: write` would hand every other job in this file the ability to move refs.
+        2. No `environment:` is named. GitHub materializes a referenced environment on first use
+           with no protection rules, so naming the `release` environment that this repository does
+           not have would publish a deployment gate that gates nothing.
+        """
         release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
         promote_start = release.index("\n  promote:\n")
         promote_end = release.index("\n  build:\n", promote_start)
         promote = release[promote_start:promote_end]
 
-        self.assertEqual(promote.count("      name: release\n"), 1)
-        self.assertEqual(promote.count("      contents: read\n"), 1)
-        self.assertNotRegex(promote, r"(?m)^      contents: write$")
+        self.assertEqual(promote.count("    permissions:\n"), 1)
+        self.assertEqual(promote.count("      contents: write\n"), 1)
+        self.assertNotRegex(promote, r"(?m)^      contents: read$")
+
+        # Workflow-level defaults stay read-only; only `promote` and `release` may write, and each
+        # asks for it on its own job.
+        header = release[: release.index("\njobs:\n")]
+        self.assertIn("permissions:\n  contents: read\n", header)
+        self.assertNotIn("contents: write", header)
+        self.assertEqual(release.count("      contents: write\n"), 2)
+
+        self.assertNotRegex(promote, r"(?m)^    environment:$")
+        self.assertNotIn("environment:\n      name: release", promote)
+
+        for retired in (
+            "actions/create-github-app-token",
+            "SPECSYNC_RELEASE_APP_ID",
+            "SPECSYNC_RELEASE_APP_PRIVATE_KEY",
+            "permission-contents: write",
+            "release-app-token",
+        ):
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, promote)
+
         self.assertEqual(
-            promote.count(
-                "actions/create-github-app-token@"
-                "fee1f7d63c2ff003460e3d139729b119787bc349"
-            ),
+            promote.count("RELEASE_TOKEN: ${{ github.token }}"),
             1,
         )
-        self.assertEqual(
-            promote.count("app-id: ${{ vars.SPECSYNC_RELEASE_APP_ID }}"),
-            1,
-        )
-        self.assertEqual(
-            promote.count(
-                "private-key: ${{ secrets.SPECSYNC_RELEASE_APP_PRIVATE_KEY }}"
-            ),
-            1,
-        )
-        self.assertEqual(promote.count("          permission-contents: write\n"), 1)
         self.assertEqual(promote.count("          persist-credentials: false\n"), 1)
-        self.assertEqual(
-            promote.count(
-                "RELEASE_APP_TOKEN: ${{ steps.release-app-token.outputs.token }}"
-            ),
-            1,
-        )
         self.assertEqual(
             promote.count('release_remote="https://github.com/${REPOSITORY}.git"'),
             1,
@@ -1292,6 +1311,26 @@ class WorkflowSourceContractTests(unittest.TestCase):
         self.assertNotIn('git push origin "refs/tags/${FINAL_TAG}"', promote)
         self.assertNotIn("SPECSYNC_RELEASE_TAG_KEY", promote)
         self.assertNotIn("git@github.com", promote)
+
+    def test_promotion_states_who_can_now_create_a_release_tag(self) -> None:
+        """The authority that was given up must be readable at the job that gave it up.
+
+        `resolve` annotates it on every run, but a reader auditing `promote` reads the job, not a
+        run log. If this comment is deleted, the file stops saying that running the release lane
+        and holding release authority are now the same permission.
+        """
+        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        promote_start = release.index("  # WHO CAN MINT A RELEASE TAG")
+        promote_end = release.index("\n  build:\n", promote_start)
+        promote = release[promote_start:promote_end]
+
+        for stated in (
+            "THE PROTECTION THAT WAS GIVEN UP",
+            "NO `environment:` HERE, DELIBERATELY",
+            "can run `release.yml` from the default branch",
+        ):
+            with self.subTest(stated=stated):
+                self.assertIn(stated, promote)
 
     def test_validator_tests_are_wired_through_fledge_and_ci(self) -> None:
         test_path = ".github/scripts/test-validate-release-candidate.py"

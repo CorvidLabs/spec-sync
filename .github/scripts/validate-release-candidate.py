@@ -82,24 +82,31 @@ RC_TAG_RULES = ("update", "deletion")
 #
 # The design in REQ-github-007 also called for a `SpecSync final tag creation` ruleset naming a
 # dedicated release GitHub App as its only bypass actor, and a protected `release` deployment
-# environment holding that App's private key. Neither was ever provisioned: the App does not exist,
-# `vars.SPECSYNC_RELEASE_APP_ID` is unset, and there is no `release` environment. Demanding them
-# failed `release.yml` on every RC tag from v6.0.0-rc.1 through rc.6, which is the same as having no
-# release gate at all — the two rulesets that DO exist were never checked because the job died
-# before reaching them.
+# environment holding that App's private key. Neither was ever provisioned: no App was created, the
+# App id variable and private-key secret were never set, and there is no `release` environment.
+# Demanding them failed `release.yml` on every RC tag from v6.0.0-rc.1 through rc.6, which is the
+# same as having no release gate at all — the two rulesets that DO exist were never checked because
+# the job died before reaching them.
 #
-# The owner's decision was to keep the two immutability rulesets and drop the App-only creation
-# policy. Dropping a protection is allowed; dropping it quietly is not. Every green `rulesets` run
-# therefore carries this list, and `release.yml` prints each entry as a warning annotation, so a
-# passing release can never be read as proof of a policy nobody enforces.
+# The owner then decided against a release App altogether. `promote` now creates the final tag with
+# the workflow's own GITHUB_TOKEN under a job-scoped `contents: write`, and no longer names a
+# deployment environment, so both halves of the original creation policy are gone rather than
+# pending. Dropping a protection is allowed; dropping it quietly is not. Every green `rulesets` run
+# therefore carries this list, and `release.yml` prints each entry as a warning annotation and into
+# the step summary, so a passing release can never be read as proof of an authority nobody enforces.
 UNENFORCED_TAG_POLICIES = (
     "Final-tag creation is NOT restricted to a release GitHub App. This repository has no "
     "'SpecSync final tag creation' ruleset, so any actor with tag-write access can create "
     "refs/tags/vX.Y.Z directly, without a qualified candidate and without this workflow. "
     "A green release run is not evidence that a final tag came from qualification.",
-    "The protected 'release' deployment environment is NOT verified. This run does not prove that "
-    "it exists, that it forbids administrator bypass, or that it admits only the default branch, "
-    "so the promotion job's secret boundary is unproven.",
+    "The final tag is minted by this workflow's own GITHUB_TOKEN, NOT by a separate release "
+    "identity. There is no App whose key a workflow author cannot reach, so anyone able to run "
+    "release.yml from the default branch can cause refs/tags/vX.Y.Z to be created. Running the "
+    "release lane and holding release authority are the same permission here.",
+    "Promotion is NOT behind a deployment-environment gate. This workflow names no environment, "
+    "so no required reviewer, wait timer, or branch policy stands between dispatching a promotion "
+    "and the final tag being written. Nothing in a green run proves that a human other than the "
+    "dispatcher approved it.",
 )
 
 

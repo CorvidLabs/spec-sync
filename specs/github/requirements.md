@@ -209,10 +209,14 @@ Acceptance Criteria
   with no bypass, from updating or deleting either. Qualification validates exactly those two —
   `SpecSync immutable RC tags` over `refs/tags/v*.*.*-rc.*` and `SpecSync immutable final tags`
   over `refs/tags/v*.*.*` excluding the RC pattern — and fails closed on any broadening.
-- Final-tag creation is not restricted to a release GitHub App and the protected `release`
-  deployment environment is not validated. Qualification states both omissions on every run,
+- Final-tag creation is not restricted to a release GitHub App, the final tag is created by the
+  release workflow's own `GITHUB_TOKEN` rather than a separate release identity, and promotion is
+  not behind a deployment-environment gate. Qualification states all three omissions on every run,
   including successful ones, and fails if that statement is ever empty; it never reports a
   protection it does not check.
+- Permission to write a ref is granted to the promotion and publication jobs alone. The release
+  workflow's default permissions stay read-only, so no other job in the lane can create, move, or
+  delete a tag.
 - Every required platform runs the same named Fledge RC lane at that exact SHA.
 - Changing candidate content requires a new RC marker and fresh platform evidence.
 - Promotion fails closed unless Ubuntu, macOS, and Windows are green for the unchanged candidate SHA.

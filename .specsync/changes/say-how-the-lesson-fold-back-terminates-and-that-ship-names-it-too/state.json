@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "875752ee991d458db172dec6ceb712462fe2a614",
   "created_at": 1787609877,
-  "updated_at": 1787613308,
+  "updated_at": 1787626061,
   "affected_specs": [],
   "affected_paths": [
     "docs/ADOPTING.md"

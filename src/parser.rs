@@ -3,6 +3,7 @@ use crate::util::levenshtein;
 use regex::Regex;
 use serde::Deserialize;
 use serde::de::{IgnoredAny, MapAccess, SeqAccess, Visitor};
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fmt;
 use std::sync::LazyLock;
@@ -285,6 +286,15 @@ fn checked_issue_reference_error(error: serde_saphyr::Error) -> String {
 
 /// Parse YAML frontmatter from a spec file.
 /// Zero-dependency YAML: uses regex, no YAML parser needed.
+///
+/// CRLF input is accepted. `FRONTMATTER_RE` is LF-only, and there is no
+/// "normalize before you call me" convention to lean on — measured, 21 of the 39
+/// call sites outside this module normalize and 18 do not, so a Windows checkout
+/// made `specsync view` fail with "Cannot parse frontmatter" on every spec (#696).
+/// Normalizing here fixes every one of those callers without touching any of them,
+/// where an obligation on 18 call sites would be unenforceable and fail silently.
+/// The returned `body` is always LF-only, which is what every caller already
+/// assumed it was.
 pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     // A leading UTF-8 BOM (U+FEFF) is a non-semantic encoding marker that some
     // editors prepend; left in place it sits before the opening `---`, so the
@@ -293,6 +303,14 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     // can't see the invisible byte). Strip leading BOM(s) only (a U+FEFF anywhere
     // else is real content and is left untouched); this is lossless.
     let content = content.trim_start_matches('\u{feff}');
+    // Guarded so an LF document — every tracked spec in this repository — allocates
+    // nothing and takes the borrowed path.
+    let normalized: Cow<'_, str> = if content.contains('\r') {
+        Cow::Owned(content.replace("\r\n", "\n"))
+    } else {
+        Cow::Borrowed(content)
+    };
+    let content: &str = normalized.as_ref();
     let caps = FRONTMATTER_RE.captures(content)?;
     let yaml_block = caps.get(1)?.as_str();
     let body = caps.get(2)?.as_str().to_string();
@@ -398,6 +416,46 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
         errors,
         warnings,
     })
+}
+
+/// The body of a Markdown document, with YAML frontmatter removed, borrowed from the input.
+///
+/// The single canonical stripper (#696). Frontmatter stripping had four implementations in this
+/// repository and they disagreed; two deleted body content rather than merely leaving frontmatter
+/// behind, and neither failure raised an error. Use this one — it is correct on all six axes that
+/// separated them: LF, CRLF, a leading BOM, unterminated frontmatter, a closing delimiter at EOF,
+/// and a horizontal rule in the body. Any one of those alone is survivable, which is why a partial
+/// implementation looks correct until it meets the combination.
+///
+/// Unlike [`parse_frontmatter`] this does not normalize: the return borrows, so a CRLF body comes
+/// back with its CRLFs intact. Callers that need LF should normalize their own input or go
+/// through [`parse_frontmatter`].
+///
+/// Frontmatter ends at its CLOSING delimiter LINE, never at the next `---` anywhere in the
+/// document. Splitting on the delimiter and taking the third field looks equivalent and is not:
+/// a body with a horizontal rule loses everything after it, and lost prose reads exactly like
+/// prose nobody ever wrote.
+pub fn strip_frontmatter(text: &str) -> &str {
+    // A leading UTF-8 BOM must not hide the opening delimiter.
+    let text = text.trim_start_matches('\u{feff}');
+    // BOTH line endings, because a Windows-authored companion otherwise keeps its frontmatter and
+    // every untouched scaffold reports itself as recorded knowledge.
+    let after_open = if let Some(rest) = text.strip_prefix("---\r\n") {
+        rest
+    } else if let Some(rest) = text.strip_prefix("---\n") {
+        rest
+    } else {
+        return text;
+    };
+    let mut offset = 0usize;
+    for line in after_open.split_inclusive('\n') {
+        if line.trim_end_matches(['\r', '\n']) == "---" {
+            return &after_open[offset + line.len()..];
+        }
+        offset += line.len();
+    }
+    // Unterminated frontmatter: keep the whole document rather than guess where it ended.
+    text
 }
 
 /// Remove matched surrounding YAML quotes from a scalar, and any comment that
@@ -1225,6 +1283,130 @@ mod tests {
     fn test_parse_frontmatter_missing() {
         let content = "# No frontmatter here\n\nJust markdown.";
         assert!(parse_frontmatter(content).is_none());
+    }
+
+    // The shipped Windows defect (#696): `FRONTMATTER_RE` is `^---\n(.*?)\n---\n(.*)$`, LF-only,
+    // and 18 of the 39 call sites outside this module hand it unnormalized bytes. On a clone with
+    // `core.autocrlf=true` this returned `None` for every spec in the project, which `view.rs`
+    // reports as "Cannot parse frontmatter".
+    //
+    // Discriminates: before normalization landed here, `parse_frontmatter` returned `None` and
+    // the `expect` failed.
+    #[test]
+    fn test_parse_frontmatter_crlf_document() {
+        let content = "---\r\nmodule: auth\r\nversion: 1\r\nstatus: active\r\nfiles:\r\n  - src/auth.ts\r\n---\r\n\r\n# Auth\r\n\r\n## Purpose\r\n";
+
+        let parsed = parse_frontmatter(content).expect("a CRLF spec must parse");
+
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("auth"));
+        assert_eq!(parsed.frontmatter.version.as_deref(), Some("1"));
+        assert_eq!(parsed.frontmatter.status.as_deref(), Some("active"));
+        // A trailing `\r` on a list item would resolve as the literal path "src/auth.ts\r",
+        // reported as a missing source file — the cascade #696 describes for quoted paths.
+        assert_eq!(parsed.frontmatter.files, vec!["src/auth.ts"]);
+        // Callers index, split and compare the body as if it were LF, so it must be LF.
+        assert!(
+            !parsed.body.contains('\r'),
+            "body must be LF-only, got: {:?}",
+            parsed.body
+        );
+    }
+
+    // The discriminating fixture #696 names: CRLF **and** a leading BOM **and** a horizontal rule
+    // in the body. No single implementation handled all three, and each one alone is survivable —
+    // it is the combination that separates a correct reader from one that merely looks correct.
+    #[test]
+    fn test_parse_frontmatter_crlf_with_bom_and_body_horizontal_rule() {
+        let content = "\u{feff}---\r\nmodule: auth\r\nversion: 1\r\n---\r\n\r\n# Auth\r\n\r\nFirst.\r\n\r\n---\r\n\r\nSecond.\r\n";
+
+        let parsed =
+            parse_frontmatter(content).expect("CRLF + BOM frontmatter must parse (#696 fixture)");
+
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("auth"));
+        assert!(!parsed.body.contains('\u{feff}'));
+        // The rule is body content. Ending frontmatter at the *next* `---` anywhere in the
+        // document would swallow "First." and leave prose nobody can tell from prose never written.
+        assert!(parsed.body.contains("First."), "body: {:?}", parsed.body);
+        assert!(parsed.body.contains("Second."), "body: {:?}", parsed.body);
+    }
+
+    // Honest label: this is the CONTROL for the two tests above. An LF document must take the
+    // borrowed, zero-allocation path and be byte-identical to what it produced before, otherwise
+    // the guard is doing work on every spec in the repository.
+    #[test]
+    fn test_parse_frontmatter_lf_body_is_unchanged_by_the_crlf_guard() {
+        let content = "---\nmodule: auth\nversion: 1\n---\n\n# Auth\n\nFirst.\n\n---\n\nSecond.\n";
+
+        let parsed = parse_frontmatter(content).expect("LF spec parses");
+
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("auth"));
+        assert_eq!(parsed.body, "\n# Auth\n\nFirst.\n\n---\n\nSecond.\n");
+    }
+
+    // A lone `\r` is not a line ending we produce and is not what `replace("\r\n", "\n")` targets;
+    // it is real content. Pinned so the guard is never "simplified" into stripping every `\r`.
+    #[test]
+    fn test_parse_frontmatter_preserves_a_lone_carriage_return_in_the_body() {
+        let content = "---\nmodule: auth\n---\n\nprogress\rbar\n";
+
+        let parsed = parse_frontmatter(content).expect("parses");
+
+        assert!(
+            parsed.body.contains("progress\rbar"),
+            "a lone CR is content, got: {:?}",
+            parsed.body
+        );
+    }
+
+    // The canonical stripper (#696), on the six axes that separated the five implementations it
+    // replaces. Each case names the implementation it discriminates against.
+    #[test]
+    fn test_strip_frontmatter_all_six_axes() {
+        // LF — the baseline every implementation got right.
+        assert_eq!(
+            strip_frontmatter("---\nmodule: a\n---\n\n## Purpose\n"),
+            "\n## Purpose\n"
+        );
+
+        // CRLF — `view::strip_frontmatter` and `parser`'s regex were LF-only.
+        assert_eq!(
+            strip_frontmatter("---\r\nmodule: a\r\n---\r\n\r\n## Purpose\r\n"),
+            "\r\n## Purpose\r\n"
+        );
+
+        // BOM — hides the opening delimiter from a bare `strip_prefix("---")`.
+        assert_eq!(
+            strip_frontmatter("\u{feff}---\nmodule: a\n---\n\n## Purpose\n"),
+            "\n## Purpose\n"
+        );
+
+        // Unterminated frontmatter — keep the whole document rather than guess where it ended.
+        let unterminated = "---\nmodule: a\nstill open\n";
+        assert_eq!(strip_frontmatter(unterminated), unterminated);
+
+        // Closing delimiter at EOF, with no trailing newline — `view::strip_frontmatter` searched
+        // for `"\n---\n"` and so refused this, leaving the YAML block on screen.
+        assert_eq!(strip_frontmatter("---\nmodule: a\n---"), "");
+
+        // A horizontal rule in the body — `change::strip_yaml_frontmatter` scanned for `\n---\n`
+        // across the WHOLE document before trying `\r\n---\r\n`, so this exact CRLF-body/LF-rule
+        // shape silently deleted everything above the rule.
+        let mixed = "---\r\nmodule: a\r\n---\r\n\r\nKeep me.\r\n\n---\n\nAnd me.\r\n";
+        let body = strip_frontmatter(mixed);
+        assert!(body.contains("Keep me."), "body: {body:?}");
+        assert!(body.contains("And me."), "body: {body:?}");
+        assert!(!body.contains("module: a"), "body: {body:?}");
+    }
+
+    // Honest label: this is the CONTROL for the stripper. A document with no frontmatter at all
+    // must come back untouched, rules and all — otherwise "strip frontmatter" becomes
+    // "delete everything before the first horizontal rule", which is what two of the five
+    // implementations this replaces actually did.
+    #[test]
+    fn test_strip_frontmatter_keeps_a_document_that_has_none() {
+        let text = "# Notes\n\nFirst.\n\n---\n\nSecond.\n\n---\n\nThird.\n";
+
+        assert_eq!(strip_frontmatter(text), text);
     }
 
     #[test]

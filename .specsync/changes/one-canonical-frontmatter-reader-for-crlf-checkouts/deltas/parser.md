@@ -1,19 +1,8 @@
----
-module: parser
-version: 11
-status: stable
-files:
-  - src/parser.rs
-db_tables: []
-tracks: [117]
-depends_on:
-  - specs/types/types.spec.md
-  - specs/util/util.spec.md
----
+# Parser canonical frontmatter reader delta
 
-# Parser
+## MODIFIED
 
-## Purpose
+### SPEC SECTION Purpose
 
 Parses spec markdown files — extracts supported frontmatter into structured data, extracts
 backtick-quoted symbol names from Public API tables, and checks for required markdown sections.
@@ -26,7 +15,7 @@ readers accept CRLF themselves, because there is no caller-side normalization co
 on: the delimiter-recognition rule lives here once rather than in every module that reads a
 Markdown file.
 
-## Public API
+### SPEC SECTION Public API
 
 #### Exported Structs
 
@@ -53,7 +42,7 @@ Markdown file.
 | `get_duplicate_spec_symbols` | Find duplicate symbols in a spec body |
 | `is_boilerplate_line` | Detect placeholder documentation lines |
 
-## Invariants
+### SPEC SECTION Invariants
 
 1. `parse_frontmatter` returns `None` unless the content opens on a `---` delimiter line and closes on a later `---` delimiter line; both LF and CRLF encodings are accepted, and a leading UTF-8 BOM never hides the opening delimiter
 2. `get_spec_symbols` only extracts the complete first nonempty backtick-quoted symbol when that code span occupies the first table cell; extractor punctuation and internal spaces are preserved
@@ -76,7 +65,7 @@ Markdown file.
 14. `strip_frontmatter` is the single canonical stripper for the whole repository. Frontmatter ends at its CLOSING delimiter LINE — never at the next `---` anywhere in the document, because `---` is a legal Markdown horizontal rule and a body truncated at one is indistinguishable from a body nobody wrote. It is correct on six axes together: LF, CRLF, a leading BOM, unterminated frontmatter (the whole document is kept rather than a guess), a closing delimiter at end of file with no trailing newline, and a horizontal rule in the body. It borrows rather than allocating, so a CRLF body is returned with its carriage returns intact; a caller needing LF normalizes its own input or reads through `parse_frontmatter`.
 15. No module outside `parser` defines its own frontmatter stripper. A second implementation diverges silently in both directions — unstripped frontmatter renders as noise, over-stripped frontmatter deletes body content, and neither raises an error.
 
-## Behavioral Examples
+### SPEC SECTION Behavioral Examples
 
 ### Scenario: Parse valid frontmatter
 
@@ -134,7 +123,7 @@ Markdown file.
 - **When** `parse_checked_issue_references(content)` is called
 - **Then** the complete parse fails with a stable content-free error
 
-## Error Cases
+### SPEC SECTION Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
@@ -149,7 +138,7 @@ Markdown file.
 | Empty, unterminated, later-column, or prose backtick span | No symbol is extracted |
 | Empty body | `get_missing_sections` reports all required sections as missing |
 
-## Dependencies
+### SPEC SECTION Dependencies
 
 **Consumes**
 
@@ -175,19 +164,3 @@ Markdown file.
 **Frontmatter Synchronization**
 
 Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/util/util.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
-
-## Change Log
-
-| Date | Change |
-|------|--------|
-| 2026-03-25 | Initial spec |
-| 2026-06-11 | Add `get_all_api_table_symbols` so `check --fix` treats symbols documented under any Public API table (e.g. a bare `### Functions` heading) as already documented |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
-| 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve complete punctuated symbols in Public API table rows |
-| 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve punctuated Public API symbols across all export extractors |
-| 2026-07-22 | CHG-0063: Add maintained real-YAML checked issue-reference parsing with duplicate/malformed YAML rejection, strict top-level shapes, CRLF compatibility, and extension-safe semantics |
-| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
-| 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
-| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
-| 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
-| 2026-08-25 | one-canonical-frontmatter-reader-for-crlf-checkouts: One canonical frontmatter reader for CRLF checkouts |

@@ -2,3 +2,8 @@
 # Windows autocrlf does not rewrite working trees into non-canonical form.
 .specsync/workflow-v2-baseline.json text eol=lf
 .specsync/**/*.json text eol=lf
+# Change artifacts and semantic delta bodies are read as evidence by the same
+# lifecycle gates, and a CRLF working tree makes a spec's own frontmatter and
+# body arrive in non-canonical form. Same rule, same rationale, extended to the
+# Markdown the JSON pattern never covered (#709).
+.specsync/**/*.md text eol=lf

@@ -1,6 +1,6 @@
 ---
 id: a-subheading-inside-a-delta-item-must-not-flush-the-item-content-headings-split-one-section-into-fragments-and-the-last
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 875752ee991d458db172dec6ceb712462fe2a614
 ---

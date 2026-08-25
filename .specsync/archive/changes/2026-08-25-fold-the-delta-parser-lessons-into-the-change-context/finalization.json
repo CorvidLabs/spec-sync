@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "fold-the-delta-parser-lessons-into-the-change-context",
+  "implementation_commit": "4e379341b822762b7d1196ac551f9b3ccaf9858f",
+  "implementation_tree": "dfd0ec16c24976e1ffcebe59301d76da7d202854",
+  "contract_digest": "59ecb5f8d01125fdf7a51e18c94f4e7fe80078c9c88397dadb83b221ec801d23",
+  "workspace_digest": "9743f0242ccb3237eace8df85f6ac3b439d532d990a4295010b2e7dd48e330b2",
+  "closing_digest": "20652d252dd30b2fb0437cb70431d48be3c3d9e9b1c94e725e830643c2234644",
+  "review_digest": "e3b54bec36abc4501bca51c327869e2e3233fa80b27ecd53bfdc2060c194f8f3",
+  "finalization_digest": "a72854d2df8c48ce88f1051074783e2c00a1e2bf92c78448ca3c477033e0b5b5",
+  "timestamp": 1787617880
+}

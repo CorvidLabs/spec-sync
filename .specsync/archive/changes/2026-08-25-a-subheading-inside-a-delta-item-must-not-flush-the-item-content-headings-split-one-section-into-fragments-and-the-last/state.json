@@ -7,11 +7,11 @@
   "title": "A subheading inside a delta item must not flush the item: content headings split one section into fragments and the last one wins",
   "description": "A subheading inside a delta item must not flush the item: content headings split one section into fragments and the last one wins",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "875752ee991d458db172dec6ceb712462fe2a614",
   "created_at": 1787600170,
-  "updated_at": 1787615835,
+  "updated_at": 1787617248,
   "affected_specs": [
     "change"
   ],

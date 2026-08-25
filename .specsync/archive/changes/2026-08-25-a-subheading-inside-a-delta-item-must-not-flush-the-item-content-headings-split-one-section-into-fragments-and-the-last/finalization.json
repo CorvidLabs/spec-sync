@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-subheading-inside-a-delta-item-must-not-flush-the-item-content-headings-split-one-section-into-fragments-and-the-last",
+  "implementation_commit": "4e379341b822762b7d1196ac551f9b3ccaf9858f",
+  "implementation_tree": "dfd0ec16c24976e1ffcebe59301d76da7d202854",
+  "contract_digest": "bce4f8198ed87dff198b74681fc21f7d6c5efee933f67779446ef542c829fbfe",
+  "workspace_digest": "fb9e870df181eec8a963880511c0f357226bd11bd84378324061556423c7db20",
+  "closing_digest": "52e0c05432f8460d8de1f7d458ca05848aaa829563acbd1b533541387b2e54ca",
+  "review_digest": "37b468ca05fbc40386f38fd7d76890833e055fe088c281effe42b4d86380a08c",
+  "finalization_digest": "d19f2f0215fe7a23511b58f2ec914ecd7b94952b694ae1f03362fbb827e10b01",
+  "timestamp": 1787616972
+}

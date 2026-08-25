@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-subheading-inside-a-delta-item-must-not-flush-the-item-content-headings-split-one-section-into-fragments-and-the-last",
+  "slug": "a-subheading-inside-a-delta-item-must-not-flush-the-item-content-headings-split-one-section-into-fragments-and-the-last",
+  "title": "A subheading inside a delta item must not flush the item: content headings split one section into fragments and the last one wins",
+  "description": "A subheading inside a delta item must not flush the item: content headings split one section into fragments and the last one wins",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "875752ee991d458db172dec6ceb712462fe2a614",
+  "created_at": 1787600170,
+  "updated_at": 1787616972,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a delta section carrying content subheadings parses as ONE item holding all of them, not one item per subheading",
+    "a real item heading still ends the previous item, so distinct sections are not merged",
+    "a delta declaring the same operation, target and key twice is refused rather than silently keeping the last",
+    "the living spec no longer loses documented behaviour a change never touched"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

@@ -166,3 +166,18 @@ a parser with its own dialect until #696 decides which convention wins repo-wide
 
 It also means this stripper is no longer interchangeable with `view::strip_frontmatter`, which is
 LF-only and rejects a closer at EOF. Any claim that unifying them is a no-op is now false.
+
+A partial fix disguises its own symptom. #564 taught `parse_delta` that a `###` inside an open
+item is content rather than a malformed item heading — and left the `flush` call above that
+classification, so every content subheading still ended the item. One section carrying
+subheadings became several items under one key, and application kept the last. The visible
+damage was a spec silently losing documented behaviour, which reads as a grammar limitation, so
+the follow-up issue proposed rejecting such deltas — the exact change that would have
+reintroduced #564. Read the parser before believing the symptom's story about itself.
+
+Delta bodies are approval-bound evidence: `approved_delta_digests` records a digest per module at
+the definition gate, and materialization refuses a delta whose bytes changed after approval. An
+approval carrying no digest is UNKNOWN, not violated — every archived change predates the field.
+The guard and the flush ordering above are coupled: two archived deltas contain duplicate
+`MODIFIED` keys that exist only because the old ordering split one section, so shipping the
+duplicate-key refusal without the reordering would make those changes un-materializable.

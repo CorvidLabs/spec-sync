@@ -422,7 +422,13 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
 ///
 /// The single canonical stripper (#696). Frontmatter stripping had four implementations in this
 /// repository and they disagreed; two deleted body content rather than merely leaving frontmatter
-/// behind, and neither failure raised an error. Use this one — it is correct on all six axes that
+/// behind, and neither failure raised an error. It requires the delimiter line to be EXACTLY
+/// `---` (plus its line ending): `---  ` with a trailing space, or `----`, is not frontmatter and
+/// the document is returned whole. That is deliberate — guessing at a malformed delimiter is how
+/// a body gets cut at a horizontal rule — but it does mean a malformed opener leaves the YAML in
+/// the body, so callers that count prose see it as content. Tracked separately.
+///
+/// Use this one — it is correct on all six axes that
 /// separated them: LF, CRLF, a leading BOM, unterminated frontmatter, a closing delimiter at EOF,
 /// and a horizontal rule in the body. Any one of those alone is survivable, which is why a partial
 /// implementation looks correct until it meets the combination.
@@ -1358,6 +1364,11 @@ mod tests {
         );
     }
 
+    // Honest label: this is a CHARACTERIZATION test, not a discriminator for the canonical
+    // stripper. Its body is byte-identical to the `change::strip_frontmatter` this promoted, so
+    // it passes against that implementation too; it is RED only against `view::strip_frontmatter`.
+    // It pins the promoted behaviour so a future edit cannot quietly regress it.
+    //
     // The canonical stripper (#696), on the six axes that separated the five implementations it
     // replaces. Each case names the implementation it discriminates against.
     #[test]

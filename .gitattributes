@@ -7,3 +7,10 @@
 # body arrive in non-canonical form. Same rule, same rationale, extended to the
 # Markdown the JSON pattern never covered (#709).
 .specsync/**/*.md text eol=lf
+
+# Canonical specs and their companions feed `project_input_digest`, so a working tree that
+# rewrites them into CRLF changes the digest and stales evidence for honest, unmodified work —
+# the same reason the lifecycle files above are pinned. This governs THIS repository's trees; it
+# is not a substitute for readers that tolerate CRLF, because an adopter's repository, a tarball,
+# or an archive extracted without Git is never covered by it.
+specs/**/*.md text eol=lf

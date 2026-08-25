@@ -639,38 +639,50 @@ jobs:
             "${evidence_arguments[@]}"
           echo "qualification_run_id=${run_id}" >> "$GITHUB_OUTPUT"
 
-  # The release App is how this job pushes a final tag; it is NOT a policy that stops anyone else
-  # from pushing one. There is no `SpecSync final tag creation` ruleset, so a human with tag-write
-  # access can create `vX.Y.Z` without ever running this workflow. `resolve` warns about exactly
-  # that on every run.
+  # WHO CAN MINT A RELEASE TAG — stated here because it is weaker than the original design.
   #
-  # Provisioning status, so nobody mistakes silence for readiness: `vars.SPECSYNC_RELEASE_APP_ID`,
-  # `secrets.SPECSYNC_RELEASE_APP_PRIVATE_KEY`, and the `release` environment are all currently
-  # UNSET on this repository, and this job has never run. It fails closed if dispatched — the token
-  # step cannot mint a token from an empty app id, and the guard below refuses an empty token
-  # before any tag is written — but promotion cannot succeed until an App is created and both
-  # values are stored. `resolve` no longer blocks RC qualification on that provisioning; it
-  # reports it.
+  # This job creates `refs/tags/vX.Y.Z` with the workflow's own `GITHUB_TOKEN`, scoped to
+  # `contents: write` on this job alone. There is no release GitHub App. The owner decided not to
+  # create one, so the App-id variable and private-key secret this job used to read are gone from
+  # this workflow entirely, rather than left unset and failing closed on every dispatch forever.
+  #
+  # THE PROTECTION THAT WAS GIVEN UP: anyone who can run `release.yml` from the default branch —
+  # every actor with write access, and anything that can dispatch a workflow on their behalf — can
+  # now cause a final release tag to be created. Nothing stands between that dispatch and the tag:
+  # no separate App identity whose key a workflow author cannot reach, no deployment-environment
+  # approval, no second human. `resolve` prints exactly that as a `::warning::` annotation and into
+  # the step summary on every single run, green ones included, so a passing release can never be
+  # read as proof of an authority nobody enforces.
+  #
+  # WHAT IS UNCHANGED: `needs` still requires `resolve`, `validate`, and `authorize-release`, so a
+  # tag created by THIS job still follows a qualified candidate on three platforms. And both
+  # immutability rulesets still admit no bypass actor, so once `vX.Y.Z` exists nobody — this token
+  # included — can move or delete it. Immutability was always the protection that mattered most,
+  # and it is untouched.
+  #
+  # NO `environment:` HERE, DELIBERATELY. This job used to name a `release` environment that has
+  # never existed. GitHub creates a referenced environment on first use with zero protection rules,
+  # so the reference would add a `release` entry to the repository's Environments and Deployments
+  # UI that gates nothing while looking like a gate. An unprotected environment is worse than no
+  # environment, because only one of the two can mislead a reader. To make promotion a real gate:
+  # create the `release` environment with required reviewers and a `main`-only deployment branch
+  # policy FIRST, then add `environment: release` back here, then restore a qualification check
+  # that proves those rules are still in place.
+  #
+  # `GITHUB_TOKEN` costs nothing in triggering here. No workflow in this repository listens for a
+  # final-tag push: `release.yml` is the only workflow with a `tags:` trigger and it matches
+  # `v*.*.*-rc.*` only. Anything added later that must react to `vX.Y.Z` has to be called from
+  # inside this workflow, because a push made with `GITHUB_TOKEN` will not start it.
   promote:
     needs: [resolve, validate, authorize-release]
     if: needs.resolve.outputs.mode == 'promote'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    environment:
-      name: release
     permissions:
-      contents: read
+      # Write for exactly one thing, creating the final tag, and only on this job. The
+      # workflow-level default stays read-only, so no other job in this file can write a ref.
+      contents: write
     steps:
-      - name: Mint repository-scoped release app token
-        id: release-app-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        with:
-          app-id: ${{ vars.SPECSYNC_RELEASE_APP_ID }}
-          private-key: ${{ secrets.SPECSYNC_RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
@@ -682,19 +694,21 @@ jobs:
           FINAL_TAG: ${{ needs.resolve.outputs.final_tag }}
           RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
           CANDIDATE_SHA: ${{ needs.resolve.outputs.candidate_sha }}
-          RELEASE_APP_TOKEN: ${{ steps.release-app-token.outputs.token }}
+          RELEASE_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$RELEASE_APP_TOKEN" ]]; then
-            echo "::error::The release environment could not mint a release app token"
+          if [[ -z "$RELEASE_TOKEN" ]]; then
+            echo "::error::No token is available to create ${FINAL_TAG}"
             exit 1
           fi
           release_remote="https://github.com/${REPOSITORY}.git"
+          # Checkout above ran with `persist-credentials: false`, so the token reaches git only
+          # through this helper, only for this one remote, and never lands in `.git/config`.
           # The credential-helper child shell expands the masked token; this shell must not.
           # shellcheck disable=SC2016
-          credential_helper='credential.helper=!f() { test "$1" = get || exit 0; printf "%s\n" "username=x-access-token" "password=$RELEASE_APP_TOKEN"; }; f'
+          credential_helper='credential.helper=!f() { test "$1" = get || exit 0; printf "%s\n" "username=x-access-token" "password=$RELEASE_TOKEN"; }; f'
           git_release() {
             GIT_TERMINAL_PROMPT=0 git -c "$credential_helper" "$@"
           }

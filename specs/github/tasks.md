@@ -55,11 +55,18 @@ Per-module role sign-offs were not collected. Release approval is governed by di
   annotated RC tag while making Ubuntu the ordinary-PR integration authority (CHG-0075). The two
   immutability rulesets are provisioned and live-proven: `SpecSync immutable RC tags` (21432132)
   and `SpecSync immutable final tags` (21432148), both active with no bypass actor.
-- [ ] Decide the fate of App-only final-tag creation. The `SpecSync final tag creation` ruleset,
-  the release GitHub App (`SPECSYNC_RELEASE_APP_ID` / `SPECSYNC_RELEASE_APP_PRIVATE_KEY`), and the
-  protected `release` environment were never provisioned, and RC qualification no longer requires
-  them — it annotates both gaps on every run instead. Either provision them, or retire `promote`'s
-  App plumbing and choose another way to push a final tag. Until then `promote` cannot run, and
-  anyone with tag-write access can create `vX.Y.Z` by hand.
+- [x] Decide the fate of App-only final-tag creation: **no GitHub App.** The `SpecSync final tag
+  creation` ruleset, the release App, and the protected `release` environment are not being
+  provisioned, so the App plumbing was retired instead of left failing closed. `promote` now
+  creates the final tag with the workflow's own `GITHUB_TOKEN` under a `contents: write` permission
+  scoped to that one job, and names no deployment environment. The cost is recorded at the job, in
+  `docs/ci-confidence.md`, and as a warning annotation on every run: anyone able to run
+  `release.yml` from the default branch can cause `vX.Y.Z` to be created, and no reviewer stands in
+  between. Tag immutability is unchanged.
+- [ ] Optional hardening, if release authority should ever be narrower than workflow-run access:
+  create a `release` deployment environment with required reviewers and a `main`-only deployment
+  branch policy, re-add `environment: release` to `promote`, and restore a qualification check that
+  proves those rules are still in place. Do not re-add the reference before the environment exists
+  with real protection rules — an auto-created environment has none.
 - [x] Reuse authenticated required checks across bounded review/archive metadata descendants without
   crossing code edges or allowing cancelled republications to poison exact-SHA success (CHG-0077)

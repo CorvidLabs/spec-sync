@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "claude-code-agent (on behalf of repo owner decision relayed in task brief)",
+      "timestamp": 1787697236,
+      "digest": "4e2df1a159fea023e419d3862249279bdfaaafb31272bcdad8b19b8c7c52eebf",
+      "note": "Scope approval recorded by the implementing agent on the delegating brief's explicit instruction, not by a human sign-off. The owner decision it encodes: NO GitHub App. promote creates the final tag with the workflow's own GITHUB_TOKEN under contents: write scoped to that job, drops the environment: release reference because a referenced-but-absent environment is auto-created with no protection rules, and states on every run and at the job that anyone able to run release.yml from the default branch can now cause a release tag to be created. Re-approve if a human gate is required.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "remove-the-release-github-app-from-promotion-create-the-final-tag-with-the-workflow-s-own-github-token-and-state-who",
+        "title": "Remove the release GitHub App from promotion: create the final tag with the workflow's own GITHUB_TOKEN and state who can now mint a release tag",
+        "description": "Remove the release GitHub App from promotion: create the final tag with the workflow's own GITHUB_TOKEN and state who can now mint a release tag",
+        "kind": "operations",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/scripts/validate-release-candidate.py",
+          ".github/workflows/release.yml",
+          "docs/ci-confidence.md",
+          "specs/github/context.md",
+          "specs/github/github.spec.md",
+          "specs/github/requirements.md",
+          "specs/github/tasks.md"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "The promote job of .github/workflows/release.yml creates the final tag with the workflow's own GITHUB_TOKEN and nothing else: the actions/create-github-app-token step is gone, and no file under .github/ references vars.SPECSYNC_RELEASE_APP_ID, secrets.SPECSYNC_RELEASE_APP_PRIVATE_KEY, or actions/create-github-app-token. Write access is scoped to that one job — the workflow-level permissions block stays contents: read / actions: read / checks: read, and promote declares permissions: contents: write on the job alone. The 'environment: release' reference is removed, because the release environment does not exist and referencing it makes GitHub auto-create an unprotected environment that reads in the UI as a deployment gate while enforcing nothing; the workflow records that removal and what would be required to make it a real gate. The protection given up is stated where a reader will see it, not buried: validate-release-candidate.py's UNENFORCED_TAG_POLICIES says that final-tag creation is unrestricted AND that the final tag is now minted by the workflow's own token, so anyone able to dispatch release.yml from the default branch can create refs/tags/vX.Y.Z, and that no deployment-environment gate stands between a dispatch and a release tag; release.yml still fails when that list is empty and still prints every entry as a ::warning:: annotation and into the step summary on every run, green ones included. Tag immutability is unchanged: both rulesets are still validated strictly with no bypass actor. docs/ci-confidence.md, specs/github/github.spec.md, specs/github/requirements.md, specs/github/context.md and specs/github/tasks.md describe GITHUB_TOKEN-minted promotion with no App and no environment gate, and the open 'decide the fate of App-only final-tag creation' task is closed with the decision that was made. python3 .github/scripts/test-validate-release-candidate.py passes, its promote contract test asserts the GITHUB_TOKEN shape and the absence of every App and environment reference, actionlint reports no issue on release.yml, and cargo test passes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "f291c05c761b84195aa29818e3edc6df02bc618c63d4afd90f87271c858e5b2c"
+      }
+    }
+  ],
+  "reopenings": []
+}

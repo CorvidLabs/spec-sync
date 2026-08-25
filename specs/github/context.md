@@ -151,13 +151,29 @@ revalidates original platform evidence plus package hashes.
 
 CHG-0075 originally specified a third policy — `SpecSync final tag creation`, admitting only the
 dedicated CorvidLabs release GitHub App — plus a protected `release` environment holding the App's
-private key. Neither was ever provisioned: no App exists, `SPECSYNC_RELEASE_APP_ID` and
-`SPECSYNC_RELEASE_APP_PRIVATE_KEY` are unset, and there is no `release` environment. Demanding them
-failed `release.yml` on every RC tag from `v6.0.0-rc.1` through `rc.6`, so the two rulesets that do
-exist were never reached and the check never once passed. Qualification now requires only those two
-and **states the gap on every run** as warning annotations: final-tag creation is unrestricted, and
-the `release` environment is unverified. `promote` still mints an App token to push the tag — a
-mechanism, not an enforced policy — and cannot run until the App is provisioned or replaced.
+private key. Neither was ever provisioned: no App exists, its id variable and private-key secret
+were never set, and there is no `release` environment. Demanding them failed `release.yml` on every
+RC tag from `v6.0.0-rc.1` through `rc.6`, so the two rulesets that do exist were never reached and
+the check never once passed. Qualification now requires only those two.
+
+The owner then decided against a release App entirely, so the App is gone from the workflow rather
+than pending. `promote` creates the final tag with the workflow's own `GITHUB_TOKEN` under a
+`contents: write` permission scoped to that single job; the workflow-level default stays read-only.
+The `environment: release` reference was removed with it, because GitHub materializes a referenced
+environment on first use with no protection rules, so naming an environment this repository does
+not have would publish a deployment gate that gates nothing. Making promotion a real gate means
+creating the environment with reviewers and a `main`-only branch policy first, then re-adding the
+reference and a check that proves it.
+
+What that costs is stated on **every run**, green ones included, as `::warning::` annotations and
+in the step summary, and repeated at the `promote` job itself: final-tag creation is unrestricted;
+the tag is minted by this workflow's own token rather than a separate identity, so anyone able to
+run `release.yml` from the default branch can cause `refs/tags/vX.Y.Z` to be created; and no
+deployment-environment approval stands in between. Tag immutability is untouched — both rulesets
+still admit no bypass actor, so no one, including that token, can move or delete a tag once it
+exists. Nothing in this repository triggers on a final-tag push (`release.yml` is the only `tags:`
+trigger and matches RC tags only), so using `GITHUB_TOKEN` breaks no downstream automation; work
+that must react to `vX.Y.Z` has to be called from inside `release.yml`.
 
 CHG-0077 repairs the finalization tip dance reproduced by PR #492: a review child no longer orphans
 the green product tip, and a later cancelled/failed policy republication no longer poisons an earlier

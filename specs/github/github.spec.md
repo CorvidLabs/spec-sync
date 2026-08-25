@@ -1,6 +1,6 @@
 ---
 module: github
-version: 26
+version: 27
 status: stable
 files:
   - src/github.rs
@@ -63,6 +63,13 @@ unprovisioned policy fails on every candidate and therefore verifies nothing —
 default, because the protections that DO exist are never reached. Dropping a check from the gate is
 permitted; dropping it silently is not. The tag protections that remain admit no bypass actor and
 no broadening.
+
+Release authority is stated wherever it is exercised. The final tag is created by the release
+workflow's own token under a permission scoped to the single job that writes it, so the authority
+to run the release lane is the authority to create a release tag; that equivalence is announced by
+every run and recorded at the job itself, never left to be inferred from a green result. A named
+deployment environment that does not exist is not a gate — GitHub materializes it unprotected on
+first use — so the workflow names no environment rather than publish a gate that gates nothing.
 
 ## Behavioral Examples
 
@@ -142,8 +149,9 @@ no broadening.
 | RC marker is lightweight, malformed, moved, or has conflicting workflow history | Qualification and promotion fail; a fresh annotated RC marker is required |
 | Platform evidence is missing, unsuccessful, or bound to another tag/SHA | Final tag creation and release upload are refused |
 | Either immutable tag ruleset (RC or final) is absent, inactive, incomplete, broadened, or grants any bypass actor | RC qualification fails before any release job runs |
-| Ruleset validation reports no unenforced tag protections | Qualification fails rather than imply that App-only final-tag creation or the protected `release` environment was verified |
-| Promotion is dispatched without a provisioned release App | The token step cannot mint a token and the empty-token guard refuses promotion before any final tag is written |
+| Ruleset validation reports no unenforced tag protections | Qualification fails rather than imply that App-only final-tag creation, a separate release identity, or a deployment-environment approval was verified |
+| Promotion has no token available to create the final tag | The empty-token guard refuses promotion before any tag is written or pushed |
+| A release job other than promotion or publication attempts to write a ref | The workflow's read-only default permissions deny it; write is granted per job, never workflow-wide |
 | Metadata ancestry contains code, a merge-only side parent, exceeds 32 first parents, or has foreign/malformed/unsuccessful evidence | Reuse stops and the archive/Trust gate fails closed instead of borrowing older checks |
 
 ## Dependencies
@@ -199,3 +207,4 @@ no broadening.
 | 2026-08-06 | CHG-0087-decide-pull-requests-in-seconds-instead-of-minutes: Decide pull requests in seconds instead of minutes |
 | 2026-08-08 | CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha: Ship-status live GitHub check-run trust for product parent SHA |
 | 2026-08-25 | release-qualification-must-gate-on-the-two-immutable-tag-rulesets-that-exist-and-name-the-app-only-final-tag-creation: Release qualification must gate on the two immutable tag rulesets that exist and name the App-only final-tag creation policy it no longer enforces |
+| 2026-08-25 | remove-the-release-github-app-from-promotion-create-the-final-tag-with-the-workflow-s-own-github-token-and-state-who: Remove the release GitHub App from promotion: create the final tag with the workflow's own GITHUB_TOKEN and state who can now mint a release tag |

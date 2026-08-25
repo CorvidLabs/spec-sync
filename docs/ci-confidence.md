@@ -70,12 +70,44 @@ Parallel critical path ≈ max(
 
 With the Tier B workflow update, the ordinary PR target is approximately 5–15 minutes.
 
-Final-tag authority is split across three active rulesets. Humans may create RC markers, but no
-actor may move or delete them. Only the dedicated CorvidLabs release GitHub App may create a final
-tag, and no actor—including that App—may move or delete one. The App's repository-scoped token is
-minted only inside the protected `release` environment, whose deployment policy admits `main` only.
-
 Trust must **not** re-run `cargo test` / clippy / full verify after CI already did.
+
+## Tag authority: what is enforced, and what is not
+
+Tag authority rests on **two** active repository rulesets, and RC qualification verifies exactly
+those two before anything else runs:
+
+| Ruleset | Include | Exclude | Rules | Bypass actors |
+|---------|---------|---------|-------|---------------|
+| `SpecSync immutable RC tags` | `refs/tags/v*.*.*-rc.*` | — | `update`, `deletion` | none |
+| `SpecSync immutable final tags` | `refs/tags/v*.*.*` | `refs/tags/v*.*.*-rc.*` | `update`, `deletion` | none |
+
+Both must be `active`, `Repository`-sourced, and grant bypass to **nobody**. `resolve` refuses any
+broadening — an extra include pattern, a missing exclude, an added rule type, a single bypass actor,
+`evaluate` instead of `active` — so the gate cannot be widened without failing. Humans may create
+RC markers and final tags; no actor can move or delete either once created. That immutability is
+what makes a shipped `vX.Y.Z` reproducible, and it is the protection that survives.
+
+Two protections the original design specified are deliberately **not** enforced. Every release run
+states both as warning annotations and in its step summary, so a green run can never be misread as
+proof of a policy nobody enforces:
+
+- **App-only final-tag creation is NOT enforced.** There is no `SpecSync final tag creation`
+  ruleset, so any actor with tag-write access can create `refs/tags/vX.Y.Z` directly, without a
+  qualified candidate and without this workflow. The `promote` job still mints a repository-scoped
+  release App token to push the tag, but that is the *mechanism* promotion uses — not a policy that
+  prevents anyone else from creating a final tag by hand.
+- **The protected `release` deployment environment is NOT verified.** Qualification no longer
+  proves the environment exists, forbids administrator bypass, or admits only `main`.
+
+Why: neither the release GitHub App nor the `release` environment was ever provisioned —
+`vars.SPECSYNC_RELEASE_APP_ID` and `secrets.SPECSYNC_RELEASE_APP_PRIVATE_KEY` are unset and no
+`release` environment exists. Demanding all three rulesets plus the App failed `release.yml` on
+every RC tag from `v6.0.0-rc.1` through `rc.6`; the check has never passed since it was added in
+#492. A gate that always fails verifies nothing, and the two rulesets that *do* exist were never
+reached. The owner's decision was to keep the two immutability rulesets and drop the App-only
+creation policy — stated here and in the run log rather than assumed. `promote` remains
+unprovisioned and fails closed if dispatched.
 
 ## Trust lifecycle policy
 

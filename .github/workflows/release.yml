@@ -23,7 +23,6 @@ permissions:
   contents: read
   actions: read
   checks: read
-  deployments: read
 
 concurrency:
   group: specsync-release-${{ inputs.rc_tag || github.ref_name }}
@@ -56,7 +55,6 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           WORKFLOW_REF: ${{ github.workflow_ref }}
-          RELEASE_APP_ID: ${{ vars.SPECSYNC_RELEASE_APP_ID }}
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
@@ -147,33 +145,38 @@ jobs:
               "repos/${REPOSITORY}/rulesets/${ruleset_ids[0]}?includes_parents=true" \
               > "$output_file"
           }
-          final_creation_ruleset_file="${RUNNER_TEMP}/specsync-final-creation-ruleset.json"
+          # Two rulesets, not three. The original design also demanded a `SpecSync final tag
+          # creation` ruleset whose only bypass actor was a dedicated release GitHub App, plus a
+          # protected `release` deployment environment holding that App's key. Neither was ever
+          # provisioned, so this step failed on v6.0.0-rc.1 through rc.6 and the check has never
+          # once passed. A gate that always fails proves nothing: the two rulesets that DO exist
+          # were never reached, let alone verified.
+          #
+          # The owner's decision is to keep the two immutability rulesets and drop the App-only
+          # creation policy. What is dropped is announced, not buried — see the warning loop below.
           final_immutability_ruleset_file="${RUNNER_TEMP}/specsync-final-immutability-ruleset.json"
           rc_ruleset_file="${RUNNER_TEMP}/specsync-rc-tag-ruleset.json"
-          resolve_ruleset "SpecSync final tag creation" "$final_creation_ruleset_file"
           resolve_ruleset "SpecSync immutable final tags" "$final_immutability_ruleset_file"
           resolve_ruleset "SpecSync immutable RC tags" "$rc_ruleset_file"
+          rulesets_result_file="${RUNNER_TEMP}/specsync-rulesets-result.json"
           python3 .github/scripts/validate-release-candidate.py rulesets \
-            --final-creation-ruleset-json "$final_creation_ruleset_file" \
             --final-immutability-ruleset-json "$final_immutability_ruleset_file" \
-            --rc-ruleset-json "$rc_ruleset_file" \
-            --release-app-id "$RELEASE_APP_ID"
+            --rc-ruleset-json "$rc_ruleset_file" > "$rulesets_result_file"
 
-          environment_file="${RUNNER_TEMP}/specsync-release-environment.json"
-          branch_policies_file="${RUNNER_TEMP}/specsync-release-branch-policies.json"
-          gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "repos/${REPOSITORY}/environments/release" > "$environment_file"
-          gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "repos/${REPOSITORY}/environments/release/deployment-branch-policies?per_page=100" \
-            > "$branch_policies_file"
-          python3 .github/scripts/validate-release-candidate.py environment \
-            --environment-json "$environment_file" \
-            --branch-policies-json "$branch_policies_file" \
-            --default-branch "$DEFAULT_BRANCH"
+          # Say, on every single run including green ones, which tag protections this workflow does
+          # NOT verify. Nobody reading a passing release may conclude that App-only final-tag
+          # creation is enforced, because it is not. The validator refuses to emit an empty list,
+          # so this cannot silently stop reporting.
+          unenforced_count="$(jq -r '.unenforced | length' "$rulesets_result_file")"
+          if [[ "$unenforced_count" -lt 1 ]]; then
+            echo "::error::Ruleset validation must declare the protections it does not enforce"
+            exit 1
+          fi
+          echo "### Release tag protections NOT verified by this run" >> "$GITHUB_STEP_SUMMARY"
+          while IFS= read -r unenforced; do
+            echo "::warning title=Release protection not enforced::${unenforced}"
+            echo "- :warning: ${unenforced}" >> "$GITHUB_STEP_SUMMARY"
+          done < <(jq -r '.unenforced[]' "$rulesets_result_file")
 
           # A deleted/recreated or force-moved tag leaves release-workflow runs
           # with more than one head SHA. Refuse that tag name permanently.
@@ -636,6 +639,18 @@ jobs:
             "${evidence_arguments[@]}"
           echo "qualification_run_id=${run_id}" >> "$GITHUB_OUTPUT"
 
+  # The release App is how this job pushes a final tag; it is NOT a policy that stops anyone else
+  # from pushing one. There is no `SpecSync final tag creation` ruleset, so a human with tag-write
+  # access can create `vX.Y.Z` without ever running this workflow. `resolve` warns about exactly
+  # that on every run.
+  #
+  # Provisioning status, so nobody mistakes silence for readiness: `vars.SPECSYNC_RELEASE_APP_ID`,
+  # `secrets.SPECSYNC_RELEASE_APP_PRIVATE_KEY`, and the `release` environment are all currently
+  # UNSET on this repository, and this job has never run. It fails closed if dispatched — the token
+  # step cannot mint a token from an empty app id, and the guard below refuses an empty token
+  # before any tag is written — but promotion cannot succeed until an App is created and both
+  # values are stored. `resolve` no longer blocks RC qualification on that provisioning; it
+  # reports it.
   promote:
     needs: [resolve, validate, authorize-release]
     if: needs.resolve.outputs.mode == 'promote'

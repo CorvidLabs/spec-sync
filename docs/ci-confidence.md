@@ -70,12 +70,63 @@ Parallel critical path ≈ max(
 
 With the Tier B workflow update, the ordinary PR target is approximately 5–15 minutes.
 
-Final-tag authority is split across three active rulesets. Humans may create RC markers, but no
-actor may move or delete them. Only the dedicated CorvidLabs release GitHub App may create a final
-tag, and no actor—including that App—may move or delete one. The App's repository-scoped token is
-minted only inside the protected `release` environment, whose deployment policy admits `main` only.
-
 Trust must **not** re-run `cargo test` / clippy / full verify after CI already did.
+
+## Tag authority: what is enforced, and what is not
+
+Tag authority rests on **two** active repository rulesets, and RC qualification verifies exactly
+those two before anything else runs:
+
+| Ruleset | Include | Exclude | Rules | Bypass actors |
+|---------|---------|---------|-------|---------------|
+| `SpecSync immutable RC tags` | `refs/tags/v*.*.*-rc.*` | — | `update`, `deletion` | none |
+| `SpecSync immutable final tags` | `refs/tags/v*.*.*` | `refs/tags/v*.*.*-rc.*` | `update`, `deletion` | none |
+
+Both must be `active`, `Repository`-sourced, and grant bypass to **nobody**. `resolve` refuses any
+broadening — an extra include pattern, a missing exclude, an added rule type, a single bypass actor,
+`evaluate` instead of `active` — so the gate cannot be widened without failing. Humans may create
+RC markers and final tags; no actor can move or delete either once created. That immutability is
+what makes a shipped `vX.Y.Z` reproducible, and it is the protection that survives.
+
+Three protections the original design specified are deliberately **not** enforced. Every release
+run states all three as warning annotations and in its step summary, so a green run can never be
+misread as proof of a policy nobody enforces:
+
+- **App-only final-tag creation is NOT enforced.** There is no `SpecSync final tag creation`
+  ruleset, so any actor with tag-write access can create `refs/tags/vX.Y.Z` directly, without a
+  qualified candidate and without this workflow.
+- **The final tag is minted by the workflow's own `GITHUB_TOKEN`, NOT by a separate release
+  identity.** `promote` creates `vX.Y.Z` with `GITHUB_TOKEN` under a `contents: write` permission
+  scoped to that one job. There is no App key that a workflow author cannot reach, so anyone able
+  to run `release.yml` from the default branch can cause a release tag to be created. **Running the
+  release lane and holding release authority are the same permission here.**
+- **Promotion is NOT behind a deployment-environment gate.** `promote` names no environment, so no
+  required reviewer, wait timer, or deployment branch policy stands between dispatching a promotion
+  and the tag being written.
+
+Why: there is no release GitHub App, and the owner decided not to create one. The App, its
+`SpecSync final tag creation` ruleset, and the protected `release` environment that would have held
+its private key were never provisioned; demanding all three plus the App failed `release.yml` on
+every RC tag from `v6.0.0-rc.1` through `rc.6`, and the check never once passed after it was added
+in #492. A gate that always fails verifies nothing, and the two rulesets that *do* exist were never
+reached. Rather than leave dead App plumbing that fails closed on every dispatch, `promote` now
+pushes the tag with `GITHUB_TOKEN` and the workflow says, at the job and in every run log, exactly
+what that costs.
+
+The `environment: release` reference was **removed rather than kept**. GitHub materializes a
+referenced environment on first use with no protection rules at all, so naming an environment this
+repository does not have would publish a `release` entry in Environments and Deployments that gates
+nothing while looking like a gate. An unprotected environment is worse than none, because only one
+of the two can mislead a reader. To make promotion a real gate: create the `release` environment
+with required reviewers and a `main`-only deployment branch policy **first**, then re-add
+`environment: release` to `promote`, then restore a qualification check that proves those rules are
+still in place.
+
+What this does **not** cost: no workflow in this repository listens for a final-tag push
+(`release.yml` is the only `tags:` trigger and it matches `v*.*.*-rc.*` only), so the usual
+objection to `GITHUB_TOKEN` — that pushes made with it do not start other workflows — has nothing
+to break here. Anything added later that must react to `vX.Y.Z` has to be called from inside
+`release.yml` rather than triggered by the tag.
 
 ## Trust lifecycle policy
 

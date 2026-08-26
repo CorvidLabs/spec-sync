@@ -205,10 +205,18 @@ Acceptance Criteria
 
 - Ordinary development/product PRs do not schedule macOS or Windows integration jobs.
 - An RC branch is frozen by an immutable annotated `vX.Y.Z-rc.N` marker resolving to one full SHA.
-- Active tag rulesets let humans create new RC markers but forbid their update/deletion, allow only
-  a dedicated release GitHub App to create final tags, and forbid every actor from updating or
-  deleting final tags. Its private key is available only to the protected `release` environment's
-  promotion job, which mints a short-lived token scoped to the repository.
+- Two active tag rulesets let humans create new RC markers and final tags but forbid every actor,
+  with no bypass, from updating or deleting either. Qualification validates exactly those two —
+  `SpecSync immutable RC tags` over `refs/tags/v*.*.*-rc.*` and `SpecSync immutable final tags`
+  over `refs/tags/v*.*.*` excluding the RC pattern — and fails closed on any broadening.
+- Final-tag creation is not restricted to a release GitHub App, the final tag is created by the
+  release workflow's own `GITHUB_TOKEN` rather than a separate release identity, and promotion is
+  not behind a deployment-environment gate. Qualification states all three omissions on every run,
+  including successful ones, and fails if that statement is ever empty; it never reports a
+  protection it does not check.
+- Permission to write a ref is granted to the promotion and publication jobs alone. The release
+  workflow's default permissions stay read-only, so no other job in the lane can create, move, or
+  delete a tag.
 - Every required platform runs the same named Fledge RC lane at that exact SHA.
 - Changing candidate content requires a new RC marker and fresh platform evidence.
 - Promotion fails closed unless Ubuntu, macOS, and Windows are green for the unchanged candidate SHA.

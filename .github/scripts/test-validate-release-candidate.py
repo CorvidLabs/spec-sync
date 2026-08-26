@@ -474,47 +474,14 @@ class PlatformEvidenceTests(unittest.TestCase):
 
 
 class RulesetValidationTests(unittest.TestCase):
-    """Fail-closed final-tag and RC-tag repository ruleset contract tests."""
-
-    release_app_id = 1234567
+    """Fail-closed tag-immutability ruleset contract tests."""
 
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.final_creation_ruleset_path = self.root / "final-creation-ruleset.json"
         self.final_immutability_ruleset_path = self.root / "final-immutability-ruleset.json"
         self.rc_ruleset_path = self.root / "rc-ruleset.json"
-        self.valid_final_creation_ruleset: dict[str, Any] = {
-            "id": 42,
-            "node_id": "RRS_final_fixture",
-            "name": "SpecSync final tag creation",
-            "target": "tag",
-            "source_type": "Repository",
-            "source": "CorvidLabs/spec-sync",
-            "enforcement": "active",
-            "current_user_can_bypass": "never",
-            "bypass_actors": [
-                {
-                    "actor_id": self.release_app_id,
-                    "actor_type": "Integration",
-                    "bypass_mode": "always",
-                }
-            ],
-            "conditions": {
-                "ref_name": {
-                    "include": ["refs/tags/v*.*.*"],
-                    "exclude": ["refs/tags/v*.*.*-rc.*"],
-                }
-            },
-            "rules": [{"type": "creation"}],
-            "_links": {
-                "self": {"href": "https://api.github.com/repos/CorvidLabs/spec-sync/rulesets/42"},
-                "html": {"href": "https://github.com/CorvidLabs/spec-sync/rules/42"},
-            },
-            "created_at": "2026-08-01T00:00:00Z",
-            "updated_at": "2026-08-01T00:00:00Z",
-        }
         self.valid_final_immutability_ruleset: dict[str, Any] = {
             "id": 44,
             "node_id": "RRS_final_immutability_fixture",
@@ -572,26 +539,16 @@ class RulesetValidationTests(unittest.TestCase):
 
     def write_rulesets(
         self,
-        final_creation_payload: Any | None = None,
         final_immutability_payload: Any | None = None,
         rc_payload: Any | None = None,
     ) -> None:
-        """Write all deterministic ruleset fixtures."""
-        final_creation_value = (
-            self.valid_final_creation_ruleset
-            if final_creation_payload is None
-            else final_creation_payload
-        )
+        """Write both deterministic ruleset fixtures."""
         final_immutability_value = (
             self.valid_final_immutability_ruleset
             if final_immutability_payload is None
             else final_immutability_payload
         )
         rc_value = self.valid_rc_ruleset if rc_payload is None else rc_payload
-        self.final_creation_ruleset_path.write_text(
-            json.dumps(final_creation_value, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
         self.final_immutability_ruleset_path.write_text(
             json.dumps(final_immutability_value, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
@@ -602,20 +559,16 @@ class RulesetValidationTests(unittest.TestCase):
         )
 
     def run_rulesets(self, *arguments: str) -> subprocess.CompletedProcess[str]:
-        """Run the stable three-ruleset workflow command."""
+        """Run the stable two-ruleset workflow command."""
         return subprocess.run(
             [
                 sys.executable,
                 str(VALIDATOR),
                 "rulesets",
-                "--final-creation-ruleset-json",
-                str(self.final_creation_ruleset_path),
                 "--final-immutability-ruleset-json",
                 str(self.final_immutability_ruleset_path),
                 "--rc-ruleset-json",
                 str(self.rc_ruleset_path),
-                "--release-app-id",
-                str(self.release_app_id),
                 *arguments,
             ],
             cwd=self.root,
@@ -632,10 +585,6 @@ class RulesetValidationTests(unittest.TestCase):
     ) -> None:
         """Require one pure ruleset fixture to fail with a useful diagnostic."""
         validator = {
-            "final_creation": lambda value: VALIDATOR_MODULE.validate_final_tag_creation_ruleset(
-                value,
-                self.release_app_id,
-            ),
             "final_immutability": VALIDATOR_MODULE.validate_final_tag_immutability_ruleset,
             "rc": VALIDATOR_MODULE.validate_rc_tag_ruleset,
         }[policy]
@@ -652,64 +601,84 @@ class RulesetValidationTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
-        self.assertIn("--final-creation-ruleset-json", help_result.stdout)
         self.assertIn("--final-immutability-ruleset-json", help_result.stdout)
         self.assertIn("--rc-ruleset-json", help_result.stdout)
-        self.assertIn("--release-app-id", help_result.stdout)
-        self.assertNotIn("--ruleset-json", help_result.stdout)
+        self.assertNotIn("--final-creation-ruleset-json", help_result.stdout)
+        self.assertNotIn("--release-app-id", help_result.stdout)
 
         result = self.run_rulesets()
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertTrue(payload["valid"])
         self.assertEqual(payload["mode"], "rulesets")
-        self.assertEqual(
-            payload["final_creation"]["bypass_actor_id"],
-            self.release_app_id,
-        )
-        self.assertEqual(payload["final_creation"]["bypass_actor_type"], "Integration")
-        self.assertEqual(payload["final_creation"]["rules"], ["creation"])
-        self.assertIsNone(payload["final_immutability"]["bypass_actor_id"])
+        self.assertEqual(payload["final_immutability"]["bypass_actors"], [])
         self.assertEqual(
             payload["final_immutability"]["rules"],
             ["update", "deletion"],
         )
-        self.assertIsNone(payload["rc"]["bypass_actor_id"])
-        self.assertIsNone(payload["rc"]["bypass_actor_type"])
+        self.assertEqual(
+            payload["final_immutability"]["ref_includes"],
+            ["refs/tags/v*.*.*"],
+        )
+        self.assertEqual(
+            payload["final_immutability"]["ref_excludes"],
+            ["refs/tags/v*.*.*-rc.*"],
+        )
+        self.assertEqual(payload["rc"]["bypass_actors"], [])
         self.assertEqual(payload["rc"]["rules"], ["update", "deletion"])
+        self.assertEqual(payload["rc"]["ref_includes"], ["refs/tags/v*.*.*-rc.*"])
+        self.assertNotIn("final_creation", payload)
 
-    def test_rulesets_cli_requires_all_inputs_and_rejects_legacy_command(self) -> None:
+    def test_successful_rulesets_declare_every_unenforced_tag_protection(self) -> None:
+        """A green ruleset check must still say what it does not verify.
+
+        Dropping the App-only creation policy is allowed; dropping it silently is not. If this
+        list is ever emptied, `release.yml` fails rather than reporting a clean bill of health it
+        cannot back up.
+        """
+        self.write_rulesets()
+        result = self.run_rulesets()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        unenforced = json.loads(result.stdout)["unenforced"]
+        self.assertIsInstance(unenforced, list)
+        self.assertEqual(len(unenforced), 3)
+        self.assertEqual(unenforced, list(VALIDATOR_MODULE.UNENFORCED_TAG_POLICIES))
+        joined = "\n".join(unenforced)
+        self.assertIn("SpecSync final tag creation", joined)
+        self.assertIn("release GitHub App", joined)
+        # Naming GITHUB_TOKEN is the point: the tag now comes from the same permission that runs
+        # the workflow, and a reader who is told only "creation is unrestricted" would not learn
+        # that dispatching a release IS the release authority.
+        self.assertIn("GITHUB_TOKEN", joined)
+        self.assertIn("deployment-environment gate", joined)
+        for entry in unenforced:
+            with self.subTest(entry=entry):
+                self.assertIn("NOT", entry)
+
+    def test_rulesets_cli_requires_both_inputs_and_rejects_retired_flags(self) -> None:
         self.write_rulesets()
         missing_final = subprocess.run(
             [
                 sys.executable,
                 str(VALIDATOR),
                 "rulesets",
-                "--final-immutability-ruleset-json",
-                str(self.final_immutability_ruleset_path),
                 "--rc-ruleset-json",
                 str(self.rc_ruleset_path),
-                "--release-app-id",
-                str(self.release_app_id),
             ],
             capture_output=True,
             text=True,
             check=False,
         )
         self.assertNotEqual(missing_final.returncode, 0)
-        self.assertIn("--final-creation-ruleset-json", missing_final.stderr)
+        self.assertIn("--final-immutability-ruleset-json", missing_final.stderr)
 
         missing_rc = subprocess.run(
             [
                 sys.executable,
                 str(VALIDATOR),
                 "rulesets",
-                "--final-creation-ruleset-json",
-                str(self.final_creation_ruleset_path),
                 "--final-immutability-ruleset-json",
                 str(self.final_immutability_ruleset_path),
-                "--release-app-id",
-                str(self.release_app_id),
             ],
             capture_output=True,
             text=True,
@@ -717,6 +686,17 @@ class RulesetValidationTests(unittest.TestCase):
         )
         self.assertNotEqual(missing_rc.returncode, 0)
         self.assertIn("--rc-ruleset-json", missing_rc.stderr)
+
+        # The App-only creation policy is gone from the contract, not merely unused: passing its
+        # retired flags must fail loudly so a stale caller cannot believe it is still checked.
+        for flag, value in (
+            ("--release-app-id", "1234567"),
+            ("--final-creation-ruleset-json", str(self.final_immutability_ruleset_path)),
+        ):
+            with self.subTest(retired=flag):
+                result = self.run_rulesets(flag, value)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("unrecognized arguments", result.stderr)
 
         legacy = subprocess.run(
             [sys.executable, str(VALIDATOR), "ruleset", "--ruleset-json", "ruleset.json"],
@@ -727,6 +707,15 @@ class RulesetValidationTests(unittest.TestCase):
         self.assertNotEqual(legacy.returncode, 0)
         self.assertIn("invalid choice", legacy.stderr)
 
+        environment = subprocess.run(
+            [sys.executable, str(VALIDATOR), "environment", "--default-branch", "main"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(environment.returncode, 0)
+        self.assertIn("invalid choice", environment.stderr)
+
     def test_rulesets_reject_wrong_identity_or_inactive_enforcement(self) -> None:
         cases = (
             ("target", "branch", "target"),
@@ -734,11 +723,6 @@ class RulesetValidationTests(unittest.TestCase):
             ("enforcement", "evaluate", "enforcement"),
         )
         fixtures = (
-            (
-                "final_creation",
-                self.valid_final_creation_ruleset,
-                "SpecSync immutable final tags",
-            ),
             (
                 "final_immutability",
                 self.valid_final_immutability_ruleset,
@@ -757,10 +741,10 @@ class RulesetValidationTests(unittest.TestCase):
                     payload[field] = value
                     self.assert_payload_rejected(policy, payload, message)
 
-        malformed_bypass = copy.deepcopy(self.valid_final_creation_ruleset)
+        malformed_bypass = copy.deepcopy(self.valid_final_immutability_ruleset)
         malformed_bypass["current_user_can_bypass"] = True
         self.assert_payload_rejected(
-            "final_creation",
+            "final_immutability",
             malformed_bypass,
             "recognized GitHub bypass mode",
         )
@@ -780,15 +764,11 @@ class RulesetValidationTests(unittest.TestCase):
                 "exclude patterns must be exactly",
             ),
         )
-        for policy, fixture in (
-            ("final_creation", self.valid_final_creation_ruleset),
-            ("final_immutability", self.valid_final_immutability_ruleset),
-        ):
-            for field, value, message in final_cases:
-                with self.subTest(policy=policy, field=field, value=value):
-                    payload = copy.deepcopy(fixture)
-                    payload["conditions"]["ref_name"][field] = value
-                    self.assert_payload_rejected(policy, payload, message)
+        for field, value, message in final_cases:
+            with self.subTest(policy="final_immutability", field=field, value=value):
+                payload = copy.deepcopy(self.valid_final_immutability_ruleset)
+                payload["conditions"]["ref_name"][field] = value
+                self.assert_payload_rejected("final_immutability", payload, message)
 
         rc_cases = (
             ("include", ["refs/tags/v*.*.*"], "include patterns must be exactly"),
@@ -806,7 +786,6 @@ class RulesetValidationTests(unittest.TestCase):
                 self.assert_payload_rejected("rc", payload, message)
 
         for policy, fixture in (
-            ("final_creation", self.valid_final_creation_ruleset),
             ("final_immutability", self.valid_final_immutability_ruleset),
             ("rc", self.valid_rc_ruleset),
         ):
@@ -819,32 +798,10 @@ class RulesetValidationTests(unittest.TestCase):
             self.assert_payload_rejected(policy, unknown, "conditions has unknown fields")
 
     def test_rulesets_reject_missing_duplicate_unknown_or_parameterized_rules(self) -> None:
-        final_creation_cases = (
+        immutability_cases = (
+            ([{"type": "deletion"}], "must be exactly"),
             ([{"type": "update"}], "must be exactly"),
             (
-                [
-                    {"type": "creation"},
-                    {"type": "creation"},
-                ],
-                "must not contain duplicates",
-            ),
-            (
-                [
-                    {"type": "creation"},
-                    {"type": "required_signatures"},
-                ],
-                "must be exactly",
-            ),
-        )
-        for rules, message in final_creation_cases:
-            with self.subTest(policy="final_creation", rules=rules):
-                payload = copy.deepcopy(self.valid_final_creation_ruleset)
-                payload["rules"] = rules
-                self.assert_payload_rejected("final_creation", payload, message)
-
-        final_immutability_cases = (
-            ([{"type": "deletion"}], "must be exactly"),
-            (
                 [{"type": "update"}, {"type": "deletion"}, {"type": "deletion"}],
                 "must not contain duplicates",
             ),
@@ -853,117 +810,52 @@ class RulesetValidationTests(unittest.TestCase):
                 "must be exactly",
             ),
         )
-        for rules, message in final_immutability_cases:
-            with self.subTest(policy="final_immutability", rules=rules):
-                payload = copy.deepcopy(self.valid_final_immutability_ruleset)
-                payload["rules"] = rules
-                self.assert_payload_rejected("final_immutability", payload, message)
-
-        rc_cases = (
-            ([{"type": "deletion"}], "must be exactly"),
-            (
-                [{"type": "creation"}, {"type": "update"}, {"type": "deletion"}],
-                "must be exactly",
-            ),
-            (
-                [{"type": "update"}, {"type": "deletion"}, {"type": "deletion"}],
-                "must not contain duplicates",
-            ),
-        )
-        for rules, message in rc_cases:
-            with self.subTest(policy="rc", rules=rules):
-                payload = copy.deepcopy(self.valid_rc_ruleset)
-                payload["rules"] = rules
-                self.assert_payload_rejected("rc", payload, message)
-
         for policy, fixture in (
-            ("final_creation", self.valid_final_creation_ruleset),
             ("final_immutability", self.valid_final_immutability_ruleset),
             ("rc", self.valid_rc_ruleset),
         ):
+            for rules, message in immutability_cases:
+                with self.subTest(policy=policy, rules=rules):
+                    payload = copy.deepcopy(fixture)
+                    payload["rules"] = rules
+                    self.assert_payload_rejected(policy, payload, message)
+
             parameters = copy.deepcopy(fixture)
             parameters["rules"][0]["parameters"] = {"unexpected": True}
             self.assert_payload_rejected(policy, parameters, "has unknown fields")
 
-    def test_final_creation_rejects_broader_or_wrong_bypass_actors(self) -> None:
-        missing = copy.deepcopy(self.valid_final_creation_ruleset)
-        missing["bypass_actors"] = []
-        self.assert_payload_rejected("final_creation", missing, "exactly one")
-
-        extra = copy.deepcopy(self.valid_final_creation_ruleset)
-        extra["bypass_actors"].append(
-            {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}
-        )
-        self.assert_payload_rejected("final_creation", extra, "exactly one")
-
-        cases = (
-            (1, "Integration", "always", "must match release app id"),
-            (True, "Integration", "always", "must match release app id"),
-            (self.release_app_id, "User", "always", "actor_type must be 'Integration'"),
-            (self.release_app_id, "RepositoryRole", "always", "actor_type must be 'Integration'"),
-            (self.release_app_id, "OrganizationAdmin", "always", "actor_type must be 'Integration'"),
-            (self.release_app_id, "DeployKey", "always", "actor_type must be 'Integration'"),
-            (self.release_app_id, "Integration", "exempt", "bypass_mode must be 'always'"),
-            (
-                self.release_app_id,
-                "Integration",
-                "pull_request",
-                "bypass_mode must be 'always'",
-            ),
-        )
-        for actor_id, actor_type, bypass_mode, message in cases:
-            with self.subTest(actor_type=actor_type, bypass_mode=bypass_mode):
-                payload = copy.deepcopy(self.valid_final_creation_ruleset)
-                payload["bypass_actors"] = [
-                    {
-                        "actor_id": actor_id,
-                        "actor_type": actor_type,
-                        "bypass_mode": bypass_mode,
-                    }
-                ]
-                self.assert_payload_rejected("final_creation", payload, message)
-
-        unknown = copy.deepcopy(self.valid_final_creation_ruleset)
-        unknown["bypass_actors"][0]["scope"] = "repository"
-        self.assert_payload_rejected("final_creation", unknown, "has unknown fields")
-
     def test_immutability_rulesets_reject_every_bypass_actor(self) -> None:
+        """No actor may move or delete a tag — the validator admits no exception at all.
+
+        This is the protection that survived dropping the App-only creation policy, so it must not
+        acquire a bypass escape hatch on the way through.
+        """
         for policy, fixture in (
             ("final_immutability", self.valid_final_immutability_ruleset),
             ("rc", self.valid_rc_ruleset),
         ):
-            payload = copy.deepcopy(fixture)
-            payload["bypass_actors"] = [
-                {
-                    "actor_id": self.release_app_id,
-                    "actor_type": "Integration",
-                    "bypass_mode": "always",
-                }
-            ]
-            self.assert_payload_rejected(
-                policy,
-                payload,
-                "must not grant bypass to any actor",
-            )
+            for actor_type in ("Integration", "User", "RepositoryRole", "OrganizationAdmin"):
+                with self.subTest(policy=policy, actor_type=actor_type):
+                    payload = copy.deepcopy(fixture)
+                    payload["bypass_actors"] = [
+                        {
+                            "actor_id": 1234567,
+                            "actor_type": actor_type,
+                            "bypass_mode": "always",
+                        }
+                    ]
+                    self.assert_payload_rejected(
+                        policy,
+                        payload,
+                        "must not grant bypass to any actor",
+                    )
 
-    def test_rc_ruleset_rejects_every_bypass_actor(self) -> None:
-        payload = copy.deepcopy(self.valid_rc_ruleset)
-        payload["bypass_actors"] = [
-            {
-                "actor_id": 15368,
-                "actor_type": "Integration",
-                "bypass_mode": "always",
-            }
-        ]
-        self.assert_payload_rejected("rc", payload, "must not grant bypass to any actor")
-
-        malformed = copy.deepcopy(self.valid_rc_ruleset)
-        malformed["bypass_actors"] = {}
-        self.assert_payload_rejected("rc", malformed, "must be an array")
+            malformed = copy.deepcopy(fixture)
+            malformed["bypass_actors"] = {}
+            self.assert_payload_rejected(policy, malformed, "must be an array")
 
     def test_rulesets_reject_unknown_duplicate_malformed_and_oversized_json(self) -> None:
         for policy, fixture in (
-            ("final_creation", self.valid_final_creation_ruleset),
             ("final_immutability", self.valid_final_immutability_ruleset),
             ("rc", self.valid_rc_ruleset),
         ):
@@ -975,7 +867,6 @@ class RulesetValidationTests(unittest.TestCase):
                 self.write_rulesets()
                 raw = json.dumps(fixture)
                 path = {
-                    "final_creation": self.final_creation_ruleset_path,
                     "final_immutability": self.final_immutability_ruleset_path,
                     "rc": self.rc_ruleset_path,
                 }[policy]
@@ -985,9 +876,7 @@ class RulesetValidationTests(unittest.TestCase):
                 self.assertIn("duplicate key 'name'", duplicate.stderr)
 
             with self.subTest(policy=policy, shape="non-object"):
-                if policy == "final_creation":
-                    self.write_rulesets(final_creation_payload=[])
-                elif policy == "final_immutability":
+                if policy == "final_immutability":
                     self.write_rulesets(final_immutability_payload=[])
                 else:
                     self.write_rulesets(rc_payload=[])
@@ -998,7 +887,6 @@ class RulesetValidationTests(unittest.TestCase):
             with self.subTest(policy=policy, shape="oversized"):
                 self.write_rulesets()
                 path = {
-                    "final_creation": self.final_creation_ruleset_path,
                     "final_immutability": self.final_immutability_ruleset_path,
                     "rc": self.rc_ruleset_path,
                 }[policy]
@@ -1009,21 +897,19 @@ class RulesetValidationTests(unittest.TestCase):
 
     def test_rulesets_reject_duplicate_identity_or_symlinked_input(self) -> None:
         duplicate_id = copy.deepcopy(self.valid_rc_ruleset)
-        duplicate_id["id"] = self.valid_final_creation_ruleset["id"]
+        duplicate_id["id"] = self.valid_final_immutability_ruleset["id"]
         self.write_rulesets(rc_payload=duplicate_id)
         result = self.run_rulesets()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("must have distinct ids", result.stderr)
 
         for policy, fixture in (
-            ("final_creation", self.valid_final_creation_ruleset),
             ("final_immutability", self.valid_final_immutability_ruleset),
             ("rc", self.valid_rc_ruleset),
         ):
             with self.subTest(policy=policy):
                 self.write_rulesets()
                 path = {
-                    "final_creation": self.final_creation_ruleset_path,
                     "final_immutability": self.final_immutability_ruleset_path,
                     "rc": self.rc_ruleset_path,
                 }[policy]
@@ -1038,115 +924,6 @@ class RulesetValidationTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("regular, non-symlink file", result.stderr)
                 path.unlink()
-
-
-class ReleaseEnvironmentValidationTests(unittest.TestCase):
-    """Protected release-environment boundary contract tests."""
-
-    def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
-        self.environment_path = self.root / "release-environment.json"
-        self.branch_policies_path = self.root / "release-branch-policies.json"
-        self.valid_environment: dict[str, Any] = {
-            "id": 31337,
-            "node_id": "EN_release_fixture",
-            "name": "release",
-            "can_admins_bypass": False,
-            "protection_rules": [
-                {"id": 41, "node_id": "DPR_branch_fixture", "type": "branch_policy"}
-            ],
-            "deployment_branch_policy": {
-                "protected_branches": False,
-                "custom_branch_policies": True,
-            },
-        }
-        self.valid_policies: dict[str, Any] = {
-            "total_count": 1,
-            "branch_policies": [
-                {"id": 42, "node_id": "DBP_main_fixture", "name": "main", "type": "branch"}
-            ],
-        }
-
-    def write_payloads(
-        self,
-        environment: dict[str, Any] | None = None,
-        policies: dict[str, Any] | None = None,
-    ) -> None:
-        """Write deterministic GitHub environment API fixtures."""
-        self.environment_path.write_text(
-            json.dumps(environment or self.valid_environment),
-            encoding="utf-8",
-        )
-        self.branch_policies_path.write_text(
-            json.dumps(policies or self.valid_policies),
-            encoding="utf-8",
-        )
-
-    def run_environment(self, default_branch: str = "main") -> subprocess.CompletedProcess[str]:
-        """Run the stable release-environment validator command."""
-        return subprocess.run(
-            [
-                sys.executable,
-                str(VALIDATOR),
-                "environment",
-                "--environment-json",
-                str(self.environment_path),
-                "--branch-policies-json",
-                str(self.branch_policies_path),
-                "--default-branch",
-                default_branch,
-            ],
-            cwd=self.root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-    def test_environment_cli_accepts_only_default_branch_custom_policy(self) -> None:
-        self.write_payloads()
-        result = self.run_environment()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(
-            json.loads(result.stdout),
-            {"branch": "main", "environment": "release", "valid": True},
-        )
-
-    def test_environment_rejects_broadened_or_wrong_branch_policy(self) -> None:
-        admin_bypass = copy.deepcopy(self.valid_environment)
-        admin_bypass["can_admins_bypass"] = True
-        self.write_payloads(environment=admin_bypass)
-        result = self.run_environment()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("forbid administrator bypass", result.stderr)
-
-        broadened = copy.deepcopy(self.valid_environment)
-        broadened["deployment_branch_policy"] = {
-            "protected_branches": True,
-            "custom_branch_policies": False,
-        }
-        self.write_payloads(environment=broadened)
-        result = self.run_environment()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("explicit custom branch policies", result.stderr)
-
-        wrong_branch = copy.deepcopy(self.valid_policies)
-        wrong_branch["branch_policies"][0]["name"] = "release"
-        self.write_payloads(policies=wrong_branch)
-        result = self.run_environment()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("admit only branch 'main'", result.stderr)
-
-        duplicate = copy.deepcopy(self.valid_policies)
-        duplicate["total_count"] = 2
-        duplicate["branch_policies"].append(
-            {"id": 43, "node_id": "DBP_rc_fixture", "name": "rc", "type": "branch"}
-        )
-        self.write_payloads(policies=duplicate)
-        result = self.run_environment()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("exactly one branch policy", result.stderr)
 
 
 class ArtifactValidationTests(unittest.TestCase):
@@ -1354,7 +1131,7 @@ class WorkflowSourceContractTests(unittest.TestCase):
         self.assertEqual(resolve_job.count("github.workflow_ref"), 1)
         self.assertEqual(resolve_job.count("github.event.repository.default_branch"), 1)
 
-    def test_release_queries_and_validates_exact_tag_rulesets_and_environment(self) -> None:
+    def test_release_queries_and_validates_exactly_the_two_immutability_rulesets(self) -> None:
         release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
         start = release.index('          rulesets_file="${RUNNER_TEMP}/specsync-rulesets.json"')
         end = release.index("\n\n          # A deleted/recreated", start)
@@ -1369,24 +1146,17 @@ class WorkflowSourceContractTests(unittest.TestCase):
             1,
         )
         expected_queries = (
-            'resolve_ruleset "SpecSync final tag creation" "$final_creation_ruleset_file"',
             'resolve_ruleset "SpecSync immutable final tags" "$final_immutability_ruleset_file"',
             'resolve_ruleset "SpecSync immutable RC tags" "$rc_ruleset_file"',
         )
         for query in expected_queries:
             with self.subTest(query=query):
                 self.assertEqual(rulesets.count(query), 1)
-        self.assertEqual(rulesets.count("          resolve_ruleset \""), 3)
+        self.assertEqual(rulesets.count("          resolve_ruleset \""), 2)
         self.assertNotIn("SpecSync immutable release tags", rulesets)
 
         self.assertEqual(
             rulesets.count("validate-release-candidate.py rulesets \\\n"),
-            1,
-        )
-        self.assertEqual(
-            rulesets.count(
-                '--final-creation-ruleset-json "$final_creation_ruleset_file"'
-            ),
             1,
         )
         self.assertEqual(
@@ -1396,28 +1166,70 @@ class WorkflowSourceContractTests(unittest.TestCase):
             1,
         )
         self.assertEqual(rulesets.count('--rc-ruleset-json "$rc_ruleset_file"'), 1)
-        self.assertEqual(rulesets.count('--release-app-id "$RELEASE_APP_ID"'), 1)
-        self.assertNotIn("--ruleset-json", rulesets)
+
+        # The App-only creation policy and the `release` environment are gone from the whole
+        # workflow, not merely from qualification. The owner decided against a release App, so
+        # every reference to one is retired: a half-removed App reads as a policy that is only
+        # temporarily off, and the next reader provisions a variable instead of learning that
+        # promotion is now the workflow's own token. Demanding these is also what failed rc.1
+        # through rc.6.
+        for retired in (
+            'resolve_ruleset "SpecSync final tag creation"',
+            "--final-creation-ruleset-json",
+            "--release-app-id",
+            '"repos/${REPOSITORY}/environments/release"',
+            "validate-release-candidate.py environment",
+            "SPECSYNC_RELEASE_APP_ID",
+            "SPECSYNC_RELEASE_APP_PRIVATE_KEY",
+            "create-github-app-token",
+        ):
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, release)
+
+    def test_release_announces_every_unenforced_tag_protection_on_every_run(self) -> None:
+        """A green release run must annotate what it did not verify.
+
+        Without this, a passing `resolve` reads as proof that App-only final-tag creation is
+        enforced. It is not enforced, and nobody may be allowed to infer that it is.
+        """
+        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        start = release.index('          rulesets_file="${RUNNER_TEMP}/specsync-rulesets.json"')
+        end = release.index("\n\n          # A deleted/recreated", start)
+        rulesets = release[start:end]
 
         self.assertEqual(
-            rulesets.count('"repos/${REPOSITORY}/environments/release"'),
+            rulesets.count('rulesets_result_file="${RUNNER_TEMP}/specsync-rulesets-result.json"'),
+            1,
+        )
+        self.assertEqual(
+            rulesets.count('--rc-ruleset-json "$rc_ruleset_file" > "$rulesets_result_file"'),
+            1,
+        )
+        self.assertEqual(
+            rulesets.count("""unenforced_count="$(jq -r '.unenforced | length' """),
+            1,
+        )
+        self.assertEqual(
+            rulesets.count('if [[ "$unenforced_count" -lt 1 ]]; then'),
             1,
         )
         self.assertEqual(
             rulesets.count(
-                '"repos/${REPOSITORY}/environments/release/'
-                'deployment-branch-policies?per_page=100"'
+                "::error::Ruleset validation must declare the protections it does not enforce"
             ),
             1,
         )
         self.assertEqual(
-            rulesets.count("validate-release-candidate.py environment \\\n"),
+            rulesets.count(
+                '::warning title=Release protection not enforced::${unenforced}'
+            ),
             1,
         )
         self.assertEqual(
-            rulesets.count('--default-branch "$DEFAULT_BRANCH"'),
+            rulesets.count("""done < <(jq -r '.unenforced[]' "$rulesets_result_file")"""),
             1,
         )
+        self.assertEqual(rulesets.count('>> "$GITHUB_STEP_SUMMARY"'), 2)
 
     def test_release_actions_are_sha_pinned_and_evidence_upload_overwrites(self) -> None:
         release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
@@ -1434,40 +1246,53 @@ class WorkflowSourceContractTests(unittest.TestCase):
         upload = release[upload_start:upload_end]
         self.assertEqual(upload.count("          overwrite: true"), 1)
 
-    def test_promotion_uses_only_the_protected_release_app(self) -> None:
+    def test_promotion_mints_the_final_tag_with_the_workflow_token_alone(self) -> None:
+        """Promotion writes the final tag with GITHUB_TOKEN, scoped to this one job.
+
+        The release GitHub App is gone by owner decision, and this pins what replaced it. Two
+        properties matter and both are weaker than the design they replace, so both are asserted
+        rather than assumed:
+
+        1. Write access is granted on `promote` and nowhere else. A workflow-wide
+           `contents: write` would hand every other job in this file the ability to move refs.
+        2. No `environment:` is named. GitHub materializes a referenced environment on first use
+           with no protection rules, so naming the `release` environment that this repository does
+           not have would publish a deployment gate that gates nothing.
+        """
         release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
         promote_start = release.index("\n  promote:\n")
         promote_end = release.index("\n  build:\n", promote_start)
         promote = release[promote_start:promote_end]
 
-        self.assertEqual(promote.count("      name: release\n"), 1)
-        self.assertEqual(promote.count("      contents: read\n"), 1)
-        self.assertNotRegex(promote, r"(?m)^      contents: write$")
+        self.assertEqual(promote.count("    permissions:\n"), 1)
+        self.assertEqual(promote.count("      contents: write\n"), 1)
+        self.assertNotRegex(promote, r"(?m)^      contents: read$")
+
+        # Workflow-level defaults stay read-only; only `promote` and `release` may write, and each
+        # asks for it on its own job.
+        header = release[: release.index("\njobs:\n")]
+        self.assertIn("permissions:\n  contents: read\n", header)
+        self.assertNotIn("contents: write", header)
+        self.assertEqual(release.count("      contents: write\n"), 2)
+
+        self.assertNotRegex(promote, r"(?m)^    environment:$")
+        self.assertNotIn("environment:\n      name: release", promote)
+
+        for retired in (
+            "actions/create-github-app-token",
+            "SPECSYNC_RELEASE_APP_ID",
+            "SPECSYNC_RELEASE_APP_PRIVATE_KEY",
+            "permission-contents: write",
+            "release-app-token",
+        ):
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, promote)
+
         self.assertEqual(
-            promote.count(
-                "actions/create-github-app-token@"
-                "fee1f7d63c2ff003460e3d139729b119787bc349"
-            ),
+            promote.count("RELEASE_TOKEN: ${{ github.token }}"),
             1,
         )
-        self.assertEqual(
-            promote.count("app-id: ${{ vars.SPECSYNC_RELEASE_APP_ID }}"),
-            1,
-        )
-        self.assertEqual(
-            promote.count(
-                "private-key: ${{ secrets.SPECSYNC_RELEASE_APP_PRIVATE_KEY }}"
-            ),
-            1,
-        )
-        self.assertEqual(promote.count("          permission-contents: write\n"), 1)
         self.assertEqual(promote.count("          persist-credentials: false\n"), 1)
-        self.assertEqual(
-            promote.count(
-                "RELEASE_APP_TOKEN: ${{ steps.release-app-token.outputs.token }}"
-            ),
-            1,
-        )
         self.assertEqual(
             promote.count('release_remote="https://github.com/${REPOSITORY}.git"'),
             1,
@@ -1486,6 +1311,26 @@ class WorkflowSourceContractTests(unittest.TestCase):
         self.assertNotIn('git push origin "refs/tags/${FINAL_TAG}"', promote)
         self.assertNotIn("SPECSYNC_RELEASE_TAG_KEY", promote)
         self.assertNotIn("git@github.com", promote)
+
+    def test_promotion_states_who_can_now_create_a_release_tag(self) -> None:
+        """The authority that was given up must be readable at the job that gave it up.
+
+        `resolve` annotates it on every run, but a reader auditing `promote` reads the job, not a
+        run log. If this comment is deleted, the file stops saying that running the release lane
+        and holding release authority are now the same permission.
+        """
+        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        promote_start = release.index("  # WHO CAN MINT A RELEASE TAG")
+        promote_end = release.index("\n  build:\n", promote_start)
+        promote = release[promote_start:promote_end]
+
+        for stated in (
+            "THE PROTECTION THAT WAS GIVEN UP",
+            "NO `environment:` HERE, DELIBERATELY",
+            "can run `release.yml` from the default branch",
+        ):
+            with self.subTest(stated=stated):
+                self.assertIn(stated, promote)
 
     def test_validator_tests_are_wired_through_fledge_and_ci(self) -> None:
         test_path = ".github/scripts/test-validate-release-candidate.py"

@@ -52,8 +52,6 @@ PROVENANCE_FIELDS = (
 )
 DIGEST_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 RULESET_MAX_BYTES = 1024 * 1024
-ENVIRONMENT_MAX_BYTES = 1024 * 1024
-FINAL_CREATION_RULESET_NAME = "SpecSync final tag creation"
 FINAL_IMMUTABILITY_RULESET_NAME = "SpecSync immutable final tags"
 FINAL_RULESET_REF_PATTERN = "refs/tags/v*.*.*"
 FINAL_RULESET_EXCLUDE_PATTERN = "refs/tags/v*.*.*-rc.*"
@@ -77,9 +75,39 @@ OPTIONAL_RULESET_FIELDS = (
     "created_at",
     "updated_at",
 )
-FINAL_CREATION_RULES = ("creation",)
 FINAL_IMMUTABILITY_RULES = ("update", "deletion")
 RC_TAG_RULES = ("update", "deletion")
+
+# Protections this repository does NOT have, stated by `rulesets` on every successful run.
+#
+# The design in REQ-github-007 also called for a `SpecSync final tag creation` ruleset naming a
+# dedicated release GitHub App as its only bypass actor, and a protected `release` deployment
+# environment holding that App's private key. Neither was ever provisioned: no App was created, the
+# App id variable and private-key secret were never set, and there is no `release` environment.
+# Demanding them failed `release.yml` on every RC tag from v6.0.0-rc.1 through rc.6, which is the
+# same as having no release gate at all — the two rulesets that DO exist were never checked because
+# the job died before reaching them.
+#
+# The owner then decided against a release App altogether. `promote` now creates the final tag with
+# the workflow's own GITHUB_TOKEN under a job-scoped `contents: write`, and no longer names a
+# deployment environment, so both halves of the original creation policy are gone rather than
+# pending. Dropping a protection is allowed; dropping it quietly is not. Every green `rulesets` run
+# therefore carries this list, and `release.yml` prints each entry as a warning annotation and into
+# the step summary, so a passing release can never be read as proof of an authority nobody enforces.
+UNENFORCED_TAG_POLICIES = (
+    "Final-tag creation is NOT restricted to a release GitHub App. This repository has no "
+    "'SpecSync final tag creation' ruleset, so any actor with tag-write access can create "
+    "refs/tags/vX.Y.Z directly, without a qualified candidate and without this workflow. "
+    "A green release run is not evidence that a final tag came from qualification.",
+    "The final tag is minted by this workflow's own GITHUB_TOKEN, NOT by a separate release "
+    "identity. There is no App whose key a workflow author cannot reach, so anyone able to run "
+    "release.yml from the default branch can cause refs/tags/vX.Y.Z to be created. Running the "
+    "release lane and holding release authority are the same permission here.",
+    "Promotion is NOT behind a deployment-environment gate. This workflow names no environment, "
+    "so no required reviewer, wait timer, or branch policy stands between dispatching a promotion "
+    "and the final tag being written. Nothing in a green run proves that a human other than the "
+    "dispatcher approved it.",
+)
 
 
 class ValidationError(ValueError):
@@ -372,7 +400,6 @@ def validate_tag_ruleset(
     expected_includes: Sequence[str],
     expected_excludes: Sequence[str],
     expected_rules: Sequence[str],
-    release_app_id: int | None,
 ) -> dict[str, Any]:
     """Validate one exact repository tag-ruleset policy without accepting broadening."""
     require_exact_object_fields(
@@ -443,44 +470,19 @@ def validate_tag_ruleset(
             f"{label} rule types must be exactly {list(expected_rules)!r}"
         )
 
+    # Both surviving rulesets are immutability rulesets, and immutability that someone may bypass
+    # is not immutability. There is deliberately no parameter here to admit an exception: the
+    # App-only creation policy was the one place a bypass actor was ever expected, and it is gone.
     bypass_actors = payload["bypass_actors"]
     if not isinstance(bypass_actors, list):
         raise ValidationError(f"{label} bypass_actors must be an array")
-    bypass_mode: str | None = None
-    if release_app_id is not None:
-        if type(release_app_id) is not int or release_app_id <= 0:
-            raise ValidationError("release app id must be a positive integer")
-        if len(bypass_actors) != 1:
-            raise ValidationError(
-                f"{label} must grant bypass to exactly one dedicated release integration"
-            )
-        actor = bypass_actors[0]
-        if not isinstance(actor, dict):
-            raise ValidationError(f"{label} bypass_actors[0] must be an object")
-        require_exact_object_fields(
-            actor,
-            ("actor_id", "actor_type", "bypass_mode"),
-            (),
-            f"{label} bypass_actors[0]",
-        )
-        if type(actor["actor_id"]) is not int or actor["actor_id"] != release_app_id:
-            raise ValidationError(
-                f"{label} bypass actor_id must match release app id {release_app_id}"
-            )
-        if actor["actor_type"] != "Integration":
-            raise ValidationError(f"{label} bypass actor_type must be 'Integration'")
-        if actor["bypass_mode"] != "always":
-            raise ValidationError(f"{label} bypass_mode must be 'always'")
-        bypass_mode = actor["bypass_mode"]
-    elif bypass_actors:
+    if bypass_actors:
         raise ValidationError(
             f"{label} must not grant bypass to any actor"
         )
 
     return {
-        "bypass_actor_id": release_app_id,
-        "bypass_actor_type": "Integration" if release_app_id is not None else None,
-        "bypass_mode": bypass_mode,
+        "bypass_actors": [],
         "name": expected_name,
         "ref_excludes": list(expected_excludes),
         "ref_includes": list(expected_includes),
@@ -490,24 +492,8 @@ def validate_tag_ruleset(
     }
 
 
-def validate_final_tag_creation_ruleset(
-    payload: dict[str, Any],
-    release_app_id: int,
-) -> dict[str, Any]:
-    """Require the App-only policy for creating final release tags."""
-    return validate_tag_ruleset(
-        payload,
-        label="final tag creation ruleset",
-        expected_name=FINAL_CREATION_RULESET_NAME,
-        expected_includes=(FINAL_RULESET_REF_PATTERN,),
-        expected_excludes=(FINAL_RULESET_EXCLUDE_PATTERN,),
-        expected_rules=FINAL_CREATION_RULES,
-        release_app_id=release_app_id,
-    )
-
-
 def validate_final_tag_immutability_ruleset(payload: dict[str, Any]) -> dict[str, Any]:
-    """Require update/deletion protection that not even the release App may bypass."""
+    """Require update/deletion protection on final tags that no actor may bypass."""
     return validate_tag_ruleset(
         payload,
         label="final tag immutability ruleset",
@@ -515,7 +501,6 @@ def validate_final_tag_immutability_ruleset(payload: dict[str, Any]) -> dict[str
         expected_includes=(FINAL_RULESET_REF_PATTERN,),
         expected_excludes=(FINAL_RULESET_EXCLUDE_PATTERN,),
         expected_rules=FINAL_IMMUTABILITY_RULES,
-        release_app_id=None,
     )
 
 
@@ -528,22 +513,14 @@ def validate_rc_tag_ruleset(payload: dict[str, Any]) -> dict[str, Any]:
         expected_includes=(RC_RULESET_REF_PATTERN,),
         expected_excludes=(),
         expected_rules=RC_TAG_RULES,
-        release_app_id=None,
     )
 
 
 def rulesets_result(
-    final_creation_path: Path,
     final_immutability_path: Path,
     rc_path: Path,
-    release_app_id: int,
 ) -> dict[str, Any]:
-    """Load and validate all bounded repository tag-ruleset API responses."""
-    final_creation_payload = read_bounded_json_object(
-        final_creation_path,
-        RULESET_MAX_BYTES,
-        "final creation ruleset JSON",
-    )
+    """Load and validate the two bounded repository tag-ruleset API responses."""
     final_immutability_payload = read_bounded_json_object(
         final_immutability_path,
         RULESET_MAX_BYTES,
@@ -556,108 +533,18 @@ def rulesets_result(
     )
     ruleset_ids = [
         payload.get("id")
-        for payload in (final_creation_payload, final_immutability_payload, rc_payload)
+        for payload in (final_immutability_payload, rc_payload)
         if "id" in payload
     ]
     if len(ruleset_ids) != len(set(ruleset_ids)):
-        raise ValidationError("creation, immutability, and RC rulesets must have distinct ids")
+        raise ValidationError("immutability and RC rulesets must have distinct ids")
     return {
-        "final_creation": validate_final_tag_creation_ruleset(
-            final_creation_payload,
-            release_app_id,
-        ),
         "final_immutability": validate_final_tag_immutability_ruleset(
             final_immutability_payload
         ),
         "mode": "rulesets",
         "rc": validate_rc_tag_ruleset(rc_payload),
-        "valid": True,
-    }
-
-
-def release_environment_result(
-    environment_path: Path,
-    branch_policies_path: Path,
-    default_branch: str,
-) -> dict[str, Any]:
-    """Require the release secret boundary to admit only the default branch."""
-    if not default_branch or default_branch.startswith("-") or "/" in default_branch:
-        raise ValidationError("default branch must be one plain repository branch name")
-    environment = read_bounded_json_object(
-        environment_path,
-        ENVIRONMENT_MAX_BYTES,
-        "release environment JSON",
-    )
-    require_exact_object_fields(
-        environment,
-        ("name", "protection_rules", "deployment_branch_policy", "can_admins_bypass"),
-        (
-            "id",
-            "node_id",
-            "url",
-            "html_url",
-            "created_at",
-            "updated_at",
-        ),
-        "release environment",
-    )
-    if environment["name"] != "release":
-        raise ValidationError("release environment name must be 'release'")
-    if environment["can_admins_bypass"] is not False:
-        raise ValidationError("release environment must forbid administrator bypass")
-    branch_policy = environment["deployment_branch_policy"]
-    if branch_policy != {
-        "protected_branches": False,
-        "custom_branch_policies": True,
-    }:
-        raise ValidationError(
-            "release environment must use only explicit custom branch policies"
-        )
-    protection_rules = environment["protection_rules"]
-    if not isinstance(protection_rules, list):
-        raise ValidationError("release environment protection_rules must be an array")
-    branch_rules = [
-        rule
-        for rule in protection_rules
-        if isinstance(rule, dict) and rule.get("type") == "branch_policy"
-    ]
-    if len(branch_rules) != 1:
-        raise ValidationError(
-            "release environment must expose exactly one branch_policy protection rule"
-        )
-
-    policies = read_bounded_json_object(
-        branch_policies_path,
-        ENVIRONMENT_MAX_BYTES,
-        "release branch policies JSON",
-    )
-    require_exact_object_fields(
-        policies,
-        ("total_count", "branch_policies"),
-        (),
-        "release branch policies",
-    )
-    entries = policies["branch_policies"]
-    if type(policies["total_count"]) is not int or policies["total_count"] != 1:
-        raise ValidationError("release environment must have exactly one branch policy")
-    if not isinstance(entries, list) or len(entries) != 1:
-        raise ValidationError("release environment must return exactly one branch policy")
-    policy = entries[0]
-    if not isinstance(policy, dict):
-        raise ValidationError("release branch policy must be an object")
-    require_exact_object_fields(
-        policy,
-        ("name", "type"),
-        ("id", "node_id"),
-        "release branch policy",
-    )
-    if policy["name"] != default_branch or policy["type"] != "branch":
-        raise ValidationError(
-            f"release environment must admit only branch {default_branch!r}"
-        )
-    return {
-        "branch": default_branch,
-        "environment": "release",
+        "unenforced": list(UNENFORCED_TAG_POLICIES),
         "valid": True,
     }
 
@@ -1202,20 +1089,13 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
 
     rulesets = commands.add_parser(
         "rulesets",
-        help="validate the active final-creation, final-immutability, and RC rulesets",
+        help=(
+            "validate the two active tag-immutability rulesets and report the tag protections "
+            "this repository does not enforce"
+        ),
     )
-    rulesets.add_argument("--final-creation-ruleset-json", type=Path, required=True)
     rulesets.add_argument("--final-immutability-ruleset-json", type=Path, required=True)
     rulesets.add_argument("--rc-ruleset-json", type=Path, required=True)
-    rulesets.add_argument("--release-app-id", type=int, required=True)
-
-    environment = commands.add_parser(
-        "environment",
-        help="validate the protected release environment and exact deployment branch",
-    )
-    environment.add_argument("--environment-json", type=Path, required=True)
-    environment.add_argument("--branch-policies-json", type=Path, required=True)
-    environment.add_argument("--default-branch", required=True)
 
     candidate = commands.add_parser("candidate", help="validate an annotated RC marker")
     add_identity_arguments(candidate, require_candidate=False)
@@ -1255,16 +1135,8 @@ def execute(arguments: argparse.Namespace) -> dict[str, Any]:
         )
     if arguments.command == "rulesets":
         return rulesets_result(
-            arguments.final_creation_ruleset_json,
             arguments.final_immutability_ruleset_json,
             arguments.rc_ruleset_json,
-            arguments.release_app_id,
-        )
-    if arguments.command == "environment":
-        return release_environment_result(
-            arguments.environment_json,
-            arguments.branch_policies_json,
-            arguments.default_branch,
         )
     repository = arguments.repository.resolve()
     if not repository.is_dir():

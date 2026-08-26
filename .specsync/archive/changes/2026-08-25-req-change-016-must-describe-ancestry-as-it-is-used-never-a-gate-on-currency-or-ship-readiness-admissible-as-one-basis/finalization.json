@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "req-change-016-must-describe-ancestry-as-it-is-used-never-a-gate-on-currency-or-ship-readiness-admissible-as-one-basis",
+  "implementation_commit": "39cef2d4c7b4da157776b97c54c3ac4b19d89b97",
+  "implementation_tree": "04a5ed013d47de81014f79dc3471edebfb57ba29",
+  "contract_digest": "da4c4302bb2e15cf2da6f71d523b0d5592500d72266b5d05717c3e9945d3e0e6",
+  "workspace_digest": "8e633e24914d6c44665da01f67c1ea9feccb8d02b1d7d8c7b9ef24d488abb4ca",
+  "closing_digest": "ebe9e96e65bb1eb01eaa8d4f29b37900c0fbc7a796650b252350e31c5c5e32b7",
+  "review_digest": "1144295e2cc64b7de34f95a1d90870521ebc8df242ea86aaf7aea65b014b5e86",
+  "finalization_digest": "f8552e7e4ffb92b30b7577f42a739e81ca3d607a095e48fb1e309e17dd3a49a0",
+  "timestamp": 1787701554
+}

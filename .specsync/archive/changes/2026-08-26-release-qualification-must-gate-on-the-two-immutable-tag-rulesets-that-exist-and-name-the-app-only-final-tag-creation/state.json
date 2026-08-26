@@ -7,11 +7,11 @@
   "title": "Release qualification must gate on the two immutable tag rulesets that exist and name the App-only final-tag creation policy it no longer enforces",
   "description": "Release qualification must gate on the two immutable tag rulesets that exist and name the App-only final-tag creation policy it no longer enforces",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "e82542d19ce8d79926b144a0e38d4d620b120715",
   "created_at": 1787664872,
-  "updated_at": 1787699705,
+  "updated_at": 1787704075,
   "affected_specs": [
     "github"
   ],

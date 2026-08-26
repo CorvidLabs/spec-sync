@@ -7,11 +7,11 @@
   "title": "Remove the release GitHub App from promotion: create the final tag with the workflow's own GITHUB_TOKEN and state who can now mint a release tag",
   "description": "Remove the release GitHub App from promotion: create the final tag with the workflow's own GITHUB_TOKEN and state who can now mint a release tag",
   "kind": "operations",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "0176c6a516e03f63ea83fb401d6f934ac2800a41",
   "created_at": 1787695972,
-  "updated_at": 1787700402,
+  "updated_at": 1787704677,
   "affected_specs": [
     "github"
   ],

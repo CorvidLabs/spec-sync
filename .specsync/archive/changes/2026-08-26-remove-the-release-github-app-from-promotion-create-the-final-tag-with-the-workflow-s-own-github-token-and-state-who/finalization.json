@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "remove-the-release-github-app-from-promotion-create-the-final-tag-with-the-workflow-s-own-github-token-and-state-who",
+  "implementation_commit": "c61bd1ec334bf917a15132855690eaa8c39681db",
+  "implementation_tree": "ff80b07b189e4b54d393e14b7dd180d464d2455c",
+  "contract_digest": "4e2df1a159fea023e419d3862249279bdfaaafb31272bcdad8b19b8c7c52eebf",
+  "workspace_digest": "9c7488eba2737d97d9a2326d6bea095acfe53a45548acea87c79b598fcecbb88",
+  "closing_digest": "cca8e23fcd6e40f77d3adfc842c583a3d9d9e05ee1b514f6f95f83433f487545",
+  "review_digest": "4702ae51816dbc3bb3b89e4f693cd0fa9e0fc1c7a3c4dda55f27b5b495b6119c",
+  "finalization_digest": "7425a436bd9ee76ae00d1eb359a1f07aaef8302bb8e4c134e2953f85e7f64951",
+  "timestamp": 1787704677
+}

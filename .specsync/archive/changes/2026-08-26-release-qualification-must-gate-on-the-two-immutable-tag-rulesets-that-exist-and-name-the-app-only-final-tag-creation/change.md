@@ -1,6 +1,6 @@
 ---
 id: release-qualification-must-gate-on-the-two-immutable-tag-rulesets-that-exist-and-name-the-app-only-final-tag-creation
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e82542d19ce8d79926b144a0e38d4d620b120715
 ---

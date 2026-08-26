@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "remove-the-release-github-app-from-promotion-create-the-final-tag-with-the-workflow-s-own-github-token-and-state-who",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "c61bd1ec334bf917a15132855690eaa8c39681db",
+      "contract_digest": "4e2df1a159fea023e419d3862249279bdfaaafb31272bcdad8b19b8c7c52eebf",
+      "execution_digest": "0fe96aa51f54520d48208951b221309afe26af2cfed79d13f0c09f1bf42885c2",
+      "workspace_digest": "9c7488eba2737d97d9a2326d6bea095acfe53a45548acea87c79b598fcecbb88",
+      "timestamp": 1787704658
+    }
+  ]
+}

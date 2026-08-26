@@ -1,6 +1,6 @@
 ---
 id: remove-the-release-github-app-from-promotion-create-the-final-tag-with-the-workflow-s-own-github-token-and-state-who
-state: implementing
+state: archived
 type: operations
 base_commit: 0176c6a516e03f63ea83fb401d6f934ac2800a41
 ---

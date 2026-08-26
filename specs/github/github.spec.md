@@ -1,6 +1,6 @@
 ---
 module: github
-version: 27
+version: 28
 status: stable
 files:
   - src/github.rs
@@ -62,7 +62,12 @@ every protection it does not verify on every run, green runs included. A gate th
 unprovisioned policy fails on every candidate and therefore verifies nothing — it is not a safe
 default, because the protections that DO exist are never reached. Dropping a check from the gate is
 permitted; dropping it silently is not. The tag protections that remain admit no bypass actor and
-no broadening.
+no broadening — where that can be observed. GitHub returns `bypass_actors` only to a caller with
+admin access to repository settings, and the workflow token is not one, so the field is ABSENT
+from every payload CI fetches. Absence means UNOBSERVED, never "no bypass actors": it is checked
+when visible, refused when it grants anyone, and named in the unenforced disclosure when it cannot
+be read. Requiring it made the gate impossible to satisfy from CI, which is how a lane stayed red
+on every candidate while appearing to enforce something.
 
 Release authority is stated wherever it is exercised. The final tag is created by the release
 workflow's own token under a permission scoped to the single job that writes it, so the authority
@@ -149,6 +154,7 @@ first use — so the workflow names no environment rather than publish a gate th
 | RC marker is lightweight, malformed, moved, or has conflicting workflow history | Qualification and promotion fail; a fresh annotated RC marker is required |
 | Platform evidence is missing, unsuccessful, or bound to another tag/SHA | Final tag creation and release upload are refused |
 | Either immutable tag ruleset (RC or final) is absent, inactive, incomplete, broadened, or grants any bypass actor | RC qualification fails before any release job runs |
+| A ruleset payload omits `bypass_actors` because the token cannot read it | Qualification proceeds and the unenforced disclosure names each ruleset whose bypass list was not verified |
 | Ruleset validation reports no unenforced tag protections | Qualification fails rather than imply that App-only final-tag creation, a separate release identity, or a deployment-environment approval was verified |
 | Promotion has no token available to create the final tag | The empty-token guard refuses promotion before any tag is written or pushed |
 | A release job other than promotion or publication attempts to write a ref | The workflow's read-only default permissions deny it; write is granted per job, never workflow-wide |
@@ -208,3 +214,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-08-08 | CHG-0099-ship-status-live-github-check-run-trust-for-product-parent-sha: Ship-status live GitHub check-run trust for product parent SHA |
 | 2026-08-25 | release-qualification-must-gate-on-the-two-immutable-tag-rulesets-that-exist-and-name-the-app-only-final-tag-creation: Release qualification must gate on the two immutable tag rulesets that exist and name the App-only final-tag creation policy it no longer enforces |
 | 2026-08-25 | remove-the-release-github-app-from-promotion-create-the-final-tag-with-the-workflow-s-own-github-token-and-state-who: Remove the release GitHub App from promotion: create the final tag with the workflow's own GITHUB_TOKEN and state who can now mint a release tag |
+| 2026-08-26 | bypass-actors-are-unobservable-to-a-workflow-token-so-absence-must-read-as-unverified-rather-than-empty: Bypass actors are unobservable to a workflow token, so absence must read as unverified rather than empty |

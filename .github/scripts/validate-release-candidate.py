@@ -62,11 +62,16 @@ REQUIRED_RULESET_FIELDS = (
     "target",
     "source_type",
     "enforcement",
-    "bypass_actors",
     "conditions",
     "rules",
 )
 OPTIONAL_RULESET_FIELDS = (
+    # GitHub returns `bypass_actors` only to a caller with admin access to repository settings.
+    # A workflow using GITHUB_TOKEN is not one, so the field is ABSENT rather than empty there —
+    # a distinction that cost a release lane its green run, because requiring it made the gate
+    # impossible to satisfy from inside CI. Absent means UNOBSERVED, not "no bypass actors": it is
+    # validated when visible and reported as unverified when not.
+    "bypass_actors",
     "id",
     "node_id",
     "source",
@@ -94,6 +99,23 @@ RC_TAG_RULES = ("update", "deletion")
 # pending. Dropping a protection is allowed; dropping it quietly is not. Every green `rulesets` run
 # therefore carries this list, and `release.yml` prints each entry as a warning annotation and into
 # the step summary, so a passing release can never be read as proof of an authority nobody enforces.
+def unobserved_bypass_notices(results: dict[str, Any]) -> list[str]:
+    """Name every ruleset whose bypass list this token could not see.
+
+    GitHub returns `bypass_actors` only to a caller with admin access to repository settings, and
+    a workflow using GITHUB_TOKEN is not one. Absence therefore means UNOBSERVED, never "no bypass
+    actors" — reading it as the latter would let a ruleset that grants bypass pass a green run.
+    """
+    return [
+        f"Bypass actors on the {label} ruleset were NOT verified: this token cannot read "
+        f"`bypass_actors`, which GitHub returns only to repository administrators. A green run "
+        f"is not evidence that the ruleset grants bypass to nobody. Check it in repository "
+        f"settings, or run this validation with a credential that can see the field."
+        for label, result in sorted(results.items())
+        if isinstance(result, dict) and result.get("bypass_actors") is None
+    ]
+
+
 UNENFORCED_TAG_POLICIES = (
     "Final-tag creation is NOT restricted to a release GitHub App. This repository has no "
     "'SpecSync final tag creation' ruleset, so any actor with tag-write access can create "
@@ -473,16 +495,20 @@ def validate_tag_ruleset(
     # Both surviving rulesets are immutability rulesets, and immutability that someone may bypass
     # is not immutability. There is deliberately no parameter here to admit an exception: the
     # App-only creation policy was the one place a bypass actor was ever expected, and it is gone.
-    bypass_actors = payload["bypass_actors"]
-    if not isinstance(bypass_actors, list):
-        raise ValidationError(f"{label} bypass_actors must be an array")
-    if bypass_actors:
-        raise ValidationError(
-            f"{label} must not grant bypass to any actor"
-        )
+    if "bypass_actors" in payload:
+        bypass_actors = payload["bypass_actors"]
+        if not isinstance(bypass_actors, list):
+            raise ValidationError(f"{label} bypass_actors must be an array")
+        if bypass_actors:
+            raise ValidationError(f"{label} must not grant bypass to any actor")
+        bypass_observed = []
+    else:
+        # Unobservable under this token. Do NOT infer emptiness from absence — that is the
+        # failure this release has fixed repeatedly. Report it as unverified instead.
+        bypass_observed = None
 
     return {
-        "bypass_actors": [],
+        "bypass_actors": bypass_observed,
         "name": expected_name,
         "ref_excludes": list(expected_excludes),
         "ref_includes": list(expected_includes),
@@ -538,13 +564,17 @@ def rulesets_result(
     ]
     if len(ruleset_ids) != len(set(ruleset_ids)):
         raise ValidationError("immutability and RC rulesets must have distinct ids")
-    return {
+    results = {
         "final_immutability": validate_final_tag_immutability_ruleset(
             final_immutability_payload
         ),
-        "mode": "rulesets",
         "rc": validate_rc_tag_ruleset(rc_payload),
-        "unenforced": list(UNENFORCED_TAG_POLICIES),
+    }
+    return {
+        "final_immutability": results["final_immutability"],
+        "mode": "rulesets",
+        "rc": results["rc"],
+        "unenforced": list(UNENFORCED_TAG_POLICIES) + unobserved_bypass_notices(results),
         "valid": True,
     }
 

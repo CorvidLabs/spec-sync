@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787785112,
+      "digest": "80a5c7815c59ac5bcb93830264950069eed301add5a135f35dcf470c578eba89",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "bypass-actors-are-unobservable-to-a-workflow-token-so-absence-must-read-as-unverified-rather-than-empty",
+        "title": "Bypass actors are unobservable to a workflow token, so absence must read as unverified rather than empty",
+        "description": "Bypass actors are unobservable to a workflow token, so absence must read as unverified rather than empty",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/scripts/validate-release-candidate.py",
+          "specs/github/github.spec.md"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a visible bypass actor is still refused",
+          "an absent bypass_actors field validates as unverified and names what was not checked, rather than failing the gate",
+          "an admin payload with no bypass actors passes with no notice"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "0deeaa306a44b891bca428e90607763a16458965a1e1a8fb977ba0bd21ae0a02"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787785726,
+      "digest": "b789f052a49afab812305527114a0714b9db096fb8f1cabfd2f04b90de2a1f9c",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

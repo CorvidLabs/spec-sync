@@ -629,6 +629,48 @@ class RulesetValidationTests(unittest.TestCase):
         self.assertEqual(payload["rc"]["ref_includes"], ["refs/tags/v*.*.*-rc.*"])
         self.assertNotIn("final_creation", payload)
 
+    def test_absent_bypass_actors_reads_as_unverified_not_as_empty(self) -> None:
+        """A workflow token cannot read `bypass_actors`; absence must not mean "no bypass".
+
+        GitHub returns the field only to a caller with admin access to repository settings, so a
+        run using GITHUB_TOKEN never sees it. Requiring it made the release gate impossible to
+        satisfy from CI — the lane was red on every RC. Reading absence as an empty list would be
+        worse than requiring it: a ruleset that DOES grant bypass would pass a green run.
+        """
+        final_payload = copy.deepcopy(self.valid_final_immutability_ruleset)
+        rc_payload = copy.deepcopy(self.valid_rc_ruleset)
+        del final_payload["bypass_actors"]
+        del rc_payload["bypass_actors"]
+        self.write_rulesets(final_payload, rc_payload)
+
+        result = self.run_rulesets()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["valid"])
+        self.assertIsNone(payload["final_immutability"]["bypass_actors"])
+        notices = [
+            entry for entry in payload["unenforced"] if "Bypass actors on" in entry
+        ]
+        self.assertEqual(len(notices), 2, notices)
+
+    def test_a_visible_bypass_actor_is_still_refused(self) -> None:
+        """Honest label: this is the CONTROL for the test above.
+
+        Softening ABSENCE must not soften PRESENCE. If the check were relaxed into accepting any
+        value, this test is what fails.
+        """
+        final_payload = copy.deepcopy(self.valid_final_immutability_ruleset)
+        final_payload["bypass_actors"] = [
+            {"actor_id": 1, "actor_type": "Integration", "bypass_mode": "always"}
+        ]
+        self.write_rulesets(final_payload)
+
+        result = self.run_rulesets()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must not grant bypass", result.stderr)
+
     def test_successful_rulesets_declare_every_unenforced_tag_protection(self) -> None:
         """A green ruleset check must still say what it does not verify.
 

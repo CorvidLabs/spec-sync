@@ -7,11 +7,11 @@
   "title": "Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee",
   "description": "Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee",
   "kind": "operations",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "d508f144a1d965b395abfe45f23c8b4e8978cd5f",
   "created_at": 1787788131,
-  "updated_at": 1787791037,
+  "updated_at": 1787838204,
   "affected_specs": [
     "github",
     "cli",

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows",
+  "implementation_commit": "7d7dcc138f94fb9b5490f4fe34025ed92577ce03",
+  "implementation_tree": "7ebbe7e8ae4f36aec14b4f67bf2c15bffce6c9f4",
+  "contract_digest": "abe2b9efbc475d68a60f42a481f078d460afd6a78d91d8648779c4615f719715",
+  "workspace_digest": "e1b1627c6600615962a44ab07d6140020651d64d60726265b6098690cd394b94",
+  "closing_digest": "073ffffed8c336dfea71c9e66132086eece8b21e9ea2fdf35accc35e2f72dd66",
+  "review_digest": "a80646d4d55e5d692f2f092ba356a53ddbf7155a2a6bb3e2fe2c225aaff162fd",
+  "finalization_digest": "5159a2e45be6ba700b61f4ced4eac28bc9cd388d1ba4754afed1d3731ba93190",
+  "timestamp": 1787838204
+}

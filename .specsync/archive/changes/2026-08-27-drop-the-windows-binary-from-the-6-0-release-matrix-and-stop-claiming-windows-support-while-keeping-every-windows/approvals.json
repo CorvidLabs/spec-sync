@@ -53,6 +53,13 @@
         "github": "b7f29932677aa2bdc7eb32a6762fab3fafd0dcdf3bf2aa853d93abc6893ae401",
         "view": "875ea3c1cd191f8c2375a46e300eb8227bbd84cfcf1c9b25219ff8d5c65403b9"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787838204,
+      "digest": "073ffffed8c336dfea71c9e66132086eece8b21e9ea2fdf35accc35e2f72dd66",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

@@ -1,6 +1,6 @@
 ---
 id: drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows
-state: implementing
+state: archived
 type: operations
 base_commit: d508f144a1d965b395abfe45f23c8b4e8978cd5f
 ---

@@ -128,6 +128,46 @@ objection to `GITHUB_TOKEN` — that pushes made with it do not start other work
 to break here. Anything added later that must react to `vX.Y.Z` has to be called from inside
 `release.yml` rather than triggered by the tag.
 
+### What has actually run, and what has not
+
+The section above reasons about tag authority. This one records which of it has been *executed*,
+because a design that has only ever been argued is not a design that has been tested, and the
+release lane is the one workflow whose most important job runs exactly once.
+
+| Job | Status |
+|-----|--------|
+| `resolve` | **Executed.** `workflow_dispatch` with `dry_run=true` against `v6.0.0-rc.7` — the first dispatch in this repository's history. |
+| `validate` | **Executed**, same run. Both rulesets read and accepted. |
+| `qualify` | **Executed for the first time on `rc.8`**, and failing on Windows. `rc.1`–`rc.7` all died in `resolve` in 8–13 seconds, so the matrix never ran; fixing `resolve` exposed a Windows test-target compile break latent since #544. Ubuntu and macOS pass. |
+| `promote` | **Never executed.** |
+
+`promote` cannot be rehearsed here. `final_tag` is derived from the candidate's own `Cargo.toml`
+version, so any promote run against a real candidate mints the real `vX.Y.Z` — there is no throwaway
+value to aim it at, and the immutability rulesets make whatever it creates permanent. The proof and
+the release are the same event.
+
+What *was* proven, ahead of time and separately:
+
+- **Its git mechanics.** The `Create final tag` step was transcribed verbatim against a local bare
+  repository and all three branches exercised: a fresh create produces an **annotated** tag pointing
+  at `candidate_sha` and not at HEAD; a re-run against the same candidate takes the idempotent path
+  and exits 0; a re-run against a different candidate refuses with
+  `already points at a different commit` and exits 1.
+- **That the rulesets do not block it.** Both carry `update` and `deletion` only. Tag *creation* is
+  unrestricted, so the immutability that protects a released tag cannot prevent it being minted.
+  This was the failure that would have appeared for the first time at the moment of release.
+
+What remains unproven, stated rather than glossed: the credential helper supplies a credential only
+when the remote asks for one, and a local path remote never asks — so the rehearsal proves the
+helper's `git -c` syntax does not break the invocation, not that it authenticates. That, and
+`GITHUB_TOKEN`'s push against the live ruleset, first execute on the real release.
+
+**A promote failure is recoverable, which is why this residue is acceptable.** The step creates
+nothing on the failing paths, and the tag is pushed as the last action of the job; a failed run
+leaves the tag namespace untouched, and the idempotent branch means a retry after a *later* job
+fails is safe rather than a second release. The one non-recoverable outcome — a tag pointing at the
+wrong commit — is the case that refuses.
+
 ## Trust lifecycle policy
 
 | Lane | Command | When |

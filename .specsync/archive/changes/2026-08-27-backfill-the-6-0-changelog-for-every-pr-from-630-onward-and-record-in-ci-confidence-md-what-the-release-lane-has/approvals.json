@@ -1,0 +1,43 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787862824,
+      "digest": "47f993448a9cf952f0e00b187e6074d3e227d9ea5a5c69d719804896c585a579",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "backfill-the-6-0-changelog-for-every-pr-from-630-onward-and-record-in-ci-confidence-md-what-the-release-lane-has",
+        "title": "Backfill the 6.0 changelog for every PR from #630 onward, and record in ci-confidence.md what the release lane has actually executed versus only reasoned about",
+        "description": "Backfill the 6.0 changelog for every PR from #630 onward, and record in ci-confidence.md what the release lane has actually executed versus only reasoned about",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "docs/ci-confidence.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Both files are prose about behaviour that already shipped; no canonical spec module changes, and no requirement gains, loses or alters a guarantee.",
+        "acceptance_criteria": [
+          "Every merged PR from #630 through #727 either has a CHANGELOG entry under [Unreleased] or is deliberately omitted with a stated reason; no entry describes a mechanism the diff does not support; and docs/ci-confidence.md states which release-lane jobs have actually executed, which have not, and what a promote failure costs."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787864765,
+      "digest": "6cc7ba3b9f915e73e2ac552841845b70934238559204a5b4b8cc2ed05d1da7f1",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

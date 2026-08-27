@@ -42,7 +42,1676 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only place the retained `#[cfg(windows)]` code is compiled and run, and removing it would recreate
   exactly the condition that produced the `view` defect.
 
+### Added
+
+- **6.0 release candidates ship installable binaries** (CorvidLabs/spec-sync#669).
+  `v6.0.0-rc.1` was tagged correctly — annotated, right commit, marked pre-release — and carries
+  zero assets, because the release lane refused at its first job and every job downstream skipped.
+  Every consumer of the packaged GitHub Action got a 404.
+
+  A final tag and a release candidate are different promises. `release.yml` qualifies a candidate
+  against tag rulesets and a three-platform evidence matrix and should keep doing so; a
+  candidate's whole job is to be installed by people who have agreed to test it, and gating that
+  behind release-grade provenance meant it could not be installed at all. `rc-assets.yml` is a
+  `workflow_dispatch` lane that does exactly one thing: build the same targets `release.yml`
+  builds, under the same names `action.yml` downloads, and attach them to a release that already
+  exists and is already a published pre-release. It creates no tag, promotes nothing, and depends
+  on no ruleset, environment, or App identity.
+
+  A shortcut past a trust gate needs guards of its own. The target must match `vX.Y.Z-rc.N`, must
+  exist, must be marked pre-release, and must not be a draft — checked in a separate `guard` job
+  ahead of the builds, so a wrong target costs seconds rather than 45 minutes. Every checksum is
+  verified against its own sidecar before anything is attached, because a mismatch must fail
+  there rather than at every consumer. The Rust cache is `save-if: false`, since the tree is a
+  candidate.
+
+  `v6.0.0-rc.1` itself could not be rescued. A push event runs the workflow file as it existed at
+  the pushed ref, so it replays the broken lane forever, and the release was left as a draft —
+  which this lane's own guard refuses. `v6.0.0-rc.2` was the first candidate with assets. It
+  carried six, including a Windows build; 6.0 ships five (see Removed).
+
+- **Lessons written into `specs/<module>/context.md` are now surfaced at each of the three
+  moments a lesson exists** (CorvidLabs/spec-sync#697). Lessons were already being written
+  there — the place a module's knowledge is supposed to live, precisely so the next change to
+  that module can read it. Nothing surfaced them, so they accumulated where nobody looked, which
+  is indistinguishable from never having written them.
+
+  At **proposal**, `change new` prints one line per affected module —
+  `specs/<module>/context.md (N line(s)) — read before scoping this change` — under a `Lessons:`
+  heading. A pointer with a size, not a dump: a wall of text at creation gets scrolled past. It
+  is silent when no declared module has substantive prose, and text mode only; `--json` output is
+  unchanged.
+
+  At **build**, a *failed* `change check` writes to stderr that if the failure taught you
+  something it goes in `.specsync/changes/<id>/context.md` while it is fresh. Only on failure — a
+  hint on green is noise. Two placement details were found by running it rather than reading it:
+  the hint sits on the `Err` path from `verify_change`, because a first attempt sat in the
+  `passed: false` display branch and never fired for real verification failures; and
+  `active_change_id` had to select `Approved | Implementing | Verifying`, the same states
+  `check_change` selects, or the hint stayed silent on a failing *first* check of an approved
+  change.
+
+  At **archive**, `finalize` assembles `lesson-bundle.md` into the archive — title, kind, specs,
+  paths, acceptance criteria, the verification commit and the commands that produced it, and the
+  bodies of the change's own `context.md`, `design.md` and `testing.md` — and `next_action` names
+  the fold-back before the merge. `finalize --json` gained a `lesson_bundle` field.
+
+  SpecSync **assembles and never authors**: writing the lesson would mean shelling out to a
+  particular agent, and it does not need to, because whoever just ran `finalize` is right there.
+  Every path **fails open** — an unreadable context yields no pointer rather than an error, and a
+  bundle that cannot be written leaves a successful archive intact. That is deliberately the
+  opposite posture from evidence validation, which fails closed; the distinction is whether the
+  artifact is load-bearing for trust or an aid to the author.
+
+  The loop caught two design flaws in the change that adds the loop. `change new` surfaced
+  `specs/cmd_change/context.md`, which states three separate ways that the command layer holds no
+  lifecycle policy — and the first implementation had put the lessons policy there. Policy now
+  lives in `src/change.rs` (`accumulated_lessons`, `lesson_fold_targets`, `module_context_path`)
+  and the command layer renders and decides nothing. Separately, scaffold detection was
+  documented as "prompts are HTML comments" while the real `CONTEXT_TEMPLATE` is plain bullets,
+  so every untouched `specs/<module>/context.md` counted as four lines of knowledge: the proposal
+  stage would have pointed every new adopter at a file that had learned nothing, which is the way
+  to kill the surface. It survived dogfooding because all 62 specs in this repository already
+  have authored prose, so no untouched scaffold existed here to trip over. The generator now owns
+  what a scaffold looks like.
+
+  One sibling was collapsed on the way. The surfacing count and `write_lesson_bundle` had drifted
+  apart *inside a single feature*, both using `split("---").nth(2)`. `---` is a legal Markdown
+  horizontal rule, so that truncates any body containing one — and truncated material in a lesson
+  bundle is indistinguishable from material nobody wrote. Both now use one delimiter-based
+  helper, pinned by a horizontal-rule test that failed against the first fix.
+
+- **`docs/ADOPTING.md` — one page for a repository taking spec-sync on**
+  (CorvidLabs/spec-sync#671). Written to be pasted wholesale into an agent session and readable
+  on its own: install, initialise and generate, fill the specs and set them active, configure
+  verification, drive one real change end to end, and wire CI.
+
+  Every verb, flag, and path in it was checked against the RC binary rather than recalled — the
+  `change` subcommands, `approve --actor`, `review --reviewer`, `check --commit`, `check
+  --strict`, the `.specsync/config.toml` and `.specsync/sdd.json` layout,
+  `.specsync/archive/changes/`, and the three action inputs it names. A guide that names a verb
+  the binary has dropped is exactly the drift this tool exists to catch, so it should not be the
+  tool's own documentation that carries it.
+
+  The "Things that will bite you" section is not speculative; each entry is something hit while
+  adopting spec-sync in a real package, ordered by when it lands: scope freezing at approval with
+  no withdraw verb, a declared production path with no owning module refused at `ship`,
+  separation of duties refusing a solo adopter at review, build directories staling verification
+  evidence, widening to `pub(crate)` becoming a documented export, and a repeated description
+  colliding on its slug. Separation of duties is stated as a rule rather than a hint after
+  confirming it is genuinely enforced rather than advisory — case-insensitive, at both the
+  attempt history and the review itself — because a solo adopter hits it with everything else
+  already green, which is the worst moment to discover it.
+
+  The CI section says why *both* pins are needed: the `uses` ref pins the action code, the
+  `version` input pins the binary it downloads. Pinning one and not the other is the easy
+  mistake.
+
+### Changed
+
+- **The effective checkout overrides are read in one `git config` query, bounded for what that
+  query can actually return** (CorvidLabs/spec-sync#646, CorvidLabs/spec-sync#649).
+  `effective_checkout_overrides_uncached` spawned four `git config --get` processes for
+  `core.autocrlf`, `core.eol`, `core.symlinks` and `core.filemode`. They are now one `git
+  config -z --get-regexp '^core[.](autocrlf|eol|symlinks|filemode)$'`. At roughly 15 ms per
+  spawn on the measuring hardware, one instrumented suite run went from 15,359 `git config`
+  spawns to 3,842. It is **not a cache**: every call still spawns, so configuration edited
+  between two reads is still observed — the saving is asking once for four answers, never
+  remembering an answer.
+
+  Equivalence with four `--get` calls was checked against git 2.50.1 rather than assumed, for
+  each behaviour where the two could differ: a multi-valued key lists in order and last-wins
+  matches `--get`; a valueless key yields a record with no `\n`, i.e. the empty value; a
+  mixed-case section is emitted lowercased; whitespace is trimmed. The row that matters is the
+  last one — "no matching key" (rc=1, empty stdout *and* stderr) stays distinguishable from
+  "config is malformed" (rc=128 with stderr), because reading the second as unset would turn a
+  broken repository into a silently default one. `core.fsmonitor` is deliberately excluded: it
+  resolves through `configured_git_command`, which scrubs system, global and injected
+  configuration, while this query is built on `rooted_git_command` and must be, to keep the
+  precedence its callers depend on.
+
+  The batched call then inherited the **128-byte stdout bound** the four single-key calls had
+  shared. Four keys at about six bytes each were never near it; `--get-regexp` returns every
+  occurrence of all four keys across every scope, and the ordinary global-plus-local layout is
+  already 144 bytes, which tripped the deterministic-output guard and turned a routine read
+  into a hard error. Because `effective_checkout_overrides` feeds `inspect_git_candidates` and
+  so the git-evidence and workspace-digest capture, every lifecycle command that captures
+  evidence failed outright on an affected machine. The equivalence test written alongside the
+  batching checked six git behaviours and total output volume was not one of them, and it used
+  a single scope — structurally incapable of seeing this — while the development machine had
+  only `core.filemode` set. The bound is now 16 KiB, matching the sibling `core.fsmonitor` read
+  which has the same "one query, unknown number of records" shape; the guard itself stays, so a
+  genuinely unbounded response is still refused. Both landed before `v6.0.0-rc.1` was tagged,
+  so no published build carried the overflow.
+
+- **Internal: the reopen-then-close guard is pinned by tests** (CorvidLabs/spec-sync#650). No
+  behaviour changes. The fix for #540 — a change reopened after finalize could never be closed
+  again — shipped with no tests at all: 21 lines of `src/change.rs`, no test file touched, and
+  reverting it left the entire suite green. Its refusal string appeared exactly once in the
+  tree, in the product. The only protection was a sandbox drill that scores clean **on a binary
+  with the guard deleted outright**, because it asserts `rc=0`, `state=archived` and
+  `archives=1`, all of which deleting the guard satisfies.
+
+  The two removals are not the same removal: dropping the archive-to-active direction
+  reintroduces #540, while deleting the guard entirely passes the drill. One makes the guard
+  stricter, the other makes it absent, and a single assertion cannot see both. The tests are
+  therefore a deliberate pair that fails *differently* — a round-trip test that fails when the
+  archive-to-active term is removed, a third-location test and a deletion test that fail when
+  the guard itself is removed. `validate_scoped_review_history_transition` takes its inputs
+  directly, so none of them needs a repository fixture.
+
+- **BREAKING (change identity): `specsync change new` mints a slug, with no `CHG-NNNN`
+  ordinal** (CorvidLabs/spec-sync#665). A change created now is identified by its description
+  alone, so two people working from the same base no longer need to coordinate to avoid
+  claiming the same identity. Historical archives keep their `CHG-NNNN-slug` identities and
+  directory names permanently — there is no migration and no renaming.
+
+  **What this breaks.** Tooling that parses an ordinal out of a change ID will not find one.
+  `SPECSYNC_SEQUENCE_BASE` no longer does anything: allocation is gone, so there is nothing to
+  floor. `.specsync/change-sequence.json` is frozen — nothing writes it any more — and it is no
+  longer auto-added to a new change's `affected_paths`. A description that would produce an
+  identity already in use is now refused by naming the existing change — its ID, its workspace
+  path, and its description and state — instead of exhausting a 10,000-iteration allocation
+  retry that reported "exhausted change sequence allocation retries" for what was simply a
+  taken name. Refusing rather than disambiguating with a `-2` suffix is deliberate: the archive
+  directory is `<date>-<id>`, so two same-named changes archived on different days would
+  produce two archives with one `record.id`, after which `find_change_dir` reports ambiguous
+  locations and every command in the repository fails with no clean recovery. A description
+  containing no ASCII letters or digits is now refused outright rather than collapsing to a
+  shared fallback, because under ordinals each such description became a distinct
+  `CHG-NNNN-untitled-change` and without them the first one created would permanently own the
+  only ID any of them can produce.
+
+  **The guarantee the ordinal was providing by accident.** It was the repository's only
+  assurance that two changes could not share an identity, and the numeric collision gate
+  enforced that as a side effect. A slug is unique only by convention, and two clones can
+  archive the same slug on different days into differently dated directories that git merges
+  without a conflict. The gate is now explicit in `validate_change_sequences` and does not
+  route through the ordinal, because the identities that need it no longer have one. It cannot
+  live in `list_all_changes_uncached`, which already refuses the same shape, because `change
+  audit` runs with `include_archive_integrity = false` and never loads the archive at all.
+
+  `located_change_ordinal` separates "claims no ordinal" from "claims one badly": a slug-only
+  ID is simply absent from numeric accounting, while a `CHG-`-prefixed ID whose leading segment
+  is digits in a non-canonical width still fails closed. A blanket skip would have dropped the
+  malformed ones out of the acknowledged-collision ID-set check that guards the archived
+  collision members.
+
+  Three surfaces were broken before this landed and all three through one line in
+  `located_change_sequences`: `change audit --strict` could not even count a slug-only
+  workspace, `change new` failed repo-wide with the same error, and `change status` reported a
+  *healthy* next action because `sequence_ledger_freeze_next_action` ended `Err(_) => None` — a
+  bricked repository that looked fine. That fall-through now reports the real problem.
+
+  The ledger file itself cannot be deleted, for two independent reasons:
+  `acknowledged_collisions` lives only there (five groups covering 11 archived changes), and
+  120 of 164 archives sign it, each having signed different content. Roughly 400 lines of
+  history-reading machinery therefore survive, now commented to explain why they look dead. Net
+  −89 lines of production code, +52 of comment.
+
+  The commit carries a second lifecycle change covering `tests/integration/change.rs` and
+  `tests/integration/comment.rs`: the retirement rewrote fixtures that hard-coded `CHG-NNNN`
+  identities, and those paths were not in its declared scope. Scope freezes at approval, so the
+  archived change could not be widened after the fact.
+
+- **Final-tag creation is no longer restricted to a release GitHub App, and every release run
+  states what that costs** (CorvidLabs/spec-sync#718, CorvidLabs/spec-sync#720).
+
+  The design in REQ-github-007 called for a `SpecSync final tag creation` ruleset naming a
+  dedicated release GitHub App as its only bypass actor, and a protected `release` deployment
+  environment holding that App's private key. Neither was ever provisioned, and the decision is
+  now not to create them. `promote` mints `refs/tags/vX.Y.Z` with the workflow's own
+  `GITHUB_TOKEN` under `contents: write` declared on that job alone; the workflow-level default
+  stays `contents: read` / `actions: read` / `checks: read`, exactly two jobs hold
+  `contents: write` — `promote` for the tag and `release` for publication — and a test pins that
+  count so a third cannot appear unnoticed. The `actions/create-github-app-token` step,
+  `vars.SPECSYNC_RELEASE_APP_ID` and `secrets.SPECSYNC_RELEASE_APP_PRIVATE_KEY` are removed from
+  `.github/` entirely rather than left unset and failing closed on every dispatch.
+
+  What that costs is stated, not implied: anyone who can run `release.yml` from the default
+  branch can cause a final release tag to be created. An App key is the one credential a workflow
+  author cannot reach by editing the workflow, and there no longer is one — running the release
+  lane and holding release authority are now the same permission.
+
+  `environment: release` was removed rather than kept with a comment. It named an environment that
+  has never existed, and GitHub materializes a referenced environment on first use with no
+  protection rules, so the reference would have published a `release` entry in the repository's
+  Environments and Deployments UI that gates nothing while looking like a gate — to an audience no
+  workflow comment reaches. The route to a real gate is recorded at the job in order: create the
+  environment with required reviewers and a `main`-only deployment branch policy first, then
+  re-add the reference, then restore a check that proves those rules still hold.
+
+  The disclosure is enforced rather than documentary. `validate-release-candidate.py rulesets`
+  emits an `unenforced` array — the three fixed `UNENFORCED_TAG_POLICIES` entries, plus one
+  notice per ruleset whose `bypass_actors` the run's token could not read — and `resolve` prints
+  each as a `::warning::` annotation and into the step summary on every run, green ones included.
+  **`release.yml` fails when that array is empty.** The validator hard-codes three entries, so an
+  empty array cannot mean "everything is enforced"; it can only mean the disclosure path itself
+  broke — a renamed flag, a changed `jq` path, an emptied tuple. The tripwire guards the
+  announcement, not the policy. A future maintainer who provisions the App ruleset and empties
+  `UNENFORCED_TAG_POLICIES` must remove the `unenforced_count` check in the same change, or the
+  lane will fail on a repository that is strictly better protected than it is today.
+
+  Nothing else weakens. `promote` still `needs: [resolve, validate, authorize-release]`, so a tag
+  from that job still follows a candidate qualified on three platforms. Both immutability
+  rulesets are still validated with no bypass actor admitted, so once `vX.Y.Z` exists nobody —
+  this token included — can move or delete it. The checkout still runs with
+  `persist-credentials: false` behind the same one-remote credential helper, so no token lands in
+  `.git/config`; only the credential changed.
+
+  Internal to this repository's CI, not to the shipped binary: the `environment` subcommand of
+  `.github/scripts/validate-release-candidate.py` is removed with its tests, and
+  `--release-app-id` and `--final-creation-ruleset-json` are removed rather than ignored, so a
+  stale caller fails loudly instead of believing the App policy is still checked.
+
+<!-- DISCREPANCY: the shipped section contradicts itself, and still does on `main`. Its opening
+     paragraph says a squash-merge makes a change "read as unverified the moment its own PR lands
+     — forcing a full re-verify AND a fresh independent review" (docs/ADOPTING.md:109-112), while
+     a paragraph fifteen lines later says "a squash no longer forces a re-verification"
+     (:126-129). The PR's third commit corrected the cost downward but left the lead claim
+     standing, so the first thing an adopter reads is the pre-#689 behaviour. -->
+- **The adoption guide leads with merge strategy, and no longer advises one this repository
+  cannot use** (CorvidLabs/spec-sync#692). `ADOPTING.md` was written before a full day of real
+  adoption on another repository and mentioned none of what that adoption actually hit — squash,
+  rebase, reopen, finalize, `db_tables`, `schema_dir`, or lessons.
+
+  Merge strategy is now the first entry, with the `gh api repos/OWNER/REPO --jq '{merge:…,
+  squash:…, rebase:…}'` invocation to check it *before* adopting, and the warning that `gh pr
+  merge --rebase` silently falls back to squash when rebase is disabled — so following the advice
+  is not enough, you have to check the setting.
+
+  The first draft of this section told adopters to prefer rebase-merge or merge-commits for
+  branches carrying lifecycle commits. spec-sync's own repository is squash-only (`merge: false,
+  rebase: false, squash: true`) and 89% of its own archives — 19 of 172 — have an unreachable
+  verification commit. Advice the tool's own repository cannot follow reads as a supported path
+  and is not one, so it was replaced before merge with what is actually true.
+
+  The second draft then overstated the cost, telling adopters to budget for a re-verify *and* a
+  fresh review after every merge. #689 had already made ship readiness content-based, so a squash
+  no longer forces a re-verification — measured across squash, rebase, and merge-commit, all
+  three reach `ready to finalize`. What a squash still costs is the independent review, whose
+  check walks the commits between the review and `HEAD` to prove nothing changed except the
+  change's own records; a squash makes that walk impossible rather than false (#694). Advice that
+  overstates the cost is not a safe default either — it tells people to budget for work the tool
+  no longer asks of them.
+
+  Also added, all from measured adoption: that merging before `finalize` blocks every earlier
+  accepted change sharing a delivery input, not only the one merged (#687); the two state traps
+  whose escapes are not in the error text — `check` *without* `--commit` for the reopened
+  workflow-v1 deadlock, and `finalize` rather than `ship` when a review has staled (#685); and
+  that `db_tables` is checkable only against `.sql` migrations, so declaring it without
+  `schema_dir` is a notice rather than a `strict`-gating warning as of rc.5 (#684). Plus a "Close
+  the learning loop" section for #697's three stages, with the reason it matters: a change's own
+  `context.md` is archived and read by nobody, while a spec's is read before every future change
+  to that module.
+
+- **The adoption guide names the remedy for a path with no owning module, not only the trap**
+  (CorvidLabs/spec-sync#682). The page already warned that production source declared under
+  `--no-spec-change` is refused, but did not say what to do instead, which makes the warning
+  describe a wall rather than a door. The refusal arrives at `ship`:
+
+      error: acceptance input `src/change.rs` is production source without
+             deterministic canonical ownership
+
+  Scope freezes at approval and there is no withdraw verb, so by then the only exit is resetting
+  the branch and redoing the whole lifecycle — found that way while shipping #677/#678.
+
+  The remedy is that `--spec` and `--no-spec-change` **coexist**, and that pairing is the correct
+  one for production source with no spec text changes. Nothing in the docs said so, and the flag
+  names actively suggest otherwise. The page now gives the full `change new` invocation, says how
+  to find a path's owning spec (grep the `files:` list in each `specs/<module>/*.spec.md`), and
+  says that a path with no owner is itself the defect to fix first.
+
+- **The lesson fold-back's own recursion, and the flag combination that terminates it, are
+  documented** (CorvidLabs/spec-sync#710). The fold-back that `finalize` and `ship` instruct is
+  itself a change touching tracked paths, so it needs its own lifecycle record — and if that
+  record declares the same specs, `lesson_fold_targets` returns the same context paths and the
+  author is told to fold again. There is no cycle detection, no warning, and no error; the
+  instruction simply repeats.
+
+  What stops it is a change that declares no affected specs. `lesson_fold_targets` maps
+  `affected_specs` to `specs/<module>/context.md`, so an empty list yields no targets and both
+  `lessons_next_action` and `ship_next_action` fall through to their plain merge guidance —
+  "merge the PR on GitHub" for `finalize`, and ship's own push/CI/sibling tail unprefixed. The
+  mechanism is the **absence of `--spec`**, not the presence of `--no-spec-change`: the two
+  coexist (see #682), so a fold that declares specs is told to fold again. `ADOPTING.md` now
+  supplies the `change new --kind documentation --path specs/<module>/context.md
+  --no-spec-change` invocation with rationale wording, so the terminating combination is not
+  improvised, and says to keep such a change to `context.md` paths — a spec companion is not
+  production source and so does not trip the owning-module refusal, but anything alongside it
+  would be, and would have lessons of its own.
+
+  It also corrects a stale claim in the same bullet, which credited only `finalize` with naming
+  the step; since #700 both verbs do, ahead of their remaining guidance. The section ends on the
+  measured number: 6 of 183 archived changes have ever touched a spec's `context.md`.
+
+  Not built here: `finalize` recognising a companion-only change and omitting the clause. That
+  needs a discrimination this does not build, since a change touching a companion *and*
+  production source must still be told to fold (#703).
+
+- **REQ-change-016 describes commit ancestry as it is actually used**
+  (CorvidLabs/spec-sync#717). Spec text only — no source file changed, and nothing an adopter
+  runs behaves differently. It is here because it is the governed statement of the guarantee
+  #689 relies on, and it was false.
+
+  `specs/change/requirements.md` said `verification.commit` "is retained as an informational
+  correlation key and is never a gate". `verification_commit_is_accepted_current` —
+  `merge-base --is-ancestor` and nothing else — is consulted at three sites, so the requirement
+  described behaviour the code does not have: the drift this project exists to catch, in its own
+  spec.
+
+  The obvious narrowing — "may consult ancestry as one basis among several" — would have replaced
+  a false sentence with a different false sentence. Two of the three sites are hard conjuncts
+  inside `staged_accepted_snapshot_is_closing_authenticated` (the workflow-v2 branch and the
+  legacy branch); only `accepted_evidence_is_anchored` is a disjunct of three, alongside the
+  integrated accepted workspace and the acceptance recorded on the remote default branch. A
+  conjunct can only block and a disjunct can only widen, so one wording cannot honestly cover
+  both.
+
+  The requirement now separates the two questions: `verification.commit` is never a gate on
+  verification currency or ship readiness, and a squash that discards it invalidates nothing;
+  archival *anchoring* — whether an acceptance is anchored in history a reader can reach — MAY
+  consult ancestry as one basis, and "Ancestry MUST NOT be the only basis on which anchoring can
+  be established." That last clause is deliberately testable, and it is the one the two conjuncts
+  violate; it is tracked as #706 rather than silently blessed. A coverage proof commissioned for
+  #706 then inverted its own premise — those conjuncts are vacuous rather than merely weak, since
+  accept sets `verification.commit` to `HEAD` moments before archive, and requiring a real
+  in-history anchor would break `finalize` for every workflow-v2 change, because accept and
+  archive happen in one process with no commit between them.
+
+### Security
+
+- **An acceptance anchor must be the commit where the evidence entered history, not any later
+  commit that re-introduces it** (CorvidLabs/spec-sync#663). Exploitable by anyone able to land
+  a commit.
+
+  `authenticated_accepted_transition` authenticated an archived change by finding a commit that
+  *added* its `accepted-state.json` whose committed evidence bytes equalled the
+  **working-tree** bytes — with no cutoff, no ancestry bound and no ordering rule. The check is
+  circular: it authenticates working-tree bytes against a commit that contains those bytes, so
+  any commit of the current state qualifies. `--diff-filter=A` was the only thing keeping that
+  from being trivially true, since a tampering commit is a modify — and re-introducing the
+  package produces an addition.
+
+  The issue was filed as "renaming an archive directory launders tampering", and that framing
+  was too narrow. Three attack shapes were demonstrated against the shipped behaviour and the
+  third contains no rename at all: `reopen` moves a package to `.specsync/changes/<id>/` and
+  `archive` moves it back, so tampering in between produces a fresh introduction at a path
+  SpecSync itself writes, with the archive directory's name unchanged throughout. **A fix
+  scoped to the archive path would have closed two of three and looked complete.**
+
+  For an archived change, an acceptance anchor must now be the earliest reachable commit that
+  introduced that change's package, and the active-workspace stages and the working-tree
+  fallback are admitted only for commits preceding it. Three details are load-bearing, each
+  having been a defect in a rejected candidate: the index is built from `git_repo_prefix`
+  rather than a bare archive path, because comparing a project-relative prefix against Git's
+  repo-relative output makes the whole fix a silent no-op wherever the project is not at the
+  repository root; rename detection is disabled with `--no-renames` rather than followed with
+  `--follow`, because `diff.renames` has defaulted on since Git 2.9 so a `git mv` reports
+  `R100` and vanishes from `--diff-filter=A`, and a `--follow`-based fix would look closed
+  while resting on a similarity heuristic *the attacker controls*; and identity comes from the
+  `id` inside the committed `state.json`, matching how `find_change_dir` resolves a package,
+  because the directory name is not part of a package's identity anywhere else in the code base
+  and so must not be part of the trust decision.
+
+  Every archive that authenticated before this rule continues to authenticate after it,
+  verified per risk class against a 161-row baseline captured beforehand — including the 90
+  archives whose only eligible anchor is the archived-package stage, which is the class that
+  breaks if the bound is drawn too tightly, and the seven pre-existing corrupt archives, which
+  still fail downstream of the anchor logic and so confirm nothing was papered over.
+
+- **A later generation of terminal evidence is trusted only when it extends the generation
+  already committed** (CorvidLabs/spec-sync#666). Repairs two defects the anchor fix above
+  introduced. One was a live laundering hole; the other broke reopen-then-re-finalize. Both
+  were found after the Rust suite, a per-risk-class corpus sweep and three adversarial passes
+  had all cleared that fix.
+
+  The anchor fix distinguished a genuine reopen from a copy by `approvals.json`'s
+  `reopenings.len()` — **a number written by whoever writes the file**, next to the evidence it
+  is supposed to qualify. Appending one hand-made `ReopenRecord` promoted a rewritten package
+  past the introduction that contradicts it, re-opening all three attack shapes the fix had
+  closed. The count is now used nowhere in the decision. `ArchiveIntroduction` carries the
+  committed `approvals.json` bytes instead, and `ledger_succession` admits a candidate only
+  when `reopenings` grows, `approvals` is at least as long, **both prefixes are
+  byte-identical**, and the first added reopen event's `superseded_approval` equals the earlier
+  ledger's terminal approval — so a new generation names the package it supersedes rather than
+  merely counting past it. Comparison is on raw `serde_json::Value`, never round-tripped
+  through `ApprovalLedger`, because the typed form drops unknown fields and that is exactly
+  where a difference would hide. `scope_adoptions` is deliberately excluded: `append_approval`
+  clears it whenever a renewed definition approval lands, so it legitimately shrinks across a
+  reopen. There is no extra git cost — the index already ran one `git show` per introduction
+  and now keeps those bytes rather than reducing them to a number.
+
+  The second defect was a regression, bisected rather than assumed: in a reopen lifecycle the
+  active-path and recording stages are empty by construction, because acceptance is reached in
+  the working tree between `review` and `finalize` and never committed, and at the second
+  finalize the new generation's package is not yet in history — it is what the finalize is
+  about to create. The archived-package stage can only offer the previous generation, which by
+  definition of a genuine reopen no longer matches. So the sole surviving stage was the
+  working-tree closing-evidence fallback, and the anchor fix had switched it off.
+
+  The repair is two conjuncts, because either alone fails and both candidate one-conjunct
+  repairs proved it — one let any working tree speak for a committed package, the other let
+  `finalize` bless a package it merely found. **Who is speaking**: a `PendingArchiveClose`
+  token is minted only by the process writing a package out of the change's own active
+  workspace, and every reading path (`status`, `audit`, `list`, `ship-status`, the corpus
+  census, the successor and legacy-baseline checks) passes `None` and is judged entirely by
+  history. The token is deliberately not minted for a post-move resume that found its package
+  already in the archive, because that shape cannot be told from an attacker flipping a
+  committed package's `state.json` back to `accepted` and re-running `finalize`. **What it
+  says**: the ledger about to be committed must contain, unrewritten, every ledger history
+  already holds.
+
+  The scoped-review history walk is widened in the same change. A change has two homes but
+  occupies several archive *directories* across a reopen round trip, since the next `finalize`
+  creates a directory dated by the day of the second close. The walk read "the ledger is absent
+  from every path I know" as deleted evidence, so a path set built only from where the package
+  sits now reported the reopen's own move as a deletion — which is what refused the second
+  reopen of any change, and the first from inside `reopen` itself. Every directory the package
+  has occupied in reachable history is now admitted, and archive-to-archive joins the two
+  permitted directions. Append-only growth is still required byte-for-byte; only the
+  one-attempt-per-commit restriction is relaxed across a move, where a squash can legitimately
+  collapse several attempts. A repository whose introduction index cannot be built — a shallow
+  clone, say — degrades to the narrower set, which is the behaviour that shipped.
+
+  Worth recording, because it is the second time in this release: the anchor fix *anticipated*
+  the reopen hazard, built the generation term for it, and verified that term as "dormant today
+  — no archive in the corpus has two introductions." Dormant meant untested, and only a reopen
+  creates the state that would have tested it.
+
+- **The release lane proves a candidate before running any of its code** (rode in with
+  CorvidLabs/spec-sync#666). The tag/package version check ran `cargo metadata` — which
+  executes the candidate's own build scripts and manifests — *before* the check that the
+  release commit is integrated into `origin/main`. The ancestor check is what makes the
+  checkout trustworthy at all, so it now runs first and cargo touches nothing until it passes.
+  Nothing about a legitimate candidate changes.
+
+  The qualification job's Rust cache is switched to restore-only (`save-if: false`). That
+  runner checks out a commit that on a `workflow_dispatch` is derived from an operator-supplied
+  tag, while the run carries default-branch privileges — writing a cache entry from that tree
+  is what would let a candidate that is not what the operator believes seed a cache later
+  restored by default-branch workflows. Reading one is harmless. The cost is a cold build on a
+  lane that runs rarely.
+
 ### Fixed
+
+- **Declaring an additional module can no longer reduce the verification a change receives**
+  (CorvidLabs/spec-sync#617). `verification_commands_for_change` walked `affected_specs`,
+  collected whatever `component_verification_commands` entry each module had, and fell back to
+  the project-wide `verification_commands` only `if commands.is_empty()`. That test was taken
+  over the whole change, so a single routed module made the list non-empty and suppressed the
+  project-wide list for every other module in scope — including modules nobody had routed at
+  all. Verification was therefore non-monotonic in declared scope: `--spec routed --spec
+  unrouted` ran strictly less than `--spec unrouted` alone.
+
+  Measured on this repository, on two real changes minutes apart. A change declaring `--spec
+  validator --spec manifest` received `["cargo test validator::tests::"]` — 63 tests, the
+  integration binary 0 passed / 400 filtered out — and reported `✓ verified`. A change
+  declaring no module at all received all four project-wide commands, including one that had
+  never executed under this gate on this repository. The more carefully an author named the
+  modules they touched, the less the gate ran.
+
+  A declared module with no routing entry is now tracked separately, and the project-wide list
+  is added whenever any such module is present: a module nobody routed is not a module that
+  needs no verification. Targeted verification survives rather than being deleted to make the
+  property hold — a change scoped entirely to routed modules still receives only its component
+  commands and does not fall back. Strict escalation continues to append without removing.
+
+  `--strict` was the interim mitigation and only ever narrowed the hole. It appends
+  `strict_verification_commands` without restoring the globals, so a project that configured
+  `verification_commands` and never populated the strict list got no protection from it.
+
+<!-- DISCREPANCY: the commit subject names only the lane-classification fix; the same commit
+     also carries two unrelated coverage-job changes for CorvidLabs/spec-sync#624, described in
+     the last paragraph below. -->
+- **Repository-internal (nothing an adopter runs changes): a tip-only CI classification may
+  narrow the lane, never contradict the pull request** (CorvidLabs/spec-sync#626). This touches
+  only spec-sync's own `.github/`, but it bears directly on the verification evidence behind
+  this release, so it is recorded rather than dropped. `ci.yml` classified changed paths twice
+  — once over the whole pull request, once over the tip commit alone — and unconditionally took
+  the tip answer whenever it was `archive_only`, `legacy_archive_only` or `review_only`.
+  `specsync change ship` always produces an archive commit last, so the tip answer won on every
+  lifecycle pull request. PR #567 changed `src/commands/check.rs` and merged with `test`, `fmt`,
+  `coverage`, `audit` and `spec-check` all skipped and the required aggregate green, because
+  that aggregate counts a skipped job as a pass; PR #629, whose two fixes are entries in this
+  same release, changed nine source files the same way.
+
+  The whole-PR classification is now computed first and unconditionally, and
+  `.github/scripts/select-ci-lane.sh` arbitrates: a tip answer is a candidate that may narrow
+  the lane, but if the whole pull request selected the product lane, an archive-shaped tip does
+  not deselect it. The second half of #626 — making the aggregate assert which jobs *ran*
+  rather than only that none failed — was not done; `skipped` still satisfies `Require every
+  selected gate`.
+
+  The change was shipped as its own test and immediately found a second way to produce the same
+  symptom: `select-ci-lane.sh` was staged by `change check --commit` before `chmod +x` ran, so
+  git recorded mode 100644, the classify job died with `Permission denied`, and every
+  downstream job skipped — identical visible outcome, unrelated cause.
+
+  The two coverage changes the subject does not mention (#624): `cargo tarpaulin
+  --follow-exec` instrumented every child process, and the integration suite spawns the binary
+  for nearly every test, producing ~1000 profraw files (999 and 994 measured on two runs) whose
+  single merge killed the runner on every run — always at "Merging coverage reports", never
+  during the tests. Steering the naming with `LLVM_PROFILE_FILE=%m` did not work, because
+  tarpaulin sets that variable per child itself. Coverage now runs `--bins` and instruments only
+  the binary target's in-process unit tests. The integration suite still runs, in the `test`
+  job; it is simply no longer instrumented, so the reported percentage no longer includes paths
+  reached only by driving the binary end to end.
+
+- **`migrate` no longer deletes an explicit `enforcement = "warn"`** (CorvidLabs/spec-sync#625).
+  `config_to_toml` skipped `EnforcementMode::Warn` with the comment `// default, omit`. `Warn`
+  has not been the default since `#[default]` moved to `Strict`, so a project that had
+  deliberately chosen the non-blocking policy lost the line on write and became gating on the
+  next load. One tree, one `specsync migrate` in between: identical findings, identical output,
+  rc=0 before and rc=1 after.
+
+  This is close to undiagnosable from the diff, because the config did not *gain* a `strict`
+  line, it *lost* a `warn` one, and the person debugging a newly red CI looks for something
+  that was added. It also voided the documented mitigation for 6.0's `warn` → `strict` default
+  change, which is to set `enforcement = "warn"` explicitly — exactly the value `migrate`
+  deleted.
+
+  The key is now written unconditionally instead of omitted on equality with a literal.
+  Omit-on-default is safe only while the default never moves, and an absent key is
+  byte-identical on disk to a key holding the default, so nothing downstream can tell the two
+  apart afterwards. One consequence worth knowing: `init` and `migrate` both write an explicit
+  `enforcement = "strict"` for a project that never expressed a preference. The effective
+  policy is unchanged; it is now pinned against a future default move rather than tracking it.
+
+  `site/src/content/docs/configuration.md` had documented the default as `warn` and now says
+  `strict`.
+
+- **A reopened change can be finalized again** (CorvidLabs/spec-sync#540).
+  `validate_scoped_review_history_transition` walks committed history and, for an unchanged
+  review ledger, accepted only two shapes: the path did not move, or it moved from
+  `.specsync/changes/` to `.specsync/archive/changes/`. A change has exactly two homes and the
+  evidence crosses between them twice in a round trip — `finalize` carries it active → archive,
+  `reopen` carries the same bytes back. Only the first direction was admitted.
+
+  The refusal therefore surfaced at the *next* `finalize`, not at the `reopen` that performed
+  the move, because it comes from a walk over committed history rather than from the command
+  doing the work — which is also why re-running `review` could never clear it. What the user
+  saw was a dead end: `finalize` failed with `scoped review history moved evidence outside
+  finalization` and restored the source, after which `check`, `review`, `reopen`, `accept`,
+  `archive` and `ship` each refused for their own reason while `status` and `ship-status` went
+  on naming `finalize` as the next action. The workspace was intact; it simply could not be
+  closed.
+
+  Archive → active is now admitted on the same terms as active → archive. A move to any third
+  location is still refused, so the check continues to detect evidence relocated outside the
+  lifecycle: the allowance names the two canonical homes rather than loosening the predicate.
+
+- **An archived change package no longer leaves an untrackable husk, and enumeration no longer
+  dies on one** (CorvidLabs/spec-sync#536, CorvidLabs/spec-sync#412). `change ship` wrote an
+  empty `deltas/` directory into the dated archive package. Git cannot represent an empty
+  directory, so checking out any commit that predates the archive removed every tracked file in
+  the package and stranded the directories — a husk that `git status` reports as clean. The
+  next `specsync check`, `change new` or `change audit` then died on a raw OS error for a
+  `state.json` in a directory git says is not there. Recovery was `rm -rf` of a path the tool
+  never named.
+
+  The two issues are one failure mode reached from two directions, which is why one commit
+  closes both: #536 is the tool manufacturing the husk through its own normal output, #412 is
+  the same enumeration hard-failing on a hand-made `mkdir` under `.specsync/archive/changes/`.
+  Both halves are addressed. `archive_change_with_options` prunes directories holding no regular
+  file at any depth, deepest first so a parent emptied by its children goes in the same pass,
+  and after validation so the rollback paths still restore an intact source; failure to remove
+  one is ignored rather than undoing an archive that already validated.
+  `located_change_sequences` and `list_all_changes_uncached` skip such a directory alongside
+  the existing legacy-tombstone allowance.
+
+  The read-side allowance is deliberately narrower than #412 asked for. That report wanted any
+  stray directory skipped with a warning; only a directory git could never have committed is
+  skipped. One holding at least one regular file but no `state.json` is still refused, so the
+  tolerance cannot be satisfied by ignoring corruption, and directories in an archived package
+  that do hold files are preserved.
+
+- **A populated semantic delta no longer reports as empty** (CorvidLabs/spec-sync#537).
+  `parse_delta` returned `Ok(vec![])` for any content it did not recognise, and both callers
+  turned an empty item list into ``semantic delta for `<module>` is empty``. A three-line prose
+  file was therefore reported as an empty file, which sends the author looking for a write that
+  did not land rather than at a heading grammar they have never seen — the grammar appears in
+  no `--help` output and in no generated `SKILL.md`.
+
+  `parse_delta` now makes the distinction itself. Whitespace-only content still reports empty;
+  content with no recognized operation heading reports that and names `## Added`, `## Modified`
+  and `## Removed`; content that *has* an operation heading but no item under it gets its own
+  message naming `### REQUIREMENT <id>` and `### SPEC SECTION <name>`. The `invalid delta
+  operation heading` refusal names the allowed values too. The historical-delta walk inherits
+  the distinction for free, because it calls the same parser rather than reimplementing the
+  test.
+
+  The same commit removes an asymmetry its subject does not mention. `## Added` was matched
+  after `to_ascii_uppercase`, so operation headings were already case-insensitive, while item
+  headings used a raw `strip_prefix("REQUIREMENT ")` and were not — `## added` approved and
+  `### requirement` was refused, in the same file. Item headings now match through
+  `strip_ascii_prefix_ignore_case`, so `### requirement` and `### spec section` parse. A `###`
+  line that is not an item keyword, met while an item is open, remains that item's content as
+  before.
+
+<!-- DISCREPANCY: the commit subject, "ship-status must name the action the lifecycle
+     requires", is unqualified, but the diff scopes the deferral to Draft, Accepted and
+     Archived. The `verifying` cases CorvidLabs/spec-sync#534 documented — a stale verification
+     told to run `change review`, a "ready to finalize" told to run `change ship` — still stand,
+     as do #534's stage findings (two simultaneous `[current]` stages, `product_tip` gated on
+     git ancestry rather than the contract digest). REQ-cmd-change-014 states the narrow scope
+     correctly; only the subject overclaims. -->
+- **`change ship-status` defers to the lifecycle next action outside the shipping window, and
+  never restates a blocker as one** (CorvidLabs/spec-sync#534). `ship_status_report` computed
+  the correct state-aware `lifecycle_next` and emitted it in the JSON, but the text renderer
+  printed `ship_next`, which is derived from tip stage and git ancestry. On a draft that meant
+  `Next: run specsync change check <id> --commit` while the change was still in its interview;
+  obeying it produced `cannot check the change while ... is draft` from the same binary that
+  printed the line. On an archived change it printed the same instruction for work that was
+  finished.
+
+  Two rules now apply. Outside the shipping window — `Draft`, `Accepted`, `Archived` — the ship
+  lane defers to `lifecycle_next`: the lane may narrow the next action, never contradict the
+  lifecycle state, the same rule applied to CI lane classification in #626. And `ship_next` no
+  longer falls back to `blockers[0]` whenever any blocker exists. A blocker says what is wrong,
+  not what to do, and it already renders on its own `Blocker:` line; at `approved` that arm
+  printed `Next: no verification evidence recorded yet`, a restatement where a runnable command
+  belongs.
+
+  Inside the shipping window `ship_next` still comes from the stage table, so the two
+  `verifying` instances in #534's told-then-refused table are unchanged.
+
+- **`change ship-status` resolves an archived change's evidence from its archive package**
+  (CorvidLabs/spec-sync#534). Both evidence reads built the path to `verification.json` and
+  `review.json` under a hard-coded `.specsync/changes/<id>/` — a parallel implementation of
+  `change_dir` that is correct exactly until the change is archived and moves out of it. A
+  finalized change with recorded evidence reported `Verification: none` and `Review: missing`
+  for artifacts sitting in its own archive package.
+
+  `find_change_dir` already answers active-or-archive and is now the single resolver, made
+  `pub` so the command layer reuses it instead of growing a third path idiom beside it. The read
+  is lenient by design: an unreadable or unparseable archived artifact degrades to "no evidence
+  recorded" rather than propagating with `?`, because turning `ship-status` and `ship` from rc=0
+  into rc=1 on an already-damaged repository would make the fix for an inspection command the
+  thing that breaks inspection. Resolution failure on an ambiguous or malformed id falls back to
+  the active path, so a status command always renders.
+
+- **The change-sequence ledger gate judges a branch by its own history, not by origin**
+  (CorvidLabs/spec-sync#533, PR CorvidLabs/spec-sync#629). The read-side gate added with the
+  #533 fix compared the working ledger against `remote_sequence_high_water`, so a branch merely
+  *behind* the default branch was diagnosed as corrupt:
+
+      error: change sequence ledger claims CHG-0001 but the default branch has already
+      recorded CHG-0002; restore it with `git checkout origin/HEAD -- ...`
+
+  Nothing was wrong with that branch, the prescribed recovery was not needed, and `check`
+  warned on every run. The gate also prevented nothing: allocation is already floored against
+  the same mark, so with the gate removed that branch allocates CHG-0003, not a colliding
+  CHG-0002.
+
+  `branch_sequence_high_water` now reads every revision of `.specsync/change-sequence.json`
+  reachable from HEAD in one `git log -p` — one invocation rather than one per revision, and
+  bounded to 200 revisions of the ledger so `check` and `audit` stay cheap on a long-lived repo
+  — and takes the maximum over *added* `"sequence":` lines only; counting removed ones would
+  make every ordinary increment look like a rewrite. This is the branch asking a question about
+  itself, which is the only question whose answer can convict it. A branch that has never
+  recorded anything higher than it holds is never accused. A branch that raised the ledger and
+  then rewrote it downwards is caught even when the whole episode postdates its divergence —
+  the case a merge-base comparison acquits, because the merge-base predates the raise. No
+  remote is consulted, so the gate cannot silently disable itself on a repository without an
+  origin, and the refusal names a recovery command that applies to the branch's own history.
+
+  The write-side floor from #533 is unchanged and still consults the remote mark. It also
+  gained the test it was missing: `floor_sequence_ledger_to_committed` had unit tests calling
+  it directly, but nothing asserted that `git_commit_all` invoked it, so deleting the call left
+  the whole suite green while every lifecycle commit went back to staging a stale ledger over a
+  higher committed mark — the exact #533 regression. The new test drives the real staging path
+  and inspects the sequence that landed in the commit. The 55-drill sandbox board had stayed
+  green through the origin-comparison regression for the same reason: the #533 drill exercised
+  only the write path.
+
+- **BREAKING (exit codes): a cited source file that cannot be measured is no longer reported as
+  freshness** (PR CorvidLabs/spec-sync#629). Every consumer of the drift primitive guarded with
+  `if !root.join(source_file).exists() { continue; }` and then reported the number computed over
+  whatever files remained. A spec whose sources had all been deleted measured zero commits
+  behind, so `specsync stale` printed `✓ All specs are up to date with their source files` at
+  rc=0 on a tree where `specsync check` exited 1 — two commands, one tree, opposite verdicts,
+  and the wrong one is the reassuring one.
+
+  A deletion is not an absence of evidence: `git cat-file -e <spec-commit>:./<path>` proves the
+  file was there and is gone. That fact rules out the obvious repair, because a deletion
+  measures as *one* commit against a default threshold of five, so merely removing the guard
+  leaves the spec "fresh" and the bug intact. `source_was_deleted` is now the one shared
+  predicate — a deletion is stale regardless of threshold, and a path git never knew is
+  unmeasurable rather than stale.
+
+  Five call sites in three disguises, found only by enumerating them: `stale`, `report` and
+  `check` skipped and reported zero; `scoring` skipped and then reported the git half
+  `Measured` at zero, which looked correct from outside because a separate file-existence
+  criterion does penalise the missing file — only the drift half lied; `lifecycle` had no guard
+  at all and let the threshold bury the deletion. All five are corrected together rather than
+  where the problem was noticed.
+
+  `scoring` deliberately applies **no** second penalty. The file-existence criterion already
+  charges for a cited file that is gone; charging again would bill one defect twice and move
+  every affected spec's score. What was wrong was the claim, so `git_freshness` reports
+  `Withheld` instead of `Measured` and scores are unchanged. `stale` reports `deleted_files` per
+  spec, separates partially-measured specs from wholly unmeasurable ones, withholds the
+  all-clear in the text *and* markdown renderers, and carries `unmeasurable_count`,
+  `unmeasurable_specs` and `deleted_source_specs` in `--format json` so a consumer computing
+  `total - stale - fresh` cannot silently absorb them. `report` returns `stale: null` rather
+  than `false` with zero, and derives `staleness_inconclusive` from the unmeasured count rather
+  than from missing history alone.
+
+  **The exit codes move.** `specsync stale` now exits 1 when any spec is unmeasurable or only
+  partially measurable, not only when one is over threshold — the same rule
+  `refuse_without_history` already applied one level up, where the missing input was the
+  history rather than the file. `specsync report` counts those modules among its failures. A
+  `lifecycle` guard now fails on a cited file that no longer exists, whatever the threshold
+  tolerates. `--enforcement warn` is unaffected and still exits 0 throughout, and a spec whose
+  files are all measurable is scored and gated exactly as before.
+
+- **A file written by a newer 6.x is readable by an older 6.x** (CorvidLabs/spec-sync#652).
+  Seventeen persisted-evidence structs in `src/change.rs` carried
+  `#[serde(deny_unknown_fields)]` — `ScopedReviewRecord`, `FinalizationRecord`,
+  `CorrectionRecord`, `ApprovedScopeV1`, `WorkflowV2Baseline`, `LegacyArchiveBaselineV1` and
+  the scope-adoption family among them. An older 6.x binary therefore could not parse a file a
+  newer 6.x binary had written with an added field, so no evidence shape could be extended
+  during 6's lifetime without breaking installations already deployed. That is the mechanism by
+  which "just add a field in 6.4" becomes "we need 7.0". The attribute is removed from all
+  seventeen.
+
+  The design line is that **tolerance is for what cannot be recreated**. A cache that cannot be
+  understood should be discarded; evidence should not. `hash_cache.rs` keeps the attribute —
+  its file is gitignored and `HashCache::load` returns `Self::default()` on any parse error, so
+  an unrecognised shape costs one rebuild.
+
+  Stated rather than glossed: `ApprovedScopeV1`, `CorrectionRecord` and `ScopedReviewRecord`
+  are digest preimages (`scope_digest`, the correction digests, `finalization.review_digest`).
+  Adding a field to one of those still changes its serialized bytes and therefore its digest.
+  Tolerance lets an older reader *parse* such a file instead of erroring; it does not make
+  field addition digest-safe for those three. The other fourteen are freely extensible. **No
+  digest moved** — read-time tolerance was never part of any preimage.
+
+  Separately, a record carrying a `workflow_version` outside `{1, 2}` reported `invalid change
+  state <path>: unsupported workflow version 3`, indistinguishable from corruption. Three sites
+  — `validate_loaded_change`, `validate_workflow_version_anchor` and its historical twin — now
+  report it as written by a newer SpecSync and name the upgrade as the remedy, which is what
+  lets a later workflow version exist without every older 6.x install reporting the repository
+  as broken.
+
+- **The forward-compatibility valve is now true in all three places it was claimed, and works
+  in both directions** (CorvidLabs/spec-sync#655). An adversarial pass over #652 could not
+  break its digest-invariance claim, but found the valve asserted where it does not hold.
+
+  `.specsync/agent-artifacts.json` was classified with the hash cache as a regenerable cache,
+  and the code comment said the opposite of what the code does: `load_agent_artifact_manifest`
+  returns `Err` rather than rebuilding, the file is git-tracked and shared, and
+  `.specsync/hashes.json` is gitignored. So one teammate upgrading to a later 6.x and adding a
+  field stopped `agents install` and `init` for every teammate still on the older binary —
+  precisely the lockout #652 existed to remove. The manifest is also not recomputable: it
+  records the digest of exactly the bytes SpecSync last generated, which is the only thing
+  distinguishing an untouched artifact from an edited one. It is evidence, and it is now
+  tolerant. The three fields it needs stay required, so tolerance cannot be mistaken for
+  accepting any shape.
+
+  The test meant to guard the regenerable-cache side guarded nothing: it fed an `entries` key
+  when the field is `hashes`, so the parse failed on the missing field whether or not the
+  attribute was present. And the `WorkflowV2Baseline` case was true at type level and false in
+  operation — `read_workflow_v2_baseline` and `validate_legacy_archive_baseline_bytes`
+  re-serialize what they parsed and require `bytes_match_canonical_json` against the bytes on
+  disk, so an added field survives `from_slice` and is then dropped by the re-serialization and
+  fails the comparison. That gate is deliberate for the two files that anchor history; the
+  limit is now pinned by its own test rather than left to be discovered.
+
+  The mirror defect: `deny_unknown_fields` is the old-reads-new door, and `SddPolicy` had the
+  new-reads-old one. None of its eight fields was optional on deserialize, which works only
+  because SpecSync writes all of them — the day 6.x adds a ninth, every `sdd.json` written
+  before it becomes unreadable by the binary that added it. It now carries a container-level
+  `#[serde(default)]` over the existing `Default`, which is the *enforcing* policy (`enabled:
+  true`, `require_change_for_meaningful_files: true`), so a policy that loses a field enforces
+  more, not less.
+
+- **A damaged archive package is refused as damaged whatever it is named, and CI decides which
+  changes need review by reading state rather than globbing** (CorvidLabs/spec-sync#658). Two
+  gates decided identity from the shape of a name and both failed open.
+
+  `is_positive_legacy_tombstone` used `name.contains("-CHG-")` to mean "real lifecycle package,
+  therefore not a pre-lifecycle tombstone". That is false for the undated form:
+  `2026-08-19-CHG-0001-foo` contains it, `CHG-0001-foo` does not. An archived package named
+  that way which had lost its `state.json` and its four marker files while keeping
+  `deltas/*.md` was silently skipped by `list_all_changes_uncached` and
+  `located_change_sequences` instead of being refused as corrupt — hiding damage as absence.
+
+  The replacement is a **union, not a substitution**: three signals now say "real package" — it
+  holds a regular file outside `deltas/`, it holds a lifecycle marker file, or its name carries
+  an ordinal (`name_carries_a_lifecycle_ordinal`, which accepts both the dated and undated
+  forms). Each signal can only move a directory from *skipped* to *refused*, so adding one
+  cannot weaken the gate. That mattered: the first implementation *replaced* the name check
+  with the content check, and a dated package holding only `deltas/auth.md` went from refused
+  to skipped — trading a fail-closed behaviour for a fail-open one while claiming to fix two.
+  The code says plainly that signal 3 is the one that cannot survive an identity scheme without
+  ordinals, and hands that over as a stated problem.
+
+  The second gate is this repository's own CI rather than shipped product:
+  `classify-ci-paths.sh` globbed `.specsync/changes/CHG-*/state.json` to decide whether the one
+  mandatory independent implementation review was required, so any identity shape the glob
+  missed yielded `review_required=false` and a pull request that merged unreviewed — while CI
+  went green *faster*, the worst possible shape for a gate failure. All four sites now read
+  `.id` from `state.json`, and when jq is unavailable or the state unreadable the archive fast
+  lane is withheld: no identity, no shortcut.
+
+- **Succession is ordered by when a change was created, and every ordering of its edges agrees
+  with the one that is signed** (CorvidLabs/spec-sync#659). `succession_change_key(id)` was
+  `(change_sequence(id).unwrap_or(u64::MAX), id)` and had six callers. Under an identity scheme
+  without ordinals `change_sequence` returns `None` for every ID, every key collapses to
+  `(u64::MAX, id)`, and all six degrade to *alphabetical* order — silently, with no error, no
+  compile failure and no failing test. `retire-auth` would have "happened before" `add-billing`
+  because `a` sorts before `r`.
+
+  Three sites asked a genuine happens-before question and now compare `created_at` through
+  `happens_after`, which tie-breaks on ID so the relation stays a total order for two changes
+  sharing a timestamp — the surrounding gates enforce strict sorts, so a tie would make a valid
+  record unrepresentable. Both records are already loaded at each of those sites, so this costs
+  no I/O the ordinal saved.
+
+  The other three exist for canonical serialization and digest stability, where any
+  deterministic total order will do, and they now sort lexicographically by `predecessor_id` to
+  align with `approved_scope` — the one whose result is hashed into `scope_digest`. **That
+  alignment fixes a live bug.** The two orderings already disagreed at five digits: numerically
+  `CHG-9999 < CHG-10000`, lexicographically `CHG-10000 < CHG-9999`. `approved_scope` sorted
+  lexicographically and hashed the result while `validate_supersedes_edges` enforced a numeric
+  strict sort, so `approved_scope` could emit an order the gate then rejected. The refusal text
+  changes accordingly, from "strictly sorted by numeric sequence and full predecessor ID" to
+  "strictly sorted by predecessor ID and must not repeat".
+
+  No historical digest can move: the succession subsystem has never been exercised in this
+  repository's history — of 160 archived records, none carries a `supersedes` edge and none
+  carries `semantic_succession` evidence.
+
+- **A minted change slug is a legal directory component and stays readable when it has to be
+  cut** (CorvidLabs/spec-sync#661). The guarantee is scoped to the platforms a repository may
+  be **checked out on**, Windows included, not the platforms SpecSync publishes a binary for —
+  the directory a slug becomes is created in someone else's clone. (REQ-change-083 was
+  originally worded "every platform SpecSync ships a binary for"; it was rebound to the
+  checkout sense when the Windows binary was dropped, since read literally the old phrasing
+  would have narrowed the guarantee the moment the published set narrowed. No Windows content
+  guarantee was relaxed.)
+
+  Three properties of `slugify` did not survive the slug becoming the whole path component.
+  `for character in value.chars().take(80)` bounded *input characters*, not emitted bytes —
+  runs of punctuation collapse to single hyphens, so a "capped" slug finishes well under 80 and
+  the cap never actually bounded the path component. It truncated mid-word, producing names
+  reading like `…preserved-audited-guara`. And it could emit a reserved name: `slugify("NUL")`
+  gave `nul`, a directory Windows cannot create or open, matched case-insensitively so
+  lowercasing is no escape. The empty-input fallback was literally `"change"` — itself
+  reserved, and a collision with `.specsync/changes/`.
+
+  The cap is now 120 **bytes**, and the binding constraint is `MAX_PATH` (260) rather than the
+  255-byte filesystem component limit: the deepest path a change produces is
+  `.specsync/archive/changes/<slug>/deltas/<module>.md`, which at a 120-byte slug is 174
+  characters and clears `MAX_PATH` inside an 80-character repository root, while a 255-byte
+  slug is 309 before any root prefix at all. Truncation trims back to a word boundary when one
+  is near enough for the result to stay legible. The empty-slug fallback is `untitled-change`,
+  and a slug that reduces to a reserved name gets a `-change` suffix. Measured against this
+  repository's 159 archived descriptions, raising 80 → 120 takes intact slugs from 77 to 110 —
+  and slug uniqueness saturates at 50 bytes, so the cap is purely a readability knob.
+
+  `is_reserved_module_name` already existed with the full list in `src/commands/mod.rs`; it is
+  made `pub(crate)` and reused rather than restated, because a second copy of that list is
+  exactly how the two would drift apart. That is a change to the `commands` module's contract,
+  so it carries its own requirement and a documented export.
+
+- **A change identity is validated for what it is, not for how it starts**
+  (CorvidLabs/spec-sync#662). `validate_change_id` led with `id.starts_with("CHG-")`, which was
+  doing two jobs and was evidence for neither: `CHG-` is four characters any caller can type,
+  so it proved neither that an identity was well-formed nor that SpecSync minted it. What it
+  did do is hard-reject every identity without an ordinal, from a function that gates
+  `find_change_dir` and `validate_loaded_change` and therefore gates the whole system.
+
+  Two checks that actually matter were missing. There was **no length bound at all** —
+  survivable only because every ID was minted as `CHG-NNNN-` over a capped slug, and a path
+  this process cannot open the moment an arbitrary name is accepted. The ceiling is 255 bytes,
+  the filesystem component limit, deliberately *not* the 120-byte slug cap: the slug cap bounds
+  what SpecSync mints, this bounds what it will read, and an ID minted by a different version
+  or by hand must still load if it is legal. And there was **no reserved-name check**; it now
+  reuses the same shared predicate as the slug minter, so `nul`, `con` and `com1` are refused
+  as identities too. `.` and `..` were already rejected for free by `Path::components`, and
+  that is now pinned by test rather than left for a reader to notice. Every identity shape
+  SpecSync has previously minted remains acceptable.
+
+<!-- DISCREPANCY: 77461a4a is titled "fix(release): the lane must be able to read the tag that
+     triggered it (#668)" and its entire diff is `fetch-tags: true` on `actions/checkout`. That
+     input is a no-op on this code path — checkout assigns `fetchTags` only inside its
+     `fetchDepth > 0` branch, so with `fetch-depth: 0` it is silently dropped. The commit did not
+     correct the behaviour its title names. #669 established this 39 minutes later, removed the
+     line, and replaced it with an explicit `git fetch --force`. The entry below states the fix as
+     #669's, not #668's. -->
+
+- **The release lane can resolve and validate a release candidate** (CorvidLabs/spec-sync#635,
+  CorvidLabs/spec-sync#668, CorvidLabs/spec-sync#669, CorvidLabs/spec-sync#670,
+  CorvidLabs/spec-sync#718, CorvidLabs/spec-sync#720). This is release infrastructure for the
+  SpecSync repository, not product behaviour. It is recorded as one entry because it is one
+  failure with six layers of cause stacked behind each other, and because it is the reason no
+  6.0 candidate could be installed for the first two weeks it existed.
+
+  `release.yml` had not completed a run since 2 August. Every candidate from `v6.0.0-rc.1` to
+  `v6.0.0-rc.7` failed inside `resolve` in between eight and thirteen seconds. Each cause was
+  invisible until the one in front of it was removed, so the sequence matters more than any
+  single fix.
+
+  **Layer 1 — a gate on a check nothing produced (#635).** `validate` waited up to 120 seconds
+  for a check run named `SpecSync archive binding` and then exited 1. Its only producer,
+  `post-merge-archive.yml`, was deleted in #499 when the CI reimplementation of the SDD lifecycle
+  was removed; the consumer stayed. The ~430 lines of embedded Python below the wait — parsing
+  `external_id`, pinning the app id and `details_url` prefix, cross-checking the merged pull
+  request two ways, reproducing a SHA-256 over a reconstructed event — read as a working system
+  and were unreachable, because the input they validated was never sent. `validate` carries no
+  mode guard, so this blocked the RC tag as well as the final tag, and nothing downstream of it
+  (`qualify`, `authorize-release`, `promote`, `build`, `release`) had ever executed once.
+
+  The wait and the reconstruction are deleted rather than restored: re-adding the producer would
+  reinstate the code #499 removed on purpose, including a `deltas/` mis-count that had already
+  caused one change to fail to bind to its merge commit. The archive-to-merge binding is enforced
+  by SpecSync itself, in `change ship` and archive validation. The rest of `validate` is intact —
+  tag version against `Cargo.toml`, checkout matches the resolved candidate, candidate is an
+  ancestor of `origin/main`. `test_release_reconstruction_requires_actual_pull_request_event` was
+  removed with the block it anchored on, and the other 19 `release.yml` anchors in that file were
+  enumerated first to confirm it was the only orphan.
+
+  The same change added a `dry_run` workflow input so the lane can be exercised from
+  `workflow_dispatch` without creating a tag: an unrecognised value is rejected rather than
+  defaulted, so a typo cannot become a real promotion. The lane going sixteen days unexercised is
+  why this stayed invisible, and that input is what finally made a green `release.yml` run
+  possible on 27 August — the first since v5.2.0.
+
+  **Layer 2 — the checkout destroyed the annotated tag before the lane read it (#668, #669).**
+  `resolve` refused `v6.0.0-rc.1` with "must be an annotated tag, not a lightweight tag" eight
+  seconds after a correctly annotated tag was pushed; the GitHub API reported `type=tag` for the
+  same ref. `actions/checkout` with `fetch-depth: 0` compares the resolved commit against
+  `git rev-parse refs/tags/<tag>`, which for an annotated tag is the tag object's own SHA and so
+  never matches, and reacts by fetching `+<commit>:refs/tags/<tag>` — force-overwriting the
+  annotated ref with a lightweight one. `resolve_annotated_rc_tag` then asks
+  `git cat-file -t refs/tags/<tag>`, sees `commit`, and refuses. The push path now re-fetches the
+  tag object explicitly, exactly as the `workflow_dispatch` path already did.
+
+  **Layer 3 — three more defects in jobs that had never run (#669).** With the tag readable, an
+  audit of the six untested jobs found three:
+
+  `shell: python` in `qualify`'s "Write SHA-bound platform evidence" and `release`'s "Verify
+  packaged checksum" is a literal PATH lookup with no `python3` fallback, and the macOS runner
+  image installs only `python3`. Both steps are `if: always()`, so the failure was silent in the
+  step list and surfaced three jobs later as a missing artifact: no `macos.json`, so the evidence
+  upload hit `if-no-files-found: error`, so `record-qualification` never received its three
+  platform files, so the RC gate posted `failure` and could not go green. A missing interpreter
+  presented as an unqualifiable candidate. Both are now `shell: python3 {0}`.
+
+  `authorize-release` derived a workflow-run id by string-stripping `details_url`. GitHub
+  discards the `details_url` posted to `POST /check-runs` from an Actions token and persists its
+  own `/runs/<check-run-id>`, so the prefix test rejected every green gate — and had it passed,
+  the extracted id would have been a check-run id used as a workflow-run id, a wrong answer
+  rather than an error. The run is now located by the properties that identify it — candidate
+  `head_sha`, `event=push`, `status=success`, workflow path `.github/workflows/release.yml`, and
+  `head_branch` equal to the RC tag. This repository had already recorded that rule in CHG-0076:
+  a display URL is not a stable provenance field. Every assertion the old path made about the
+  resolved run still applies.
+
+  `validate` held the only bare `cargo` invocation in any workflow here, so the rustup shim read
+  the *candidate's* `rust-toolchain.toml` and downloaded whatever it named — an unpinned
+  toolchain fetch driven by candidate-controlled content, inside a five-minute timeout, on the
+  step whose job is deciding whether that candidate can be trusted. It is now pinned to
+  `dtolnay/rust-toolchain` at 1.89.0, making the toolchain a property of the lane rather than of
+  the thing under test.
+
+  **Layer 4 — a checksum sidecar the verifier could not read (#670).** The RC asset lane built
+  all six targets and then refused to attach any of them:
+  `shasum: *specsync-windows-x86_64.exe.zip: No such file or directory`. msys `sha256sum`
+  defaults to binary mode and emits `HASH *name`; the packaging step reformatted that with
+  `awk '{print $1"  "$2}'`, which carried the `*` into the filename field while respelling the
+  separator as text mode. `HASH  *name` is valid in neither mode, so `shasum -c` looked for a
+  file literally named `*specsync-windows-x86_64.exe.zip`. The deeper fault was that the step
+  existed at all: `release.yml` had had a correct PowerShell packaging step since before v5.2.0,
+  and `rc-assets.yml` reimplemented the same job from scratch in bash. The fix deleted the
+  parallel implementation and copied the proven step verbatim — `Get-FileHash` yields the digest
+  alone, so the line is assembled from parts that carry no mode marker, and `WriteAllBytes`
+  rather than `Set-Content` so PowerShell cannot prepend a BOM.
+
+  This layer is history, not a live guarantee: 6.0 ships no Windows binary and #722 deleted both
+  the step and the target (see Removed). It is recorded because it is the layer that stood
+  between a working RC asset lane and the first candidate anyone could download. No consumer was
+  ever at risk — `action.yml`'s Windows path compared `awk '{print $1}'` against a recomputed
+  digest and never parsed the filename field, so the malformed sidecar would have installed
+  fine. It was the attach job's own pre-flight, deliberately stricter than the consumer, that
+  refused to ship a sidecar a human running `sha256sum -c` could not read.
+
+  **Layer 5 — a ruleset gate that had never once passed (#718).** From rc.2 the tag resolved and
+  `resolve` reached its ruleset check, which had never succeeded since it landed in #492. It
+  demanded three tag rulesets plus a release GitHub App, and none of the App-shaped pieces was
+  ever provisioned: no `SpecSync final tag creation` ruleset, no `SPECSYNC_RELEASE_APP_ID`
+  variable, no `SPECSYNC_RELEASE_APP_PRIVATE_KEY` secret, no `release` environment. The App id
+  expanded to the empty string and argparse rejected `--release-app-id ""` before a single
+  ruleset file was read, so the two rulesets that *do* exist were never verified once. A gate
+  that always fails enforces nothing while appearing to.
+
+  Qualification now requires exactly the two live rulesets, both `active` — `SpecSync immutable
+  final tags` on `refs/tags/v*.*.*` excluding the RC pattern, and `SpecSync immutable RC tags` on
+  `refs/tags/v*.*.*-rc.*`. No strictness was traded to reach a passing gate: both live payloads
+  were checked against the unmodified strict validators before any edit, and `validate_tag_ruleset`
+  lost its `release_app_id` parameter entirely, so there is no longer any code path by which a
+  bypass actor could be admitted. What was given up is disclosed rather than dropped quietly —
+  see the Changed entry below.
+
+  **Layer 6 — an unobservable field required as evidence (#720).** rc.7 then failed with
+  `final tag immutability ruleset is missing fields: bypass_actors`. GitHub returns
+  `bypass_actors` only to a caller with admin access to repository settings; the workflow runs
+  with `contents: read, actions: read, checks: read`, so the field is absent from every payload
+  it fetches, and the validator listed it in `REQUIRED_RULESET_FIELDS`. This gate could never
+  have been satisfied from CI. It was invisible locally for the mirror-image reason: a
+  maintainer's `gh` is authenticated as an admin and does see the field.
+
+  This is the release's most repeated defect shape — **a category empty for want of INPUT, read
+  as a VERDICT** — appearing in the validator that enforces that distinction elsewhere. It is the
+  same shape as #672 (a schema that could not be parsed reported as every table missing), #684
+  (a `db_tables` spec with no `schema_dir` gating a release on advice the reader cannot take) and
+  #689's first design (absent evidence read as "ready"). Here it ran in the opposite direction
+  and was still wrong: an unobservable field was treated as a malformed payload rather than as
+  something this caller cannot see.
+
+  `bypass_actors` moved to `OPTIONAL_RULESET_FIELDS`, and absence now means UNOBSERVED. Present
+  and empty passes; present and populated is still refused with `must not grant bypass to any
+  actor`; absent is reported by `unobserved_bypass_notices` into the enforced disclosure list,
+  naming each ruleset whose bypass list this token could not read. Reading absence as emptiness
+  would have been worse than requiring it — a ruleset that genuinely grants bypass would then
+  pass a green run.
+
+  **Where the lane stands.** `v6.0.0-rc.8` and `v6.0.0-rc.9` clear `resolve` and `validate` and
+  then run for twenty-four minutes into the three-platform qualification matrix, where they fail
+  inside `qualify (windows)` — a different lane and a different problem. `promote` has still
+  never executed, and cannot be rehearsed: `final_tag` is `v{version}` taken from the candidate's
+  own RC tag, which `validate` pins to `Cargo.toml`, so any promote run against a real candidate
+  mints the real `vX.Y.Z` — and the immutability ruleset then makes it permanent. For that job,
+  the proof and the release are the same event.
+
+- **An accepted change whose verification commit a rebase orphaned can be reopened**
+  (CorvidLabs/spec-sync#673). `reopen_unarchived_change` gated on exactly one thing: whether
+  the current delivery-input digest differed from the stale one. A rebase or a squash that
+  leaves the verification commit unreachable changes no content, so `check` refused on
+  reachability ("accepted change verification commit is not in current history…") while
+  `reopen` refused because the inputs were current. Both statements were true simultaneously
+  and no verb moved the record; the reporter rebuilt two changes from draft.
+
+  The reporter's second observation is what turned this from "reopen is too strict" into a
+  correctness fix: an unrelated one-line comment edit to an input file satisfied the gate and
+  unlocked `reopen`. The digest comparison is a proxy for "is this evidence still good?", and
+  the proxy refused the case it should admit while admitting a case it had no reason to. Its
+  safety value was approximately zero and its obstruction value high.
+
+  The three-way reachability disjunction — `verification_commit_is_accepted_current`,
+  `accepted_workspace_is_integrated`, `accepted_change_is_recorded_on_remote_default` — is
+  extracted into one resolver, `accepted_evidence_is_anchored`, which `reopen` asks as a
+  question and every other caller still enforces as a refusal. All five existing callers of
+  `authenticate_accepted_evidence` keep byte-identical behaviour through a wrapper, so no
+  fourth parallel implementation was added. `reopen` now admits on `inputs_drifted ||
+  !anchored`, and both refusal messages name both conditions.
+
+  A trap the fix would otherwise have sprung: `reopened_change_preserves_sequence_history`
+  independently encoded "a reopen implies the digests differ". An anchor-axis reopen has
+  *equal* digests, so without a recorded cause it would have stripped `historical` status and
+  frozen `change new` project-wide for any acknowledged-collision member. The reason is
+  therefore recorded on the `ReopenRecord` as `ReopenCauseV1::VerificationCommitUnanchored` and
+  read there, with `skip_serializing_if` so existing `approvals.json` stay byte-identical.
+
+  The existing squash-merge test asserted `unwrap_err()` — it *pinned the defect*. It now pins
+  both directions: anchored evidence with current inputs must still refuse, unanchored evidence
+  with byte-identical inputs must succeed. Invariants 15 and 18 and REQ-change-017/018/034/035
+  forbade this fix in as many words and were amended deliberately, invariant 18 having
+  constrained audited reopen by name.
+
+  Not fixed here, from the same report: the second deadlock, where `reopen` reports a stale
+  definition approval while the change is `accepted` and `approve` refuses in that state.
+
+- **A squash-merged change is recognised on the default branch by its archive path**
+  (CorvidLabs/spec-sync#677). `accepted_change_is_recorded_in_ref` looked for
+  `.specsync/changes/<id>/state.json` — the *active* path — at any commit on the reference. A
+  workflow-v2 change is created, verified and archived inside one pull request; squash-merge
+  that and the default branch receives a single commit in which the workspace is already under
+  the archive, so the active path never appears there at all. Measured across this repository's
+  own archives: the active path is present for 83 of 172, the archive path for 172 of 172,
+  neither for 0.
+
+  That is also where the alarming "100 of 171 archives would go red under an anchor check"
+  figure came from. It had been read as a property of the archives; it was a property of the
+  predicate, which is structurally unable to succeed for a squash-merged v2 change. The
+  predicate now asks about the archive path as well when the record is `Archived`, and requires
+  the state each location can actually hold — `Accepted` at the active path, `Archived` at the
+  archive path — rather than accepting either state anywhere. A record the default branch has
+  never seen in any location still reads as unrecorded.
+
+  The issue's own central claim, that `validate_archived_integrity_inner` contains no anchor
+  check at all, was retracted by its reporter after following the calls: the archived path *is*
+  anchored, through `validate_finalization_evidence` on `finalization.implementation_commit`
+  rather than through `verification.commit`. What survives is the narrower asymmetry —
+  `verification.commit` is never consulted once archived, so orphaning that specific field is
+  an error before archival and silent after — and that is unchanged here.
+
+- **`init` and `change new` name the lifecycle when it is the legacy one**
+  (CorvidLabs/spec-sync#678). A repository upgraded from 5.x keeps `version: 1` in
+  `.specsync/sdd.json`, `init` short-circuits on an existing project and prints "already
+  exists" without raising it, and every change created there is workflow-v1. Nothing said so
+  until `ship` refused, several verbs later, by which point the change cannot be re-created on
+  the other lifecycle without redoing the work.
+
+  `print_legacy_policy_notice` (in `init`) and `print_legacy_workflow_notice` (in `change`
+  identity output) announce **state**, not a verb: `workflow v1 (legacy) — this change uses
+  change accept and change archive, not change finalize`, with the `change adopt` pointer as
+  the minor half. That weighting came from the reporter retracting their own justification.
+  They had said no adopt verb existed and that the affected repository was hand-authored; both
+  were wrong — `change adopt` is listed plainly in `specsync change --help`, and that
+  repository had run adopt properly months earlier. The better argument that replaced it:
+  discoverability was never the failure mode, *knowing you needed it* was. Being told a command
+  exists does not contradict an assumption you did not know you were making.
+
+  A workflow-v2 project stays completely silent, so the normal path gains no noise. `init`'s
+  notice returns early on `.specsync/workflow-v2-baseline.json`, which is deliberate rather
+  than incidental: `change adopt` writes that baseline but leaves `.specsync/sdd.json` at
+  `version: 1`, so an adopted repository runs v2 purely through the baseline-exists disjunct
+  with the policy disjunct permanently false. Two sources of truth for one question,
+  disagreeing in a supported configuration the tool's own adoption path produces. Recorded here
+  rather than resolved.
+
+- **A schema that cannot be replayed reports its tables as unknown, not as missing**
+  (CorvidLabs/spec-sync#672). Two halves, and the first is what made the schema unreplayable in
+  the first place.
+
+  SQLite has no `ADD COLUMN IF NOT EXISTS`. The only way to add a column to existing databases
+  while keeping fresh ones correct is to carry it in `CREATE TABLE` **and** replay a bare
+  `ALTER TABLE ADD COLUMN` whose error the caller discards — in Go, literally `_, _ =
+  db.Exec(stmt)`. The duplicate is intentional and load-bearing: remove either half and one of
+  the two database populations is wrong. `apply_operation` rejected the second statement
+  outright with `ALTER TABLE ADD duplicates existing column`, aborting the whole replay. A
+  redeclaration that **agrees** with the existing column's type is now a no-op; one that
+  **contradicts** it still fails, and the message names both types rather than saying
+  "duplicates". A behaviour-only control asserts the type-conflict refusal on any binary, so
+  the narrowing cannot be satisfied by deleting the check.
+
+  The second half is the general one, and it is a shape this release has now hit repeatedly:
+  **a category empty for want of an input, read as a verdict.** `get_schema_table_names`
+  collapsed three outcomes into one empty `HashSet` — a schema that genuinely declares no
+  tables, a schema that failed to replay, and a `schema_pattern` that failed to compile — and
+  `add_missing_db_table_error` read the empty set as "these tables do not exist". So one
+  unparseable migration reported *every* declared table as absent, including tables created
+  correctly in an unrelated file, and each report advised adding a `CREATE TABLE` that was
+  already present and correct.
+
+  `schema_table_names_available` now answers whether the declared set is **known** as opposed
+  to merely empty, and `Ok(false)` from `schema_table_exists` becomes an error only when it is.
+  Resolved lazily behind an `Option<bool>` so the happy path never re-replays the schema. The
+  parse failure still reports itself; it no longer gets a second, false story stacked on top of
+  it.
+
+- **`db_tables` declared without `schema_dir` is a notice, and no longer gates `--strict`**
+  (CorvidLabs/spec-sync#684). Split out of #672 after measuring that #672's fix cannot reach
+  it: that fix lives inside `if config.schema_dir.is_some()`, and this is the branch taken when
+  it is `None`.
+
+  A project whose schema is defined in application code rather than `.sql` migrations has
+  nothing to point `schema_dir` at, and `schema_dir` is not a spec frontmatter field, so it
+  cannot be scoped per module. The disclosure fired on every run forever, and warnings escalate
+  to errors under `--strict` in `compute_exit_code`. The remaining choices were deleting a
+  truthful `db_tables` declaration or abandoning `strict` — that is, giving up drift gating
+  everywhere else. It is the same shape as #672 one layer out, and gating on advice the reader
+  cannot take is not drift detection.
+
+  The message moves from `result.warnings` to `result.notices`. `compute_exit_code` takes only
+  errors and warnings, so a notice structurally cannot gate. Both halves matter: the gate is
+  gone **and** the disclosure still prints, because silencing it would have regressed the
+  visibility the original code comment was protecting. The suggested fix now says the schema
+  may legitimately live in application code. Measured on a fixture matching the reporting
+  repository's shape: `check --strict` went from exit 1 with `1 warning(s) treated as errors`
+  to exit 0 with `⊘ DB table validation skipped: …`.
+
+  Validation is unchanged wherever it can run — three states, three verdicts: no `schema_dir`
+  is a notice; set but unreadable is unknown (#672); set, readable and the table absent is an
+  **error**. The last is pinned by a vacuity control, because a fix that simply stopped
+  checking `db_tables` would have passed the discriminator.
+
+<!-- DISCREPANCY: the commit's third message narrows the duplicate guard's justification —
+     "duplicate `## ADDED` already fails loudly ... MODIFIED is the one that resolves silently,
+     so it is the one worth refusing" — but the guard as shipped compares (operation, target,
+     key) and refuses a repeat under ANY operation. A duplicate `## ADDED` key is now refused
+     at parse rather than at application. The entry describes the shipped guard. -->
+- **A delta section carrying `###` subheadings no longer loses everything above the last one**
+  (CorvidLabs/spec-sync#699). A delta declaring five `### Scenario` entries under `### SPEC
+  SECTION Behavioral Examples` produced a living spec containing one. Three pre-existing
+  documented contracts the change never touched — `change new`'s JSON contract, `change
+  reopen`'s audit-record contract, and the `finalize` contract — were deleted from
+  `cmd_change.spec.md` with exit 0. Which file was targeted decided the outcome:
+  `change.spec.md` uses bold `**Scenario**` and survived, `cmd_change.spec.md` uses `###
+  Scenario` and lost content, and 59 of 62 spec files use the vulnerable style.
+
+  `parse_delta` called `flush(...)` at the **top** of the `### ` branch, before deciding
+  whether the heading was an item heading or content. `flush` pushes an item and clears the
+  body, so every content subheading ended the item and began a fresh body under the *same* key:
+  one section with three scenarios became three items keyed alike, and application kept the
+  last.
+
+  #564 had already taught this grammar that a `###` inside an open item is content — it added
+  exactly that branch — and left the flush above the classification. Half a fix, which is
+  precisely why the symptom looked like a format limitation. The issue was filed on that
+  reading: it claimed the subheading level was unrepresentable and proposed rejecting such
+  deltas at `approve`. Implementing that would have reintroduced #564, since `scaffold` itself
+  writes `### Structs & Enums` inside `## Public API`. Classification now happens first and
+  `flush` runs only when the heading really is `REQUIREMENT` or `SPEC SECTION`.
+
+  A delta declaring the same operation, target and key twice is now refused rather than
+  resolved, with an error naming the operation, the target and how many bytes of the earlier
+  body would have been discarded. That is the second route into the same silent loss.
+
+  **The two halves must ship together, and the source says so where a backporter would see
+  it.** Zero of 424 archived deltas are refused by the new guard — but two of them (CHG-0121
+  `types.md`, CHG-0131 `deps.md`) contain duplicate MODIFIED keys that exist *only* because the
+  old ordering split one section into several items. With the reordering they parse as single
+  items and pass; the guard shipped alone would refuse them and those changes could never be
+  re-materialized.
+
+  Still open, found by the review of this fix: the guard compares `(operation, target, key)`,
+  so the same key under two *different* operations is not a duplicate and still resolves
+  last-write-wins.
+
+- **A semantic delta cannot change after the approval that signed it**
+  (CorvidLabs/spec-sync#704). Demonstrated end to end, not inferred: approve a delta, overwrite
+  `deltas/<module>.md` with different wording, run `change check`. The canonical spec is
+  rewritten with the new text, with no error and no warning, while the ledger records an
+  approved definition covering wording no approver ever saw.
+
+  Delta bodies were bound by nothing under workflow v2. The v1 definition digest hashed every
+  delta payload through `definition_artifact_snapshot`, so editing one invalidated the
+  approval; the v2 stable-scope projection deliberately hashes intent and boundary only, and
+  nothing replaced that binding. `validate_delta_files` reads filenames, `project_input_digest`
+  excludes `.specsync/changes/` by design, and the descendant walk that would have noticed
+  passes 0 of 107 archived reviews. The one mechanism covering that region was inert by
+  construction, which is why the gap was invisible. The threat model is stated honestly in the
+  report: this needs local write access between approve and materialize, so it is not a remote
+  attack. What it breaks is evidence integrity, and the same window is reachable without malice
+  — a bad merge, a rebase resurrecting an older delta, an agent editing the wrong file, two
+  changes racing on one workspace.
+
+  `approve` now records `approved_delta_digests` on the definition approval event: one digest
+  per module over the delta file's exact bytes, with the module name framed into the digest so
+  moving a body from `deltas/a.md` to `deltas/b.md` cannot preserve it. Keyed by module because
+  "the delta changed" is not an actionable message when a change owns nine specs. Only a
+  definition gate records it — closing and finalization gates bind delivery evidence, and
+  claiming they reviewed delta wording would be a lie written into the ledger.
+
+  `materialize_change_deltas` and `accept_change_with_gate` verify it before
+  `prepare_delta_application` runs. The materialization check sits deliberately **above** the
+  `canonical_applied` short-circuit: once the deltas are applied that function stops writing
+  specs, so a check below it would never see a swap on any run after the first, and the
+  workspace would go on shipping a delta that no longer describes the spec it produced.
+
+  An **absent** binding is unknown, never violated. All 183 archived changes carry none, so the
+  check returns early on `None` rather than inventing a verdict from evidence nobody could have
+  written — the same trap as #672 and #684 above. `Option` plus `skip_serializing_if` keeps the
+  field out of persisted JSON when absent, so no existing digest moves and older ledgers
+  re-serialize byte-identically. What that early return then cost is #719, below.
+
+  The feature caught its own delta during development. A rebase onto main renumbered an
+  invariant, the delta was regenerated from the merged spec, and materialization refused with
+  the message naming `specsync change approve` as the remedy — the accidental case #704
+  predicted, in a real rebase rather than a fixture.
+
+<!-- DISCREPANCY: the subject claims "one canonical frontmatter reader". The diff unifies four
+     STRIPPERS onto one and makes parse_frontmatter CRLF-tolerant, but two non-canonical
+     frontmatter readers survive on main: registry.rs's line-wise `extract_module_name` and
+     src/commands/lifecycle.rs's unanchored `find("---\n")`. The commit BODY is honest about
+     this (steps 4 and 6 of #696's migration order are named as deliberately out of scope); the
+     subject line is not. The entry states what is actually canonical and what is not. -->
+- **`specsync view` renders a CRLF checkout, and one `strip_frontmatter` serves every caller**
+  (CorvidLabs/spec-sync#696, CorvidLabs/spec-sync#709). `src/view.rs` read the file with
+  `fs::read_to_string` and handed the raw bytes to `parser::parse_frontmatter`, whose
+  `FRONTMATTER_RE` is `^---\n(.*?)\n---\n(.*)$` — LF only. In a clone with `core.autocrlf=true`
+  that returned `None` for every spec, so `view` failed with "Cannot parse frontmatter" on all
+  311 of them. A Windows binary was published and all sixteen CI jobs ran on Ubuntu, so the one
+  platform that broke was the one never exercised. That is the same fact the `Removed` entry
+  above gives as its second and stronger reason for dropping the Windows binary; the CRLF
+  correctness fixed here is explicitly among what that entry retains, because a teammate on
+  Windows commits CRLF files and a colleague on Linux reads them.
+
+  There was no "normalize then parse" convention to have relied on. Measured: of the 39
+  `parse_frontmatter` call sites outside `parser.rs`, 21 normalize and 18 do not. So
+  `parse_frontmatter` normalizes itself, guarded on `content.contains('\r')` so an LF document
+  allocates nothing and takes the borrowed path, and returns the LF-only `body` all 39 callers
+  already assumed. That fixes `view` and the other 17 unnormalized sites without touching one
+  of them; an obligation on 18 call sites is unenforceable and fails silently. A lone `\r` is
+  content and is preserved.
+
+  Then the four strippers become one. `change::strip_frontmatter` — already CRLF-correct from
+  the lessons-pointer fix earlier in this release — was the only implementation correct on all
+  six axes that separated them: LF, CRLF, a leading BOM, unterminated frontmatter, a closing
+  delimiter at EOF, and a horizontal rule in the body. It is promoted to
+  `parser::strip_frontmatter` and the other two are deleted rather than left alongside it. Both
+  failed silently, in opposite directions:
+
+  - `view::strip_frontmatter` was LF-only and rejected a closer at EOF, so a CRLF companion
+    rendered its raw YAML block on screen under the `## Requirements` heading.
+  - `change::strip_yaml_frontmatter` searched the whole document for `\n---\n` before trying
+    `\r\n---\r\n`, which made it a **content deleter**: a CRLF artifact with one LF horizontal
+    rule in its body lost everything above that rule. Its caller asks "is this artifact
+    written?", so a completed design was refused as incomplete — and, in the other direction,
+    an artifact that was only frontmatter closed at EOF was accepted as written.
+
+  Blast radius measured, not assumed: all four strippers were simulated over all 2103 tracked
+  `.md` files and produced zero disagreements, and no tracked file has CRLF or a leading BOM.
+  This changes output for zero specs in this repository, which is exactly why it survived this
+  long.
+
+  The canonical stripper requires the delimiter line to be exactly `---`. A malformed opener
+  (`---  ` with a trailing space, or `----`) is not frontmatter and the document is returned
+  whole. That is deliberate — guessing at a malformed delimiter is how a body gets cut at a
+  horizontal rule — but it means a caller counting prose sees the YAML as content, so the
+  change closes the empty-artifact hole for well-formed openers and opens it for malformed
+  ones. Filed as #716 rather than left in a footnote. `registry.rs` and
+  `src/commands/lifecycle.rs` still read frontmatter their own way and were deliberately left
+  out of scope.
+
+  `.gitattributes` gained `eol=lf` pins for `.specsync/**/*.md` and `specs/**/*.md`
+  (CorvidLabs/spec-sync#709). Delta bodies became byte-compared evidence with #704 above and
+  the existing `.specsync/**/*.json` pattern never covered them; canonical specs feed
+  `project_input_digest`, so a working tree rewritten to CRLF stales evidence for honest,
+  unmodified work. The pins govern this repository's trees and are stated in the file as no
+  substitute for readers that tolerate CRLF, since an adopter's repository, a tarball, or an
+  archive extracted without Git is never covered by them.
+
+- **A manifest that cannot be parsed no longer vetoes a configured `source_dirs`**
+  (CorvidLabs/spec-sync#723). Manifest discovery exists to **infer** a source list the project
+  did not state. `compute_coverage_checked` propagated
+  `discover_from_manifests_checked_with_root`'s error unconditionally with `?`, and both
+  `check` and `coverage` exit on it — before inspecting a single spec. Two other call sites
+  already degraded (`config.rs`'s `detect_source_dirs` via `unwrap_or_else`, and
+  `retained_config` via `Err(_)`); the one CI gates on did not.
+
+  Measured in the field across the whole release line, not inferred from the call graph: every
+  candidate from rc.1 through rc.7 exited 1 on `check --strict` and `coverage` for a Gradle
+  project with an in-repo `includeBuild`, **with `source_dirs = ["app/src/main/java"]`
+  explicitly configured**. `view` and `change new` worked. So the tool was usable for authoring
+  and unusable for gating, which is the worst split available: a project can adopt it, get
+  value, and discover the gap only when it tries to enforce anything. Their only working option
+  was v5.2.0, which reported 24/29 files (82.76%).
+
+  `retained_coverage_manifest` makes this a **precedence**, not a softening, and both halves
+  are asserted together. `source_dirs` stated: the failure costs only manifest-declared module
+  names, so it degrades to a notice and coverage proceeds over the declared list. `source_dirs`
+  omitted: the list coverage would measure is itself discovery output, so the error still
+  propagates and the command is inconclusive, exactly as before. The control is the second half
+  — a change that merely stopped failing would pass the first one just as well.
+
+  Telling those apart required knowing what the file said. `source_dirs_set` is a new
+  `#[serde(skip)]` field recorded by both config loaders and by `retained_config`, following
+  `enforcement_set`, because a configured `source_dirs = ["src"]` is indistinguishable from the
+  `["src"]` default once loading is done. `retained_config` sets the flag from the same
+  predicate that decides the fallback, so the two cannot disagree and let a *scanned* list be
+  treated as a stated one.
+
+  The notice is not optional and travels with the figures rather than to stderr, which is
+  precisely what a CI job capturing stdout does not read (#570). Manifest modules seed module
+  attribution, so a degraded run names fewer modules without specs than the tree holds — a
+  report improved because part of the measurement stopped. `CoverageReport::manifest_notices`
+  carries it for the same reason as `skipped_links`, printed by `write_manifest_notices` and in
+  `print_check_markdown`, and included in `coverage_json` and `cmd_check`'s JSON payload
+  because machine consumers acting on `passed` are exactly who cannot see the text disclosure.
+
+  This is the class-level half, and it earned its keep within days: the parser fix below did
+  not cover the form the same adopter reported next, and the precedence rule caught it anyway
+  (CorvidLabs/spec-sync#725). Any manifest, in any ecosystem, that a future parser cannot read
+  is no longer able to override an explicit declaration.
+
+- **An in-repo Gradle `includeBuild` is judged by its path, configuration block and all**
+  (CorvidLabs/spec-sync#723, CorvidLabs/spec-sync#725). Two reports from the same adopter, days
+  apart, on one declaration.
+
+  `reject_non_leading_gradle_includes` decided on the token prefix alone: any executable token
+  starting with `include` produced `Unsupported Gradle workspace mutator {token}`, and the
+  argument was never read. So `includeBuild("vendor/podo-shared")` — an ordinary in-repo
+  composite build, the common and correct usage — failed identically to
+  `includeBuild("../outside")`, which escapes the repository. Every fixture the guard was
+  written against used `../outside`, so no test could fail for this reason: the guard was built
+  for escapes, caught every composite build, and the two cases were indistinguishable.
+
+  `gradle_include_build_target` now parses the path from inside the parentheses and confines it
+  through `normalize_gradle_project_relative_path`. A single complete string literal resolving
+  beneath the project root is accepted and then ignored — it names a separate build, and the
+  root build's own `include(...)` list is the only thing this parser derives modules from. A
+  `../` escape, an interpolated or otherwise dynamic expression, and more than one argument all
+  keep failing closed, and the refusal now names the path rather than the token, which is how a
+  reader tells an escape from a form the parser does not model. `includeFlat` and
+  `includeWorkspace` stay refused deliberately: `includeFlat` resolves against the *parent* of
+  the root, so its argument is outside the project by construction, and `includeWorkspace` is
+  not a form this parser models — reading their arguments would not make either supportable.
+
+  Position is not judged, and that asymmetry with `include` is deliberate: a conditional or
+  block-scoped `include` makes the module set unknowable from the text, while a composite build
+  contributes no module whether or not its branch runs. Getting there took a correction inside
+  the same change — the same conditional composite build was accepted written across three
+  lines and refused written on one, because only in the second case did the enclosing `}` land
+  on the declaration's own line. A verdict that turns on where the author pressed Enter is a
+  bug whichever way it is settled.
+
+  **The first fix then refused the common form.** #723 read the path argument while
+  deliberately keeping any trailing expression refused, and `includeBuild(path) {
+  dependencySubstitution { … } }` is the normal spelling — substituting a local project for a
+  published coordinate is the reason to declare a composite build at all. The parser therefore
+  accepted the bare minority form and rejected the common one, with `Unsupported trailing
+  Gradle includeBuild declaration expression`. Reported against rc.8 by the same adopter, and
+  by then a degraded notice rather than an outage, because the precedence fix above already had
+  it.
+
+  A configuration block carries substitution rules, not project declarations, so an
+  `includeBuild` contributes no module and no source directory with or without one.
+  `skip_gradle_include_build_configuration_block` skips a balanced block whole, and the
+  skipping is confined to locating where the declaration ends:
+
+  - the path is parsed and confined from inside the parentheses in front of the block, so
+    `includeBuild("../outside") { … }` still fails on the path — and now says so, instead of
+    blaming the block;
+  - the block's text is never removed from the parsed content, so a block-scoped `include`, a
+    `projectDir` mutation, or an unrecognized `project(...)` mutation written inside it still
+    fails closed exactly as it does anywhere else;
+  - the brace scan is quote- and escape-aware and runs after `strip_gradle_comments`, so a
+    brace in a string or a comment moves the depth in neither direction;
+  - an unbalanced block is refused, because its extent is exactly what is unknown.
+
+- **A definition approval cannot withdraw the delta binding an earlier one recorded**
+  (CorvidLabs/spec-sync#719). The binding added for #704 above returns early when the effective
+  definition approval records none, because every approval written before the field existed
+  carries none and absent evidence must read as unknown rather than as tampering. `change
+  approve --portable-5-0-1` defeated that: `append_portable_definition_approval_v501` appended
+  two `definition`-gate approvals with `approved_delta_digests: None`, and
+  `effective_definition_approval` selects the **last** definition event. A change that had just
+  recorded a digest ended up with an effective approval recording none. A compatibility path
+  meaning "written before the binding existed" was made to mean "this approver declines to
+  say".
+
+  **The filed mechanism is not the one that generalises, and the fix corrected it.** The
+  sequence in the report — approve, `approve --portable-5-0-1`, swap the delta, materialize —
+  already refuses on unfixed `main`, for an unrelated reason: the portable projection is
+  workflow-v1 only, and a v1 definition digest hashes every delta payload through
+  `definition_artifact_snapshot`, so `ensure_definition_approval_valid` catches the swap one
+  line before the binding is consulted, with `portable definition approval pair is malformed or
+  stale`. On v1 the downgrade therefore costs recorded evidence and a correct diagnostic rather
+  than a materialization — and the diagnostic that does fire is actively harmful, because it
+  points the reader at re-running `--portable-5-0-1`, which re-approves the swapped wording and
+  again records no claim about it. The consequence that generalises is **workflow v2's**, where
+  the stable-scope digest hashes intent and boundary only and this binding is the whole of what
+  stands between a swapped body and the canonical spec. The fix's second discriminator
+  therefore constructs the downgraded *shape* directly rather than replaying the filed
+  sequence, and asserts on the canonical spec's contents rather than on an error string:
+  against unfixed `main` it produces no message at all — `materialize_change_deltas` returns
+  with `canonical_applied: true` and the spec contains `BACKDOOR`.
+
+  The rule is monotonicity, on both sides. On the write side the portable pair records the
+  wording it approves, on both members, read after `validate_delta_files` so the claim is the
+  wording this actor is approving now rather than something inherited from an older event.
+  Carrying it forward rather than refusing the approve is what the rest of the module already
+  does — `append_approval` records it for every definition gate, and the normalizing approval
+  in `accept_change` carries it forward with that reasoning in a comment — and refusing would
+  have removed the only route an adopter has to a 5.0.1-verifiable approval on a change the
+  current binary already approved. The projection is untouched and pinned rather than assumed:
+  `approved_delta_digests` is an input to none of `definition_digest`, the 5.0.1 projection
+  bytes, or `definition_approval_pair_id`, and `ApprovalLedger` tolerates unknown fields by
+  design, so a 5.0.1 reader still parses the record it came for.
+
+  On the read side absence is still trusted, and now qualified. Absence is a property of a
+  **ledger**, not of an event: a ledger that has recorded a delta digest for this change is
+  demonstrably new enough to record one again, so a later definition approval carrying none is
+  not silence from before the binding — it is a claim being withdrawn. That state is refused,
+  naming `specsync change approve <id>` as the remedy, while absence is trusted whenever no
+  definition approval in that ledger records a digest.
+
+  Refusing it costs history nothing, measured rather than argued: all 197 `approvals.json`
+  files under `.specsync/` were scanned for the newly refused shape and none matches, because
+  archived ledgers carry no digest on any definition approval and take the untouched path
+  exactly as before. The honestly labelled control — a pre-binding ledger holding several
+  silent definition approvals, body swapped, materialization required to succeed — passes on
+  the unfixed binary too, which is the point: it is what fails if absence is ever made to fail
+  closed. This is the #672 and #684 shape inverted. There, an empty result was read as a
+  verdict; here, the guard built to avoid exactly that could be re-armed into silence by a
+  later writer.
+
+<!-- DISCREPANCY: the issue's closing comment says "All four sites now name the second-order
+     cost" and quotes the extracted wording as though all four shared it. Two do. The other two
+     carry hand-written paraphrases that the pinning test does not cover, and both drop exits the
+     helper names: `src/cli.rs:519-521` (`change finalize` help) omits "or those are reopened",
+     and `src/commands/change.rs:781` (the `verifying` next-action line) omits both exits. The
+     fix for "two verbs each composing their own prose for the same step" left two of four sites
+     composing their own prose — the exact regression its test was written to guard against,
+     present at authorship rather than introduced later. The entry below matches the code. -->
+- **The merge-before-finalize warning names the cost that lands on other people's changes**
+  (CorvidLabs/spec-sync#687). It said merging first "orphans verification evidence and strands
+  the change", which prices the loss as one record — the reader's own, and locally recoverable.
+  Measured on a real repository the cost is larger and lands elsewhere: an unfinalized change
+  never reaches `accepted` or `archived`, so it never becomes an "accepted or archived
+  successor", and every **earlier accepted change sharing a delivery input** with it can no
+  longer archive. That second-order effect is why an accepted pile can grow without any single
+  merge decision looking wrong — each one individually small and locally recoverable, the
+  aggregate a lifecycle that cannot drain.
+
+  Four sites now name that cost: both `ship-status` arms, the `verifying` next-action line, and
+  the `change finalize` CLI help. The two `ship-status` arms share one pure
+  `merge_before_finalize_warning(still_active)`, pinned by a test asserting whose work is
+  blocked, what is blocked, and both exits — "until this one is finalized or those are reopened"
+  — because the likeliest regression is a future refactor shrinking it back to "strands the
+  change". The next-action line and the CLI help state the same cost in their own words and are
+  not covered by that test; each names fewer exits than the helper does.
+
+  Only the wording changed. The issue's own predicted remedy — that finalizing the `verifying`
+  successors would let the blocked predecessor archive — was measured and **refuted**: the
+  successor could not archive either, because archiving it would invalidate the predecessor. Each
+  error named the other side as the thing that must move first, and neither said the counterpart
+  was symmetrically blocked, so an operator following the printed next step from either end never
+  learns they are in a two-sided block. Coupled set on one spec: 13 changes.
+
+- **A squash-merged change can still be finalized** (CorvidLabs/spec-sync#689).
+  `ship_status_report` decided `ready_to_finalize` by asking whether `verification.commit` was
+  reachable from `HEAD`. A squash-merge rewrites that commit, so `merge-base --is-ancestor` is
+  permanently false for a change whose evidence is perfectly intact — and squash is the only
+  strategy this repository permits, as it is for many. Measured here: 19 of 172 archived changes
+  have a reachable verification commit, so the "guarantee" held one time in nine.
+
+  The rest of the module had already settled this. `verification_is_current` is content-only, and
+  the ancestry walk was removed from those paths long ago with the reasoning recorded inline: it
+  is a history-trust question, it is `attest`'s job, and on `verification.commit` it was freshness
+  wearing a trust costume. `ship-status` was the one caller that never got the change. Readiness
+  now asks `recorded_verification_is_current` — does the recorded plan and tree still match what
+  was verified — and the blocker text changed with it, from "verification commit is not an
+  ancestor of HEAD" to "verification evidence is stale for the current tree; re-run change check
+  --commit before review/finalize".
+
+  The first proposal was returned REDESIGN REQUIRED for this release's most-repeated defect
+  shape: its replacement predicate would have reported **ready when verification was simply
+  absent** — a category empty for want of input, read as a verdict, which is the same shape as
+  the bug being fixed. `recorded_verification_is_current` loads the evidence itself and treats
+  missing or unreadable evidence as not current. It is deliberately total rather than `?`-strict,
+  because a strict propagate would turn `ship-status` from rc=0 into rc=1 on a workspace whose
+  evidence is already damaged, and the fix for an inspection command must not brick inspection.
+
+  Ancestry is preserved where it is load-bearing and could not be tightened away: over
+  history-discovered commits it is genuine trust, and it stays.
+
+  Three attempts were needed for an honest discriminator. The first passed on the baseline binary
+  and so discriminated nothing; the second measured a thread-local `project_input_digest` memo
+  inside a read scope rather than the predicate — a single process cannot observe that digest
+  move, so a control that measures a cache is not a control. The third asserts at
+  `ship_status_report` level against a binary built from a separate checkout. Its companion unit
+  test is labelled a CHARACTERIZATION test in the source rather than a discriminator, because
+  content currency was never broken.
+
+- **`ship` names the lesson fold-back, not only `finalize`** (CorvidLabs/spec-sync#700). #697
+  shipped the loop's third stage half-wired. `finalize_change` writes `lesson-bundle.md`
+  correctly and the `finalize` command names the fold-back in its `next_action`, but `ship`
+  composed its own next-action string and did not. `ship` is the verb the tool recommends —
+  `ship-status` says to run it — so on the primary path the bundle was assembled and nothing said
+  it existed. That is the exact failure the loop was built to end, knowledge produced where
+  nobody looks, reproduced inside the loop on its own recommended path. It was found by running
+  `ship` for real and reading the output; the unit suite passed throughout, because nothing tested
+  *which verb emits which guidance*.
+
+  The cause is the shape #687 already hit: two verbs each composing their own prose for the same
+  step, with nothing pinning them together. The push/wait/siblings matrix is now one pure
+  `ship_next_action(push, wait, siblings_before, fold_targets, bundle)`; the existing tail is
+  preserved exactly and the fold-back clause is **prepended** — first, because the merge is what
+  makes skipping it permanent. `lessons_next_action` was deliberately not reused: it ends in
+  "then merge the PR on GitHub" while ship's tail is conditional on `--push`, `--wait` and
+  siblings, so reuse would have emitted two different merge instructions in one sentence. The
+  verbs share the clause, not the sentence.
+
+  The independent review then caught the same asymmetry one level down: `ship --json` omitted
+  `lesson_bundle` while `finalize --json` emitted it. Both now emit it. It also caught a doc
+  comment stolen by a missing blank line — Rust concatenated the two blocks, leaving
+  `lessons_next_action` undocumented and `ship_next_action` inheriting rationale that reads wrong
+  for it — and a control test that promised byte-identical guidance while only asserting the
+  absence of "write lessons", which a reworded tail would have passed, and that skipped the
+  reachable `(false, true)` combination. Tightening the control caught a wrong expectation rather
+  than a bug: `--wait` without `--push` collapses into the no-push branch, which is pre-existing,
+  and is now pinned with a comment saying the control records that behaviour without endorsing
+  it.
+
+  This is also the change that performed the fold for the first time, moving #697's archived
+  bundle into the `change`, `cmd_change` and `generator` context companions. Doing it showed why
+  it had never happened: only 4 of 178 archived changes had ever touched a `context.md`.
+
+- **A CRLF checkout is no longer told that every untouched module has recorded lessons**
+  (CorvidLabs/spec-sync#701). Byte-identical generated scaffolds differing only in line endings
+  behaved differently at `change new`: the LF one was correctly silent, the CRLF one printed
+  `specs/<module>/context.md (1 line(s)) — read before scoping this change`. A Windows-authored
+  project was told every untouched module had recorded knowledge — a pointer to nothing, which
+  trains the reader to ignore the pointer, and it lands on new adopters, who are exactly who the
+  proposal stage is for. Found by end-to-end sandbox testing in a genuinely new project; every
+  unit fixture was LF.
+
+  Two causes, either one silent on its own:
+
+  1. `strip_frontmatter` matched the literal `---\n`, so CRLF frontmatter survived into the
+     content count. It now terminates on a closing delimiter *line* in either encoding, without
+     reintroducing the horizontal-rule truncation #697 removed, and keeps the whole document when
+     frontmatter is unterminated rather than guessing where it ended.
+  2. Scaffold comparison used the raw `CONTEXT_TEMPLATE`, whose unexpanded `spec: {module}.spec.md`
+     can never equal a real file's `spec: <module>.spec.md`. The generator now hands out the
+     expanded scaffold via `generated_context_scaffold(module)`.
+
+  Cause 2 was invisible on LF because frontmatter was stripped before it could matter; it only
+  appears when stripping fails. Fixing either alone leaves the other latent.
+
+  Two comments in the first draft claimed things that are false, and were corrected rather than
+  left standing once the review caught them. `parser.rs` does not accept `---\r\n` — its
+  frontmatter regex is `^---\n`, LF-only, and roughly 28 call sites normalize `\r\n` before the
+  parser sees the text. That matters beyond accuracy: handling CRLF here instead of normalizing
+  at the boundary keeps the borrowed `&str` return but makes this a parser with its own dialect,
+  a fourth position rather than a step toward one definition, so #696 now carries the repo-wide
+  decision. And the claim that this helper is behaviourally identical to `view::strip_frontmatter`
+  stopped being true the moment it learned CRLF: `view` is still LF-only and still rejects a
+  closer at EOF, so unifying them is now a behaviour change for `view` rather than the no-op it
+  would have been.
+
+  Discrimination was measured on the shipped binary before the fix rather than by reverting in
+  place, and the fixtures are the real `generated_context_scaffold(module)` converted to CRLF
+  rather than hand-written lookalikes — following the lesson #697's own loop had folded into
+  `specs/generator/context.md`, that a scaffold defect is invisible to dogfooding here because no
+  untouched scaffold exists in this repository to trip over.
 
 - **`watch` names the directories it is not watching, and no longer reports a pass over an empty
   check** (CorvidLabs/spec-sync#577). Two claims, both untrue.
@@ -1323,7 +2992,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Individual spec path filtering** — `specsync check` and `specsync score` now accept spec file paths or module names as positional arguments, allowing validation/scoring of specific specs instead of the entire project (#170).
 - **Dependency graph visualization** — `specsync deps --mermaid` and `specsync deps --dot` output the dependency graph as Mermaid flowchart or Graphviz DOT diagrams for documentation and debugging (#152).
 - **`specsync new` command** — quick-create a minimal spec with auto-detected source files and pre-populated exports. Use `--full` to also generate companion files (tasks.md, context.md, requirements.md) (#151).
-
 
 ## [3.5.0] - 2026-04-08
 

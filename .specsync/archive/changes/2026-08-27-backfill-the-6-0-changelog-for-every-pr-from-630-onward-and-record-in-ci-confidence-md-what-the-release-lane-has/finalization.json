@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "backfill-the-6-0-changelog-for-every-pr-from-630-onward-and-record-in-ci-confidence-md-what-the-release-lane-has",
+  "implementation_commit": "44995a11f288ef7f2fafe7cd45a615a0d7e5dd4d",
+  "implementation_tree": "0182d6c61206ab924b698ef34e51312381ae1e9e",
+  "contract_digest": "47f993448a9cf952f0e00b187e6074d3e227d9ea5a5c69d719804896c585a579",
+  "workspace_digest": "ac1a5b21df08bef8b052cf93056d2513212e03076f80be11640a25ff40d488f0",
+  "closing_digest": "6cc7ba3b9f915e73e2ac552841845b70934238559204a5b4b8cc2ed05d1da7f1",
+  "review_digest": "22640ccc2a9848006a62aa99a439b6a9a46a5b09dec6086362c3386c403327fc",
+  "finalization_digest": "cdf38ab870d467cfd19bf8c40e36e1d4e3ddca6d5f6a36341db37213760c5eed",
+  "timestamp": 1787864766
+}

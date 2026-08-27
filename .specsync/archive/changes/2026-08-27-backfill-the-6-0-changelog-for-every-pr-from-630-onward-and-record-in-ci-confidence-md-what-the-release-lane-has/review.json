@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "backfill-the-6-0-changelog-for-every-pr-from-630-onward-and-record-in-ci-confidence-md-what-the-release-lane-has",
+  "reviewer": "changelog-backfill-review",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "44995a11f288ef7f2fafe7cd45a615a0d7e5dd4d",
+  "contract_digest": "47f993448a9cf952f0e00b187e6074d3e227d9ea5a5c69d719804896c585a579",
+  "execution_digest": "1e5c51a96c3f767d8ed6b879f8814739688eda7de17426f8c316cc605643689e",
+  "workspace_digest": "ac1a5b21df08bef8b052cf93056d2513212e03076f80be11640a25ff40d488f0",
+  "timestamp": 1787864745
+}

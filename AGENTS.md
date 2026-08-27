@@ -42,13 +42,14 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync migrate 5.0` | Backfill 5.0.1-era reopening digest fields idempotently (the remediation `check` prints for missing-field ledgers) |
 
 
-### Multi-clone / multi-agent sequence IDs
+### Multi-clone / multi-agent change identity
 
-Concurrent clones can mint the same `CHG-NNNN` if they share a sequence high-water and have not fetched each other.
+A change is identified by a slug minted from its description. Nothing allocates a `CHG-NNNN` ordinal any more, so two clones can no longer mint the same number by failing to see each other.
 
-- Prefer **`SPECSYNC_SEQUENCE_BASE=<N>`** per agent with disjoint ranges (e.g. agent A `100`, agent B `200`).
-- After **`git fetch`**, `change new` also floors on the remote default branch’s `.specsync/change-sequence.json` when present.
-- True simultaneous `change new` without BASE still collides until merge; renumber or acknowledge the collision (see `change status` freeze guidance).
+- Give each change a **distinct description**. `change new` refuses a slug already in use and names the existing change, its location and its state.
+- Two clones that independently choose the *same* description mint the same slug and only meet at merge. Recreate one of them from a distinct description; there is no number to renumber.
+- `.specsync/change-sequence.json` is **read-only history**. Nothing writes it. Do not hand-edit it, and never let a lifecycle commit record it downwards — `change check` raises a stale working-tree copy to the committed mark and says so. Restore a damaged one with `git checkout HEAD -- .specsync/change-sequence.json`.
+- The historical ordinals it already carries still take part in collision accounting, so an acknowledged historical collision stays acknowledged (see `change status` freeze guidance).
 
 
 ## Shipping a change (happy path)

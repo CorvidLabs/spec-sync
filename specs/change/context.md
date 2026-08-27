@@ -6,7 +6,7 @@ spec: change.spec.md
 
 Canonical module maturity remains under `specsync lifecycle`; SDD delivery uses six separate states. `.specsync/sdd.json` is a dedicated versioned policy so existing projects remain opt-in. Human artifacts and deltas are Markdown, while state, approvals, and evidence are JSON. Verification commands come only from policy and run without a shell.
 
-Numeric change allocation is additionally claimed in the committed `.specsync/change-sequence.json` ledger. The OS lock still serializes a checkout, while the ledger makes independently allocated branch claims conflict during Git integration. Lifecycle checking scans active and archived records together; the repository's immutable historical `CHG-0016` collision is acknowledged only as an exact set of full IDs.
+The committed `.specsync/change-sequence.json` ledger records the last numeric allocation ever made. Nothing writes it any more — identity is minted from the description as a slug — and it is retained so the marks it already carries cannot be lost: the gates read it and refuse a ledger that has fallen below what disk or the branch's own history already recorded. The OS lock still serializes a checkout. Lifecycle checking scans active and archived records together; the repository's immutable historical `CHG-0016` collision is acknowledged only as an exact set of full IDs.
 
 Historical acceptance reconstruction treats the committed sequence ledger as evidence, not a template. When immutable collision members signed one canonical collision-owner ledger, a bounded invocation-cached history lookup reuses those exact bytes after later claims advance the current ledger. The historical candidate must explicitly name the record in its same-sequence collision; ordinary records, unavailable history, and collision acknowledgements added after acceptance keep successor-aware synthetic reconstruction.
 
@@ -24,7 +24,7 @@ Semantic delta application resolves registered module paths through the committe
 
 Effective-contract validation uses that same safe registry resolver, so verification and acceptance inspect the same canonical file that receives the delta. Canonical-successor evaluation computes the current project digest once per scan and reuses it for verifying candidates.
 
-The sequence ledger is a protected meaningful path, and every newly allocated change includes its generated claim in the affected path scope. Historical collision acknowledgements must match the complete located ID set and every member must already be immutable in `accepted` or `archived`; mutable lifecycle states can never be acknowledged. Numeric sequences require at least four digits but have no four-digit upper bound.
+The sequence ledger is a protected meaningful path, so a change that edits it must cover it; no change generates a claim to cover, because nothing allocates a sequence. Historical collision acknowledgements must match the complete located ID set and every member must already be immutable in `accepted` or `archived`; mutable lifecycle states can never be acknowledged. Numeric sequences require at least four digits but have no four-digit upper bound.
 
 Recursive Cargo verification resolves explicit `--manifest-path` selections inside the project before classifying package, `default-run`, package, or binary identity. Command tokenization handles quotes and trailing comments in pure Rust, while unsafe manifest traversal and shell syntax remain fail-closed. Registry-derived delivery scope is exact: the canonical spec and the standard requirements, tasks, context, testing, and design companions are covered without granting the containing directory. Interview parsing is question-aware so acceptance prose remains intact; multiple criteria require an explicit JSON string array, while affected specs and paths retain convenient comma/newline lists.
 
@@ -253,3 +253,31 @@ from a grep count rather than read from the call sites, and both were folded her
 correction landed. A lesson is read at `change new`, before anything is scoped, so a wrong one is
 load-bearing in a way a wrong comment is not (#714). Prefer lessons that point at evidence over
 lessons that summarise it: a stale pointer is visible, a confident summary is not.
+
+A requirement whose implementation was WHOLLY deleted is the one the drift check cannot see, and
+`REQ-change-055` was live and unsuperseded for a whole release because of it (#728). Drift measures
+a spec against the code that implements it, so a requirement with zero implementing symbols
+produces no finding at all: zero attributable code reads as "nothing to check" rather than
+"orphaned". That is this release's most-repeated defect shape — a category empty for want of input,
+read as a verdict — sitting one level up, in the tool's own model. The requirement most likely to
+be stale is exactly the one nothing points at any more.
+
+Two things generalise from fixing it. First, when a mechanism is retired, the spec text describing
+it does not live in one place: the ordinal retirement (#665) added `REQ-change-086` and left seven
+other statements of the deleted allocation standing — a `change.spec.md` invariant, two `context.md`
+paragraphs, and clauses inside `REQ-change-022`, `-026`, `-070` and `-072`, none of which the
+report naming `REQ-change-055` mentioned. Sweep the whole spec for the mechanism's vocabulary
+(here: allocate, mint, next-ID, high-water, `CHG-NNNN`), not for the ID the issue names. Second,
+prefer deleting a dead requirement over rewriting it once you have checked what would carry its
+surviving invariant. `REQ-change-055` could have been rewritten around the read-only ledger, but
+`REQ-change-070` already states the commit-side floor and `REQ-change-072` the branch-own-history
+gate, so the rewrite would have been a third copy — and a restatement is exactly the kind of text
+that goes stale next. `## REMOVED` is a first-class delta verb and leaves a permanent tombstone, so
+deletion is recorded rather than silently dropped.
+
+`REQ-change-071` was retired in the same pass for a different reason worth separating: it was not
+orphaned by deleted code but flatly REVERSED by its own successor. It required refusing a ledger
+below the default branch's published mark; `REQ-change-072` requires that a branch not be refused
+for trailing the default branch and that the gate consult no remote. A successor that contradicts
+its predecessor does not retire it — someone has to. Check for that whenever a requirement is
+added to fix a regression in another.

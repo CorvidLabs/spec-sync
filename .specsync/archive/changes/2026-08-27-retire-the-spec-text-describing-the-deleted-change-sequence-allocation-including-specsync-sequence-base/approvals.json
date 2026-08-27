@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787863176,
+      "digest": "e45212d198d276322eb402f4d8a55ff24bcc9bffad6ff929eec22ead865c3131",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "retire-the-spec-text-describing-the-deleted-change-sequence-allocation-including-specsync-sequence-base",
+        "title": "Retire the spec text describing the deleted change-sequence allocation, including SPECSYNC_SEQUENCE_BASE",
+        "description": "retire the spec text describing the deleted change-sequence allocation, including SPECSYNC_SEQUENCE_BASE",
+        "kind": "documentation",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "AGENTS.md"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "AGENTS.md no longer instructs agents to set SPECSYNC_SEQUENCE_BASE or to expect change new to floor on a remote ledger, and instead states the slug identity model and the read-only ledger rule.",
+          "No canonical change spec text asserts that a sequence is allocated, that a next ID is claimed, or that a newly created change generates a ledger claim; the sibling clauses in REQ-change-022, REQ-change-026, REQ-change-070 and REQ-change-072, in the change.spec.md invariants and in context.md all describe the read-only ledger that actually ships.",
+          "REQ-change-055 is absent from specs/change/requirements.md: the allocation floor, the remote high-water floor and SPECSYNC_SEQUENCE_BASE it describes were all deleted by the ordinal retirement (#665) and none of them is stated anywhere else that survives.",
+          "REQ-change-071 is absent: its normative SHALL is directly reversed by REQ-change-072 and its implementation criterion names the deleted allocation floor as its source.",
+          "The ledger invariants that do still hold and are still enforced are left intact and attributed: the commit-side floor in REQ-change-070 and the branch-own-history gate in REQ-change-072."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "22ff6d4b883772f7efe2222f16fdf4eb51bb13951e9f20e18ef9bbc0adcf995b"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787865475,
+      "digest": "7f8d6fe6fdc6c225c30eb6bb0f40f30c49140fc0a8e075931eedc94e50344748",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -276,7 +276,7 @@ Acceptance Criteria
 
 - Active and archived records are scanned together by numeric `CHG-NNNN` sequence.
 - Unacknowledged duplicate sequences fail with every conflicting full ID and path.
-- Repository-backed sequence claims make independent next-ID claims conflict during Git integration.
+- Nothing claims a next ID, so the duplicates this gate finds are historical ordinals brought together by a merge rather than two branches minting the same number.
 - Existing accepted collisions can be baselined exactly without rewriting accepted state or evidence.
 
 ### REQ-change-023
@@ -320,7 +320,7 @@ Acceptance Criteria
 - Successor identity ordering compares parsed numeric sequence first and full canonical ID second, so `CHG-10000-*` follows `CHG-9999-*` while acknowledged same-sequence collisions remain deterministic.
 - Malformed, noncanonical-width, and numerically unrepresentable IDs fail closed instead of participating in successor ordering.
 - The committed sequence ledger always requires lifecycle coverage even when `.specsync/` is ignored.
-- Every newly allocated change automatically includes its generated sequence-ledger claim in its affected path scope.
+- A change that edits the ledger covers it as a delivery input; no change generates a claim to cover, because nothing allocates a sequence.
 - An acknowledgement matches the exact currently located ID set and remains valid only when every member is accepted or archived.
 - Removed IDs, added IDs, single surviving records, and draft, approved, implementing, or verifying collision members fail closed.
 
@@ -807,16 +807,6 @@ Acceptance Criteria
 - Artifacts with real prose or completed checklist items remain complete even when a section heading is present.
 - HTML TODO comments continue to mark an artifact incomplete.
 
-### REQ-change-055
-
-Change sequence allocation SHALL floor on the highest sequence observed locally (active, archive, local ledger) and, when available, the remote default-branch `.specsync/change-sequence.json` high-water. Concurrent multi-clone fleets MAY set `SPECSYNC_SEQUENCE_BASE` to disjoint ranges so agents that cannot see each other do not mint the same numeric CHG prefix.
-
-Acceptance Criteria
-
-- When `origin/HEAD` (or `origin/main` / `origin/master`) contains a schema-v1 sequence ledger, `change new` allocates above that sequence even if the local ledger file is missing or lower.
-- `SPECSYNC_SEQUENCE_BASE=N` makes the next allocated sequence at least `N`.
-- Simultaneous clones without BASE or a fetched remote high-water may still collide; post-merge sequence validation continues to fail closed on unacknowledged duplicates.
-
 ### REQ-change-056
 
 The change domain SHALL expose correction-ledger health to text lifecycle inspection without
@@ -983,27 +973,17 @@ A lifecycle commit SHALL NOT record a change sequence ledger below the highest s
 
 Acceptance Criteria
 - Before staging, a working-tree ledger lower than the committed high-water mark is raised to it, so no lifecycle commit can lower the recorded mark.
-- A working-tree ledger at or above the committed mark is left exactly as the author wrote it, because a newer claim is the ordinary result of allocating a change and must not be overwritten.
+- A working-tree ledger at or above the committed mark is left exactly as the author wrote it, because raising is the only direction this rule may move a ledger and a mark that is already higher is not a regression to repair.
 - The raise is reported on a stream that survives quiet output and does not contaminate a machine-readable payload, naming both the previous and the adopted value.
 - Acknowledged collisions recorded on either side are preserved across the raise rather than replaced by one side's copy.
 - Every staging site in the lifecycle applies the rule, so a commit path added later cannot reintroduce the regression by bypassing one of them.
-
-### REQ-change-071
-
-Validating change sequences SHALL refuse a ledger below the high-water mark the default branch has already published, whether or not the higher-numbered workspaces are present on disk.
-
-Acceptance Criteria
-- A local ledger below the default branch's recorded sequence is refused even when no higher-numbered workspace directory exists locally, which is the ordinary state of a fresh clone or an unfetched branch.
-- The refusal names both the claimed and the published sequence, and states the command that restores the ledger.
-- A local ledger at or above the published mark is accepted, so ordinary allocation is unaffected.
-- The published mark is read from the same source the allocation floor already consults, rather than from a second implementation of the same lookup.
 
 ### REQ-change-072
 
 The change sequence ledger gate SHALL judge a ledger against the highest mark the current branch has itself recorded, and SHALL NOT refuse a branch for trailing the default branch.
 
 Acceptance Criteria
-- A branch whose ledger is older than the default branch's, but consistent with its own history, is accepted, and allocation on it continues to floor against the remote mark so it cannot remint an ordinal the default branch already used.
+- A branch whose ledger is older than the default branch's, but consistent with its own history, is accepted. Nothing mints an ordinal any more, so trailing the default branch cannot lead to reminting one.
 - A ledger below the highest mark the branch itself recorded is refused, including when the branch raised the ledger and then rewrote it downwards to a value still above the point at which it diverged.
 - The gate consults no remote, so a repository without an origin is judged by the same rule rather than having the gate silently disabled.
 - The refusal names the mark that was lost and a recovery command that applies to the branch's own history.

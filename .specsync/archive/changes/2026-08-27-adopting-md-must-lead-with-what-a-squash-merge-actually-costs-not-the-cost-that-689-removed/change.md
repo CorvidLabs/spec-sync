@@ -1,6 +1,6 @@
 ---
 id: adopting-md-must-lead-with-what-a-squash-merge-actually-costs-not-the-cost-that-689-removed
-state: implementing
+state: archived
 type: documentation
 base_commit: a98fc3d167c8014eb1714026feab8f14c9cacf29
 ---

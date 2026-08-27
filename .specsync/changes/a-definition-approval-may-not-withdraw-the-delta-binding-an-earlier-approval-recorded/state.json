@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-definition-approval-may-not-withdraw-the-delta-binding-an-earlier-approval-recorded",
+  "slug": "a-definition-approval-may-not-withdraw-the-delta-binding-an-earlier-approval-recorded",
+  "title": "A definition approval may not withdraw the delta binding an earlier approval recorded",
+  "description": "a definition approval may not withdraw the delta binding an earlier approval recorded",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "62b297a4eb1822ec444460a172d6264317ebbf2e",
+  "created_at": 1787852778,
+  "updated_at": 1787858503,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/context.md",
+    "specs/change/tasks.md",
+    "specs/change/testing.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change approve --portable-5-0-1 records the delta wording it approves, so the effective definition approval of a change that already recorded delta digests never drops to no claim; a ledger whose latest definition approval records no delta digests while an earlier definition approval did is refused at materialization and acceptance with a message naming the re-approve remedy; a ledger in which no definition approval ever recorded a delta digest still materializes unchanged"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

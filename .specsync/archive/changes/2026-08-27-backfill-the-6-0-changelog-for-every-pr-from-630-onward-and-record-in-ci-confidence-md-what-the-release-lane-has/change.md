@@ -1,6 +1,6 @@
 ---
 id: backfill-the-6-0-changelog-for-every-pr-from-630-onward-and-record-in-ci-confidence-md-what-the-release-lane-has
-state: implementing
+state: archived
 type: documentation
 base_commit: d6f266a4fd683246469eb15a8f632061dd5cfbb4
 ---

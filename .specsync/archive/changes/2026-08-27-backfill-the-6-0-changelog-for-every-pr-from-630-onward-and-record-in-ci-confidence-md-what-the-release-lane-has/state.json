@@ -7,11 +7,11 @@
   "title": "Backfill the 6.0 changelog for every PR from #630 onward, and record in ci-confidence.md what the release lane has actually executed versus only reasoned about",
   "description": "Backfill the 6.0 changelog for every PR from #630 onward, and record in ci-confidence.md what the release lane has actually executed versus only reasoned about",
   "kind": "documentation",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
   "created_at": 1787862181,
-  "updated_at": 1787864658,
+  "updated_at": 1787865303,
   "affected_specs": [],
   "affected_paths": [
     "CHANGELOG.md",

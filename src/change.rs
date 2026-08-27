@@ -945,6 +945,12 @@ pub struct ApprovalRecord {
     // bodies", never "the bodies were tampered with". Absent evidence that reads as a violation
     // is the failure mode this repository has already shipped three times (#672, #684, #689), so
     // the check below proceeds on `None` and judges only what an approver actually signed.
+    //
+    // What `None` may NOT mean is "this approval declines to make a claim" (#719). Every writer of
+    // a `definition` gate records the wording it approved — `append_approval`, the normalizing
+    // approval in `accept_change`, and the `--portable-5-0-1` pair alike — so within one ledger
+    // the field only ever goes from absent to present. `ensure_approved_delta_bodies_unchanged`
+    // enforces exactly that: it trusts absence, and refuses a ledger that walks it back.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approved_delta_digests: Option<BTreeMap<String, String>>,
 }
@@ -8589,6 +8595,13 @@ fn delta_body_digests(
 /// `Ok(())` and leaves the judgement to the gates that did exist at the time. Reading a missing
 /// digest as tampering would fail all of recorded history on evidence nobody could have written
 /// — the exact shape of #672, #684 and #689's first design.
+///
+/// ABSENCE IS MONOTONE, though, and that is the part #719 found missing. "Predates the binding"
+/// is a property of a whole LEDGER, not of one event: a ledger that has recorded a delta digest
+/// for this change is demonstrably new enough to record one again, so a later definition approval
+/// carrying none is not silence from before the binding — it is a claim being withdrawn. That
+/// state is refused, and refusing it costs history nothing: an archived ledger has no digest on
+/// ANY of its definition approvals, so the reading above stays the one that applies to it.
 fn ensure_approved_delta_bodies_unchanged(
     root: &Path,
     record: &ChangeRecord,
@@ -8596,6 +8609,14 @@ fn ensure_approved_delta_bodies_unchanged(
     let ledger = load_approvals(root, record)?;
     let approval = effective_definition_approval(root, record, &ledger)?;
     let Some(approved) = approval.approved_delta_digests.as_ref() else {
+        if ledger.approvals.iter().any(|candidate| {
+            candidate.gate == "definition" && candidate.approved_delta_digests.is_some()
+        }) {
+            return Err(format!(
+                "the definition approval for {} records no semantic delta wording although an earlier definition approval on this change recorded it; an approval cannot withdraw a claim an earlier one made, so re-run `specsync change approve {}` to record the delta bodies this approval covers (or restore the approval ledger)",
+                record.id, record.id
+            ));
+        }
         return Ok(());
     };
     let current = delta_body_digests(root, record)?;
@@ -16029,6 +16050,24 @@ fn append_portable_definition_approval_v501(
 ) -> Result<(), String> {
     let (current_digest, legacy_digest, correction_prefix_digest) =
         portable_definition_digest_pair_v501(root, record)?;
+    // A portable approval is still a DEFINITION approval, and a definition approval records the
+    // wording it approved (#711). Writing `None` here made `--portable-5-0-1` the one definition
+    // gate that declined to say what it signed, and because `effective_definition_approval` reads
+    // the LAST definition-gate event, that silence replaced a digest an earlier approval had
+    // already recorded — so `ensure_approved_delta_bodies_unchanged` returned on absence and the
+    // binding was disarmed for the rest of the change's life (#719).
+    //
+    // Carrying it forward rather than refusing the approve is what the rest of the module already
+    // does: `append_approval` records this for every definition gate, and the normalizing approval
+    // in `accept_change` carries it forward for the same stated reason. Refusing instead would
+    // remove the one way an adopter can hand a 5.0.1 verifier a change the current binary approved.
+    //
+    // The bodies are read here, after `validate_delta_files`, so this is exactly the wording this
+    // actor is approving now — not a claim inherited from an older event. It leaves the pair's own
+    // digests alone: `approved_delta_digests` is an input to neither `definition_digest`, the
+    // 5.0.1 projection bytes, nor `definition_approval_pair_id`, and `ApprovalLedger` tolerates
+    // unknown fields by design, so a 5.0.1 reader still parses the record it came for.
+    let approved_delta_digests = Some(delta_body_digests(root, record)?);
     let actor = resolve_actor(root, actor)?;
     let timestamp = now();
     let path = change_dir(root, &record.id).join("approvals.json");
@@ -16069,7 +16108,7 @@ fn append_portable_definition_approval_v501(
         definition_pair: Some(metadata(DefinitionApprovalPairRole::Current)),
         approved_scope: None,
         scope_migration: None,
-        approved_delta_digests: None,
+        approved_delta_digests: approved_delta_digests.clone(),
     };
     let legacy = ApprovalRecord {
         gate: "definition".into(),
@@ -16080,7 +16119,7 @@ fn append_portable_definition_approval_v501(
         definition_pair: Some(metadata(DefinitionApprovalPairRole::Legacy)),
         approved_scope: None,
         scope_migration: None,
-        approved_delta_digests: None,
+        approved_delta_digests,
     };
     let approvals = document
         .get_mut("approvals")

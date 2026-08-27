@@ -1178,3 +1178,26 @@ Acceptance Criteria
 - An approval carrying no delta binding proceeds unchanged, because every change approved before the binding existed made no claim about wording and absent evidence is not a violation.
 - The binding is omitted from persisted JSON when it is absent, so no existing approval digest moves and ledgers written by earlier binaries stay readable and byte-identical.
 
+### REQ-change-090
+
+A delta binding once recorded in an approval ledger SHALL NOT be withdrawn by a later definition
+approval, and absence of a binding SHALL keep meaning that the approval predates it.
+
+Acceptance Criteria
+- A portable SpecSync 5.0.1 definition approval records the per-module delta digest it approves on
+  both members of its marked pair, because it is a definition approval and a definition approval
+  records the wording it signed.
+- Recording that binding leaves the portable projection untouched: the pair's current and legacy
+  digests, its metadata and its resolution are exactly what they were, because the binding is an
+  input to none of them and persisted approval evidence tolerates fields an older reader does not
+  know.
+- An effective definition approval that records no delta wording while another definition approval
+  in the same ledger records it is refused at materialization and acceptance, and the refusal names
+  the re-approval that restores a truthful ledger.
+- A ledger in which no definition approval ever recorded delta wording still materializes, however
+  many such approvals it holds, because it withdrew nothing and every archived change is in that
+  position.
+- A portable SpecSync 5.0.1 definition approval remains available on a workflow-v1 change with no
+  prior definition approval, because refusing it there would remove the only route an adopter has
+  to a 5.0.1-verifiable approval.
+

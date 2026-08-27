@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 15
+version: 18
 status: stable
 files:
   - src/generator.rs
@@ -90,7 +90,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | Module | What is used |
 |--------|-------------|
 | exports | `has_extension`, `is_test_file` |
-| types | `CoverageReport` (including the symlinked entries discovery skipped), `SpecSyncConfig` |
+| types | `CoverageReport` (including the symlinked entries discovery skipped and the manifests degraded rather than propagated), `SpecSyncConfig` |
 
 **Consumed By**
 
@@ -121,3 +121,6 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | 2026-08-15 | CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve: Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is |
 | 2026-08-24 | close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails: Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize |
 | 2026-08-24 | frontmatter-stripping-and-scaffold-detection-must-survive-crlf-and-an-unexpanded-module-placeholder: Frontmatter stripping and scaffold detection must survive CRLF and an unexpanded module placeholder |
+| 2026-08-27 | v16 / #723: `CoverageReport` also carries manifest discovery that was degraded rather than allowed to veto an explicitly configured `source_dirs` |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |

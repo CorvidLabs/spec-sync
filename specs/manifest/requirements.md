@@ -45,7 +45,13 @@ spec: manifest.spec.md
   including every present lower-precedence filename variant. They must be identity-stable regular
   non-link entries and are bounded to 4 MiB; linked, reparse-backed, non-regular, replaced,
   oversized, unreadable, or invalid-UTF-8 manifests reject checked discovery without partial output.
-- Unsupported invoked inclusion APIs such as `includeFlat` and `includeBuild` fail closed.
+- Unsupported invoked inclusion APIs such as `includeFlat` and `includeWorkspace` fail closed:
+  `includeFlat` resolves against the parent of the root, so its argument is outside the project by
+  construction, and `includeWorkspace` is not a form this parser models. `includeBuild` is judged
+  by its ARGUMENT instead of its name — one complete literal path confined beneath the project root
+  is accepted and then ignored, because a composite build does not alter the root build's own
+  `include(...)` list; escapes, interpolated or dynamic expressions, extra arguments, and trailing
+  configuration blocks keep failing closed.
   Control-flow rejection applies to governed include/project-directory directives rather than
   unrelated top-level Gradle logic.
 - General metadata extraction remains string/regex based; MCP Cargo workspace security discovery parses bounded manifests as real TOML
@@ -113,9 +119,14 @@ Acceptance Criteria
   oversized, unreadable, invalid UTF-8, or changed in type during acquisition.
 - Every present Gradle build/settings filename is preflighted before precedence selection and its
   native path identity must match the opened handle before and after the bounded read.
-- Invoked unsupported inclusion APIs such as `includeFlat` and `includeBuild` fail checked
+- Invoked unsupported inclusion APIs such as `includeFlat` and `includeWorkspace` fail checked
   discovery, while unrelated control flow remains compatible unless it governs an unsupported
   include/project-directory mutation.
+- An `includeBuild` naming one literal path beneath the project root parses and contributes no
+  module; one naming a path outside the root, or an argument that is not a single complete literal,
+  fails checked discovery. This holds wherever the declaration appears — a conditional or
+  block-scoped `includeBuild` reaches the same verdict as a top-level one, and one-line and
+  multi-line spellings of the same conditional agree.
 - A present `settings.gradle[.kts]` is parsed and validated even when no root
   `build.gradle[.kts]` exists.
 - MCP Cargo workspace snapshot and confinement discovery parse bounded manifests as real TOML.

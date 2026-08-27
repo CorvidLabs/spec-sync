@@ -1,6 +1,6 @@
 ---
 module: types
-version: 12
+version: 15
 status: stable
 files:
   - src/types.rs
@@ -36,7 +36,7 @@ Core deterministic data structures and enums shared across the codebase: configu
 |------|-------------|
 | `Frontmatter` | YAML frontmatter parsed from a spec file (module, version, status, files, db_tables, depends_on, implements, tracks, agent_policy, lifecycle_log) |
 | `ValidationResult` | Result of validating a single spec — errors, warnings, fixes, export summary, and the spec's parsed lifecycle status (so reporters can surface status-based skips) |
-| `CoverageReport` | File and LOC coverage metrics for the project |
+| `CoverageReport` | File and LOC coverage metrics for the project, plus what shaped them: files referenced but missing, links not traversed, and manifests degraded rather than propagated |
 | `SpecSyncConfig` | User-provided configuration loaded from specsync.json or .specsync.toml |
 | `RegistryEntry` | Registry entry mapping module names to spec file paths for cross-project resolution |
 | `ModuleDefinition` | User-defined module grouping in specsync.json with files and depends_on lists |
@@ -170,3 +170,6 @@ Core deterministic data structures and enums shared across the codebase: configu
 | 2026-08-14 | CHG-0117-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
 | 2026-08-14 | CHG-0118-a-config-file-that-exists-but-cannot-be-loaded-must-refuse-to-run-not-report-su: A config file that exists but cannot be loaded must refuse to run, not report success over built-in defaults |
 | 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |
+| 2026-08-27 | v13 / #723: `SpecSyncConfig.source_dirs_set` records whether the source list was stated or inferred, and `CoverageReport.manifest_notices` carries a manifest that was degraded rather than allowed to veto it |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |

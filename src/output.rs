@@ -283,6 +283,7 @@ pub fn coverage_json(
         // may never read.
         "missing_files": coverage.missing_files,
         "skipped_links": coverage.skipped_links,
+        "manifest_notices": coverage.manifest_notices,
     })
 }
 
@@ -345,6 +346,7 @@ fn write_coverage_line(out: &mut dyn Write, coverage: &types::CoverageReport) {
     }
     write_missing_files_note(out, coverage);
     write_skipped_links(out, coverage);
+    write_manifest_notices(out, coverage);
 }
 
 pub fn print_coverage_line(coverage: &types::CoverageReport) {
@@ -413,6 +415,19 @@ fn write_skipped_links(out: &mut dyn Write, coverage: &types::CoverageReport) {
         "⚠".yellow(),
         coverage.skipped_links.len()
     );
+}
+
+/// Report manifests that could not be parsed and were degraded rather than
+/// propagated because the project stated its own `source_dirs` (#723).
+///
+/// Printed here for the same reason as the skipped links: the manifest also
+/// declares modules, so a degraded run names FEWER modules without specs than
+/// the tree has. That is a report improved by a measurement that stopped, and
+/// it cannot be read honestly apart from the figures it shaped.
+fn write_manifest_notices(out: &mut dyn Write, coverage: &types::CoverageReport) {
+    for notice in &coverage.manifest_notices {
+        let _ = writeln!(out, "{} {notice}", "⚠".yellow());
+    }
 }
 
 pub fn print_coverage_report(coverage: &types::CoverageReport) {
@@ -564,6 +579,12 @@ pub fn print_check_markdown(
                 .join(", ")
         );
     }
+    // Same placement, same reason (#723): a manifest that could not be parsed
+    // still declared modules, so the module figures above were measured over
+    // less than the tree holds.
+    for notice in &coverage.manifest_notices {
+        println!("- **Manifest discovery degraded:** {notice}");
+    }
 }
 
 /// Print diff results as markdown. Each entry is (spec, changed_files, new_exports, removed_exports).
@@ -672,6 +693,7 @@ mod tests {
             unspecced_file_loc: Vec::new(),
             missing_files: Vec::new(),
             skipped_links: Vec::new(),
+            manifest_notices: Vec::new(),
         }
     }
 

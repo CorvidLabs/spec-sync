@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-definition-approval-may-not-withdraw-the-delta-binding-an-earlier-approval-recorded",
+  "implementation_commit": "9ee16607822f3a9e3219881a3a0eeefff6ea46f1",
+  "implementation_tree": "413f9a077baf84c8bf6bc9b84666534251d54962",
+  "contract_digest": "590cfdc9dcbbdfea8cb8f9f8a70b5f0f1f4d24d170347d37083cb43b0488be4e",
+  "workspace_digest": "79a95c1092375d36f70a821b945ba4c219eade886f0b652d44363ebd660d4bc7",
+  "closing_digest": "9c78ec7c9afaf8ca162631f83c3fa5411d3d9bd5eca71423f17382182a358df9",
+  "review_digest": "c3c69dae1b10e3b4a130214427c40496ce53281be4302d3a618ad2375027a1ed",
+  "finalization_digest": "b3adae0d91e24d867bb3f1ee1f8939aafdba44b9069d4987c4bae6d22e12128d",
+  "timestamp": 1787860966
+}

@@ -1,6 +1,6 @@
 ---
 id: a-definition-approval-may-not-withdraw-the-delta-binding-an-earlier-approval-recorded
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 62b297a4eb1822ec444460a172d6264317ebbf2e
 ---

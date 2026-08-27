@@ -7,11 +7,11 @@
   "title": "A definition approval may not withdraw the delta binding an earlier approval recorded",
   "description": "a definition approval may not withdraw the delta binding an earlier approval recorded",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "62b297a4eb1822ec444460a172d6264317ebbf2e",
   "created_at": 1787852778,
-  "updated_at": 1787859495,
+  "updated_at": 1787860966,
   "affected_specs": [
     "change"
   ],

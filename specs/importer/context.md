@@ -12,7 +12,7 @@ spec: importer.spec.md
 - Generated specs always start as `draft` status — user fills in details after import
 - Every provider title is slugified and then passed through shared portable module-name validation
   before an `ImportedItem` exists; this keeps Unix imports safe for Windows checkout.
-- `redact_secret` strips any verbatim auth token from REST error strings before surfacing them (added 4.3.5), mirroring the GitHub module's `redact_token` and the AI provider client's sanitization
+- `redact_secret` strips any verbatim auth token from REST error strings before surfacing them (added 4.3.5), mirroring the GitHub module's `redact_token`. It originally also mirrored the embedded AI provider client's sanitization; that client was retired in 5.0 and `specs/ai` is a tombstone.
 
 ## Files to Read First
 

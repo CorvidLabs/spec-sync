@@ -6,13 +6,13 @@ spec: change.spec.md
 
 Canonical module maturity remains under `specsync lifecycle`; SDD delivery uses six separate states. `.specsync/sdd.json` is a dedicated versioned policy so existing projects remain opt-in. Human artifacts and deltas are Markdown, while state, approvals, and evidence are JSON. Verification commands come only from policy and run without a shell.
 
-The committed `.specsync/change-sequence.json` ledger records the last numeric allocation ever made. Nothing writes it any more — identity is minted from the description as a slug — and it is retained so the marks it already carries cannot be lost: the gates read it and refuse a ledger that has fallen below what disk or the branch's own history already recorded. The OS lock still serializes a checkout. Lifecycle checking scans active and archived records together; the repository's immutable historical `CHG-0016` collision is acknowledged only as an exact set of full IDs.
+The committed `.specsync/change-sequence.json` ledger records the last numeric allocation ever made. Nothing ALLOCATES into it any more — identity is minted from the description as a slug — and it is retained so the marks it already carries cannot be lost: the gates read it and refuse a ledger that has fallen below what disk or the branch's own history already recorded. It is not read-only, and that is the part worth carrying: `floor_sequence_ledger_to_committed` still WRITES the file, from inside `git_commit_all`, raising a working-tree ledger that has fallen behind back to the committed high-water mark before staging. Every lifecycle commit runs it, so treating the ledger as immutable is how a change that edits it goes uncovered. The OS lock still serializes a checkout. Lifecycle checking scans active and archived records together; the repository's immutable historical sequence collisions are acknowledged only as exact sets of full IDs.
 
 Historical acceptance reconstruction treats the committed sequence ledger as evidence, not a template. When immutable collision members signed one canonical collision-owner ledger, a bounded invocation-cached history lookup reuses those exact bytes after later claims advance the current ledger. The historical candidate must explicitly name the record in its same-sequence collision; ordinary records, unavailable history, and collision acknowledgements added after acceptance keep successor-aware synthetic reconstruction.
 
 The public lifecycle remains one module for 5.0 to avoid a late high-risk refactor. Its intended internal seams are state/transitions, approvals/evidence, semantic deltas, Git/path coverage, effective-contract validation, and adoption/import. Extract those seams after 5.0 without changing the public API. Release evidence is recorded in accepted/archived change workspaces and the PR matrix rather than frozen as a permanent claim here.
 
-`check_project_quiet` shares all fail-closed validation with `check_project` but discards configured child-command output so `specsync comment` can emit a single bounded markdown protocol. Explicit verification and ordinary checks retain streamed diagnostics.
+`check_project` and `audit_project` share one private implementation, `check_project_with_command_output`, and differ only in whether archived terminal evidence is revalidated; the product defaults (`change check`, `change audit`, `specsync check`) take `audit_project`, because archives are history and living truth is active workspaces plus specs and policy. The earlier `check_project_quiet` — which ran the same validation but discarded configured child-command output so `specsync comment` could emit one bounded markdown protocol — no longer exists: #543 severed `comment` from the trust layer, so it reports spec-check results only and performs no lifecycle checking at all.
 
 Accepted review fixes use `change reopen`, which transitions only stale governed delivery evidence to `verifying`. The approval ledger appends a versioned reopen event containing the untouched prior verification and superseded closing approval. `canonical_applied` distinguishes re-verification from initial delivery so fresh acceptance cannot apply the semantic delta twice; it is lifecycle-only state and is excluded from definition approval digests.
 
@@ -186,9 +186,9 @@ its digest. Materialization and acceptance verify it before `prepare_delta_appli
 the materialization check sits ABOVE the `canonical_applied` short-circuit so a body that drifts
 after the first application is still caught while it remains that change's evidence.
 
-An ABSENT binding is unknown, never violated. Every approval written before the field existed —
-183 archived changes — carries none, and the check returns early on `None` rather than inventing a
-verdict from evidence nobody could have written. `Option` plus `skip_serializing_if` keeps the
+An ABSENT binding is unknown, never violated. Every approval written before the field existed
+carries none — 188 of the 202 archived ledgers when this was last counted — and the check returns
+early on `None` rather than inventing a verdict from evidence nobody could have written. `Option` plus `skip_serializing_if` keeps the
 field out of persisted JSON when absent, so no existing digest moves and older ledgers re-serialize
 byte-identically; `ApprovalRecord` is a tolerant evidence struct, not a digest preimage, which is
 what makes the addition safe. Only definition gates record: closing and finalization gates review
@@ -245,7 +245,8 @@ reintroduced #564. Read the parser before believing the symptom's story about it
 
 Delta bodies are approval-bound evidence: `approved_delta_digests` records a digest per module at
 the definition gate, and materialization refuses a delta whose bytes changed after approval. An
-approval carrying no digest is UNKNOWN, not violated — every archived change predates the field.
+approval carrying no digest is UNKNOWN, not violated — every archived change accepted before #704
+predates the field, which is still most of the archive.
 The guard and the flush ordering above are coupled: two archived deltas contain duplicate
 `MODIFIED` keys that exist only because the old ordering split one section, so shipping the
 duplicate-key refusal without the reordering would make those changes un-materializable.
@@ -266,7 +267,9 @@ And when testing for a block heading, compare whole LINES — `"## ADDED" in tex
 string inside an invariant's prose and reported the block as already restored.
 
 Two lessons recorded above were WRONG and were corrected by the change that unified frontmatter
-handling: `parser.rs` does not handle CRLF (it is LF-only), and there is no normalize-then-parse
+handling: `parser.rs` did NOT handle CRLF before that change — its regex was LF-only, and
+`parse_frontmatter` has normalized internally ever since, so the correction is already history —
+and there is no normalize-then-parse
 convention (21 of 39 call sites normalize, 18 do not). Both entered because a claim was asserted
 from a grep count rather than read from the call sites, and both were folded here before the
 correction landed. A lesson is read at `change new`, before anything is scoped, so a wrong one is

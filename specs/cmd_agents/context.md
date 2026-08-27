@@ -20,5 +20,5 @@ Implemented and stable. No tests target this file directly; behavior is validate
 
 ## Notes
 
-- Targets map to: `Claude`, `Cursor`, and `Gemini` (skill plus create-spec/create-change commands) and `Codex` (project skill only).
+- Targets map to: `Claude`, `Cursor`, and `Gemini` (skill plus four commands — create-spec, create-change, check, audit) and `Codex` (project skill only).
 - Part of the command layer — orchestrates a library module rather than containing domain logic, same shape as `cmd_hooks`.

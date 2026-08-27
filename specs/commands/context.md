@@ -21,8 +21,10 @@ spec: commands.spec.md
 
 - `src/commands/mod.rs` — the module itself (all shared functions + submodule re-exports)
 - `src/main.rs` — dispatches every `Command` variant into these submodules; also home to the `compute_exit_code` unit tests
-- `src/validator.rs` — `find_spec_files`, `validate_spec` (the core called by `run_validation`)
-- `src/config.rs` — `load_config` used by `load_and_discover`
+- `src/validator.rs` — `find_spec_files`, `validate_spec` (the core called by `run_validation`), and
+  `load_config_and_discover_retained`, the retained-capability path `load_and_discover` actually
+  calls. `config::load_config` is NOT on that path; it is used by leaf commands such as `deps`,
+  `import`, `new`, and `view`.
 
 ## Current Status
 

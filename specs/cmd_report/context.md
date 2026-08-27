@@ -20,7 +20,12 @@ spec: cmd_report.spec.md
 
 ## Current Status
 
-Stable and implemented. Behavior is verified only indirectly today — `src/commands/report.rs` has no `#[cfg(test)]` module and there are no `specsync report` integration tests; the underlying git and coverage helpers are tested in their own modules.
+Stable and implemented. `src/commands/report.rs` has no `#[cfg(test)]` module of its own, so every
+assertion about this command is an integration test: 17 test functions across
+`tests/integration/{staleness_unmeasurable,coverage_unmeasured,regression_w1,commands}.rs` invoke
+`report` directly, covering unmeasurable staleness in every format, zero-source-file coverage,
+`--require-coverage` gating, and fail-closed manifest discovery. The underlying git and coverage
+helpers are additionally tested in their own modules.
 
 ## Notes
 

@@ -19,10 +19,10 @@ spec: agents.spec.md
 
 ## Current Status
 
-Updated for 5.0 SDD. All four tools receive the verified lifecycle skill; Claude, Cursor, and Gemini also receive create-spec and create-change commands. Installation remains content-aware and safe for shared command directories, with unit coverage for upgrade, idempotency, and uninstall behavior.
+Updated for 5.0 SDD. All four tools receive the verified lifecycle skill; Claude, Cursor, and Gemini also receive four commands — create-spec, create-change, check, and audit (`command_paths()` returns all four). Installation remains content-aware and safe for shared command directories, with unit coverage for upgrade, idempotency, and uninstall behavior.
 
 ## Notes
 
 - The `create-spec` command's prompt body instructs the agent to parse either a bare module name or a natural-language feature description out of its arguments — that parsing happens in the agent's own reasoning, not in Rust code, since these are prompt files, not real CLI arg parsers.
-- No `toml` crate dependency exists in this project, so Gemini's `.toml` command file is a hand-built string template (`gemini_create_spec_toml()`), not a serialized struct.
+- Gemini's `.toml` command file is a hand-built string template (`gemini_create_spec_toml()`), not a serialized struct. That predates the `toml` crate, which this project has depended on since #483; nothing has migrated it.
 - Shared create-spec templates remove standalone `--minimal` flags before classifying the complete remaining input. The repository's Claude, Cursor, and Gemini command assets are regenerated from those templates and parity-tested byte for byte so contributors cannot receive stale first-token guidance.

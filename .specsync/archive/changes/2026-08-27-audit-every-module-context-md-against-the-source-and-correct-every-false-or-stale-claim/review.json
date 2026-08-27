@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "audit-every-module-context-md-against-the-source-and-correct-every-false-or-stale-claim",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "dccd82105956d62df76bb4fec9fb777c4b31f15b",
+  "contract_digest": "637a7463bd33153a776e0edc9af5d55d4f139c6866c5c1014a353576daf49df0",
+  "execution_digest": "3b6baa62161b8d6812324318ea1da018250128be95bffb2cc67c8b4b283fcbce",
+  "workspace_digest": "8733fcbe3581f3ddc9fcf17b348bff6594457ebd32f5140840339c0cf7be5b87",
+  "timestamp": 1787873456
+}

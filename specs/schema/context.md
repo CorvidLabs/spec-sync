@@ -13,7 +13,7 @@ spec: schema.spec.md
 ## Files to Read First
 
 - `src/schema.rs` — All schema parsing logic: SQL DDL replay, spec column extraction, and helper functions.
-- `src/validator.rs` — Primary consumer: uses `build_schema` and `parse_spec_schema` for column-level validation.
+- `src/validator.rs` — Primary consumer: uses `build_schema_snapshot` and `parse_spec_schema` for column-level validation. `build_schema` is the older infallible wrapper and now has exactly one caller, `src/mcp.rs`.
 
 ## Current Status
 

@@ -38,6 +38,6 @@ current stable Clippy.
 
 ## Notes
 
-- This is the only multi-file module in the project (~14 source files under `src/exports/`, plus the `ast/` subdirectory).
+- This is the only multi-file module in the project: 34 source files directly under `src/exports/` (33 language backends plus `mod.rs`), plus 12 more in the `ast/` subdirectory.
 - Language detection is purely extension-based — no shebang or content sniffing.
 - The validator uses this module bidirectionally: undocumented exports = warning, documented-but-missing exports = error.

@@ -13,12 +13,12 @@ spec: cmd_diff.spec.md
 
 - `src/commands/diff.rs` — the whole command, including the `DiffEntry` struct and `detect_pr_base()`.
 - `src/output.rs` — `print_diff_markdown`, used for Markdown/Github output.
-- `src/exports.rs` — `get_exported_symbols` / `has_extension`, the source of current exports.
+- `src/exports/mod.rs` — `scan_exported_symbols_full` / `has_configured_extension`, the source of current exports. The per-language extractors live beside it under `src/exports/`; there is no `src/exports.rs`.
 - `src/parser.rs` — `parse_frontmatter` and `get_spec_symbols` (spec-documented API surface).
 
 ## Current Status
 
-Implemented and stable. Covered by five integration tests in `tests/integration.rs`. No inline unit tests in `diff.rs`.
+Implemented and stable. Covered by nine integration tests — seven in `tests/integration/commands.rs`, two in `tests/integration/regression_w1.rs`. No inline unit tests in `diff.rs`.
 
 ## Notes
 

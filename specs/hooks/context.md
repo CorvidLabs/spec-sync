@@ -23,4 +23,4 @@ Fully implemented. All 6 hook targets work: CLAUDE.md (`Claude`), .cursorrules (
 - The hook content includes spec-sync CLI commands and instructions for how AI agents should interact with specs.
 - `cmd_status()` reports installed/not-installed for each target, useful for CI verification.
 - `cmd_install` exits with code 1 if any single hook installation fails.
-- Uninstall removes the spec-sync section via `remove_section`, which deletes the file when nothing else remains.
+- Uninstall removes the spec-sync section via `remove_section_from_file`, which deletes the file when nothing else remains.

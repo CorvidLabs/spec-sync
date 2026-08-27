@@ -15,11 +15,12 @@ spec: git_utils.spec.md
 - `spec_baseline(root, spec_file) -> SpecBaseline`
 - `missing_history(root) -> Option<MissingHistory>`
 - `git_commits_since(root, spec_commit, source_file) -> usize`
+- `source_was_deleted(root, since, path) -> bool`
 - `is_git_repo(root) -> bool`
 - `has_commits(root) -> bool`
 - `enum SpecBaseline { Commit(String), Untracked, Missing(MissingHistory) }`
 - `enum MissingHistory { NotARepository, NoCommits }` with `reason()` / `sentence()`
-- `struct StaleInfo { spec_path, module_name, max_commits_behind, source_details }`
+- `struct StaleInfo { spec_path, module_name, max_commits_behind, source_details, deleted_files }`
 
 ## Files to Read First
 

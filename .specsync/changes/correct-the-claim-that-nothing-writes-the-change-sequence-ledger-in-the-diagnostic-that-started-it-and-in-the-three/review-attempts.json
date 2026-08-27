@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "correct-the-claim-that-nothing-writes-the-change-sequence-ledger-in-the-diagnostic-that-started-it-and-in-the-three",
+      "reviewer": "ledger-write-claim-review",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "c835a7782ced8e211fc770c7448dab6cdc07e24c",
+      "contract_digest": "4f920a3b15a87f606b17fcff1aab686b22a2dd36422e17f834418a95615bf745",
+      "execution_digest": "f157fae58f5443938d8a49247f9c99d5b169dd2595740e4e8fbd2d50bb142ac0",
+      "workspace_digest": "925c49824f09222159d8c5302f13320a0c013f34601763a33222c5ff5560bfe3",
+      "timestamp": 1787873488
+    }
+  ]
+}

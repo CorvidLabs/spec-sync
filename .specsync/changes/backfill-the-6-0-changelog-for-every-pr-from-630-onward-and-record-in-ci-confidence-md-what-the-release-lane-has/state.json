@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "backfill-the-6-0-changelog-for-every-pr-from-630-onward-and-record-in-ci-confidence-md-what-the-release-lane-has",
+  "slug": "backfill-the-6-0-changelog-for-every-pr-from-630-onward-and-record-in-ci-confidence-md-what-the-release-lane-has",
+  "title": "Backfill the 6.0 changelog for every PR from #630 onward, and record in ci-confidence.md what the release lane has actually executed versus only reasoned about",
+  "description": "Backfill the 6.0 changelog for every PR from #630 onward, and record in ci-confidence.md what the release lane has actually executed versus only reasoned about",
+  "kind": "documentation",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
+  "created_at": 1787862181,
+  "updated_at": 1787864658,
+  "affected_specs": [],
+  "affected_paths": [
+    "CHANGELOG.md",
+    "docs/ci-confidence.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Both files are prose about behaviour that already shipped; no canonical spec module changes, and no requirement gains, loses or alters a guarantee.",
+  "acceptance_criteria": [
+    "Every merged PR from #630 through #727 either has a CHANGELOG entry under [Unreleased] or is deliberately omitted with a stated reason; no entry describes a mechanism the diff does not support; and docs/ci-confidence.md states which release-lane jobs have actually executed, which have not, and what a promote failure costs."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

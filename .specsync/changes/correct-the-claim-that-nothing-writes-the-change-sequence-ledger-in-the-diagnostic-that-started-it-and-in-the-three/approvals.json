@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787872407,
+      "digest": "4f920a3b15a87f606b17fcff1aab686b22a2dd36422e17f834418a95615bf745",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "correct-the-claim-that-nothing-writes-the-change-sequence-ledger-in-the-diagnostic-that-started-it-and-in-the-three",
+        "title": "Correct the claim that nothing writes the change sequence ledger, in the diagnostic that started it and in the three places it was copied to",
+        "description": "Correct the claim that nothing writes the change sequence ledger, in the diagnostic that started it and in the three places it was copied to",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "src/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Corrects a false factual claim in a diagnostic string and two prose copies of it; no canonical spec text changes and no requirement gains, loses or alters a guarantee.",
+        "acceptance_criteria": [
+          "No live file in the repository claims that nothing writes .specsync/change-sequence.json or that it is read-only or frozen; the diagnostic at src/change.rs:2189 states the true and useful constraint (nothing allocates, so it cannot be repaired by minting a higher sequence); and AGENTS.md and CHANGELOG.md name floor_sequence_ledger_to_committed as the one writer and the direction it may move the ledger."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

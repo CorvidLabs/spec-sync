@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Scope owner",
+      "timestamp": 1787867289,
+      "digest": "453c467dce65a8f1b37877dfd5fe89e2c7db030b7cbda6c1bdfde95018102450",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "hash-the-semantic-delta-binding-over-line-ending-canonical-bytes-so-a-crlf-checkout-of-an-unedited-delta-stops-failing",
+        "title": "Hash the semantic delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the approval gate, and fold nothing else",
+        "description": "Hash the semantic delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the approval gate, and fold nothing else",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "the approved-delta digest is computed over the delta body with CRLF folded to LF, so a delta a checkout rewrote from LF to CRLF with no other edit still materializes into the canonical spec instead of being refused as changed after approval; nothing beyond line endings is folded, so a real wording change delivered in CRLF is still refused, and a body differing only by a trailing blank line, a leading blank line, trailing spaces, a tab, or a lone carriage return is still refused even though the applier would treat it as equal; and the digest recorded for an LF delta is byte-identical to the digest the raw-bytes binding recorded, so no approval already written since the binding shipped stops verifying"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "28d1be11c508f2245ba920a9a7b7f46b166ca40441b6a42abd26786e17906f31"
+      }
+    }
+  ],
+  "reopenings": []
+}

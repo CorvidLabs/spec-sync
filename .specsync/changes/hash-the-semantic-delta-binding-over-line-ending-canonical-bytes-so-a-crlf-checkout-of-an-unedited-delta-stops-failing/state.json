@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "hash-the-semantic-delta-binding-over-line-ending-canonical-bytes-so-a-crlf-checkout-of-an-unedited-delta-stops-failing",
+  "slug": "hash-the-semantic-delta-binding-over-line-ending-canonical-bytes-so-a-crlf-checkout-of-an-unedited-delta-stops-failing",
+  "title": "Hash the semantic delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the approval gate, and fold nothing else",
+  "description": "Hash the semantic delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the approval gate, and fold nothing else",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
+  "created_at": 1787867053,
+  "updated_at": 1787868861,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/context.md",
+    "specs/change/tasks.md",
+    "specs/change/testing.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "the approved-delta digest is computed over the delta body with CRLF folded to LF, so a delta a checkout rewrote from LF to CRLF with no other edit still materializes into the canonical spec instead of being refused as changed after approval; nothing beyond line endings is folded, so a real wording change delivered in CRLF is still refused, and a body differing only by a trailing blank line, a leading blank line, trailing spaces, a tab, or a lone carriage return is still refused even though the applier would treat it as equal; and the digest recorded for an LF delta is byte-identical to the digest the raw-bytes binding recorded, so no approval already written since the binding shipped stops verifying"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

@@ -2,6 +2,7 @@ use crate::parser::strip_frontmatter;
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::borrow::Cow;
 #[cfg(test)]
 use std::cell::Cell;
 use std::cell::RefCell;
@@ -8559,11 +8560,50 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     Ok(())
 }
 
-/// Per-module digest over the EXACT bytes of every semantic delta file this change owns.
+/// A semantic delta body reduced to the form the APPLIER compares, and no further (#730).
+///
+/// `\r\n` becomes `\n`, because line-ending style is provably not content in this module: the
+/// applier says so in two independent places. `markdown_block_matches` normalizes CRLF before
+/// deciding whether an `## ADDED` block is already present, and `apply_markdown_block` re-emits
+/// every body in the target file's own style. `parse_delta` reads through `str::lines()`, which
+/// discards the `\r` of a CRLF pair outright, so a CRLF delta and an LF delta materialize
+/// byte-identical canonical specs. Hashing the raw bytes therefore bound the digest to something
+/// materialization never consumes, and a Windows checkout with `core.autocrlf=true` produced a
+/// different digest for a delta nobody had edited.
+///
+/// NOTHING ELSE IS FOLDED, and that limit is the load-bearing half. `markdown_block_matches` also
+/// trims surrounding blank lines and horizontal whitespace; copying that would make the binding
+/// accept edits it exists to refuse, because trailing whitespace and blank lines inside a body ARE
+/// wording a reviewer signed. The digest's job is strictly narrower than the applier's: the
+/// applier decides whether an edit is already applied, the digest decides whether an approver saw
+/// it. Only the line-ending axis is safe to erase, because it is the only one Git rewrites on its
+/// own, without an author.
+///
+/// A LONE `\r` IS CONTENT and stays. Classic-Mac line endings are not something Git's `text` /
+/// `eol` / `core.autocrlf` conversions ever produce — every one of them converts only between LF
+/// and CRLF — so no honest cross-OS handoff can introduce one. Both `str::lines()` and
+/// `markdown_block_matches` keep a bare `\r` as ordinary text, and `parser::parse_frontmatter`
+/// preserves it deliberately for the same reason (#715). Folding it here would erase a byte the
+/// applier would carry into the canonical spec.
+///
+/// Guarded on `contains('\r')` so an LF delta — every delta in a repository with #715's
+/// `.gitattributes` pins — borrows and allocates nothing.
+fn canonical_delta_body(body: &str) -> Cow<'_, str> {
+    if body.contains('\r') {
+        Cow::Owned(body.replace("\r\n", "\n"))
+    } else {
+        Cow::Borrowed(body)
+    }
+}
+
+/// Per-module digest over every semantic delta file this change owns, line endings canonicalized.
 ///
 /// Keyed by module because that is what a refusal has to name: "the delta changed" is not an
 /// actionable message when a change owns nine specs. The module name is framed into the digest
 /// as well, so moving a body from `deltas/a.md` to `deltas/b.md` cannot preserve a digest.
+///
+/// The body is framed through `canonical_delta_body`, so the digest asks the same question the
+/// applier asks. See that function for why the line-ending axis is the ONLY one normalized.
 ///
 /// A `no_spec_change` record yields an empty map, which is the truth: `validate_delta_files`
 /// already refuses any delta file at all for such a change, so there are no bodies to bind.
@@ -8581,7 +8621,7 @@ fn delta_body_digests(
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let mut digest = FramedDigest::new(APPROVED_DELTA_DIGEST_DOMAIN);
         digest.frame(b"module", module.as_bytes());
-        digest.frame(b"body", body.as_bytes());
+        digest.frame(b"body", canonical_delta_body(&body).as_bytes());
         digests.insert(module.clone(), digest.finish());
     }
     Ok(digests)

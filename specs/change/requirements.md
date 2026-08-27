@@ -1152,7 +1152,10 @@ Acceptance Criteria
 A semantic delta body SHALL be bound to the definition approval that signed it, and an approval that recorded no such binding SHALL read as unknown rather than as a violation.
 
 Acceptance Criteria
-- Approval records a digest over the exact bytes of every semantic delta file the change owns, keyed by module, so the wording that rewrites a canonical spec is part of what a human signed.
+- Approval records a digest over every semantic delta file the change owns, keyed by module, so the wording that rewrites a canonical spec is part of what a human signed.
+- The body is hashed with `\r\n` folded to `\n`, because delta application already treats line-ending style as not part of the content, so a checkout that rewrote a delta's line endings without editing a character SHALL NOT invalidate the approval that signed it.
+- No other difference is folded. Trailing whitespace, blank lines, and a lone carriage return keep changing the digest, so the binding's equality stays strictly narrower than the applier's, which also trims surrounding blank lines and horizontal whitespace.
+- Folding line endings moves no digest recorded before it, because a body containing no `\r\n` hashes exactly as it did.
 - Materialization and acceptance verify that binding before any delta is applied, and refuse by naming every module whose body changed after approval together with the remedy.
 - The refusal is evaluated before the already-materialized short-circuit, so a body that drifts after the first application is still caught while it remains this change's evidence.
 - An approval carrying no delta binding proceeds unchanged, because every change approved before the binding existed made no claim about wording and absent evidence is not a violation.

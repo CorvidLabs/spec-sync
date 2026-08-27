@@ -23,5 +23,5 @@ Fully implemented and stable. Covered end-to-end by `tests/integration.rs` (text
 
 ## Notes
 
-- The live `cmd_score` signature also takes `all: bool`, `exclude_status`, and `only_status` beyond what the spec's API table lists.
+- The live `cmd_score` signature also takes `min_score: Option<u32>` beyond what the spec's API table lists. (`all`, `exclude_status`, and `only_status` are listed there now.)
 - Orchestrates the scoring module; the grading rubric is defined there, not here.

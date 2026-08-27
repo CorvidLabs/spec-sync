@@ -95,7 +95,8 @@ identities are recorded during enumeration, then each child is opened sequential
 retained workspace-base capability for manifest reads and source probes. A swap/read/restore
 interval cannot mix generations. Each completed base listing is reachability-verified and released,
 so broad sibling sets and broad distinct-base sets do not exhaust directory handles. Fresh
-combined results pass 52 focused manifest tests and 1,953 unit plus 312 integration tests. Fresh
+combined results pass 52 focused manifest tests and the whole suite, which is 2,407 unit plus 407
+integration tests today. Fresh
 independent rereview, hosted-Windows runtime, repository/CI, trust, and provenance evidence remain
 pending. MCP Cargo workspace paths come from validated TOML values.
 

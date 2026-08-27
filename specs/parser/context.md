@@ -56,7 +56,8 @@ reapproval and final independent/repository gates remain pending.
 ## Notes
 
 - The `parse_frontmatter()` function returns both the parsed `Frontmatter` struct and the body text (everything after the closing `---`). This avoids re-reading the file for section analysis. The body is LF-only whatever the input was, because callers index into it, split it on `\n`, and compare section text against LF literals.
-- Every fixture in this repository was LF until #696, and all 2103 tracked `.md` files still are. That is why a CRLF defect could ship: there is no local difference to observe, and all four strippers agreed on every real file. A CRLF test here is a synthesized fixture and proves the reader handles those bytes — not that a Windows checkout produces the bytes we think it does. CI is ubuntu-only across all sixteen jobs.
+- Every fixture in this repository was LF until #696, and all 2263 tracked `.md` files still are
+  (`git ls-files '*.md' | wc -l`; none contains a `\r` or a leading BOM). That is why a CRLF defect could ship: there is no local difference to observe, and all four strippers agreed on every real file. A CRLF test here is a synthesized fixture and proves the reader handles those bytes — not that a Windows checkout produces the bytes we think it does. CI is ubuntu-only across all sixteen jobs.
 - Frontmatter fields like `files`, `db_tables`, and `depends_on` support both inline array syntax (`[a, b]`) and multi-line YAML list syntax (`- a\n- b`).
 - `parse_checked_issue_references()` returns `(implements, tracks)` only after the entire
   frontmatter document passes real-YAML and duplicate-key validation; surfaced errors are stable

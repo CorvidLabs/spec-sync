@@ -76,7 +76,7 @@ checked traversal. Spec/source traversal now records sibling identities and reop
 sequentially. Configured source roots are identity-selected without retaining all handles, then
 reopened and traversed one at a time, bounding live directory handles by depth rather than sibling
 or root count while preserving replacement checks. Combined results pass 45 focused validator
-tests and 1,953 unit plus 312 integration tests;
+tests and the whole suite, which is 2,407 unit plus 407 integration tests today;
 exact-tree independent review remains pending. A
 command-wide immutable CLI analysis snapshot and generic structured
 discovery outcomes are intentionally deferred to the later CLI/outcome/generation work outside

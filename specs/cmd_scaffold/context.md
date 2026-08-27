@@ -15,13 +15,13 @@ spec: cmd_scaffold.spec.md
 - `src/commands/scaffold.rs` — primary source (both `cmd_add_spec` and `cmd_scaffold`)
 - `src/generator.rs` — `find_files_for_module`, `generate_spec`, companion generators
 - `src/registry.rs` — `register_module` for auto-registration
-- `src/exports.rs` — `has_extension` used during source auto-detection
+- Source auto-detection is NOT done here: `scaffold.rs` never touches `exports`, and both entry points delegate detection to `generator::find_files_for_module`
 
 ## Current Status
 
-Fully implemented and stable. No inline unit tests; companion-generation behavior is covered indirectly by integration tests (`generate_creates_companion_files`, `companion_files_not_overwritten_on_regenerate`).
+Fully implemented and stable. One inline unit test (`add_spec_omits_module_javascript_test_sources`) pins test-file exclusion; companion-generation behavior is covered by integration tests (`generate_creates_companion_files`, `companion_files_not_overwritten_on_regenerate`).
 
 ## Notes
 
-- Part of the command layer: orchestrates `config`, `generator`, `registry`, and `exports` rather than holding domain logic.
+- Part of the command layer: orchestrates `config`, `generator`, and `registry` rather than holding domain logic.
 - Source-file paths in generated frontmatter are normalized to forward slashes for cross-platform manifests.

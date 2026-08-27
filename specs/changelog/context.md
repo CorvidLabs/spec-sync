@@ -19,4 +19,4 @@ spec: changelog.spec.md
 
 ## Current Status
 
-Stable. Frontmatter and section diffing, range parsing, and all three formatters are implemented and unit-tested (including git-backed `generate_changelog` tests via a temp repo). No CLI-level integration test yet.
+Stable. Frontmatter and section diffing, range parsing, and all three formatters are implemented and unit-tested (including git-backed `generate_changelog` tests via a temp repo). CLI-level coverage is `changelog_bogus_ref_exits_1` and `changelog_valid_range_exits_0` in `tests/integration/regression_w1.rs`.

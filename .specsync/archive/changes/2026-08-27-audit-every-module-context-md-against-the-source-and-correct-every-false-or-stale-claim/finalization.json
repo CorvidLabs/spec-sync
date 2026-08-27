@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "audit-every-module-context-md-against-the-source-and-correct-every-false-or-stale-claim",
+  "implementation_commit": "dccd82105956d62df76bb4fec9fb777c4b31f15b",
+  "implementation_tree": "a1ea335b7879fe4b2e14a5cb5ac037a3b5c845d9",
+  "contract_digest": "637a7463bd33153a776e0edc9af5d55d4f139c6866c5c1014a353576daf49df0",
+  "workspace_digest": "8733fcbe3581f3ddc9fcf17b348bff6594457ebd32f5140840339c0cf7be5b87",
+  "closing_digest": "1630df507f252c4e41e25e68f8bfbe7b7b1dbd04fbe84c1d4bfa6f742989137b",
+  "review_digest": "8f65d452303cb11dad5d8098f9878169ccccaaede4bbc1712960d89540a16fe0",
+  "finalization_digest": "fc2dd4c20016649f2229bceca49d85cf305261dac4c4e2236eb238225e9a3ac7",
+  "timestamp": 1787873484
+}

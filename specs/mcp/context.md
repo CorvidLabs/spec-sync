@@ -107,7 +107,8 @@ spec: mcp.spec.md
 
 ## Current Status
 
-Under CHG-0063 verification as a read-only-by-default agent-native MCP integration with exact
+Shipped, and CHG-0063 is archived — `.specsync/changes/` holds no active workspace for it. A
+read-only-by-default agent-native MCP integration with exact
 JSON-RPC envelope, argument, and resource validation; bounded capability snapshots and responses;
 retained-capability, configuration-, Git-metadata-, and autodetection-level confinement; explicit
 root-bound mutation; conservative unavailable-freshness scoring; atomic bounded generated-output
@@ -123,7 +124,7 @@ enumeration checkpoint but retain and process sibling directories sequentially, 
 handles by depth without weakening replacement detection. Object-form Node workspaces require a
 `packages` array, and recognized nested package manifests are strictly parsed before success.
 The latest `.git` operation-root characterization passes in both unit and real MCP integration
-paths. The amended full tree passes 1,954 unit and 313 integration tests, release and Windows GNU
+paths. The amended full tree passes the whole suite — 2,407 unit and 407 integration tests today — release and Windows GNU
 cross-target compilation, strict 100% coverage, and score 100/A for every spec. Fresh exact-tree
 independent rereview and hosted-Windows junction/reparse runtime evidence remain pending.
 The latest exact-tree review found a public-parent publication gap plus three protocol/test-harness

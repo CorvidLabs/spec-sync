@@ -11,7 +11,7 @@ spec: cmd_init.spec.md
 
 ## Files to Read First
 
-- `src/commands/init.rs` — `cmd_init`, `ensure_hashes_gitignored`, and the three inline unit tests.
+- `src/commands/init.rs` — `cmd_init`, `ensure_hashes_gitignored`, and the inline unit tests.
 - `src/config.rs` — `detect_source_dirs` (the auto-detection logic exercised heavily by integration tests).
 
 ## Current Status
@@ -20,5 +20,5 @@ Implemented for 5.0. Fresh projects enable SDD, detect configured verification c
 
 ## Notes
 
-- `ensure_hashes_gitignored` is `pub`, so it is callable outside `cmd_init` (e.g. rehash flows) and is unit-tested directly.
+- `ensure_hashes_gitignored` is `pub`, so it is callable outside `cmd_init` — `commands::migrate` is the one other caller — and is unit-tested directly. `rehash` does not call it.
 - Part of the command layer — orchestrates `config::detect_source_dirs` rather than containing domain logic.

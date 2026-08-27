@@ -18,10 +18,10 @@ spec: merge.spec.md
 
 ## Current Status
 
-CHG-0066 implementation is under verification after independent acceptance and adversarial review. Public API remains `merge_specs`, `has_conflict_markers`, `print_results`, `results_to_json`, plus `MergeResult`/`MergeStatus`.
+CHG-0066 is archived; the implementation it verified is shipped. The public API is `merge_specs`, `has_conflict_markers`, `conflict_hunks`, `conflict_free_side`, `document_conflict_hunks`, `unmerged_paths`, `cached_unmerged_paths`, `print_results`, and `results_to_json`, plus `MergeResult`/`MergeStatus`/`ConflictHunk`/`ConflictSide`.
 
 ## Notes
 
 - Depends on `parser::parse_frontmatter` and `parse_checked_issue_references` for post-resolution structural/YAML validation and `validator::find_spec_files` for all-files scan.
 - Changelog sorting assumes ISO `YYYY-MM-DD` dates so lexicographic order is chronological.
-- `print_results` skips `Clean` entries; `results_to_json` includes all three statuses.
+- `print_results` skips `Clean` entries; `results_to_json` includes all four statuses (`resolved`, `manual`, `clean`, `unknown`).

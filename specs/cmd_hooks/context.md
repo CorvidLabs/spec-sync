@@ -16,7 +16,7 @@ spec: cmd_hooks.spec.md
 
 ## Current Status
 
-Implemented and stable. No tests target this file directly; behavior is validated through the `hooks` module.
+Implemented and stable. No unit tests live in this file; the dispatcher is driven end to end by `hooks_uninstall_preserves_user_content_after_block` and `hooks_install_claude_code_hook_preserves_user_settings` in `tests/integration/commands.rs`, and the file/IO behavior is validated through the `hooks` module.
 
 ## Notes
 

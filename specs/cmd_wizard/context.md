@@ -14,7 +14,7 @@ spec: cmd_wizard.spec.md
 - `src/commands/wizard.rs` — the full interactive flow and spec-body template
 - `src/generator.rs` — `generate_companion_files_for_spec` for the companion set
 - `src/config.rs` — `source_dirs`, `source_extensions`, `companions.design`
-- `src/exports.rs` — `has_extension` used during source auto-detection
+- `src/exports/mod.rs` — `has_configured_extension` used during source auto-detection
 
 ## Current Status
 
@@ -22,4 +22,4 @@ Fully implemented and stable. No automated tests cover the interactive flow (it 
 
 ## Notes
 
-- Part of the command layer — orchestrates `config`, `generator`, and `exports`; the only command that depends on interactive prompts.
+- Part of the command layer — orchestrates `config`, `generator`, and `exports`; one of two commands that depend on interactive prompts (`init` is the other; both import `dialoguer`).

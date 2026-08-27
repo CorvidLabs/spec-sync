@@ -16,7 +16,7 @@ spec: cmd_check.spec.md
 
 ## Files to Read First
 
-- `src/commands/check.rs` — the full command: caching, drift prompts, `auto_fix_specs`, `fix_near_miss_headers`, `auto_regen_stale_specs`, git-staleness loop, format dispatch
+- `src/commands/check.rs` — the full command: caching, drift prompts, `auto_fix_specs`, `fix_near_miss_headers`, `fix_near_miss_required_headers`, git-staleness loop, format dispatch. There is no regeneration helper here: `auto_regen_stale_specs` was deleted with embedded inference in 5.0 (#335) and drift is guidance, never a rewrite
 - `src/commands/mod.rs` — shared `load_and_discover`, `run_validation`, `compute_exit_code`, `exit_with_status`, `create_drift_issues`
 - `src/git_utils.rs` — `missing_history`, `spec_baseline`, `git_commits_since` (staleness)
 - `src/hash_cache.rs` — `HashCache`, `classify_all_changes`, `update_cache`

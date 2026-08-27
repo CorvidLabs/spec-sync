@@ -21,5 +21,5 @@ Stable and complete. Public API is `render_check_comment` and `detect_branch`. U
 ## Notes
 
 - Consumed by the `cli` module (and through it, `cmd_comment`).
-- Depends only on `types::CoverageReport`.
+- Depends only on `types::CoverageReport` and the `output::NO_FILES_MEASURED` / `output::NO_LINES_MEASURED` sentinels.
 - Unspecced-files list is capped at 15 with an "...and N more" suffix.

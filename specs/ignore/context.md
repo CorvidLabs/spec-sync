@@ -13,11 +13,11 @@ spec: ignore.spec.md
 ## Files to Read First
 
 - `src/ignore.rs` — `WarningCategory`, `IgnoreRules`, and all inline tests
-- `src/validator.rs` / `src/commands/check.rs` — call `is_suppressed` to filter warnings before reporting
+- `src/commands/mod.rs`, `src/commands/issues.rs`, `src/change.rs` — the actual `is_suppressed` / `suppression_source` call sites. `src/commands/check.rs` only loads the rules (`IgnoreRules::load`) and hands them on; `src/validator.rs` never references this module at all.
 
 ## Current Status
 
-Fully implemented and stable, with inline unit tests covering `classify`, `from_str` aliases, `parse_inline`, all three `is_suppressed` scopes, and `load` (present + absent file). The spec validates the five public module-level aliases as exports and keeps type-qualified associated methods in an informational `#### Associated Methods` subsection.
+Fully implemented and stable, with inline unit tests covering `classify`, `from_str` aliases, `parse_inline`, all three `is_suppressed` scopes, and `load` (present + absent file). The spec validates the seven public module-level aliases as exports: `as_str`, `from_str`, `classify`, `load`, `parse_inline`, `is_suppressed`, `suppression_source`.
 
 ## Notes
 

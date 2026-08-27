@@ -57,52 +57,21 @@ spec: github.spec.md
 - **Fork-safe scoped review**: qualifying fork pull requests run the same read-only analysis with no
   repository secrets; only PR comments/review writes are disabled when the token cannot decorate
   the source PR.
-- **Lifecycle routing**: workflow-v2 same-PR archives use the lightweight execution-bound lane;
-  workflow-v1 archives stay on the historical full matrix, and parent-state authentication prevents
-  a v2 archive from downgrading itself. Review reuse requires schema 2, a passing verdict, an
-  independent reviewer, contract/execution/workspace digest parity, and bounded every-parent
-  freshness from the reviewed implementation commit. Hosted finalization caps Git command time,
-  output bytes, descendant count, and parent count from the same committed limits document used by
-  native validation; exceeding any bound fails closed. Review evidence carries the required check
-  name and append-only attempts, while the finalizer authenticates the official Actions app, exact
-  PR/run/head, and check success. Post-merge validation compares exact archive subtree identity, so
-  squash/rebase integration remains verifiable after discarded implementation objects disappear.
-- **Base-trusted policy boundary**: optimized lifecycle reuse is guarded by a SHA-pinned
-  `pull_request_target` workflow with read-only inspection and a separate check publisher. It fetches
-  the exact candidate as Git objects without checking out or executing candidate content, blocks
-  changes to every workflow/local-Action definition—including root `action.yml`/`action.yaml`—plus
-  lifecycle classifiers/limits and the workflow-v2 baseline. The path scan disables rename
-  detection and matches local-Action descendants, so add, modify, delete, and move operations all
-  expose protected paths. It preserves Git's NUL filename boundaries and full-matches raw bytes, so
-  embedded newlines cannot split one protected workflow path into unprotected text lines. It
-  publishes an external ID bound to the
-  trusted workflow revision and PR head. Review reuse, finalization, and post-merge binding verify
-  the exact event, repository, PR, head, workflow path, and revision. The initial guard introduction
-  is frozen to CorvidLabs/spec-sync PR #480, its exact base and branch identity, and a required set
-  of newly added policy files; it still requires full CI and independent review. Later policy edits
-  require a newly pinned GitHub required-workflow revision and cannot use the optimized path.
-- **Post-merge archive publication**: merged archive publication runs on `pull_request: closed` with
-  `merged == true`, checking out only the merge commit (already on the base repository) with a
-  SHA-pinned checkout Action and `persist-credentials: false`. Live PR heads are never checked out;
-  head identity is fetched only as an isolated ref and compared to the event SHA. This avoids the
-  privileged `pull_request_target` untrusted-checkout surface while keeping object-only verification
-  of finalized archives. Archive-introduction and release reconstruction share a protected verifier
-  that caps commit history, parents, time, and streamed output and rejects post-introduction archive
-  rewrites. It inspects every bounded archive-path-touching commit and readable parent, so
-  rewrite→restore history is not reduced to a clean final tree.
-- **Metadata-descendant provenance reuse**: review/archive children walk a hard-bounded first-parent
-  chain and may reuse only one nearest product ancestor. The current child passes the existing
-  lifecycle classifier; each historical child crossed by the helper must contain exactly one
-  change's scoped-review pair. Metadata-child republications are skipped, and the first product
-  boundary is terminal even when it has no reusable evidence; code edges and second parents are
-  never crossed. Required CI couples helper/test changes to `ci.yml`; because every workflow change
-  is base-policy protected, later PR-controlled helper edits cannot silently weaken reuse. The
-  official GitHub Actions app, exact SHA, PR, repository, workflow, run, and success identities stay
-  mandatory. Exact-SHA trusted-policy selection prefers an authenticated success over a newer
-  cancellation/failure caused by a moved tip, but unsuccessful-only evidence still fails.
-  Historical archive replay mirrors native serialization exactly: enum spellings are not aliased,
-  lifecycle timestamps are non-boolean unsigned 64-bit integers, and a fully volatile delivery
-  scope may legitimately produce a zero-entry acceptance manifest.
+- **Lifecycle authority lives in the product, not in CI — and the CI copy is GONE**: `specsync
+  change audit --strict` is the single authority on lifecycle coherence. Everything this section
+  used to describe — lifecycle routing between a lightweight v2 lane and a v1 full matrix, a
+  SHA-pinned `pull_request_target` base-trusted policy guard frozen to PR #480, post-merge archive
+  publication on `pull_request: closed`, and metadata-descendant provenance reuse — was **deleted
+  by PR #499** (802ca13b), which removed ~7,257 lines: `.github/workflows/finalize-change.yml`,
+  `lifecycle-policy-guard.yml`, `post-merge-archive.yml`, and the
+  `reuse-check-from-ancestors.py` / `verify-trusted-policy-check.py` /
+  `verify-archive-introduction.py` helpers with their harnesses. There is **no
+  `pull_request_target` workflow in this repository** and no finalization or post-merge workflow;
+  the surviving five are `ci.yml`, `pages.yml`, `rc-assets.yml`, `release.yml`, and `trust.yml`.
+  Protected-path authorization is `.github/CODEOWNERS`. `.github/scripts/lifecycle-validation-limits.json`
+  is retained only because `src/change.rs` reads it. Two of the live defects #499 removed were in
+  the CI copy and not in SpecSync, which is the argument for not rebuilding it: a reimplementation
+  of a shipped rule drifts from it, and only the copy is unshipped and untested by users.
 
 ## Key Files
 
@@ -124,7 +93,8 @@ spec: github.spec.md
 
 ## Current Status
 
-CHG-0063 verification is active. URL parsing, endpoint-bound and provider-page-bounded pagination,
+CHG-0063 is archived and its work is shipped; `.specsync/changes/` holds no active workspace for
+it. URL parsing, endpoint-bound and provider-page-bounded pagination,
 REST provider classification/revalidation, malformed responses, global deduplication/caps, complete
 deadlines, transport failures, and rejection of legacy `gh` reads without process spawning have
 focused source regressions. Raw-page coverage validates every issue and pull-request item before
@@ -187,7 +157,10 @@ selection treated failed republications as ambiguity. The invariant is now expli
 archive edges carry exact parent commit/tree finalization proof; reusable job evidence names and
 authenticates one exact successful job; and GitHub-rewritten policy check URLs retain CHG-0076
 compatibility while only successful matching policy runs participate in canonical-URL disambiguation.
-Late review then found three native-parity edges plus a generated-artifact leak. The verifier now
-rejects the unsupported `non-file` spelling and out-of-range lifecycle timestamps, accepts native
-zero-entry manifests, and the focused loader disables bytecode generation so interpreter-specific
-cache files cannot enter or dirty the change.
+Late review then found three native-parity edges plus a generated-artifact leak.
+
+Read both of those paragraphs as history. The Python verifier and the traversal helper they
+describe were deleted by PR #499 along with the rest of the CI lifecycle copy, so the "the verifier
+now …" clauses point at files that no longer exist. What survives is native: `src/change.rs`
+rejects the unsupported `non-file` archive-entry spelling and out-of-range lifecycle timestamps,
+and accepts a zero-entry acceptance manifest.

@@ -58,6 +58,13 @@
         "types": "1ded5f5402f012685030b84f8f0800c674951c9878ec57b9b555238841ea7301",
         "validator": "f2abca38e6621d32df996f9e95e6eb5d30fadefb4ca1b7a9969143e9ead54631"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787843149,
+      "digest": "d463eb296e1710c3edd4866ef42c28ae7b1624872b5c45ad91987cb41990cdad",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

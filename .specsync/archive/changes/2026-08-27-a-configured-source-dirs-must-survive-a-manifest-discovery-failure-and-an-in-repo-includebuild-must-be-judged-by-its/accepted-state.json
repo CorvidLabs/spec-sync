@@ -7,11 +7,11 @@
   "title": "A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token",
   "description": "a configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "48e9da28ac45d3bd1d3a759e6142bb3812f3d53c",
   "created_at": 1787841032,
-  "updated_at": 1787842120,
+  "updated_at": 1787843149,
   "affected_specs": [
     "manifest",
     "validator",

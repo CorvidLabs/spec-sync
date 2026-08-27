@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its",
+  "slug": "a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its",
+  "title": "A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token",
+  "description": "a configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "48e9da28ac45d3bd1d3a759e6142bb3812f3d53c",
+  "created_at": 1787841032,
+  "updated_at": 1787843430,
+  "affected_specs": [
+    "manifest",
+    "validator",
+    "types",
+    "config",
+    "output",
+    "cmd_check",
+    "comment",
+    "cli",
+    "generator"
+  ],
+  "affected_paths": [
+    "src/manifest.rs",
+    "src/validator.rs",
+    "src/types.rs",
+    "src/config.rs",
+    "src/output.rs",
+    "src/commands/check.rs",
+    "src/comment.rs",
+    "src/main.rs",
+    "src/generator.rs",
+    "tests/integration/commands.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "a project whose Gradle settings cannot be parsed but whose source_dirs is explicitly configured runs check and coverage to completion and reports real numbers; the unparseable manifest is disclosed as a coverage notice beside those numbers, in text, markdown, and JSON, rather than replacing them; that notice never gates, because unlike a shrunken denominator it cannot inflate a percentage; degrading reads no byte outside the project root, generates nothing out of the rejected discovery, and leaves the outside tree untouched; a project that did NOT configure source_dirs still fails closed, because its source list came from the discovery that failed; an in-repo includeBuild(\"vendor/podo-shared\") parses, contributes no module, and leaves the root build's include list untouched, wherever the declaration appears; includeBuild(\"../outside\") and dynamic, interpolated, multi-argument, or block-suffixed includeBuild arguments are still refused, now naming the argument rather than the token"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

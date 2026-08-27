@@ -1,6 +1,6 @@
 ---
 id: a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 48e9da28ac45d3bd1d3a759e6142bb3812f3d53c
 ---

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "adopting-md-must-lead-with-what-a-squash-merge-actually-costs-not-the-cost-that-689-removed",
+  "implementation_commit": "4e867c639b9172c08b5b69f83a7f384dfb3742dc",
+  "implementation_tree": "315d6f08a813e34b387fc023727a690ea0ba919b",
+  "contract_digest": "0cec5935be492cab7827ce598309af05aec0fed6ed42eaf726600e9f15819c50",
+  "workspace_digest": "0963bfa9f7887f20154e90eced8c5523807c7bbe70bcbc987d1775fe7ce68b3f",
+  "closing_digest": "22beed88c54e7c239ddb558dff1252a6fc8a9fadcfe3ae26a915a2f2bf1b0958",
+  "review_digest": "e18b0a3a9efe60307333205adda4c6f84e21c7470e340d0545fd3ac61eeb97c5",
+  "finalization_digest": "5716dd69d74983dfe7332714bc25f78835e14569bdbbdc9e7e405edc0b537cb1",
+  "timestamp": 1787867647
+}

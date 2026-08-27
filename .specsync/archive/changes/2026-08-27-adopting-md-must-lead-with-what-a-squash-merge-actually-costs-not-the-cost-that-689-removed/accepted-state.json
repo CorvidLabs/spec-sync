@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "adopting-md-must-lead-with-what-a-squash-merge-actually-costs-not-the-cost-that-689-removed",
+  "slug": "adopting-md-must-lead-with-what-a-squash-merge-actually-costs-not-the-cost-that-689-removed",
+  "title": "ADOPTING.md must lead with what a squash merge actually costs, not the cost that #689 removed",
+  "description": "ADOPTING.md must lead with what a squash merge actually costs, not the cost that #689 removed",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "a98fc3d167c8014eb1714026feab8f14c9cacf29",
+  "created_at": 1787865912,
+  "updated_at": 1787867647,
+  "affected_specs": [],
+  "affected_paths": [
+    "docs/ADOPTING.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Corrects prose that describes shipped behaviour incorrectly; no canonical spec module changes and no requirement gains, loses or alters a guarantee.",
+  "acceptance_criteria": [
+    "docs/ADOPTING.md states the independent review as the only cost a squash still carries, states separately that re-verification is not among them, contains no claim that a squash forces a re-verify, and reports the archive reachability figure in one direction with the current measurement (21 of 198)."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

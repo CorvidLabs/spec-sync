@@ -106,33 +106,32 @@ CI passes over drift. With it, drift gates.
 
 ## Things that will bite you, in the order they will
 
-**Your merge strategy decides whether the lifecycle works at all.** Verification evidence is
-recorded against a commit hash and checked as an ancestor of `HEAD`. **A squash-merge rewrites that
-hash**, so a change reads as unverified the moment its own PR lands — forcing a full re-verify AND
-a fresh independent review, which is the one step that needs a human.
+**Your merge strategy decides what a landed change still owes you.** Verification evidence and
+the independent review are both recorded against a commit hash. **A squash-merge rewrites that
+hash**, so anything that reads history across the merge loses its footing.
 
-Check this before you adopt, not after:
+What a squash costs you is the **independent review**, and only that. The review check walks the
+commits between the review and `HEAD` to prove nothing changed except the change's own records,
+and a squash makes that walk impossible rather than merely false — so expect to record a fresh
+review after a squash. CorvidLabs/spec-sync#694 tracks it, and it needs a decision about what a
+review proves rather than a patch.
+
+What a squash **no longer** costs you is re-verification. Ship readiness stopped depending on the
+recorded commit being reachable; it asks whether the recorded plan and tree still match what was
+verified, which is true under every merge strategy. Measured across all three: squash, rebase and
+merge-commit each reach `ready to finalize`.
+
+Check your repository's settings before you adopt, not after:
 
     gh api repos/OWNER/REPO --jq '{merge:.allow_merge_commit, squash:.allow_squash_merge, rebase:.allow_rebase_merge}'
 
 If rebase-merge is disabled and squash is the only option, **you will hit this every time**, and
 `gh pr merge --rebase` will silently fall back to squash without telling you.
 
-**There is no configuration that avoids this today, and no advice worth giving.** spec-sync's own
-repository is squash-only (`merge: false, rebase: false, squash: true`), and 89% of its own
-archived changes have an unreachable verification commit — 19 of 172. Telling you to rebase-merge
+**There is no configuration that avoids it, and no advice worth giving.** spec-sync's own
+repository is squash-only (`merge: false, rebase: false, squash: true`), and only **21 of its 198
+archived changes — 11% — still have a reachable verification commit**. Telling you to rebase-merge
 would be telling you to do something the tool's own repository cannot do.
-
-**Half of this is now fixed.** Ship readiness no longer depends on the recorded commit being
-reachable — it asks whether the recorded plan and tree still match what was verified, which is true
-under every merge strategy. Measured: squash, rebase, and merge-commit all reach `ready to
-finalize`, and a squash no longer forces a re-verification.
-
-What a squash still costs you is the **independent review**. That check walks the commits between
-the review and `HEAD` to prove nothing changed except the change's own records, and a squash makes
-that walk impossible rather than merely false. So: expect a fresh review after a squash, not a
-full re-verification. Issue #694 tracks it, and it needs a decision about what a review proves
-rather than a patch.
 
 **Merging before `finalize` costs more than it says.** It orphans that change's evidence — and it
 also blocks **every earlier accepted change sharing a delivery input** from archiving, until the

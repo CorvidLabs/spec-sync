@@ -535,6 +535,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`ADOPTING.md` no longer leads with the squash cost that #689 removed**
+  (CorvidLabs/spec-sync#729). The page an adopter is pointed at first said a squash-merge forces
+  "a full re-verify AND a fresh independent review", and corrected itself seventeen lines later
+  under a heading reading "Half of this is now fixed". #689 shipped the fix; #692 added the
+  correction as a later commit and left the lead claim standing — so the first thing a reader met
+  was the pre-#689 behaviour, in the paragraph written to alarm them, with the retraction below a
+  heading that reads like a footnote. A page that states both the old and the new behaviour and
+  leads with the old one is worse than one that states only the old, because a reader who stops
+  early is confidently misinformed and a reader who continues cannot tell which paragraph is
+  current.
+
+  The section now leads with what a squash actually costs — the independent review, and only that
+  — and states separately that re-verification is no longer among it. The framing changed from the
+  maintainer's question (what did we fix) to the adopter's (what does this cost me), which is what
+  had put the stale claim first.
+
+  The statistic in the same paragraph was also unreadable: "89% of its own archived changes have an
+  unreachable verification commit — 19 of 172" invites the reader to take 19 as the unreachable
+  count, which would be 11%. The 89% was right and the parenthetical was the *reachable* count.
+  Re-measured by walking every archived change's recorded verification commit against
+  `git merge-base --is-ancestor`: **21 of 198 reachable**. Now stated in one direction only.
+
 - **Declaring an additional module can no longer reduce the verification a change receives**
   (CorvidLabs/spec-sync#617). `verification_commands_for_change` walked `affected_specs`,
   collected whatever `component_verification_commands` entry each module had, and fell back to

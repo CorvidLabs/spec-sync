@@ -1,0 +1,57 @@
+{
+  "timestamp": 1787867621,
+  "commit": "4e867c639b9172c08b5b69f83a7f384dfb3742dc",
+  "contract_digest": "0cec5935be492cab7827ce598309af05aec0fed6ed42eaf726600e9f15819c50",
+  "execution_digest": "559c2e7ae53c2cc6b8d5a2fe029801f09cb5ff74560c01641c06330ea806e03e",
+  "workspace_digest": "0963bfa9f7887f20154e90eced8c5523807c7bbe70bcbc987d1775fe7ce68b3f",
+  "acceptance_input_digest": "ceaf3005bb492405769e40a4ed4c165bf8f6b6dc2fecdd08b2a61098255088ac",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "CHANGELOG.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8f548ad75b0ccb29060624823826d6f1d096567cdd6d74fdb71f28c0cb3dcba4",
+        "entry_digest": "8fe0f7fa11c866a9d95701bd12a59ef670f2132baa8aab62292593cc495c2bfa",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/ADOPTING.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1665631b5691f2c3995083bf7f3bbd505e242546ce2c7bff04366e4089b7cfb6",
+        "entry_digest": "c02eaf03b86c384096be6d5d4d67fe64918221112bf6286573787301a378f96a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "ruby --version",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "cargo test",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-release-version.py",
+      "success": true,
+      "exit_code": 0
+    },
+    {
+      "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "adopting-md-must-lead-with-what-a-squash-merge-actually-costs-not-the-cost-that-689-removed",
+      "reviewer": "adopting-squash-cost-review",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "4e867c639b9172c08b5b69f83a7f384dfb3742dc",
+      "contract_digest": "0cec5935be492cab7827ce598309af05aec0fed6ed42eaf726600e9f15819c50",
+      "execution_digest": "559c2e7ae53c2cc6b8d5a2fe029801f09cb5ff74560c01641c06330ea806e03e",
+      "workspace_digest": "0963bfa9f7887f20154e90eced8c5523807c7bbe70bcbc987d1775fe7ce68b3f",
+      "timestamp": 1787867627
+    }
+  ]
+}

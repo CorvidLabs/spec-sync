@@ -1,0 +1,43 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787865959,
+      "digest": "0cec5935be492cab7827ce598309af05aec0fed6ed42eaf726600e9f15819c50",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "adopting-md-must-lead-with-what-a-squash-merge-actually-costs-not-the-cost-that-689-removed",
+        "title": "ADOPTING.md must lead with what a squash merge actually costs, not the cost that #689 removed",
+        "description": "ADOPTING.md must lead with what a squash merge actually costs, not the cost that #689 removed",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "docs/ADOPTING.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Corrects prose that describes shipped behaviour incorrectly; no canonical spec module changes and no requirement gains, loses or alters a guarantee.",
+        "acceptance_criteria": [
+          "docs/ADOPTING.md states the independent review as the only cost a squash still carries, states separately that re-verification is not among them, contains no claim that a squash forces a re-verify, and reports the archive reachability figure in one direction with the current measurement (21 of 198)."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787867646,
+      "digest": "22beed88c54e7c239ddb558dff1252a6fc8a9fadcfe3ae26a915a2f2bf1b0958",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

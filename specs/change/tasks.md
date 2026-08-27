@@ -51,3 +51,4 @@ spec: change.spec.md
 - [x] Approve fails closed on ADDED of living REQ; draft next_action waits on complete artifacts (2026-08-01)
 - [x] Bind semantic delta bodies to the definition approval and read an absent binding as unknown (2026-08-24)
 - [x] Make the recorded delta binding monotone: the portable 5.0.1 pair records the wording it approves, and a later definition approval cannot withdraw a claim an earlier one made (2026-08-27)
+- [x] Hash the delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the #711 gate, and fold nothing else (2026-08-27)

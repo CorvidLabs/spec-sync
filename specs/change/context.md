@@ -181,8 +181,8 @@ scope projection deliberately hashes intent and boundary only, and nothing repla
 `validate_delta_files` checks filenames, `project_input_digest` excludes `.specsync/changes/`, and
 the descendant walk that would notice passes 0 of 107 archived reviews (#694). `approve` therefore
 records `approved_delta_digests` on the definition approval event: one digest per module over the
-delta file's exact bytes, with the module framed in so a body cannot move between files and keep
-its digest. Materialization and acceptance verify it before `prepare_delta_application` runs, and
+delta file's body (line endings canonicalized — see below), with the module framed in so a body
+cannot move between files and keep its digest. Materialization and acceptance verify it before `prepare_delta_application` runs, and
 the materialization check sits ABOVE the `canonical_applied` short-circuit so a body that drifts
 after the first application is still caught while it remains that change's evidence.
 
@@ -210,6 +210,37 @@ Carrying the binding forward was chosen over refusing the portable approve becau
 change the current binary had already approved leaves hand-editing the ledger as the alternative.
 The fix costs the projection nothing: `approved_delta_digests` is an input to neither the
 definition digest, the 5.0.1 projection bytes, nor the pair ID.
+
+The binding hashes the delta body with `\r\n` folded to `\n` (#730). It did not, and the raw-bytes
+version asked a question the rest of the module answers the other way: `markdown_block_matches`
+compares "ignoring line-ending style", `apply_markdown_block` re-emits every body in the target
+file's own style, and `parse_delta` reads through `str::lines()`, which drops the `\r` of a CRLF
+pair — so a CRLF delta and an LF delta materialize byte-identical canonical specs. A branch
+approved on Linux and checked out on Windows with `core.autocrlf=true` therefore hit the #711 gate
+with nothing edited, and the remedy the refusal names (re-approve) re-signs bytes the operator did
+not choose and diverges again on the next handoff back. This repository could not see it, because
+#715's `.gitattributes` pins keep its own deltas LF on every platform; every adopter without those
+pins was exposed. Recomputing across all 198 archived `approvals.json` before the change: 25
+recorded module digests, none of which moves under the normalization.
+
+Do NOT widen that normalization. `markdown_block_matches` also trims surrounding blank lines and
+horizontal whitespace, and copying that half would make the binding accept edits it exists to
+refuse — trailing whitespace and blank lines are wording a reviewer signed. The digest's job is
+strictly narrower than the applier's: the applier decides whether an edit is already applied, the
+digest decides whether an approver read these bytes. Only the line-ending axis is safe to erase,
+because it is the only one Git rewrites with no author behind it. A LONE `\r` is content for the
+same reason and is deliberately kept: `text`, `eol` and `core.autocrlf` only ever convert between
+LF and CRLF, so no checkout can introduce one, and `str::lines()` carries it into the canonical
+spec. `parser::parse_frontmatter` preserves it for exactly this reason (#715).
+
+The sibling sweep found nothing else. `delta_body_digests` was the only digest in the codebase
+framing filesystem text: every other `read_bounded_change_text` caller parses or checks the content
+instead of hashing it, and `definition_artifact_snapshot` — the input to `definition_digest`,
+`execution_digest` and `project_input_digest` — takes its payload from the Git BLOB for a clean
+tracked path, which Git stores LF-normalized whatever the working tree looks like. `approved_scope`
+hashes record fields and no file text at all. The one place the snapshot reads working-tree bytes
+is a path that is dirty or untracked, and the portable 5.0.1 projection already guards the case
+where those two can diverge ("use a canonical LF release checkout").
 
 Worth knowing before scoping the next defect in this area: on workflow v1 the downgrade does not
 currently reach a canonical spec, because the v1 definition digest hashes every delta payload and

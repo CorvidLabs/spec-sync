@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "hash-the-semantic-delta-binding-over-line-ending-canonical-bytes-so-a-crlf-checkout-of-an-unedited-delta-stops-failing",
+  "implementation_commit": "d715b24ce1dd5f784ee03139137e7e2723d16bc0",
+  "implementation_tree": "cad8db5aed3b90e0b06bf8f53c5dc2b40cd3b1cc",
+  "contract_digest": "453c467dce65a8f1b37877dfd5fe89e2c7db030b7cbda6c1bdfde95018102450",
+  "workspace_digest": "5f7f968a4a2f85000a9591d5b2651b195df1ad8264c7e9aadee583af5f929803",
+  "closing_digest": "dcc4013392f4b0372b4225b23293e2885907738bb77f3f72ef2bbc43e556ad34",
+  "review_digest": "11d3d97f20074839501792b97c4f22860832eab025936fcb51478be1a9d1f593",
+  "finalization_digest": "72295978900a92833698872999fce4c7e3df348bb706d026f4859b1043a6a59f",
+  "timestamp": 1787871275
+}

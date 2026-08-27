@@ -13764,6 +13764,229 @@ fn a_portable_definition_approval_records_delta_wording_with_no_prior_approval()
     );
 }
 
+/// The approved body as a checkout with `core.autocrlf=true` materializes it.
+///
+/// Derived rather than transcribed, and checked against the original both ways, so the fixture
+/// cannot silently become "some other text that happens to contain CRLF".
+fn approved_delta_body_as_a_crlf_checkout_writes_it() -> String {
+    let crlf = APPROVED_DELTA_BODY.replace('\n', "\r\n");
+    assert_ne!(
+        crlf, APPROVED_DELTA_BODY,
+        "the fixture must actually re-encode the line endings"
+    );
+    assert_eq!(
+        crlf.replace("\r\n", "\n"),
+        APPROVED_DELTA_BODY,
+        "the fixture must differ from the approved body in line endings and in nothing else"
+    );
+    crlf
+}
+
+/// DISCRIMINATOR for #730. On the unfixed binary this refuses with
+/// "semantic delta for `auth` changed after approval" for a delta nobody edited.
+///
+/// The reproduction is a cross-OS handoff and nothing more: the change is approved where the
+/// delta is LF, and the delta is then re-encoded to CRLF exactly as Git materializes it in a
+/// working tree with `core.autocrlf=true` or `text eol=crlf`. Not one character of wording moves.
+///
+/// The module already decides this case, twice, and decides it the other way:
+/// `markdown_block_matches` folds CRLF before comparing, `apply_markdown_block` re-emits every
+/// body in the target file's own style, and `parse_delta` reads through `str::lines()`, which
+/// discards the `\r` of a CRLF pair. The materialized canonical spec is therefore byte-identical
+/// either way — which is what the last assertion pins. Only the digest disagreed, so the #711
+/// gate refused honest work, and the remedy it names (re-approve) re-signs bytes the operator did
+/// not choose and diverges again on the next handoff in the other direction.
+#[test]
+fn a_delta_a_checkout_rewrote_to_crlf_still_reaches_the_canonical_spec() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    fs::write(
+        delta_path(root, &record, "auth"),
+        approved_delta_body_as_a_crlf_checkout_writes_it(),
+    )
+    .unwrap();
+    let applied = materialize_change_deltas(root, &record.id)
+        .expect("a delta whose line endings a checkout rewrote was not edited by anybody");
+
+    assert!(applied.canonical_applied);
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        spec.contains("Auth tracks credentials. Reviewed and approved wording."),
+        "the approved wording must reach the canonical spec from a CRLF delta too: {spec}"
+    );
+    assert!(
+        !spec.contains('\r'),
+        "the canonical spec must not inherit the delta's line-ending style: {spec:?}"
+    );
+}
+
+/// Honest label: this is the CONTROL for the discriminator above, and it is the important half.
+/// It passes on the unfixed binary too — that is the point. "Normalize everything" would satisfy
+/// the discriminator, so this is the assertion that says what the normalization may NOT do.
+///
+/// A real wording change must still be refused, and arriving in CRLF must not launder it. The
+/// swapped body here differs from the approved one in its words AND its line endings, so the
+/// digest has to separate the two axes rather than erase both. If someone ever widens
+/// `canonical_delta_body` to normalize the body as a whole — folding case, collapsing runs of
+/// whitespace, or comparing through `parse_delta` — this test starts letting BACKDOOR through and
+/// the #711 binding is gone while its tests still say it is there.
+#[test]
+fn a_reworded_delta_is_refused_even_when_it_arrives_with_rewritten_line_endings() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    fs::write(
+        delta_path(root, &record, "auth"),
+        SWAPPED_DELTA_BODY.replace('\n', "\r\n"),
+    )
+    .unwrap();
+    let error = materialize_change_deltas(root, &record.id)
+        .expect_err("re-encoding a swapped body must not launder the swap");
+
+    assert!(
+        error.contains("`auth`") && error.contains("changed after approval"),
+        "a refusal must still name the module and what went wrong: {error}"
+    );
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        !spec.contains("BACKDOOR"),
+        "the living spec carries wording nobody approved: {spec}"
+    );
+    assert!(
+        !load_change(root, &record.id).unwrap().canonical_applied,
+        "a refused materialization must not record itself as applied"
+    );
+}
+
+/// Honest label: CONTROL, and it passes on the unfixed binary — it is a boundary marker, not
+/// evidence of the fix. It pins the exact line #730 said not to cross.
+///
+/// `markdown_block_matches` compares "ignoring line-ending style AND surrounding blank lines",
+/// and it also trims spaces and tabs. The digest deliberately copies only the first half. The
+/// tempting simplification is to reuse the applier's `normalize` and be done; each body below is
+/// one the applier would call equal to the approved one, and every one of them must still be
+/// REFUSED, because the digest answers a different question. The applier asks whether an edit is
+/// already applied; the digest asks whether an approver read these bytes. Blank lines and trailing
+/// whitespace are wording a reviewer signed, and Git rewrites neither of them on its own — the
+/// line-ending axis is the only one with no author behind it.
+///
+/// If this test ever goes green-by-acceptance, the binding no longer distinguishes an edited
+/// delta from an untouched one on any axis the applier happens to fold.
+#[test]
+fn a_delta_edited_only_in_whitespace_the_applier_would_ignore_is_still_refused() {
+    let variants = [
+        ("a trailing blank line", format!("{APPROVED_DELTA_BODY}\n")),
+        ("a leading blank line", format!("\n{APPROVED_DELTA_BODY}")),
+        (
+            "trailing spaces on a content line",
+            APPROVED_DELTA_BODY.replace("approved wording.\n", "approved wording.   \n"),
+        ),
+        (
+            "a tab indenting a content line",
+            APPROVED_DELTA_BODY.replace("Auth tracks", "\tAuth tracks"),
+        ),
+    ];
+
+    for (description, body) in variants {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = change_with_an_approved_delta(root);
+        assert_ne!(
+            body, APPROVED_DELTA_BODY,
+            "the {description} fixture must actually differ from the approved body"
+        );
+
+        fs::write(delta_path(root, &record, "auth"), &body).unwrap();
+        let error = match materialize_change_deltas(root, &record.id) {
+            Ok(_) => panic!("a delta edited by {description} must not be read as unchanged"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error.contains("changed after approval"),
+            "a delta edited by {description} must still be refused: {error}"
+        );
+    }
+}
+
+/// Honest label: CHARACTERIZATION of a decision taken deliberately, and it passes on the unfixed
+/// binary too.
+///
+/// A LONE `\r` is content, and #730 asked for that to be decided rather than omitted. Git's
+/// `text`, `eol` and `core.autocrlf` conversions only ever move between LF and CRLF, so no
+/// checkout can introduce a classic-Mac terminator; `str::lines()` and `markdown_block_matches`
+/// both keep a bare `\r` as ordinary text, and `parser::parse_frontmatter` preserves it for the
+/// same reason (#715). So a bare `\r` reaches the canonical spec, which makes it wording — and a
+/// body that gained one was edited by a person, not rewritten by a checkout.
+///
+/// Folding it would be the widening this fix exists to avoid: the digest would stop distinguishing
+/// two deltas that materialize different canonical specs.
+#[test]
+fn a_lone_carriage_return_is_delta_content_and_is_not_folded_away() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    let body = APPROVED_DELTA_BODY.replace("Reviewed and", "Reviewed\rand");
+    assert!(
+        !body.contains("\r\n"),
+        "the fixture must carry a BARE carriage return, not a CRLF pair"
+    );
+
+    fs::write(delta_path(root, &record, "auth"), &body).unwrap();
+    let error = materialize_change_deltas(root, &record.id)
+        .expect_err("a bare carriage return is content, so a body that gained one was edited");
+
+    assert!(
+        error.contains("changed after approval"),
+        "a refusal must say what went wrong: {error}"
+    );
+    assert!(
+        matches!(
+            canonical_delta_body("no carriage return here"),
+            Cow::Borrowed(_)
+        ),
+        "an LF-only body must take the borrowed path and allocate nothing"
+    );
+    assert_eq!(
+        canonical_delta_body("a\r\nb\rc\n").as_ref(),
+        "a\nb\rc\n",
+        "only CRLF pairs fold; a bare carriage return survives"
+    );
+}
+
+/// COMPATIBILITY, and the assertion #730 required be MEASURED rather than reasoned about.
+///
+/// The normalizing digest must be byte-identical to the digest the unnormalized binding recorded
+/// for an LF body, or every `approved_delta_digests` written since #711 silently becomes a
+/// refusal. The expected value below is the pre-#730 digest — SHA-256 over the framed domain,
+/// module and RAW body bytes — so this fails if the normalization ever touches an LF delta.
+///
+/// The same recomputation was run across all 198 archived `approvals.json` in this repository:
+/// 25 recorded module digests, 0 of which move.
+#[test]
+fn an_lf_delta_hashes_to_exactly_the_digest_the_unnormalized_binding_recorded() {
+    const PRE_NORMALIZATION_DIGEST: &str =
+        "66d9882e0429aff9d0dc043c78e84b526e021e9678693967e423fdd06f00734a";
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    assert_eq!(
+        recorded_delta_digests(root, &record)
+            .expect("approve records the delta bodies it approved")
+            .get("auth")
+            .map(String::as_str),
+        Some(PRE_NORMALIZATION_DIGEST),
+        "normalizing line endings must not move the digest of an LF delta; every digest recorded \
+         since #711 was written over raw bytes and must keep verifying"
+    );
+}
+
 #[test]
 fn path_coverage_uses_current_remote_base_after_rebase() {
     let temp = TempDir::new().unwrap();

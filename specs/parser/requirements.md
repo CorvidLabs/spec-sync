@@ -67,3 +67,31 @@ Acceptance Criteria
 - A comment following the closing quote is discarded; a `#` inside the quotes is retained as content.
 - An opening quote with no matching close is a frontmatter error naming the offending value, and the value is not retained as a literal.
 - Flow-style lists continue to unquote their own items.
+
+### REQ-parser-003
+
+Every frontmatter reader in this module SHALL recognize a delimiter LINE by one rule — exactly
+three dashes followed by nothing but whitespace — applied to BOTH ends of the block, in either
+line encoding, with the two ends free to disagree with each other.
+
+Acceptance Criteria
+- A delimiter carrying trailing spaces or tabs opens and closes frontmatter in `strip_frontmatter`,
+  `parse_frontmatter`, and `parse_checked_issue_references` alike, so a document with a padded
+  OPENER has its YAML removed from the body rather than counted as prose, and a document with a
+  padded CLOSER keeps the body prose above the first horizontal rule below it.
+- A padded closer never lets frontmatter run into the body: `parse_frontmatter` emits no
+  "Ignoring malformed frontmatter line" warning for body prose, and `parse_checked_issue_references`
+  reads the references that are there instead of reporting the YAML invalid.
+- `parse_checked_issue_references` reads a document whose opening and closing delimiters carry
+  different line endings, which the hand-rolled pair of prefix/split chains it replaces could not.
+- A line that is not exactly three dashes is not a delimiter in any reader: `----`, `--- x`,
+  `---change: x`, and an indented `  ---` leave `strip_frontmatter` returning the document whole,
+  `parse_frontmatter` returning `None`, and `parse_checked_issue_references` returning its stable
+  content-free error. Loosening this would cut the body of any document that opens with a Markdown
+  thematic break at its next rule.
+- The three readers return the same verdict for every delimiter shape, asserted as a matrix, so the
+  rule cannot be loosened in one reader and not the others.
+- `parse_checked_issue_references` keeps the verdicts it had for an empty frontmatter block and for
+  a block that is a single blank line.
+- `parse_frontmatter` returns an LF-only body when the frontmatter is LF and only the body is CRLF.
+

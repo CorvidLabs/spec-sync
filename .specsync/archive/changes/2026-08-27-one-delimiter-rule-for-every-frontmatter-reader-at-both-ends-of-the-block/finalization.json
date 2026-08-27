@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "one-delimiter-rule-for-every-frontmatter-reader-at-both-ends-of-the-block",
+  "implementation_commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
+  "implementation_tree": "68da1da88b17f8cbd9e93bcdb43e3c73c167f8c7",
+  "contract_digest": "374a934488750b455a6b7b0f24bb725cb08860c60ca645ab058d76bafe253ff3",
+  "workspace_digest": "93b67dc4352c0f1944108cda69b7621e85f661d9ce6399e7157fb29042cac672",
+  "closing_digest": "58fb1d3853108830a21924d285858bfbfdec0447281083e047fafad07414ee95",
+  "review_digest": "1975c8c3559306f0af79562cccf32385f1866e3b8732f72a06eadfc6b8d844a3",
+  "finalization_digest": "52be30410ede2cd9b9e20d9e5c539210ed6eedd0232736986e2374c95ead5a50",
+  "timestamp": 1787866928
+}

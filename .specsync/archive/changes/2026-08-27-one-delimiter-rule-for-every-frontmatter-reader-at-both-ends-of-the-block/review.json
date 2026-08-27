@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "one-delimiter-rule-for-every-frontmatter-reader-at-both-ends-of-the-block",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
+  "contract_digest": "374a934488750b455a6b7b0f24bb725cb08860c60ca645ab058d76bafe253ff3",
+  "execution_digest": "500f06232e4bd31968a444b21ae8c3560cf7482cef6176f44f2b6828513eb978",
+  "workspace_digest": "93b67dc4352c0f1944108cda69b7621e85f661d9ce6399e7157fb29042cac672",
+  "timestamp": 1787866844
+}

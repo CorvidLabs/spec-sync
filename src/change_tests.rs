@@ -7654,6 +7654,80 @@ fn artifact_completeness_verdicts_are_unchanged_for_lf_artifacts() {
     ));
 }
 
+// Honest label: DISCRIMINATOR for #716. The approval gate this feeds is the whole reason the
+// stripper's delimiter rule matters: a trailing space on the OPENING delimiter meant the block
+// was never stripped, the `change:` and `artifact:` lines counted as prose, and an artifact with
+// nothing written in it was approved as complete.
+//
+// Discriminates: on the unfixed binary this asserts `true` on a `false` — the artifact passes.
+#[test]
+fn an_artifact_that_is_only_frontmatter_with_a_padded_opening_delimiter_is_incomplete() {
+    assert!(artifact_content_is_incomplete(
+        "---  \nchange: CHG-1\nartifact: design\n---\n"
+    ));
+    assert!(artifact_content_is_incomplete(
+        "---  \nchange: CHG-1\nartifact: design\n---\n\nTODO\n"
+    ));
+}
+
+// Honest label: DISCRIMINATOR for #716, the other end of the same mistake and the destructive
+// one. A trailing space on the CLOSING delimiter sent the scan past the real end of the block and
+// stopped it at the first horizontal rule in the body, deleting the prose above it. What survived
+// here is a bare `TODO`, so a written design was refused as "artifact is incomplete" and the
+// author had no way to see why.
+//
+// Discriminates: on the unfixed binary this asserts `false` on a `true` — the artifact is refused.
+#[test]
+fn a_padded_closing_delimiter_does_not_delete_the_prose_above_a_body_horizontal_rule() {
+    let content = "---\nchange: CHG-1\nartifact: design\n---  \n\n\
+# Design\n\nThe retry budget is per-host, not per-request.\n\n---\n\nTODO\n";
+
+    assert!(
+        !artifact_content_is_incomplete(content),
+        "written prose above a body horizontal rule must survive a padded closing delimiter"
+    );
+}
+
+// Honest label: CHARACTERIZATION. It passes on the unfixed binary too — that is why it is here.
+//
+// #696 replaced this module's own `strip_yaml_frontmatter`, which had no BOM trim, so a
+// BOM-prefixed artifact kept its frontmatter, the YAML counted as prose, and an artifact whose
+// body was empty or only TODO passed the completeness gate. The replacement fixed that without
+// claiming it and without a test. Undisclosed correct behaviour is still undisclosed; this is the
+// record of it (#716).
+#[test]
+fn a_bom_prefixed_artifact_with_no_written_body_is_incomplete() {
+    assert!(artifact_content_is_incomplete(
+        "\u{feff}---\nchange: CHG-1\nartifact: design\n---\n"
+    ));
+    assert!(artifact_content_is_incomplete(
+        "\u{feff}---\nchange: CHG-1\nartifact: design\n---\n\nTODO\n"
+    ));
+    // ...and a BOM must not make a WRITTEN artifact read as incomplete either.
+    assert!(!artifact_content_is_incomplete(
+        "\u{feff}---\nchange: CHG-1\nartifact: design\n---\n\nThe retry budget is per-host.\n"
+    ));
+}
+
+// Honest label: CHARACTERIZATION of a KNOWN RESIDUAL, and it passes on the unfixed binary. It
+// asserts a WRONG verdict on purpose, because the alternative is worse.
+//
+// `----` is a legal Markdown thematic break. Treating it as an opening delimiter would make the
+// stripper scan forward to the next rule and return a body cut at it, which is the failure the
+// canonical reader exists to prevent (#697, #699, #705) — so an artifact that is nothing but
+// frontmatter opened with `----` still reads as complete here. Deriving the gate from the
+// generated scaffold instead does not close this either: a file with a mangled opener no longer
+// equals the scaffold, so it would read as written for the same reason.
+//
+// If this test ever fails, the hole closed — check that it closed for a defensible reason and
+// delete the test, do not "restore" it.
+#[test]
+fn a_four_dash_opener_still_hides_an_empty_artifact_from_the_gate() {
+    assert!(!artifact_content_is_incomplete(
+        "----\nchange: CHG-1\nartifact: design\n---\n"
+    ));
+}
+
 #[test]
 fn validate_artifacts_rejects_hash_todo_body() {
     let temp = TempDir::new().unwrap();

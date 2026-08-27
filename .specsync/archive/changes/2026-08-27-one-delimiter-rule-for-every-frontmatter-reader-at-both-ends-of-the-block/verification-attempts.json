@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1787866751,
+      "commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
+      "contract_digest": "374a934488750b455a6b7b0f24bb725cb08860c60ca645ab058d76bafe253ff3",
+      "execution_digest": "500f06232e4bd31968a444b21ae8c3560cf7482cef6176f44f2b6828513eb978",
+      "workspace_digest": "93b67dc4352c0f1944108cda69b7621e85f661d9ce6399e7157fb29042cac672",
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-parser-003"
+      ]
+    },
+    {
+      "timestamp": 1787866751,
+      "commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
+      "contract_digest": "374a934488750b455a6b7b0f24bb725cb08860c60ca645ab058d76bafe253ff3",
+      "execution_digest": "500f06232e4bd31968a444b21ae8c3560cf7482cef6176f44f2b6828513eb978",
+      "workspace_digest": "93b67dc4352c0f1944108cda69b7621e85f661d9ce6399e7157fb29042cac672",
+      "acceptance_input_digest": "b218cd575cb619db4f99e3f9a70dc682f97a13b529be9bcbac99b2426d430574",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/change/change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "67092336f73456564894ced0b9ba06309fa067558ce2754a34d6805cf0eab82d",
+            "entry_digest": "21502db7ee47e898e671e434ae1e0c2edef3d16551125f0cebe17f5defc18698",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9dba45169633f8723269d2f76098c611964b9e155db73f2d5cc78f40ef163778",
+            "entry_digest": "38128fe6c843615dafc6e63ab1bf9b7ecb792848755a395264f8b1e3580326d3",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9ae26422579e2d7f54d7757db55e82c2ca523acaf938d8705c72ca34e8674e01",
+            "entry_digest": "f6a3da82235e85084f2f78789e33681a5f80d705602cbea2ddcc1a0eb3a21d1d",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "01f58c0bff6e5b22082528c67bb9254577a99f2181209298c9ae87706a354de0",
+            "entry_digest": "409ef913935f073503e7fd31d76f4d63d1914dff8b04ac9471677c7850a66d74",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "74d2da679737bc8b3e891f7f310b58684c230657e353ceff09a2dd2a68af3a48",
+            "entry_digest": "87885afb2acdebf9c0de05f898b5b64686ec4b77620759ac02cf7f99a4baf75b",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/parser/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0f7075e4c1ef2a6c976c4739d60457a58936d55b2d298a03037755f4c19c74af",
+            "entry_digest": "b78a3113f96d5f842da9b4055ca39448c5c1a3f73dd47a8c72771b8764d5d2c7",
+            "owners": [
+              "parser"
+            ]
+          },
+          {
+            "path": "specs/parser/parser.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b7a40fbd8184978619b2499c20c3974249f6e5bc7d16428dfcadee6626077323",
+            "entry_digest": "6f239c5072f44fa8995668c941bb0c647f9d4b128762bba652cd13d5e87683c5",
+            "owners": [
+              "parser"
+            ]
+          },
+          {
+            "path": "specs/parser/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "048216fc0f82a08cb7eb291d2a6f8ceaef5c48ea3132e67cb0f86a98351ae929",
+            "entry_digest": "608e5385573ea39f9e02b15118969fdb6d0dd94e3c4d91a157e27425f287b7a5",
+            "owners": [
+              "parser"
+            ]
+          },
+          {
+            "path": "specs/parser/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "55613713a358278e6b6f5704c67ccf390a3df78139a6c3827efafdf6b0bb6c98",
+            "entry_digest": "b91ca89fd81886b6b9cc30569ab4a85c0e868063926b02185330baf87d3c503f",
+            "owners": [
+              "parser"
+            ]
+          },
+          {
+            "path": "specs/parser/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1f1ef72e9dff93c2a35c7ff69a71963f0099a13a35724cd43df97f0b25e8b148",
+            "entry_digest": "d53e911e1b949178c900e99e5ff9d368ae3d42261b380932f4e78113b1419af3",
+            "owners": [
+              "parser"
+            ]
+          },
+          {
+            "path": "src/change_tests.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "aee31423cd83f79f0454d9027409208c23eab55d5399e2a6ca279af2d2e1141e",
+            "entry_digest": "3c4f713af72e1006e6760d114ed6bf24f0b49722796b88fc217ae4caa2c36a98",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/parser.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c5f45592eb69823a6a3e10f9a3e61442e2f7161f8a480e72e7c89c9d5e00d2cd",
+            "entry_digest": "e09831ab711d5cabd4f5523bdf2b7a41ff1517a99f72077fb08788eace259939",
+            "owners": [
+              "parser"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-parser-003"
+      ]
+    }
+  ]
+}

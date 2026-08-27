@@ -1173,6 +1173,11 @@ fn parse_json_config_with_source_dirs(
     fail_closed_invalid_json_github_repo(&mut raw);
 
     let mut config = serde_json::from_value::<SpecSyncConfig>(raw)?;
+    // `source_dirs_set` is `#[serde(skip)]`, so it is false after the value
+    // deserialization above whatever the file said. Record what the file
+    // actually stated: once loading is done, a configured `["src"]` and the
+    // `["src"]` default are the same list (#723).
+    config.source_dirs_set = source_dirs_configured;
     if !source_dirs_configured {
         config.source_dirs = detected_source_dirs
             .map(<[String]>::to_vec)
@@ -1423,6 +1428,10 @@ fn parse_toml_config_with_source_dirs(
         }
     }
 
+    // What the file actually stated, recorded before any fallback overwrites
+    // the list: a configured `["src"]` is indistinguishable from the `["src"]`
+    // default afterwards, and coverage has to tell them apart (#723).
+    config.source_dirs_set = has_source_dirs;
     if !has_source_dirs {
         config.source_dirs = detected_source_dirs
             .map(<[String]>::to_vec)

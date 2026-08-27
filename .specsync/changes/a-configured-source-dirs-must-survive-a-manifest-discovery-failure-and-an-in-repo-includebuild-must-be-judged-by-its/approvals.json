@@ -1,0 +1,64 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787841044,
+      "digest": "ddef7468dde9780f873da390092008f8f2f5929ce9f2242e0bd0ec8002162418",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its",
+        "title": "A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token",
+        "description": "a configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cli",
+          "cmd_check",
+          "comment",
+          "config",
+          "generator",
+          "manifest",
+          "output",
+          "types",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/commands/check.rs",
+          "src/comment.rs",
+          "src/config.rs",
+          "src/generator.rs",
+          "src/main.rs",
+          "src/manifest.rs",
+          "src/output.rs",
+          "src/types.rs",
+          "src/validator.rs",
+          "tests/integration/commands.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "a project whose Gradle settings cannot be parsed but whose source_dirs is explicitly configured runs check and coverage to completion and reports real numbers; the unparseable manifest is disclosed as a coverage notice beside those numbers, in text, markdown, and JSON, rather than replacing them; that notice never gates, because unlike a shrunken denominator it cannot inflate a percentage; degrading reads no byte outside the project root, generates nothing out of the rejected discovery, and leaves the outside tree untouched; a project that did NOT configure source_dirs still fails closed, because its source list came from the discovery that failed; an in-repo includeBuild(\"vendor/podo-shared\") parses, contributes no module, and leaves the root build's include list untouched, wherever the declaration appears; includeBuild(\"../outside\") and dynamic, interpolated, multi-argument, or block-suffixed includeBuild arguments are still refused, now naming the argument rather than the token"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli": "4bdc02c2facbf6e2ed3fe705e0c20d6ba731d9aae136cc4f428bf41641d1c843",
+        "cmd_check": "a8d484e785229de28ec8b605f62e78102685d7d9344f888b95316edd727de350",
+        "comment": "319f0039d2b3ae1da868c12165ddba2040dbaccd22fe07173c559f91cdba256a",
+        "config": "dd8a89b8401a8a0011243657116130e73aaecb3735c0f1a752fbae7b96cfcf7a",
+        "generator": "1d7df14ed581bfbd1d542f364f2b1323eaa2b0347dff1618b7445c8f47884edd",
+        "manifest": "8ee18ccb10d110478ae86ca54d71bd880f1f4810a5311e6387c05390419934ad",
+        "output": "b30c013f83cd8b7db9175582c6088f7b9c93af02a96842f81948516f92a3cebc",
+        "types": "1ded5f5402f012685030b84f8f0800c674951c9878ec57b9b555238841ea7301",
+        "validator": "f2abca38e6621d32df996f9e95e6eb5d30fadefb4ca1b7a9969143e9ead54631"
+      }
+    }
+  ],
+  "reopenings": []
+}

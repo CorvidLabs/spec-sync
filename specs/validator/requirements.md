@@ -136,7 +136,12 @@ or traversing outside the retained project root.
 Acceptance Criteria
 
 - `compute_coverage_checked` propagates checked manifest-discovery errors without producing a
-  partial `CoverageReport`.
+  partial `CoverageReport` WHEN `source_dirs` was not explicitly configured, because the source
+  list it would otherwise measure is itself discovery output.
+- When `source_dirs` IS explicitly configured, the same error does not veto the declaration.
+  Discovery degrades to an empty result, coverage completes over the stated list, and the error is
+  reported as a `manifest_notices` entry beside the figures — an input the tool could not interpret
+  is never a verdict about the project.
 - CLI and MCP coverage/enforcement callers use checked coverage and fail with an inconclusive
   diagnostic.
 - Raw drive-qualified module identities, dynamic/unsupported project-directory mutators, and

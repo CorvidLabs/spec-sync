@@ -666,7 +666,13 @@ where
                 });
             }
         };
-        if !retained_config_has_source_dirs(relative, content)? {
+        // One predicate decides both the fallback and the record of it. If the
+        // flag were left to the parser while the override were decided here,
+        // the two could disagree and coverage would treat a SCANNED list as a
+        // stated one — degrading a manifest error over a guess, which is the
+        // one thing the flag exists to prevent (#723).
+        config.source_dirs_set = retained_config_has_source_dirs(relative, content)?;
+        if !config.source_dirs_set {
             config.source_dirs = retained_source_dirs(project, root, budget)?;
         }
         return Ok(config);
@@ -3855,6 +3861,98 @@ mod tests {
         );
     }
 
+    /// THE REGRESSION (#723). A configured `source_dirs` is a statement about
+    /// where the sources are. Manifest discovery exists to INFER that when it
+    /// was not stated, so a failure to infer it cannot overrule the statement
+    /// and abort the command — yet `compute_coverage_checked` propagated the
+    /// error unconditionally, and `check`/`coverage` both exit on it. A Gradle
+    /// project whose settings this parser could not read could therefore not be
+    /// measured at all, on any 6.0 candidate, `source_dirs` set or not.
+    ///
+    /// Both halves are asserted together because the fix is a PRECEDENCE, not a
+    /// softening. The same unreadable manifest must still be fatal when the
+    /// project did not state `source_dirs` — there the list coverage would
+    /// measure is itself discovery output, and degrading would report a
+    /// percentage over a guess. Asserting only the first half would pass
+    /// equally well against a change that just stopped failing.
+    ///
+    /// The manifest here is malformed rather than merely unsupported, so this
+    /// test is independent of which Gradle forms the parser happens to accept:
+    /// it is about what an unreadable input is allowed to VETO.
+    #[test]
+    fn configured_source_dirs_survive_a_manifest_that_cannot_be_parsed() {
+        let project = tempfile::tempdir().unwrap();
+        fs::create_dir_all(project.path().join("app/src/main/java/com/podo")).unwrap();
+        fs::create_dir_all(project.path().join(".specsync")).unwrap();
+        fs::write(
+            project
+                .path()
+                .join("app/src/main/java/com/podo/Widget.java"),
+            "package com.podo;\npublic class Widget {}\n",
+        )
+        .unwrap();
+        fs::write(
+            project.path().join("settings.gradle"),
+            "include(\":member\"\n",
+        )
+        .unwrap();
+        fs::write(
+            project.path().join(".specsync/config.toml"),
+            "specs_dir = \"specs\"\nsource_dirs = [\"app/src/main/java\"]\n",
+        )
+        .unwrap();
+        let retained = open_coverage_project_root(project.path()).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+
+        let config = retained_config(&retained, project.path(), &mut budget).unwrap();
+        assert!(
+            config.source_dirs_set,
+            "a stated source_dirs must be recorded as stated"
+        );
+        assert_eq!(config.source_dirs, ["app/src/main/java"]);
+
+        let report = compute_coverage_checked(project.path(), &[], &config)
+            .unwrap_or_else(|error| panic!("configured source_dirs were vetoed by: {error}"));
+
+        // Coverage ran over the declared list and reports real numbers, rather
+        // than the `total_source_files: 0` of an inconclusive report.
+        assert_eq!(report.total_source_files, 1);
+        assert_eq!(report.specced_file_count, 0);
+        assert_eq!(
+            report.unspecced_files,
+            ["app/src/main/java/com/podo/Widget.java"]
+        );
+
+        // Degraded, not silent. The manifest also declares modules, so this run
+        // names fewer modules without specs than the tree could hold — a report
+        // improved by a measurement that stopped, which travels with the
+        // figures instead of to stderr (#570).
+        assert_eq!(
+            report.manifest_notices.len(),
+            1,
+            "expected one degradation notice, got {:?}",
+            report.manifest_notices
+        );
+        assert!(
+            report.manifest_notices[0].contains("Cannot parse Gradle settings manifest"),
+            "the notice must name what could not be read: {:?}",
+            report.manifest_notices
+        );
+
+        // Honest label: this half is the CONTROL, and it is what fails if the
+        // precedence were implemented as "manifest errors are never fatal".
+        // Same tree, same unreadable manifest, `source_dirs` no longer stated.
+        let inferred = SpecSyncConfig {
+            source_dirs_set: false,
+            ..config
+        };
+        let error = compute_coverage_checked(project.path(), &[], &inferred).unwrap_err();
+        assert!(
+            error.contains("Cannot parse Gradle settings manifest"),
+            "an unstated source list must still fail closed: {error}"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn retained_config_rejects_a_detached_parent_before_read() {
@@ -5956,7 +6054,54 @@ pub fn compute_coverage(
         unspecced_file_loc: Vec::new(),
         missing_files: Vec::new(),
         skipped_links: Vec::new(),
+        manifest_notices: Vec::new(),
     })
+}
+
+/// Retained manifest discovery for coverage, and what a failure of it means.
+///
+/// Discovery exists to INFER a source list the project did not state, and to
+/// name the modules a manifest declares. Which of those a given project is
+/// actually relying on decides whether a manifest that cannot be parsed is a
+/// verdict or a note:
+///
+/// - **`source_dirs` omitted** — the list coverage would measure came out of
+///   this discovery. There is nothing trustworthy to measure over, so the error
+///   propagates and the command is inconclusive, exactly as before.
+/// - **`source_dirs` stated** — the user already said where the sources are.
+///   A failure to infer what they stated cannot overrule them: it costs only
+///   manifest-declared module names, so it degrades to a notice and coverage
+///   proceeds over the declared list.
+///
+/// The second case used to abort too. A Gradle project with an ordinary in-repo
+/// `includeBuild("vendor/…")` could not run `check --strict` or `coverage` at
+/// all — on any 6.0 candidate — even with `source_dirs` explicitly configured,
+/// because an input the parser could not read was treated as a verdict about
+/// the project (#723). Fixing only the parser would have left the class intact:
+/// any manifest, in any ecosystem, that a future parser cannot read would again
+/// override an explicit declaration.
+///
+/// The notice is not optional. Manifest modules seed module attribution, so a
+/// degraded run reports fewer modules without specs than the tree has — a
+/// report that improved because part of the measurement stopped. It travels
+/// with the figures rather than to stderr, because stderr is precisely what a
+/// CI job capturing stdout does not read (#570).
+fn retained_coverage_manifest(
+    root: &Path,
+    project: &Dir,
+    config: &SpecSyncConfig,
+) -> Result<(crate::manifest::ManifestDiscovery, Vec<String>), String> {
+    match crate::manifest::discover_from_manifests_checked_with_root(root, project) {
+        Ok(discovery) => Ok((discovery, Vec::new())),
+        Err(error) if config.source_dirs_set => Ok((
+            crate::manifest::ManifestDiscovery::default(),
+            vec![format!(
+                "Manifest discovery was skipped ({error}); coverage used the configured source_dirs, \
+                 so modules declared only by that manifest are not reported"
+            )],
+        )),
+        Err(error) => Err(error),
+    }
 }
 
 /// Compute file and module coverage while surfacing malformed manifest inputs.
@@ -5974,7 +6119,7 @@ pub fn compute_coverage_checked(
             budget.limits.max_entries
         ));
     }
-    let manifest = crate::manifest::discover_from_manifests_checked_with_root(root, &project)?;
+    let (manifest, manifest_notices) = retained_coverage_manifest(root, &project, config)?;
     let selected_sources =
         select_coverage_source_directories(&project, config, budget.limits.max_depth)?;
     coverage_snapshot_test_barrier(CoverageSnapshotCheckpoint::ManifestDiscovered)?;
@@ -6219,6 +6364,7 @@ pub fn compute_coverage_checked(
         unspecced_file_loc,
         missing_files,
         skipped_links: budget.skipped_links.iter().cloned().collect(),
+        manifest_notices,
     })
 }
 

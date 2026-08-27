@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 22
+version: 25
 status: stable
 files:
   - src/main.rs
@@ -321,7 +321,7 @@ Cold start times (first run after boot) may be 2-3x higher due to disk cache war
 | config | `load_config`, `detect_source_dirs` |
 | cli_args | Clap parser types, command/action enums, and global argument projection |
 | parser | `parse_frontmatter` |
-| validator | `validate_spec`, `find_spec_files`, `compute_coverage` (whose report carries the symlinked entries discovery skipped), `get_schema_table_names`, `is_cross_project_ref`, `parse_cross_project_ref` |
+| validator | `validate_spec`, `find_spec_files`, `compute_coverage` (whose report carries the symlinked entries discovery skipped and the manifests degraded rather than propagated), `get_schema_table_names`, `is_cross_project_ref`, `parse_cross_project_ref` |
 | exports | `has_extension`, `get_exported_symbols` (used by auto_fix_specs and cmd_diff) |
 | generator | `generate_specs_for_unspecced_modules`, `generate_specs_for_unspecced_modules_paths`, `generate_companion_files_for_spec` |
 | scoring | `score_spec`, `compute_project_score`, `SpecScore` |
@@ -380,3 +380,6 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-08-13 | CHG-0109-a-symlink-under-a-source-directory-must-be-skipped-and-disclosed-never-abort-di: A symlink under a source directory must be skipped and disclosed, never abort discovery |
 | 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |
 | 2026-08-17 | CHG-0142-watch-must-disclose-a-dropped-directory-and-not-claim-a-pass-over-an-empty-check: Watch must disclose a dropped directory and not claim a pass over an empty check |
+| 2026-08-27 | v23 / #723: `CoverageReport` also carries manifest discovery that was degraded rather than allowed to veto an explicitly configured `source_dirs` |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |

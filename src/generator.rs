@@ -1614,6 +1614,7 @@ mod tests {
             unspecced_file_loc: vec![("src/custom.rs".to_string(), 1)],
             missing_files: Vec::new(),
             skipped_links: Vec::new(),
+            manifest_notices: Vec::new(),
         };
         let mut config = SpecSyncConfig::default();
         config.modules.insert(

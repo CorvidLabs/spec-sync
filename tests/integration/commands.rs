@@ -1244,6 +1244,7 @@ fn malformed_gradle_is_inconclusive_for_coverage_gating_commands() {
     let root = setup_minimal_project(&tmp);
     fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
     fs::write(root.join("settings.gradle.kts"), "include(\":member\"\n").unwrap();
+    omit_config_source_dirs(&root);
 
     for command in ["check", "coverage", "generate", "report", "score"] {
         let output = specsync()
@@ -1318,6 +1319,130 @@ fn malformed_gradle_is_inconclusive_for_coverage_gating_commands() {
         .stdout(predicate::str::is_empty())
         .stderr(predicate::str::contains("Coverage inconclusive"))
         .stderr(predicate::str::contains("Gradle"));
+}
+
+/// The other half of every refusal above (#723): the same unsafe Gradle input,
+/// with `source_dirs` STATED.
+///
+/// Discovery still refuses these manifests. What changes is what the refusal is
+/// allowed to conclude. Discovery exists to INFER a source list the project did
+/// not state, so when the project HAS stated one, a failure to infer it is not a
+/// verdict about the project and must not abort the command — which is why an
+/// ordinary Gradle project could not run `check --strict` or `coverage` at all
+/// on any 6.0 candidate, `source_dirs` configured or not.
+///
+/// Everything the refusal was actually protecting has to survive that, so this
+/// asserts it directly rather than trusting the exit code to stand in for it: no
+/// byte outside the root is read or disclosed, nothing is generated out of the
+/// rejected discovery, and the outside tree is untouched. The gating commands
+/// additionally DISCLOSE the degradation — manifest modules seed module
+/// attribution, so a degraded run names fewer modules without specs than the
+/// tree holds, and that is a report improved by a measurement that stopped.
+#[test]
+fn unsafe_gradle_discovery_degrades_over_stated_source_dirs_without_escaping() {
+    for (label, settings, module, notice_fragment) in [
+        (
+            "malformed",
+            "include(\":member\"\n".to_string(),
+            "member",
+            "unbalanced parentheses",
+        ),
+        (
+            "root-escape",
+            "include(\":outside\")\nproject(\":outside\").projectDir = file(\"../outside\")\n"
+                .to_string(),
+            "outside",
+            "must remain beneath the project root",
+        ),
+        (
+            "interpolated",
+            "val outside = \"../outside\"\ninclude(\":member\")\nproject(\":member\").projectDir = file(\"$outside\")\n"
+                .to_string(),
+            "member",
+            "Unsupported or dynamic Gradle expression",
+        ),
+        (
+            "unsupported-mutator",
+            "includeFlat(\"../outside\")\n".to_string(),
+            "outside",
+            "Unsupported Gradle workspace mutator",
+        ),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("project");
+        let outside_source = tmp.path().join("outside/src/main/kotlin/Secret.kt");
+        setup_minimal_project_at(&root);
+        fs::create_dir_all(outside_source.parent().unwrap()).unwrap();
+        let outside_bytes = format!("const val SECRET = \"DEGRADED_{label}\"\n");
+        fs::write(&outside_source, outside_bytes.as_bytes()).unwrap();
+        fs::write(root.join("settings.gradle.kts"), &settings).unwrap();
+
+        for command in ["check", "coverage", "generate", "report", "score"] {
+            let assertion = specsync()
+                .arg(command)
+                .arg("--root")
+                .arg(&root)
+                .args(["--format", "json"])
+                .assert();
+            // `report` and `score` can still exit 1 over something the manifest
+            // has nothing to do with — these fixtures are not git repositories,
+            // so staleness is unmeasurable. The claim under test is that the
+            // MANIFEST no longer decides the outcome, so those two are judged on
+            // the report they produced rather than on the status.
+            let assertion = if matches!(command, "check" | "coverage" | "generate") {
+                assertion.success()
+            } else {
+                assertion
+            };
+            let output = assertion.get_output().stdout.clone();
+            let json: serde_json::Value = serde_json::from_slice(&output).unwrap_or_else(|error| {
+                panic!(
+                    "{command} must emit valid JSON after degraded Gradle {label} discovery: {error}; stdout={}",
+                    String::from_utf8_lossy(&output)
+                )
+            });
+            assert_ne!(
+                json["inconclusive"],
+                serde_json::json!(true),
+                "{command} was still inconclusive over a stated source list for Gradle {label}: {json}"
+            );
+            match command {
+                // The two gating commands carry the disclosure channel.
+                "check" | "coverage" => {
+                    let notices = json["manifest_notices"].as_array().unwrap_or_else(|| {
+                        panic!("{command} must carry manifest_notices for Gradle {label}: {json}")
+                    });
+                    assert!(
+                        notices.iter().any(|notice| notice
+                            .as_str()
+                            .is_some_and(|text| text.contains(notice_fragment))),
+                        "unexpected {command} manifest_notices for Gradle {label}: {json}"
+                    );
+                }
+                // The rest must have produced a real report rather than the
+                // zeroed shape an inconclusive run emits.
+                "report" => {
+                    assert_eq!(json["overall_coverage_pct"], 100.0, "{json}");
+                    assert_eq!(json["total_modules"], 1, "{json}");
+                }
+                "score" => assert_eq!(json["total_specs"], 1, "{json}"),
+                _ => {}
+            }
+            assert!(
+                !String::from_utf8_lossy(&output).contains("SECRET"),
+                "{command} disclosed outside source bytes after degrading Gradle {label} discovery"
+            );
+            assert!(
+                !root.join("specs").join(module).exists(),
+                "{command} generated from a discovery it had rejected for Gradle {label}"
+            );
+            assert_eq!(
+                fs::read(&outside_source).unwrap(),
+                outside_bytes.as_bytes(),
+                "{command} changed outside bytes after degrading Gradle {label} discovery"
+            );
+        }
+    }
 }
 
 #[test]
@@ -1410,6 +1535,7 @@ fn gradle_root_escape_is_inconclusive_for_coverage_gating_commands() {
         "include(\":outside\")\nproject(\":outside\").projectDir = file(\"../outside\")\n",
     )
     .unwrap();
+    omit_config_source_dirs(&root);
 
     for command in ["check", "coverage", "generate", "report", "score"] {
         let output = specsync()
@@ -1942,6 +2068,7 @@ fn gradle_symlinked_manifests_are_inconclusive_without_reading_outside_bytes() {
         let outside_bytes = b"include(\":GRADLE_MANIFEST_SECRET\")\n";
         fs::write(&outside_manifest, outside_bytes).unwrap();
         symlink(&outside_manifest, root.join(manifest_name)).unwrap();
+        omit_config_source_dirs(&root);
 
         for command in ["check", "coverage", "generate", "report", "score"] {
             let output = specsync()
@@ -2150,6 +2277,27 @@ fn setup_minimal_project_at(root: &std::path::Path) {
     .unwrap();
 }
 
+/// Drop `sourceDirs` from a fixture config so the project's source list is the
+/// output of the discovery under test rather than something the project stated.
+///
+/// The refusals below are about what an unsafe manifest may CONCLUDE, and that
+/// depends on what the command was relying on discovery for. With no stated
+/// `source_dirs` there is nothing trustworthy left to measure, so the refusal is
+/// the whole answer and the command is inconclusive. `setup_minimal_project`
+/// states `["src"]`, so these fixtures have to clear it to exercise that case
+/// (#723); the stated case is asserted by
+/// `unsafe_gradle_discovery_degrades_over_stated_source_dirs_without_escaping`.
+fn omit_config_source_dirs(root: &std::path::Path) {
+    let path = root.join("specsync.json");
+    let config = fs::read_to_string(&path).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&config).unwrap();
+    value
+        .as_object_mut()
+        .expect("fixture config must be a JSON object")
+        .remove("sourceDirs");
+    fs::write(&path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
+}
+
 fn assert_gradle_discovery_is_inconclusive(
     root: &std::path::Path,
     outside_source: &std::path::Path,
@@ -2157,6 +2305,7 @@ fn assert_gradle_discovery_is_inconclusive(
     module: &str,
     label: &str,
 ) {
+    omit_config_source_dirs(root);
     for command in ["check", "coverage", "generate", "report", "score"] {
         let output = specsync()
             .arg(command)

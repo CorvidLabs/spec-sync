@@ -363,6 +363,7 @@ mod tests {
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
+            manifest_notices: vec![],
         }
     }
 
@@ -389,6 +390,7 @@ mod tests {
             unspecced_file_loc: vec![],
             missing_files: vec![],
             skipped_links: vec![],
+            manifest_notices: vec![],
         }
     }
 

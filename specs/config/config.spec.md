@@ -1,6 +1,6 @@
 ---
 module: config
-version: 21
+version: 24
 status: stable
 files:
   - src/config.rs
@@ -50,6 +50,9 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 1. Config file search order is `.specsync/config.toml`, `.specsync/config.json`, `.specsync.toml`, `specsync.json`, then defaults.
 2. When no config file exists, source directories are auto-detected from the project root.
 3. When a config file exists but omits canonical `source_dirs` or legacy `sourceDirs`, source dirs are still auto-detected.
+   Which of the two happened is recorded on `SpecSyncConfig.source_dirs_set`, because a configured `["src"]` and the
+   `["src"]` default are indistinguishable once loading is done, and coverage has to tell a stated source list from an
+   inferred one to decide what a manifest it cannot parse is allowed to veto.
 4. 46 common build/cache directories are always excluded from source detection.
 5. `detect_source_dirs` falls back to `["src"]` if no source files are found.
 6. Root-level source files produce `["."]` as source dirs.
@@ -160,6 +163,9 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-08-14 | CHG-0126-the-config-refusal-must-guard-both-loaders-because-load-config-is-a-second-door: The config refusal must guard both loaders, because load_config is a second door through which rules, compact and rehash reported success over configuration they never read |
 | 2026-08-15 | CHG-0127-an-unmeasured-staleness-count-must-render-as-unknown-rather-than-zero-and-the-h: An unmeasured staleness count must render as unknown rather than zero, and the hand-rolled config scanner must report a malformed header rather than silently skipping it |
 | 2026-08-18 | CHG-0147-an-explicit-enforcement-policy-must-survive-migrate: An explicit enforcement policy must survive migrate |
+| 2026-08-27 | v22 / #723: Record whether `source_dirs` was stated or inferred, so a failure to infer it cannot overrule a project that stated it |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 
 ## Config File Structure
 
@@ -171,6 +177,7 @@ The configuration file supports the following top-level sections:
 |---------|------|-------------|
 | `specs_dir` (`specsDir` in legacy JSON) | `String` | Directory containing spec files (default: `"specs"`) |
 | `source_dirs` (`sourceDirs` in legacy JSON) | `Vec<String>` | Source directories to scan (auto-detected if omitted) |
+| `source_dirs_set` | `bool` | Runtime-only: whether the file stated `source_dirs` rather than having it inferred. Never serialized |
 | `source_extensions` (`sourceExtensions` in legacy JSON) | `Vec<String>` | File extensions to consider as source files |
 | `exclude_patterns` (`excludePatterns` in legacy JSON) | `Vec<String>` | Glob patterns to exclude from coverage |
 | `required_sections` (`requiredSections` in legacy JSON) | `Vec<String>` | Sections every spec must contain |
@@ -179,3 +186,4 @@ The configuration file supports the following top-level sections:
 | `github` | `GitHubConfig` | GitHub integration settings (`repo`, `labels`, `create_on_drift`) |
 | `rules` | `ValidationRules` | Custom validation rules (`max_staleness_days`, etc.) |
 | `modules` | `Map<String, ModuleDefinition>` | User-defined module groupings |
+

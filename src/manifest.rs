@@ -2169,6 +2169,10 @@ fn reject_non_leading_gradle_includes(content: &str) -> Result<(), String> {
             if gradle_follows_detached_control_header(content, index)? {
                 return Err("Unsupported conditional Gradle include".to_string());
             }
+        } else if token == "includeBuild"
+            && gradle_include_prefixed_token_is_executable(content, index, token_end)
+        {
+            gradle_include_build_target(content, token_end)?;
         } else if token.starts_with("include")
             && gradle_include_prefixed_token_is_executable(content, index, token_end)
         {
@@ -2177,6 +2181,87 @@ fn reject_non_leading_gradle_includes(content: &str) -> Result<(), String> {
         search_start = token_end.max(index + "include".len());
     }
     Ok(())
+}
+
+/// Validate a composite-build declaration by its ARGUMENT rather than its name.
+///
+/// `includeBuild` was refused on the token prefix alone, so
+/// `includeBuild("vendor/podo-shared")` — an ordinary in-repo composite build,
+/// the common and correct usage — failed identically to
+/// `includeBuild("../outside")`, which escapes the repository. Every fixture the
+/// guard was written against used `../outside`, so no test ever distinguished
+/// the two, and a valid Gradle project could not be measured at all (#723).
+///
+/// A single complete string literal that normalizes to a path beneath the
+/// project root is accepted and then ignored: it names a separate build inside
+/// the tree, and the root build's own `include(...)` list — the only thing this
+/// parser derives modules from — is unaffected by it. Everything else keeps
+/// failing closed, in line with the rest of this parser's literal-only subset:
+/// a `../` escape, an interpolated or otherwise dynamic expression, more than
+/// one argument, and any trailing expression such as a configuration block all
+/// name something that cannot be resolved from the settings text alone.
+///
+/// Sibling mutators are deliberately untouched. `includeFlat` resolves against
+/// the PARENT of the root, so its argument is outside the project by
+/// construction, and `includeWorkspace` is not a form this parser models at
+/// all; judging either by its argument would not make it supportable.
+///
+/// Position is not judged either, and that asymmetry with `include` is
+/// deliberate. A conditional or block-scoped `include` is refused because it
+/// makes the module set unknowable from the text. A composite build contributes
+/// no module whether or not its branch runs, so where it sits cannot change what
+/// is discovered — only its argument can.
+fn gradle_include_build_target(content: &str, token_end: usize) -> Result<String, String> {
+    let arguments = content[token_end..].trim_start();
+    let values = if arguments.starts_with('(') {
+        let (inside, remainder) = gradle_parenthesized(arguments)?;
+        // A parenthesized call may span lines, so the balanced scan above runs
+        // over the rest of the file. Only the tail of the CLOSING line belongs
+        // to this statement; the lines after it are other directives.
+        let statement_remainder = remainder
+            .split_once('\n')
+            .map_or(remainder, |(line, _)| line);
+        require_gradle_include_build_statement_end(statement_remainder)?;
+        gradle_string_arguments(inside)?
+    } else {
+        let statement = arguments
+            .split_once('\n')
+            .map_or(arguments, |(line, _)| line);
+        gradle_string_arguments(gradle_include_build_statement_body(statement))?
+    };
+    if values.len() != 1 {
+        return Err("Gradle includeBuild declaration must name one literal path".to_string());
+    }
+    normalize_gradle_project_relative_path(&values[0], "includeBuild path", false)
+}
+
+/// Characters that can follow a composite-build declaration without being part
+/// of it: statement terminators, and the closing braces of an enclosing block.
+fn gradle_include_build_statement_tail(character: char) -> bool {
+    matches!(character, '}' | ';') || character.is_whitespace()
+}
+
+/// Everything on the line that belongs to the declaration itself.
+fn gradle_include_build_statement_body(statement: &str) -> &str {
+    statement.trim_end_matches(gradle_include_build_statement_tail)
+}
+
+/// Require that nothing but statement punctuation follows the declaration.
+///
+/// The check has to refuse a trailing EXPRESSION — a
+/// `{ dependencySubstitution … }` configuration block this parser does not model
+/// — without refusing the closing brace of an enclosing block, which belongs to
+/// the `if` around the declaration rather than to the declaration.
+///
+/// Without that distinction the same conditional composite build was accepted
+/// written across three lines and refused written on one, because only in the
+/// second case did the `}` land on the declaration's own line. A verdict that
+/// turns on where the author pressed Enter is a bug whichever way it is settled.
+fn require_gradle_include_build_statement_end(remainder: &str) -> Result<(), String> {
+    if remainder.chars().all(gradle_include_build_statement_tail) {
+        return Ok(());
+    }
+    Err("Unsupported trailing Gradle includeBuild declaration expression".to_string())
 }
 
 fn gradle_include_prefixed_token_is_executable(
@@ -3761,9 +3846,13 @@ project(":second").projectDir = new File(rootDir, "modules/second")
 
     #[test]
     fn gradle_settings_reject_unsupported_include_prefixed_workspace_mutators() {
+        // `includeBuild` is no longer in this list: it is judged by its
+        // argument, and its own tests below cover both verdicts. `includeFlat`
+        // resolves against the PARENT of the root, so its argument is outside
+        // the project by construction, and `includeWorkspace` is not a form
+        // this parser models — neither becomes supportable by reading its path.
         for settings in [
             r#"includeFlat("../outside")"#,
-            r#"includeBuild("../outside")"#,
             r#"includeWorkspace("../outside")"#,
             r#"settings.includeFlat "../outside""#,
         ] {
@@ -3789,6 +3878,117 @@ include(":member")
                 path: "member".to_string(),
             }]
         );
+    }
+
+    /// THE REGRESSION (#723). An in-repo composite build is ordinary Gradle,
+    /// and it was refused on the token prefix alone — the argument was never
+    /// read. Every fixture the old guard was written against used
+    /// `"../outside"`, so no test could fail for this reason: the guard was
+    /// built for escapes and caught every composite build, and the two cases
+    /// were indistinguishable. This is the case that had no coverage at all.
+    ///
+    /// The included build is accepted and then ignored: it names a separate
+    /// build, so the root build's `include(...)` list is what modules still
+    /// come from, and `:app` must survive beside it untouched.
+    #[test]
+    fn gradle_settings_accept_an_in_repo_include_build() {
+        for settings in [
+            "includeBuild(\"vendor/podo-shared\")\ninclude(\":app\")\n",
+            "includeBuild 'vendor/podo-shared'\ninclude(':app')\n",
+            "settings.includeBuild(\"vendor/podo-shared\")\ninclude(\":app\")\n",
+            "includeBuild(\"./vendor/../vendor/podo-shared\")\ninclude(\":app\")\n",
+            "includeBuild(\n    \"vendor/podo-shared\"\n)\ninclude(\":app\")\n",
+            // Conditional forms, on one line and across three. They must agree:
+            // a composite build contributes no module whether or not its branch
+            // runs, so its position cannot change what is discovered. These two
+            // disagreed at first — only the one-line form put the closing brace
+            // on the declaration's own line.
+            "if (loadShared) { includeBuild(\"vendor/podo-shared\") }\ninclude(\":app\")\n",
+            "if (loadShared) {\n    includeBuild(\"vendor/podo-shared\")\n}\ninclude(\":app\")\n",
+            "if (loadShared) { includeBuild 'vendor/podo-shared' }\ninclude(':app')\n",
+        ] {
+            let modules = parse_gradle_settings(settings)
+                .unwrap_or_else(|error| panic!("in-repo includeBuild refused: {error}"));
+            assert_eq!(
+                modules,
+                vec![GradleSettingsModule {
+                    name: "app".to_string(),
+                    path: "app".to_string(),
+                }],
+                "unexpected modules for {settings:?}"
+            );
+        }
+    }
+
+    /// Honest label: the refusals asserted first are the CONTROL, and they
+    /// pass on the unfixed parser too — that is the point. Reading the argument
+    /// must not turn `includeBuild` into an accept-anything token, so what
+    /// breaks this loop is a relaxation that stopped confining the path or
+    /// stopped requiring one complete literal: a `../` escape leaves the
+    /// repository, and an interpolated, dynamic, multi-argument, or
+    /// trailing-expression form names something this parser cannot resolve from
+    /// the settings text at all.
+    ///
+    /// The diagnostics asserted second are what is genuinely new. The old
+    /// refusal said `Unsupported Gradle workspace mutator includeBuild` for
+    /// every one of these — it was reached without ever reading the argument,
+    /// so it could not say which argument was wrong, and it said exactly the
+    /// same thing about the valid in-repo build above. Naming the path is how a
+    /// reader can tell an escape from a form the parser does not model.
+    #[test]
+    fn gradle_settings_still_refuse_an_escaping_or_dynamic_include_build() {
+        for (settings, expected) in [
+            (
+                r#"includeBuild("../outside")"#,
+                "must remain beneath the project root",
+            ),
+            (
+                r#"includeBuild("/etc/outside")"#,
+                "must remain beneath the project root",
+            ),
+            (
+                r#"includeBuild("vendor/../../outside")"#,
+                "must remain beneath the project root",
+            ),
+            (
+                r#"settings.includeBuild "../outside""#,
+                "must remain beneath the project root",
+            ),
+            (
+                r#"includeBuild("${vendorRoot}/shared")"#,
+                "Unsupported or dynamic Gradle expression",
+            ),
+            (
+                r#"includeBuild(vendorRoot)"#,
+                "Unsupported or dynamic Gradle expression",
+            ),
+            (
+                r#"includeBuild("vendor/a", "vendor/b")"#,
+                "must name one literal path",
+            ),
+            (
+                r#"includeBuild("vendor/shared") { dependencySubstitution {} }"#,
+                "Unsupported trailing Gradle includeBuild declaration expression",
+            ),
+            (r#"includeBuild(".")"#, "must identify a project path"),
+            // Position is not judged, but the ARGUMENT still is — wherever the
+            // declaration sits.
+            (
+                r#"if (loadShared) { includeBuild("../outside") }"#,
+                "must remain beneath the project root",
+            ),
+        ] {
+            // The control: refused at all. True before this change and after.
+            let error = match parse_gradle_settings(settings) {
+                Ok(modules) => panic!("{settings} was accepted as {modules:?}"),
+                Err(error) => error,
+            };
+            // What is new: the refusal names the argument, not the token.
+            assert!(
+                error.contains(expected),
+                "unexpected includeBuild error for {settings}: {error}"
+            );
+        }
     }
 
     #[test]

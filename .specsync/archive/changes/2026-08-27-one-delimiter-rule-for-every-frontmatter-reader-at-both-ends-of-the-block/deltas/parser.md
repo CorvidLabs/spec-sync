@@ -1,59 +1,35 @@
----
-module: parser
-version: 12
-status: stable
-files:
-  - src/parser.rs
-db_tables: []
-tracks: [117]
-depends_on:
-  - specs/types/types.spec.md
-  - specs/util/util.spec.md
----
+## ADDED
 
-# Parser
+### REQUIREMENT REQ-parser-003
 
-## Purpose
+Every frontmatter reader in this module SHALL recognize a delimiter LINE by one rule — exactly
+three dashes followed by nothing but whitespace — applied to BOTH ends of the block, in either
+line encoding, with the two ends free to disagree with each other.
 
-Parses spec markdown files — extracts supported frontmatter into structured data, extracts
-backtick-quoted symbol names from Public API tables, and checks for required markdown sections.
-The compatibility `parse_frontmatter` path retains its line-oriented supported-subset parser.
-Security-sensitive GitHub issue discovery uses a separate maintained `serde-saphyr` real-YAML
-parser that validates top-level issue-reference fields and rejects ambiguous or malformed YAML.
+Acceptance Criteria
+- A delimiter carrying trailing spaces or tabs opens and closes frontmatter in `strip_frontmatter`,
+  `parse_frontmatter`, and `parse_checked_issue_references` alike, so a document with a padded
+  OPENER has its YAML removed from the body rather than counted as prose, and a document with a
+  padded CLOSER keeps the body prose above the first horizontal rule below it.
+- A padded closer never lets frontmatter run into the body: `parse_frontmatter` emits no
+  "Ignoring malformed frontmatter line" warning for body prose, and `parse_checked_issue_references`
+  reads the references that are there instead of reporting the YAML invalid.
+- `parse_checked_issue_references` reads a document whose opening and closing delimiters carry
+  different line endings, which the hand-rolled pair of prefix/split chains it replaces could not.
+- A line that is not exactly three dashes is not a delimiter in any reader: `----`, `--- x`,
+  `---change: x`, and an indented `  ---` leave `strip_frontmatter` returning the document whole,
+  `parse_frontmatter` returning `None`, and `parse_checked_issue_references` returning its stable
+  content-free error. Loosening this would cut the body of any document that opens with a Markdown
+  thematic break at its next rule.
+- The three readers return the same verdict for every delimiter shape, asserted as a matrix, so the
+  rule cannot be loosened in one reader and not the others.
+- `parse_checked_issue_references` keeps the verdicts it had for an empty frontmatter block and for
+  a block that is a single blank line.
+- `parse_frontmatter` returns an LF-only body when the frontmatter is LF and only the body is CRLF.
 
-This module also owns the repository's single frontmatter stripper, `strip_frontmatter`. Both
-readers accept CRLF themselves, because there is no caller-side normalization convention to lean
-on: the delimiter-recognition rule lives here once rather than in every module that reads a
-Markdown file.
+## MODIFIED
 
-## Public API
-
-#### Exported Structs
-
-| Type | Description |
-|------|-------------|
-| `ParsedSpec` | Parsed spec file containing `frontmatter: Frontmatter` and `body: String` |
-
-#### Exported Functions
-
-| Function | Parameters | Returns | Description |
-|----------|-----------|---------|-------------|
-| `parse_frontmatter` | `content: &str` | `Option<ParsedSpec>` | Parse supported-subset frontmatter delimited by `---` from a spec file, in LF or CRLF, returning an LF-only body |
-| `strip_frontmatter` | `text: &str` | `&str` | Return the Markdown body with YAML frontmatter removed, borrowed from the input; the single canonical stripper |
-| `parse_checked_issue_references` | `content: &str` | `Result<(Vec<u64>, Vec<u64>), String>` | Parse and strictly validate top-level `implements` and `tracks` issue-reference lists from real YAML frontmatter |
-| `get_spec_symbols` | `body: &str` | `Vec<String>` | Extract backtick-quoted symbol names from the `## Public API` section tables |
-| `get_missing_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Check which required `##` sections are missing from the spec body |
-| `is_export_header` | `header: &str` | `bool` | Return whether a `###` header denotes an exported-symbols subsection |
-| `section_has_content` | `body: &str, section: &str` | `bool` | Return whether the `## Section` block contains substantive content |
-| `find_stub_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Return required sections that are present but lack substantive content |
-| `find_section_offset` | `body: &str, section: &str` | `Option<usize>` | Return the byte offset of an exact `## Section` heading |
-| `body_has_section` | `body: &str, section: &str` | `bool` | Return whether the body contains an exact `## Section` heading |
-| `get_near_miss_sections` | `body: &str, required_sections: &[String]` | `Vec<(String, String)>` | Return missing canonical sections paired with near-miss headings |
-| `get_all_api_table_symbols` | `body: &str` | `Vec<String>` | Extract the first backtick-quoted symbol from every Public API table row |
-| `get_duplicate_spec_symbols` | Find duplicate symbols in a spec body |
-| `is_boilerplate_line` | Detect placeholder documentation lines |
-
-## Invariants
+### SPEC SECTION Invariants
 
 1. `parse_frontmatter` returns `None` unless the content opens on a `---` delimiter line and closes on a later `---` delimiter line; both LF and CRLF encodings are accepted, and a leading UTF-8 BOM never hides the opening delimiter
 2. `get_spec_symbols` only extracts the complete first nonempty backtick-quoted symbol when that code span occupies the first table cell; extractor punctuation and internal spaces are preserved
@@ -79,7 +55,7 @@ Markdown file.
 17. Leading whitespace, four or more dashes, and any non-dash character make a line NOT a delimiter, and that half of invariant 16 is the load-bearing half. `----` is a legal Markdown thematic break; a document opening with one is a document, and treating it as frontmatter would run the scan forward to the next rule and return a body cut at it — the failure this reader exists to prevent, and one that reads exactly like prose nobody wrote. The residual is stated rather than guessed at: a document opened with `----`, `--- x`, or `---change: x` is returned whole by `strip_frontmatter`, so a caller counting prose still sees its YAML as content.
 18. `parse_frontmatter` returns an LF-only body even when only the BODY carries CRLF. Normalization is decided by the presence of a carriage return anywhere in the document, not by the frontmatter's own line endings, so a document with LF frontmatter and a CRLF body — which returned CRLF before normalization moved into the parser — now returns LF. Every consumer is read-only analysis that never maps the body back to raw file bytes; a consumer that needs to must normalize or re-read for itself.
 
-## Behavioral Examples
+### SPEC SECTION Behavioral Examples
 
 ### Scenario: Parse valid frontmatter
 
@@ -149,7 +125,7 @@ Markdown file.
 - **When** `parse_checked_issue_references(content)` is called
 - **Then** the complete parse fails with a stable content-free error
 
-## Error Cases
+### SPEC SECTION Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
@@ -166,47 +142,3 @@ Markdown file.
 | No `## Public API` section | `get_spec_symbols` returns empty vector |
 | Empty, unterminated, later-column, or prose backtick span | No symbol is extracted |
 | Empty body | `get_missing_sections` reports all required sections as missing |
-
-## Dependencies
-
-**Consumes**
-
-| Module | What is used |
-|--------|-------------|
-| types | `Frontmatter` struct |
-| regex | `Regex`, `LazyLock` for compiled patterns |
-| serde | Checked issue-reference deserialization visitors |
-| serde-saphyr | Real-YAML parsing with duplicate-key rejection |
-
-**Consumed By**
-
-| Module | What is used |
-|--------|-------------|
-| validator | `parse_frontmatter`, `get_spec_symbols`, `get_missing_sections`, `get_near_miss_sections` |
-| scoring | `parse_frontmatter`, `get_spec_symbols`, `get_missing_sections` |
-| view | `parse_frontmatter` for the spec, `strip_frontmatter` for the companion `requirements.md` |
-| change | `strip_frontmatter` for lesson counting, archived lesson bundles, and artifact completeness |
-| commands/check | `get_near_miss_sections` (via `fix_near_miss_required_headers`) |
-| cmd_issues | `parse_checked_issue_references` for fail-closed CLI issue inspection |
-| mcp | `parse_frontmatter` for listing specs; `parse_checked_issue_references` for issue verification |
-
-**Frontmatter Synchronization**
-
-Implementation SHALL add these canonical dependency specs to `depends_on`: `specs/util/util.spec.md`. This YAML frontmatter update is an explicit implementation edit because semantic section deltas do not apply frontmatter.
-
-## Change Log
-
-| Date | Change |
-|------|--------|
-| 2026-03-25 | Initial spec |
-| 2026-06-11 | Add `get_all_api_table_symbols` so `check --fix` treats symbols documented under any Public API table (e.g. a bare `### Functions` heading) as already documented |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
-| 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve complete punctuated symbols in Public API table rows |
-| 2026-07-11 | CHG-0013-preserve-punctuated-public-api-symbols-across-all-export-extractors: Preserve punctuated Public API symbols across all export extractors |
-| 2026-07-22 | CHG-0063: Add maintained real-YAML checked issue-reference parsing with duplicate/malformed YAML rejection, strict top-level shapes, CRLF compatibility, and extension-safe semantics |
-| 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
-| 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
-| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
-| 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
-| 2026-08-25 | one-canonical-frontmatter-reader-for-crlf-checkouts: One canonical frontmatter reader for CRLF checkouts |
-| 2026-08-27 | one-delimiter-rule-for-every-frontmatter-reader-at-both-ends-of-the-block: One delimiter rule for every frontmatter reader, at both ends of the block |

@@ -26,9 +26,19 @@ spec: parser.spec.md
 - [x] Accept YAML comments and valid trailing commas while ignoring nested extension and
   block-scalar issue-key lookalikes.
 - [x] Accept CRLF checked frontmatter delimiters equivalently to LF.
+- [x] Give all three frontmatter readers one delimiter rule: three dashes plus trailing whitespace,
+  at both ends of the block, in either line encoding, with the two ends free to disagree (#716).
 
 ## Gaps
 
+- A document opened with `----` (a Markdown thematic break) is not frontmatter, so its YAML still
+  reads as body prose to a caller counting content. Left open deliberately: accepting four dashes
+  as a delimiter would cut real bodies at their first horizontal rule (#716).
+- `commands/lifecycle.rs::update_status_in_content` locates frontmatter with an UNANCHORED
+  `content.find("---\n")` and does not use this module's readers, so on a document with no
+  frontmatter it can edit a `status:` line in the body. Orthogonal to the delimiter rule, named as
+  out of scope by #715, and still unfixed; the claim in that PR that it was "named in tasks.md"
+  refers to a change artifact that has since been archived, not to this file.
 - Compatibility `parse_frontmatter` still handles only the established subset and does not validate
   every metadata field type.
 - Full-schema validation for non-issue metadata remains owned by downstream validators.

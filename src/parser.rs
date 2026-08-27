@@ -19,8 +19,12 @@ pub struct ParsedSpec {
     pub warnings: Vec<String>,
 }
 
+/// `[ \t\r]*` after each delimiter is the SAME rule [`is_frontmatter_delimiter`] applies, spelled
+/// in regex because this parser is regex-driven. The two must not drift: a delimiter shape one
+/// reader accepts and another does not is how a document comes to mean two things at once
+/// (#716), and `all_frontmatter_readers_agree_on_what_a_delimiter_is` fails if they ever do.
 static FRONTMATTER_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?s)^---\n(.*?)\n---\n(.*)$").unwrap());
+    LazyLock::new(|| Regex::new(r"(?s)^---[ \t\r]*\n(.*?)\n---[ \t\r]*\n(.*)$").unwrap());
 
 const INVALID_YAML_FRONTMATTER_ERROR: &str = "invalid YAML frontmatter";
 const DUPLICATE_YAML_KEY_ERROR: &str = "duplicate YAML frontmatter key";
@@ -235,16 +239,19 @@ impl<'de> Visitor<'de> for IssueNumberListVisitor {
 /// intentionally stable and content-free so callers can safely expose them.
 pub fn parse_checked_issue_references(content: &str) -> Result<(Vec<u64>, Vec<u64>), String> {
     let content = content.trim_start_matches('\u{feff}');
-    let frontmatter = content
-        .strip_prefix("---\n")
-        .and_then(|remainder| remainder.split_once("\n---\n"))
-        .or_else(|| {
-            content
-                .strip_prefix("---\r\n")
-                .and_then(|remainder| remainder.split_once("\r\n---\r\n"))
-        })
-        .map(|(frontmatter, _)| frontmatter);
-    let Some(frontmatter) = frontmatter else {
+    // Reads the block through the one delimiter scan (#716). The hand-rolled pair of
+    // `strip_prefix`/`split_once` chains this replaces required BOTH delimiters to carry the SAME
+    // line ending, so a document opened with LF and closed with CRLF was reported as having no
+    // frontmatter at all; and a closer padded with a trailing space was walked past, feeding body
+    // prose to the YAML parser and reporting the references as invalid when they were not.
+    //
+    // An EMPTY block is refused exactly as it was before: `split_once` could not produce one, so
+    // `---` immediately followed by `---` has always been "missing or malformed" here. That is
+    // not an accident worth inheriting silently, so it is asserted rather than assumed.
+    let Some(frontmatter) = split_frontmatter(content)
+        .map(|(frontmatter, _)| frontmatter)
+        .filter(|frontmatter| !frontmatter.is_empty())
+    else {
         return Err("missing or malformed YAML frontmatter".to_string());
     };
 
@@ -252,7 +259,9 @@ pub fn parse_checked_issue_references(content: &str) -> Result<(Vec<u64>, Vec<u6
         duplicate_keys: serde_saphyr::DuplicateKeyPolicy::Error,
         with_snippet: false,
     };
-    let frontmatter = format!("{frontmatter}\n");
+    // The scan returns the block with its final line ending; the previous split did not. Trim so
+    // the YAML handed to the deserializer is byte-identical to what it received before.
+    let frontmatter = format!("{}\n", frontmatter.trim_end_matches(['\r', '\n']));
     let references =
         serde_saphyr::from_str_with_options::<CheckedIssueReferences>(&frontmatter, options)
             .map_err(checked_issue_reference_error)?;
@@ -294,7 +303,17 @@ fn checked_issue_reference_error(error: serde_saphyr::Error) -> String {
 /// Normalizing here fixes every one of those callers without touching any of them,
 /// where an obligation on 18 call sites would be unenforceable and fail silently.
 /// The returned `body` is always LF-only, which is what every caller already
-/// assumed it was.
+/// assumed it was — including a document whose frontmatter is LF and whose body
+/// is CRLF, which returned CRLF before normalization landed here and returns LF
+/// now. That was an undisclosed consequence of #696; every consumer is read-only
+/// analysis that never maps back to raw file bytes, and it is pinned by test and
+/// stated in the spec rather than left to be rediscovered (#716).
+///
+/// Delimiters follow [`is_frontmatter_delimiter`]: three dashes and trailing
+/// whitespace, at both ends. A closer padded with a trailing space used to be
+/// walked past, so the frontmatter capture ran on to the first horizontal rule in
+/// the body — feeding prose to the YAML line parser and returning a body cut at
+/// that rule (#716).
 pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
     // A leading UTF-8 BOM (U+FEFF) is a non-semantic encoding marker that some
     // editors prepend; left in place it sits before the opening `---`, so the
@@ -422,11 +441,11 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
 ///
 /// The single canonical stripper (#696). Frontmatter stripping had four implementations in this
 /// repository and they disagreed; two deleted body content rather than merely leaving frontmatter
-/// behind, and neither failure raised an error. It requires the delimiter line to be EXACTLY
-/// `---` (plus its line ending): `---  ` with a trailing space, or `----`, is not frontmatter and
-/// the document is returned whole. That is deliberate — guessing at a malformed delimiter is how
-/// a body gets cut at a horizontal rule — but it does mean a malformed opener leaves the YAML in
-/// the body, so callers that count prose see it as content. Tracked separately.
+/// behind, and neither failure raised an error. A delimiter line is three dashes and nothing but
+/// whitespace after them, at both ends of the block — see [`is_frontmatter_delimiter`] for what
+/// that admits, what it refuses, and why the line stops where it does (#716). A document that
+/// opens with anything else is returned whole, which for a caller counting prose means the YAML
+/// reads as content; that residual is stated in `parser.spec.md` rather than guessed at.
 ///
 /// Use this one — it is correct on all six axes that
 /// separated them: LF, CRLF, a leading BOM, unterminated frontmatter, a closing delimiter at EOF,
@@ -444,24 +463,66 @@ pub fn parse_frontmatter(content: &str) -> Option<ParsedSpec> {
 pub fn strip_frontmatter(text: &str) -> &str {
     // A leading UTF-8 BOM must not hide the opening delimiter.
     let text = text.trim_start_matches('\u{feff}');
-    // BOTH line endings, because a Windows-authored companion otherwise keeps its frontmatter and
-    // every untouched scaffold reports itself as recorded knowledge.
-    let after_open = if let Some(rest) = text.strip_prefix("---\r\n") {
-        rest
-    } else if let Some(rest) = text.strip_prefix("---\n") {
-        rest
-    } else {
-        return text;
-    };
+    match split_frontmatter(text) {
+        Some((_, body)) => body,
+        // No opening delimiter, or frontmatter that never closes: keep the whole document rather
+        // than guess where the block ended.
+        None => text,
+    }
+}
+
+/// True when `line` — one line including its terminator, if it has one — is a frontmatter
+/// delimiter.
+///
+/// EXACTLY three dashes, then nothing but horizontal whitespace and the line ending. Both ends
+/// of the block are held to this same rule, in either line encoding.
+///
+/// Trailing whitespace is tolerated (#716). An author cannot see a trailing space, every Markdown
+/// frontmatter implementation ignores one, and refusing it was not a safety property but a
+/// silent one: a `---  ` OPENER left the YAML in the body, where `change`'s completeness gate
+/// counted it as prose and approved an artifact with nothing written in it; a `---  ` CLOSER made
+/// the scan walk past the real end of the block and stop at the first horizontal rule in the
+/// body, deleting the prose above it.
+///
+/// The tolerance stops exactly there, and that is the load-bearing half. `----` is a legal
+/// Markdown thematic break, and a document that opens with one is a document, not frontmatter:
+/// accepting it would make this scan run forward to the next rule and return a body cut at it —
+/// and prose lost that way reads exactly like prose nobody ever wrote (#697, #699, #705). Leading
+/// whitespace is refused for the same reason. Anything else that begins with three dashes —
+/// `----`, `--- x`, `---change: x` — is content, and the document is returned whole.
+fn is_frontmatter_delimiter(line: &str) -> bool {
+    line.trim_end_matches([' ', '\t', '\r', '\n']) == "---"
+}
+
+/// The YAML frontmatter block and the Markdown body of `text`, or `None` when `text` does not
+/// open with a delimiter line or never closes one.
+///
+/// The one delimiter scan in this repository. Frontmatter stripping had four implementations that
+/// disagreed (#696); this keeps the reader that survived and the issue-reference reader from
+/// becoming the next pair, because a delimiter rule written twice is a delimiter rule that will
+/// eventually be loosened once.
+///
+/// The caller strips any leading BOM: byte offsets here are into `text` as given.
+fn split_frontmatter(text: &str) -> Option<(&str, &str)> {
+    let mut lines = text.split_inclusive('\n');
+    // The opener must be a delimiter line AND be terminated by a newline. A document that is
+    // nothing but `---` opens no block, and there is no body to return.
+    let open = lines.next().filter(|line| line.ends_with('\n'))?;
+    if !is_frontmatter_delimiter(open) {
+        return None;
+    }
+    // BOTH line endings, and they need not match each other: a Windows-authored companion
+    // otherwise keeps its frontmatter and every untouched scaffold reports itself as recorded
+    // knowledge.
+    let after_open = &text[open.len()..];
     let mut offset = 0usize;
     for line in after_open.split_inclusive('\n') {
-        if line.trim_end_matches(['\r', '\n']) == "---" {
-            return &after_open[offset + line.len()..];
+        if is_frontmatter_delimiter(line) {
+            return Some((&after_open[..offset], &after_open[offset + line.len()..]));
         }
         offset += line.len();
     }
-    // Unterminated frontmatter: keep the whole document rather than guess where it ended.
-    text
+    None
 }
 
 /// Remove matched surrounding YAML quotes from a scalar, and any comment that
@@ -1418,6 +1479,213 @@ mod tests {
         let text = "# Notes\n\nFirst.\n\n---\n\nSecond.\n\n---\n\nThird.\n";
 
         assert_eq!(strip_frontmatter(text), text);
+    }
+
+    // Honest label: DISCRIMINATOR for #716, both directions of the same one-character mistake.
+    //
+    // An OPENER padded with a trailing space was not a delimiter, so the document came back whole
+    // and its YAML read as body prose — which is how `change`'s completeness gate approved an
+    // artifact with nothing written in it. A CLOSER padded the same way was walked past, so the
+    // scan stopped at the first horizontal rule in the BODY and deleted the prose above it.
+    //
+    // Discriminates: on the unfixed binary the opener case returns the whole document, and the
+    // closer case returns "\nMore prose.\n" — "Real prose." simply gone.
+    #[test]
+    fn test_strip_frontmatter_accepts_a_delimiter_padded_with_trailing_whitespace() {
+        assert_eq!(
+            strip_frontmatter("---  \nchange: CHG-1\nartifact: design\n---\n"),
+            "",
+            "a padded OPENER must open the block, or its YAML counts as prose"
+        );
+
+        let padded_closer = "---\nspec: a.spec.md\n---  \n\nReal prose.\n\n---\n\nMore prose.\n";
+        let body = strip_frontmatter(padded_closer);
+        assert!(
+            body.contains("Real prose.") && body.contains("More prose."),
+            "a padded CLOSER must end the block, not send the scan into the body: {body:?}"
+        );
+        assert!(!body.contains("spec: a.spec.md"), "body: {body:?}");
+
+        // Tabs and a CRLF ending are the same shape and get the same answer.
+        assert_eq!(
+            strip_frontmatter("---\t\r\nspec: a.spec.md\r\n--- \t\r\n\r\nBody.\r\n"),
+            "\r\nBody.\r\n"
+        );
+    }
+
+    // Honest label: CONTROL, and it passes on the unfixed binary too — that is the point. It pins
+    // the half of the delimiter rule that must NOT loosen.
+    //
+    // `----` and `--- x` are legal Markdown: a thematic break, and a break followed by text. A
+    // document that opens with one is a document, not frontmatter. If a future edit "generalises"
+    // the trailing-whitespace tolerance into "starts with three dashes", every one of these
+    // becomes an opener, the scan runs forward to the next rule, and the prose in between is
+    // deleted — the exact failure this reader exists to prevent, and the one that reads like
+    // prose nobody ever wrote.
+    #[test]
+    fn test_strip_frontmatter_refuses_a_delimiter_that_is_not_three_dashes() {
+        for opener in ["----", "--", "--- x", "---change: x", "  ---"] {
+            let text = format!("{opener}\n\nReal prose.\n\n---\n\nMore prose.\n");
+            assert_eq!(
+                strip_frontmatter(&text),
+                text,
+                "`{opener}` must not open frontmatter"
+            );
+        }
+
+        // The same rule at the closing end: an unterminated block keeps the whole document rather
+        // than ending at a four-dash rule further down.
+        let unterminated = "---\nspec: a.spec.md\n----\n\nReal prose.\n";
+        assert_eq!(strip_frontmatter(unterminated), unterminated);
+    }
+
+    // Honest label: DISCRIMINATOR for #716 in the sibling reader. `strip_frontmatter` was the
+    // site the report named; `parse_frontmatter` had the same padded-closer hole and a worse
+    // consequence, because the over-long capture is handed to the YAML line parser as well as
+    // truncating the body.
+    //
+    // Discriminates: on the unfixed binary `parsed.body` is "\nSecond.\n" — "First." deleted —
+    // and `warnings` holds two "Ignoring malformed frontmatter line" entries naming `---` and
+    // `First.`, body prose that was never frontmatter.
+    #[test]
+    fn test_parse_frontmatter_closes_on_a_delimiter_padded_with_trailing_whitespace() {
+        let content =
+            "---\nmodule: auth\nversion: 1\n---  \n\n# Auth\n\nFirst.\n\n---\n\nSecond.\n";
+
+        let parsed = parse_frontmatter(content).expect("a padded closer still closes frontmatter");
+
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("auth"));
+        assert!(parsed.body.contains("First."), "body: {:?}", parsed.body);
+        assert!(parsed.body.contains("Second."), "body: {:?}", parsed.body);
+        assert!(
+            parsed.warnings.is_empty(),
+            "body prose must never reach the frontmatter line parser: {:?}",
+            parsed.warnings
+        );
+    }
+
+    // Honest label: DISCRIMINATOR for #716. Discriminates: on the unfixed binary this returns
+    // `None`, which `view.rs` reports as "Cannot parse frontmatter" for a spec whose only defect
+    // is a space an author cannot see.
+    #[test]
+    fn test_parse_frontmatter_opens_on_a_delimiter_padded_with_trailing_whitespace() {
+        let parsed = parse_frontmatter("---  \nmodule: auth\nversion: 1\n---\n\n# Auth\n")
+            .expect("a padded opener still opens frontmatter");
+
+        assert_eq!(parsed.frontmatter.module.as_deref(), Some("auth"));
+        assert_eq!(parsed.body, "\n# Auth\n");
+    }
+
+    // Honest label: DISCRIMINATOR for #716 in the third reader. `parse_checked_issue_references`
+    // matched delimiters with its own pair of `strip_prefix`/`split_once` chains, which required
+    // BOTH delimiters to carry the SAME line ending and neither to be padded.
+    //
+    // Discriminates: on the unfixed binary the padded-opener case is
+    // `Err("missing or malformed YAML frontmatter")`, the padded-closer case is
+    // `Err("invalid YAML frontmatter")` — body prose reached the YAML parser — and the
+    // LF-opener/CRLF-closer case is `Err("missing or malformed YAML frontmatter")` for a document
+    // whose references are right there.
+    #[test]
+    fn test_parse_checked_issue_references_uses_the_one_delimiter_rule() {
+        assert_eq!(
+            parse_checked_issue_references("---  \nimplements: [7]\n---\n\nBody.\n").unwrap(),
+            (vec![7], vec![]),
+            "a padded opener"
+        );
+        assert_eq!(
+            parse_checked_issue_references(
+                "---\nimplements: [7]\n---  \n\nBody.\n\n---\n\nMore.\n"
+            )
+            .unwrap(),
+            (vec![7], vec![]),
+            "a padded closer, with a horizontal rule below it in the body"
+        );
+        assert_eq!(
+            parse_checked_issue_references("---\nimplements: [7]\r\n---\r\n\r\nBody.\r\n").unwrap(),
+            (vec![7], vec![]),
+            "delimiters need not agree with each other about line endings"
+        );
+    }
+
+    // Honest label: CONTROL, and it passes on the unfixed binary too. Routing this reader through
+    // the shared scan must not change WHICH documents it accepts beyond the delimiter shape.
+    // An empty block was refused before — `split_once` could not produce one — and a block that
+    // is a single blank line was accepted; both verdicts are inherited deliberately, so a later
+    // "tidy-up" that collapses them has to argue for it.
+    #[test]
+    fn test_parse_checked_issue_references_keeps_its_empty_block_verdicts() {
+        assert_eq!(
+            parse_checked_issue_references("---\n---\n\nBody.\n").unwrap_err(),
+            "missing or malformed YAML frontmatter"
+        );
+        assert_eq!(
+            parse_checked_issue_references("---\n\n---\n\nBody.\n").unwrap(),
+            (vec![], vec![])
+        );
+        assert_eq!(
+            parse_checked_issue_references("# Notes\n\nNo frontmatter here.\n").unwrap_err(),
+            "missing or malformed YAML frontmatter"
+        );
+    }
+
+    // Honest label: DISCRIMINATOR, and the guard against this repository's most-repeated failure
+    // — a fix landing at the site the report names while a parallel implementation survives.
+    // Three readers in this module decide what a delimiter is; the rule is written twice, once as
+    // `is_frontmatter_delimiter` and once inside `FRONTMATTER_RE`. This is what fails if they
+    // ever drift.
+    //
+    // Discriminates: on the unfixed binary every padded row disagrees — `strip_frontmatter`
+    // returns the document whole while the others error, or `strip_frontmatter` deletes body
+    // prose while `parse_frontmatter` merely truncates it.
+    #[test]
+    fn all_frontmatter_readers_agree_on_what_a_delimiter_is() {
+        // (opener, closer, is this frontmatter?)
+        let cases = [
+            ("---", "---", true),
+            ("---  ", "---", true),
+            ("---", "---  ", true),
+            ("---\t", "--- \t", true),
+            ("----", "---", false),
+            ("---", "----", false),
+            ("--- x", "---", false),
+            ("  ---", "---", false),
+        ];
+
+        for (opener, closer, is_frontmatter) in cases {
+            let text = format!("{opener}\nimplements: [7]\n{closer}\n\nBody prose.\n");
+            let label = format!("opener {opener:?} / closer {closer:?}");
+
+            assert_eq!(
+                strip_frontmatter(&text) != text.as_str(),
+                is_frontmatter,
+                "strip_frontmatter disagrees for {label}"
+            );
+            assert_eq!(
+                parse_frontmatter(&text).is_some(),
+                is_frontmatter,
+                "parse_frontmatter disagrees for {label}"
+            );
+            assert_eq!(
+                parse_checked_issue_references(&text).is_ok(),
+                is_frontmatter,
+                "parse_checked_issue_references disagrees for {label}"
+            );
+        }
+    }
+
+    // Honest label: CHARACTERIZATION, and it passes on the unfixed binary — that is why it is
+    // here. #696 made `parse_frontmatter` normalize whenever the document contains a `\r`, so a
+    // document with LF frontmatter and a CRLF body now returns an LF body where it previously
+    // returned CRLF. That change was correct and was never stated. Every consumer is read-only
+    // analysis that never maps the body back to raw file bytes; the moment one does not, this
+    // test is the record of what it was promised.
+    #[test]
+    fn test_parse_frontmatter_body_is_lf_even_when_only_the_body_is_crlf() {
+        let parsed = parse_frontmatter("---\nmodule: auth\n---\n\r\n# Auth\r\n\r\nPara.\r\n")
+            .expect("LF frontmatter parses");
+
+        assert_eq!(parsed.body, "\n# Auth\n\nPara.\n");
+        assert!(!parsed.body.contains('\r'));
     }
 
     #[test]

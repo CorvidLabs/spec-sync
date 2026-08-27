@@ -1,0 +1,56 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787864742,
+      "digest": "374a934488750b455a6b7b0f24bb725cb08860c60ca645ab058d76bafe253ff3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "one-delimiter-rule-for-every-frontmatter-reader-at-both-ends-of-the-block",
+        "title": "One delimiter rule for every frontmatter reader, at both ends of the block",
+        "description": "one delimiter rule for every frontmatter reader, at both ends of the block",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "parser"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/testing.md",
+          "specs/parser/context.md",
+          "specs/parser/parser.spec.md",
+          "specs/parser/tasks.md",
+          "specs/parser/testing.md",
+          "src/change_tests.rs",
+          "src/parser.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A frontmatter delimiter line is three dashes plus trailing whitespace at BOTH ends of the block, in either line encoding, with the two ends free to disagree, and strip_frontmatter, parse_frontmatter and parse_checked_issue_references all apply that one rule; an artifact that is only frontmatter opened with a padded delimiter is refused by the completeness gate instead of approved; prose above the first horizontal rule in a body survives a padded closing delimiter in every reader; a line that is not exactly three dashes — four dashes, an indented three, or three followed by text — is still not a delimiter in any reader; and the two behaviours PR #715 changed without stating them, a BOM-prefixed empty artifact being refused and parse_frontmatter returning an LF body for a CRLF-only body, are pinned by test and written into the specs"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "6fe6760ef82a484d6528667d5161ab5eba3b8c82027de4c55b8a28a166fb6653",
+        "parser": "b0164d597712548439e4ac83940dbe3e388dee3dd9d6cdcbb7653921ccb2e50f"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787866928,
+      "digest": "58fb1d3853108830a21924d285858bfbfdec0447281083e047fafad07414ee95",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

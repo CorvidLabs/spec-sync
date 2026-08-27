@@ -156,6 +156,25 @@ artifact completeness read through `parser::strip_frontmatter`, the one canonica
 opposite directions — one left frontmatter in the text it counted, the other deleted body content
 above a horizontal rule — and neither raised an error in either direction.
 
+`artifact_content_is_incomplete` is an APPROVAL GATE, and it is the reason the stripper's
+delimiter rule is not a cosmetic question. It counts prose lines, so anything the stripper leaves
+behind is prose to it: a trailing space on the OPENING delimiter meant the `change:` and
+`artifact:` lines counted as content and an artifact with nothing written in it was approved
+(#716). The mirror image is worse and was not reported: a trailing space on the CLOSING delimiter
+made the scan run to the first horizontal rule in the body, so a written design lost its prose and
+was refused as incomplete with nothing on screen to explain why. Both are fixed in `parser`, where
+the rule belongs — not here, because a gate that decides for itself what frontmatter is becomes
+the fifth reader.
+
+Two residuals, stated so they are not rediscovered as surprises. An artifact opened with `----` is
+still accepted as written even when it holds nothing but frontmatter, because `----` is a Markdown
+thematic break and treating it as a delimiter would cut real bodies at their first rule. And
+deriving the gate from the generated scaffold instead — asking "is this still what we wrote for
+you?" rather than counting prose — does not close that: a file with a mangled opener no longer
+equals the scaffold, so it would read as written for exactly the same reason. What the scaffold
+check already does is covered by the `<!-- TODO` short-circuit, which fires before the stripper
+runs at all.
+
 Delta file BODIES are now bound to the approval that signed them (#704). Under workflow v1 the
 definition digest hashed every delta payload through `definition_artifact_snapshot`; the v2 stable
 scope projection deliberately hashes intent and boundary only, and nothing replaced that binding —

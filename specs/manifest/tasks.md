@@ -50,8 +50,11 @@ spec: manifest.spec.md
   bounded retained read on Unix and Windows.
 - [x] Scope control-flow rejection to governed include/project-directory directives so unrelated
   valid Gradle logic remains compatible.
-- [x] Reject invoked unsupported inclusion APIs such as `includeFlat` and `includeBuild` while
-  leaving ordinary identifiers and documentation inert.
+- [x] Reject invoked unsupported inclusion APIs such as `includeFlat` and `includeWorkspace` while
+  leaving ordinary identifiers and documentation inert, and judge `includeBuild` by its argument.
+- [x] Skip a balanced trailing `includeBuild` configuration block (#725) so the common
+  `includeBuild(path) { dependencySubstitution { … } }` spelling parses, while the path confinement
+  in front of it, every guard over the block's own text, and the unbalanced-block refusal all hold.
 - [x] Route Cargo, Swift, Node, Dart, Go, and Python checked discovery plus nested workspace probes
   through one bounded retained project capability without ambient parser reads.
 - [x] Bound every declared Cargo member and Node workspace pattern, deduplicate normalized workspace

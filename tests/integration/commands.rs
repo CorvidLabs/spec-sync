@@ -1445,6 +1445,91 @@ fn unsafe_gradle_discovery_degrades_over_stated_source_dirs_without_escaping() {
     }
 }
 
+/// The reported project, end to end (#725): a composite build declared the way
+/// composite builds are actually declared.
+///
+/// `includeBuild(path) { dependencySubstitution { … } }` is the reason to have a
+/// composite build at all — it substitutes the local project for a published
+/// coordinate — and the parser refused it while accepting the bare
+/// `includeBuild(path)` minority form. The adopter saw the whole manifest
+/// discarded over a block that declares no project, so `:app` went unreported
+/// and the run fell back to whatever `source_dirs` happened to say.
+///
+/// This asserts the outcome the adopter cares about rather than the parser
+/// verdict: the module is DISCOVERED, no degradation notice is emitted, and the
+/// included build still contributes nothing — `vendor/shared` is a separate
+/// build, so its sources must not be measured as part of this one.
+#[test]
+fn gradle_include_build_with_a_configuration_block_discovers_modules() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+    fs::create_dir_all(root.join("app/src/main/kotlin")).unwrap();
+    fs::create_dir_all(root.join("vendor/shared/src/main/kotlin")).unwrap();
+    fs::create_dir_all(root.join("specs")).unwrap();
+    write_config(&root, "specs", &["src"]);
+    omit_config_source_dirs(&root);
+    fs::write(root.join("build.gradle.kts"), "plugins {}\n").unwrap();
+    fs::write(
+        root.join("settings.gradle.kts"),
+        "rootProject.name = \"podo\"\n\
+         \n\
+         includeBuild(\"vendor/shared\") {\n\
+         \x20   dependencySubstitution {\n\
+         \x20       substitute(module(\"com.example:podo\")).using(project(\":\"))\n\
+         \x20   }\n\
+         }\n\
+         \n\
+         include(\":app\")\n",
+    )
+    .unwrap();
+    fs::write(root.join("app/src/main/kotlin/Main.kt"), "fun main() {}\n").unwrap();
+    fs::write(
+        root.join("vendor/shared/src/main/kotlin/Shared.kt"),
+        "const val SEPARATE_BUILD = 1\n",
+    )
+    .unwrap();
+
+    let output = specsync()
+        .arg("coverage")
+        .arg("--root")
+        .arg(&root)
+        .args(["--format", "json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(&output).unwrap_or_else(|error| {
+        panic!(
+            "coverage must emit valid JSON for a composite build: {error}; stdout={}",
+            String::from_utf8_lossy(&output)
+        )
+    });
+
+    assert_ne!(json["inconclusive"], serde_json::json!(true), "{json}");
+    assert_eq!(
+        json["manifest_notices"],
+        serde_json::json!([]),
+        "coverage degraded over a composite build it can parse: {json}"
+    );
+    let modules = json["modules"]
+        .as_array()
+        .unwrap_or_else(|| panic!("coverage must report modules for a composite build: {json}"));
+    assert!(
+        modules
+            .iter()
+            .any(|module| module["name"] == serde_json::json!("app")),
+        "the settings module was not discovered: {json}"
+    );
+    // The included build is a separate build: it contributes no module and no
+    // source directory, so nothing beneath `vendor/shared` is measured here.
+    assert_eq!(
+        json["uncovered_files"],
+        serde_json::json!([{ "file": "app/src/main/kotlin/Main.kt", "loc": 1 }]),
+        "the included build was measured as part of the root build: {json}"
+    );
+}
+
 #[test]
 fn invalid_utf8_source_is_inconclusive_for_coverage_gating_commands() {
     let tmp = TempDir::new().unwrap();

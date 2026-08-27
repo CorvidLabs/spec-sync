@@ -2198,8 +2198,16 @@ fn reject_non_leading_gradle_includes(content: &str) -> Result<(), String> {
 /// parser derives modules from — is unaffected by it. Everything else keeps
 /// failing closed, in line with the rest of this parser's literal-only subset:
 /// a `../` escape, an interpolated or otherwise dynamic expression, more than
-/// one argument, and any trailing expression such as a configuration block all
-/// name something that cannot be resolved from the settings text alone.
+/// one argument, and any trailing expression other than a balanced configuration
+/// block all name something that cannot be resolved from the settings text
+/// alone.
+///
+/// A trailing `{ dependencySubstitution … }` block is skipped rather than
+/// refused (#725). That block is the NORMAL spelling — it is how a composite
+/// build substitutes a local project for a published coordinate — so refusing it
+/// refused the common form while accepting the bare minority one. It carries
+/// substitution rules, not project declarations, so it contributes no module and
+/// no source directory and nothing in it needs to be resolved.
 ///
 /// Sibling mutators are deliberately untouched. `includeFlat` resolves against
 /// the PARENT of the root, so its argument is outside the project by
@@ -2215,6 +2223,10 @@ fn gradle_include_build_target(content: &str, token_end: usize) -> Result<String
     let arguments = content[token_end..].trim_start();
     let values = if arguments.starts_with('(') {
         let (inside, remainder) = gradle_parenthesized(arguments)?;
+        // The configuration block is skipped BEFORE the statement-end check and
+        // never before the path check below, so it can only ever remove trailing
+        // text from the verdict — never an argument from it.
+        let remainder = skip_gradle_include_build_configuration_block(remainder)?;
         // A parenthesized call may span lines, so the balanced scan above runs
         // over the rest of the file. Only the tail of the CLOSING line belongs
         // to this statement; the lines after it are other directives.
@@ -2246,12 +2258,69 @@ fn gradle_include_build_statement_body(statement: &str) -> &str {
     statement.trim_end_matches(gradle_include_build_statement_tail)
 }
 
+/// Skip a balanced trailing configuration block on a composite-build declaration.
+///
+/// Returns the input untouched when no block opens on the declaration's own
+/// line, so nothing about the bare form changes, and the closing `}` of an
+/// ENCLOSING block is left for `require_gradle_include_build_statement_end` —
+/// `if (x) { includeBuild("vendor/shared") }` opens no block of its own.
+///
+/// Skipping is safe because it removes nothing from any other guard. The path
+/// argument is parsed from inside the parentheses, which this never touches, so
+/// a block cannot smuggle `includeBuild("../outside") { … }` past the
+/// confinement check. And the block's own text stays in `content`: the scan in
+/// `reject_non_leading_gradle_includes` resumes from the declaration token, and
+/// `reject_unsupported_gradle_project_dir_mutations` runs over the whole file
+/// afterwards — so a block-scoped `include`, a `projectDir` mutation, or an
+/// unrecognized `project(...)` mutation written inside the block still fails
+/// closed exactly as it does anywhere else.
+///
+/// The scan is quote- and escape-aware, so a brace inside a string literal moves
+/// the depth in neither direction. Braces inside comments are already gone:
+/// `strip_gradle_comments` runs before any of this. An unbalanced block reaches
+/// the end of the file without returning to depth zero and is refused.
+fn skip_gradle_include_build_configuration_block(remainder: &str) -> Result<&str, String> {
+    let opened = remainder.trim_start_matches([' ', '\t', '\r']);
+    if !opened.starts_with('{') {
+        return Ok(remainder);
+    }
+
+    let mut depth = 0i32;
+    let mut quote = None;
+    let mut escaped = false;
+    for (index, character) in opened.char_indices() {
+        if let Some(delimiter) = quote {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == delimiter {
+                quote = None;
+            }
+            continue;
+        }
+        match character {
+            '\'' | '"' => quote = Some(character),
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth <= 0 {
+                    return Ok(&opened[index + character.len_utf8()..]);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Err("Gradle includeBuild configuration block has unbalanced braces".to_string())
+}
+
 /// Require that nothing but statement punctuation follows the declaration.
 ///
-/// The check has to refuse a trailing EXPRESSION — a
-/// `{ dependencySubstitution … }` configuration block this parser does not model
-/// — without refusing the closing brace of an enclosing block, which belongs to
-/// the `if` around the declaration rather than to the declaration.
+/// The check has to refuse a trailing EXPRESSION this parser cannot resolve —
+/// anything but the configuration block skipped above — without refusing the
+/// closing brace of an enclosing block, which belongs to the `if` around the
+/// declaration rather than to the declaration.
 ///
 /// Without that distinction the same conditional composite build was accepted
 /// written across three lines and refused written on one, because only in the
@@ -3920,6 +3989,92 @@ include(":member")
         }
     }
 
+    /// THE REGRESSION (#725). `includeBuild(path) { dependencySubstitution { … } }`
+    /// is the NORMAL way to write a composite build — it is the whole reason to
+    /// include one — and #723 left it refused while accepting the bare
+    /// `includeBuild(path)` minority form. The parser was therefore accepting
+    /// the uncommon spelling and refusing the common one.
+    ///
+    /// The block carries substitution rules, not project declarations, so it
+    /// contributes no module and no source directory. Once the path argument has
+    /// been read and confined, a balanced block can be skipped whole, and `:app`
+    /// must still survive beside it untouched — the same claim the bare form
+    /// makes.
+    ///
+    /// The two brace cases are the reason the skip needs a real scan rather than
+    /// a search for `}`: a brace inside a string literal must not move the
+    /// depth, and a brace inside a comment must already be gone.
+    #[test]
+    fn gradle_settings_accept_an_include_build_with_a_configuration_block() {
+        for settings in [
+            // The reported form, verbatim (#725).
+            "includeBuild(\"vendor/podo-shared\") {\n    dependencySubstitution {\n        substitute(module(\"com.example:podo\")).using(project(\":\"))\n    }\n}\n\ninclude(\":app\")\n",
+            // The same declaration on one line.
+            "includeBuild(\"vendor/podo-shared\") { dependencySubstitution { substitute(module(\"com.example:podo\")).using(project(\":\")) } }\ninclude(\":app\")\n",
+            "includeBuild('vendor/podo-shared') { dependencySubstitution { } }\ninclude(':app')\n",
+            "settings.includeBuild(\"vendor/podo-shared\") { dependencySubstitution {} }\ninclude(\":app\")\n",
+            "includeBuild(\"vendor/podo-shared\") { dependencySubstitution {} };\ninclude(\":app\")\n",
+            "includeBuild(\"./vendor/../vendor/podo-shared\") { dependencySubstitution {} }\ninclude(\":app\")\n",
+            // A brace inside a STRING is not a brace. Counted naively this block
+            // never closes and the file is refused.
+            "includeBuild(\"vendor/podo-shared\") {\n    dependencySubstitution {\n        substitute(module(\"com.example:podo{\")).using(project(\":\"))\n    }\n}\ninclude(\":app\")\n",
+            // A brace inside a COMMENT is not a brace either. Counted naively
+            // this block closes early and the rest of the comment is trailing
+            // junk.
+            "includeBuild(\"vendor/podo-shared\") {\n    // the closing brace } belongs to prose\n    dependencySubstitution {}\n}\ninclude(\":app\")\n",
+            "includeBuild(\"vendor/podo-shared\") {\n    /* } */ dependencySubstitution {}\n}\ninclude(\":app\")\n",
+            // Position is not judged for the block form either.
+            "if (loadShared) { includeBuild(\"vendor/podo-shared\") { dependencySubstitution {} } }\ninclude(\":app\")\n",
+            "if (loadShared) {\n    includeBuild(\"vendor/podo-shared\") {\n        dependencySubstitution {}\n    }\n}\ninclude(\":app\")\n",
+        ] {
+            let modules = parse_gradle_settings(settings).unwrap_or_else(|error| {
+                panic!("includeBuild with a configuration block refused: {error}; settings={settings:?}")
+            });
+            assert_eq!(
+                modules,
+                vec![GradleSettingsModule {
+                    name: "app".to_string(),
+                    path: "app".to_string(),
+                }],
+                "unexpected modules for {settings:?}"
+            );
+        }
+    }
+
+    /// Skipping the block must not hide what is written INSIDE it. The block is
+    /// stepped over for the purpose of finding where the declaration ends; the
+    /// text stays in the file, and every other guard still walks it.
+    #[test]
+    fn gradle_settings_still_judge_directives_inside_an_include_build_block() {
+        for (settings, expected) in [
+            (
+                "includeBuild(\"vendor/shared\") {\n    include(\":smuggled\")\n}\n",
+                "Unsupported block-scoped Gradle include",
+            ),
+            (
+                "includeBuild(\"vendor/shared\") {\n    includeFlat(\"../outside\")\n}\n",
+                "Unsupported Gradle workspace mutator",
+            ),
+            (
+                "include(\":member\")\nincludeBuild(\"vendor/shared\") {\n    project(\":member\").projectDir = file(\"../outside\")\n}\n",
+                "Unsupported block-scoped Gradle projectDir mutation",
+            ),
+            (
+                "include(\":member\")\nincludeBuild(\"vendor/shared\") { project(\":member\").setProperty(\"projectDir\", outside) }\n",
+                "Unsupported dynamic Gradle project mutation",
+            ),
+        ] {
+            let error = match parse_gradle_settings(settings) {
+                Ok(modules) => panic!("{settings} was accepted as {modules:?}"),
+                Err(error) => error,
+            };
+            assert!(
+                error.contains(expected),
+                "unexpected error for a directive inside an includeBuild block: {error}; settings={settings:?}"
+            );
+        }
+    }
+
     /// Honest label: the refusals asserted first are the CONTROL, and they
     /// pass on the unfixed parser too — that is the point. Reading the argument
     /// must not turn `includeBuild` into an accept-anything token, so what
@@ -3935,6 +4090,15 @@ include(":member")
     /// so it could not say which argument was wrong, and it said exactly the
     /// same thing about the valid in-repo build above. Naming the path is how a
     /// reader can tell an escape from a form the parser does not model.
+    ///
+    /// The block-carrying fixtures added for #725 sit under the same honest
+    /// label. Every one of them is refused on the unfixed parser too — but only
+    /// because the block itself was refused, which said nothing about the
+    /// argument and would have said the same thing about a perfectly safe path.
+    /// Now the block is skipped, so the refusal has to come from the argument or
+    /// not at all: these assert that skipping it did not make the block a way to
+    /// carry an escape, an interpolation, an extra argument, or an unknowable
+    /// extent past the checks in front of it.
     #[test]
     fn gradle_settings_still_refuse_an_escaping_or_dynamic_include_build() {
         for (settings, expected) in [
@@ -3967,8 +4131,41 @@ include(":member")
                 "must name one literal path",
             ),
             (
-                r#"includeBuild("vendor/shared") { dependencySubstitution {} }"#,
+                r#"includeBuild("vendor/shared") = shared"#,
                 "Unsupported trailing Gradle includeBuild declaration expression",
+            ),
+            // The block is skipped, never the ARGUMENT check in front of it
+            // (#725). Each of these is the accepted form of the test above with
+            // a configuration block appended, and each must reach the same
+            // verdict it reaches without one.
+            (
+                "includeBuild(\"../outside\") { dependencySubstitution {} }",
+                "must remain beneath the project root",
+            ),
+            (
+                "includeBuild(\"../outside\") {\n    dependencySubstitution {\n        substitute(module(\"com.example:podo\")).using(project(\":\"))\n    }\n}\n",
+                "must remain beneath the project root",
+            ),
+            (
+                r#"includeBuild("${vendorRoot}/shared") { dependencySubstitution {} }"#,
+                "Unsupported or dynamic Gradle expression",
+            ),
+            (
+                r#"includeBuild("vendor/a", "vendor/b") { dependencySubstitution {} }"#,
+                "must name one literal path",
+            ),
+            // An unbalanced block cannot be skipped, because its extent is
+            // exactly what is unknown.
+            (
+                "includeBuild(\"vendor/shared\") {\n    dependencySubstitution {\n",
+                "configuration block has unbalanced braces",
+            ),
+            // A brace inside a string literal does not close the block. Without
+            // a quote-aware scan the `"}"` below would balance it and this would
+            // be accepted with the real closing brace left over.
+            (
+                r#"includeBuild("vendor/shared") { dependencySubstitution { substitute("}") } "#,
+                "configuration block has unbalanced braces",
             ),
             (r#"includeBuild(".")"#, "must identify a project path"),
             // Position is not judged, but the ARGUMENT still is — wherever the

@@ -46,6 +46,19 @@ spec: manifest.spec.md
   refused, because a composite build contributes no module whether or not its branch runs. Getting
   that half right mattered — the first cut accepted the three-line conditional and refused the
   one-line one, since only there did the closing `}` land on the declaration's own line.
+- **A configuration block is not a project declaration** (#725): `includeBuild(path) {
+  dependencySubstitution { … } }` is the NORMAL spelling — substituting a local project for a
+  published coordinate is the reason to have a composite build — and #723 deliberately kept refusing
+  it, leaving the parser accepting the minority bare form and rejecting the common one. The block
+  holds substitution rules; it declares no project and no source directory, so a BALANCED block is
+  now skipped whole. What makes that safe is that skipping is confined to finding where the
+  declaration ends: the path is parsed and confined from inside the parentheses in front of the
+  block, so `includeBuild("../outside") { … }` still fails on the path; the block's text is never
+  removed from `content`, so the `include`, `projectDir`, and `project(...)` guards still walk it;
+  the brace scan is quote-aware and runs after comment stripping, so a brace in a string or a
+  comment moves nothing; and an unbalanced block is refused, because its extent is precisely what is
+  unknown. Even a mis-scanned extent could only drop trailing text from the verdict, never an
+  argument from it.
 - **One retained checked authority**: Caller-retained checked discovery uses the retained project
   capability for Cargo, Swift, Node, Dart, Go, Python, and Gradle manifests plus nested workspace
   directories. Non-Gradle retained reads are no-follow, non-blocking, identity-continuous, UTF-8
@@ -100,3 +113,18 @@ the case it silently covered (an ordinary in-repo composite build, which does no
 repository or in any repository tested against) blocked a real adopter on every 6.0 candidate from
 rc.1 to rc.7. When a rejection is decided by a token, ask what the ARGUMENT would have said, and add
 the accepted fixture before trusting the refusing one.
+
+## Lesson (#725)
+
+#723 fixed the token-vs-argument bug and then drew the line one notch short of the reported form:
+the path was read, but a trailing configuration block was still refused — so the parser accepted
+`includeBuild("vendor/shared")` and rejected `includeBuild("vendor/shared") { … }`, which is the
+spelling almost every composite build actually uses. Asking "which spelling is the common one?"
+would have caught it; the accepted fixture added for #723 used the rare one, so nothing failed.
+
+The reason it was a follow-up issue rather than a second outage is worth keeping. #723 also fixed
+the PRECEDENCE rule that let a discovery failure veto a stated `source_dirs`, and that class-level
+fix caught this un-anticipated instance: the adopter got a notice naming the file, the reason, the
+fallback, and the consequence, instead of a blocked run. When a parser fix and a precedence fix are
+both available, the precedence fix is worth more, because it contains the instances you have not
+thought of yet.

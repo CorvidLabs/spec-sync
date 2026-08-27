@@ -1,6 +1,6 @@
 ---
 module: change
-version: 106
+version: 107
 status: active
 files:
   - src/change.rs
@@ -182,7 +182,7 @@ Acceptance Criteria
 
 ## Invariants
 
-1. Change IDs are monotonically assigned as `CHG-NNNN-slug` across active and archived workspaces.
+1. Change IDs are minted from the change description as a slug and are unique across active and archived workspaces; the historical `CHG-NNNN-slug` ordinals are read for collision accounting and never allocated.
 2. No emergency or force transition bypass exists.
 3. Approval digests exclude volatile lifecycle state. The workflow-v1 definition digest hashes every selected artifact and semantic delta body; the workflow-v2 stable scope digest hashes intent and boundary only, and delta bodies are bound instead by a per-module content digest recorded on the definition approval event.
 4. Any addition, removal, or replacement in approved stable scope invalidates approval until the new digest is approved.
@@ -442,3 +442,4 @@ Acceptance Criteria
 | 2026-08-25 | req-change-016-must-describe-ancestry-as-it-is-used-never-a-gate-on-currency-or-ship-readiness-admissible-as-one-basis: REQ-change-016 must describe ancestry as it is used: never a gate on currency or ship readiness, admissible as one basis for archival anchoring |
 | 2026-08-27 | drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows: Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee |
 | 2026-08-27 | a-definition-approval-may-not-withdraw-the-delta-binding-an-earlier-approval-recorded: A definition approval may not withdraw the delta binding an earlier approval recorded |
+| 2026-08-27 | retire-the-spec-text-describing-the-deleted-change-sequence-allocation-including-specsync-sequence-base: Retire the spec text describing the deleted change-sequence allocation, including SPECSYNC_SEQUENCE_BASE |

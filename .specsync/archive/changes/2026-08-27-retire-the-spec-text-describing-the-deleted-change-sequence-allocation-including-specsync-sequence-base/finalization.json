@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "retire-the-spec-text-describing-the-deleted-change-sequence-allocation-including-specsync-sequence-base",
+  "implementation_commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
+  "implementation_tree": "68da1da88b17f8cbd9e93bcdb43e3c73c167f8c7",
+  "contract_digest": "e45212d198d276322eb402f4d8a55ff24bcc9bffad6ff929eec22ead865c3131",
+  "workspace_digest": "455975ab403879eb78952bf7bd3172e5e48bbcf7e62c01f080ab900a7a7eac17",
+  "closing_digest": "7f8d6fe6fdc6c225c30eb6bb0f40f30c49140fc0a8e075931eedc94e50344748",
+  "review_digest": "3518518338d080e8ae07eda37531007204093af26208045f87bd607b261a8ac8",
+  "finalization_digest": "bcbe91ff7b64821b0c3733d15ddd354284793d6e507163ecb495802a85fdbbb5",
+  "timestamp": 1787865475
+}

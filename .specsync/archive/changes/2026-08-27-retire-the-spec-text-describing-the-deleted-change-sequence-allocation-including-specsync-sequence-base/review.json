@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "retire-the-spec-text-describing-the-deleted-change-sequence-allocation-including-specsync-sequence-base",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
+  "contract_digest": "e45212d198d276322eb402f4d8a55ff24bcc9bffad6ff929eec22ead865c3131",
+  "execution_digest": "ec115c3711c40334d0cd23cf0314240e3d36ec14480647ae73f6b70c24143339",
+  "workspace_digest": "455975ab403879eb78952bf7bd3172e5e48bbcf7e62c01f080ab900a7a7eac17",
+  "timestamp": 1787865446
+}

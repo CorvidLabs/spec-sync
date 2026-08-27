@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "bypass-actors-are-unobservable-to-a-workflow-token-so-absence-must-read-as-unverified-rather-than-empty",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "d508f144a1d965b395abfe45f23c8b4e8978cd5f",
+      "contract_digest": "80a5c7815c59ac5bcb93830264950069eed301add5a135f35dcf470c578eba89",
+      "execution_digest": "322742e829df85ca64f0150c551f1dbee2be8a56596f637027112fb3113c932b",
+      "workspace_digest": "460d270856b7b3ac625e31953156df69677cf9fed9e3080f1049579c0f0d608c",
+      "timestamp": 1787785703
+    }
+  ]
+}

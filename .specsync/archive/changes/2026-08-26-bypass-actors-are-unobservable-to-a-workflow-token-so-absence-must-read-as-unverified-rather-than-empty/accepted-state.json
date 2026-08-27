@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "bypass-actors-are-unobservable-to-a-workflow-token-so-absence-must-read-as-unverified-rather-than-empty",
+  "slug": "bypass-actors-are-unobservable-to-a-workflow-token-so-absence-must-read-as-unverified-rather-than-empty",
+  "title": "Bypass actors are unobservable to a workflow token, so absence must read as unverified rather than empty",
+  "description": "Bypass actors are unobservable to a workflow token, so absence must read as unverified rather than empty",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "d508f144a1d965b395abfe45f23c8b4e8978cd5f",
+  "created_at": 1787784076,
+  "updated_at": 1787785727,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/scripts/validate-release-candidate.py",
+    ".github/scripts/test-validate-release-candidate.py",
+    "specs/github/github.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "an absent bypass_actors field validates as unverified and names what was not checked, rather than failing the gate",
+    "a visible bypass actor is still refused",
+    "an admin payload with no bypass actors passes with no notice"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

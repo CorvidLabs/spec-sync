@@ -175,6 +175,31 @@ byte-identically; `ApprovalRecord` is a tolerant evidence struct, not a digest p
 what makes the addition safe. Only definition gates record: closing and finalization gates review
 delivery evidence, and recording a wording claim on them would be a lie in the ledger.
 
+But absence is a property of a LEDGER, not of an event, and the version above was not (#719).
+`change approve --portable-5-0-1` appended two definition approvals carrying no binding, and
+`effective_definition_approval` reads the LAST definition gate, so a change that had just recorded
+a digest ended up with an effective approval that recorded none — and the check returned early on
+it. A compatibility path that reads "written before the binding existed" was made to read "this
+approver declines to say", which is the opposite claim. Two halves fix it: every definition writer
+now records what it signed, the portable pair included, and the early return is qualified — absence
+is trusted only when no definition approval in that ledger records a digest. Every archived change
+is in exactly that position, so history takes the untouched path; all 197 ledgers were scanned
+before the refusal was written, and none carries the shape it rejects.
+
+Carrying the binding forward was chosen over refusing the portable approve because
+`--portable-5-0-1` is an adopter's only route to a 5.0.1-verifiable approval, and refusing it on a
+change the current binary had already approved leaves hand-editing the ledger as the alternative.
+The fix costs the projection nothing: `approved_delta_digests` is an input to neither the
+definition digest, the 5.0.1 projection bytes, nor the pair ID.
+
+Worth knowing before scoping the next defect in this area: on workflow v1 the downgrade does not
+currently reach a canonical spec, because the v1 definition digest hashes every delta payload and
+`materialize_change_deltas` validates it one line earlier. Measure that before claiming a
+materialization — the report's sequence refuses on unfixed `main`, just with the wrong message
+("portable definition approval pair is malformed or stale"), which points the reader at re-running
+`--portable-5-0-1` and laundering the swap. The consequence that generalizes is v2's, where the
+scope digest hashes intent and boundary only and this binding is all there is.
+
 There was never a repository-wide "normalize then parse" convention to diverge from. An earlier
 version of this note said there was, counted from 29 occurrences of `.replace("\r\n", "\n")` in
 `src/`. Measured against the right denominator: of the 39 `parse_frontmatter` call sites outside

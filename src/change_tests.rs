@@ -13465,6 +13465,231 @@ fn an_approval_recorded_before_delta_digests_existed_is_unknown_not_violated() {
     assert!(applied.canonical_applied);
 }
 
+/// A workflow-v1 change carrying the `auth` delta above, positioned so `--portable-5-0-1` can run.
+///
+/// The portable projection is workflow-v1-only and refuses without a versioned legacy archive
+/// baseline binding, so the fixture writes a real baseline ledger and binds the record to its
+/// actual digest rather than to a placeholder. `authority_change_id` names a different change, so
+/// `bind_legacy_archive_baseline_authority` sees a present, valid baseline and leaves the binding
+/// alone — which is the position an adopter upgrading from 5.x is in.
+fn portable_v1_change_with_a_delta(root: &Path) -> ChangeRecord {
+    let mut record = completed_section_only_record(root, APPROVED_DELTA_BODY);
+    let baseline = LegacyArchiveBaselineV1 {
+        schema_version: 1,
+        domain: "specsync.legacy-archive-baseline.v1".into(),
+        authority_change_id: "CHG-0000-legacy-archive-baseline".into(),
+        cutoff_commit: "0".repeat(40),
+        entries: Vec::new(),
+    };
+    let path = root.join(LEGACY_BASELINE_PATH);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    write_json(&path, &baseline).unwrap();
+    let (_, digest) = validate_legacy_archive_baseline_bytes(&fs::read(&path).unwrap()).unwrap();
+    record.legacy_archive_baseline_digest = Some(digest);
+    save_change(root, &record).unwrap();
+    record
+}
+
+fn recorded_delta_digests(root: &Path, record: &ChangeRecord) -> Option<BTreeMap<String, String>> {
+    let ledger = load_approvals(root, record).unwrap();
+    effective_definition_approval(root, record, &ledger)
+        .unwrap()
+        .approved_delta_digests
+        .clone()
+}
+
+/// DISCRIMINATOR for #719, at the write path the report names.
+///
+/// `change approve --portable-5-0-1` appends two `definition`-gate approvals, and
+/// `effective_definition_approval` reads the LAST one. Recording no delta wording on them
+/// therefore did not merely add a silent event: it made the change's effective approval silent,
+/// undoing a claim `change approve` had already recorded. On the unfixed binary the assertion
+/// below reads `None` where a digest keyed by `auth` had just been written.
+///
+/// The second half is the other thing carrying the binding forward must not cost. A portable
+/// approval exists to be verifiable by SpecSync 5.0.1, so the pair's own digests, its metadata and
+/// its resolution have to come out exactly as before — `approved_delta_digests` is an input to
+/// none of them, and this pins that rather than assuming it.
+#[test]
+fn a_portable_definition_approval_carries_the_delta_binding_it_inherits() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = portable_v1_change_with_a_delta(root);
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    let approved = recorded_delta_digests(root, &record)
+        .expect("the ordinary approve must record the delta bodies it approved");
+    assert_eq!(approved.keys().collect::<Vec<_>>(), vec!["auth"]);
+
+    append_portable_definition_approval_v501(root, &record, Some("Scope owner".into()), None)
+        .unwrap();
+
+    assert_eq!(
+        recorded_delta_digests(root, &record).as_ref(),
+        Some(&approved),
+        "a portable approval must not leave the change's effective approval claiming less \
+         about delta wording than the approval it supersedes"
+    );
+    let ledger = load_approvals(root, &record).unwrap();
+    let portable: Vec<&ApprovalRecord> = ledger
+        .approvals
+        .iter()
+        .filter(|approval| approval.definition_pair.is_some())
+        .collect();
+    assert_eq!(portable.len(), 2);
+    for approval in &portable {
+        assert_eq!(
+            approval.approved_delta_digests.as_ref(),
+            Some(&approved),
+            "both members of the pair are definition approvals and both must say what they signed"
+        );
+    }
+
+    let (current, legacy, _) = portable_definition_digest_pair_v501(root, &record).unwrap();
+    assert_eq!(portable[0].digest, current);
+    assert_eq!(portable[1].digest, legacy);
+    assert_eq!(
+        portable[1].note.as_deref(),
+        Some("Portable SpecSync 5.0.1 definition projection")
+    );
+    assert!(
+        ensure_definition_approval_valid(root, &record).is_ok(),
+        "the 5.0.1 projection must still resolve; the delta binding is not one of its inputs"
+    );
+}
+
+/// DISCRIMINATOR for #719, at the consequence.
+///
+/// Honest label: the downgraded ledger here is written directly rather than by
+/// `change approve --portable-5-0-1`, and that is deliberate. The portable projection is
+/// workflow-v1-only, and a v1 definition digest hashes every delta body through
+/// `definition_artifact_snapshot` — so on a v1 change a swapped delta is independently caught by
+/// `ensure_definition_approval_valid`, and the portable downgrade costs recorded evidence rather
+/// than a refusal. What generalizes, and what the fix has to refuse, is the SHAPE: a later
+/// definition approval that records no delta wording on a change whose ledger already recorded
+/// some. That shape is exactly what `append_portable_definition_approval_v501` wrote, and under
+/// workflow v2 — where the scope digest deliberately hashes intent and boundary only — it is the
+/// whole of what stands between a swapped body and the canonical spec.
+///
+/// Unfixed, this test does not fail on a message; it fails because `specs/auth/auth.spec.md`
+/// contains BACKDOOR.
+#[test]
+fn a_later_definition_approval_may_not_withdraw_a_recorded_delta_binding() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    let mut ledger = load_approvals(root, &record).unwrap();
+    let mut withdrawn = ledger
+        .approvals
+        .iter()
+        .rev()
+        .find(|approval| approval.gate == "definition")
+        .expect("the fixture approves the definition")
+        .clone();
+    withdrawn.approved_delta_digests = None;
+    withdrawn.timestamp += 1;
+    ledger.approvals.push(withdrawn);
+    write_json(
+        &change_dir(root, &record.id).join("approvals.json"),
+        &ledger,
+    )
+    .unwrap();
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    let error = materialize_change_deltas(root, &record.id)
+        .expect_err("a withdrawn delta binding must not read as an approval that predates it");
+
+    assert!(
+        error.contains("records no semantic delta wording"),
+        "a refusal must say the approval claims less than an earlier one did: {error}"
+    );
+    assert!(
+        error.contains(&format!("specsync change approve {}", record.id)),
+        "a refusal must name the command that restores a truthful ledger: {error}"
+    );
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        !spec.contains("BACKDOOR"),
+        "the living spec carries wording nobody approved: {spec}"
+    );
+    assert!(
+        !load_change(root, &record.id).unwrap().canonical_applied,
+        "a refused materialization must not record itself as applied"
+    );
+}
+
+/// CONTROL, and it passes on the unfixed binary too — that is the entire point of writing it.
+///
+/// Monotonicity is a property of a LEDGER, so the way to get it wrong is to read "this approval
+/// records nothing" as "something was withdrawn" on a ledger where nothing was ever recorded.
+/// A pre-#711 change that was approved more than once is precisely that ledger: several
+/// definition approvals, not one of them carrying a digest, and the archive is full of them.
+/// If the refusal above is ever written as "the latest approval records nothing" instead of
+/// "an earlier approval recorded more", this is the test that fails — and it fails as an outage
+/// across recorded history, not as a caught bug.
+#[test]
+fn a_ledger_that_never_recorded_delta_wording_still_materializes_a_swapped_body() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    strip_recorded_delta_digests(root, &record);
+
+    let ledger = load_approvals(root, &record).unwrap();
+    assert!(
+        ledger
+            .approvals
+            .iter()
+            .filter(|approval| approval.gate == "definition")
+            .count()
+            > 1,
+        "the fixture must carry more than one silent definition approval"
+    );
+    let ledger_bytes =
+        fs::read_to_string(change_dir(root, &record.id).join("approvals.json")).unwrap();
+    assert!(
+        !ledger_bytes.contains("approved_delta_digests"),
+        "the fixture must be shaped like a pre-#711 ledger, not merely be missing a value: {ledger_bytes}"
+    );
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    let applied = materialize_change_deltas(root, &record.id)
+        .expect("a ledger that never recorded delta wording withdrew nothing");
+
+    assert!(applied.canonical_applied);
+}
+
+/// The legitimate use of `--portable-5-0-1` is a workflow-v1 change being handed to a 5.0.1
+/// verifier, and nothing about it requires an ordinary approval first. Refusing the portable
+/// approve whenever a digest already existed would have been the cheaper fix; this is the test
+/// that shows the chosen one costs the untouched case nothing.
+#[test]
+fn a_portable_definition_approval_records_delta_wording_with_no_prior_approval() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = portable_v1_change_with_a_delta(root);
+    assert!(
+        load_approvals(root, &record).unwrap().approvals.is_empty(),
+        "the fixture must reach the portable approve with nothing recorded before it"
+    );
+
+    append_portable_definition_approval_v501(root, &record, Some("Scope owner".into()), None)
+        .unwrap();
+
+    assert_eq!(
+        recorded_delta_digests(root, &record)
+            .expect("a definition approval records the wording it approved")
+            .keys()
+            .collect::<Vec<_>>(),
+        vec!["auth"]
+    );
+    assert!(ensure_definition_approval_valid(root, &record).is_ok());
+    assert!(
+        ensure_approved_delta_bodies_unchanged(root, &record).is_ok(),
+        "the bodies the portable approve just read are the bodies on disk"
+    );
+}
+
 #[test]
 fn path_coverage_uses_current_remote_base_after_rebase() {
     let temp = TempDir::new().unwrap();

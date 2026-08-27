@@ -7,11 +7,11 @@
   "title": "A trailing includeBuild configuration block must be skipped, not refused, because includeBuild(path) { dependencySubstitution { ... } } is the common spelling and contributes no module",
   "description": "A trailing includeBuild configuration block must be skipped, not refused, because includeBuild(path) { dependencySubstitution { ... } } is the common spelling and contributes no module",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "fe55a2179ca298ad1ca4e8fc7b7465890b85cc75",
   "created_at": 1787845375,
-  "updated_at": 1787847879,
+  "updated_at": 1787848960,
   "affected_specs": [
     "manifest"
   ],

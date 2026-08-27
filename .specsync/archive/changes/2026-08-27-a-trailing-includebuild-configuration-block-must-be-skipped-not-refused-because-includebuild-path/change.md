@@ -1,6 +1,6 @@
 ---
 id: a-trailing-includebuild-configuration-block-must-be-skipped-not-refused-because-includebuild-path
-state: implementing
+state: archived
 type: bug_fix
 base_commit: fe55a2179ca298ad1ca4e8fc7b7465890b85cc75
 ---

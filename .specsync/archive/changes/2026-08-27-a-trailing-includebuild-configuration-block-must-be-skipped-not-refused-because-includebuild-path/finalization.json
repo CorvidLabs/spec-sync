@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-trailing-includebuild-configuration-block-must-be-skipped-not-refused-because-includebuild-path",
+  "implementation_commit": "883e33c58f0903c9e82c6173bc6ed4a75b1f86c2",
+  "implementation_tree": "e23c9d84959b1f7f8601b15ba2805e8a541552ed",
+  "contract_digest": "cb70943c0fb6e79c00a73c860a3800830624211003c93cee461079f0666e6ad3",
+  "workspace_digest": "0f79c04b19ff3936a6274102160b8175bd57d1d3bc8e8a54a721b689b7e7251f",
+  "closing_digest": "c9a361195917a180c42a949f6c6585cf50797ef2267abe8ad7ea5c09115af63b",
+  "review_digest": "2d04ceb24fc7baeb8e6187876bc20d960fbb5053c3627dcb898ffa90ead343a8",
+  "finalization_digest": "9bbe023a1fcd5b205ea97e89d745c099c5eded28843a7a6199b06acd9cf7940e",
+  "timestamp": 1787848686
+}

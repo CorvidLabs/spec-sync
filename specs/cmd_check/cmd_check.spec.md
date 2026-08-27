@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 24
+version: 27
 status: stable
 files:
   - src/commands/check.rs
@@ -39,8 +39,12 @@ gates, and optional drift issues.
 
 ## Invariants
 
-9. Coverage uses checked manifest discovery; malformed Gradle settings make the result inconclusive
-   and exit 1 instead of producing partial or vacuous coverage.
+9. Coverage uses checked manifest discovery. Malformed Gradle settings make the result
+   inconclusive and exit 1 instead of producing partial or vacuous coverage WHEN `source_dirs` was
+   not configured — the source list would otherwise be the output of the discovery that failed.
+   When `source_dirs` IS configured, the same failure does not abort the command: coverage runs
+   over the stated list and the JSON payload carries the degradation in `manifest_notices`
+   alongside `skipped_links`, so a machine consumer acting on `passed` can see it.
 10. Text, JSON, Markdown, and GitHub output distinguish emitted warnings from deterministic
     suppressed-warning details, while strict exit behavior counts only unsuppressed findings.
 11. A warm hash-cache skip skips re-validation, never the previous findings: unchanged specs
@@ -136,3 +140,6 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-15 | A warm cache skip must replay stored findings: the same tree cannot go from `specs_checked: 1` with a warning to `specs_checked: 0` with none (#429) |
 | 2026-08-16 | CHG-0132-a-warm-hash-cache-must-not-drop-findings-because-skipping-re-validation-without: A warm hash cache must not drop findings, because skipping re-validation without replaying the previous result reports a passing spec that was never checked |
 | 2026-08-18 | CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness: A staleness answer must not read an unreadable source as freshness |
+| 2026-08-27 | v25 / #723: Carry `manifest_notices` in the JSON payload, so the machine consumer acting on `passed` can see the manifest that was degraded rather than propagated |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |

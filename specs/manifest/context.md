@@ -34,6 +34,18 @@ spec: manifest.spec.md
 - **Locally governed Gradle directives**: Unsupported inclusion APIs and indirect or conditional
   include/project-directory mutations fail closed, while unrelated top-level control flow and
   identifier/documentation uses remain compatible.
+- **A directive is judged by its argument when the argument is what makes it safe**: `includeBuild`
+  was refused on the token prefix alone, so an ordinary in-repo composite build
+  (`includeBuild("vendor/shared")`) failed identically to one escaping the repository
+  (`includeBuild("../outside")`). It is now decided by the same literal-only parsing and path
+  confinement `include(...)` already uses; an accepted composite build contributes no module.
+  `includeFlat` and `includeWorkspace` stay token-refused for a stated reason — `includeFlat`
+  resolves against the PARENT of the root, so its argument is outside the project by construction,
+  and `includeWorkspace` is not a form this parser models. Its POSITION is not judged either: a
+  conditional or block-scoped `includeBuild` is accepted where the same shape of `include` is
+  refused, because a composite build contributes no module whether or not its branch runs. Getting
+  that half right mattered — the first cut accepted the three-line conditional and refused the
+  one-line one, since only there did the closing `}` land on the declaration's own line.
 - **One retained checked authority**: Caller-retained checked discovery uses the retained project
   capability for Cargo, Swift, Node, Dart, Go, Python, and Gradle manifests plus nested workspace
   directories. Non-Gradle retained reads are no-follow, non-blocking, identity-continuous, UTF-8
@@ -78,3 +90,13 @@ pending. MCP Cargo workspace paths come from validated TOML values.
 
 - Balanced parenthesis extraction is used for Swift's `Package.swift` — it's a mini expression parser for the `.target(name: ..., path: ...)` syntax.
 - Go module detection uses the last path segment of the module name (e.g., `github.com/user/repo` → `repo`) and probes for standard directory conventions (cmd, internal, pkg, api).
+
+## Lesson (#723)
+
+A guard written against one shape catches every shape that shares its token. `includeBuild` was
+refused by prefix, and every fixture in the guarding test used `"../outside"` — so the test passed
+whether the parser read the path or ignored it entirely. It could not fail for the right reason, and
+the case it silently covered (an ordinary in-repo composite build, which does not exist in this
+repository or in any repository tested against) blocked a real adopter on every 6.0 candidate from
+rc.1 to rc.7. When a rejection is decided by a token, ask what the ARGUMENT would have said, and add
+the accepted fixture before trusting the refusing one.

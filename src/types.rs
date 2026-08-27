@@ -241,6 +241,18 @@ pub struct CoverageReport {
     /// Reported alongside the coverage figures so the number is never read
     /// without them.
     pub skipped_links: Vec<String>,
+    /// Manifest discovery failures that were degraded rather than propagated
+    /// because the project stated its own `source_dirs` (#723).
+    ///
+    /// Discovery exists to INFER a source list the user did not state. When the
+    /// user has stated one, a failure to infer it is not a verdict about the
+    /// project: it must not veto the declaration and abort the command. But it
+    /// is not nothing either. Manifest modules also seed module attribution, so
+    /// a tree whose manifest could not be read reports FEWER modules without
+    /// specs than it has — a report that improved because part of the
+    /// measurement stopped. Carried with the figures for the same reason as
+    /// `skipped_links`: the number is never read without what shaped it.
+    pub manifest_notices: Vec<String>,
 }
 
 impl CoverageReport {
@@ -339,6 +351,23 @@ pub struct SpecSyncConfig {
 
     #[serde(default = "default_source_dirs")]
     pub source_dirs: Vec<String>,
+
+    /// Whether `source_dirs` was explicitly stated in the loaded config file
+    /// (not serialized — set at runtime by the config loader), as opposed to
+    /// having been inferred by manifest discovery or a directory scan.
+    ///
+    /// Read by coverage to decide what a manifest that cannot be parsed means.
+    /// Discovery exists to infer a source list the user did not state, so when
+    /// the user HAS stated one, a discovery failure is a notice; when they have
+    /// not, the source list is itself discovery output and the failure has to
+    /// stay fatal or coverage would be measured over a guess (#723).
+    ///
+    /// Follows `enforcement_set`: the loader knows what the file actually said,
+    /// and a field's presence cannot be recovered from its value afterwards —
+    /// a configured `source_dirs = ["src"]` is indistinguishable from the
+    /// `["src"]` default once loading is done.
+    #[serde(skip)]
+    pub source_dirs_set: bool,
 
     pub schema_dir: Option<String>,
     pub schema_pattern: Option<String>,
@@ -907,6 +936,7 @@ impl Default for SpecSyncConfig {
         Self {
             specs_dir: default_specs_dir(),
             source_dirs: default_source_dirs(),
+            source_dirs_set: false,
             schema_dir: None,
             schema_pattern: None,
             required_sections: default_required_sections(),
@@ -952,6 +982,7 @@ mod coverage_report_tests {
             unspecced_file_loc: Vec::new(),
             missing_files: Vec::new(),
             skipped_links: Vec::new(),
+            manifest_notices: Vec::new(),
         }
     }
 

@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 36
+version: 39
 status: stable
 files:
   - src/validator.rs
@@ -68,7 +68,12 @@ instead of a false success.
 11. Validation results retain parsed lifecycle status.
 12. Requirements companions are validated when present under adaptive artifact policy.
 13. Checked coverage propagates malformed, unreadable, unsupported, or unconfined manifest
-    discovery; compatibility coverage remains available. Coverage source enumeration and content
+    discovery WHEN the source list it would measure came from that discovery — that is, when
+    `source_dirs` was not stated. A project that stated `source_dirs` is not overruled by a failure
+    to infer what it already said: discovery degrades to an empty result and the error is carried
+    as a coverage notice, never as a veto. The notice is not optional, because manifest modules
+    also seed module attribution, so a degraded run reports fewer modules without specs than the
+    tree holds. Compatibility coverage remains available. Coverage source enumeration and content
     reads remain bound to one retained project-root capability after manifest discovery, and any
     replacement or non-regular endpoint makes the checked result inconclusive.
 14. `validate_spec_content` validates caller-provided bytes without reopening `spec_path` or
@@ -204,7 +209,8 @@ instead of a false success.
 | DB table not in schema | Error: "DB table not found in schema" |
 | Missing required section | Error: "Missing required section: ## SectionName" |
 | Dependency spec not found | Error: "Dependency spec not found" |
-| Malformed, unreadable, unsupported, or unconfined Gradle discovery during checked coverage, including unsafe Gradle manifest entries | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success, referent reads, or outside traversal |
+| Malformed, unreadable, unsupported, or unconfined Gradle discovery during checked coverage with `source_dirs` unstated, including unsafe Gradle manifest entries | Returns `Err`; CLI/MCP gate callers report an inconclusive failure rather than coverage success, referent reads, or outside traversal |
+| The same discovery failure with `source_dirs` explicitly stated | Coverage runs over the stated list and returns `Ok`; the error is reported as a `manifest_notices` entry beside the figures, and the manifest contributes no modules |
 | Coverage selected-spec/source input is linked/reparse-backed, special, replaced, invalid UTF-8, over 8 MiB, or shared traversal exceeds 64 MiB/100,000 entries/256 components | Returns `Err` from the retained project snapshot; no partial totals or ambient fallback |
 | Caller-selected coverage spec is outside the retained project, missing, linked/reparse-backed, special, replaced, invalid UTF-8, or over the shared coverage input bounds | Returns `Err`; ownership mappings are never obtained through the ambient spec pathname |
 | Valid checked coverage contains more sibling spec/source directories than the process descriptor limit | Children are reopened sequentially through retained parents; coverage completes with handles bounded by traversal depth |
@@ -277,3 +283,6 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-15 | CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest: Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module |
 | 2026-08-17 | CHG-0137-coverage-must-not-invent-a-module-over-files-that-are-all-mapped: Coverage must not invent a module over files that are all mapped |
 | 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |
+| 2026-08-27 | v37 / #723: A manifest that cannot be parsed no longer vetoes an explicitly configured `source_dirs`; it degrades to a `manifest_notices` entry, and stays fatal only when the source list itself came from discovery |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |

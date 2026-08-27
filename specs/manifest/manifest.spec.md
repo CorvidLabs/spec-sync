@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 18
+version: 21
 status: stable
 files:
   - src/manifest.rs
@@ -71,6 +71,15 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
     through open/read; unsafe shadowed variants cannot evade checked discovery.
 14. Unsupported invoked inclusion APIs and governed indirect/conditional mutations fail closed,
     while unrelated Gradle control flow and identifier/documentation uses remain compatible.
+    `includeBuild` is decided by its argument rather than its token: one complete literal path
+    confined beneath the project root parses and contributes no module, while an escaping,
+    interpolated, dynamic, multi-argument, or trailing-expression argument fails closed. A guard
+    that reads only the token cannot distinguish an ordinary in-repo composite build from one that
+    leaves the repository, and refusing both makes a valid project unmeasurable. Its position is
+    likewise not judged — a conditional or block-scoped `includeBuild` is accepted where the same
+    shape of `include` is refused, because a composite build contributes no module whether or not
+    its branch runs, so where it sits cannot change what is discovered. One-line and multi-line
+    spellings of the same conditional therefore reach the same verdict.
 15. Every recognized checked manifest ecosystem and nested workspace probe uses the caller's
     retained project capability with deterministic byte, entry, depth, UTF-8, link, special-file,
     and identity enforcement; ambient paths are only a final replacement diagnostic.
@@ -203,6 +212,8 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | Linked, reparse-backed, non-regular, replaced, oversized, unreadable, or invalid-UTF-8 Gradle build/settings manifest, including a shadowed filename variant | Checked discovery returns `Err` without reading a link referent or returning partial discovery; compatibility discovery returns an empty result |
 | Malformed or dynamic Gradle include, invoked unsupported inclusion API, unescaped double-quoted interpolation, unsupported assignment/method project-directory form, rooted/drive/UNC/parent-escaping raw module identity or decoded effective path, or broken comments/escapes/parentheses | Checked discovery returns `Err`; compatibility discovery returns an empty result and gates stay inconclusive |
 | Gradle-derived directory contains a symlink or Windows reparse-point component | Checked discovery returns `Err` before source probing/traversal; compatibility discovery returns an empty result and gates stay inconclusive |
+| `includeBuild` names one literal path beneath the project root | Parses; the composite build contributes no module and the root build's `include(...)` list is unaffected |
+| `includeBuild` escapes the project root, or its argument is not one complete literal (interpolated, dynamic, multiple, or followed by a configuration block) | Checked discovery returns `Err` naming the argument, not the token; compatibility discovery returns an empty result |
 | Workspace member directory doesn't exist | Skipped (Cargo.toml existence check) |
 | No parsers produce results | Returns default empty `ManifestDiscovery` |
 
@@ -244,3 +255,6 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | 2026-07-27 | CHG-0063-close-independent-mcp-security-review-gaps-for-issue-414: Close independent MCP security review gaps for issue 414 |
 | 2026-08-15 | CHG-0130-gradle-module-identity-must-come-from-the-project-name-like-every-other-manifest: Gradle module identity must come from the project name like every other manifest, not from a source path segment, because both the first and last segment collapse a whole tree into one module |
 | 2026-08-17 | CHG-0137-coverage-must-not-invent-a-module-over-files-that-are-all-mapped: Coverage must not invent a module over files that are all mapped |
+| 2026-08-27 | v19 / #723: Judge `includeBuild` by its argument rather than its token, so an in-repo composite build parses and only escaping or non-literal arguments fail closed |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |

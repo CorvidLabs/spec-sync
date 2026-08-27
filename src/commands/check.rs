@@ -872,6 +872,12 @@ pub fn cmd_check(
                 // Machine consumers are exactly who cannot see the text
                 // disclosure, and they are the ones acting on `passed` (#546).
                 "skipped_links": coverage.skipped_links,
+                // Same reason, one layer out (#723): a manifest that could not
+                // be parsed was degraded rather than propagated because this
+                // project stated its own `source_dirs`, and the machine
+                // consumer acting on `passed` is exactly who cannot see the
+                // text disclosure of it.
+                "manifest_notices": coverage.manifest_notices,
             });
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
             process::exit(exit_code);

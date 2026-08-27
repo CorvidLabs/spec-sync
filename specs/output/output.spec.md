@@ -1,6 +1,6 @@
 ---
 module: output
-version: 8
+version: 11
 status: stable
 files:
   - src/output.rs
@@ -55,6 +55,11 @@ Renders terminal and markdown output for spec-sync commands. Provides colored te
 3. `print_diff_markdown` calls into `parser::parse_frontmatter` and `exports::has_extension` to cross-reference changed files against spec source file lists
 4. Markdown output uses GitHub-flavored markdown with tables and emoji status icons (✅/❌/⚠)
 5. All functions write to stdout via `println!` — no buffered or file output
+6. Whatever shaped the coverage denominator is printed with the coverage figures, never in a
+   separate section a reader may not reach: files referenced but missing, symlinks not
+   traversed, and manifests that were degraded rather than allowed to abort the command. A
+   degraded manifest still declared modules, so the module counts beside it were measured
+   over less than the tree holds. Text, markdown, and JSON all carry them.
 
 ## Behavioral Examples
 
@@ -116,3 +121,6 @@ Renders terminal and markdown output for spec-sync commands. Provides colored te
 | 2026-08-14 | CHG-0117-coverage-over-zero-source-files-must-report-that-nothing-was-measured-not-one-h: Coverage over zero source files must report that nothing was measured, not one hundred percent |
 | 2026-08-14 | CHG-0121-coverage-over-zero-source-files-must-report-nothing-measured-everywhere-replac: Coverage over zero source files must report nothing measured, everywhere: replace the precomputed percentage fields with Option-returning accessors so no renderer can substitute 100 percent for an unasked question |
 | 2026-08-14 | CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable: Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text |
+| 2026-08-27 | v9 / #723: Report degraded manifest discovery beside the coverage figures in text, markdown, and JSON, for the same reason as skipped links — the module counts were measured over less than the tree holds |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |

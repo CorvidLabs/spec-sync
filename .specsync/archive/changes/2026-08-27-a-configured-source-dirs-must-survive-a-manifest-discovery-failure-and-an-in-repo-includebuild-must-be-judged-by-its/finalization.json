@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its",
+  "implementation_commit": "2fe96060393061bf5266d3a4cae08eea2dfe828d",
+  "implementation_tree": "e0a21479fe7e8ad9ff9f8a0b6dbc421b8af303e2",
+  "contract_digest": "ddef7468dde9780f873da390092008f8f2f5929ce9f2242e0bd0ec8002162418",
+  "workspace_digest": "17aa433f2c38f0232259097792ebc6822c3d1b67a8bd2593f4354554143d3083",
+  "closing_digest": "d463eb296e1710c3edd4866ef42c28ae7b1624872b5c45ad91987cb41990cdad",
+  "review_digest": "ffd4263525ba052716636a7708027661f863853d7d257571b73809c5cdf87afe",
+  "finalization_digest": "73bfb121e53f0024fc62ca711e64963bb8962c5088bb3577a75f27db88723519",
+  "timestamp": 1787843149
+}

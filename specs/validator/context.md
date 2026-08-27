@@ -28,11 +28,19 @@ spec: validator.spec.md
 - **Module detection cascade**: User-defined modules (config) → manifest-discovered modules → subdirectory scanning → flat file detection. Each level is a fallback.
 - **Static coverage is non-vacuous**: HTML, HTM, and CSS files participate in default source discovery even though they expose no API symbols.
 - **Generated companion markers fail strict**: Every known artifact-specific scaffold prompt emitted by the built-in templates, including all Layout, Components, Tokens, and Assets design bullets, emits a path-and-line warning outside fenced examples; strict mode promotes those warnings to errors.
-- **Coverage gates fail inconclusively on malformed manifests**: `compute_coverage_checked` propagates
-  malformed, unreadable, unsupported, or unconfined Gradle errors to CLI and MCP gate callers.
-  Raw drive-qualified module identities, interpolated/encoded paths, unsafe recognized Gradle
-  manifests, unsupported/dynamic project-directory methods, and symlink/reparse components in
-  derived directories therefore cannot become partial or outside coverage. The original
+- **Coverage gates fail inconclusively on malformed manifests, but only when the manifest is what
+  they were relying on**: `compute_coverage_checked` propagates malformed, unreadable, unsupported,
+  or unconfined Gradle errors to CLI and MCP gate callers WHEN `source_dirs` was not stated — the
+  source list would otherwise be the output of the discovery that failed. When `source_dirs` IS
+  stated, discovery degrades to an empty result and the error is carried as a `manifest_notices`
+  entry instead. Discovery exists to INFER what the project did not state; a failure to infer
+  cannot veto what it did state. This mirrors the zero-config decision below, which `retained_config`
+  already honoured and coverage did not.
+  On the propagating path, raw drive-qualified module identities, interpolated/encoded paths, unsafe
+  recognized Gradle manifests, unsupported/dynamic project-directory methods, and symlink/reparse
+  components in derived directories therefore cannot become partial or outside coverage. On the
+  degrading path they cost only manifest-declared module names: the file and LOC figures come
+  entirely from the stated `config.source_dirs`, never from discovery. The original
   `compute_coverage` API remains as a compatibility wrapper and produces a zero-percent report
   carrying an inconclusive diagnostic.
 - **Shared exact-byte validation core**: `validate_spec_content` accepts pre-read spec bytes and
@@ -85,3 +93,14 @@ regression-test module intentionally precedes coverage helpers, so the narrow
   behavior; only `validate_spec_content_with_sources` treats supplied source observations as
   authoritative and forbids ambient mapped-source reopening.
 - Exclude patterns use a simplified glob syntax: `**/dir/**` for directory exclusion, `**/*.ext` for extension exclusion.
+
+## Lesson (#723)
+
+Fixing the parser that produced the error would have removed one rejection; fixing what an error is
+ALLOWED TO DO removed the class. `compute_coverage_checked` was the only manifest-discovery caller
+that propagated instead of degrading — `config.rs:66` uses `unwrap_or_else`, `validator.rs:430` falls
+back to a scan — and it is the one on the path CI depends on, so an unreadable manifest made a valid
+project unmeasurable however it was configured. Before propagating a discovery error, ask what the
+caller was actually relying on discovery FOR: here the file and LOC figures come entirely from
+`config.source_dirs`, and only module attribution came from the manifest, which is what made
+degrading safe and made a notice mandatory.

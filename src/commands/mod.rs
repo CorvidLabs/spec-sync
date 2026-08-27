@@ -203,7 +203,8 @@ pub fn validate_module_name(module_name: &str) -> Result<(), String> {
 /// Maximum module-name length.
 pub(crate) const MAX_MODULE_NAME_LEN: usize = 64;
 
-/// Names that cannot be a directory component on a platform we ship for.
+/// Names that cannot be a directory component on a host platform, whether or not we ship a
+/// binary for it.
 ///
 /// Shared with `change::slugify`, which mints directory names from free text and would
 /// otherwise produce `nul` from the description "NUL". Windows device names are matched

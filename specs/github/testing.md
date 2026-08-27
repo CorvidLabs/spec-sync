@@ -82,5 +82,6 @@ spec: github.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
-- Before promoting an Action release, run pinned `@v<major>.<minor>.<patch>` consumers on Linux,
-  macOS, and Windows; advance `v<major>` only after all pass.
+- Before promoting an Action release, run pinned `@v<major>.<minor>.<patch>` consumers on Linux and
+  macOS; advance `v<major>` only after all pass. Windows is not a supported target as of 6.0, and
+  the Action refuses a Windows runner rather than requesting an asset that is not published.

@@ -1010,7 +1010,10 @@ class ArtifactValidationTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertTrue(payload["valid"])
         self.assertEqual(payload["candidate_sha"], self.fixture.candidate_sha)
-        self.assertEqual(len(payload["artifacts"]), 6)
+        self.assertEqual(
+            len(payload["artifacts"]),
+            len(VALIDATOR_MODULE.EXPECTED_ARTIFACT_ARCHIVES),
+        )
 
     def test_artifacts_cli_rejects_tampered_archive_and_mixed_candidate(self) -> None:
         archive, _, _ = self.paths("specsync-linux-x86_64")
@@ -1083,7 +1086,7 @@ class ArtifactValidationTests(unittest.TestCase):
         self.assertIn("names artifact 'specsync-linux-renamed'", wrong_artifact.stderr)
 
     def test_artifacts_cli_rejects_unknown_and_duplicate_manifest_fields(self) -> None:
-        artifact = "specsync-windows-x86_64.exe"
+        artifact = "specsync-macos-aarch64"
         _, _, provenance = self.paths(artifact)
         payload = json.loads(provenance.read_text(encoding="utf-8"))
         payload["unknown"] = True

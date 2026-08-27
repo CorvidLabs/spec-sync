@@ -1,0 +1,59 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "repo-owner decision, recorded by automated agent",
+      "timestamp": 1787788568,
+      "digest": "abe2b9efbc475d68a60f42a481f078d460afd6a78d91d8648779c4615f719715",
+      "note": "Owner decided on v5.2.0 download evidence (windows-x86_64: 1 download in five weeks; 0-2 across every 6.0 RC) plus the fact that no ordinary CI job runs on Windows, which let the rc.7 CRLF 'specsync view' defect live for weeks. 6.0 is the major version where dropping a platform is legitimate. Scope is the shipped Windows executable only: build, package, publish, and claims of support. All Windows-CONTENT correctness is retained, and requirement wording that scoped those guarantees to the shipped platform set is rebound to host platforms so the drop cannot narrow them. The Ubuntu/macOS/Windows release-candidate qualification lane and linux-aarch64 are deliberately untouched.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows",
+        "title": "Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee",
+        "description": "Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee",
+        "kind": "operations",
+        "affected_specs": [
+          "change",
+          "cli",
+          "cmd_migrate",
+          "commands",
+          "github",
+          "view"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/scripts/validate-release-candidate.py",
+          ".github/workflows/rc-assets.yml",
+          ".github/workflows/release.yml",
+          "CHANGELOG.md",
+          "README.md",
+          "action.yml",
+          "site/src/content/docs/comparisons/adversarial-proof.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "site/src/content/docs/quickstart.md",
+          "src/commands/mod.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "The release and RC asset lanes build five artifacts, not six: no x86_64-pc-windows-msvc entry, no pwsh Compress-Archive packaging step, and no .zip glob remains in either lane. EXPECTED_ARTIFACT_ARCHIVES in validate-release-candidate.py no longer lists specsync-windows-x86_64.exe, so the exact-set artifact gate passes on the five archives actually produced instead of failing closed on a missing Windows directory. action.yml refuses a Windows runner with an actionable error naming WSL rather than 404ing on an asset that is no longer published. README, the site's Available Binaries table, the Multi-Platform Matrix example, the quickstart download note, and the adversarial-proof CI claim no longer state or imply that a Windows executable is shipped. Every correctness guarantee for Windows-authored content survives unchanged: parser CRLF normalization, strip_frontmatter, the .gitattributes eol=lf pins, is_reserved_module_name, validate_module_name, MAX_SLUG_BYTES, the portable_output_path and slash_normalized_relative_path helpers, and all cfg(windows) code and fixtures. Requirement wording that scoped those guarantees to 'every platform SpecSync ships a binary for' is rebound to the host platforms a repository may be checked out on, so narrowing the shipped set cannot narrow the guarantee. The Ubuntu/macOS/Windows release-candidate qualification lane is untouched."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "d9f6e3c185f963e5b9dd651ca2db5894021412f66629fa12a7f30692f41e9c09",
+        "cli": "0914e5e2174c554adf9092df2e0fa7dfa884e0cf4c69b14398ec8ae5c3c6143b",
+        "cmd_migrate": "69dfea1e6def47f3bef83483deb19c2b44b19e169e67d5ea14a8edc2718b7f9d",
+        "commands": "59211cc3c4be78a2662efc5f14dbb80a5b05009f31201d22ec9d5778d2b71c21",
+        "github": "b7f29932677aa2bdc7eb32a6762fab3fafd0dcdf3bf2aa853d93abc6893ae401",
+        "view": "875ea3c1cd191f8c2375a46e300eb8227bbd84cfcf1c9b25219ff8d5c65403b9"
+      }
+    }
+  ],
+  "reopenings": []
+}

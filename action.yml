@@ -57,7 +57,10 @@ runs:
         case "$RUNNER_OS" in
           Linux)   OS="linux" ;;
           macOS)   OS="macos" ;;
-          Windows) OS="windows" ;;
+          Windows)
+            echo "::error::Windows is not a supported target as of SpecSync 6.0; no Windows binary is published. Run SpecSync under WSL, or build from source with 'cargo install specsync'."
+            exit 1
+            ;;
           *)
             echo "::error::Unsupported runner OS: $RUNNER_OS"
             exit 1
@@ -90,39 +93,19 @@ runs:
         INSTALL_DIR="${RUNNER_TEMP}/specsync"
         mkdir -p "$INSTALL_DIR"
 
-        if [ "$OS" = "windows" ]; then
-          ARCHIVE="specsync-${OS}-${ARCH}.exe.zip"
-          curl -fsSL "${BASE_URL}/${ARCHIVE}" -o "${INSTALL_DIR}/specsync.zip"
+        ARCHIVE="specsync-${OS}-${ARCH}.tar.gz"
+        curl -fsSL "${BASE_URL}/${ARCHIVE}" -o "${INSTALL_DIR}/${ARCHIVE}"
 
-          curl -fsSL "${BASE_URL}/${ARCHIVE}.sha256" -o "${INSTALL_DIR}/specsync.sha256"
-          echo "Verifying checksum..."
-          cd "$INSTALL_DIR"
-          EXPECTED=$(awk '{print $1}' specsync.sha256)
-          ACTUAL=$(shasum -a 256 specsync.zip | awk '{print $1}')
-          if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "::error::Checksum verification failed! Expected: $EXPECTED, Got: $ACTUAL"
-            exit 1
-          fi
-          echo "::notice::Checksum verified"
-          cd -
+        curl -fsSL "${BASE_URL}/${ARCHIVE}.sha256" -o "${INSTALL_DIR}/${ARCHIVE}.sha256"
+        echo "Verifying checksum..."
+        cd "$INSTALL_DIR"
+        shasum -a 256 -c "${ARCHIVE}.sha256"
+        echo "::notice::Checksum verified"
+        cd -
 
-          unzip -o "${INSTALL_DIR}/specsync.zip" -d "$INSTALL_DIR"
-          mv "${INSTALL_DIR}/specsync-${OS}-${ARCH}.exe" "${INSTALL_DIR}/specsync.exe"
-        else
-          ARCHIVE="specsync-${OS}-${ARCH}.tar.gz"
-          curl -fsSL "${BASE_URL}/${ARCHIVE}" -o "${INSTALL_DIR}/${ARCHIVE}"
-
-          curl -fsSL "${BASE_URL}/${ARCHIVE}.sha256" -o "${INSTALL_DIR}/${ARCHIVE}.sha256"
-          echo "Verifying checksum..."
-          cd "$INSTALL_DIR"
-          shasum -a 256 -c "${ARCHIVE}.sha256"
-          echo "::notice::Checksum verified"
-          cd -
-
-          tar xz -C "$INSTALL_DIR" -f "${INSTALL_DIR}/${ARCHIVE}"
-          mv "${INSTALL_DIR}/specsync-${OS}-${ARCH}" "${INSTALL_DIR}/specsync"
-          chmod +x "${INSTALL_DIR}/specsync"
-        fi
+        tar xz -C "$INSTALL_DIR" -f "${INSTALL_DIR}/${ARCHIVE}"
+        mv "${INSTALL_DIR}/specsync-${OS}-${ARCH}" "${INSTALL_DIR}/specsync"
+        chmod +x "${INSTALL_DIR}/specsync"
 
         # Add to PATH
         echo "${INSTALL_DIR}" >> "$GITHUB_PATH"

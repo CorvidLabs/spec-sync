@@ -23,7 +23,10 @@ spec: cmd_migrate.spec.md
 ## Constraints
 
 - Must not panic on expected error conditions — print error and exit with non-zero code
-- Must work on macOS, Linux, and Windows (no symlinks, no Unix-specific operations)
+- Must use only operations that behave identically on every host a repository may be checked out
+  on, macOS, Linux, and Windows included (no symlinks, no Unix-specific operations). This holds for
+  Windows even though 6.0 publishes no Windows binary, because a migrated repository is read and
+  re-migrated in clones on other hosts
 - Must handle large projects (100+ specs) without excessive memory usage
 - Backup should be opt-out (`--no-backup`) not opt-in
 - Created files and directories use the platform default permissions (`fs::create_dir_all` / `fs::write`); no explicit mode is set
@@ -64,4 +67,13 @@ Acceptance Criteria
 - An unrepairable reopening fails its change without mutating that ledger; other changes still
   migrate.
 - The v3→v4 migration pipeline is unchanged and never runs in `5.0` mode.
+
+### REQ-cmd-migrate-003
+
+Migration SHALL use only filesystem operations that behave identically on every host platform a repository may be checked out on, independently of which platforms SpecSync publishes binaries for.
+
+Acceptance Criteria
+- No migration step creates a symlink. A relocated file is moved or copied, because symlinks are fragile on Windows and confuse git.
+- No step depends on Unix-specific semantics such as an explicit permission mode; created files and directories take the platform default.
+- The constraint continues to hold for Windows even though 6.0 publishes no Windows binary, because a migrated repository is committed once and then read, re-checked, and re-migrated in clones on other hosts.
 

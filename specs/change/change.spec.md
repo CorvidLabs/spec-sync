@@ -1,6 +1,6 @@
 ---
 module: change
-version: 104
+version: 105
 status: active
 files:
   - src/change.rs
@@ -438,3 +438,4 @@ Acceptance Criteria
 | 2026-08-24 | bind-semantic-delta-bodies-to-the-approval-that-signed-them: Bind semantic delta bodies to the approval that signed them |
 | 2026-08-25 | one-canonical-frontmatter-reader-for-crlf-checkouts: One canonical frontmatter reader for CRLF checkouts |
 | 2026-08-25 | req-change-016-must-describe-ancestry-as-it-is-used-never-a-gate-on-currency-or-ship-readiness-admissible-as-one-basis: REQ-change-016 must describe ancestry as it is used: never a gate on currency or ship readiness, admissible as one basis for archival anchoring |
+| 2026-08-27 | drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows: Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee |

@@ -26,6 +26,8 @@ Stable and complete. Public API is `view_spec` and `valid_roles`. Invoked by the
 - `view_spec` reads the file with `fs::read_to_string` and does not normalize. That was fine only
   because the parser normalizes; before it did, a Windows clone with `core.autocrlf=true` made
   this module fail with "Cannot parse frontmatter" on every spec in the project — the whole
-  `cmd_view` surface, on the one platform we ship a binary for and no CI job tests.
+  `cmd_view` surface, on Windows, for which a binary was then published and which no ordinary CI
+  job tested. 6.0 publishes no Windows binary; the tolerance is unaffected, because a CRLF
+  checkout reaches a Linux or macOS reader through any teammate who authored on Windows.
 - Output is always a markdown `String`; no alternative formats.
 - `split_sections` only recognizes `## ` (level-2) headings as section boundaries.

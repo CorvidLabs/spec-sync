@@ -145,7 +145,10 @@ Minimal immutable configuration:
 
 ### Pre-built binaries
 
-Download macOS, Linux, or Windows binaries from [GitHub Releases](https://github.com/CorvidLabs/spec-sync/releases).
+Download Linux or macOS binaries from [GitHub Releases](https://github.com/CorvidLabs/spec-sync/releases).
+
+Windows is not a supported target as of 6.0 — no Windows binary is published. Run SpecSync
+under WSL, or build it from source with `cargo install specsync`.
 
 ## Quick start
 

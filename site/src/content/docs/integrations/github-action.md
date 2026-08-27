@@ -66,8 +66,8 @@ Action ref and its binary version:
     strict: 'true'
 ```
 
-After the exact-version Action passes supported Linux, macOS, and Windows smoke tests, the floating
-`v5` ref is promoted as the compatible 5.x channel and may advance to newer verified 5.x releases.
+After the exact-version Action passes supported Linux and macOS smoke tests, the floating
+`v6` ref is promoted as the compatible 6.x channel and may advance to newer verified 6.x releases.
 
 ---
 
@@ -120,7 +120,7 @@ jobs:
   specsync:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -167,4 +167,6 @@ jobs:
 | Linux aarch64 | `specsync-linux-aarch64` |
 | macOS x86_64 | `specsync-macos-x86_64` |
 | macOS aarch64 (Apple Silicon) | `specsync-macos-aarch64` |
-| Windows x86_64 | `specsync-windows-x86_64.exe` |
+
+Windows is not a supported target as of 6.0 — no Windows binary is published. Run SpecSync
+under WSL, or build it from source with `cargo install specsync`.

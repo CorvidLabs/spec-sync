@@ -1,6 +1,6 @@
 ---
 id: hash-the-semantic-delta-binding-over-line-ending-canonical-bytes-so-a-crlf-checkout-of-an-unedited-delta-stops-failing
-state: implementing
+state: archived
 type: bug_fix
 base_commit: d6f266a4fd683246469eb15a8f632061dd5cfbb4
 ---

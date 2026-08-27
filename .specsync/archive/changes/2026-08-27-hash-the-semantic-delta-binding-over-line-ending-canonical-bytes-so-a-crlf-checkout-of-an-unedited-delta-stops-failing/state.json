@@ -7,11 +7,11 @@
   "title": "Hash the semantic delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the approval gate, and fold nothing else",
   "description": "Hash the semantic delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the approval gate, and fold nothing else",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
   "created_at": 1787867053,
-  "updated_at": 1787871245,
+  "updated_at": 1787872144,
   "affected_specs": [
     "change"
   ],

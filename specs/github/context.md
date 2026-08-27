@@ -135,7 +135,7 @@ import can consume the payload.
 Live network paths remain integration-only. The 5.1.1 release
 candidate adds deterministic Action/runtime distribution checks, while
 external exact/floating ref smoke tests remain publication-time gates.
-The 5.2.0 release promotion follows REQ-github-004: Action default and consumer pins move to the exact version through the accepted release change, and the floating v5 ref advances only after exact-version artifacts pass Linux/macOS/Windows verification.
+The 5.2.0 release promotion follows REQ-github-004: Action default and consumer pins move to the exact version through the accepted release change, and the floating major ref advances only after exact-version artifacts pass Linux/macOS verification. As of 6.0 no Windows binary is published, so a Windows consumer is refused by the Action rather than smoke-tested; the release-candidate qualification lane still runs on Windows.
 
 CHG-0075 moves routine integration authority to Ubuntu and reserves macOS/Windows spend for one
 immutable release candidate. The RC tag—not the movable staging branch—is the release identity.

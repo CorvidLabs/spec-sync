@@ -20,8 +20,9 @@ cargo install specsync
 brew install CorvidLabs/tap/spec-sync
 
 # Via GitHub releases (no Rust toolchain needed)
-# Download the binary for your platform from:
+# Download the Linux or macOS binary for your platform from:
 # https://github.com/CorvidLabs/spec-sync/releases
+# Windows is not a supported target as of 6.0 - use WSL, or cargo install
 
 # Via GitHub Action (CI only)
 # See integrations/github-action

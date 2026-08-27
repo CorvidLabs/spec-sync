@@ -186,4 +186,6 @@ The set of names that cannot be a directory component SHALL have exactly one def
 
 Acceptance Criteria
 - The reserved-name check used when validating a module name is the same one used when minting a change's directory name from free text, so the two cannot disagree about whether a name is legal.
-- The set is defined once. A second copy is how the two would drift apart, and a name that is reserved for one caller and not the other is a directory some supported platform cannot open.
+- The set is defined once. A second copy is how the two would drift apart, and a name that is reserved for one caller and not the other is a directory some host platform cannot open.
+- The set is scoped to the platforms a repository may be checked out on rather than the platforms SpecSync publishes binaries for, so a change to the published set cannot quietly shrink it.
+

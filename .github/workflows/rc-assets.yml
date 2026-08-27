@@ -12,7 +12,7 @@ name: RC assets
 # cannot be installed at all: `v6.0.0-rc.1` shipped with zero assets because the lane
 # refused before reaching `build`, and every consumer of the packaged action 404s.
 #
-# So this workflow does exactly one thing — build the same six targets `release.yml`
+# So this workflow does exactly one thing — build the same five targets `release.yml`
 # builds, with the same names `action.yml` downloads, and attach them to a release that
 # already exists and is already marked pre-release. It creates no tag, promotes nothing,
 # and refuses to touch anything that is not a pre-release.
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Fail closed before spending six build jobs, and before any chance of attaching
+      # Fail closed before spending five build jobs, and before any chance of attaching
       # an unverified binary to something consumers treat as final.
       - name: Verify the target is an existing pre-release
         env:
@@ -81,9 +81,6 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: specsync-macos-aarch64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact: specsync-windows-x86_64.exe
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -116,8 +113,7 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
+      - name: Package
         env:
           TARGET: ${{ matrix.target }}
           ARTIFACT: ${{ matrix.artifact }}
@@ -129,41 +125,12 @@ jobs:
           tar czf "${ARTIFACT}.tar.gz" "$ARTIFACT"
           shasum -a 256 "${ARTIFACT}.tar.gz" > "${ARTIFACT}.tar.gz.sha256"
 
-      - name: Package (Windows)
-        # Copied verbatim from release.yml's Package (Windows), deliberately. An earlier
-        # version of this step was written from scratch in bash and got the sidecar wrong:
-        # msys `sha256sum` defaults to BINARY mode and emits `HASH *name`, so reformatting
-        # with `awk '{print $1"  "$2}'` carried the `*` into the filename field while
-        # spelling the line as text mode. `HASH  *name` is valid in neither mode, and
-        # `shasum -c` looked for a file literally named `*specsync-windows-x86_64.exe.zip`.
-        #
-        # Get-FileHash yields the digest alone, so the line is built from parts that carry
-        # no mode marker at all. WriteAllBytes, not Set-Content, because PowerShell's default
-        # encoding would prepend a BOM. The bytes this produces match the sidecar shipped
-        # with v5.2.0 exactly: HASH, two spaces, bare name, LF.
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          TARGET: ${{ matrix.target }}
-          ARTIFACT: ${{ matrix.artifact }}
-        run: |
-          Copy-Item "target/$env:TARGET/release/specsync.exe" $env:ARTIFACT
-          Compress-Archive -Path $env:ARTIFACT -DestinationPath "$env:ARTIFACT.zip"
-          $hash = (Get-FileHash "$env:ARTIFACT.zip" -Algorithm SHA256).Hash.ToLower()
-          $line = "$hash  $env:ARTIFACT.zip`n"
-          [IO.File]::WriteAllBytes(
-            "$env:ARTIFACT.zip.sha256",
-            [Text.Encoding]::ASCII.GetBytes($line)
-          )
-
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: rc-asset-${{ matrix.artifact }}
           path: |
             ${{ matrix.artifact }}.tar.gz
             ${{ matrix.artifact }}.tar.gz.sha256
-            ${{ matrix.artifact }}.zip
-            ${{ matrix.artifact }}.zip.sha256
           if-no-files-found: error
 
   attach:

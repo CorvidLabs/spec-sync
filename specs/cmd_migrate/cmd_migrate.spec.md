@@ -1,6 +1,6 @@
 ---
 module: cmd_migrate
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/migrate.rs
@@ -109,6 +109,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-04-11 | Initial spec — v3.x to v4.0.0 migration command |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-19 | CHG-0057-add-a-native-migration-path-for-5-0-1-era-change-ledgers-that-backfills-the-5-1: Add a native migration path for 5.0.1-era change ledgers that backfills the 5.1 reopening stale and current acceptance-input digest fields idempotently with a closing-digest verification pass, and surfaces an actionable migrate hint when check encounters the 5.0.1 reopening schema |
+| 2026-08-27 | drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows: Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee |
 
 ## Internal Architecture
 

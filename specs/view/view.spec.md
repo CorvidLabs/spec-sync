@@ -1,6 +1,6 @@
 ---
 module: view
-version: 4
+version: 5
 status: stable
 files:
   - src/view.rs
@@ -43,7 +43,7 @@ Filters spec content to show only sections relevant to a specific role (dev, qa,
 5. `agent_policy` defaults to `"full-access"` if not set in frontmatter
 6. Output includes a role-specific header line (e.g., `# ModuleName (dev view)`)
 7. Section matching is based on `## ` heading prefixes
-8. A CRLF-authored spec renders exactly as its LF twin does. `view_spec` reads the file with no normalization of its own, so a Windows clone with `core.autocrlf=true` used to fail with "Cannot parse frontmatter" on every spec in the project — on the one platform that ships a binary and is tested by no CI job. The tolerance belongs to `parser::parse_frontmatter`, and this module states the outcome it depends on rather than re-implementing it.
+8. A CRLF-authored spec renders exactly as its LF twin does. `view_spec` reads the file with no normalization of its own, so a Windows clone with `core.autocrlf=true` used to fail with "Cannot parse frontmatter" on every spec in the project — on Windows, for which SpecSync then published a binary that no ordinary CI job ever exercised. SpecSync 6.0 publishes no Windows binary, and the tolerance is unaffected by that: a CRLF checkout reaches a Linux or macOS reader through any teammate who authored on Windows. The tolerance belongs to `parser::parse_frontmatter`, and this module states the outcome it depends on rather than re-implementing it.
 9. This module owns no frontmatter stripper. The companion `requirements.md` is stripped with `parser::strip_frontmatter`, the single canonical implementation. A local copy is how `view` and `change` came to disagree about CRLF and about a closing delimiter at end of file, with no error raised in either direction.
 
 ## Behavioral Examples
@@ -104,3 +104,4 @@ Filters spec content to show only sections relevant to a specific role (dev, qa,
 | 2026-04-06 | Initial spec for v3.3.0 |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-08-25 | one-canonical-frontmatter-reader-for-crlf-checkouts: One canonical frontmatter reader for CRLF checkouts |
+| 2026-08-27 | drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows: Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee |

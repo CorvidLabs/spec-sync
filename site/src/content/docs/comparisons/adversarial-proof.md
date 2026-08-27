@@ -45,7 +45,7 @@ SPECSYNC_BIN="$PWD/target/release/specsync" ./examples/sdd-concurrent-changes/ru
 SPECSYNC_BIN="$PWD/target/release/specsync" ./examples/sdd-five-epics/run.sh
 ```
 
-The Rust test suite also injects phantom exports, undocumented exports, missing files, schema drift, stale evidence, malformed deltas, conflicting changes, unsafe paths, and cross-platform Git states. CI runs the same deterministic binary on Linux, macOS, Windows, and a packaged GitHub Action consumer.
+The Rust test suite also injects phantom exports, undocumented exports, missing files, schema drift, stale evidence, malformed deltas, conflicting changes, unsafe paths, and cross-platform Git states. CI runs the same deterministic binary on Linux, macOS, and a packaged GitHub Action consumer, and qualifies each release candidate on Ubuntu, macOS, and Windows runners before a final tag can be created.
 
 ## Fair interpretation
 

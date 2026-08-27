@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Windows is no longer a supported target; no Windows binary is published.** SpecSync 6.0 ships
+  five prebuilt artifacts — `linux-x86_64`, `linux-x86_64-musl`, `linux-aarch64`, `macos-x86_64`,
+  `macos-aarch64`. Run SpecSync under WSL, or build it from source: `cargo install specsync` still
+  works on Windows. The packaged GitHub Action now refuses a Windows runner with that message
+  instead of requesting an asset that no longer exists.
+
+  The decision rests on two facts, and the second matters more than the first. Across five weeks of
+  v5.2.0 the Windows asset was downloaded once, against 462 for `macos-aarch64` and 446 for
+  `linux-x86_64`; every 6.0 release candidate sat at 0-2 with a uniformity that reads as automated
+  verification rather than people. And every job in ordinary CI runs on `ubuntu-latest`, so the
+  Windows executable was published without ever being exercised. That is what allowed the defect
+  fixed in rc.7 — `specsync view` failing with "Cannot parse frontmatter" on *every spec in the
+  project* in a checkout with `core.autocrlf=true` — to survive for weeks on the one platform that
+  shipped a binary nothing tested. A major version is where a platform may be dropped, so it is
+  dropped here.
+
+  **No Windows correctness was removed, and none may be.** Dropping the binary is not dropping the
+  bug class: a teammate on Windows commits CRLF files and a colleague on Linux reads them. CRLF
+  frontmatter tolerance in `parser::parse_frontmatter`, the single canonical `strip_frontmatter`,
+  the `.gitattributes` `eol=lf` pins, Windows-reserved and Windows-invalid filename guards,
+  `MAX_SLUG_BYTES` and its `MAX_PATH` justification, path-separator handling, junction and
+  reparse-point rejection, and every `#[cfg(windows)]` block and Windows-shaped fixture are all
+  unchanged.
+
+  Requirement wording that had scoped those guarantees to "every platform SpecSync ships a binary
+  for" (REQ-change-083, REQ-change-084, REQ-commands-013) is rebound to the platforms a repository
+  may be *checked out on*. Read literally, the old phrasing would have narrowed each guarantee the
+  moment the shipped set narrowed, which is the opposite of the intent.
+
+  The release-candidate qualification lane still runs on Ubuntu, macOS **and** Windows. It is the
+  only place the retained `#[cfg(windows)]` code is compiled and run, and removing it would recreate
+  exactly the condition that produced the `view` defect.
+
 ### Fixed
 
 - **`watch` names the directories it is not watching, and no longer reports a pass over an empty

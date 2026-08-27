@@ -41,8 +41,8 @@ spec: github.spec.md
 
 - [x] Confirm focused evidence that `pull_request: null` and every non-object marker reject the
   complete provider page before PR filtering.
-- [ ] After publishing each exact 5.x release, smoke-test the immutable Action ref on Linux,
-  macOS, and Windows before creating or advancing the floating `v5` ref
+- [ ] After publishing each exact release, smoke-test the immutable Action ref on Linux and macOS
+  before creating or advancing the floating major ref. Windows is not a supported target as of 6.0.
 
 ## Review Status
 

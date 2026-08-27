@@ -40,7 +40,6 @@ EXPECTED_ARTIFACT_ARCHIVES = {
     "specsync-linux-aarch64": "specsync-linux-aarch64.tar.gz",
     "specsync-macos-x86_64": "specsync-macos-x86_64.tar.gz",
     "specsync-macos-aarch64": "specsync-macos-aarch64.tar.gz",
-    "specsync-windows-x86_64.exe": "specsync-windows-x86_64.exe.zip",
 }
 PROVENANCE_FIELDS = (
     "schema_version",

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows",
+      "reviewer": "claude-opus-5-reviewer",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "7d7dcc138f94fb9b5490f4fe34025ed92577ce03",
+      "contract_digest": "abe2b9efbc475d68a60f42a481f078d460afd6a78d91d8648779c4615f719715",
+      "execution_digest": "70799f10206bec3307d0a0d4723cfe75a2aef0d44f29ee30122b2f65a44c64f1",
+      "workspace_digest": "e1b1627c6600615962a44ab07d6140020651d64d60726265b6098690cd394b94",
+      "timestamp": 1787838187
+    }
+  ]
+}

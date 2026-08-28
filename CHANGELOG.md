@@ -38,9 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   may be *checked out on*. Read literally, the old phrasing would have narrowed each guarantee the
   moment the shipped set narrowed, which is the opposite of the intent.
 
-  The release-candidate qualification lane still runs on Ubuntu, macOS **and** Windows. It is the
-  only place the retained `#[cfg(windows)]` code is compiled and run, and removing it would recreate
-  exactly the condition that produced the `view` defect.
+  **This paragraph originally said the qualification lane would keep running Windows**, on the
+  argument that it was the only place the retained `#[cfg(windows)]` code is compiled and run and
+  that dropping it would recreate exactly the condition that produced the `view` defect. That
+  argument was correct, and the lane was dropped anyway — see the entry below. The risk it names is
+  accepted, not resolved.
 
 ### Added
 
@@ -534,6 +536,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lane that runs rarely.
 
 ### Fixed
+
+- **Windows is no longer built, tested, or qualified** (CorvidLabs/spec-sync#735). `rc.8` dropped the
+  Windows *binary*; this drops the Windows *lane*. The release-candidate qualification matrix is now
+  Ubuntu and macOS, `REQUIRED_PLATFORMS` in the release validator is `("ubuntu", "macos")`, and the
+  Windows-only shell preparation and Fledge installation steps are gone.
+
+  **What this costs, stated rather than buried.** The `### Removed` entry above kept the Windows
+  qualification lane deliberately, because it was the only place the retained `#[cfg(windows)]` code
+  — CRLF frontmatter tolerance, reserved-name and Windows-invalid filename guards, `MAX_SLUG_BYTES`
+  and its `MAX_PATH` justification, junction and reparse-point rejection, path-separator handling —
+  was ever compiled or run. That is now nowhere. **Those guarantees become best-effort and
+  unverified.** The code is retained and is still believed correct; nothing checks it.
+
+  This is a deliberate trade, not a discovery that the risk went away. It is the same argument the
+  Windows binary was dropped on, applied one level further: a lane that runs only on a tag push
+  gives its first signal at the worst possible moment. `v6.0.0-rc.8` and `rc.9` both died in
+  `qualify (windows)` before a single test ran, on a defect latent since #544 — a test calling three
+  `#[cfg(unix)]`-gated helpers without a gate of its own. `rc.1` through `rc.7` had failed earlier in
+  `resolve`, so nothing between that merge and the tag could see it.
+
+  **What is retained.** `open_specs_directory` is now `#[cfg(test)]` rather than
+  `#[cfg(all(test, unix))]`, and the three helpers are imported unconditionally. A `files:` entry
+  that resolves to a directory is a spec-content error on every platform a repository may be checked
+  out on, and its ambient-path twin has always been ungated — so the fix is correct on its own
+  merits, independently of which platforms CI compiles for.
+
+  **What would reverse it.** Re-add `windows` to the `qualify` matrix in `.github/workflows/release.yml`
+  **and** to `REQUIRED_PLATFORMS` in `.github/scripts/validate-release-candidate.py`. Adding it to
+  one without the other fails every candidate: the validator demands evidence the matrix never
+  produces.
+
 
 - **`ADOPTING.md` no longer leads with the squash cost that #689 removed**
   (CorvidLabs/spec-sync#729). The page an adopter is pointed at first said a squash-merge forces

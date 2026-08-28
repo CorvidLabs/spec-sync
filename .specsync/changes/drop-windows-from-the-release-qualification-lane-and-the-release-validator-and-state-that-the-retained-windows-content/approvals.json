@@ -1,0 +1,43 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787875869,
+      "digest": "0f3c218423bbb93aa7abf52d0b7182a3602b89300ff8791b8b2d8b559fba13e1",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "drop-windows-from-the-release-qualification-lane-and-the-release-validator-and-state-that-the-retained-windows-content",
+        "title": "Drop Windows from the release qualification lane and the release validator, and state that the retained Windows content guarantees are now unverified",
+        "description": "Drop Windows from the release qualification lane and the release validator, and state that the retained Windows content guarantees are now unverified",
+        "kind": "operations",
+        "affected_specs": [
+          "cmd_issues",
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/scripts/validate-release-candidate.py",
+          ".github/workflows/release.yml",
+          "CHANGELOG.md",
+          "docs/ci-confidence.md",
+          "src/commands/issues.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The cmd_issues and github modules own the touched paths, so ownership is declared with --spec; the edits are CI configuration, a validator constant, a test-only cfg gate and prose, so no canonical spec text moves.",
+        "acceptance_criteria": [
+          "The release qualify matrix contains only ubuntu and macos; REQUIRED_PLATFORMS is ('ubuntu','macos'); no Windows-only step remains in release.yml; the validator self-test passes 50/50; docs/ci-confidence.md and CHANGELOG.md state that the retained cfg(windows) code is now compiled and run nowhere and that those guarantees are best-effort and unverified; and the CHANGELOG paragraph that argued for keeping the lane says the argument was correct and the risk is accepted rather than resolved."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

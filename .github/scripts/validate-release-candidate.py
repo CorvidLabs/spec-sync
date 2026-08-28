@@ -14,7 +14,10 @@ import sys
 from typing import Any, Iterable, Sequence
 
 
-REQUIRED_PLATFORMS = ("ubuntu", "macos", "windows")
+# Windows is neither built nor qualified as of 6.0 (#735). The retained `#[cfg(windows)]`
+# content code is best-effort and unverified — see docs/ci-confidence.md. Re-adding a
+# platform here without also adding it to the `qualify` matrix fails every candidate.
+REQUIRED_PLATFORMS = ("ubuntu", "macos")
 RELEASE_CANDIDATE_LANE = "release-candidate"
 RC_TAG_PATTERN = re.compile(
     r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.([1-9][0-9]*)$"

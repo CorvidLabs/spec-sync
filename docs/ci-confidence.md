@@ -9,7 +9,7 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 |-----------------|-------|--------|
 | Format (`rustfmt`) | **CI** | `fmt` job |
 | Lint (`clippy -D warnings`) | **CI** | required Ubuntu product lane |
-| Unit + integration tests | **CI** | required Ubuntu product lane; Tier B adds macOS + Windows |
+| Unit + integration tests | **CI** | required Ubuntu product lane; Tier B adds macOS. Windows is neither built nor qualified as of 6.0 (#735) |
 | Typecheck | **CI** | covered by `cargo test` / build; local `check-types` |
 | Release binary build | **CI** (consumer) + **Trust** (identity) | CI: action-consumer; Trust: packages PR binary for contract |
 | Spec contract + 100% path coverage | **CI** + **Trust contract gate** | CI `spec-check` proves tree; Trust re-checks with **PR release binary** (identity, not a second matrix) |
@@ -138,7 +138,7 @@ release lane is the one workflow whose most important job runs exactly once.
 |-----|--------|
 | `resolve` | **Executed.** `workflow_dispatch` with `dry_run=true` against `v6.0.0-rc.7` — the first dispatch in this repository's history. |
 | `validate` | **Executed**, same run. Both rulesets read and accepted. |
-| `qualify` | **Executed for the first time on `rc.8`**, and failing on Windows. `rc.1`–`rc.7` all died in `resolve` in 8–13 seconds, so the matrix never ran; fixing `resolve` exposed a Windows test-target compile break latent since #544. Ubuntu and macOS pass. |
+| `qualify` | Ubuntu and macOS only as of #735. It first ran on `rc.8` and failed on Windows there and on `rc.9`; `rc.1`–`rc.7` had died in `resolve` in 8–13 seconds, so the matrix never ran at all. Windows is now dropped from the lane rather than fixed forward, so the retained `#[cfg(windows)]` code is compiled and run **nowhere** — those guarantees are best-effort and unverified. No candidate has yet qualified; `rc.10` is the first to try. |
 | `promote` | **Never executed.** |
 
 `promote` cannot be rehearsed here. `final_tag` is derived from the candidate's own `Cargo.toml`
@@ -190,7 +190,7 @@ That preserves “this binary is the contract” without a second multi-OS suite
 | Tip | CI | Trust |
 |-----|----|-------|
 | Product / full | Ubuntu product lane + gates | Full Trust action (light lifecycle) |
-| Release candidate | Ubuntu + macOS + Windows release lane at one immutable SHA | Release identity and provenance |
+| Release candidate | Ubuntu + macOS release lane at one immutable SHA | Release identity and provenance |
 | `review_only` | Reuse / skip heavy | Reuse ancestor trust |
 | `archive_only` | archive-integrity | Reuse ancestor trust |
 

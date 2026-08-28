@@ -16674,6 +16674,586 @@ fn normalize_project_path(relative: &str) -> Result<String, String> {
     Ok(normalized)
 }
 
+/// Filename Cargo locks inside a build directory for the whole of a build.
+const CARGO_BUILD_LOCK_FILE: &str = ".cargo-lock";
+
+/// Cargo subcommands that take the build-directory lock.
+///
+/// Deliberately an allowlist rather than "anything but a known read-only
+/// subcommand". Naming a lock a command will never wait on is the same defect
+/// as staying silent about one it will: output that does not describe what is
+/// happening. Third-party subcommands are excluded for the same reason —
+/// `cargo nextest`'s `--profile` selects a NEXTEST profile and its
+/// `--cargo-profile` selects the Cargo one, so reading its argv with these
+/// rules would derive the wrong build directory.
+const CARGO_BUILD_LOCK_SUBCOMMANDS: [&str; 15] = [
+    "b", "bench", "build", "c", "check", "clippy", "d", "doc", "fix", "r", "run", "rustc",
+    "rustdoc", "t", "test",
+];
+
+/// Cargo global options that consume the next argument before the subcommand.
+const CARGO_GLOBAL_VALUE_OPTIONS: [&str; 4] = ["--color", "--config", "--target-dir", "-Z"];
+
+/// Keys under a Cargo config's `[build]` table that move the build directory out
+/// from under this derivation. A config setting one is not derivable here.
+///
+/// `build-dir` is unstable on the pinned toolchain, and included anyway: SpecSync
+/// runs against whatever Cargo the operator's project has, and the cost of
+/// bailing on a key that turns out not to matter is one missing notice.
+const CARGO_LAYOUT_CONFIG_KEYS: [&str; 3] = ["target-dir", "target", "build-dir"];
+
+/// Keys under a Cargo config's `[env]` table that set an environment variable
+/// this derivation reads. Whether Cargo's `[env]` table feeds its own build
+/// layout is not settled here, so the answer where one is present is silence.
+const CARGO_LAYOUT_CONFIG_ENV_KEYS: [&str; 4] = [
+    "CARGO_TARGET_DIR",
+    "CARGO_BUILD_TARGET_DIR",
+    "CARGO_BUILD_TARGET",
+    "CARGO_BUILD_BUILD_DIR",
+];
+
+/// Reports whether a Cargo configuration file in scope could move the build
+/// directory.
+///
+/// Cargo merges `.cargo/config.toml` from the working directory upward and from
+/// `CARGO_HOME`, and either can set `build.target-dir` or `build.target`. This
+/// derivation reads neither, so the honest answer where one exists is no notice
+/// at all: a stale `<root>/target/debug/.cargo-lock` left behind by an earlier
+/// layout would otherwise be reported as the lock a command is waiting on when
+/// it is waiting somewhere else entirely. A file that cannot be parsed is
+/// treated the same way, because an unreadable config is not a config that says
+/// nothing.
+fn cargo_config_moves_build_directory(root: &Path, environment: &CargoBuildEnvironment) -> bool {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    for ancestor in root.ancestors() {
+        candidates.push(ancestor.join(".cargo"));
+    }
+    if let Some(home) = environment.cargo_home.as_deref() {
+        candidates.push(PathBuf::from(home));
+    }
+    for directory in candidates {
+        for name in ["config.toml", "config"] {
+            let path = directory.join(name);
+            let Ok(content) = fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(value) = toml::from_str::<toml::Value>(&content) else {
+                return true;
+            };
+            if let Some(build) = value.get("build").and_then(toml::Value::as_table)
+                && CARGO_LAYOUT_CONFIG_KEYS
+                    .iter()
+                    .any(|key| build.contains_key(*key))
+            {
+                return true;
+            }
+            if let Some(env) = value.get("env").and_then(toml::Value::as_table)
+                && CARGO_LAYOUT_CONFIG_ENV_KEYS
+                    .iter()
+                    .any(|key| env.contains_key(*key))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Cargo build-layout inputs that come from the environment rather than the argv.
+///
+/// Read once at the call site and passed in, so the derivation stays a pure
+/// function of its inputs: process environment cannot be set from a test under
+/// edition 2024 without `unsafe`, and a parallel suite must not share it.
+#[derive(Debug, Default, Clone)]
+struct CargoBuildEnvironment {
+    target_dir: Option<String>,
+    target_triple: Option<String>,
+    cargo_home: Option<String>,
+}
+
+impl CargoBuildEnvironment {
+    fn from_process() -> Self {
+        let read = |name: &str| {
+            std::env::var(name)
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        };
+        Self {
+            target_dir: read("CARGO_TARGET_DIR").or_else(|| read("CARGO_BUILD_TARGET_DIR")),
+            target_triple: read("CARGO_BUILD_TARGET"),
+            cargo_home: read("CARGO_HOME").or_else(|| {
+                read("HOME").map(|home| {
+                    Path::new(&home)
+                        .join(".cargo")
+                        .to_string_lossy()
+                        .into_owned()
+                })
+            }),
+        }
+    }
+}
+
+/// Resolves the `.cargo-lock` a configured Cargo command will contend on, or
+/// `None` when that cannot be derived exactly from the argv and environment.
+///
+/// Silence is the honest answer for everything this cannot derive: a
+/// `.cargo/config.toml` that sets `build.target-dir` or `build.target`, a
+/// `--config` or `--manifest-path` argument, several `--target` triples, a
+/// custom target JSON, a third-party subcommand whose flags mean something
+/// else. A notice pointing at the wrong lock would name a file the command will
+/// never wait on, and a stale `<root>/target` left behind by an earlier layout
+/// makes that a live possibility rather than a theoretical one.
+fn cargo_build_lock_path(
+    root: &Path,
+    program: &str,
+    args: &[String],
+    environment: &CargoBuildEnvironment,
+) -> Option<PathBuf> {
+    let program_name = Path::new(program)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(program)
+        .trim_end_matches(".exe");
+    if program_name != "cargo" {
+        return None;
+    }
+
+    // `--config` can set the very keys this derivation cannot follow, and
+    // `--manifest-path` moves the workspace whose `target/` is used. Either one
+    // present anywhere in the command means the build directory is not derivable
+    // from the rest of the argv.
+    for argument in args {
+        let argument = argument.as_str();
+        if matches!(argument, "--manifest-path" | "--config")
+            || argument.starts_with("--manifest-path=")
+            || argument.starts_with("--config=")
+        {
+            return None;
+        }
+    }
+
+    let mut target_dir = None;
+    let mut index = 0;
+    let subcommand = loop {
+        let argument = args.get(index)?;
+        if let Some(value) = argument.strip_prefix("--target-dir=") {
+            target_dir = Some(value.to_string());
+            index += 1;
+            continue;
+        }
+        if CARGO_GLOBAL_VALUE_OPTIONS.contains(&argument.as_str()) {
+            if argument == "--target-dir" {
+                target_dir = Some(args.get(index + 1)?.clone());
+            }
+            index += 2;
+            continue;
+        }
+        if argument.starts_with('-') {
+            index += 1;
+            continue;
+        }
+        break argument.as_str();
+    };
+    if !CARGO_BUILD_LOCK_SUBCOMMANDS.contains(&subcommand) {
+        return None;
+    }
+
+    let mut profile = None;
+    let mut release = false;
+    let mut triples: Vec<String> = Vec::new();
+    index += 1;
+    while let Some(argument) = args.get(index) {
+        if argument == "--" {
+            break;
+        }
+        match argument.as_str() {
+            "--release" | "-r" => {
+                release = true;
+                index += 1;
+            }
+            "--profile" => {
+                profile = Some(args.get(index + 1)?.clone());
+                index += 2;
+            }
+            "--target" => {
+                triples.push(args.get(index + 1)?.clone());
+                index += 2;
+            }
+            "--target-dir" => {
+                target_dir = Some(args.get(index + 1)?.clone());
+                index += 2;
+            }
+            other => {
+                if let Some(value) = other.strip_prefix("--profile=") {
+                    profile = Some(value.to_string());
+                } else if let Some(value) = other.strip_prefix("--target=") {
+                    triples.push(value.to_string());
+                } else if let Some(value) = other.strip_prefix("--target-dir=") {
+                    target_dir = Some(value.to_string());
+                }
+                index += 1;
+            }
+        }
+    }
+
+    // Cargo maps profile names onto directory names; only the four built-ins
+    // are renamed, and a custom profile keeps its own name.
+    let profile_directory = match profile.as_deref() {
+        Some("dev" | "test") => "debug",
+        Some("release" | "bench") => "release",
+        Some(custom) => custom,
+        None if release => "release",
+        None if subcommand == "bench" => "release",
+        None => "debug",
+    };
+
+    if triples.len() > 1 {
+        return None;
+    }
+    let triple = triples
+        .into_iter()
+        .next()
+        .or_else(|| environment.target_triple.clone());
+    if triple
+        .as_deref()
+        .is_some_and(|triple| triple.ends_with(".json"))
+    {
+        // A custom target spec names its directory after the file stem; not
+        // worth deriving, and a wrong path is worse than no notice.
+        return None;
+    }
+    // A profile or triple is a single directory component. Anything carrying a
+    // separator is not one, and joining it would probe somewhere else entirely.
+    let is_single_component = |name: &str| {
+        !name.is_empty()
+            && name != "."
+            && name != ".."
+            && !name.contains(['/', '\\'])
+            && !name.contains(':')
+    };
+    if !is_single_component(profile_directory) {
+        return None;
+    }
+    if triple
+        .as_deref()
+        .is_some_and(|name| !is_single_component(name))
+    {
+        return None;
+    }
+    if cargo_config_moves_build_directory(root, environment) {
+        return None;
+    }
+
+    let mut path = match target_dir.or_else(|| environment.target_dir.clone()) {
+        Some(configured) => {
+            let configured = PathBuf::from(configured);
+            if configured.is_absolute() {
+                configured
+            } else {
+                root.join(configured)
+            }
+        }
+        None => root.join("target"),
+    };
+    if let Some(triple) = triple {
+        path.push(triple);
+    }
+    path.push(profile_directory);
+    path.push(CARGO_BUILD_LOCK_FILE);
+    Some(path)
+}
+
+/// Reports whether the Cargo build-directory lock at `path` is held right now.
+///
+/// Read from the lock itself: a non-blocking exclusive acquisition either
+/// succeeds (nothing held it) or reports contention. Nothing here infers from
+/// elapsed time, so this cannot fire on a slow but healthy compile — which is
+/// the whole point, because a "probably wedged" heuristic would be one more
+/// signal that stopped carrying information while still looking like one.
+fn cargo_build_lock_is_held(path: &Path) -> bool {
+    let Ok(file) = OpenOptions::new().read(true).write(true).open(path) else {
+        // The file is created by Cargo when it takes the lock; absent or
+        // unreadable means there is nothing this run can prove.
+        return false;
+    };
+    match file.try_lock_exclusive() {
+        // Acquired, so nothing held it. Dropping `file` releases it again.
+        Ok(()) => false,
+        Err(error) => error.kind() == fs2::lock_contended_error().kind(),
+    }
+}
+
+/// PIDs holding a `FLOCK` write lock on `major:minor:inode`, read from the text
+/// of Linux `/proc/locks`.
+///
+/// Blocked waiters are printed with a `->` marker on the same lock id; they are
+/// queued behind the holder, not holding it, so reporting one as the holder
+/// would send the operator after the wrong process.
+#[cfg(any(target_os = "linux", test))]
+fn proc_locks_flock_holders(contents: &str, major: u32, minor: u32, inode: u64) -> Vec<u32> {
+    let location = format!("{major:02x}:{minor:02x}:{inode}");
+    let mut holders = Vec::new();
+    for line in contents.lines() {
+        let mut fields = line.split_whitespace();
+        if fields.next().is_none() {
+            continue;
+        }
+        let Some(kind) = fields.next() else {
+            continue;
+        };
+        if kind != "FLOCK" {
+            continue;
+        }
+        if fields.next().is_none() {
+            continue;
+        }
+        if fields.next() != Some("WRITE") {
+            continue;
+        }
+        let Some(Ok(pid)) = fields.next().map(str::parse::<i64>) else {
+            continue;
+        };
+        if fields.next() != Some(location.as_str()) {
+            continue;
+        }
+        // Open-file-description locks report `-1`; there is no process to name.
+        if pid > 0 && u32::try_from(pid).is_ok_and(|pid| !holders.contains(&pid)) {
+            holders.push(pid as u32);
+        }
+    }
+    holders
+}
+
+/// PIDs currently holding the build-directory lock, where the platform can say.
+///
+/// Linux publishes lock ownership in `/proc/locks`. macOS publishes it nowhere
+/// a process can read without either an external `lsof` — which verification's
+/// own contract forbids it from spawning — or hand-written Darwin `libproc`
+/// FFI. An empty result there is "not determinable", never "nobody holds it";
+/// `cargo_build_lock_is_held` is the half that is always authoritative.
+#[cfg(target_os = "linux")]
+fn cargo_build_lock_holders(path: &Path) -> Vec<u32> {
+    use std::os::unix::fs::MetadataExt;
+
+    let Ok(metadata) = fs::metadata(path) else {
+        return Vec::new();
+    };
+    let Ok(contents) = fs::read_to_string("/proc/locks") else {
+        return Vec::new();
+    };
+    let device = metadata.dev();
+    proc_locks_flock_holders(
+        &contents,
+        libc::major(device),
+        libc::minor(device),
+        metadata.ino(),
+    )
+}
+
+#[cfg(not(target_os = "linux"))]
+fn cargo_build_lock_holders(_path: &Path) -> Vec<u32> {
+    Vec::new()
+}
+
+/// The line printed before a Cargo verification command that is about to block.
+///
+/// Cargo does say something of its own here — measured on 1.89 against a held
+/// lock, `Blocking waiting for file lock on artifact directory` — so this notice
+/// is ADDITIVE, not a replacement, and claiming otherwise would be its own false
+/// premise. What Cargo's line does not say is which file, who holds it, or what
+/// to do about it. This is emitted only when the lock is provably held, and it
+/// names the holder's PID only where the platform actually reports ownership.
+fn cargo_build_lock_wait_notice(
+    root: &Path,
+    program: &str,
+    args: &[String],
+    environment: &CargoBuildEnvironment,
+) -> Option<String> {
+    let path = cargo_build_lock_path(root, program, args, environment)?;
+    if !cargo_build_lock_is_held(&path) {
+        return None;
+    }
+    let display = portable_project_path(root, &path);
+    let holders = cargo_build_lock_holders(&path);
+    if holders.is_empty() {
+        let mut notice = format!(
+            "specsync: waiting on {display}: the Cargo build-directory lock is held by another \
+             process, so this command is blocked rather than compiling"
+        );
+        // `lsof` lists the processes with the file OPEN, which is not the same
+        // question — on macOS it does not report lock state at all. It is still
+        // the right command, because holding a `flock` requires an open
+        // descriptor, so the holder is always among what it lists. Saying that
+        // plainly is the difference between a remedy and a wrong claim.
+        if cfg!(unix) {
+            notice.push_str(&format!(
+                "\nspecsync: `lsof {display}` lists the processes holding it open — a lock holder \
+                 is always among them — and one of those is an orphan if a check was interrupted"
+            ));
+        }
+        return Some(notice);
+    }
+    let named = holders
+        .iter()
+        .map(|pid| format!("PID {pid}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(format!(
+        "specsync: waiting on {display} held by {named}: the Cargo build-directory lock is taken, \
+         so this command is blocked rather than compiling"
+    ))
+}
+
+/// Process groups of live verification children, for teardown on a signal.
+///
+/// A fixed slot table rather than a lock: the reaper runs inside a signal
+/// handler, where an atomic load and `kill` are async-signal-safe and taking a
+/// mutex is not. The CLI runs exactly one verification child at a time — both
+/// call sites are sequential loops under the project lock — so the extra slots
+/// exist for the test binary, which verifies on several threads at once.
+#[cfg(unix)]
+const VERIFICATION_CHILD_GROUP_SLOTS: usize = 8;
+
+#[cfg(unix)]
+static VERIFICATION_CHILD_GROUPS: [std::sync::atomic::AtomicI32; VERIFICATION_CHILD_GROUP_SLOTS] =
+    [const { std::sync::atomic::AtomicI32::new(0) }; VERIFICATION_CHILD_GROUP_SLOTS];
+
+/// Signals whose default disposition ends this process, forwarded to the
+/// verification child's own process group before this process dies of them.
+#[cfg(unix)]
+const VERIFICATION_REAPED_SIGNALS: [libc::c_int; 4] =
+    [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
+
+#[cfg(unix)]
+extern "C" fn reap_verification_children(signal: libc::c_int) {
+    for slot in &VERIFICATION_CHILD_GROUPS {
+        let group = slot.load(Ordering::SeqCst);
+        // `> 1` and not `> 0`: `kill(0, ..)` signals this process's own group and
+        // `kill(-1, ..)` signals every process the user can signal. Neither is
+        // reachable from a `fork`ed child's PID, and neither may become
+        // reachable through a future edit to how the slot is filled.
+        if group > 1 {
+            // SAFETY: `kill` is async-signal-safe. A group that already exited
+            // fails with ESRCH, which is the expected no-op here.
+            unsafe { libc::kill(-group, signal) };
+        }
+    }
+    // SAFETY: restoring the default disposition and re-raising keeps the exit
+    // status a wrapping shell or supervisor would otherwise have seen.
+    unsafe {
+        libc::signal(signal, libc::SIG_DFL);
+        libc::raise(signal);
+    }
+}
+
+#[cfg(unix)]
+fn install_verification_reaper() {
+    static INSTALL: OnceLock<()> = OnceLock::new();
+    INSTALL.get_or_init(|| {
+        let handler = reap_verification_children as extern "C" fn(libc::c_int);
+        for signal in VERIFICATION_REAPED_SIGNALS {
+            // SAFETY: installing a handler for a terminating signal. A signal
+            // the parent inherited as ignored stays ignored — a backgrounded
+            // job is started that way, and stealing SIGINT back from it would
+            // change how the parent itself behaves.
+            unsafe {
+                let previous = libc::signal(signal, handler as libc::sighandler_t);
+                if previous == libc::SIG_IGN {
+                    libc::signal(signal, libc::SIG_IGN);
+                }
+            }
+        }
+    });
+}
+
+/// Registration for one verification child's process group.
+///
+/// Drop covers the non-signal exits (an unwind, a failed wait); the installed
+/// handler covers the signal ones. Together they mean an interrupted check
+/// cannot outlive itself holding the Cargo build-directory lock.
+#[cfg(unix)]
+struct VerificationChildGroup {
+    slot: Option<usize>,
+    group: i32,
+    reaped: bool,
+}
+
+#[cfg(unix)]
+impl VerificationChildGroup {
+    fn arm(group: i32) -> Self {
+        install_verification_reaper();
+        let slot = VERIFICATION_CHILD_GROUPS.iter().position(|slot| {
+            slot.compare_exchange(0, group, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+        });
+        Self {
+            slot,
+            group,
+            reaped: false,
+        }
+    }
+
+    /// Records that `wait` reaped the child, and unpublishes the group at the
+    /// same moment.
+    ///
+    /// Clearing the slot here rather than in `Drop` matters: once the child is
+    /// reaped its PID is free for reuse, so a signal arriving between `wait`
+    /// returning and the guard dropping would have the handler signal a group
+    /// this process never created.
+    fn disarm(&mut self) {
+        self.reaped = true;
+        self.clear_slot();
+    }
+
+    fn clear_slot(&mut self) {
+        if let Some(slot) = self.slot.take() {
+            VERIFICATION_CHILD_GROUPS[slot].store(0, Ordering::SeqCst);
+        }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for VerificationChildGroup {
+    fn drop(&mut self) {
+        if !self.reaped && self.group > 1 {
+            // SAFETY: signalling a process group this process created. The child
+            // is unreaped here, so its PID cannot yet have been reused.
+            unsafe { libc::kill(-self.group, libc::SIGTERM) };
+        }
+        self.clear_slot();
+    }
+}
+
+/// Runs one verification child to completion.
+///
+/// On Unix the child leads its own process group, so ending that group ends
+/// `cargo` and everything it spawned rather than only the process this one
+/// waited on. A `SIGKILL`ed parent still orphans its child — no process runs
+/// code after `SIGKILL` — which is exactly why the wait notice is not optional.
+#[cfg(unix)]
+fn run_verification_child(command: &mut Command) -> std::io::Result<std::process::ExitStatus> {
+    use std::os::unix::process::CommandExt;
+
+    command.process_group(0);
+    // Installed BEFORE the spawn. The child leaves the terminal's foreground
+    // group the instant it exists, so between `spawn` returning and the group
+    // being registered nothing would forward a signal to it — a window in which
+    // this change would orphan a child that the unmodified code would not.
+    // Installing first shrinks that window to the one instruction that publishes
+    // the PID, which cannot be known any earlier.
+    install_verification_reaper();
+    let mut child = command.spawn()?;
+    let mut group = VerificationChildGroup::arm(child.id() as i32);
+    let status = child.wait()?;
+    group.disarm();
+    Ok(status)
+}
+
+#[cfg(not(unix))]
+fn run_verification_child(command: &mut Command) -> std::io::Result<std::process::ExitStatus> {
+    command.status()
+}
+
 fn run_configured_command(
     root: &Path,
     configured: &str,
@@ -16682,12 +17262,17 @@ fn run_configured_command(
     let (program, args) = parts
         .split_first()
         .ok_or_else(|| "empty verification command".to_string())?;
+    if let Some(notice) =
+        cargo_build_lock_wait_notice(root, program, args, &CargoBuildEnvironment::from_process())
+    {
+        eprintln!("{notice}");
+    }
     let mut command = Command::new(program);
     command
         .args(args)
         .current_dir(root)
         .env(crate::VERIFICATION_CONTEXT_ENV, configured);
-    command.status().map_err(|error| {
+    run_verification_child(&mut command).map_err(|error| {
         format!("failed to run configured verification command `{configured}`: {error}")
     })
 }

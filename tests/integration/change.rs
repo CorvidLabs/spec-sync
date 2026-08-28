@@ -2281,3 +2281,296 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
         .stdout(predicate::str::contains("nothing to migrate"));
     assert_eq!(fs::read(&approvals_path).unwrap(), before);
 }
+
+/// Builds a project whose one change is implementing and ready for `change verify`,
+/// running exactly `verification_commands`.
+#[cfg(unix)]
+fn change_ready_to_verify(root: &Path, verification_commands: &[String]) -> String {
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    git(&["add", "seed.txt"]);
+    git(&["commit", "-m", "seed"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    fs::create_dir_all(root.join("specs/lib")).unwrap();
+    fs::write(
+        root.join("specs/lib/lib.spec.md"),
+        "---\nmodule: lib\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Lib\n\n## Purpose\n\nLibrary entry point.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 1,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": verification_commands,
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Reap an interrupted verification child",
+            "--kind",
+            "bug-fix",
+            "--path",
+            "src/lib.rs",
+            "--no-spec-change",
+            "--rationale",
+            "Internal lifecycle behavior only",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap().to_string();
+    for (question, answer) in [
+        ("acceptance_criteria", "The verification child is reaped"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                &id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let shown = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "show",
+            &id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown: Value = serde_json::from_slice(&shown).unwrap();
+    for artifact in shown["change"]["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Complete verification preparation.\n"
+        } else {
+            "# Complete\n\nReviewed lifecycle evidence.\n"
+        };
+        fs::write(
+            root.join(format!(".specsync/changes/{id}/{name}.md")),
+            content,
+        )
+        .unwrap();
+    }
+    specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "change",
+            "approve",
+            &id,
+            "--actor",
+            "Reviewer",
+        ])
+        .assert()
+        .success();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "start", &id])
+        .assert()
+        .success();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "implement"]);
+    id
+}
+
+/// Writes an executable POSIX shell script and returns its path.
+#[cfg(unix)]
+fn executable_script(path: &Path, body: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, body).unwrap();
+    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    path.to_path_buf()
+}
+
+/// Holds an exclusive lock on `<root>/target/<profile>/.cargo-lock`.
+#[cfg(unix)]
+fn hold_cargo_build_lock(root: &Path, profile: &str) -> fs::File {
+    use fs2::FileExt;
+
+    let build = root.join("target").join(profile);
+    fs::create_dir_all(&build).unwrap();
+    let path = build.join(".cargo-lock");
+    fs::write(&path, b"").unwrap();
+    let holder = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&path)
+        .unwrap();
+    holder.lock_exclusive().unwrap();
+    holder
+}
+
+// Verifies REQ-change-091.
+//
+// Honest label: DISCRIMINATOR, end to end through the shipped binary. Both
+// profile locks are held by this test process for the whole run, so the blocked
+// state is real and fixed rather than timed, and the notice has to name the one
+// `cargo test` actually contends on. The stand-in `cargo` returns immediately,
+// so the assertion is about what verification says, not how long it takes.
+#[cfg(unix)]
+#[test]
+fn a_held_cargo_build_lock_is_named_before_verification_blocks_on_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    let debug = hold_cargo_build_lock(root, "debug");
+    let release = hold_cargo_build_lock(root, "release");
+
+    let stderr = specsync()
+        .env_remove("CARGO_TARGET_DIR")
+        .env_remove("CARGO_BUILD_TARGET_DIR")
+        .env_remove("CARGO_BUILD_TARGET")
+        // An isolated, empty CARGO_HOME so a real `~/.cargo/config.toml` on the
+        // host cannot decide whether the notice fires.
+        .env("CARGO_HOME", root.join("isolated-cargo-home"))
+        .args(["--root", root.to_str().unwrap(), "change", "verify", &id])
+        .assert()
+        .success()
+        .get_output()
+        .stderr
+        .clone();
+    let stderr = String::from_utf8(stderr).unwrap();
+
+    assert!(
+        stderr.contains("waiting on target/debug/.cargo-lock"),
+        "verification must name the lock it is blocked on: {stderr}"
+    );
+    assert!(
+        stderr.contains("blocked rather than compiling"),
+        "verification must distinguish blocked from a slow compile: {stderr}"
+    );
+    assert!(
+        !stderr.contains("target/release/.cargo-lock"),
+        "a held lock this command never waits on must not be reported: {stderr}"
+    );
+
+    drop(debug);
+    drop(release);
+}
+
+// Verifies REQ-change-091.
+//
+// Honest label: CONTROL for the test above, and the one that makes its silence
+// readable. A four-to-five minute compile with nothing held must print nothing,
+// or the notice would fire on every healthy run and mean nothing.
+#[cfg(unix)]
+#[test]
+fn an_unheld_cargo_build_lock_is_not_reported_during_verification() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
+    let id = change_ready_to_verify(root, &[format!("{} test", cargo.display())]);
+
+    let build = root.join("target/debug");
+    fs::create_dir_all(&build).unwrap();
+    fs::write(build.join(".cargo-lock"), b"").unwrap();
+
+    let stderr = specsync()
+        .env_remove("CARGO_TARGET_DIR")
+        .env_remove("CARGO_BUILD_TARGET_DIR")
+        .env_remove("CARGO_BUILD_TARGET")
+        // An isolated, empty CARGO_HOME so a real `~/.cargo/config.toml` on the
+        // host cannot decide whether the notice fires.
+        .env("CARGO_HOME", root.join("isolated-cargo-home"))
+        .args(["--root", root.to_str().unwrap(), "change", "verify", &id])
+        .assert()
+        .success()
+        .get_output()
+        .stderr
+        .clone();
+    let stderr = String::from_utf8(stderr).unwrap();
+
+    assert!(
+        !stderr.contains("waiting on"),
+        "an unheld lock must not be reported: {stderr}"
+    );
+}
+
+// Verifies REQ-change-091.
+//
+// Honest label: DISCRIMINATOR for the reaping half, asserted on the structural
+// property rather than on a race. A child that leads its own process group can
+// be ended as a group when the parent is interrupted; one that inherits the
+// parent's group cannot be told apart from the parent's other descendants.
+// Nothing here waits on a clock: the child records its own group and exits.
+#[cfg(unix)]
+#[test]
+fn a_verification_child_runs_in_its_own_process_group() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = root.join("group.txt");
+    let reporter = executable_script(
+        &root.join("stand-in/report-group"),
+        &format!(
+            "#!/bin/sh\nprintf '%s %s\\n' \"$$\" \"$(ps -o pgid= -p $$)\" > '{}'\nexit 0\n",
+            record.display()
+        ),
+    );
+    let id = change_ready_to_verify(root, &[reporter.display().to_string()]);
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "verify", &id])
+        .assert()
+        .success();
+
+    let recorded = fs::read_to_string(&record).expect("the verification child recorded its group");
+    let mut fields = recorded.split_whitespace();
+    let pid: i32 = fields.next().unwrap().parse().unwrap();
+    let group: i32 = fields.next().unwrap().parse().unwrap();
+
+    assert_eq!(
+        group, pid,
+        "the verification child must lead its own process group so an interrupted parent can end \
+         the whole group; recorded {recorded:?}"
+    );
+}

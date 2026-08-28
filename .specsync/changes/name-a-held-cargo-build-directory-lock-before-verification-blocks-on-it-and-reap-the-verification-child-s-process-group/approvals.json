@@ -1,0 +1,134 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787865572,
+      "digest": "22147896d6562999864e6b137b1b71a331e00d054e24e5584c295bce03ac1226",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group",
+        "title": "Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group",
+        "description": "Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A Cargo build directory that cannot be derived exactly from the argv and process environment produces no notice at all, and a command that takes no build lock is never probed",
+          "A verification command that is about to wait on a held Cargo build-directory lock prints one line naming that lock and saying the run is blocked rather than compiling, derived from a non-blocking exclusive acquisition and never from elapsed time",
+          "On Unix every verification child leads its own process group, so an interrupted parent can end the whole group instead of orphaning cargo on the lock"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "b0daf76bbcb5db8182c2578aa4f9fc6e5299dd4cd161e75d09c586a9136f65f6"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787879728,
+      "digest": "22147896d6562999864e6b137b1b71a331e00d054e24e5584c295bce03ac1226",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group",
+        "title": "Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group",
+        "description": "Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A Cargo build directory that cannot be derived exactly from the argv and process environment produces no notice at all, and a command that takes no build lock is never probed",
+          "A verification command that is about to wait on a held Cargo build-directory lock prints one line naming that lock and saying the run is blocked rather than compiling, derived from a non-blocking exclusive acquisition and never from elapsed time",
+          "On Unix every verification child leads its own process group, so an interrupted parent can end the whole group instead of orphaning cargo on the lock"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "1bdb339b226578effa4900593255dacaad1d55f7280582d0427d6b7a90b6048f"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787883377,
+      "digest": "22147896d6562999864e6b137b1b71a331e00d054e24e5584c295bce03ac1226",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group",
+        "title": "Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group",
+        "description": "Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A Cargo build directory that cannot be derived exactly from the argv and process environment produces no notice at all, and a command that takes no build lock is never probed",
+          "A verification command that is about to wait on a held Cargo build-directory lock prints one line naming that lock and saying the run is blocked rather than compiling, derived from a non-blocking exclusive acquisition and never from elapsed time",
+          "On Unix every verification child leads its own process group, so an interrupted parent can end the whole group instead of orphaning cargo on the lock"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "474623144d5517e37145e7efd4c402b30ef627a23533eed5653bc0a827c70cd0"
+      }
+    }
+  ],
+  "reopenings": []
+}

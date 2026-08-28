@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group",
+  "slug": "name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group",
+  "title": "Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group",
+  "description": "Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "d6f266a4fd683246469eb15a8f632061dd5cfbb4",
+  "created_at": 1787865348,
+  "updated_at": 1787884476,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "tests/integration/change.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/context.md",
+    "specs/change/tasks.md",
+    "specs/change/testing.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A verification command that is about to wait on a held Cargo build-directory lock prints one line naming that lock and saying the run is blocked rather than compiling, derived from a non-blocking exclusive acquisition and never from elapsed time",
+    "A Cargo build directory that cannot be derived exactly from the argv and process environment produces no notice at all, and a command that takes no build lock is never probed",
+    "On Unix every verification child leads its own process group, so an interrupted parent can end the whole group instead of orphaning cargo on the lock"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

@@ -16348,3 +16348,348 @@ fn a_duplicated_section_key_is_refused_rather_than_overwritten() {
     assert!(error.contains("more than once"), "got: {error}");
     assert!(error.contains("Purpose"), "got: {error}");
 }
+
+// Verifies REQ-change-091.
+//
+// Honest label: this is the CONTROL for the Cargo build-lock notice. A command
+// that never takes the build-directory lock must resolve no lock path at all,
+// or every verification command would be probed and reported against.
+#[test]
+fn a_non_cargo_verification_command_resolves_no_build_lock() {
+    let environment = CargoBuildEnvironment::default();
+
+    for command in [
+        vec!["python3".to_string(), "validate.py".to_string()],
+        vec!["cargo".to_string(), "fmt".to_string()],
+        vec!["cargo".to_string(), "tree".to_string()],
+        vec![
+            "cargo".to_string(),
+            "install".to_string(),
+            "ripgrep".to_string(),
+        ],
+        vec!["cargo".to_string()],
+    ] {
+        let (program, args) = command.split_first().expect("command has a program");
+        assert_eq!(
+            cargo_build_lock_path(Path::new("/project"), program, args, &environment),
+            None,
+            "{command:?} takes no build-directory lock"
+        );
+    }
+}
+
+// Verifies REQ-change-091.
+//
+// Honest label: DISCRIMINATOR for the path derivation. The notice may only name
+// the lock the command will actually contend on; naming `target/release` while
+// `cargo test` waits on `target/debug` would restore the ambiguity it removes.
+#[test]
+fn a_cargo_verification_command_resolves_the_lock_it_will_contend_on() {
+    let root = Path::new("/project");
+    let environment = CargoBuildEnvironment::default();
+    let resolve = |command: &str| {
+        let words: Vec<String> = command.split_whitespace().map(str::to_string).collect();
+        let (program, args) = words.split_first().expect("command has a program");
+        cargo_build_lock_path(root, program, args, &environment)
+    };
+
+    assert_eq!(
+        resolve("cargo test"),
+        Some(root.join("target/debug/.cargo-lock"))
+    );
+    assert_eq!(
+        resolve("cargo test change::"),
+        Some(root.join("target/debug/.cargo-lock"))
+    );
+    assert_eq!(
+        resolve("cargo clippy --all-targets -- -D warnings"),
+        Some(root.join("target/debug/.cargo-lock"))
+    );
+    assert_eq!(
+        resolve("cargo test --release"),
+        Some(root.join("target/release/.cargo-lock"))
+    );
+    assert_eq!(
+        resolve("cargo bench"),
+        Some(root.join("target/release/.cargo-lock"))
+    );
+    assert_eq!(
+        resolve("cargo build --profile dev"),
+        Some(root.join("target/debug/.cargo-lock"))
+    );
+    assert_eq!(
+        resolve("cargo build --profile=coverage"),
+        Some(root.join("target/coverage/.cargo-lock"))
+    );
+    assert_eq!(
+        resolve("cargo build --target aarch64-apple-darwin"),
+        Some(root.join("target/aarch64-apple-darwin/debug/.cargo-lock"))
+    );
+    assert_eq!(
+        resolve("cargo --color never test --target-dir /elsewhere"),
+        Some(Path::new("/elsewhere/debug/.cargo-lock").to_path_buf())
+    );
+    assert_eq!(
+        resolve("cargo test --target-dir=out"),
+        Some(root.join("out/debug/.cargo-lock"))
+    );
+    // A `--release` that is really a test-name filter after `--` must not be
+    // read as a profile selector.
+    assert_eq!(
+        resolve("cargo test -- --release"),
+        Some(root.join("target/debug/.cargo-lock"))
+    );
+}
+
+// Verifies REQ-change-091.
+//
+// Honest label: DISCRIMINATOR for the silence half of the contract. Two target
+// triples, or a target directory this cannot derive, must produce no notice at
+// all rather than a notice naming a plausible-looking wrong lock.
+#[test]
+fn an_underivable_cargo_build_layout_resolves_no_lock() {
+    let root = Path::new("/project");
+
+    for command in [
+        "cargo build --target x86_64-unknown-linux-gnu --target aarch64-apple-darwin",
+        "cargo build --target custom.json",
+        // A profile name is one directory component; anything else would probe
+        // somewhere other than the build directory.
+        "cargo build --profile ../../elsewhere",
+        "cargo build --profile=..",
+        // `--config` can set the very keys this cannot follow, and
+        // `--manifest-path` moves the workspace whose `target/` is used.
+        "cargo --config build.target-dir=\"other\" test",
+        "cargo build --config profile.dev.debug=false",
+        "cargo test --manifest-path crates/inner/Cargo.toml",
+        "cargo test --manifest-path=crates/inner/Cargo.toml",
+        // `cargo nextest run --profile ci` names a NEXTEST profile, not a Cargo
+        // one, so these rules would derive `target/ci` for a run that contends
+        // on `target/debug`.
+        "cargo nextest run",
+        "cargo nextest run --profile ci",
+    ] {
+        let words: Vec<String> = command.split_whitespace().map(str::to_string).collect();
+        let (program, args) = words.split_first().expect("command has a program");
+        assert_eq!(
+            cargo_build_lock_path(root, program, args, &CargoBuildEnvironment::default()),
+            None,
+            "{command} has no derivable build directory"
+        );
+    }
+}
+
+// Verifies REQ-change-091.
+//
+// Honest label: DISCRIMINATOR, and it exists because the first version of this
+// change CLAIMED this silence in a canonical spec without implementing it. A
+// project that adds `build.target-dir` while a stale `<root>/target` remains is
+// exactly the shape that turns the notice into a wrong claim, so the claim is
+// asserted here rather than asserted in prose.
+#[test]
+fn a_cargo_config_that_moves_the_build_directory_resolves_no_lock() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("project");
+    fs::create_dir_all(root.join(".cargo")).unwrap();
+    let words = ["cargo".to_string(), "test".to_string()];
+    let (program, args) = words.split_first().expect("command has a program");
+    // An isolated `CARGO_HOME` so a real one on the host cannot decide this.
+    let environment = CargoBuildEnvironment {
+        target_dir: None,
+        target_triple: None,
+        cargo_home: Some(temp.path().join("cargo-home").display().to_string()),
+    };
+
+    // Honest label: CONTROL. A config that sets no layout key must not silence
+    // the notice, or "there is a `.cargo/config.toml`" would be enough to turn
+    // the whole feature off for most real projects.
+    fs::write(
+        root.join(".cargo/config.toml"),
+        "[net]\ngit-fetch-with-cli = true\n",
+    )
+    .unwrap();
+    assert_eq!(
+        cargo_build_lock_path(&root, program, args, &environment),
+        Some(root.join("target/debug/.cargo-lock"))
+    );
+
+    for config in [
+        "[build]\ntarget-dir = \"/elsewhere\"\n",
+        "[build]\ntarget = \"aarch64-apple-darwin\"\n",
+        // Unstable on the pinned toolchain; SpecSync runs against whatever Cargo
+        // the operator's project has, so bail rather than settle it here.
+        "[build]\nbuild-dir = \"/elsewhere\"\n",
+        // Whether Cargo's `[env]` table feeds its own build layout is unsettled,
+        // and silence-when-unsure is the rule this notice lives by.
+        "[env]\nCARGO_TARGET_DIR = \"/elsewhere\"\n",
+        "[env]\nCARGO_BUILD_TARGET = \"aarch64-apple-darwin\"\n",
+        // Unparsable is not "says nothing".
+        "[build\ntarget-dir =\n",
+    ] {
+        fs::write(root.join(".cargo/config.toml"), config).unwrap();
+        assert_eq!(
+            cargo_build_lock_path(&root, program, args, &environment),
+            None,
+            "a config in scope moves the build directory: {config:?}"
+        );
+    }
+
+    // A parent directory's config counts too — Cargo merges upward from the
+    // working directory, so stopping at the project root would miss it.
+    fs::write(
+        root.join(".cargo/config.toml"),
+        "[net]\ngit-fetch-with-cli = true\n",
+    )
+    .unwrap();
+    fs::create_dir_all(temp.path().join(".cargo")).unwrap();
+    fs::write(
+        temp.path().join(".cargo/config"),
+        "[build]\ntarget-dir = \"/elsewhere\"\n",
+    )
+    .unwrap();
+    assert_eq!(
+        cargo_build_lock_path(&root, program, args, &environment),
+        None,
+        "an ancestor's config moves the build directory"
+    );
+
+    // And so does `CARGO_HOME`, which is not on the ancestor path at all. Until
+    // this case existed the whole `cargo_home` leg was dead in test: the earlier
+    // version of this test pointed it at a directory that never existed.
+    fs::remove_file(temp.path().join(".cargo/config")).unwrap();
+    let cargo_home = temp.path().join("cargo-home");
+    fs::create_dir_all(&cargo_home).unwrap();
+    assert_eq!(
+        cargo_build_lock_path(&root, program, args, &environment),
+        Some(root.join("target/debug/.cargo-lock")),
+        "an empty CARGO_HOME must not silence the notice"
+    );
+    fs::write(
+        cargo_home.join("config.toml"),
+        "[build]\ntarget-dir = \"/elsewhere\"\n",
+    )
+    .unwrap();
+    assert_eq!(
+        cargo_build_lock_path(&root, program, args, &environment),
+        None,
+        "a CARGO_HOME config moves the build directory"
+    );
+}
+
+// Verifies REQ-change-091.
+//
+// Honest label: DISCRIMINATOR for environment-driven layout. `CARGO_TARGET_DIR`
+// moves the lock, and a notice pointing at `<root>/target` there would name a
+// file nothing is waiting on.
+#[test]
+fn cargo_target_dir_environment_moves_the_resolved_lock() {
+    let root = Path::new("/project");
+    let words = ["cargo".to_string(), "test".to_string()];
+    let (program, args) = words.split_first().expect("command has a program");
+
+    let environment = CargoBuildEnvironment {
+        target_dir: Some("/shared/target".to_string()),
+        target_triple: None,
+        cargo_home: None,
+    };
+    assert_eq!(
+        cargo_build_lock_path(root, program, args, &environment),
+        Some(Path::new("/shared/target/debug/.cargo-lock").to_path_buf())
+    );
+
+    let environment = CargoBuildEnvironment {
+        target_dir: None,
+        target_triple: Some("aarch64-apple-darwin".to_string()),
+        cargo_home: None,
+    };
+    assert_eq!(
+        cargo_build_lock_path(root, program, args, &environment),
+        Some(root.join("target/aarch64-apple-darwin/debug/.cargo-lock"))
+    );
+}
+
+// Verifies REQ-change-091.
+//
+// Honest label: DISCRIMINATOR, and the load-bearing one for the notice itself.
+// The lock is held for real by a second open file description in this process —
+// `flock` treats those independently — so the held branch is exercised
+// deterministically, with no dependence on timing or on host load.
+#[test]
+fn a_held_cargo_build_lock_produces_a_notice_naming_the_lock() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let build = root.join("target/debug");
+    fs::create_dir_all(&build).unwrap();
+    let lock_path = build.join(".cargo-lock");
+    fs::write(&lock_path, b"").unwrap();
+    let words = ["cargo".to_string(), "test".to_string()];
+    let (program, args) = words.split_first().expect("command has a program");
+    let environment = CargoBuildEnvironment::default();
+
+    // Honest label: CONTROL. Nothing holds the lock yet, so there is nothing to
+    // report; without this the test could not tell a working probe from one
+    // that reports contention unconditionally.
+    assert_eq!(
+        cargo_build_lock_wait_notice(root, program, args, &environment),
+        None,
+        "an unheld lock must produce no notice"
+    );
+
+    let holder = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .unwrap();
+    holder.lock_exclusive().unwrap();
+
+    let notice = cargo_build_lock_wait_notice(root, program, args, &environment)
+        .expect("a held lock must be reported");
+    assert!(
+        notice.contains("waiting on target/debug/.cargo-lock"),
+        "the notice must name the lock: {notice}"
+    );
+    assert!(
+        notice.contains("blocked rather than compiling"),
+        "the notice must distinguish blocked from compiling: {notice}"
+    );
+
+    // Deliberately NOT asserted: that releasing `holder` immediately stops the
+    // notice. It was, and it failed once on a heavily loaded host — a `flock`
+    // lives on the open file description, and this test binary is multithreaded
+    // and spawns processes constantly, so a descriptor duplicated by a
+    // concurrent spawn keeps the lock alive past this thread's `drop` until that
+    // child execs. "Released" is therefore not observable at a deterministic
+    // instant from inside this process, and an assertion on it is a gate that
+    // depends on machine load, which is the shape #707 and #702 are about.
+    drop(holder);
+}
+
+// Verifies REQ-change-091.
+//
+// Honest label: DISCRIMINATOR for the Linux holder lookup, exercised through the
+// pure parser so it runs on every platform. The wiring that reads `/proc/locks`
+// and stats the lock file is Linux-only and is not covered here.
+#[test]
+fn proc_locks_names_only_the_flock_write_holder_of_the_lock_file() {
+    let contents = "\
+1: POSIX  ADVISORY  WRITE 4001 08:01:7654321 0 EOF
+2: FLOCK  ADVISORY  WRITE 75733 08:01:7654321 0 EOF
+2: -> FLOCK  ADVISORY  WRITE 75999 08:01:7654321 0 EOF
+3: FLOCK  ADVISORY  READ 4100 08:01:7654321 0 EOF
+4: FLOCK  ADVISORY  WRITE 4200 08:01:9999999 0 EOF
+5: OFDLCK ADVISORY  WRITE -1 08:01:7654321 0 EOF
+";
+
+    assert_eq!(
+        proc_locks_flock_holders(contents, 8, 1, 7_654_321),
+        vec![75733],
+        "only the FLOCK write holder of this inode is a holder"
+    );
+
+    // Honest label: CONTROL. An inode nothing locks must name nobody, so an
+    // empty result reads as "no holder found" rather than "parser broken".
+    assert_eq!(
+        proc_locks_flock_holders(contents, 8, 1, 1_111_111),
+        Vec::<u32>::new()
+    );
+}

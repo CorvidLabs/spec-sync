@@ -2187,7 +2187,7 @@ fn validate_change_sequences(root: &Path) -> Result<(), String> {
         if maximum > ledger.sequence {
             return Err(format!(
                 "change sequence ledger claims CHG-{:04} but the highest recorded sequence is CHG-{maximum:04}; \
-restore it with `git checkout HEAD -- {SEQUENCE_PATH}` (nothing writes this file any more, so it cannot be repaired by allocating)",
+restore it with `git checkout HEAD -- {SEQUENCE_PATH}` (nothing allocates a sequence any more, so this cannot be repaired by minting a higher one)",
                 ledger.sequence
             ));
         }

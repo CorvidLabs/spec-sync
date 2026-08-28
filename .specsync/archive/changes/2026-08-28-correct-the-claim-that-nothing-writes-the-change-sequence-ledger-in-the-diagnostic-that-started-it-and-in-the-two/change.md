@@ -1,6 +1,6 @@
 ---
 id: correct-the-claim-that-nothing-writes-the-change-sequence-ledger-in-the-diagnostic-that-started-it-and-in-the-two
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 4b72b09de0e950b7a0479463dbefcac33d516cac
 ---

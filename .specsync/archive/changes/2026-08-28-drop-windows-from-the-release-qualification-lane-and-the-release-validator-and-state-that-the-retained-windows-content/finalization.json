@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "drop-windows-from-the-release-qualification-lane-and-the-release-validator-and-state-that-the-retained-windows-content",
+  "implementation_commit": "8be8aeea6c37156ca8731aba7c05f2e5c5bcb664",
+  "implementation_tree": "ba2deb46d6ebf5eb3328e3a8c94275b8de520417",
+  "contract_digest": "0f3c218423bbb93aa7abf52d0b7182a3602b89300ff8791b8b2d8b559fba13e1",
+  "workspace_digest": "85bffe2a701887f82027dbfaf7865d82a200e5d70887a788c5f626318c2f2bfc",
+  "closing_digest": "775f0bc6dc9816931f505719a2862d3a4ad8aafb15928f8e635d5b44f70c9fee",
+  "review_digest": "c06fe2307bb5881c799b1fb1dff6c3eb66d0bf6bc6712dfebccf2fa6ac86042e",
+  "finalization_digest": "99704f215404c9598beba092a5551a22b07b02d652394d9948ae4e27f19bcaee",
+  "timestamp": 1787877220
+}

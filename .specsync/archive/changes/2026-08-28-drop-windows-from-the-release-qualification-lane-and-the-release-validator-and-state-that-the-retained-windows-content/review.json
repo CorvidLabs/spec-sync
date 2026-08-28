@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "drop-windows-from-the-release-qualification-lane-and-the-release-validator-and-state-that-the-retained-windows-content",
+  "reviewer": "drop-windows-lane-review",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "8be8aeea6c37156ca8731aba7c05f2e5c5bcb664",
+  "contract_digest": "0f3c218423bbb93aa7abf52d0b7182a3602b89300ff8791b8b2d8b559fba13e1",
+  "execution_digest": "96be08d4393e66eaff6a169ce644e2c90b0bd98bb3f4c8d41e8d0c8b3a87e683",
+  "workspace_digest": "85bffe2a701887f82027dbfaf7865d82a200e5d70887a788c5f626318c2f2bfc",
+  "timestamp": 1787877202
+}

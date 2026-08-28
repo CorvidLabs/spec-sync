@@ -1,6 +1,6 @@
 ---
 id: drop-windows-from-the-release-qualification-lane-and-the-release-validator-and-state-that-the-retained-windows-content
-state: implementing
+state: archived
 type: operations
 base_commit: 4b72b09de0e950b7a0479463dbefcac33d516cac
 ---

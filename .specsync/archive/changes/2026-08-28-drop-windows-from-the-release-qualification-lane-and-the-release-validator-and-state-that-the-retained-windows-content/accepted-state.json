@@ -7,11 +7,11 @@
   "title": "Drop Windows from the release qualification lane and the release validator, and state that the retained Windows content guarantees are now unverified",
   "description": "Drop Windows from the release qualification lane and the release validator, and state that the retained Windows content guarantees are now unverified",
   "kind": "operations",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "4b72b09de0e950b7a0479463dbefcac33d516cac",
   "created_at": 1787875786,
-  "updated_at": 1787877196,
+  "updated_at": 1787877220,
   "affected_specs": [
     "cmd_issues",
     "github"

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "drop-windows-from-the-release-qualification-lane-and-the-release-validator-and-state-that-the-retained-windows-content",
+  "slug": "drop-windows-from-the-release-qualification-lane-and-the-release-validator-and-state-that-the-retained-windows-content",
+  "title": "Drop Windows from the release qualification lane and the release validator, and state that the retained Windows content guarantees are now unverified",
+  "description": "Drop Windows from the release qualification lane and the release validator, and state that the retained Windows content guarantees are now unverified",
+  "kind": "operations",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "4b72b09de0e950b7a0479463dbefcac33d516cac",
+  "created_at": 1787875786,
+  "updated_at": 1787877614,
+  "affected_specs": [
+    "cmd_issues",
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/release.yml",
+    ".github/scripts/validate-release-candidate.py",
+    ".github/scripts/test-validate-release-candidate.py",
+    "src/commands/issues.rs",
+    "docs/ci-confidence.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The cmd_issues and github modules own the touched paths, so ownership is declared with --spec; the edits are CI configuration, a validator constant, a test-only cfg gate and prose, so no canonical spec text moves.",
+  "acceptance_criteria": [
+    "The release qualify matrix contains only ubuntu and macos; REQUIRED_PLATFORMS is ('ubuntu','macos'); no Windows-only step remains in release.yml; the validator self-test passes 50/50; docs/ci-confidence.md and CHANGELOG.md state that the retained cfg(windows) code is now compiled and run nowhere and that those guarantees are best-effort and unverified; and the CHANGELOG paragraph that argued for keeping the lane says the argument was correct and the risk is accepted rather than resolved."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

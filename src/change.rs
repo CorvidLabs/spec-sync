@@ -16716,13 +16716,14 @@ const CARGO_LAYOUT_CONFIG_ENV_KEYS: [&str; 4] = [
 /// directory.
 ///
 /// Cargo merges `.cargo/config.toml` from the working directory upward and from
-/// `CARGO_HOME`, and either can set `build.target-dir` or `build.target`. This
-/// derivation reads neither, so the honest answer where one exists is no notice
-/// at all: a stale `<root>/target/debug/.cargo-lock` left behind by an earlier
-/// layout would otherwise be reported as the lock a command is waiting on when
-/// it is waiting somewhere else entirely. A file that cannot be parsed is
-/// treated the same way, because an unreadable config is not a config that says
-/// nothing.
+/// `CARGO_HOME`, and any of them can set `[build] target-dir`, `target` or
+/// `build-dir`, or an `[env]` table entry for the variables this derivation
+/// reads. It follows none of those, so the honest answer where one exists is no
+/// notice at all: a stale `<root>/target/debug/.cargo-lock` left behind by an
+/// earlier layout would otherwise be reported as the lock a command is waiting
+/// on when it is waiting somewhere else entirely. A file that cannot be parsed
+/// is treated the same way, because an unreadable config is not a config that
+/// says nothing.
 fn cargo_config_moves_build_directory(root: &Path, environment: &CargoBuildEnvironment) -> bool {
     let mut candidates: Vec<PathBuf> = Vec::new();
     for ancestor in root.ancestors() {
@@ -17087,8 +17088,9 @@ fn cargo_build_lock_wait_notice(
         // plainly is the difference between a remedy and a wrong claim.
         if cfg!(unix) {
             notice.push_str(&format!(
-                "\nspecsync: `lsof {display}` lists the processes holding it open — a lock holder \
-                 is always among them — and one of those is an orphan if a check was interrupted"
+                "\nspecsync: `lsof {display}` lists the processes holding it open, which is where \
+                 a lock holder you can see will be — run it as the owning user, and end an orphan \
+                 left by an interrupted check"
             ));
         }
         return Some(notice);

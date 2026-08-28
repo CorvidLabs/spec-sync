@@ -1,6 +1,6 @@
 ---
 module: change
-version: 109
+version: 110
 status: active
 files:
   - src/change.rs
@@ -445,3 +445,4 @@ Acceptance Criteria
 | 2026-08-27 | retire-the-spec-text-describing-the-deleted-change-sequence-allocation-including-specsync-sequence-base: Retire the spec text describing the deleted change-sequence allocation, including SPECSYNC_SEQUENCE_BASE |
 | 2026-08-27 | one-delimiter-rule-for-every-frontmatter-reader-at-both-ends-of-the-block: One delimiter rule for every frontmatter reader, at both ends of the block |
 | 2026-08-27 | hash-the-semantic-delta-binding-over-line-ending-canonical-bytes-so-a-crlf-checkout-of-an-unedited-delta-stops-failing: Hash the semantic delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the approval gate, and fold nothing else |
+| 2026-08-27 | name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group: Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group |

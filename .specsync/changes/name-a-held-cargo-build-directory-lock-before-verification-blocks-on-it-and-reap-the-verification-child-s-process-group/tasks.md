@@ -32,6 +32,12 @@ artifact: tasks
       `CARGO_HOME` leg that the first version of the config test never reached
 - [x] Rebase onto `main` after #731/#732/#733/#736/#737/#738, keeping both sets of folded lessons
       in `specs/change/context.md`
+- [x] Correct the rebase note rather than delete it: resolving `change.spec.md` to upstream was
+      justified with "materialisation regenerates the version bump and the Change Log row", and
+      that reasoning is WRONG. `bump_spec_version` and `append_changelog` have one caller,
+      `prepare_delta_application`, which sits below the same `canonical_applied` short-circuit —
+      so the rebase dropped a bump and a row that nothing would restore. Both hand-applied
+      (109 → 110, plus the row), the same way the requirement block was
 - [x] Write the corrected `REQ-change-091` into `specs/change/requirements.md` by hand, because
       `materialize_change_deltas` returns early on `canonical_applied` and a re-approved delta
       never reaches the canonical tree; record that mechanism in `specs/change/context.md`

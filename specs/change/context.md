@@ -368,9 +368,10 @@ Three deliberate refusals, each of which would have made the notice worse than s
   healthy compile is the same defect one layer up, and this release already has eight instances of
   a check reporting success it had not verified.
 - A build directory this cannot derive exactly produces NO notice: a Cargo configuration file in
-  scope that sets `build.target-dir` or `build.target` (or that cannot be parsed), a `--config` or
-  `--manifest-path` argument, two `--target` triples, a custom target JSON, a profile that is not a
-  single path component, a third-party subcommand whose flags mean something else. Naming a lock
+  scope whose `[build]` table sets `target-dir`, `target` or `build-dir`, or whose `[env]` table
+  sets one of the variables the derivation reads, or that cannot be parsed; a `--config` or
+  `--manifest-path` argument; two `--target` triples; a custom target JSON; a profile that is not a
+  single path component; a third-party subcommand whose flags mean something else. Naming a lock
   the command will never wait on restores the ambiguity the notice exists to remove, and a stale
   `<root>/target` left over from an earlier layout makes that a live possibility: the config check
   is a real read of the files Cargo merges, not an assumption that nobody has one.
@@ -396,6 +397,16 @@ the canonical spec saying what the previous wording said while `check` reports s
 `change check`; the fix was to write the corrected block into the canonical file by hand, byte-for-
 byte as `apply_markdown_block` would have. Nothing detects the divergence today: the pair that is
 never compared is "what the approval now says" against "what the tree already got".
+
+The short-circuit skips MORE than the delta application, which is why a narrow "re-apply when the
+digest differs" fix would not be enough (#741). `bump_spec_version` and `append_changelog` have a
+single caller, `prepare_delta_application`, which is also below the flag — so a change that
+re-materialises after `canonical_applied` loses its spec version bump and its Change Log row as
+well as its delta. #721 lost all three: the delta wording on a re-approval, and then the bump and
+the row again when a rebase resolved `change.spec.md` toward upstream on the belief that
+materialisation would regenerate them. A canonical spec whose contract text changed while its
+version and changelog did not is precisely the drift this module exists to prevent, and neither
+`check` nor `audit --strict` can see it.
 
 One accepted cost of the own-group child: it is no longer in the terminal's foreground group, so a
 verification command that read the controlling terminal would stop on `SIGTTIN` (or, under `stty

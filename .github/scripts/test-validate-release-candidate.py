@@ -274,7 +274,7 @@ class PlatformEvidenceTests(unittest.TestCase):
     def test_missing_and_duplicate_platforms_fail(self) -> None:
         records = self.load(self.fixture.write_evidence())
         with self.assertRaisesRegex(
-            VALIDATOR_MODULE.ValidationError, "missing platform evidence: windows"
+            VALIDATOR_MODULE.ValidationError, "missing platform evidence: macos"
         ):
             VALIDATOR_MODULE.validate_platform_evidence(
                 records[:-1], self.identity, "release-candidate"
@@ -290,11 +290,11 @@ class PlatformEvidenceTests(unittest.TestCase):
         for outcome in ("failure", "cancelled"):
             with self.subTest(outcome=outcome):
                 records = self.load(
-                    self.fixture.write_evidence({"windows": {"outcome": outcome}})
+                    self.fixture.write_evidence({"macos": {"outcome": outcome}})
                 )
                 with self.assertRaisesRegex(
                     VALIDATOR_MODULE.ValidationError,
-                    f"platform windows is not successful: outcome='{outcome}'",
+                    f"platform macos is not successful: outcome='{outcome}'",
                 ):
                     VALIDATOR_MODULE.validate_platform_evidence(
                         records, self.identity, "release-candidate"
@@ -316,10 +316,10 @@ class PlatformEvidenceTests(unittest.TestCase):
             )
 
         records = self.load(
-            self.fixture.write_evidence({"windows": {"rc_tag": "v1.2.3-rc.2"}})
+            self.fixture.write_evidence({"macos": {"rc_tag": "v1.2.3-rc.2"}})
         )
         with self.assertRaisesRegex(
-            VALIDATOR_MODULE.ValidationError, "platform windows evidence is bound to RC tag"
+            VALIDATOR_MODULE.ValidationError, "platform macos evidence is bound to RC tag"
         ):
             VALIDATOR_MODULE.validate_platform_evidence(
                 records, self.identity, "release-candidate"
@@ -331,12 +331,12 @@ class PlatformEvidenceTests(unittest.TestCase):
                 {
                     "ubuntu": {"workflow_revision": "b" * 40},
                     "macos": {"workflow_revision": "a" * 40},
-                    "windows": {"workflow_revision": "a" * 40},
+                    "macos": {"workflow_revision": "a" * 40},
                 },
                 "mixed across workflow revisions",
             ),
             ({"macos": {"package_version": "1.2.4"}}, "package version"),
-            ({"windows": {"lane": "different-lane"}}, "ran lane"),
+            ({"macos": {"lane": "different-lane"}}, "ran lane"),
         )
         for overrides, message in cases:
             with self.subTest(message=message):
@@ -349,7 +349,7 @@ class PlatformEvidenceTests(unittest.TestCase):
     def test_duplicate_json_key_is_rejected(self) -> None:
         path = self.fixture.root / "duplicate.json"
         path.write_text(
-            '{"schema_version":1,"platform":"ubuntu","platform":"windows"}',
+            '{"schema_version":1,"platform":"ubuntu","platform":"macos"}',
             encoding="utf-8",
         )
         with self.assertRaisesRegex(VALIDATOR_MODULE.ValidationError, "duplicate key 'platform'"):
@@ -393,8 +393,8 @@ class PlatformEvidenceTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["mode"], "evidence")
-        self.assertEqual(payload["platforms"], ["ubuntu", "macos", "windows"])
-        self.assertEqual(len(evidence), 3)
+        self.assertEqual(payload["platforms"], ["ubuntu", "macos"])
+        self.assertEqual(len(evidence), 2)
 
     def test_evidence_cli_refuses_missing_extra_failed_or_mixed_records(self) -> None:
         paths = self.fixture.write_evidence()
@@ -409,7 +409,7 @@ class PlatformEvidenceTests(unittest.TestCase):
             str(self.fixture.root),
         )
         self.assertNotEqual(missing.returncode, 0)
-        self.assertIn("missing windows.json", missing.stderr)
+        self.assertIn("missing macos.json", missing.stderr)
 
         self.fixture.write_evidence()
         (self.fixture.root / "linux.json").write_text("{}", encoding="utf-8")
@@ -426,7 +426,7 @@ class PlatformEvidenceTests(unittest.TestCase):
         self.assertIn("unexpected linux.json", extra.stderr)
         (self.fixture.root / "linux.json").unlink()
 
-        self.fixture.write_evidence({"windows": {"outcome": "failure"}})
+        self.fixture.write_evidence({"macos": {"outcome": "failure"}})
         failed = self.fixture.run_cli(
             "evidence",
             "--rc-tag",
@@ -437,7 +437,7 @@ class PlatformEvidenceTests(unittest.TestCase):
             str(self.fixture.root),
         )
         self.assertNotEqual(failed.returncode, 0)
-        self.assertIn("platform windows is not successful", failed.stderr)
+        self.assertIn("platform macos is not successful", failed.stderr)
 
         self.fixture.write_evidence({"macos": {"candidate_sha": "b" * 40}})
         mixed = self.fixture.run_cli(
@@ -456,10 +456,10 @@ class PlatformEvidenceTests(unittest.TestCase):
             {
                 "ubuntu": {"lane": "test"},
                 "macos": {"lane": "test"},
-                "windows": {"lane": "test"},
+                "macos": {"lane": "test"},
             }
         )
-        self.assertEqual(len(wrong_lane), 3)
+        self.assertEqual(len(wrong_lane), 2)
         lane = self.fixture.run_cli(
             "evidence",
             "--rc-tag",
@@ -1490,7 +1490,7 @@ class PromotionAndReleaseTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["mode"], "promotion")
         self.assertEqual(payload["candidate_sha"], self.fixture.candidate_sha)
-        self.assertEqual(payload["platforms"], ["ubuntu", "macos", "windows"])
+        self.assertEqual(payload["platforms"], ["ubuntu", "macos"])
 
     def test_promotion_refuses_wrong_or_existing_final_tag(self) -> None:
         evidence = self.fixture.write_evidence()
@@ -1585,13 +1585,12 @@ class PromotionAndReleaseTests(unittest.TestCase):
         missing_arguments.extend(["--checkout-sha", self.fixture.candidate_sha])
         missing = self.fixture.run_cli("release", *missing_arguments)
         self.assertNotEqual(missing.returncode, 0)
-        self.assertIn("missing platform evidence: windows", missing.stderr)
+        self.assertIn("missing platform evidence: macos", missing.stderr)
 
         mixed = self.fixture.write_evidence(
             {
                 "ubuntu": {"workflow_revision": "a" * 40},
                 "macos": {"workflow_revision": "b" * 40},
-                "windows": {"workflow_revision": "a" * 40},
             }
         )
         mixed_arguments = self.fixture.common_evidence_arguments(mixed)

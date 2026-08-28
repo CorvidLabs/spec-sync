@@ -279,10 +279,6 @@ jobs:
             os: macos-14
             fledge_asset: fledge-macos-x86_64
             fledge_sha256: 5c52a05710918d8bf566546fdaa8f32792b169bbefad46addb6009837f7819d2
-          - platform: windows
-            os: windows-latest
-            fledge_asset: fledge-windows-x86_64.exe
-            fledge_sha256: 2349f2c24c40929fb7317627cb40915fe5ac33b697e5876020b8b8e6e3b69a47
     permissions:
       contents: read
     steps:
@@ -304,27 +300,7 @@ jobs:
           # place where a slower build is obviously worth an unpoisonable one.
           save-if: false
 
-      - name: Prepare Windows integration shell
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "C:/Program Files/Git/bin" >> "$GITHUB_PATH"
-          bash_path="C:/Progra~1/Git/bin/bash.exe"
-          if [[ ! -x "$bash_path" ]]; then
-            bash_path="C:/Program Files/Git/bin/bash.exe"
-          fi
-          echo "SPECSYNC_BASH=${bash_path}" >> "$GITHUB_ENV"
-          curl -fsSL -o /usr/bin/jq.exe \
-            https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-windows-amd64.exe
-          jq_digest="$(sha256sum /usr/bin/jq.exe | awk '{print $1}')"
-          if [[ "$jq_digest" != "7451fbbf37feffb9bf262bd97c54f0da558c63f0748e64152dd87b0a07b6d6ab" ]]; then
-            echo "::error::jq checksum mismatch: ${jq_digest}"
-            exit 1
-          fi
-
-      - name: Install pinned Fledge (Unix)
-        if: runner.os != 'Windows'
+      - name: Install pinned Fledge
         env:
           ASSET: ${{ matrix.fledge_asset }}
           EXPECTED_SHA256: ${{ matrix.fledge_sha256 }}
@@ -342,27 +318,7 @@ jobs:
           mv "${RUNNER_TEMP}/${ASSET}" "${RUNNER_TEMP}/fledge"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
-      - name: Install pinned Fledge (Windows)
-        if: runner.os == 'Windows'
-        env:
-          ASSET: ${{ matrix.fledge_asset }}
-          EXPECTED_SHA256: ${{ matrix.fledge_sha256 }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $base = "https://github.com/CorvidLabs/fledge/releases/download/v1.7.2"
-          $binary = Join-Path $env:RUNNER_TEMP $env:ASSET
-          Invoke-WebRequest "$base/$env:ASSET" -OutFile $binary
-          $actual = (Get-FileHash $binary -Algorithm SHA256).Hash.ToLower()
-          if ($actual -ne $env:EXPECTED_SHA256) {
-            throw "Fledge checksum mismatch: expected $env:EXPECTED_SHA256, got $actual"
-          }
-          Copy-Item $binary (Join-Path $env:RUNNER_TEMP "fledge.exe")
-          $env:RUNNER_TEMP | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: Run immutable release-candidate lane
-        env:
-          SPECSYNC_BASH: ${{ runner.os == 'Windows' && 'C:\Progra~1\Git\bin\bash.exe' || '' }}
         run: fledge lanes run release-candidate
 
       - name: Write SHA-bound platform evidence
@@ -471,7 +427,7 @@ jobs:
                 "${{ needs.validate.result }}" == "success" && \
                 "${{ needs.qualify.result }}" == "success" ]]; then
             conclusion="success"
-            summary="Ubuntu, macOS, and Windows passed the release-candidate lane for the exact immutable candidate SHA."
+            summary="Ubuntu and macOS passed the release-candidate lane for the exact immutable candidate SHA. Windows is neither built nor qualified as of 6.0."
           fi
           gh api --method POST "repos/${REPOSITORY}/check-runs" \
             -f name="SpecSync release candidate" \

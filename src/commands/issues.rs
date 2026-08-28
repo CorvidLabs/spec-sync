@@ -737,7 +737,11 @@ fn open_verified_root(root: &Path) -> io::Result<Dir> {
     Ok(directory)
 }
 
-#[cfg(all(test, unix))]
+// Test-only, but on every platform: the confined specs-directory tests that use
+// it are platform-independent guarantees. Narrowing this to `unix` is what left
+// `snapshot_validation_reports_a_directory_mapping_as_a_directory` referring to a
+// symbol that does not exist on Windows (#735).
+#[cfg(test)]
 fn open_specs_directory(
     root: &Path,
     configured: &str,
@@ -1594,18 +1598,23 @@ pub fn cmd_issues(root: &Path, format: types::OutputFormat, create: bool) {
 
 #[cfg(test)]
 mod tests {
+    // Symbols used by tests that run on EVERY platform belong in this block. A
+    // helper imported here but declared `#[cfg(unix)]` — or imported only in the
+    // unix block below while an ungated test calls it — is a Windows-only
+    // compile error that no ubuntu-only job can see (#735).
     use super::{
         MAX_CONFIG_SNAPSHOT_BYTES, SpecInspectionFinding, SpecInspectionFindingKind, SpecSnapshot,
-        discovered_file_identity, inspect_spec, issue_text_summary, issue_verification_json,
-        load_issues_config_checked_with_hooks, markdown_code_span, open_verified_root,
-        read_verified_bytes, safe_diagnostic, slash_normalized_relative_path,
+        collect_snapshot_validation_with_hook, discovered_file_identity,
+        find_spec_snapshots_checked_with_hook, inspect_spec, issue_text_summary,
+        issue_verification_json, load_issues_config_checked_with_hooks, markdown_code_span,
+        open_specs_directory, open_verified_root, read_verified_bytes, safe_diagnostic,
+        slash_normalized_relative_path,
     };
     #[cfg(unix)]
     use super::{
-        collect_snapshot_validation_with_hook, find_spec_snapshots_checked_with_hook,
         find_spec_snapshots_checked_with_limits, is_spec_shaped_file_name,
-        load_issues_config_checked, open_specs_directory, open_specs_directory_from_project,
-        project_config_finding, snapshot_mapped_sources,
+        load_issues_config_checked, open_specs_directory_from_project, project_config_finding,
+        snapshot_mapped_sources,
     };
     use crate::github::{GitHubIssue, IssueVerification};
     #[cfg(unix)]
@@ -2353,6 +2362,17 @@ mod tests {
         // Regression (#472): the snapshot path already refused to read a directory
         // mapping, but reported it as an out-of-root escape. Name the real cause so
         // both validation paths agree on why the mapping is invalid.
+        //
+        // Honest label: DISCRIMINATOR for the confined snapshot path. The second
+        // assertion is the discriminating half — before #472 the mapping was already
+        // rejected, just under the escape message, so only "not an escape" separates
+        // the fixed behavior from the broken one.
+        //
+        // Deliberately NOT `#[cfg(unix)]`. Nothing here is unix-specific: a
+        // directory mapping is a spec-content error on every platform a repository
+        // may be checked out on. The release-candidate qualification lane is the
+        // only place this runs on Windows, and ordinary CI's `windows-check` job
+        // is the only place before tag time that it is even compiled there (#735).
         let temporary = tempfile::TempDir::new().unwrap();
         let root = temporary.path().join("project");
         fs::create_dir_all(root.join("src/provider")).unwrap();

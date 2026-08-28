@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group",
+  "reviewer": "claude-opus-5-reviewer",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "581fa8061fdac0728c5bb762b8af1db534f6fb1d",
+  "contract_digest": "22147896d6562999864e6b137b1b71a331e00d054e24e5584c295bce03ac1226",
+  "execution_digest": "1eb65b14b9965d1f1e1bc4e424c53a23ca86ed6932d944895314499d3ce6cc2d",
+  "workspace_digest": "187b83a755ec4cfb68173f3434669dd4d57e9a4c972bbb4320fe101491ea3800",
+  "timestamp": 1787889694
+}

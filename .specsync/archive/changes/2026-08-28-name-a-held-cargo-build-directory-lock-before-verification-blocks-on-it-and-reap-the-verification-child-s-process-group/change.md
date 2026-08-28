@@ -1,6 +1,6 @@
 ---
 id: name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group
-state: verifying
+state: archived
 type: bug_fix
 base_commit: d6f266a4fd683246469eb15a8f632061dd5cfbb4
 ---

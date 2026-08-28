@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group",
+  "implementation_commit": "581fa8061fdac0728c5bb762b8af1db534f6fb1d",
+  "implementation_tree": "e276f0b9f2b15524f0c0fb754544b83adf0c70f7",
+  "contract_digest": "22147896d6562999864e6b137b1b71a331e00d054e24e5584c295bce03ac1226",
+  "workspace_digest": "187b83a755ec4cfb68173f3434669dd4d57e9a4c972bbb4320fe101491ea3800",
+  "closing_digest": "034ff41aac8d45fcd7dafd0ee9da63d438cb350b93cec770d1596d03774061bb",
+  "review_digest": "cde54f8e57f54b6c2b76ac1ed1f71b3b1117e736c9514b7e6d1579ea227f4cf3",
+  "finalization_digest": "7c123de7d2294872e4990643787fe23c45091421c115948964b290d968768a9a",
+  "timestamp": 1787889721
+}

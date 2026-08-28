@@ -408,6 +408,15 @@ materialisation would regenerate them. A canonical spec whose contract text chan
 version and changelog did not is precisely the drift this module exists to prevent, and neither
 `check` nor `audit --strict` can see it.
 
+The transferable rule from #721 is narrower than "verify claims", because the claim that was
+verified is not the one that broke. The issue's premise was measured after review asked, and the
+CORRECTION that replaced it was then asserted from a `context.md` paragraph rather than from the
+code — a paragraph #543 had made false and #738 fixed the same night. A correction is exactly as
+likely to be assumed as the thing it corrects, and it arrives with more confidence, because it is
+already the product of having been wrong once. When correcting a claim about the code, cite the
+call site; `grep -rn check_project_quiet src/` returning nothing is the whole check, and it costs
+one command.
+
 One accepted cost of the own-group child: it is no longer in the terminal's foreground group, so a
 verification command that read the controlling terminal would stop on `SIGTTIN` (or, under `stty
 tostop`, on `SIGTTOU` when writing) instead of prompting — and because `wait` does not pass

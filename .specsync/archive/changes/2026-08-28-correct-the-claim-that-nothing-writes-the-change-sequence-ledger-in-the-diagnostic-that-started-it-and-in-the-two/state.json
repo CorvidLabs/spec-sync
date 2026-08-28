@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "correct-the-claim-that-nothing-writes-the-change-sequence-ledger-in-the-diagnostic-that-started-it-and-in-the-two",
+  "slug": "correct-the-claim-that-nothing-writes-the-change-sequence-ledger-in-the-diagnostic-that-started-it-and-in-the-two",
+  "title": "Correct the claim that nothing writes the change sequence ledger, in the diagnostic that started it and in the two places it was copied to",
+  "description": "Correct the claim that nothing writes the change sequence ledger, in the diagnostic that started it and in the two places it was copied to",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "4b72b09de0e950b7a0479463dbefcac33d516cac",
+  "created_at": 1787873562,
+  "updated_at": 1787876198,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "AGENTS.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The change module owns src/change.rs, so ownership is declared explicitly with --spec; but the edit is a diagnostic string and two prose copies of it, so no canonical spec text moves and no requirement gains, loses or alters a guarantee.",
+  "acceptance_criteria": [
+    "No live file in the repository claims that nothing writes .specsync/change-sequence.json or that it is read-only or frozen; the diagnostic at src/change.rs states the true and useful constraint (nothing allocates, so it cannot be repaired by minting a higher sequence); and AGENTS.md and CHANGELOG.md name floor_sequence_ledger_to_committed as the one writer and the single direction it may move the ledger."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

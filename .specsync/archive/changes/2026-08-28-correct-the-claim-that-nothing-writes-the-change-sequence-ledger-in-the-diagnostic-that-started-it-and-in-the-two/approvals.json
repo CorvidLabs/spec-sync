@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1787873645,
+      "digest": "8672d763795f4b034af0364a57f3013bd75c444588f8d44eec1f12c8834fa5ad",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "correct-the-claim-that-nothing-writes-the-change-sequence-ledger-in-the-diagnostic-that-started-it-and-in-the-two",
+        "title": "Correct the claim that nothing writes the change sequence ledger, in the diagnostic that started it and in the two places it was copied to",
+        "description": "Correct the claim that nothing writes the change sequence ledger, in the diagnostic that started it and in the two places it was copied to",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "src/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The change module owns src/change.rs, so ownership is declared explicitly with --spec; but the edit is a diagnostic string and two prose copies of it, so no canonical spec text moves and no requirement gains, loses or alters a guarantee.",
+        "acceptance_criteria": [
+          "No live file in the repository claims that nothing writes .specsync/change-sequence.json or that it is read-only or frozen; the diagnostic at src/change.rs states the true and useful constraint (nothing allocates, so it cannot be repaired by minting a higher sequence); and AGENTS.md and CHANGELOG.md name floor_sequence_ledger_to_committed as the one writer and the single direction it may move the ledger."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1787875753,
+      "digest": "49ec2153b43a7cee8b45d09e571bbaab38f7c65a5e7345c181d9483e660efb32",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

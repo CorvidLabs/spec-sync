@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "correct-the-claim-that-nothing-writes-the-change-sequence-ledger-in-the-diagnostic-that-started-it-and-in-the-two",
+  "implementation_commit": "12c2ff6e6300b93554ce7eeba58f9499f69cbf49",
+  "implementation_tree": "07b473a2ed4fd2a470cd8d502c17b1a60baf8d6f",
+  "contract_digest": "8672d763795f4b034af0364a57f3013bd75c444588f8d44eec1f12c8834fa5ad",
+  "workspace_digest": "820d1e4b45d2a51cd1ae95f61935ac1b0ce4d78d787f3f20566da094b4dadad8",
+  "closing_digest": "49ec2153b43a7cee8b45d09e571bbaab38f7c65a5e7345c181d9483e660efb32",
+  "review_digest": "ec31b0f983c177c745a42c3431e88b15d9115d69c63799792ebd9236d74dee9e",
+  "finalization_digest": "6061eab74de0cbe4cc133d566f76983176e75ecea1f6b99b518e19236da9d9ac",
+  "timestamp": 1787875754
+}

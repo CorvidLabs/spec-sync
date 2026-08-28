@@ -208,8 +208,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   **What this breaks.** Tooling that parses an ordinal out of a change ID will not find one.
   `SPECSYNC_SEQUENCE_BASE` no longer does anything: allocation is gone, so there is nothing to
-  floor. `.specsync/change-sequence.json` is frozen — nothing writes it any more — and it is no
-  longer auto-added to a new change's `affected_paths`. A description that would produce an
+  floor. Nothing allocates into `.specsync/change-sequence.json` any more, and it is no
+  longer auto-added to a new change's `affected_paths`. It is still written, in one direction
+  only: `floor_sequence_ledger_to_committed` raises a stale working-tree copy to the committed
+  high-water mark before staging and merges `acknowledged_collisions` (#533). "Frozen" and
+  "read-only" are both wrong, and this entry said the latter until it was measured. A description that would produce an
   identity already in use is now refused by naming the existing change — its ID, its workspace
   path, and its description and state — instead of exhausting a 10,000-iteration allocation
   retry that reported "exhausted change sequence allocation retries" for what was simply a

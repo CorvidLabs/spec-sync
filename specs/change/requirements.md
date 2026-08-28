@@ -1184,3 +1184,29 @@ Acceptance Criteria
   prior definition approval, because refusing it there would remove the only route an adopter has
   to a 5.0.1-verifiable approval.
 
+### REQ-change-091
+
+Verification SHALL report a Cargo build-directory lock that is provably held before running the
+command that will wait on it, and SHALL run every verification command as a child that leads its
+own process group on Unix.
+
+Acceptance Criteria
+- The wait notice is emitted only when a non-blocking exclusive acquisition of the resolved
+  `.cargo-lock` reports contention, so nothing about it is derived from elapsed time and it cannot
+  fire on a slow but healthy compile.
+- The notice names the lock path and states that the command is blocked rather than compiling, and
+  names a holding PID only on a platform that reports lock ownership. On Unix, where it cannot name
+  the holder, it names a command that narrows the holder and says what that command actually
+  answers. The notice is ADDITIVE to Cargo's own `Blocking waiting for file lock on artifact
+  directory` line, which reports the wait without naming the file, the holder, or a remedy.
+- A Cargo command whose build directory cannot be derived exactly from its arguments and the
+  process environment produces no notice at all, because naming a lock the command will never wait
+  on restores the ambiguity the notice exists to remove. Underivable includes a Cargo configuration
+  file in scope whose `[build]` table sets `target-dir`, `target`, or `build-dir`, or whose `[env]`
+  table sets a variable this derivation reads, or that cannot be parsed.
+- A command that takes no Cargo build-directory lock is never probed and never reported against.
+- A verification child leads its own process group, and that group is ended when the parent unwinds
+  or receives one of the interrupt and termination signals verification forwards, so an interrupted
+  check cannot outlive itself holding the lock. A `SIGKILL`ed parent still orphans its child, which
+  is why the notice is not optional.
+

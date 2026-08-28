@@ -334,3 +334,103 @@ below the default branch's published mark; `REQ-change-072` requires that a bran
 for trailing the default branch and that the gate consult no remote. A successor that contradicts
 its predecessor does not retire it — someone has to. Check for that whenever a requirement is
 added to fix a regression in another.
+
+## Verification children and the Cargo build lock (#721)
+
+`run_configured_command` now does two things beyond spawning. Before a Cargo command it derives the
+`.cargo-lock` that command will contend on and, if a non-blocking exclusive acquisition reports
+contention, prints one line naming that lock. And on Unix the child leads its own process group,
+registered in a fixed slot table that a handler for `SIGINT`/`SIGTERM`/`SIGHUP`/`SIGQUIT` walks
+before restoring the default disposition and re-raising.
+
+The two halves answer different failures and neither replaces the other. Reaping stops an
+interrupted check from orphaning its own `cargo`; it cannot stop a genuinely concurrent Cargo
+invocation from holding the lock, and it cannot run at all after `SIGKILL`. The notice is what
+survives both.
+
+State the gap accurately, because this section got it wrong twice. Cargo is NOT silent when it
+blocks: measured on cargo 1.89 against a held lock, it prints `Blocking waiting for file lock on
+artifact directory`. #721 says "there is no output distinguishing compiling from blocked", and that
+is false as written; it was repeated here and in the change package before anyone checked. The
+first correction then substituted a second unchecked claim — that the line "is discarded entirely
+by `check_project_quiet`" — taken from the paragraph fifteen lines above this one, which #543 had
+made false and #738 corrected the same night. Twice in one change, prose was read where code should
+have been.
+
+What is true, and all that is claimed: Cargo's line reaches the operator on inherited stderr, and
+it names neither the file, nor the holder, nor a remedy. This notice is ADDITIVE to it — the path,
+the holder's PID where the platform reports one, the remediation, and an emitter that is SpecSync
+rather than the child, printed before the child starts rather than after it has blocked.
+
+Three deliberate refusals, each of which would have made the notice worse than silence:
+
+- Nothing is inferred from elapsed time. A "probably wedged" heuristic that fires on a slow but
+  healthy compile is the same defect one layer up, and this release already has eight instances of
+  a check reporting success it had not verified.
+- A build directory this cannot derive exactly produces NO notice: a Cargo configuration file in
+  scope whose `[build]` table sets `target-dir`, `target` or `build-dir`, or whose `[env]` table
+  sets one of the variables the derivation reads, or that cannot be parsed; a `--config` or
+  `--manifest-path` argument; two `--target` triples; a custom target JSON; a profile that is not a
+  single path component; a third-party subcommand whose flags mean something else. Naming a lock
+  the command will never wait on restores the ambiguity the notice exists to remove, and a stale
+  `<root>/target` left over from an earlier layout makes that a live possibility: the config check
+  is a real read of the files Cargo merges, not an assumption that nobody has one.
+- The holder's PID is printed only where the platform actually reports lock ownership, which today
+  means Linux `/proc/locks`. macOS publishes it nowhere a process can read without spawning `lsof`
+  — which contract item 5 forbids verification from doing — or hand-written Darwin `libproc` FFI
+  for structs `libc` does not define. There the notice suggests `lsof` and says what `lsof`
+  actually answers: it lists the processes with the file OPEN, which on macOS is all it reports,
+  and a `flock` holder must be among them. Recommending it as though it named the holder would be
+  the same overclaim one level down.
+
+Stale-lock remediation (offering "the holder's parent is gone, it is safe to kill") was considered
+and NOT built for the same reason: it needs the holder, so it would give different advice about
+identical state on the two supported platforms.
+
+Materialisation is once-per-change, and correcting an approved delta after that does NOT reach the
+canonical tree. `materialize_change_deltas` returns early on `canonical_applied`, which is right —
+it is what stops a delta being applied twice. `ensure_approved_delta_bodies_unchanged` sits
+deliberately above that short-circuit, but it compares the delta against the digest on the CURRENT
+approval, so editing a delta and re-approving it satisfies the guard, skips the write, and leaves
+the canonical spec saying what the previous wording said while `check` reports success. That is how
+#721's own corrected `REQ-change-091` sat in the delta and not in `requirements.md` through a green
+`change check`; the fix was to write the corrected block into the canonical file by hand, byte-for-
+byte as `apply_markdown_block` would have. Nothing detects the divergence today: the pair that is
+never compared is "what the approval now says" against "what the tree already got".
+
+The short-circuit skips MORE than the delta application, which is why a narrow "re-apply when the
+digest differs" fix would not be enough (#741). `bump_spec_version` and `append_changelog` have a
+single caller, `prepare_delta_application`, which is also below the flag — so a change that
+re-materialises after `canonical_applied` loses its spec version bump and its Change Log row as
+well as its delta. #721 lost all three: the delta wording on a re-approval, and then the bump and
+the row again when a rebase resolved `change.spec.md` toward upstream on the belief that
+materialisation would regenerate them. A canonical spec whose contract text changed while its
+version and changelog did not is precisely the drift this module exists to prevent, and neither
+`check` nor `audit --strict` can see it.
+
+The transferable rule from #721 is narrower than "verify claims", because the claim that was
+verified is not the one that broke. The issue's premise was measured after review asked, and the
+CORRECTION that replaced it was then asserted from a `context.md` paragraph rather than from the
+code — a paragraph #543 had made false and #738 fixed the same night. A correction is exactly as
+likely to be assumed as the thing it corrects, and it arrives with more confidence, because it is
+already the product of having been wrong once. When correcting a claim about the code, cite the
+call site; `grep -rn check_project_quiet src/` returning nothing is the whole check, and it costs
+one command.
+
+One accepted cost of the own-group child: it is no longer in the terminal's foreground group, so a
+verification command that read the controlling terminal would stop on `SIGTTIN` (or, under `stty
+tostop`, on `SIGTTOU` when writing) instead of prompting — and because `wait` does not pass
+`WUNTRACED`, a stopped child hangs the check rather than merely pausing. Verification commands are
+non-interactive by contract item 5, so this is a cost accepted, not a case handled. Ctrl-C still
+reaches the child, because the handler forwards the signal it received rather than assuming the
+terminal delivered it to both.
+
+A second accepted cost, and the lesson the first `change check` of #721 taught by failing on this
+change's own test: an `flock` lives on the OPEN FILE DESCRIPTION, not on the file and not on the
+process. The probe therefore holds the lock for the duration of one syscall pair, and a process
+that forks concurrently can extend that acquisition until the child `exec`s. The descriptor is
+`O_CLOEXEC` so the window cannot outlive the `exec`, and the CLI runs verification sequentially on
+one thread, so the worst case is a real Cargo waiting microseconds longer. The same property makes
+"the lock has been released" untestable at a deterministic instant from inside a multithreaded,
+process-spawning test binary — an assertion on it failed once under a seven-worktree host and was
+deleted rather than widened.

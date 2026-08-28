@@ -1,6 +1,6 @@
 ---
 module: change
-version: 109
+version: 110
 status: active
 files:
   - src/change.rs
@@ -23,7 +23,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 2. The scope approval is bound to a deterministic SHA-256 projection of stable intent, contract, and affected scope; volatile implementation, test/evidence, semantic-delta materialization, canonical materialization, and lifecycle metadata bind a separate execution digest. The one CHG-0068 legacy adoption declares its missing source preimage and lack of equivalence proof, and a compile-time allowlist freezes its exact commit/blob anchor, source approval, adopted scope, authorization, and classifications.
 3. Approved semantic deltas form the effective future contract, and `change check` materializes them into canonical specs before scoped review and finalization; a delta body that changed after its approval is refused rather than applied, and no later definition approval may withdraw a delta binding an earlier one recorded.
 4. Requirements use stable `REQ-<module>-<number>` IDs, normative SHALL statements, and acceptance criteria.
-5. Verification executes only project-configured commands without a shell and rejects direct or indirect entry into every lifecycle command surface.
+5. Verification executes only project-configured commands without a shell, rejects direct or indirect entry into every lifecycle command surface, runs each command as a child leading its own process group on Unix so an interrupted parent can end the whole group, and names a provably held Cargo build-directory lock before the command that will wait on it starts.
 6. Verification and scoped-review evidence bind the implementation commit and governed inputs; a scoped review records an explicit pass/block verdict, must be independent from the scope approver, and stays fresh only when every descendant/parent edge changes supported lifecycle persistence.
 7. Invalid policy, unavailable coverage comparison, failed evidence, stale ordering gates, and protected sequence-ledger edits without lifecycle coverage fail closed.
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
@@ -445,3 +445,4 @@ Acceptance Criteria
 | 2026-08-27 | retire-the-spec-text-describing-the-deleted-change-sequence-allocation-including-specsync-sequence-base: Retire the spec text describing the deleted change-sequence allocation, including SPECSYNC_SEQUENCE_BASE |
 | 2026-08-27 | one-delimiter-rule-for-every-frontmatter-reader-at-both-ends-of-the-block: One delimiter rule for every frontmatter reader, at both ends of the block |
 | 2026-08-27 | hash-the-semantic-delta-binding-over-line-ending-canonical-bytes-so-a-crlf-checkout-of-an-unedited-delta-stops-failing: Hash the semantic delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the approval gate, and fold nothing else |
+| 2026-08-27 | name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group: Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group |

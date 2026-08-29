@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "remove-the-ship-date-from-the-6-0-0-changelog-heading-because-no-v6-0-0-tag-or-release-has-ever-existed",
+  "slug": "remove-the-ship-date-from-the-6-0-0-changelog-heading-because-no-v6-0-0-tag-or-release-has-ever-existed",
+  "title": "Remove the ship date from the 6.0.0 changelog heading, because no v6.0.0 tag or release has ever existed",
+  "description": "Remove the ship date from the 6.0.0 changelog heading, because no v6.0.0 tag or release has ever existed",
+  "kind": "documentation",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "7df407728de3ac6458ef8807e79bbadb51da3324",
+  "created_at": 1788031973,
+  "updated_at": 1788033727,
+  "affected_specs": [],
+  "affected_paths": [
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "One heading line in a prose file; no canonical spec text changes and no requirement gains, loses or alters a guarantee.",
+  "acceptance_criteria": [
+    "CHANGELOG.md contains a '## [6.0.0]' heading with no date, both validate-release-version.py checks still pass (the heading exists and the Unreleased compare link starts at v6.0.0), and a comment records why there is no date and that it must be added at the stable tag."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

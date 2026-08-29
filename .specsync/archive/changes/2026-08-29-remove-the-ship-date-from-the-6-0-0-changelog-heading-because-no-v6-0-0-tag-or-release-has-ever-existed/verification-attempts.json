@@ -62,6 +62,53 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1788033332,
+      "commit": "286439d8619b8edea4a95f354811d863ba512d2d",
+      "contract_digest": "3913d94eeb9c98f479e31be3df755b56033c0110d93ff505db38fad399ca1d36",
+      "execution_digest": "33fd822b0e468e0fe8205ae7a205ea6bdf194ded41cfc8c685c00b92202bc45a",
+      "workspace_digest": "1563b99070e6e972759f8294df82501410c9ff619adb456e7b9e5468ce833204",
+      "acceptance_input_digest": "78071af733e87a24f97f803d467c633b569d80c734ff5d41908feb79d4db8084",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "12fcb34aaa6965b808d63ee4fe4d3ef17392b7bd537f89e22a230339b4cb815b",
+            "entry_digest": "2ba14a70032d13dd682b4bb06a4a5ce4c6d6114216c2a6b0adcedb082a96b846",
+            "owners": [
+              "@exact:delivery"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "ruby --version",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

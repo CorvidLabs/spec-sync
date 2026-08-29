@@ -1,6 +1,6 @@
 ---
 id: remove-the-ship-date-from-the-6-0-0-changelog-heading-because-no-v6-0-0-tag-or-release-has-ever-existed
-state: implementing
+state: archived
 type: documentation
 base_commit: 7df407728de3ac6458ef8807e79bbadb51da3324
 ---

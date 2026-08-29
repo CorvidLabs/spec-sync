@@ -7,11 +7,11 @@
   "title": "Remove the ship date from the 6.0.0 changelog heading, because no v6.0.0 tag or release has ever existed",
   "description": "Remove the ship date from the 6.0.0 changelog heading, because no v6.0.0 tag or release has ever existed",
   "kind": "documentation",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "7df407728de3ac6458ef8807e79bbadb51da3324",
   "created_at": 1788031973,
-  "updated_at": 1788033334,
+  "updated_at": 1788033359,
   "affected_specs": [],
   "affected_paths": [
     "CHANGELOG.md"

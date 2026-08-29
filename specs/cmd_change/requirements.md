@@ -126,7 +126,7 @@ including local tip classification and optional live GitHub check-run trust:
 
 - HEAD tip class: `product`, `review_only`, `archive_only`, or `other`
 - verification tip presence and ancestry relative to HEAD
-- whether a scoped review is recorded
+- whether a scoped review is recorded, and whether the recorded review is still current
 - trust guidance for staged product → review → archive tips
 - when `GITHUB_TOKEN` is set and the git remote is GitHub, live check-run trust for the
   parent commit SHA (falling back to HEAD) with `trust.status` in
@@ -142,7 +142,21 @@ Acceptance Criteria
 
 - JSON includes `tip_class`, `tip_sha`, `parent_sha`, `trust`, `stages`,
   `verification_present`, `verification_ancestor_of_head`, `review_present`,
-  `ready_to_finalize`, `blockers`, `warnings`, `sibling_active_ids`, and `ship_next`.
+  `review_currency`, `ready_to_finalize`, `blockers`, `warnings`, `sibling_active_ids`,
+  and `ship_next`.
+- `review_currency` is `missing`, `unreadable`, `current`, `stale`, or `unavailable`, and
+  `ready_to_finalize` is true only when it is `current`. Existence of `review.json` is not
+  currency: finalization additionally requires the recorded review to still match the tree, so
+  readiness that asked only whether the file existed recommended the very verb that then refused.
+- A recorded review that is decidably out of date is a blocker naming what moved and the
+  re-review that repairs it, and the review stage reports `current` rather than `done` so the
+  named next action is the recovery instead of the refused verb.
+- A recorded review whose currency could not be determined is reported as `unavailable` and is
+  never reported as satisfied. It produces a warning stating that currency could not be
+  determined and naming the re-review that re-anchors it, rather than a blocker, because whether
+  an unobtainable guarantee ought to block is not a question this command settles.
+- `ship-status` and `finalize` reach the same conclusion about the same change on the same tree:
+  ship-status never reports a change ready that finalization will refuse on review currency.
 - Tip class is derived from the paths changed in HEAD relative to its first parent
   (or working-tree vs HEAD when HEAD is not a useful tip).
 - An absent or non-ancestor verification commit is a blocker naming re-check.

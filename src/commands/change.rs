@@ -852,6 +852,13 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
 
     let review_path = evidence_dir.join("review.json");
     let review_present = review_path.is_file();
+    // #743: existence is not currency. `finalize` additionally requires the recorded review
+    // to still match this tree (`scoped_review_is_current`), and readiness never asked — so
+    // ship-status recommended `ship` in the same second `finalize` refused it, with only a
+    // read-only command in between. #689 moved the verification half of this very conjunction
+    // onto content and left the review half asking whether a file was on disk.
+    let review_currency = change::recorded_scoped_review_currency(root, record);
+    let review_status = ShipReviewStatus::resolve(review_currency.as_ref(), review_present);
 
     let mut blockers = Vec::new();
     let mut warnings = Vec::new();
@@ -877,12 +884,30 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                     .to_string(),
             );
         }
-        if record.state == ChangeState::Verifying && !review_present {
-            warnings.push(
-                "no scoped review recorded yet; finalize requires independent review".to_string(),
-            );
-        }
         if record.state == ChangeState::Verifying {
+            // Three outcomes, three sentences. A DECIDED negative is a blocker, matching the
+            // verification half directly above; an UNDECIDED one is a warning, because saying
+            // "you are blocked" would settle #694's open question by accident. What neither
+            // of them may do is stay silent and let readiness read the silence as a pass.
+            match &review_currency {
+                None if !review_present => warnings.push(
+                    "no scoped review recorded yet; finalize requires independent review"
+                        .to_string(),
+                ),
+                None => blockers.push(format!(
+                    "the recorded scoped review cannot be read; re-run `specsync change review {} --reviewer <independent-reviewer>` before finalize",
+                    record.id
+                )),
+                Some(change::ScopedReviewCurrency::Current) => {}
+                Some(change::ScopedReviewCurrency::Stale(reason)) => blockers.push(format!(
+                    "scoped review is stale — {reason}; re-run `specsync change review {} --reviewer <independent-reviewer>` before finalize",
+                    record.id
+                )),
+                Some(change::ScopedReviewCurrency::Unavailable(reason)) => warnings.push(format!(
+                    "scoped review currency could not be determined — {reason}; readiness cannot confirm it and finalize may refuse. Re-recording the review with `specsync change review {} --reviewer <independent-reviewer>` re-anchors it",
+                    record.id
+                )),
+            }
             warnings.push(merge_before_finalize_warning(false));
         }
         if tip.tip_class == "archive_only" && record.state != ChangeState::Archived {
@@ -921,11 +946,15 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     // #689: readiness is a CONTENT question, not a history one. The rest of this module settled
     // that (see `verification_is_current`); ship-status was the caller that never got the change,
     // so a squash-merged repo could never reach `ready_to_finalize`.
+    // #743 finished the sentence for the review half. `review_status.current()` subsumes
+    // `review_present`: only a review that was loaded AND agreed with this tree may count,
+    // and an unavailable answer is not a satisfied one (#694's standard, applied to the one
+    // caller that violated it).
     let verification_current = change::recorded_verification_is_current(root, record);
     let ready_to_finalize = record.state == ChangeState::Verifying
         && verification_present
         && verification_current
-        && review_present
+        && review_status.current()
         && blockers.is_empty();
 
     let stages = ship_stages(
@@ -934,7 +963,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         verification_commit.as_deref(),
         verification_present,
         verification_ancestor,
-        review_present,
+        review_status,
         ready_to_finalize,
     );
 
@@ -1003,6 +1032,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         "verification_present": verification_present,
         "verification_ancestor_of_head": verification_ancestor,
         "review_present": review_present,
+        "review_currency": review_status.label(),
+        "review_currency_reason": review_currency.as_ref().and_then(|currency| currency.reason()),
         "ready_to_finalize": ready_to_finalize,
         "blockers": blockers,
         "warnings": warnings,
@@ -1285,13 +1316,72 @@ fn multi_active_ordering_warnings(sibling_ids: &[String]) -> Vec<String> {
     ]
 }
 
+/// What ship-status knows about the recorded scoped review.
+///
+/// `ship_stages` and `ready_to_finalize` both used to take a bare `review_present: bool`,
+/// which is the existence-only question #743 is about: `finalize` requires the review to
+/// still be CURRENT, so a stage reading "done" and a readiness flag reading `true` were both
+/// describing a review the very next command would reject. Presence and currency are kept as
+/// separate variants here because they are separate questions — a missing review and a stale
+/// one need different sentences, and an *unavailable* answer needs a third (#694).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShipReviewStatus {
+    /// No `review.json` on disk.
+    Missing,
+    /// A `review.json` exists but no usable review record could be loaded from it. `finalize`
+    /// fails on the same read, so reporting it as recorded-and-fine would disagree with it.
+    Unreadable,
+    /// Recorded, and every currency check agreed with this tree.
+    Current,
+    /// Recorded, and decidably out of date — a digest moved, or the descendant walk caught a
+    /// forbidden change.
+    Stale,
+    /// Recorded, and its currency could not be determined at all. This is #694's case, and
+    /// this variant exists so readiness can decline to answer instead of answering `true`.
+    Unavailable,
+}
+
+impl ShipReviewStatus {
+    fn resolve(currency: Option<&change::ScopedReviewCurrency>, present: bool) -> Self {
+        match currency {
+            Some(change::ScopedReviewCurrency::Current) => Self::Current,
+            Some(change::ScopedReviewCurrency::Stale(_)) => Self::Stale,
+            Some(change::ScopedReviewCurrency::Unavailable(_)) => Self::Unavailable,
+            None if present => Self::Unreadable,
+            None => Self::Missing,
+        }
+    }
+
+    /// Whether a review artifact exists at all. Deliberately still true for `Unreadable`:
+    /// the JSON `review_present` field has always answered "is there a file", and an archived
+    /// package whose attempt ledger did not travel is still a change that was reviewed.
+    fn present(self) -> bool {
+        !matches!(self, Self::Missing)
+    }
+
+    /// The only variant readiness may treat as satisfied.
+    fn current(self) -> bool {
+        matches!(self, Self::Current)
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Missing => "missing",
+            Self::Unreadable => "unreadable",
+            Self::Current => "current",
+            Self::Stale => "stale",
+            Self::Unavailable => "unavailable",
+        }
+    }
+}
+
 fn ship_stages(
     record: &ChangeRecord,
     tip: &HeadTip,
     verification_commit: Option<&str>,
     verification_present: bool,
     verification_ancestor: bool,
-    review_present: bool,
+    review: ShipReviewStatus,
     ready_to_finalize: bool,
 ) -> Vec<serde_json::Value> {
     let id = record.id.as_str();
@@ -1315,7 +1405,11 @@ fn ship_stages(
         },
     }));
 
-    let review_status = if review_present {
+    // The stage tracks currency, not existence (#743). A `done` review tip beside a
+    // `ready_to_finalize: false` is the same recommend-then-refuse contradiction one line
+    // lower, and it is also what leaves `current_stage` empty — which drops `ship_next` back
+    // to the generic lifecycle line instead of naming the recovery.
+    let review_status = if review.current() {
         "done"
     } else if product_done {
         "current"
@@ -1326,8 +1420,13 @@ fn ship_stages(
         "id": "review_tip",
         "title": "Review tip (trust reuse from product parent)",
         "status": review_status,
-        "action": if review_present {
-            "scoped review is recorded".to_string()
+        "action": if review.current() {
+            "scoped review is recorded and current".to_string()
+        } else if product_done && review.present() {
+            format!(
+                "re-record the independent review: `specsync change review {id} --reviewer <other>` — the recorded review is `{}` against this tree, and finalize requires a current one",
+                review.label()
+            )
         } else if product_done {
             format!(
                 "record independent review: `specsync change review {id} --reviewer <other>` then push a review_only tip if CI requires it; wait for trust reuse"
@@ -1500,12 +1599,14 @@ fn print_ship_status(
             } else {
                 println!("  Verification: none");
             }
+            // Existence alone was the defect (#743); the line that reports the review has
+            // to report which of the three answers it got, or a reader sees "recorded" for a
+            // review `finalize` is about to reject.
             println!(
                 "  Review: {}",
-                if report["review_present"].as_bool() == Some(true) {
-                    "recorded"
-                } else {
-                    "missing"
+                match report["review_currency"].as_str().unwrap_or("missing") {
+                    "missing" => "missing".to_string(),
+                    currency => format!("recorded ({currency})"),
                 }
             );
             {
@@ -2376,37 +2477,34 @@ if the floor call is removed from this function"
         .expect("create draft")
     }
 
-    /// #689: TRUE DISCRIMINATOR. A squash-merge rewrites the recorded verification commit, so
-    /// `merge-base --is-ancestor` can never hold again — and this repository, like most, permits
-    /// only squash merges. Before the fix `ready_to_finalize` required that ancestry, so a
-    /// squash-merged change was permanently unfinalizable while its evidence was perfectly good.
-    ///
-    /// Fails on the unfixed binary: it reports `ready_to_finalize: false` with the blocker
-    /// "verification commit is not an ancestor of HEAD".
-    #[test]
-    fn ship_status_is_ready_after_a_squash_that_preserves_content() {
-        let temp = TempDir::new().expect("temp project");
-        let root = temp.path();
-        let git = |args: &[&str]| {
-            assert!(
-                std::process::Command::new("git")
-                    .args(args)
-                    .current_dir(root)
-                    .status()
-                    .unwrap()
-                    .success(),
-                "git {args:?}"
-            );
-        };
-        git(&["init", "-b", "main"]);
-        git(&["config", "user.email", "t@example.com"]);
-        git(&["config", "user.name", "T"]);
+    fn git_in(root: &Path, args: &[&str]) {
+        assert!(
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git {args:?}"
+        );
+    }
+
+    /// A git project with a committed base tree, ready for a change to be driven through it.
+    fn git_project_fixture(root: &Path) {
+        git_in(root, &["init", "-b", "main"]);
+        git_in(root, &["config", "user.email", "t@example.com"]);
+        git_in(root, &["config", "user.name", "T"]);
         fs::write(root.join("README.md"), "# fixture\n").unwrap();
         change::write_default_policy(root, vec!["true".to_string()]).expect("policy");
-        git(&["add", "."]);
-        git(&["commit", "-m", "base"]);
-        git(&["switch", "-c", "feature"]);
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "base"]);
+    }
 
+    /// Drives one change to `Verifying` with committed verification and a current scoped
+    /// review — the exact state `ship-status` claims is ready and `finalize` is asked to
+    /// honour. The caller owns the repository and the branch, because the three #743/#689
+    /// cases differ only in what happens to history afterwards.
+    fn reviewed_change_fixture(root: &Path) -> String {
         let record = draft_fixture(root);
         let id = record.id.clone();
         for (question, answer) in [
@@ -2434,11 +2532,16 @@ if the floor call is removed from this function"
         }
         change::approve_definition(root, &id, Some("Reviewer".into()), None).expect("approve");
         change::start_implementation(root, &id).expect("implement");
-        git(&["add", "."]);
-        git(&["commit", "-m", "implement"]);
-        change::verify_change(root, &id).expect("verify");
-        git(&["add", "."]);
-        git(&["commit", "-m", "record verification"]);
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "implement"]);
+        // `check_change`, not `verify_change`: the CLI's `change check` materializes the
+        // approved deltas as well as verifying, and `finalize` refuses outright on a change
+        // whose canonical deltas were never applied. A fixture that only verifies would make
+        // `finalize` fail for a reason that has nothing to do with the review — exactly the
+        // kind of accidental agreement these tests must not be built on.
+        change::check_change(root, Some(&id)).expect("check");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "record verification"]);
         change::record_scoped_review_with_verdict(
             root,
             &id,
@@ -2446,12 +2549,165 @@ if the floor call is removed from this function"
             change::ScopedReviewVerdict::Pass,
         )
         .expect("review");
+        id
+    }
 
-        // Squash onto main: content identical, recorded commit unreachable. Exactly what GitHub
-        // does, and the only strategy many repositories permit.
-        git(&["switch", "main"]);
-        git(&["merge", "--squash", "feature"]);
-        git(&["commit", "-m", "squash feature"]);
+    /// Honest label: CONTROL for the two tests below, and it passes on the unfixed binary
+    /// too — that is exactly why it is here.
+    ///
+    /// #743 asks readiness to consult review currency, and the cheap way to satisfy any test
+    /// that demands `ready_to_finalize: false` is to make the conjunction stricter until
+    /// nothing is ever ready. This pins the other side: a change whose review was recorded
+    /// against this very tree, with nothing touched since, must still reach
+    /// `ready_to_finalize: true`.
+    ///
+    /// What breaks this test: adding any further term to the `ready_to_finalize` conjunction
+    /// that a healthy, just-reviewed change cannot satisfy — most obviously a bare
+    /// `&& scoped_review_current` implemented as "the descendant walk must have proven
+    /// something", since on a squash-merging repository that walk is unavailable rather than
+    /// satisfied and the whole class of changes goes permanently red. That is the failure
+    /// #689 removed from the verification half, and trading a false green for a permanent
+    /// false red is not a fix.
+    #[test]
+    fn ship_status_is_ready_when_the_scoped_review_is_current() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+
+        let id = reviewed_change_fixture(root);
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+
+        assert_eq!(
+            report["ready_to_finalize"], true,
+            "a healthy just-reviewed change must still be ready to finalize: {report}"
+        );
+        let blockers = report["blockers"].as_array().expect("blockers");
+        assert!(
+            blockers.is_empty(),
+            "a current review must raise no blocker: {blockers:?}"
+        );
+    }
+
+    /// Honest label: TRUE DISCRIMINATOR for #743.
+    ///
+    /// `ready_to_finalize` asked `review_path.is_file()` — existence — while `finalize`
+    /// additionally required `scoped_review_is_current`. So ship-status recommended
+    /// `specsync change ship` and `finalize` refused it one command later, with only a
+    /// read-only command in between.
+    ///
+    /// The staleness here is genuine and by CONTENT: the implementation changes after the
+    /// review is recorded, and verification is then re-run so that the verification half of
+    /// the conjunction is healthy again. That isolation matters — every content digest the
+    /// review checks is also checked by verification, so without the re-check the
+    /// verification blocker alone would make readiness false and the test would prove
+    /// nothing.
+    ///
+    /// Discriminates: on a binary built from unfixed `main` this fails with
+    /// `ready_to_finalize` = true while `finalize_change` returns
+    /// `Err("independent scoped review is stale; ...")`.
+    ///
+    /// The assertion is AGREEMENT between the two commands, not `ready_to_finalize == false`.
+    /// #694 has three live options for the unavailable case and all three end with these two
+    /// agreeing; gating on a particular value would go red the day #694 lands the other way.
+    #[test]
+    fn ship_status_and_finalize_agree_when_the_review_is_stale_by_content() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+
+        let id = reviewed_change_fixture(root);
+
+        // The implementation genuinely moves after the review, and verification catches up.
+        fs::write(root.join("README.md"), "# fixture\n\nsecond thoughts\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(
+            root,
+            &["commit", "-m", "change the implementation after the review"],
+        );
+        change::check_change(root, Some(&id)).expect("re-check");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "record fresh verification"]);
+
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_eq!(
+            report["verification_present"], true,
+            "premise: verification itself is healthy, so only the review half is in question: {report}"
+        );
+
+        let ready = report["ready_to_finalize"] == serde_json::Value::Bool(true);
+        let finalize = change::finalize_change(root, &id);
+
+        assert_eq!(
+            ready,
+            finalize.is_ok(),
+            "ship-status and finalize disagree about the same change in the same second: ready_to_finalize={ready}, finalize={finalize:?}, report={report}"
+        );
+
+        // Agreement is worth nothing if the two commands agree by accident on unrelated
+        // grounds, so the refusal `finalize` produced has to be the scoped-review one this
+        // test is about. Unconditional here, unlike the squash case: a content change after
+        // the review is a decided negative under every option #694 has on the table.
+        assert!(
+            finalize
+                .as_ref()
+                .err()
+                .is_some_and(|error| error.contains("independent scoped review is stale")),
+            "the agreement must be about the review, not some other refusal: {finalize:?}"
+        );
+        // A decided negative has to name what moved, or the reader is told "not ready" and
+        // left to guess (#689's content framing applied to the review half).
+        assert_eq!(
+            report["review_currency"].as_str(),
+            Some("stale"),
+            "a content change after the review is a DECIDED negative, not an unavailable one: {report}"
+        );
+        let blockers: Vec<&str> = report["blockers"]
+            .as_array()
+            .map(|values| values.iter().filter_map(|value| value.as_str()).collect())
+            .unwrap_or_default();
+        assert!(
+            blockers
+                .iter()
+                .any(|blocker| blocker.contains("scoped review is stale")),
+            "readiness must name the stale review it is refusing on: {blockers:?}"
+        );
+    }
+
+    /// Honest label: DISCRIMINATOR for #689, relabelled by #743.
+    ///
+    /// #689: a squash-merge rewrites the recorded verification commit, so
+    /// `merge-base --is-ancestor` can never hold again — and this repository, like most,
+    /// permits only squash merges. Before that fix `ready_to_finalize` required the
+    /// ancestry, so a squash-merged change was permanently unfinalizable while its evidence
+    /// was perfectly good. That half is asserted unchanged below: no verification blocker,
+    /// and `verification_current` still true.
+    ///
+    /// What #743 changed is the OTHER half. This test used to assert `ready_to_finalize:
+    /// true` here, which was the defect written down as an expectation: `finalize` refuses on
+    /// this exact tree with "independent scoped review is stale", because the squash also
+    /// destroyed `review.implementation_commit` and the descendant walk cannot run. The
+    /// guarantee is unavailable, not violated, and #694 states the standard — "an unavailable
+    /// guarantee reported as a satisfied one is worse than the current failure".
+    ///
+    /// So the assertion is AGREEMENT, exactly as in the stale case, and it survives whichever
+    /// way #694 is resolved: if the walk gains a content fallback, `finalize` starts
+    /// succeeding and readiness follows it back to `true` through the same predicate.
+    #[test]
+    fn ship_status_and_finalize_agree_after_a_squash_that_preserves_content() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        git_in(root, &["switch", "-c", "feature"]);
+
+        let id = reviewed_change_fixture(root);
+
+        // Squash onto main: content identical, recorded commits unreachable. Exactly what
+        // GitHub does, and the only strategy many repositories permit.
+        git_in(root, &["switch", "main"]);
+        git_in(root, &["merge", "--squash", "feature"]);
+        git_in(root, &["commit", "-m", "squash feature"]);
 
         let record = change::load_change(root, &id).expect("reload");
         let report = ship_status_report(root, &record).expect("ship status");
@@ -2460,14 +2716,46 @@ if the floor call is removed from this function"
             report["verification_ancestor_of_head"], false,
             "the premise: the squash destroyed the recorded commit"
         );
-        assert_eq!(
-            report["ready_to_finalize"], true,
-            "content is unchanged, so the change is finalizable despite the squash: {report}"
-        );
-        let blockers = report["blockers"].as_array().expect("blockers");
+
+        // #689, untouched: the verification half is a content question and the content is
+        // intact, so nothing about verification may block.
+        let blockers: Vec<&str> = report["blockers"]
+            .as_array()
+            .map(|values| values.iter().filter_map(|value| value.as_str()).collect())
+            .unwrap_or_default();
         assert!(
-            blockers.is_empty(),
-            "a preserved-content squash must raise no blocker: {blockers:?}"
+            !blockers
+                .iter()
+                .any(|blocker| blocker.contains("verification")),
+            "a preserved-content squash must raise no verification blocker: {blockers:?}"
+        );
+
+        let ready = report["ready_to_finalize"] == serde_json::Value::Bool(true);
+        let finalize = change::finalize_change(root, &id);
+        assert_eq!(
+            ready,
+            finalize.is_ok(),
+            "ship-status and finalize disagree about the same change in the same second: ready_to_finalize={ready}, finalize={finalize:?}, report={report}"
+        );
+
+        // Guards against agreeing by accident, and phrased so that #694 resolving the other
+        // way clears it rather than reddening it: IF finalize refused, the refusal has to be
+        // the scoped-review one.
+        if let Err(error) = &finalize {
+            assert!(
+                error.contains("independent scoped review is stale"),
+                "the agreement must be about the review, not some other refusal: {error}"
+            );
+        }
+
+        // CHARACTERIZATION of #694's open state, not part of the gate. Today the walk is
+        // unobtainable after a squash and readiness says so instead of rounding it to either
+        // of the other two answers. If #694 lands a content fallback, this line becomes
+        // `current` and should be updated — the agreement assertion above should not.
+        assert_eq!(
+            report["review_currency"].as_str(),
+            Some("unavailable"),
+            "a squash makes the descendant walk unobtainable, not violated: {report}"
         );
     }
 

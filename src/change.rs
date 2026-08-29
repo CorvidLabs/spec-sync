@@ -5664,21 +5664,143 @@ fn validate_finalization_evidence(
     Ok(finalization)
 }
 
+/// Why a recorded scoped review is, or is not, current — split three ways.
+///
+/// `scoped_review_is_current` answers with a bare `bool`, and every caller that only needs
+/// a gate keeps using it. But `false` collapses two different answers, and `ship-status`
+/// needs them apart (#743): a review whose CONTENT no longer matches the tree is a decided
+/// negative the reader can act on, while a review whose descendant walk could not run at all
+/// is an *unavailable* guarantee. #694 states the standard — "an unavailable guarantee
+/// reported as a satisfied one is worse than the current failure" — and no predicate that
+/// cannot tell the two apart can honour it.
+///
+/// This type deliberately does NOT decide what a caller should do about `Unavailable`. That
+/// is #694's open question. It only makes the distinction sayable, so that the one caller
+/// which reported an unavailable guarantee as a satisfied one can stop.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScopedReviewCurrency {
+    /// Every check the review carries was evaluated, and every one agreed with this tree.
+    Current,
+    /// A decided negative: a recorded digest no longer matches, or the descendant walk ran
+    /// and caught a change it forbids. The payload names what moved.
+    Stale(String),
+    /// The question could not be answered at all. A squash rewrites
+    /// `review.implementation_commit`, so `implementation_commit..HEAD` is not a range and
+    /// the descendant walk never runs — the guarantee is unobtainable, not violated.
+    Unavailable(String),
+}
+
+impl ScopedReviewCurrency {
+    /// Why, for the callers that render a blocker or a warning.
+    ///
+    /// Reader-facing *labels* deliberately live with the reporter rather than here: the one
+    /// reporter that needs them also has to name "no review at all" and "a review that could
+    /// not be read", which are questions about the artifact rather than about its currency.
+    pub fn reason(&self) -> Option<&str> {
+        match self {
+            Self::Current => None,
+            Self::Stale(reason) | Self::Unavailable(reason) => Some(reason.as_str()),
+        }
+    }
+}
+
+/// Classifies a recorded scoped review against the current tree.
+///
+/// The ordering is deliberate and follows #689: CONTENT first, history last. A review whose
+/// digests already disagree is stale for a reason the reader can act on today, and answering
+/// "the walk was unavailable" about it would be true but useless. Only once the content
+/// agrees does the walk's own availability become the interesting question.
+fn scoped_review_currency(
+    root: &Path,
+    record: &ChangeRecord,
+    review: &ScopedReviewRecord,
+) -> ScopedReviewCurrency {
+    if review.schema_version != 2 {
+        return ScopedReviewCurrency::Stale(
+            "the recorded review uses an unsupported schema version".into(),
+        );
+    }
+    if review.change_id != record.id {
+        return ScopedReviewCurrency::Stale(format!(
+            "the recorded review belongs to change `{}`",
+            review.change_id
+        ));
+    }
+    if let Err(error) = validate_scoped_reviewer_claim(&review.reviewer) {
+        return ScopedReviewCurrency::Stale(format!(
+            "the recorded reviewer claim is not usable ({error})"
+        ));
+    }
+    if !scoped_review_provenance_valid(review) {
+        return ScopedReviewCurrency::Stale(
+            "the recorded review provenance is not the required scoped-review check".into(),
+        );
+    }
+    if review.verdict != ScopedReviewVerdict::Pass {
+        return ScopedReviewCurrency::Stale("the recorded review verdict is not a pass".into());
+    }
+    match definition_digest_matches(root, record, &review.contract_digest) {
+        Ok(true) => {}
+        Ok(false) => {
+            return ScopedReviewCurrency::Stale(
+                "the change contract changed after the review was recorded".into(),
+            );
+        }
+        Err(error) => {
+            return ScopedReviewCurrency::Unavailable(format!(
+                "the change contract digest could not be computed ({error})"
+            ));
+        }
+    }
+    if record.workflow_version >= 2 {
+        match execution_digest(root, record) {
+            Ok(expected) if review.execution_digest.as_deref() == Some(expected.as_str()) => {}
+            Ok(_) => {
+                return ScopedReviewCurrency::Stale(
+                    "the verification evidence changed after the review was recorded".into(),
+                );
+            }
+            Err(error) => {
+                return ScopedReviewCurrency::Unavailable(format!(
+                    "the verification execution digest could not be computed ({error})"
+                ));
+            }
+        }
+    }
+    match project_input_digest(root) {
+        Ok(digest) if digest == review.workspace_digest => {}
+        Ok(_) => {
+            return ScopedReviewCurrency::Stale(
+                "the reviewed project files changed after the review was recorded".into(),
+            );
+        }
+        Err(error) => {
+            return ScopedReviewCurrency::Unavailable(format!(
+                "the project input digest could not be computed ({error})"
+            ));
+        }
+    }
+    review_commit_currency(root, record, review)
+}
+
 fn scoped_review_is_current(
     root: &Path,
     record: &ChangeRecord,
     review: &ScopedReviewRecord,
 ) -> bool {
-    review.schema_version == 2
-        && review.change_id == record.id
-        && validate_scoped_reviewer_claim(&review.reviewer).is_ok()
-        && scoped_review_provenance_valid(review)
-        && review.verdict == ScopedReviewVerdict::Pass
-        && review_commit_is_current(root, record, review)
-        && definition_digest_matches(root, record, &review.contract_digest).unwrap_or(false)
-        && (record.workflow_version < 2
-            || review.execution_digest.as_deref() == execution_digest(root, record).ok().as_deref())
-        && project_input_digest(root).as_deref() == Ok(review.workspace_digest.as_str())
+    scoped_review_currency(root, record, review) == ScopedReviewCurrency::Current
+}
+
+/// The scoped-review twin of `recorded_verification_is_current`, for callers holding only a
+/// record. `None` means no usable review record was found at all — a different question from
+/// currency, and one the caller has to keep asking separately.
+pub fn recorded_scoped_review_currency(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Option<ScopedReviewCurrency> {
+    load_scoped_review(root, record)
+        .ok()
+        .map(|review| scoped_review_currency(root, record, &review))
 }
 
 fn review_commit_is_current(
@@ -5686,7 +5808,7 @@ fn review_commit_is_current(
     record: &ChangeRecord,
     review: &ScopedReviewRecord,
 ) -> bool {
-    review_commit_is_current_checked(root, record, review).is_ok()
+    review_commit_currency(root, record, review) == ScopedReviewCurrency::Current
 }
 
 fn run_scoped_review_git(root: &Path, args: &[&str]) -> Result<BoundedCommandOutput, String> {
@@ -5728,17 +5850,31 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
         .map_err(|_| "scoped-review Git query returned non-UTF-8 output".to_string())
 }
 
-fn review_commit_is_current_checked(
+/// Classifies the history half of scoped-review currency.
+///
+/// This used to be `review_commit_is_current_checked`, a `Result<(), String>` whose two
+/// callers both discarded the reason with `.is_ok()`. Every failure therefore read as the
+/// same thing, and #743 is the bill for that: a squash-rewritten anchor and a descendant
+/// that genuinely touched a forbidden path became one indistinguishable `false`.
+fn review_commit_currency(
     root: &Path,
     record: &ChangeRecord,
     review: &ScopedReviewRecord,
-) -> Result<(), String> {
-    let head = scoped_review_git_text(root, &["rev-parse", "--verify", "HEAD^{commit}"])
-        .map_err(|_| "HEAD does not resolve to a commit".to_string())?;
+) -> ScopedReviewCurrency {
+    let head = match scoped_review_git_text(root, &["rev-parse", "--verify", "HEAD^{commit}"]) {
+        Ok(head) => head,
+        Err(_) => {
+            return ScopedReviewCurrency::Unavailable("HEAD does not resolve to a commit".into());
+        }
+    };
     if review.implementation_commit == head {
-        return Ok(());
+        return ScopedReviewCurrency::Current;
     }
-    let ancestor = run_scoped_review_git(
+    // Availability is settled BEFORE violation, and this is the line #694 turns on. A squash
+    // rewrites `review.implementation_commit`, so `implementation_commit..HEAD` is not a range
+    // and the walk below never runs at all. Reporting that as a pass is what #743 fixes;
+    // reporting it as a violation would be the same lie with the sign flipped.
+    let ancestor = match run_scoped_review_git(
         root,
         &[
             "merge-base",
@@ -5746,20 +5882,52 @@ fn review_commit_is_current_checked(
             &review.implementation_commit,
             &head,
         ],
-    )?;
-    if !ancestor.status.success() {
-        return Err("scoped-review commit is not an ancestor of HEAD".into());
+    ) {
+        Ok(output) => output.status.success(),
+        Err(error) => {
+            return ScopedReviewCurrency::Unavailable(format!(
+                "the reviewed commit could not be compared with HEAD ({error})"
+            ));
+        }
+    };
+    if !ancestor {
+        let short = review
+            .implementation_commit
+            .get(..8)
+            .unwrap_or(review.implementation_commit.as_str());
+        return ScopedReviewCurrency::Unavailable(format!(
+            "the reviewed commit {short} is no longer reachable from HEAD (squash merge, rebase, amend, or force-push rewrote it), so the scoped-review descendant check could not run"
+        ));
     }
+    match review_commit_walk(root, record, review, &head) {
+        Ok(None) => ScopedReviewCurrency::Current,
+        Ok(Some(violation)) => ScopedReviewCurrency::Stale(violation),
+        Err(reason) => ScopedReviewCurrency::Unavailable(reason),
+    }
+}
+
+/// Walks every commit between the review and HEAD, proving that nothing changed except this
+/// change's own lifecycle records.
+///
+/// The three-way return is the whole point. `Ok(None)`: the walk ran and found nothing
+/// forbidden. `Ok(Some(reason))`: the walk ran and caught a forbidden change — a decided
+/// violation. `Err(reason)`: the walk could not run, so it proved nothing either way.
+fn review_commit_walk(
+    root: &Path,
+    record: &ChangeRecord,
+    review: &ScopedReviewRecord,
+    head: &str,
+) -> Result<Option<String>, String> {
     let range = format!("{}..{head}", review.implementation_commit);
     let limits = lifecycle_validation_limits();
     let max_count = format!("--max-count={}", limits.scoped_review_max_descendants + 1);
     let commits = scoped_review_git_text(root, &["rev-list", "--reverse", &max_count, &range])
-        .map_err(|_| "failed to enumerate scoped-review descendants".to_string())?;
+        .map_err(|_| "the scoped-review descendants could not be enumerated".to_string())?;
     if commits.lines().filter(|line| !line.is_empty()).count()
         > limits.scoped_review_max_descendants
     {
         return Err(format!(
-            "scoped-review descendant history exceeds the deterministic {}-commit bound",
+            "the scoped-review descendant history exceeds the deterministic {}-commit bound, so the walk was not run",
             limits.scoped_review_max_descendants
         ));
     }
@@ -5768,17 +5936,17 @@ fn review_commit_is_current_checked(
         let parents =
             scoped_review_git_text(root, &["rev-list", "--parents", "-n", "1", descendant])
                 .map_err(|_| {
-                    format!("failed to load parents for review descendant {descendant}")
+                    format!("the parents of review descendant {descendant} could not be loaded")
                 })?;
         let fields: Vec<&str> = parents.split_whitespace().collect();
         if fields.first().copied() != Some(descendant) || fields.len() < 2 {
             return Err(format!(
-                "scoped-review descendant {descendant} has ambiguous parent history"
+                "review descendant {descendant} has ambiguous parent history, so the walk could not continue"
             ));
         }
         if fields.len() - 1 > limits.scoped_review_max_parents {
             return Err(format!(
-                "scoped-review descendant {descendant} exceeds the deterministic {}-parent bound",
+                "review descendant {descendant} exceeds the deterministic {}-parent bound, so the walk was not run",
                 limits.scoped_review_max_parents
             ));
         }
@@ -5798,7 +5966,7 @@ fn review_commit_is_current_checked(
             )?;
             if !output.status.success() {
                 return Err(format!(
-                    "failed to inspect scoped-review descendant {descendant}"
+                    "review descendant {descendant} could not be inspected"
                 ));
             }
             for raw_path in output
@@ -5806,11 +5974,15 @@ fn review_commit_is_current_checked(
                 .split(|byte| *byte == 0)
                 .filter(|path| !path.is_empty())
             {
-                let path = std::str::from_utf8(raw_path)
-                    .map_err(|_| "scoped-review descendant contains a non-UTF-8 path")?;
-                let relative = path.strip_prefix(&allowed_prefix).ok_or_else(|| {
-                    format!("scoped-review descendant changed disallowed path `{path}`")
+                let path = std::str::from_utf8(raw_path).map_err(|_| {
+                    "a review descendant contains a non-UTF-8 path, so the walk could not continue"
+                        .to_string()
                 })?;
+                let Some(relative) = path.strip_prefix(&allowed_prefix) else {
+                    return Ok(Some(format!(
+                        "commit {descendant} changed `{path}`, which is outside this change's own lifecycle records"
+                    )));
+                };
                 if !matches!(
                     relative,
                     SCOPED_REVIEW_FILE
@@ -5819,14 +5991,14 @@ fn review_commit_is_current_checked(
                         | "verification.json"
                         | "verification-attempts.json"
                 ) {
-                    return Err(format!(
-                        "scoped-review descendant changed disallowed path `{path}`"
-                    ));
+                    return Ok(Some(format!(
+                        "commit {descendant} changed `{path}`, which is outside this change's own lifecycle records"
+                    )));
                 }
             }
         }
     }
-    Ok(())
+    Ok(None)
 }
 
 fn validate_verification_for_commit_binding(
@@ -5935,7 +6107,7 @@ pub fn record_scoped_review_with_verdict(
                 && previous.contract_digest == contract_digest
                 && previous.execution_digest.as_deref() == Some(execution_digest.as_str())
                 && previous.workspace_digest == workspace_digest
-                && review_commit_is_current_checked(root, &record, previous).is_ok()
+                && review_commit_is_current(root, &record, previous)
         })
         .map(|previous| previous.implementation_commit)
         .unwrap_or(current_commit);

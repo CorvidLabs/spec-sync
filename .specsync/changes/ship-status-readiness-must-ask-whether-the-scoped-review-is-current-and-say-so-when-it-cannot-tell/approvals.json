@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Claude (agent)",
+      "timestamp": 1788026934,
+      "digest": "4213c396fce9e89e845a10a642703d619f58fefc54b1ebbe7fe9c417183381a7",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "ship-status-readiness-must-ask-whether-the-scoped-review-is-current-and-say-so-when-it-cannot-tell",
+        "title": "Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell",
+        "description": "Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "src/change.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "ship-status readiness consults scoped-review currency, reports it as current/stale/unavailable, blocks on a decided stale review naming what moved, never reports an unavailable guarantee as satisfied, and agrees with finalize on the same tree; a genuinely current review still reaches ready_to_finalize: true"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "cb428eb21b36fea3419b196d7274d5c5b4f8e4a896572b7875543669047291b9",
+        "cmd_change": "6f00ceb60d2ec6e30d381a93d36c3bcc8f5363040b78bd968af41c02a93dba9a"
+      }
+    }
+  ],
+  "reopenings": []
+}

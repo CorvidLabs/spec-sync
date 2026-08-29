@@ -738,17 +738,26 @@ jobs:
           echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
           echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
 
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
-        with:
-          # Restore, never save. This runner has checked out `candidate_sha`, which on a
-          # `workflow_dispatch` is derived from an operator-supplied tag, and the run carries
-          # default-branch privileges. Writing a cache entry from that tree is what lets a
-          # candidate that is not what the operator believes seed a cache later restored by
-          # default-branch workflows. Reading one is harmless.
-          #
-          # The cost is a cold build on the release lane, which runs rarely and is the one
-          # place where a slower build is obviously worth an unpoisonable one.
-          save-if: false
+      # NO CACHE HERE, deliberately, and this job must never gain one.
+      #
+      # This is the job that produces the binaries people download. It previously
+      # restored a Rust cache with `save-if: false`, on the argument that writing was
+      # the danger and "reading one is harmless". That argument answered the wrong
+      # question. `save-if: false` establishes that this job cannot POISON the cache;
+      # it establishes nothing about whether this job's OUTPUT is trustworthy.
+      # `Swatinem/rust-cache` restores `~/.cargo` and `target/`, so a default-branch
+      # cache poisoned by any other route would be linked into the released artifacts,
+      # and cargo would happily reuse prebuilt objects out of it.
+      #
+      # Flagged by CodeQL as actions/cache-poisoning/poisonable-step (alert #68).
+      # The two sibling alerts on this workflow were dismissed as already mitigated —
+      # `validate` and `authorize-release` have no caching step at all. This one was not,
+      # because it was real.
+      #
+      # The cost is a cold build on a lane that runs a handful of times per release.
+      # The old comment already conceded that trade for the save half; it applies at
+      # least as strongly to the restore half, on the one job whose output is signed,
+      # published, and installed by other people.
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}

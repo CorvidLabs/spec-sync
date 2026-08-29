@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "stop-restoring-a-build-cache-in-the-job-that-produces-the-released-binaries-because-save-if-false-proves-the-job-cannot",
+  "slug": "stop-restoring-a-build-cache-in-the-job-that-produces-the-released-binaries-because-save-if-false-proves-the-job-cannot",
+  "title": "Stop restoring a build cache in the job that produces the released binaries, because save-if false proves the job cannot poison the cache and not that its output is trustworthy",
+  "description": "Stop restoring a build cache in the job that produces the released binaries, because save-if false proves the job cannot poison the cache and not that its output is trustworthy",
+  "kind": "operations",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "db1f4ac95d0a81eecb1777d351a52222fb1aa75f",
+  "created_at": 1788019456,
+  "updated_at": 1788020689,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/release.yml",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The github module owns .github/workflows, so ownership is declared with --spec; the edit removes a caching step and adds prose, so no canonical spec text moves.",
+  "acceptance_criteria": [
+    "The release build job contains no caching step and a comment stating why it must never gain one; the qualify job's cache is unchanged and the reason for leaving it is recorded; release.yml still parses; and CHANGELOG.md states what save-if false does and does not establish, and that two sibling CodeQL alerts were dismissed as already mitigated while this one was not."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

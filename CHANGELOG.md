@@ -540,6 +540,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The job that builds the released binaries no longer restores a build cache**
+  (CodeQL alert #68). It previously used `Swatinem/rust-cache` with `save-if: false`, on the
+  reasoning that writing was the danger and "reading one is harmless".
+
+  That answered the wrong question. `save-if: false` establishes that the job cannot **poison**
+  the cache; it establishes nothing about whether the job's **output** is trustworthy.
+  `Swatinem/rust-cache` restores `~/.cargo` and `target/`, so a default-branch cache poisoned by
+  any other route would be linked into the published artifacts, and cargo would reuse prebuilt
+  objects out of it. This is the one job whose output is signed, published, and installed by
+  other people.
+
+  The cost is a cold build on a lane that runs a handful of times per release. The removed
+  comment had already conceded that trade for the save half — it applies at least as strongly to
+  the restore half.
+
+  Two sibling CodeQL alerts on the same workflow were dismissed rather than fixed, because they
+  are already mitigated: `validate` and `authorize-release` have no caching step at all, the
+  latter with a guard comment requiring `save-if: false` if one is ever added. **This one was not
+  dismissed, because it was real** — the rule's own first recommendation is to avoid caching in
+  workflows that handle releases.
+
+  The `qualify` job still restores a cache with `save-if: false`, deliberately left for now and
+  worth a separate decision: a poisoned cache there could not reach a published binary, since
+  `build` is now cold, but it could make a candidate qualify that should not have.
+
 - **Windows is no longer built, tested, or qualified** (CorvidLabs/spec-sync#735). `rc.8` dropped the
   Windows *binary*; this drops the Windows *lane*. The release-candidate qualification matrix is now
   Ubuntu and macOS, `REQUIRED_PLATFORMS` in the release validator is `("ubuntu", "macos")`, and the

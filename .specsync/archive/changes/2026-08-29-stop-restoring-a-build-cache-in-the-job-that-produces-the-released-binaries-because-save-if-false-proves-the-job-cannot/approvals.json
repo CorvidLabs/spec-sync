@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788019503,
+      "digest": "6dc82fcc5e8d38bacb3483ddb27091c7f66f51f1829a3de36f7aa5a292ec028d",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "stop-restoring-a-build-cache-in-the-job-that-produces-the-released-binaries-because-save-if-false-proves-the-job-cannot",
+        "title": "Stop restoring a build cache in the job that produces the released binaries, because save-if false proves the job cannot poison the cache and not that its output is trustworthy",
+        "description": "Stop restoring a build cache in the job that produces the released binaries, because save-if false proves the job cannot poison the cache and not that its output is trustworthy",
+        "kind": "operations",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/workflows/release.yml",
+          "CHANGELOG.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The github module owns .github/workflows, so ownership is declared with --spec; the edit removes a caching step and adds prose, so no canonical spec text moves.",
+        "acceptance_criteria": [
+          "The release build job contains no caching step and a comment stating why it must never gain one; the qualify job's cache is unchanged and the reason for leaving it is recorded; release.yml still parses; and CHANGELOG.md states what save-if false does and does not establish, and that two sibling CodeQL alerts were dismissed as already mitigated while this one was not."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788020689,
+      "digest": "4b90ce814ec6fdbab6fffbd1241e0893fba2aeed48a8f12fc5e39f80d552d678",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

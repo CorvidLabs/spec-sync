@@ -2482,7 +2482,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Private CorvidLabs/spec-sync-sandbox dogfood for workflow-v2 adopt is recorded in sandbox scenario 019; tagging 6.0.0 remains gated on this PR.
 
-## [6.0.0] - 2026-07-29
+<!-- No date, deliberately. `validate-release-version.py:450` requires a `## [6.0.0]` section to
+     exist whenever the crate version is 6.0.0, so this heading is present throughout the
+     pre-release window by design. It carried `- 2026-07-29` until that was corrected: no `v6.0.0`
+     tag and no v6.0.0 release have ever existed — every 6.0 tag to date is a pre-release, latest
+     `v6.0.0-rc.10` — so the date claimed a ship that never happened, to every reader of this file.
+     2026-07-29 was when 6.0 work began.
+
+     Keep a Changelog dates released versions only. Add the date at the stable tag, when the
+     `[Unreleased]` entries above fold in here. -->
+
+## [6.0.0]
 
 ### Added
 

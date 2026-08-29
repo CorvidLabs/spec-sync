@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788032004,
+      "digest": "3913d94eeb9c98f479e31be3df755b56033c0110d93ff505db38fad399ca1d36",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "remove-the-ship-date-from-the-6-0-0-changelog-heading-because-no-v6-0-0-tag-or-release-has-ever-existed",
+        "title": "Remove the ship date from the 6.0.0 changelog heading, because no v6.0.0 tag or release has ever existed",
+        "description": "Remove the ship date from the 6.0.0 changelog heading, because no v6.0.0 tag or release has ever existed",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "CHANGELOG.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "One heading line in a prose file; no canonical spec text changes and no requirement gains, loses or alters a guarantee.",
+        "acceptance_criteria": [
+          "CHANGELOG.md contains a '## [6.0.0]' heading with no date, both validate-release-version.py checks still pass (the heading exists and the Unreleased compare link starts at v6.0.0), and a comment records why there is no date and that it must be added at the stable tag."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788033359,
+      "digest": "43d76ee50ecec40a131a447dc32a717c99c6925e97138f522f835802a10a10a8",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

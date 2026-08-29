@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "remove-the-ship-date-from-the-6-0-0-changelog-heading-because-no-v6-0-0-tag-or-release-has-ever-existed",
+  "implementation_commit": "286439d8619b8edea4a95f354811d863ba512d2d",
+  "implementation_tree": "cb78974e3abea6d1159bb28d33c76e7677a570a9",
+  "contract_digest": "3913d94eeb9c98f479e31be3df755b56033c0110d93ff505db38fad399ca1d36",
+  "workspace_digest": "1563b99070e6e972759f8294df82501410c9ff619adb456e7b9e5468ce833204",
+  "closing_digest": "43d76ee50ecec40a131a447dc32a717c99c6925e97138f522f835802a10a10a8",
+  "review_digest": "2e1aef7e8beb6592c091d65b8c8bf01dc9f20fab83b117cf92ccaab0fe856c7c",
+  "finalization_digest": "f70a02f850f3a4d858b4e44b67ae1ca05cfc4de29791ec8d4fc0608b469f42cf",
+  "timestamp": 1788033359
+}

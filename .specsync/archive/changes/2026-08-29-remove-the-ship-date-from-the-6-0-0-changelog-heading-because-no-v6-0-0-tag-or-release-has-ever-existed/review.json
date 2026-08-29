@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "remove-the-ship-date-from-the-6-0-0-changelog-heading-because-no-v6-0-0-tag-or-release-has-ever-existed",
+  "reviewer": "changelog-date-review",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "286439d8619b8edea4a95f354811d863ba512d2d",
+  "contract_digest": "3913d94eeb9c98f479e31be3df755b56033c0110d93ff505db38fad399ca1d36",
+  "execution_digest": "33fd822b0e468e0fe8205ae7a205ea6bdf194ded41cfc8c685c00b92202bc45a",
+  "workspace_digest": "1563b99070e6e972759f8294df82501410c9ff619adb456e7b9e5468ce833204",
+  "timestamp": 1788033337
+}

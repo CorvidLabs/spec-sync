@@ -662,6 +662,16 @@ Acceptance Criteria
   change-then-revert history, stales the review, while the metadata/archive-only finalization commit
   does not rerun or stale it. Native and hosted validators load the same committed descendant,
   parent, output, and timeout limits.
+- Scoped-review currency is a three-valued answer, not a predicate. It is `current` when every
+  recorded binding still agrees with the tree; `stale` when a bound digest moved or the descendant
+  walk ran and inspected a commit that changed a path outside this change's own lifecycle records;
+  and `unavailable` when the walk could not run at all — most often because a squash, rebase, amend,
+  or force-push rewrote the reviewed commit, leaving `implementation_commit..HEAD` with no range to
+  walk. A caller that reports an unavailable answer as a satisfied one is wrong in the direction
+  that costs the most, and one that reports it as a violation asserts a guarantee it never evaluated.
+- Content is decided before history: a review whose recorded contract, execution, or workspace digest
+  no longer matches the tree is `stale` for that reason, and the descendant walk's own availability
+  is consulted only once the content agrees.
 - Finalization fails when a required scoped review is missing or blocking.
 - Status states when review is needed and directs the user to open or update the PR so the configured
   scoped-review check runs.

@@ -132,6 +132,115 @@
       "requirement_ids": [
         "REQ-change-092"
       ]
+    },
+    {
+      "timestamp": 1788033483,
+      "commit": "93a7a8e7f5e493da1e0782e967a963b1ce68322c",
+      "contract_digest": "e4faff628b46f15ce38fa0a4a67076bb23d0389d2a57a29a0fdccef85c77ac53",
+      "execution_digest": "3d85987e828b18f54f633af4ad259dfd93a331ad95e9d785b63ff251f16c1f2f",
+      "workspace_digest": "9df1daac0dacd3248de7d081bbcffc61f268bc66f042af97194f1c403d78385e",
+      "acceptance_input_digest": "61ae8f516b5b9b91b22b8f1219fc0b28164b0c30b5826a531ffe1eed60679cc9",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/change/change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "abc13ff8694448cbb2f79446a5d81937b5050984d3650eab4d7bcc9cc843dc34",
+            "entry_digest": "6752467917c77bbef03f9fef3821101e3f9a4eb48f3f748c59715489c8f08c1f",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "21016014f0d1469e2c204722573de0992361b2339156558c004c5283f378accf",
+            "entry_digest": "0d0d33129b3ffb128df31460525d4956163ca01621bb56faf13137fe580dea56",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d78c190d64a0b4474a76bdf8151f539e6481f9ff66bd6929d3bc3fb180a65aba",
+            "entry_digest": "8339bc562eae78317f92fe2292812a38c61ec623af4cec71d7f4cac1a4472cf9",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2380a5f200f127e00ce74fd14b511de8c7e938cf79f6c80dfb95eabbe2609ee6",
+            "entry_digest": "b50cac14f45aee0dde5116eff05da8e9c3cd0d54b9efe541e25c59398613a8f0",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ebcbc0258d88a37ac01cd94cfb90bd1adb294677cf44fde89a2a8feffca912ef",
+            "entry_digest": "82058531ae3e20d95ecff2115e0475552d09e6e5b87ef2256cb2a5080dba3942",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8cbcbea3008aea0155195c0f2fabd75b79596eb8a3acdda045c223ce39753070",
+            "entry_digest": "2a51a4e51bcb7e207219801a9ad707208c740f07eb43a065af0a0ee6e5778c8d",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change_tests.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2062f7dff8f82c465db04e0b8b311e958c1a28c20abd9a64339ae281dac11e23",
+            "entry_digest": "b37a240f022044a299e43fd90c328d6d456cba45db2898f092a3a805ebe3bf93",
+            "owners": [
+              "change"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "cargo test change::",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "cargo test",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-release-version.py",
+          "success": true,
+          "exit_code": 0
+        },
+        {
+          "command": "python3 -S .github/scripts/validate-workflow-runtime-pins.py",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-092"
+      ]
     }
   ]
 }

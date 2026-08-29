@@ -1,6 +1,6 @@
 ---
 id: decide-canonical-materialization-from-the-artefacts-instead-of-the-canonical-applied-flag-so-a-delta-corrected-after
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 7df407728de3ac6458ef8807e79bbadb51da3324
 ---

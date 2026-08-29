@@ -7,11 +7,11 @@
   "title": "Decide canonical materialization from the artefacts instead of the canonical_applied flag so a delta corrected after review and re-approved reaches the canonical spec with its version bump and Change Log row",
   "description": "Decide canonical materialization from the artefacts instead of the canonical_applied flag so a delta corrected after review and re-approved reaches the canonical spec with its version bump and Change Log row",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "7df407728de3ac6458ef8807e79bbadb51da3324",
   "created_at": 1788027927,
-  "updated_at": 1788033485,
+  "updated_at": 1788033549,
   "affected_specs": [
     "change"
   ],

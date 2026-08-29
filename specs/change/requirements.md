@@ -1210,3 +1210,27 @@ Acceptance Criteria
   check cannot outlive itself holding the lock. A `SIGKILL`ed parent still orphans its child, which
   is why the notice is not optional.
 
+### REQ-change-092
+
+Canonical materialization SHALL be decided from the canonical artefacts rather than from the
+`canonical_applied` flag alone, so that every output materialization produces is present for the
+delta bodies the change has currently approved.
+
+Acceptance Criteria
+- A semantic delta corrected after review and re-approved is materialized into the canonical spec
+  by the next `change check`, and the superseded wording does not survive beside the correction.
+- A module whose canonical spec carries the change's contract text but carries neither the
+  `version:` bump nor a Change Log row naming the change receives both on the next `change check`.
+  Neither is derivable from a delta digest, so re-applying the delta alone would not close this.
+- A re-approval whose delta body is byte-identical writes nothing at all: the canonical spec and
+  requirements stay byte for byte as they were, the version stands at one bump, and the Change Log
+  carries exactly one row for the change. Re-materializing unconditionally is refused as a fix,
+  because it would rewrite every canonical spec on every check.
+- Re-materialization does not refuse the work its own earlier run performed: a `## REMOVED` item
+  whose block is already absent reads as applied. That reading is available ONLY to a change that
+  has already materialized once; on a first materialization every application refusal still fires
+  unchanged, including removing a block that was never present.
+- The refusal for a semantic delta that changed after its approval names `specsync change check`
+  after `specsync change approve`. Approval binds the wording and only `check` puts it in the
+  canonical spec, so a remedy naming approval alone walked the author into the silent skip.
+

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "decide-canonical-materialization-from-the-artefacts-instead-of-the-canonical-applied-flag-so-a-delta-corrected-after",
+  "implementation_commit": "93a7a8e7f5e493da1e0782e967a963b1ce68322c",
+  "implementation_tree": "98cc984a0bce3174e10ca38ed736ea3812fc334d",
+  "contract_digest": "e4faff628b46f15ce38fa0a4a67076bb23d0389d2a57a29a0fdccef85c77ac53",
+  "workspace_digest": "9df1daac0dacd3248de7d081bbcffc61f268bc66f042af97194f1c403d78385e",
+  "closing_digest": "c02aa3c8fdc1d9047af86120762c06112084c51e886b469b15855e4e94cdcf84",
+  "review_digest": "400194dbb61870240a4bd4feb70b9ad924ed0a51a76c986878ecd5255703c3e6",
+  "finalization_digest": "d37620c77d1601eac3cce850b19a63e6809d3cb3f4b79f9af457c1bfe08f8d4b",
+  "timestamp": 1788033549
+}

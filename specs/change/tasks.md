@@ -53,3 +53,4 @@ spec: change.spec.md
 - [x] Make the recorded delta binding monotone: the portable 5.0.1 pair records the wording it approves, and a later definition approval cannot withdraw a claim an earlier one made (2026-08-27)
 - [x] Hash the delta binding over line-ending-canonical bytes so a CRLF checkout of an unedited delta stops failing the #711 gate, and fold nothing else (2026-08-27)
 - [x] Name a held Cargo build-directory lock before the verification command that will wait on it, and run every verification child in its own process group so an interrupted check cannot outlive itself (2026-08-27)
+- [x] Decide canonical materialization from the artefacts rather than the `canonical_applied` flag, so a delta corrected after review and re-approved is materialized again with its version bump and Change Log row, while a byte-identical re-approval still writes nothing (2026-08-29)

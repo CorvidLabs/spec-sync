@@ -43,3 +43,28 @@ Surfacing affordances fail open and never gate: an unreadable context file yield
 rather than an error. This is deliberately the opposite posture from evidence validation, which
 fails closed throughout the domain. The distinction is whether the artifact is load-bearing for
 trust or an aid to the author.
+
+`ready_to_finalize` and `finalize` are two answers to one question, and the report is where they were
+allowed to disagree. `review_present` asked `review.json.is_file()` while `finalize` required the
+review to still be current, so ship-status recommended `specsync change ship` in the same second the
+verb refused. #689 had already moved the verification half of that conjunction onto content and left
+the review half asking whether a file existed — the same fix, one term short. When a status command
+and the command it recommends both compute readiness, the status command must consult the *predicate*
+the other one gates on, not a proxy for it; and the regression test must assert that the two AGREE
+rather than that either returns a particular value, or it goes red the day the underlying policy is
+decided the other way.
+
+The existence-only question had three call sites inside one function, not one. Fixing only
+`ready_to_finalize` would have left the `review_tip` stage reporting `done` for a review finalize
+rejects and the text line printing `recorded` — and, because `archive_tip` is gated on
+`ready_to_finalize`, it would have left NO stage marked `current`, which silently drops `ship_next`
+back to the generic lifecycle sentence instead of naming the recovery. A report that has stopped
+lying in its summary field and still lies in its stage list has not been fixed. `ChangeSummary` asked
+the currency question correctly the whole time, which is the tell: when one projection of a value is
+wrong, look for the sibling projections before concluding the defect is where it was reported.
+
+Where a guarantee cannot be evaluated, the honest report is a third answer, not a rounded second one.
+`unavailable` renders as `ready_to_finalize: false` plus a warning naming the re-review that
+re-anchors it — not a blocker, because asserting that an unobtainable guarantee ought to block would
+decide an open design question by accident. Readiness can decline to answer without also deciding
+what should happen next.

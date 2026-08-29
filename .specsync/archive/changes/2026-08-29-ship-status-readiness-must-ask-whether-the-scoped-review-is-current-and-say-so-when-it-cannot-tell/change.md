@@ -1,6 +1,6 @@
 ---
 id: ship-status-readiness-must-ask-whether-the-scoped-review-is-current-and-say-so-when-it-cannot-tell
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 7df407728de3ac6458ef8807e79bbadb51da3324
 ---

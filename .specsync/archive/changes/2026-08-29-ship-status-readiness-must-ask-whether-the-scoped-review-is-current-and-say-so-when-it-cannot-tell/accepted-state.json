@@ -7,11 +7,11 @@
   "title": "Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell",
   "description": "Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "7df407728de3ac6458ef8807e79bbadb51da3324",
   "created_at": 1788026820,
-  "updated_at": 1788031198,
+  "updated_at": 1788031351,
   "affected_specs": [
     "change",
     "cmd_change"

@@ -456,3 +456,27 @@ there — correctly, on a FIRST run — so re-running materialization over an al
 `## REMOVED` delta turns the silent skip into a hard error. Convergence is therefore scoped to
 `record.canonical_applied`: only a change that has already materialized once may read
 "already reflected" as done, and a first materialization still fires every refusal it ever did.
+
+A predicate that returns `bool` decides how honest every caller of it can be. `scoped_review_is_current`
+was a nine-term conjunction, and its git half already carried distinct reasons in a
+`Result<(), String>` — but both callers discarded them with `.is_ok()`, so no reason ever escaped the
+module. The cost surfaced two commits away, in `ship-status`, which could only ask a yes/no question
+and therefore could not tell a review that had genuinely gone stale from one whose descendant walk
+could not run at all. When a check has failure modes that differ in what the reader should DO, the
+return type is where that difference has to live; discarding it at the call site is a decision made
+once and paid for by every future caller.
+
+The split that mattered here is VIOLATED versus UNAVAILABLE. The scoped-review descendant walk proves
+that nothing but this change's own lifecycle records moved between the review and HEAD — a real
+guarantee that content digests cannot restate, because `.specsync/changes/` and `.specsync/archive/`
+are excluded from the project-input digest by design. A squash destroys `review.implementation_commit`,
+so the walk has no range to walk. That is the guarantee being unobtainable, not broken, and collapsing
+the two into one `false` is what let readiness report a satisfied guarantee it had never evaluated.
+Only one branch of that walk is a decided negative: the one where it actually inspected a commit and
+found a forbidden path. Every other branch — unresolvable HEAD, unreachable anchor, enumeration
+failure, the descendant and parent bounds — is the walk declining to answer.
+
+Content is decided before history, and the ordering is load-bearing rather than cosmetic. Both halves
+can fail at once; a review that is stale by content AND anchored to a rewritten commit is stale for a
+reason the reader can act on today, and answering "the walk was unavailable" about it would be true
+and useless.

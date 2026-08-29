@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "ship-status-readiness-must-ask-whether-the-scoped-review-is-current-and-say-so-when-it-cannot-tell",
+  "implementation_commit": "e450d15a8e862d04f90a6c08d690866b4bca8e5a",
+  "implementation_tree": "a4247a24e3c0b596886be9014fcc88b970225b26",
+  "contract_digest": "4213c396fce9e89e845a10a642703d619f58fefc54b1ebbe7fe9c417183381a7",
+  "workspace_digest": "1bc4a2cce536c3fdf263c277d8aa33555b76bcf643df81e92a85f39cacd84281",
+  "closing_digest": "5cf1eb927181d891c80aed988d66fb3c9a33c9f77539414984c83c1c38c61bb7",
+  "review_digest": "00f6c2e14725a42cc3d1771b6155bb33d1765ad11ae336dbfa3e73bdc048e77d",
+  "finalization_digest": "97972a5423bcc3337a837a597a46e01791a7b77ff3ea4f1fe0c3b736a1472b00",
+  "timestamp": 1788031351
+}

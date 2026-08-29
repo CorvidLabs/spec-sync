@@ -9,6 +9,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -2737,16 +2738,28 @@ fn materialize_change_deltas(root: &Path, id: &str) -> Result<ChangeRecord, Stri
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     ensure_tasks_complete(root, &record)?;
-    if record.canonical_applied {
+    // `canonical_applied` records that materialization RAN, never that it ran for the delta on
+    // disk now. Re-approving a corrected delta satisfies every gate above — the guard directly
+    // above asks whether the delta matches its approval, and a new approval signs the new body —
+    // and then the bare flag returned here, skipping the applied delta, the version bump and the
+    // Change Log row alike (#741). So the outstanding work is computed from the canonical tree
+    // itself and the short-circuit is conditional on there being none.
+    let prepared = prepare_pending_delta_application(root, &record)?;
+    if record.canonical_applied && prepared.pending.is_empty() {
         return Ok(record);
     }
     if is_ci_project(root) {
-        return Err(
-            "approved canonical deltas are not materialized; run `specsync change check` locally and commit the implementation before CI"
-                .into(),
-        );
+        return Err(format!(
+            "the canonical specs do not carry the approved semantic deltas ({}); run `specsync change check` locally and commit the result before CI",
+            prepared
+                .pending
+                .iter()
+                .map(|module| format!("`{module}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
-    let mut prepared = prepare_delta_application(root, &record)?;
+    let mut prepared = prepared.files;
     record.canonical_applied = true;
     record.state = ChangeState::Implementing;
     record.updated_at = now();
@@ -6013,11 +6026,11 @@ fn accept_change_with_gate(
         return Err(errors);
     }
     ensure_reopened_definition_unchanged(root, &record)?;
-    let mut prepared = if record.canonical_applied {
-        Vec::new()
-    } else {
-        prepare_delta_application(root, &record)?
-    };
+    // Same question as `materialize_change_deltas`, for the same reason (#741): the flag says
+    // materialization ran, not that it ran for this delta content. An empty result is exactly
+    // what an already-current tree produces, so acceptance still writes nothing when there is
+    // nothing outstanding.
+    let mut prepared = prepare_pending_delta_application(root, &record)?.files;
     let manifest = acceptance_manifest(root, &record, &prepared)?;
     let succession = build_semantic_succession_evidence(root, &record, &manifest)?;
     verification.acceptance_input_digest = Some(acceptance_manifest_digest(&manifest)?);
@@ -8653,8 +8666,8 @@ fn ensure_approved_delta_bodies_unchanged(
             candidate.gate == "definition" && candidate.approved_delta_digests.is_some()
         }) {
             return Err(format!(
-                "the definition approval for {} records no semantic delta wording although an earlier definition approval on this change recorded it; an approval cannot withdraw a claim an earlier one made, so re-run `specsync change approve {}` to record the delta bodies this approval covers (or restore the approval ledger)",
-                record.id, record.id
+                "the definition approval for {} records no semantic delta wording although an earlier definition approval on this change recorded it; an approval cannot withdraw a claim an earlier one made, so re-run `specsync change approve {}` to record the delta bodies this approval covers, then `specsync change check {}` to bring the canonical spec to them (or restore the approval ledger)",
+                record.id, record.id, record.id
             ));
         }
         return Ok(());
@@ -8676,13 +8689,18 @@ fn ensure_approved_delta_bodies_unchanged(
     if changed.is_empty() {
         return Ok(());
     }
+    // The remedy names BOTH steps on purpose. Naming only `approve` was actively harmful while
+    // #741 was open: re-approving recorded a digest for the corrected body, satisfied this very
+    // check, and then the `canonical_applied` short-circuit discarded the correction in silence.
+    // Approval binds the wording; only `check` puts it in the canonical spec.
     Err(format!(
-        "semantic delta for {} changed after approval; the approved wording is what rewrites the canonical spec, so re-run `specsync change approve {}` to approve the current delta bodies (or restore them)",
+        "semantic delta for {} changed after approval; the approved wording is what rewrites the canonical spec, so re-run `specsync change approve {}` to approve the current delta bodies and then `specsync change check {}` to materialize them into the canonical spec (or restore the approved delta bodies)",
         changed
             .iter()
             .map(|module| format!("`{module}`"))
             .collect::<Vec<_>>()
             .join(", "),
+        record.id,
         record.id
     ))
 }
@@ -8992,15 +9010,96 @@ fn strip_ascii_prefix_ignore_case<'a>(value: &'a str, prefix: &str) -> Option<&'
     }
 }
 
-fn prepare_delta_application(
+/// What materialization still owes the canonical tree.
+///
+/// `pending` names the modules whose canonical outputs were NOT all current, and `files` carries
+/// rewritten contents for exactly those modules. A module with nothing outstanding contributes no
+/// file at all, so re-running a settled materialization writes nothing — which is the property
+/// that lets the caller keep short-circuiting instead of rewriting specs on every check.
+#[derive(Debug, Default)]
+struct PreparedMaterialization {
+    files: Vec<(PathBuf, String)>,
+    pending: Vec<String>,
+}
+
+/// Whether the canonical tree already carries what one delta item declares.
+///
+/// This is the question `apply_markdown_block` cannot answer, because it APPLIES: re-applying a
+/// `## REMOVED` item to a block that is already gone is an error there, and rightly so on a first
+/// run — it means the delta names something that was never present. Asked as a question instead,
+/// "already removed" is simply true.
+fn delta_item_is_applied(spec: &str, requirements: &str, item: &DeltaItem) -> bool {
+    let (source, prefix) = match item.target {
+        DeltaTarget::Requirement => (requirements, "### "),
+        DeltaTarget::SpecSection => (spec, "## "),
+    };
+    let heading = format!("{prefix}{}", item.key);
+    match markdown_block_range(source, &heading, markdown_prefix_level(prefix)) {
+        None => item.operation == DeltaOperation::Removed,
+        Some(range) => {
+            item.operation != DeltaOperation::Removed
+                && markdown_block_matches(&source[range], &heading, &item.content)
+        }
+    }
+}
+
+/// Whether a module spec's Change Log already carries a row for this change.
+///
+/// The version bump and the Change Log row are written together, by the same two lines, exactly
+/// once per (change, module). The row is therefore the only durable evidence that BOTH happened:
+/// a bumped `version:` leaves nothing behind naming the change that bumped it, so an integer on
+/// its own cannot distinguish "this change bumped it" from "some other change did".
+///
+/// `append_changelog` writes the description as `{id}: {title}` into whichever column the table
+/// calls its description, so the row is found by that prefix inside the `## Change Log` section
+/// rather than by rebuilding a row and comparing it. A table that `specsync compact` or a human
+/// has since reformatted still counts, and the trailing colon keeps one slug from matching
+/// another that merely extends it.
+fn changelog_records_change(spec: &str, id: &str) -> bool {
+    let Some(position) = spec.rfind("## Change Log") else {
+        return false;
+    };
+    let start = position + "## Change Log".len();
+    let end = spec[start..]
+        .find("\n## ")
+        .map_or(spec.len(), |offset| start + offset);
+    spec[start..end].contains(&format!("{id}:"))
+}
+
+/// Materialization writes THREE outputs per module, and the `canonical_applied` short-circuit
+/// above this function used to skip all three (#741): the delta applied to the canonical files,
+/// the spec's `version:` bump, and the spec's Change Log row. `bump_spec_version` and
+/// `append_changelog` have no other caller anywhere, so a delta corrected after review and
+/// re-approved produced changed contract text with neither a bump nor a row — and every gate
+/// downstream passed, because nothing below the flag ever ran to ask.
+///
+/// So the flag alone stopped being the answer to "is the canonical tree current?". The artefacts
+/// answer it, per module and per output:
+///
+/// * the delta is applied when every item it declares is already reflected — a `## REMOVED` block
+///   absent, an `## ADDED`/`## MODIFIED` block present with matching content;
+/// * the bump and the row were written together, so the Change Log naming this change is the
+///   evidence that both of them happened.
+///
+/// A module with both is not rewritten at all. A module missing either is materialized again, and
+/// given only the halves it is missing: a corrected delta re-applies its wording without a second
+/// bump and a second row, because one change bumps one module's version exactly once.
+///
+/// Convergence is scoped to `canonical_applied`. On a FIRST materialization every refusal
+/// `apply_markdown_block` makes today still fires, unchanged — removing a block that was never
+/// there is still an error, adding one that exists with different content is still an error. Only
+/// once materialization has demonstrably run for this change does an already-reflected item
+/// become a no-op instead, because only then is "absent" a state this change itself produced.
+fn prepare_pending_delta_application(
     root: &Path,
     record: &ChangeRecord,
-) -> Result<Vec<(PathBuf, String)>, String> {
+) -> Result<PreparedMaterialization, String> {
+    let mut prepared = PreparedMaterialization::default();
     if record.no_spec_change {
-        return Ok(Vec::new());
+        return Ok(prepared);
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
-    let mut prepared = Vec::new();
+    let converging = record.canonical_applied;
     for module in &record.affected_specs {
         let delta =
             read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
@@ -9010,7 +9109,21 @@ fn prepare_delta_application(
             .map_err(|error| format!("failed to read {}: {error}", spec_path.display()))?;
         let mut requirements = fs::read_to_string(&requirements_path)
             .unwrap_or_else(|_| format!("---\nspec: {module}.spec.md\n---\n\n# Requirements\n"));
-        for item in items {
+        // Read BEFORE applying. A delta may legitimately target `## Change Log`, and the question
+        // is whether the row was already there, never whether this run has just written one.
+        let recorded = changelog_records_change(&spec, &record.id);
+        if converging
+            && recorded
+            && items
+                .iter()
+                .all(|item| delta_item_is_applied(&spec, &requirements, item))
+        {
+            continue;
+        }
+        for item in &items {
+            if converging && delta_item_is_applied(&spec, &requirements, item) {
+                continue;
+            }
             match item.target {
                 DeltaTarget::Requirement => {
                     requirements = apply_markdown_block(
@@ -9032,10 +9145,13 @@ fn prepare_delta_application(
                 }
             }
         }
-        spec = bump_spec_version(&spec)?;
-        spec = append_changelog(&spec, &record.id, &record.title);
-        prepared.push((spec_path, spec));
-        prepared.push((requirements_path, requirements));
+        if !recorded {
+            spec = bump_spec_version(&spec)?;
+            spec = append_changelog(&spec, &record.id, &record.title);
+        }
+        prepared.files.push((spec_path, spec));
+        prepared.files.push((requirements_path, requirements));
+        prepared.pending.push(module.clone());
     }
     Ok(prepared)
 }
@@ -9096,19 +9212,13 @@ fn markdown_block_matches(existing: &str, heading: &str, content: &str) -> bool 
     normalize(body) == normalize(content)
 }
 
-fn apply_markdown_block(
-    source: &str,
-    prefix: &str,
-    key: &str,
-    content: &str,
-    operation: DeltaOperation,
-) -> Result<String, String> {
-    let heading = format!("{prefix}{key}");
-    let line_ending = if source.contains("\r\n") {
-        "\r\n"
-    } else {
-        "\n"
-    };
+/// Byte range of the `heading` block in `source` — the heading line through to the next heading at
+/// `level` or shallower — or `None` when `source` carries no such heading.
+///
+/// Extracted so that applying an item and asking whether an item is ALREADY applied read the same
+/// block out of the same scan. Two answers derived from two scans is how a tree and the record of
+/// it drift apart, which is the whole subject of #741.
+fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Range<usize>> {
     let mut lines = Vec::new();
     let mut offset = 0;
     for raw in source.split_inclusive('\n') {
@@ -9125,40 +9235,54 @@ fn apply_markdown_block(
     }
     let start = lines
         .iter()
-        .position(|(_, line)| line.trim_end() == heading);
-    let target_level = prefix
+        .position(|(_, line)| line.trim_end() == heading)?;
+    let end = lines
+        .iter()
+        .skip(start + 1)
+        .find(|(_, line)| markdown_heading_level(line).is_some_and(|found| found <= level))
+        .map_or(source.len(), |(next_offset, _)| *next_offset);
+    Some(lines[start].0..end)
+}
+
+/// Heading depth a delta target writes at: `"## "` is 2, `"### "` is 3.
+fn markdown_prefix_level(prefix: &str) -> usize {
+    prefix
         .chars()
         .take_while(|character| *character == '#')
-        .count();
-    let end = start.map(|index| {
-        lines
-            .iter()
-            .enumerate()
-            .skip(index + 1)
-            .find(|(_, (_, line))| {
-                markdown_heading_level(line).is_some_and(|level| level <= target_level)
-            })
-            .map(|(_, (next_offset, _))| *next_offset)
-            .unwrap_or(source.len())
-    });
+        .count()
+}
+
+fn apply_markdown_block(
+    source: &str,
+    prefix: &str,
+    key: &str,
+    content: &str,
+    operation: DeltaOperation,
+) -> Result<String, String> {
+    let heading = format!("{prefix}{key}");
+    let line_ending = if source.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let block = markdown_block_range(source, &heading, markdown_prefix_level(prefix));
     match operation {
         // An ADDED block that is already present with exactly the declared content
         // is an applied delta, not a conflict. Re-deriving the canonical tree must
         // converge, otherwise the delta can never be reconciled against the tree
         // and a partially-applied run leaves the change permanently unverifiable.
-        DeltaOperation::Added if start.is_some() => {
-            if let (Some(start_index), Some(end_offset)) = (start, end) {
-                let existing = &source[lines[start_index].0..end_offset];
-                if markdown_block_matches(existing, &heading, content) {
-                    return Ok(source.to_string());
-                }
+        DeltaOperation::Added if block.is_some() => {
+            if let Some(range) = block.clone()
+                && markdown_block_matches(&source[range], &heading, content)
+            {
+                return Ok(source.to_string());
             }
             return Err(format!(
                 "cannot add existing block `{key}` with different content; use ## MODIFIED to \
                  change a block already present in the living tree"
             ));
         }
-        DeltaOperation::Modified | DeltaOperation::Removed if start.is_none() => {
+        DeltaOperation::Modified | DeltaOperation::Removed if block.is_none() => {
             return Err(format!("cannot modify/remove missing block `{key}`"));
         }
         _ => {}
@@ -9172,13 +9296,12 @@ fn apply_markdown_block(
             .replace('\n', line_ending);
         format!("{heading}{line_ending}{line_ending}{normalized_content}{line_ending}{line_ending}")
     };
-    if let (Some(start_index), Some(end_offset)) = (start, end) {
-        let start_offset = lines[start_index].0;
+    if let Some(range) = block {
         let mut output =
-            String::with_capacity(source.len() - (end_offset - start_offset) + replacement.len());
-        output.push_str(&source[..start_offset]);
+            String::with_capacity(source.len() - (range.end - range.start) + replacement.len());
+        output.push_str(&source[..range.start]);
         output.push_str(&replacement);
-        output.push_str(&source[end_offset..]);
+        output.push_str(&source[range.end..]);
         Ok(output)
     } else {
         let mut output = source.to_string();

@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Claude (agent)",
+      "timestamp": 1788028252,
+      "digest": "e4faff628b46f15ce38fa0a4a67076bb23d0389d2a57a29a0fdccef85c77ac53",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "decide-canonical-materialization-from-the-artefacts-instead-of-the-canonical-applied-flag-so-a-delta-corrected-after",
+        "title": "Decide canonical materialization from the artefacts instead of the canonical_applied flag so a delta corrected after review and re-approved reaches the canonical spec with its version bump and Change Log row",
+        "description": "Decide canonical materialization from the artefacts instead of the canonical_applied flag so a delta corrected after review and re-approved reaches the canonical spec with its version bump and Change Log row",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A delta corrected after review and re-approved is materialized by the next change check, and the superseded wording does not survive; a canonical spec carrying the change's contract text without the version bump or a Change Log row naming the change receives both; a byte-identical re-approval writes nothing at all, leaving the spec byte for byte, one version bump and one Change Log row; re-materialization does not refuse a removal its own earlier run performed, while every first-run application refusal still fires; the refusal for a drifted delta names change check after change approve."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "2a6cdc6e18a2703bbaa3868e877971296999ae18f791c56c5dc5064b520b0e49"
+      }
+    }
+  ],
+  "reopenings": []
+}

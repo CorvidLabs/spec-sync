@@ -434,3 +434,25 @@ one thread, so the worst case is a real Cargo waiting microseconds longer. The s
 "the lock has been released" untestable at a deterministic instant from inside a multithreaded,
 process-spawning test binary — an assertion on it failed once under a seven-worktree host and was
 deleted rather than widened.
+
+#741 is now decided, and the shape of the decision is worth keeping. The pair that was never
+compared is not recorded anywhere — it is DERIVED. `canonical_applied` still means "materialization
+ran", and the question "did it run for the delta on disk now?" is answered from the canonical
+artefacts: a module's delta is applied when every item it declares is already reflected
+(`delta_item_is_applied`), and its version bump and Change Log row both happened when the Change
+Log names the change (`changelog_records_change`), because those two are written together by the
+same two lines exactly once per (change, module). Recording a `materialized_delta_digests` beside
+the flag was the issue's preferred direction and was rejected on evidence: the change record is
+serialized and hashed for `definition_digest` in four places, each normalizing `canonical_applied`,
+`correction_count` and `updated_at` out by hand first, so a new live field moves every one of those
+digests unless normalized out in all four — and it still could not have answered for the bump or
+the row, neither of which a delta digest derives.
+
+The trap that fix had to avoid is the reason the CONTROL matters more than the discriminators here:
+"always re-materialize" satisfies every discriminator #741 asks for and would rewrite every
+canonical spec, re-bump every version and append a second Change Log row on every `check`. And a
+second trap sits under the first: `apply_markdown_block` refuses to remove a block that is not
+there — correctly, on a FIRST run — so re-running materialization over an already-applied
+`## REMOVED` delta turns the silent skip into a hard error. Convergence is therefore scoped to
+`record.canonical_applied`: only a change that has already materialized once may read
+"already reflected" as done, and a first materialization still fires every refusal it ever did.

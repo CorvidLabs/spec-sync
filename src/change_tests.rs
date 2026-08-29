@@ -13155,7 +13155,9 @@ fn semantic_application_respects_custom_specs_directory() {
             "## ADDED\n### REQUIREMENT REQ-auth-001\nThe system SHALL authenticate.\n\nAcceptance Criteria\n- Works.\n",
         )
         .unwrap();
-    let prepared = prepare_delta_application(root, &record).unwrap();
+    let prepared = prepare_pending_delta_application(root, &record)
+        .unwrap()
+        .files;
     assert!(
         prepared
             .iter()
@@ -13261,7 +13263,9 @@ fn semantic_application_resolves_registry_backed_canonical_paths() {
     )
     .unwrap();
 
-    let prepared = prepare_delta_application(root, &record).unwrap();
+    let prepared = prepare_pending_delta_application(root, &record)
+        .unwrap()
+        .files;
 
     assert!(
         prepared
@@ -13331,7 +13335,9 @@ fn canonical_resolution_tolerates_inert_legacy_registry_stub() {
     )
     .unwrap();
 
-    let prepared = prepare_delta_application(root, &record).unwrap();
+    let prepared = prepare_pending_delta_application(root, &record)
+        .unwrap()
+        .files;
     assert!(
         prepared
             .iter()
@@ -13395,7 +13401,7 @@ fn semantic_application_rejects_unsafe_registry_paths() {
     )
     .unwrap();
 
-    let error = prepare_delta_application(root, &record).unwrap_err();
+    let error = prepare_pending_delta_application(root, &record).unwrap_err();
 
     assert!(error.contains("unsafe registry path"));
     assert!(error.contains("escapes the project root"));
@@ -13984,6 +13990,259 @@ fn an_lf_delta_hashes_to_exactly_the_digest_the_unnormalized_binding_recorded() 
         Some(PRE_NORMALIZATION_DIGEST),
         "normalizing line endings must not move the digest of an LF delta; every digest recorded \
          since #711 was written over raw bytes and must keep verifying"
+    );
+}
+
+/// The wording a reviewer asked for instead, signed by a second approval.
+///
+/// Same module, same section, same shape as `APPROVED_DELTA_BODY` — only the sentence moves,
+/// which is exactly what correcting a delta after review is.
+const CORRECTED_DELTA_BODY: &str = "## MODIFIED\n\n### SPEC SECTION Purpose\n\nAuth tracks credentials and sessions. Corrected during review.\n";
+
+/// Approve, materialize, correct the delta, re-approve — the ordinary review loop, up to the
+/// point where the second `check` has to notice that the canonical spec is behind.
+fn change_materialized_then_corrected_and_re_approved(root: &Path) -> ChangeRecord {
+    let record = change_with_an_approved_delta(root);
+    let applied = materialize_change_deltas(root, &record.id).unwrap();
+    assert!(
+        applied.canonical_applied,
+        "the fixture must reach the second check with materialization already recorded"
+    );
+    fs::write(delta_path(root, &record, "auth"), CORRECTED_DELTA_BODY).unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    assert!(
+        ensure_approved_delta_bodies_unchanged(root, &record).is_ok(),
+        "re-approval makes the #711 guard pass by construction; that is why it cannot see this"
+    );
+    record
+}
+
+/// DISCRIMINATOR for #741. On the unfixed binary the second `materialize_change_deltas` returns
+/// `Ok` and writes nothing at all, so the canonical spec keeps the FIRST delta's wording forever
+/// while `check` exits 0.
+///
+/// The sequence is the review loop and nothing else: approve, materialize, a reviewer asks for
+/// different wording, correct the delta, re-approve, check again. #711's guard passes on that
+/// sequence by construction — a new approval signs the new body — and `canonical_applied` then
+/// returned before anything could ask the other question, which is whether the canonical spec
+/// still matches the delta. The purpose of correcting a delta is to change the canonical spec,
+/// so this was the one path where doing what review asks for discarded the result in silence.
+#[test]
+fn a_delta_corrected_after_materialization_reaches_the_canonical_spec_on_the_next_check() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_materialized_then_corrected_and_re_approved(root);
+
+    materialize_change_deltas(root, &record.id).unwrap();
+
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        spec.contains("Auth tracks credentials and sessions. Corrected during review."),
+        "the corrected wording must reach the canonical spec: {spec}"
+    );
+    assert!(
+        !spec.contains("Auth tracks credentials. Reviewed and approved wording."),
+        "the superseded wording must not survive beside the correction: {spec}"
+    );
+    assert!(
+        spec.contains("version: 1.0.1"),
+        "correcting a delta must not bump the version a second time; one change bumps one \
+         module's version exactly once: {spec}"
+    );
+    assert_eq!(
+        spec.matches(&format!("{}:", record.id)).count(),
+        1,
+        "correcting a delta must not append a second Change Log row for the same change: {spec}"
+    );
+}
+
+/// DISCRIMINATOR for #741's widening, and the half that rules out the narrowest repair.
+///
+/// `bump_spec_version` and `append_changelog` have exactly one caller, inside the materialization
+/// the short-circuit skipped, so the flag skipped all THREE outputs and not merely the applied
+/// delta. "Re-apply the delta when its digest moved" would leave these two still skipped: neither
+/// a `version:` integer nor a Change Log row is derivable from a delta digest.
+///
+/// The fixture is the #721 shape, built by deleting exactly those two outputs from a spec that
+/// has all three — contract text present, no bump, no row. A rebase that takes upstream's
+/// frontmatter and Change Log while keeping the merged body produces precisely this, and on the
+/// unfixed binary `change check`, `change audit --strict` and `specsync check --strict` all pass
+/// over it, because nothing below the flag runs to ask.
+#[test]
+fn a_materialized_spec_missing_its_version_bump_and_change_log_row_gets_both_back() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    materialize_change_deltas(root, &record.id).unwrap();
+
+    let materialized = fs::read_to_string(&spec_path).unwrap();
+    let row = format!("{}:", record.id);
+    assert!(
+        materialized.contains("version: 1.0.1") && materialized.contains(&row),
+        "the fixture must start from a spec that has all three outputs: {materialized}"
+    );
+    let rebased = format!(
+        "{}\n",
+        materialized
+            .lines()
+            .filter(|line| !line.contains(&row))
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
+    .replace("version: 1.0.1", "version: 1.0.0");
+    assert!(
+        rebased.contains("Auth tracks credentials. Reviewed and approved wording.")
+            && rebased.contains("version: 1.0.0")
+            && !rebased.contains(&row),
+        "the fixture must keep the contract text and lose only the bump and the row: {rebased}"
+    );
+    fs::write(&spec_path, &rebased).unwrap();
+
+    materialize_change_deltas(root, &record.id).unwrap();
+
+    let repaired = fs::read_to_string(&spec_path).unwrap();
+    assert!(
+        repaired.contains("version: 1.0.1"),
+        "a spec carrying this change's contract text must carry its version bump: {repaired}"
+    );
+    assert_eq!(
+        repaired.matches(&row).count(),
+        1,
+        "a spec carrying this change's contract text must carry exactly one Change Log row for \
+         it: {repaired}"
+    );
+}
+
+/// Honest label: this is the CONTROL, and it is the more important half of the pair above. It
+/// passes on the unfixed binary too — that is the entire point.
+///
+/// "Always re-materialize" would satisfy both discriminators and would be a disaster: every
+/// `check` would rewrite the canonical specs, bump their versions again and append another
+/// Change Log row, which is the exact reason the short-circuit exists. A re-approval whose delta
+/// body is byte-identical has nothing outstanding, so it must still short-circuit and leave all
+/// three outputs alone — the spec byte for byte, the version at one bump, the Change Log at one
+/// row.
+///
+/// If this test ever goes green only because the assertions were loosened, the fix has become the
+/// outage it was supposed to avoid.
+#[test]
+fn re_approving_a_byte_identical_delta_leaves_the_canonical_spec_byte_for_byte_alone() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    let requirements_path = root.join("specs/auth/requirements.md");
+    materialize_change_deltas(root, &record.id).unwrap();
+
+    let spec_after_first = fs::read_to_string(&spec_path).unwrap();
+    let requirements_after_first = fs::read_to_string(&requirements_path).unwrap();
+    let row = format!("{}:", record.id);
+    assert!(
+        spec_after_first.contains("version: 1.0.1") && spec_after_first.matches(&row).count() == 1,
+        "the first materialization must produce exactly one bump and one row: {spec_after_first}"
+    );
+    assert_eq!(
+        fs::read_to_string(delta_path(root, &record, "auth")).unwrap(),
+        APPROVED_DELTA_BODY,
+        "the control re-approves the SAME bytes; nothing about the delta may move"
+    );
+
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&spec_path).unwrap(),
+        spec_after_first,
+        "a re-approval that changes nothing must not rewrite the canonical spec"
+    );
+    assert_eq!(
+        fs::read_to_string(&requirements_path).unwrap(),
+        requirements_after_first,
+        "a re-approval that changes nothing must not rewrite the canonical requirements"
+    );
+}
+
+/// DISCRIMINATOR for #741 on the operation that makes re-materialization hard.
+///
+/// `apply_markdown_block` refuses to remove a block that is not there, and it is right to: on a
+/// first run that means the delta names something that never existed. But after materialization
+/// the block is gone BECAUSE this change removed it, so re-applying the same delta would refuse
+/// its own work. A fix that re-materializes without separating those two readings turns every
+/// corrected `## REMOVED` delta into a hard error instead of a silent skip, which is a different
+/// defect rather than none.
+///
+/// On the unfixed binary the second check short-circuits and the corrected section never lands.
+#[test]
+fn a_corrected_delta_re_materializes_over_a_block_its_own_earlier_run_removed() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record =
+        completed_section_only_current_record(root, "## REMOVED\n\n### REQUIREMENT REQ-auth-001\n");
+    let requirements_path = root.join("specs/auth/requirements.md");
+    fs::write(
+        &requirements_path,
+        "---\nspec: auth.spec.md\n---\n\n# Requirements\n\n### REQ-auth-001\n\nThe system SHALL retire this.\n",
+    )
+    .unwrap();
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    assert!(
+        !fs::read_to_string(&requirements_path)
+            .unwrap()
+            .contains("REQ-auth-001"),
+        "the fixture must actually remove the requirement on the first run"
+    );
+
+    fs::write(
+        delta_path(root, &record, "auth"),
+        format!("## REMOVED\n\n### REQUIREMENT REQ-auth-001\n\n{CORRECTED_DELTA_BODY}"),
+    )
+    .unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+
+    materialize_change_deltas(root, &record.id).expect(
+        "re-materializing must not refuse the removal its own earlier run already performed",
+    );
+
+    let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        spec.contains("Auth tracks credentials and sessions. Corrected during review."),
+        "the corrected section must reach the canonical spec: {spec}"
+    );
+    assert!(
+        !fs::read_to_string(&requirements_path)
+            .unwrap()
+            .contains("REQ-auth-001"),
+        "the removal must stay removed across the re-materialization"
+    );
+}
+
+/// DISCRIMINATOR for #741's diagnostic. On the unfixed binary this message names `approve` and
+/// stops there.
+///
+/// That remedy was worse than incomplete: re-approving recorded a digest for the current body,
+/// satisfied this very check, and handed the author straight to the `canonical_applied`
+/// short-circuit, which discarded the correction in silence and reported success. The message
+/// steered into the defect it was reporting. Approval binds the wording; only `check` puts it in
+/// the canonical spec, and a remedy that names one step of two is a trap.
+#[test]
+fn the_refusal_for_a_changed_delta_names_the_second_step_that_finishes_the_job() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_with_an_approved_delta(root);
+
+    fs::write(delta_path(root, &record, "auth"), SWAPPED_DELTA_BODY).unwrap();
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(
+        error.contains("specsync change approve"),
+        "the remedy must still name the approval that binds the wording: {error}"
+    );
+    assert!(
+        error.contains("specsync change check"),
+        "the remedy must name the step that puts the approved wording in the canonical spec; \
+         naming only `approve` walked the author into the silent skip: {error}"
     );
 }
 

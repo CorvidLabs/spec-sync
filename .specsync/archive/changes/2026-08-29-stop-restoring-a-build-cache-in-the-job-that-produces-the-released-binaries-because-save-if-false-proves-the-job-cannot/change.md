@@ -1,6 +1,6 @@
 ---
 id: stop-restoring-a-build-cache-in-the-job-that-produces-the-released-binaries-because-save-if-false-proves-the-job-cannot
-state: implementing
+state: archived
 type: operations
 base_commit: db1f4ac95d0a81eecb1777d351a52222fb1aa75f
 ---

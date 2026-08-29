@@ -7,11 +7,11 @@
   "title": "Stop restoring a build cache in the job that produces the released binaries, because save-if false proves the job cannot poison the cache and not that its output is trustworthy",
   "description": "Stop restoring a build cache in the job that produces the released binaries, because save-if false proves the job cannot poison the cache and not that its output is trustworthy",
   "kind": "operations",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "db1f4ac95d0a81eecb1777d351a52222fb1aa75f",
   "created_at": 1788019456,
-  "updated_at": 1788020667,
+  "updated_at": 1788020689,
   "affected_specs": [
     "github"
   ],

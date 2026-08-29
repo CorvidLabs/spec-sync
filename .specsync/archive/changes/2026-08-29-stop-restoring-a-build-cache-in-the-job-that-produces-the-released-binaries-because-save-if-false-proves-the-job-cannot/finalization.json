@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "stop-restoring-a-build-cache-in-the-job-that-produces-the-released-binaries-because-save-if-false-proves-the-job-cannot",
+  "implementation_commit": "a85052a7802d51be1aa1ad2d4ace4eb33edaa4b2",
+  "implementation_tree": "7b2661a9cb5a4c6606e22389d07a0aa318757010",
+  "contract_digest": "6dc82fcc5e8d38bacb3483ddb27091c7f66f51f1829a3de36f7aa5a292ec028d",
+  "workspace_digest": "1e60ed7f08287c78bb1b8529321856abfc15e8286fd0b880a1234a3cdcc2f70e",
+  "closing_digest": "4b90ce814ec6fdbab6fffbd1241e0893fba2aeed48a8f12fc5e39f80d552d678",
+  "review_digest": "f084389cf3068af12108c4d5d0a560a7d02b1e2cff2e38e31802118d8949256e",
+  "finalization_digest": "20e82845173cfdc1e8e3937479dd223f83b7ed8405983d60996c5407d9c55695",
+  "timestamp": 1788020689
+}

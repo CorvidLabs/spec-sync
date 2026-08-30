@@ -1,0 +1,54 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788122863,
+      "digest": "e6a1e59a02405fe311611e109e8617c00de346c12a19eab60f9420b95a667578",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-check-the-product-and-stop-change-check-from-spawning-project-tests",
+        "title": "Make check the product and stop change check from spawning project tests",
+        "description": "Make check the product and stop change check from spawning project tests",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cmd_change",
+          "cmd_check",
+          "cmd_init"
+        ],
+        "affected_paths": [
+          "site/",
+          "src/",
+          "tests/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A configured verification_commands sentinel is not executed.",
+          "A phantom export still fails change check.",
+          "Fresh init writes SDD off and does not start a first-change interview.",
+          "change audit no longer re-runs project test commands in CI.",
+          "change check compares specs to code in-process and does not spawn sdd.json verification_commands.",
+          "specsync check does not call audit_project or print an active-change count."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "8b39375369ffbfa0b6a2ac87f9659f8a336b5ec1feb5f187a7c5ef35bbcde5f6",
+        "change": "750e680a437bb4776b805b5effd310949f940e50289a7be307f34b178da4b415",
+        "cmd_change": "b9a7fd31b25fd7f6b2fe150649efa5789f337f62789410b52486e6a6ca79797d",
+        "cmd_check": "2fa66823637c5a4c555c21cf53e86e4e84ed02d09bd658b9110136b419b7c02c",
+        "cmd_init": "6320669bc8f0ec969a36bc2a36a3ae6afb30a1e6e1c8ebe6494735103ce1235d"
+      }
+    }
+  ],
+  "reopenings": []
+}

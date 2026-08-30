@@ -100,6 +100,7 @@ Acceptance Criteria
 
 Acceptance Criteria
 - Claude, Cursor, and Gemini receive check and audit command files.
-- Skill content distinguishes `change check` (scoped) from `change audit` (actives + living specs).
+- Skill content distinguishes `change check` (scoped spec↔code sync) from `change audit` (actives + living specs).
 - Template version advances so upgrades refresh generated artifacts.
+- Generated `change check` skill and command files describe spec↔code sync, not project test commands.
 

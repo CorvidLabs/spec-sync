@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 28
+version: 29
 status: stable
 files:
   - src/commands/check.rs
@@ -146,3 +146,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-27 | v25 / #723: Carry `manifest_notices` in the JSON payload, so the machine consumer acting on `passed` can see the manifest that was degraded rather than propagated |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |

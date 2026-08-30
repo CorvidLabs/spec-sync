@@ -1,6 +1,6 @@
 ---
 module: change
-version: 114
+version: 115
 status: active
 files:
   - src/change.rs
@@ -453,3 +453,4 @@ Acceptance Criteria
 | 2026-08-27 | name-a-held-cargo-build-directory-lock-before-verification-blocks-on-it-and-reap-the-verification-child-s-process-group: Name a held Cargo build-directory lock before verification blocks on it, and reap the verification child's process group |
 | 2026-08-29 | decide-canonical-materialization-from-the-artefacts-instead-of-the-canonical-applied-flag-so-a-delta-corrected-after: Decide canonical materialization from the artefacts instead of the canonical_applied flag so a delta corrected after review and re-approved reaches the canonical spec with its version bump and Change Log row |
 | 2026-08-29 | ship-status-readiness-must-ask-whether-the-scoped-review-is-current-and-say-so-when-it-cannot-tell: Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell |
+| 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |

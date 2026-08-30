@@ -866,7 +866,6 @@ Acceptance Criteria
   unused, so no caller can reintroduce suppressed-output command execution.
 - Failed spec↔code evidence remains inspectable in `verification.json`.
 
-
 ### REQ-change-060
 
 A bootstrap record SHALL exempt a path from lifecycle path coverage only when that exemption cannot

@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 33
+version: 34
 status: active
 files:
   - src/commands/change.rs
@@ -141,3 +141,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-24 | close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails: Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize |
 | 2026-08-24 | ship-must-name-the-lesson-fold-back-too-the-archive-bundle-is-written-and-only-finalize-says-so: Ship must name the lesson fold-back too: the archive bundle is written and only finalize says so |
 | 2026-08-29 | ship-status-readiness-must-ask-whether-the-scoped-review-is-current-and-say-so-when-it-cannot-tell: Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell |
+| 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |

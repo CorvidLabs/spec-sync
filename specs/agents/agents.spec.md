@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 12
+version: 13
 status: stable
 files:
   - src/agents.rs
@@ -131,3 +131,4 @@ distinguish exact managed bytes from user customization.
 | 2026-07-31 | SpecSync | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-01 | SpecSync | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-19 | SpecSync | CHG-0158-the-forward-compatibility-valve-must-be-true-everywhere-it-is-claimed: The forward-compatibility valve must be true everywhere it is claimed |
+| 2026-08-30 | SpecSync | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |

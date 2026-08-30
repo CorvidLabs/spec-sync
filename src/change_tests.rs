@@ -88,9 +88,25 @@ fn effective_contract_workspaces_are_unique() {
     }
 }
 
+/// Lifecycle tests need SDD on. Fresh `init` still writes it off via `write_default_policy`.
+fn write_lifecycle_test_policy(root: &Path) {
+    let path = root.join(POLICY_PATH);
+    if path.exists() {
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let mut policy = SddPolicy::default();
+    policy.enabled = true;
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["true".into()];
+    write_json(&path, &policy).unwrap();
+}
+
 fn ensure_test_verification_policy(root: &Path) {
     if !root.join(POLICY_PATH).exists() {
-        write_default_policy(root, vec!["true".into()]).unwrap();
+        write_lifecycle_test_policy(root);
         return;
     }
     let mut policy = load_policy(root).unwrap();
@@ -421,7 +437,7 @@ fn workflow_v2_adoption_keeps_explicitly_anchored_workflow_v1_records_readable()
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -460,7 +476,7 @@ fn change_adopt_moves_only_new_changes_to_v2_without_rewriting_v1_policy() {
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -517,7 +533,7 @@ fn change_adopt_rejects_uncommitted_workflow_v1_records_without_writes() {
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
     quiet_git(root, &["add", "seed.txt"]);
     quiet_git(root, &["commit", "-m", "trusted base"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -553,7 +569,7 @@ fn change_adopt_rejects_branch_only_workflow_v1_records_without_writes() {
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -598,7 +614,7 @@ fn change_adopt_rolls_back_when_comparison_ref_moves_during_publication() {
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
     quiet_git(root, &["add", "seed.txt"]);
     quiet_git(root, &["commit", "-m", "seed"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -654,7 +670,7 @@ fn change_adopt_rejects_workflow_v1_records_without_git_history() {
         if initialize_git {
             quiet_git(root, &["init", "-b", "main"]);
         }
-        write_default_policy(root, Vec::new()).unwrap();
+        write_lifecycle_test_policy(root);
         let mut policy = load_policy(root).unwrap();
         policy.version = 1;
         write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -708,7 +724,7 @@ fn change_adopt_rolls_back_injected_publication_failure_and_retries_cleanly() {
 fn change_adopt_recovers_interrupted_publication_before_idempotent_retry() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -971,7 +987,7 @@ fn merged_second_parent_baseline_cannot_reenable_workflow_v1_creation() {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -1788,7 +1804,7 @@ fn a_baseline_is_still_frozen_by_its_canonical_byte_gate() {
 fn an_unknown_workflow_version_says_upgrade_rather_than_invalid() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record.workflow_version = 9;
     save_change(root, &record).unwrap();
@@ -2607,7 +2623,7 @@ fn deleted_tracked_symlink_is_missing_across_all_digest_surfaces() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let blob_source = root.join("symlink-target");
     fs::write(&blob_source, b"../shared/tool").unwrap();
     let output = Command::new("git")
@@ -2666,7 +2682,7 @@ fn modified_tracked_symlink_uses_current_file_topology() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let blob_source = root.join("symlink-target");
     fs::write(&blob_source, b"../shared/tool").unwrap();
     let output = Command::new("git")
@@ -2751,7 +2767,7 @@ fn sparse_absent_files_use_index_bytes_but_materialized_paths_fail_closed() {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("sparse.txt"), b"canonical sparse\n").unwrap();
     quiet_git(root, &["add", POLICY_PATH, "sparse.txt"]);
     quiet_git(root, &["commit", "-m", "track sparse file"]);
@@ -4340,7 +4356,7 @@ fn dated_lifecycle_archive_missing_state_fails_global_enumeration() {
 fn status_and_check_share_exact_and_stale_terminal_evidence() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -4391,7 +4407,7 @@ fn read_scope_memoizes_repeated_summary_git_lookups() {
 fn strict_check_reports_standalone_unprovable_archived_history() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -4669,7 +4685,7 @@ fn normal_merge_does_not_create_a_duplicate_accepted_transition() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(
         root.join("src/lib.rs"),
@@ -4713,7 +4729,7 @@ fn archive_post_move_failure_restores_exact_source_bytes_without_residue() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
     git(&["add", "."]);
@@ -4764,7 +4780,7 @@ fn authenticated_archive_ignores_later_input_drift_but_rejects_snapshot_tamperin
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
@@ -5073,7 +5089,7 @@ fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry(
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("README.md"), "base\n").unwrap();
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
@@ -5251,7 +5267,7 @@ fn legacy_reconstruction_deduplicates_identical_transitions_but_rejects_distinct
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("README.md"), "base\n").unwrap();
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
@@ -5709,7 +5725,7 @@ fn acknowledged_collision_allows_only_valid_audited_reopen_history() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = reidentify_as_ordinal(root, &record, "CHG-0001-harden-verification");
     git(&["add", "."]);
@@ -5828,7 +5844,7 @@ fn archive_waits_until_delivery_diff_no_longer_needs_coverage() {
     .unwrap();
     git(&["add", "src/lib.rs"]);
     git(&["commit", "-m", "base"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "src/lib.rs"]);
     git(&["commit", "-m", "feature"]);
@@ -5869,7 +5885,7 @@ fn accepted_evidence_survives_integrated_squash_merge_and_archives() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -5931,7 +5947,7 @@ fn refreshed_accepted_evidence_squash_merged_while_accepted_archives() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -6015,7 +6031,7 @@ fn squash_merged_recording_anchor_fails_closed_without_matching_evidence() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -6080,7 +6096,7 @@ fn accepted_evidence_survives_squash_merge_from_nested_project_root() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(&root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(&root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -6179,7 +6195,7 @@ fn squash_merged_acceptance_reopens_after_a_current_canonical_successor() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -6322,7 +6338,7 @@ fn squash_fallback_rejects_unintegrated_or_changed_evidence() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
@@ -7314,7 +7330,7 @@ fn portable_projection_rejects_clean_crlf_smudging_before_ledger_mutation() {
 fn strict_check_requires_definition_approval_only_in_gated_active_states() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     assert!(
         !check_project(root)
@@ -7557,7 +7573,7 @@ fn malformed_policy_fails_closed() {
 fn malformed_active_change_state_fails_closed() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let dir = root.join(CHANGES_PATH).join("CHG-0001-corrupt");
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("state.json"), "{ invalid json").unwrap();
@@ -8088,7 +8104,7 @@ fn definition_digest_rejects_oversized_canonical_sparse_bytes() {
 #[test]
 fn non_git_policy_disables_only_changed_path_coverage() {
     let temp = TempDir::new().unwrap();
-    write_default_policy(temp.path(), Vec::new()).unwrap();
+    write_lifecycle_test_policy(temp.path());
     assert!(
         !load_policy(temp.path())
             .unwrap()
@@ -8123,7 +8139,10 @@ fn committed_policy_cannot_be_disabled_or_deleted_locally() {
     fs::write(root.join("README.md"), "base\n").unwrap();
     git(&["add", "README.md"]);
     git(&["commit", "-m", "base"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.require_change_for_meaningful_files = true;
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
     fs::write(root.join(".specsync/version"), SDD_VERSION).unwrap();
     git(&["add", ".specsync/sdd.json", ".specsync/version"]);
     git(&["commit", "-m", "enable sdd"]);
@@ -8553,7 +8572,7 @@ fn working_tree_changes_invalidate_verification() {
 fn stale_accepted_change_reopens_with_audited_evidence_and_reaccepts() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -8629,7 +8648,7 @@ fn stale_accepted_change_reopens_with_audited_evidence_and_reaccepts() {
 fn reopen_binds_historical_verification_when_tip_no_longer_matches_closing() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -8763,7 +8782,7 @@ fn workflow_v2_reopen_after_finalization_accept_then_finalize_archives() {
 fn accepted_change_can_refresh_stale_definition_approval() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -8788,7 +8807,7 @@ fn accepted_change_can_refresh_stale_definition_approval() {
 fn legacy_workflow_finalize_refuses_and_names_accept_archive() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     assert_eq!(record.workflow_version, 1);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
@@ -8806,7 +8825,7 @@ fn legacy_workflow_finalize_refuses_and_names_accept_archive() {
 fn stale_accepted_change_error_names_uncovered_input_and_reopen_remediation() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -8855,7 +8874,7 @@ fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("README.md"), "base\n").unwrap();
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
@@ -8930,7 +8949,7 @@ fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
 fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, vec!["true".into()]).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("README.md"), "Initial review instructions.\n").unwrap();
     let mut record = create_change(
         root,
@@ -8998,7 +9017,7 @@ fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
 fn approve_rejects_a_declared_path_owned_by_an_undeclared_module() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("specs/legacy")).unwrap();
     fs::write(
             root.join("specs/legacy/legacy.spec.md"),
@@ -9048,7 +9067,7 @@ fn approve_rejects_a_declared_path_owned_by_an_undeclared_module() {
 fn never_closed_verifying_change_corrects_an_owner_without_a_reopen() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("specs/legacy")).unwrap();
     fs::write(
             root.join("specs/legacy/legacy.spec.md"),
@@ -9089,7 +9108,7 @@ fn never_closed_verifying_change_corrects_an_owner_without_a_reopen() {
 fn reopened_change_adds_exact_canonical_owner_without_replaying_delivery() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("specs/legacy")).unwrap();
     fs::write(
             root.join("specs/legacy/legacy.spec.md"),
@@ -9204,7 +9223,7 @@ fn reopened_change_adds_exact_canonical_owner_without_replaying_delivery() {
 fn batch_owner_corrections_append_transactionally_or_not_at_all() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, vec!["true".into()]).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("src")).unwrap();
     fs::create_dir_all(root.join("specs/legacy")).unwrap();
     fs::create_dir_all(root.join("specs/current")).unwrap();
@@ -9392,7 +9411,7 @@ fn owner_batch_validation_queries_canonical_module_once() {
 fn owner_correction_rejects_invalid_requests_without_mutation() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -9610,7 +9629,7 @@ fn refused_reopen_restores_the_archived_package() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -9667,7 +9686,7 @@ fn refused_reopen_restores_the_archived_package() {
 fn reaccept_rejects_definition_changes_after_canonical_application() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -9719,7 +9738,7 @@ fn reaccept_rejects_definition_changes_after_canonical_application() {
 fn accepted_metadata_correction_preserves_original_evidence_and_adds_artifacts() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = accept_completed_record(root, completed_no_spec_record(root));
     let original_answers = record.answers.clone();
     let original_artifacts = record.selected_artifacts.clone();
@@ -9793,7 +9812,7 @@ fn accepted_metadata_correction_preserves_original_evidence_and_adds_artifacts()
 fn metadata_correction_rejects_noops_unsupported_fields_and_missing_audit_inputs() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = accept_completed_record(root, completed_no_spec_record(root));
 
     let error = correct_interview_metadata(
@@ -9849,7 +9868,7 @@ fn correction_values_preserve_supported_boolean_aliases() {
 fn corrected_acceptance_requires_fresh_gates_and_never_replays_canonical_deltas() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nCorrected metadata never replays this canonical section.\n";
     let mut record = completed_section_only_record(root, delta);
     record.answers.insert("public_contract".into(), "no".into());
@@ -9940,7 +9959,7 @@ fn trusted_history_rejects_correction_rollback_and_divergent_same_count() {
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
     git(&["config", "core.autocrlf", "false"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_section_only_record(
         root,
         "## MODIFIED\n\n### SPEC SECTION Invariants\n\nAccepted passkey changes retain lifecycle evidence.\n",
@@ -10071,7 +10090,7 @@ fn full_history_finds_a_corrected_anchor_hidden_by_a_treesame_merge_result() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10155,7 +10174,7 @@ fn trusted_history_ignores_a_dangling_remote_default_symbolic_ref() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = accept_completed_record(root, completed_no_spec_record(root));
     git(&["add", "."]);
     git(&["commit", "-m", "accept definition"]);
@@ -10195,7 +10214,7 @@ fn historical_git_paths_are_nul_safe_in_a_non_ascii_project_directory() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(&root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(&root);
     let mut record = completed_section_only_record(
         &root,
         "## MODIFIED\n\n### SPEC SECTION Invariants\n\nHistorical paths remain byte-delimited.\n",
@@ -10264,7 +10283,7 @@ fn archived_change_uses_prior_active_correction_anchor() {
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
     git(&["config", "core.autocrlf", "false"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10333,7 +10352,7 @@ fn archived_only_corrected_snapshot_remains_a_trusted_anchor() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10414,7 +10433,7 @@ fn shallow_history_with_corrections_fails_closed() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10462,7 +10481,7 @@ fn shallow_rollback_tip_cannot_hide_a_corrected_acceptance() {
     fs::write(source.join("README.md"), "# Fixture\n").unwrap();
     git(&source, &["add", "."]);
     git(&source, &["commit", "-m", "base"]);
-    write_default_policy(&source, Vec::new()).unwrap();
+    write_lifecycle_test_policy(&source);
     let mut record = completed_no_spec_record(&source);
     record = accept_completed_record(&source, record);
     git(&source, &["add", "."]);
@@ -10552,7 +10571,7 @@ fn accepted_snapshot_with_a_stale_contract_is_not_an_anchor() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10603,7 +10622,7 @@ fn accepted_snapshot_with_a_stale_contract_is_not_an_anchor() {
 fn correction_ledgers_fail_closed_and_hash_portably() {
     let first = TempDir::new().unwrap();
     let root = first.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let accepted = accept_completed_record(root, completed_no_spec_record(root));
     let result = correct_interview_metadata(
         root,
@@ -10679,7 +10698,7 @@ fn correction_ledgers_fail_closed_and_hash_portably() {
 fn text_correction_ledger_health_hides_invalid_ledger_detail() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = completed_no_spec_record(root);
     let ledger_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
 
@@ -10695,7 +10714,7 @@ fn text_correction_ledger_health_hides_invalid_ledger_detail() {
 fn mutation_rechecks_correction_ledger_after_lock_acquisition() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = completed_no_spec_record(root);
     let ledger_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
     let state_path = change_dir(root, &record.id).join("state.json");
@@ -10777,7 +10796,7 @@ fn acceptance_rechecks_late_dependency_state() {
 fn failed_evidence_keeps_local_check_red() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -12745,7 +12764,7 @@ fn accepted_later_sequence_owner_covers_post_acceptance_collision_acknowledgemen
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut legacy_policy = load_policy(root).unwrap();
     legacy_policy.version = 1;
     write_json(&root.join(POLICY_PATH), &legacy_policy).unwrap();
@@ -15087,7 +15106,7 @@ fn overlapping_changes_cannot_lend_archive_attribution() {
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut legacy_policy = load_policy(root).unwrap();
     legacy_policy.version = 1;
     write_json(&root.join(POLICY_PATH), &legacy_policy).unwrap();
@@ -16140,7 +16159,7 @@ fn orphaned_verification_commit_reopens_even_though_inputs_are_unchanged() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
@@ -16237,7 +16256,7 @@ fn a_squash_merged_archive_is_recorded_under_its_archive_path() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -16306,7 +16325,7 @@ fn an_archive_absent_from_the_default_branch_is_not_recorded() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     // origin/main is pinned to the base commit and never advances.
@@ -16368,7 +16387,7 @@ fn recorded_verification_survives_a_squash_that_preserves_content() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -16430,7 +16449,7 @@ fn recorded_verification_is_stale_when_the_workspace_digest_does_not_match() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
 

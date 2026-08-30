@@ -5845,6 +5845,9 @@ fn archive_waits_until_delivery_diff_no_longer_needs_coverage() {
     git(&["add", "src/lib.rs"]);
     git(&["commit", "-m", "base"]);
     write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.require_change_for_meaningful_files = true;
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_no_spec_record(root);
     git(&["add", "src/lib.rs"]);
     git(&["commit", "-m", "feature"]);

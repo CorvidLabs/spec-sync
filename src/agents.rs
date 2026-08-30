@@ -26,7 +26,7 @@ For every meaningful source, test, public documentation, schema, or configuratio
    `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
 4. Ask the user for the single scope approval, then run `specsync change approve <id>`.
 5. Implement code, canonical specs, and tests on the same branch. Run `specsync change check [<id>]`
-   for **scoped** verification of this change only (materialize deltas + targeted tests). Do **not**
+   for **scoped** verification of this change only (materialize deltas + spec↔code sync). Do **not**
    treat check as a full archive integrity walk. Use `specsync change audit` when you need project
    health over **active** workspaces and living specs. Archives are history.
 6. Complete ordinary pull-request review. For agent-authored work, have an independent reviewer
@@ -37,7 +37,7 @@ For every meaningful source, test, public documentation, schema, or configuratio
 
 ## Lifecycle verbs
 
-- `specsync change check [id]` — verify **this** change (materialize + targeted tests). Default daily path.
+- `specsync change check [id]` — verify **this** change (materialize + spec↔code sync). Default daily path.
 - `specsync change audit` — project health over **active** workspaces and living specs. Not archive history.
 - Archives are history; do not re-validate terminal evidence for every archived CHG on each check.
 - Slash commands: `/specsync:check`, `/specsync:audit` (Claude/Cursor/Gemini via `specsync agents install`).
@@ -186,10 +186,10 @@ const CREATE_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change new "$ARGUMENTS"
 6. After implementation, run scoped verification with `specsync change check <id>` (or `/specsync:check`). Use `specsync change audit` only for active-workspace project health — never expect check to rewalk archived terminal evidence."#;
 
 const CHECK_CHANGE_DESCRIPTION: &str =
-    "Run scoped SpecSync change verification for one change (materialize deltas + targeted tests)";
+    "Run scoped SpecSync change verification for one change (materialize deltas + spec↔code sync)";
 
 const CHECK_CHANGE_STEPS_MD: &str = r#"1. Prefer `specsync change check $ARGUMENTS` when an id or partial id is provided; otherwise run `specsync change check`.
-2. Expect **scoped** verification only — this change's materialization and verification commands. Do not run a full archive integrity walk.
+2. Expect **scoped** verification only — this change's materialization and in-process spec↔code sync. Do not run a full archive integrity walk.
 3. Stream/wait for exit. On success, follow the printed **Next:** action (review, PR, or finalize path).
 4. Do **not** run `specsync change audit` unless the user asked for project health over active workspaces and living specs."#;
 

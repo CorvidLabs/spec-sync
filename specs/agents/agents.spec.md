@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 11
+version: 12
 status: stable
 files:
   - src/agents.rs
@@ -119,6 +119,7 @@ distinguish exact managed bytes from user customization.
 
 | Date | Author | Change |
 |------|--------|--------|
+| 2026-08-30 | SpecSync | v12: generated `change check` skill describes spec↔code sync, not targeted tests |
 | 2026-07-10 | codex | v3: teach all four skills the verified SDD lifecycle and add create-change commands where supported |
 | 2026-07-01 | claude | v2: `install_agent` overwrites artifacts whose existing content differs from the current template (content-aware upgrade), instead of only writing missing files |
 | 2026-07-01 | claude | Initial spec — native skill/command installation for Claude Code, Cursor, Codex, Gemini CLI |

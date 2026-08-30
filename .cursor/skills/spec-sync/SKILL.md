@@ -19,7 +19,7 @@ For every meaningful source, test, public documentation, schema, or configuratio
    `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
 4. Ask the user for the single scope approval, then run `specsync change approve <id>`.
 5. Implement code, canonical specs, and tests on the same branch. Run `specsync change check [<id>]`
-   for **scoped** verification of this change only (materialize deltas + targeted tests). Do **not**
+   for **scoped** verification of this change only (materialize deltas + spec↔code sync). Do **not**
    treat check as a full archive integrity walk. Use `specsync change audit` when you need project
    health over **active** workspaces and living specs. Archives are history.
 6. Complete ordinary pull-request review. For agent-authored work, have an independent reviewer
@@ -30,7 +30,7 @@ For every meaningful source, test, public documentation, schema, or configuratio
 
 ## Lifecycle verbs
 
-- `specsync change check [id]` — verify **this** change (materialize + targeted tests). Default daily path.
+- `specsync change check [id]` — verify **this** change (materialize + spec↔code sync). Default daily path.
 - `specsync change audit` — project health over **active** workspaces and living specs. Not archive history.
 - Archives are history; do not re-validate terminal evidence for every archived CHG on each check.
 - Slash commands: `/specsync:check`, `/specsync:audit` (Claude/Cursor/Gemini via `specsync agents install`).

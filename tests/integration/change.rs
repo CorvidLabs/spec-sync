@@ -2285,8 +2285,8 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
     assert_eq!(fs::read(&approvals_path).unwrap(), before);
 }
 
-/// Builds a project whose one change is implementing and ready for `change verify`,
-/// running exactly `verification_commands`.
+/// Builds a project whose one change is implementing and ready for `change verify`.
+/// Policy may still list `verification_commands`; `change check` does not execute them.
 #[cfg(unix)]
 fn change_ready_to_verify(root: &Path, verification_commands: &[String]) -> String {
     let git = |args: &[&str]| {
@@ -2453,14 +2453,13 @@ fn hold_cargo_build_lock(root: &Path, profile: &str) -> fs::File {
 
 // Verifies REQ-change-091.
 //
-// Honest label: DISCRIMINATOR, end to end through the shipped binary. Both
-// profile locks are held by this test process for the whole run, so the blocked
-// state is real and fixed rather than timed, and the notice has to name the one
-// `cargo test` actually contends on. The stand-in `cargo` returns immediately,
-// so the assertion is about what verification says, not how long it takes.
+// Honest label: DISCRIMINATOR, end to end through the shipped binary. The
+// unfixed binary spawned `verification_commands` and named a held Cargo lock
+// before that child blocked. This binary must not spawn, so both locks can be
+// held and stderr stays silent about them.
 #[cfg(unix)]
 #[test]
-fn a_held_cargo_build_lock_is_named_before_verification_blocks_on_it() {
+fn change_check_does_not_wait_on_a_held_cargo_build_lock() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
@@ -2485,16 +2484,8 @@ fn a_held_cargo_build_lock_is_named_before_verification_blocks_on_it() {
     let stderr = String::from_utf8(stderr).unwrap();
 
     assert!(
-        stderr.contains("waiting on target/debug/.cargo-lock"),
-        "verification must name the lock it is blocked on: {stderr}"
-    );
-    assert!(
-        stderr.contains("blocked rather than compiling"),
-        "verification must distinguish blocked from a slow compile: {stderr}"
-    );
-    assert!(
-        !stderr.contains("target/release/.cargo-lock"),
-        "a held lock this command never waits on must not be reported: {stderr}"
+        !stderr.contains("waiting on"),
+        "change check must not spawn cargo, so a held lock is not named: {stderr}"
     );
 
     drop(debug);
@@ -2541,14 +2532,11 @@ fn an_unheld_cargo_build_lock_is_not_reported_during_verification() {
 
 // Verifies REQ-change-091.
 //
-// Honest label: DISCRIMINATOR for the reaping half, asserted on the structural
-// property rather than on a race. A child that leads its own process group can
-// be ended as a group when the parent is interrupted; one that inherits the
-// parent's group cannot be told apart from the parent's other descendants.
-// Nothing here waits on a clock: the child records its own group and exits.
+// Honest label: DISCRIMINATOR. The unfixed binary spawned the configured
+// reporter and wrote group.txt. This binary must leave that file absent.
 #[cfg(unix)]
 #[test]
-fn a_verification_child_runs_in_its_own_process_group() {
+fn change_check_does_not_spawn_a_configured_verification_child() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let record = root.join("group.txt");
@@ -2566,14 +2554,8 @@ fn a_verification_child_runs_in_its_own_process_group() {
         .assert()
         .success();
 
-    let recorded = fs::read_to_string(&record).expect("the verification child recorded its group");
-    let mut fields = recorded.split_whitespace();
-    let pid: i32 = fields.next().unwrap().parse().unwrap();
-    let group: i32 = fields.next().unwrap().parse().unwrap();
-
-    assert_eq!(
-        group, pid,
-        "the verification child must lead its own process group so an interrupted parent can end \
-         the whole group; recorded {recorded:?}"
+    assert!(
+        !record.exists(),
+        "configured verification_commands must not be spawned"
     );
 }

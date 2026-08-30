@@ -64,7 +64,7 @@ Once accepted, requirement IDs remain reserved; removing one creates a permanent
 requirement evidence missing for REQ-auth-004
 ```
 
-Bind evidence by naming the exact requirement ID in the change's `testing.md` artifact or in a detected test file. The repository's configured `verification_commands` must also pass (see [Workflow](workflow.md)).
+Bind evidence by naming the exact requirement ID in the change's `testing.md` artifact or in a detected test file. `change check` then compares specs to code; it does not run the project's tests (see [Workflow](workflow.md)).
 
 ---
 

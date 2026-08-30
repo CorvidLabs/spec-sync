@@ -2859,15 +2859,8 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
         return Err(errors);
     }
     ensure_tasks_complete(root, &record)?;
-    let policy = load_policy_checked(root)?.unwrap_or_default();
-    let verification_commands = verification_commands_for_change(root, &policy, &record, strict)?;
-    for configured in &verification_commands {
-        reject_direct_lifecycle_verification(root, configured)?;
-    }
-    // Evidence completeness is derived from committed artifacts alone, so it is
-    // resolved before the verification commands run. Discovering a missing
-    // requirement-evidence row only after a full suite costs an entire
-    // re-verification cycle for a defect the workspace already described.
+    // Evidence completeness is markdown in the change workspace. Fail it before
+    // the spec↔code pass so a missing testing.md row is not a 18-minute suite.
     let requirement_ids = collect_requirement_ids(root, &record)?;
     let has_semantic_acceptance_item = semantic_acceptance_item_exists(root, &record)?;
     let missing_evidence = requirement_evidence_missing(root, &record, &requirement_ids);
@@ -2879,20 +2872,9 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
             evidence_gap_detail(&record, acceptance_evidence_present, &missing_evidence)
         ));
     }
-    let mut commands = Vec::new();
-    for configured in verification_commands {
-        let status = run_configured_command(root, &configured)?;
-        commands.push(CommandEvidence {
-            command: configured,
-            success: status.success(),
-            exit_code: status.code(),
-        });
-        if !status.success() {
-            break;
-        }
-    }
-    let commands_passed = commands.iter().all(|command| command.success);
-    let passed = commands_passed;
+    let (sync, findings) = evaluate_spec_code_sync(root, strict)?;
+    let commands = vec![sync];
+    let passed = commands.iter().all(|command| command.success);
     let verification = VerificationRecord {
         timestamp: now(),
         commit: git_output(root, &["rev-parse", "HEAD"]),
@@ -2913,22 +2895,13 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
     record.updated_at = now();
     save_change(root, &record)?;
     if !verification.passed {
-        let failed = verification
-            .commands
-            .iter()
-            .find(|command| !command.success)
-            .map(|command| {
-                format!(
-                    "`{}` exited with {}",
-                    command.command,
-                    command
-                        .exit_code
-                        .map_or_else(|| "a signal".to_string(), |code| code.to_string())
-                )
-            })
-            .unwrap_or_else(|| "a configured verification command failed".to_string());
+        let summary = if findings.is_empty() {
+            "specs are out of sync with code".to_string()
+        } else {
+            findings.into_iter().take(5).collect::<Vec<_>>().join("; ")
+        };
         return Err(format!(
-            "verification failed: {failed}; see commands[] in {}",
+            "verification failed: {summary}; see commands[] in {}",
             portable_project_path(
                 root,
                 &change_dir(root, &record.id).join("verification.json")
@@ -2967,6 +2940,57 @@ fn evidence_gap_detail(
     )
 }
 
+/// Compare specs to source. Does not spawn a process, does not build, does not
+/// run the project's tests. `sdd.json` `verification_commands` are not executed.
+fn evaluate_spec_code_sync(
+    root: &Path,
+    strict: bool,
+) -> Result<(CommandEvidence, Vec<String>), String> {
+    let config = crate::config::load_config(root);
+    let spec_files = crate::validator::find_spec_files(&root.join(&config.specs_dir));
+    let schema_tables = crate::validator::get_schema_table_names(root, &config);
+    let schema_columns = config
+        .schema_dir
+        .as_deref()
+        .map(|directory| crate::schema::build_schema(&root.join(directory)))
+        .unwrap_or_default();
+    let ignore_rules = crate::ignore::IgnoreRules::load(root);
+    let mut findings = Vec::new();
+    let mut errors = 0usize;
+    let mut warnings = 0usize;
+    for spec in &spec_files {
+        let result =
+            crate::validator::validate_spec(spec, root, &schema_tables, &schema_columns, &config);
+        let inline_ignores = fs::read_to_string(spec)
+            .map(|content| crate::ignore::IgnoreRules::parse_inline(&content))
+            .unwrap_or_default();
+        errors += result.errors.len();
+        findings.extend(result.errors);
+        for warning in result.warnings {
+            if ignore_rules.is_suppressed(&warning, &result.spec_path, &inline_ignores) {
+                continue;
+            }
+            warnings += 1;
+            findings.push(format!("warning: {warning}"));
+        }
+    }
+    let failed = errors > 0 || (strict && warnings > 0);
+    let command = if strict {
+        "specsync check --strict"
+    } else {
+        "specsync check"
+    };
+    Ok((
+        CommandEvidence {
+            command: command.into(),
+            success: !failed,
+            exit_code: Some(i32::from(failed)),
+        },
+        findings,
+    ))
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
 fn verification_commands_for_change(
     root: &Path,
     policy: &SddPolicy,
@@ -6923,13 +6947,11 @@ fn summarize_change_with_effective(
     let routing = load_verification_routing(root).unwrap_or_default();
     let strict_validation_required =
         explicit_strict || change_requires_strict_validation(record, &routing);
-    let verification_commands = load_policy_checked(root)
-        .ok()
-        .flatten()
-        .and_then(|policy| {
-            verification_commands_for_change(root, &policy, record, explicit_strict).ok()
-        })
-        .unwrap_or_default();
+    let verification_commands = vec![if strict_validation_required {
+        "specsync check --strict".into()
+    } else {
+        "specsync check".into()
+    }];
     let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
         .then(|| terminal_evidence_summary(root, record));
     // Sequence-ledger freezes must outrank state-local next actions (including reopen /
@@ -7428,39 +7450,6 @@ fn check_project_with_command_output(
             }
         }
     }
-    if is_ci_project(root)
-        && records.iter().any(|record| {
-            matches!(
-                record.state,
-                ChangeState::Implementing | ChangeState::Verifying | ChangeState::Accepted
-            )
-        })
-    {
-        let mut configured_commands = Vec::new();
-        for record in records.iter().filter(|record| {
-            matches!(
-                record.state,
-                ChangeState::Implementing | ChangeState::Verifying | ChangeState::Accepted
-            )
-        }) {
-            match verification_commands_for_change(root, &policy, record, false) {
-                Ok(commands) => configured_commands.extend(commands),
-                Err(error) => report.errors.push(format!("{}: {error}", record.id)),
-            }
-        }
-        let mut seen = BTreeSet::new();
-        configured_commands.retain(|command| seen.insert(command.clone()));
-        for configured in &configured_commands {
-            match run_configured_command(root, configured) {
-                Ok(status) if status.success() => {}
-                Ok(status) => report.errors.push(format!(
-                    "CI verification command `{configured}` failed with exit code {:?}",
-                    status.code()
-                )),
-                Err(error) => report.errors.push(error),
-            }
-        }
-    }
     if policy.require_change_for_meaningful_files {
         match uncovered_meaningful_paths(root, &policy, &records) {
             Ok(paths) => {
@@ -7757,9 +7746,8 @@ fn project_path_matches_digest(root: &Path, path: &str, digest: &str) -> bool {
 ///
 /// The policy is pinned by its *enforcement surface*, not its bytes:
 /// `verification_commands` is cleared before hashing. `init` writes an empty
-/// list whenever it cannot detect a test command and tells the author to fill
-/// it in — pinning that field would revoke the bootstrap for doing exactly what
-/// the tool just asked for. Everything that decides whether the gate bites —
+/// list — pinning that field would revoke the bootstrap for filling it in later.
+/// Everything that decides whether the gate bites —
 /// `enabled`, `require_change_for_meaningful_files`, `meaningful_paths`,
 /// `ignored_paths`, custom artifacts, principles — stays pinned, and a policy
 /// that does not parse falls back to a byte digest.
@@ -17531,6 +17519,7 @@ impl Drop for VerificationChildGroup {
 /// waited on. A `SIGKILL`ed parent still orphans its child — no process runs
 /// code after `SIGKILL` — which is exactly why the wait notice is not optional.
 #[cfg(unix)]
+#[allow(dead_code)]
 fn run_verification_child(command: &mut Command) -> std::io::Result<std::process::ExitStatus> {
     use std::os::unix::process::CommandExt;
 
@@ -17550,10 +17539,12 @@ fn run_verification_child(command: &mut Command) -> std::io::Result<std::process
 }
 
 #[cfg(not(unix))]
+#[allow(dead_code)]
 fn run_verification_child(command: &mut Command) -> std::io::Result<std::process::ExitStatus> {
     command.status()
 }
 
+#[allow(dead_code)]
 fn run_configured_command(
     root: &Path,
     configured: &str,
@@ -17577,6 +17568,7 @@ fn run_configured_command(
     })
 }
 
+#[allow(dead_code)]
 fn reject_direct_lifecycle_verification(root: &Path, configured: &str) -> Result<(), String> {
     let parts = shell_words(configured)?;
     let Some((program, args)) = parts.split_first() else {
@@ -17597,6 +17589,7 @@ fn reject_direct_lifecycle_verification(root: &Path, configured: &str) -> Result
     Ok(())
 }
 
+#[allow(dead_code)]
 fn cargo_run_targets_specsync(root: &Path, args: &[String]) -> Result<bool, String> {
     let mut manifest_path = None;
     let mut index = 0;

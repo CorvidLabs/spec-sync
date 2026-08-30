@@ -36,7 +36,7 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync change reopen <id>` | Re-verify stale accepted evidence (audited, append-only) |
 | `specsync change correct-owner <id>` | Append audited exact owner corrections (single `--path/--spec`, or batch: repeated flags, `--manifest`, `--all-missing`) |
 | `specsync change finalize <id>` | Validate current review/evidence and move the package into the dated archive in the same PR; GitHub performs the merge |
-| `specsync change check [id]` | Scoped verification for one change (materialize + targeted tests); not archive history |
+| `specsync change check [id]` | Scoped verification for one change (materialize + spec↔code sync); not archive history |
 | `specsync change check [id] --commit` | Verify and commit the materialize → verify sequence CI accepts |
 | `specsync change audit` | Project health over active workspaces and living specs (archives are history) |
 | `specsync migrate 5.0` | Backfill 5.0.1-era reopening digest fields idempotently (the remediation `check` prints for missing-field ledgers) |

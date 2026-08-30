@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 32
+version: 33
 status: active
 files:
   - src/commands/change.rs
@@ -45,7 +45,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 
 1. JSON output contains no terminal coloring.
 2. Domain errors always produce exit code 1.
-3. `change check` runs scoped verification for one change only and fails when that verification fails; it does not rewalk archived terminal evidence.
+3. `change check` runs scoped verification for one change only: evidence completeness then in-process spec↔code sync. It does not spawn project tests or rewalk archived terminal evidence.
 4. `change audit` reports active-workspace and living-spec integrity only and exits non-zero on report errors.
 5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge.
 6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact. The rule covers the scoped review as well as the verification: readiness asks whether the recorded review is current, reports that answer as `current`, `stale`, or `unavailable`, and treats only `current` as satisfied. An unavailable guarantee reported as a satisfied one is worse than the refusal it conceals, and readiness that never asks receives no negative answer and reads its own silence as a pass.
@@ -105,6 +105,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-08-30 | `change check` is spec↔code sync; it does not spawn `verification_commands`. |
 | 2026-08-30 | `ship` / archived `next_action` no longer gate merge on writing lessons. |
 | 2026-08-01 | Draft next-action prefers complete artifacts over approve. |
 | 2026-07-10 | Initial 5.0 change command |

@@ -9442,7 +9442,9 @@ fn owner_correction_rejects_invalid_requests_without_mutation() {
 fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecessor() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut predecessor = completed_section_only_record(
         root,
         "## MODIFIED\n### SPEC SECTION Invariants\n\nOriginal governed behavior.\n",
@@ -9531,17 +9533,22 @@ fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecesso
         error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
     }));
 
-    let mut policy = load_policy(root).unwrap();
-    policy.verification_commands =
-        vec!["cargo metadata --manifest-path definitely-missing/Cargo.toml".into()];
-    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
     assert!(verify_change(root, &successor.id).is_err());
     assert!(check_project(root).errors.iter().any(|error| {
         error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
     }));
 
-    policy.verification_commands = vec!["true".into()];
-    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::remove_file(root.join("specs/other/other.spec.md")).unwrap();
     verify_change(root, &successor.id).unwrap();
     assert!(check_project(root).errors.iter().any(|error| {
         error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
@@ -11456,13 +11463,18 @@ fn missing_semantic_acceptance_evidence_is_not_reported_as_command_failure() {
     );
 }
 
+const PHANTOM_AUTH_SPEC: &str = "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `does_not_exist` | Phantom. |\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n";
+
 #[test]
-fn direct_recursive_verification_command_is_rejected_before_execution() {
+fn change_check_does_not_execute_configured_project_commands() {
+    // Honest label: DISCRIMINATOR. On the unfixed binary this command runs
+    // `verification_commands` (`true`, `cargo test`, …). A sentinel file must
+    // not appear.
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let mut policy = SddPolicy::default();
     policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["specsync check --strict".into()];
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_section_only_record(
         root,
@@ -11471,23 +11483,43 @@ fn direct_recursive_verification_command_is_rejected_before_execution() {
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
 
-    let error = verify_change(root, &record.id).unwrap_err();
+    let verification = verify_change(root, &record.id).unwrap();
+    assert!(
+        verification.passed,
+        "matching specs and code must pass without running project commands"
+    );
+    assert_eq!(verification.commands[0].command, "specsync check");
+    assert!(
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned"
+    );
+}
 
-    assert!(error.contains("recursive lifecycle verification command"));
-    assert!(error.contains("specsync check --strict"));
-    assert_eq!(
-        load_change(root, &record.id).unwrap().state,
-        ChangeState::Implementing
+#[test]
+fn change_check_fails_when_specs_and_code_drift() {
+    // Honest label: CONTROL. A verifier that always passes (or ignores specs)
+    // would go green here. Phantom export is an error, not a warning.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["true".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    let mut record = completed_section_only_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
     );
+    fs::write(root.join("specs/auth/auth.spec.md"), PHANTOM_AUTH_SPEC).unwrap();
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let error = verify_change(root, &record.id).unwrap_err();
     assert!(
-        !change_dir(root, &record.id)
-            .join("verification.json")
-            .exists()
-    );
-    assert!(
-        !change_dir(root, &record.id)
-            .join("verification-attempts.json")
-            .exists()
+        error.contains("does_not_exist")
+            || error.contains("out of sync")
+            || error.contains("phantom")
+            || error.contains("missing"),
+        "spec↔code drift must fail change check, got {error}"
     );
 }
 
@@ -11607,22 +11639,15 @@ fn cargo_manifest_path_detects_recursive_specsync_before_state_mutation() {
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
 
-    let error = verify_change(root, &record.id).unwrap_err();
-
-    assert!(error.contains("recursive lifecycle verification command"));
+    let verification = verify_change(root, &record.id).unwrap();
+    assert!(
+        verification.passed,
+        "configured recursive cargo-run is not spawned, so spec↔code sync still runs"
+    );
+    assert_eq!(verification.commands[0].command, "specsync check");
     assert_eq!(
         load_change(root, &record.id).unwrap().state,
-        ChangeState::Implementing
-    );
-    assert!(
-        !change_dir(root, &record.id)
-            .join("verification.json")
-            .exists()
-    );
-    assert!(
-        !change_dir(root, &record.id)
-            .join("verification-attempts.json")
-            .exists()
+        ChangeState::Verifying
     );
 }
 
@@ -11740,13 +11765,12 @@ fn disabled_policy_skips_sequence_validation() {
 }
 
 #[test]
-fn failed_native_verification_is_retryable_with_append_only_history() {
+fn failed_spec_sync_is_retryable_with_append_only_history() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let mut policy = SddPolicy::default();
     policy.require_change_for_meaningful_files = false;
-    policy.verification_commands =
-        vec!["cargo metadata --manifest-path definitely-missing/Cargo.toml".into()];
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_section_only_record(
         root,
@@ -11754,19 +11778,35 @@ fn failed_native_verification_is_retryable_with_append_only_history() {
     );
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
+    // Drift a spec this change does not own so effective-contract validation of
+    // `auth` still passes and the failure is the in-process spec↔code pass.
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
 
     let first_error = verify_change(root, &record.id).unwrap_err();
-    // The failure names the exact command and where its evidence lives, so an
-    // author does not have to open verification.json to learn which step failed.
-    assert!(first_error.contains("cargo metadata --manifest-path definitely-missing/Cargo.toml"));
-    assert!(first_error.contains("verification.json"));
+    assert!(
+        first_error.contains("does_not_exist") || first_error.contains("no matching export"),
+        "{first_error}"
+    );
+    assert!(first_error.contains("verification.json"), "{first_error}");
     assert_eq!(
         load_change(root, &record.id).unwrap().state,
         ChangeState::Verifying
     );
+    assert!(
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned on a failed spec↔code pass"
+    );
 
-    policy.verification_commands = vec!["true".into()];
-    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::remove_file(root.join("specs/other/other.spec.md")).unwrap();
     let successful = verify_change(root, &record.id).unwrap();
     assert!(successful.passed);
     let history: VerificationAttemptLedger = serde_json::from_slice(

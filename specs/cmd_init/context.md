@@ -16,7 +16,7 @@ spec: cmd_init.spec.md
 
 ## Current Status
 
-Implemented for 5.0. Fresh projects enable SDD, detect configured verification commands, and receive a guided terminal bootstrap; non-interactive behavior remains deterministic and covered by integration tests.
+Implemented for 6.0. Fresh projects write SDD off, do not detect or run project test commands, and do not start a first-change interview. `specsync check` is the product. Enable the change workflow with `specsync change adopt`.
 
 ## Notes
 

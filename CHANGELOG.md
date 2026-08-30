@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enforcement. After `finalize` / `ship`, `next_action` no longer gates merge on
   folding lessons into `context.md`; the archive still writes `lesson-bundle.md`.
 
+- **`change check` compares specs to code. It does not run the project's tests.**
+  Verification used to spawn `sdd.json` `verification_commands` (`cargo test` on this
+  repo). That is CI's job. `change check` now runs the same in-process spec↔code
+  pass as `specsync check`. Configured test/build commands are not executed.
+  `change audit` no longer re-runs those commands in CI either.
+
 ### Removed
 
 - **Windows is no longer a supported target; no Windows binary is published.** SpecSync 6.0 ships

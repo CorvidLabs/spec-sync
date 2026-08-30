@@ -281,13 +281,15 @@ Acceptance Criteria
 
 ### REQ-change-023
 
-Verification SHALL reject recursive lifecycle checks and preserve retryable attempt history without weakening unrelated gates.
+Verification SHALL compare specs to code in-process, SHALL NOT spawn project test or build
+commands, and SHALL preserve retryable attempt history without weakening unrelated gates.
 
 Acceptance Criteria
 
-- Direct and indirect re-entry fails once before repeated child execution.
-- Native-only verification executes once.
-- Failed attempts remain inspectable and a corrected retry can record passed latest evidence.
+- `change check` records `specsync check` (or `specsync check --strict`) evidence and does not
+  execute `.specsync/sdd.json` `verification_commands`.
+- Direct re-entry into SpecSync through `SPECSYNC_VERIFICATION_CONTEXT` still fails once.
+- Failed spec↔code attempts remain inspectable and a corrected retry can record passed latest evidence.
 - Other failed or stale changes continue failing closed.
 
 ### REQ-change-024
@@ -368,11 +370,11 @@ Acceptance Criteria
 - Registry-resolved modules cover only their exact canonical spec and the standard `requirements.md`, `tasks.md`, `context.md`, `testing.md`, and `design.md` companions; unrelated siblings and the containing directory are not implicitly covered.
 - Both registry files remain protected lifecycle inputs because they control canonical writes.
 - An explicitly disabled SDD policy returns without sequence-ledger validation.
-- Native `cargo run -- check` commands remain allowed unless Cargo is actually selecting SpecSync by manifest identity, `default-run`, binary, or package.
+- Native `cargo run -- check` commands remain classified as non-SpecSync unless Cargo is actually selecting SpecSync by manifest identity, `default-run`, binary, or package.
 - Both `--manifest-path <path>` and `--manifest-path=<path>` participate in Cargo identity detection, and unsafe explicit manifest paths fail closed.
-- Recursive lifecycle verification is rejected before verification-attempt history or lifecycle state mutates.
-- Direct SpecSync lifecycle commands remain rejected.
-- Cargo argument parsing tolerates ordinary whitespace, quoted values, and trailing comments without shell execution.
+- `change check` does not execute configured commands, so a policy listing `cargo run --bin specsync -- check` cannot recurse through verification.
+- Direct SpecSync lifecycle commands remain rejected when invoked under `SPECSYNC_VERIFICATION_CONTEXT`.
+- Cargo argument parsing still tokenizes ordinary whitespace, quoted values, and trailing comments without shell execution.
 
 ### REQ-change-031
 
@@ -715,18 +717,20 @@ Acceptance Criteria
 
 ### REQ-change-049
 
-Lifecycle verification SHALL resolve evidence completeness before running any
-verification command, SHALL name the artifact and section an author must edit to close an
-evidence gap, and SHALL name the failing command when a command fails. Delta application
+Lifecycle verification SHALL resolve evidence completeness before comparing specs
+to code, SHALL name the artifact and section an author must edit to close an
+evidence gap, and SHALL NOT spawn the project's test or build commands. Spec↔code
+sync is the verifier. Delta application
 SHALL converge when an `## ADDED` block is already present with byte-identical content, and
 SHALL reject a duplicate `CHG-NNNN` ordinal claimed by two distinct changes from the same
 base commit.
 
 Acceptance Criteria
 
-- Incomplete acceptance or requirement evidence fails before any verification command runs.
+- Incomplete acceptance or requirement evidence fails before spec↔code sync runs.
 - The evidence-gap message names the change `testing.md` and its `## Requirement evidence`
-  table; the command-failure message names the failing command and its exit code.
+  table. Drift failure names the spec finding, not a test-suite exit code.
+- Configured `verification_commands` in `.specsync/sdd.json` are not executed.
 - An `## ADDED` block already present with byte-identical content applies as a no-op, so
   re-deriving the canonical tree converges.
 - An `## ADDED` block present with different content fails and directs the author to
@@ -742,9 +746,8 @@ in this working tree rather than as corruption.
 
 Acceptance Criteria
 
-- `init` detects a verification command for Cargo, bun, Swift, fledge, Go, Python and npm
-  projects, and when none is detected warns at init time naming `.specsync/sdd.json` and an
-  example command.
+- Fresh `init` writes SDD off with an empty `verification_commands` list; `specsync check` is
+  the next step and does not need a project test command.
 - A change directory with no `state.json` is skipped by active-change discovery, so
   `change new` succeeds on a branch that does not contain an earlier change.
 - Every other read error, including an unreadable or malformed `state.json`, still fails closed.
@@ -852,18 +855,16 @@ Acceptance Criteria
 
 ### REQ-change-058
 
-The lifecycle check SHALL expose exactly one configured-command output behavior, and the
+The lifecycle check SHALL NOT spawn configured verification commands, and the
 quiet-output variant used solely to keep lifecycle findings out of a machine-consumed
 report stream SHALL NOT exist.
 
 Acceptance Criteria
 
-- No lifecycle entry point suppresses configured verification command output; every
-  invocation inherits the parent streams.
+- `change check` and `change audit` do not execute `.specsync/sdd.json` `verification_commands`.
 - The quiet-output check path and its selector type are absent rather than retained
-  unused, so no caller can reintroduce the suppressed-output behavior.
-- Verification command execution, failure reporting, and recursion refusal are otherwise
-  unchanged.
+  unused, so no caller can reintroduce suppressed-output command execution.
+- Failed spec↔code evidence remains inspectable in `verification.json`.
 
 
 ### REQ-change-060
@@ -1196,29 +1197,15 @@ Acceptance Criteria
 
 ### REQ-change-091
 
-Verification SHALL report a Cargo build-directory lock that is provably held before running the
-command that will wait on it, and SHALL run every verification command as a child that leads its
-own process group on Unix.
+Lifecycle verification SHALL NOT spawn project test or build commands, so it SHALL NOT wait on a
+Cargo build-directory lock and SHALL NOT create a verification child process.
 
 Acceptance Criteria
-- The wait notice is emitted only when a non-blocking exclusive acquisition of the resolved
-  `.cargo-lock` reports contention, so nothing about it is derived from elapsed time and it cannot
-  fire on a slow but healthy compile.
-- The notice names the lock path and states that the command is blocked rather than compiling, and
-  names a holding PID only on a platform that reports lock ownership. On Unix, where it cannot name
-  the holder, it names a command that narrows the holder and says what that command actually
-  answers. The notice is ADDITIVE to Cargo's own `Blocking waiting for file lock on artifact
-  directory` line, which reports the wait without naming the file, the holder, or a remedy.
-- A Cargo command whose build directory cannot be derived exactly from its arguments and the
-  process environment produces no notice at all, because naming a lock the command will never wait
-  on restores the ambiguity the notice exists to remove. Underivable includes a Cargo configuration
-  file in scope whose `[build]` table sets `target-dir`, `target`, or `build-dir`, or whose `[env]`
-  table sets a variable this derivation reads, or that cannot be parsed.
-- A command that takes no Cargo build-directory lock is never probed and never reported against.
-- A verification child leads its own process group, and that group is ended when the parent unwinds
-  or receives one of the interrupt and termination signals verification forwards, so an interrupted
-  check cannot outlive itself holding the lock. A `SIGKILL`ed parent still orphans its child, which
-  is why the notice is not optional.
+- `change check` records in-process spec↔code evidence named `specsync check` or
+  `specsync check --strict`.
+- A configured `verification_commands` sentinel is not executed.
+- A held Cargo `.cargo-lock` is not named on stderr during `change check`.
+- A configured reporter script is not started.
 
 ### REQ-change-092
 

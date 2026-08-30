@@ -4,7 +4,7 @@ spec: change.spec.md
 
 # Context
 
-Canonical module maturity remains under `specsync lifecycle`; SDD delivery uses six separate states. `.specsync/sdd.json` is a dedicated versioned policy so existing projects remain opt-in. Human artifacts and deltas are Markdown, while state, approvals, and evidence are JSON. Verification commands come only from policy and run without a shell.
+Canonical module maturity remains under `specsync lifecycle`; SDD delivery uses six separate states. `.specsync/sdd.json` is a dedicated versioned policy so existing projects remain opt-in. Human artifacts and deltas are Markdown, while state, approvals, and evidence are JSON. `change check` compares specs to code in-process and does not run the project's tests.
 
 The committed `.specsync/change-sequence.json` ledger records the last numeric allocation ever made. Nothing ALLOCATES into it any more — identity is minted from the description as a slug — and it is retained so the marks it already carries cannot be lost: the gates read it and refuse a ledger that has fallen below what disk or the branch's own history already recorded. It is not read-only, and that is the part worth carrying: `floor_sequence_ledger_to_committed` still WRITES the file, from inside `git_commit_all`, raising a working-tree ledger that has fallen behind back to the committed high-water mark before staging. Every lifecycle commit runs it, so treating the ledger as immutable is how a change that edits it goes uncovered. The OS lock still serializes a checkout. Lifecycle checking scans active and archived records together; the repository's immutable historical sequence collisions are acknowledged only as exact sets of full IDs.
 
@@ -12,13 +12,13 @@ Historical acceptance reconstruction treats the committed sequence ledger as evi
 
 The public lifecycle remains one module for 5.0 to avoid a late high-risk refactor. Its intended internal seams are state/transitions, approvals/evidence, semantic deltas, Git/path coverage, effective-contract validation, and adoption/import. Extract those seams after 5.0 without changing the public API. Release evidence is recorded in accepted/archived change workspaces and the PR matrix rather than frozen as a permanent claim here.
 
-`check_project` and `audit_project` share one private implementation, `check_project_with_command_output`, and differ only in whether archived terminal evidence is revalidated; the product defaults (`change check`, `change audit`, `specsync check`) take `audit_project`, because archives are history and living truth is active workspaces plus specs and policy. The earlier `check_project_quiet` — which ran the same validation but discarded configured child-command output so `specsync comment` could emit one bounded markdown protocol — no longer exists: #543 severed `comment` from the trust layer, so it reports spec-check results only and performs no lifecycle checking at all.
+`check_project` and `audit_project` share one private implementation and differ only in whether archived terminal evidence is revalidated. `change check` is spec↔code sync for one change; `change audit` is active-workspace health; `specsync check` is the product drift gate and does not walk SDD. The earlier `check_project_quiet` no longer exists: #543 severed `comment` from the trust layer.
 
 Accepted review fixes use `change reopen`, which transitions only stale governed delivery evidence to `verifying`. The approval ledger appends a versioned reopen event containing the untouched prior verification and superseded closing approval. `canonical_applied` distinguishes re-verification from initial delivery so fresh acceptance cannot apply the semantic delta twice; it is lifecycle-only state and is excluded from definition approval digests.
 
 For schema-v1 compatibility, false `canonical_applied` values are omitted from new persisted JSON. Definition-evidence validation recognizes both the original omitted encoding and the transitional explicit-false encoding, preserving approvals and verification created on either side of the field's introduction; true values remain durable for reopened and accepted workspaces. When explicit acceptance encounters a compatible transitional definition approval, it appends a stable approval with the same resolved human actor before the closing approval. The original evidence remains in the append-only ledger while older contract checkers see the stable digest as current.
 
-Verification rejects both direct lifecycle commands and indirect child re-entry through a process context marker. Each run appends an immutable attempt to `verification-attempts.json`, while `verification.json` remains the latest projection so a corrected retry can succeed without erasing prior failure evidence. A later canonical change governs stale predecessor evidence only when its definition, state, semantic type, complete spec/path scope, and—once verifying—passed input-bound evidence are all current.
+`change check` records in-process spec↔code evidence; configured `verification_commands` are not spawned. Direct re-entry into SpecSync through a process context marker still fails once. Each run appends an immutable attempt to `verification-attempts.json`, while `verification.json` remains the latest projection so a corrected retry can succeed without erasing prior failure evidence. A later canonical change governs stale predecessor evidence only when its definition, state, semantic type, complete spec/path scope, and—once verifying—passed input-bound evidence are all current.
 
 Semantic delta application resolves registered module paths through the committed registry before using the conventional `specs/<module>/` fallback, and rejects any unsafe registered path before preparing writes.
 
@@ -335,27 +335,13 @@ for trailing the default branch and that the gate consult no remote. A successor
 its predecessor does not retire it — someone has to. Check for that whenever a requirement is
 added to fix a regression in another.
 
-## Verification children and the Cargo build lock (#721)
+## Verification is spec↔code, not the project's tests
 
-`run_configured_command` now does two things beyond spawning. Before a Cargo command it derives the
-`.cargo-lock` that command will contend on and, if a non-blocking exclusive acquisition reports
-contention, prints one line naming that lock. And on Unix the child leads its own process group,
-registered in a fixed slot table that a handler for `SIGINT`/`SIGTERM`/`SIGHUP`/`SIGQUIT` walks
-before restoring the default disposition and re-raising.
-
-The two halves answer different failures and neither replaces the other. Reaping stops an
-interrupted check from orphaning its own `cargo`; it cannot stop a genuinely concurrent Cargo
-invocation from holding the lock, and it cannot run at all after `SIGKILL`. The notice is what
-survives both.
-
-State the gap accurately, because this section got it wrong twice. Cargo is NOT silent when it
-blocks: measured on cargo 1.89 against a held lock, it prints `Blocking waiting for file lock on
-artifact directory`. #721 says "there is no output distinguishing compiling from blocked", and that
-is false as written; it was repeated here and in the change package before anyone checked. The
-first correction then substituted a second unchecked claim — that the line "is discarded entirely
-by `check_project_quiet`" — taken from the paragraph fifteen lines above this one, which #543 had
-made false and #738 corrected the same night. Twice in one change, prose was read where code should
-have been.
+`change check` used to spawn `sdd.json` `verification_commands` (`cargo test` on this repo). That
+is CI's job. The verifier is the same in-process spec↔code pass as `specsync check`. Configured
+test/build commands are not executed, so there is no verification child to reap and no Cargo
+build-directory lock for this path to wait on. The wait-notice helpers remain as unused derivation
+code covered by unit tests; they are not on the `verify_change` path.
 
 What is true, and all that is claimed: Cargo's line reaches the operator on inherited stderr, and
 it names neither the file, nor the holder, nor a remedy. This notice is ADDITIVE to it — the path,

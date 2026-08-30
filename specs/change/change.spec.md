@@ -1,6 +1,6 @@
 ---
 module: change
-version: 113
+version: 114
 status: active
 files:
   - src/change.rs
@@ -23,7 +23,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 2. The scope approval is bound to a deterministic SHA-256 projection of stable intent, contract, and affected scope; volatile implementation, test/evidence, semantic-delta materialization, canonical materialization, and lifecycle metadata bind a separate execution digest. The one CHG-0068 legacy adoption declares its missing source preimage and lack of equivalence proof, and a compile-time allowlist freezes its exact commit/blob anchor, source approval, adopted scope, authorization, and classifications.
 3. Approved semantic deltas form the effective future contract, and `change check` materializes them into canonical specs before scoped review and finalization; a delta body that changed after its approval is refused rather than applied, and no later definition approval may withdraw a delta binding an earlier one recorded.
 4. Requirements use stable `REQ-<module>-<number>` IDs, normative SHALL statements, and acceptance criteria.
-5. Verification executes only project-configured commands without a shell, rejects direct or indirect entry into every lifecycle command surface, runs each command as a child leading its own process group on Unix so an interrupted parent can end the whole group, and names a provably held Cargo build-directory lock before the command that will wait on it starts.
+5. `change check` compares specs to source in-process, records that pass as `specsync check` evidence, and does not spawn `sdd.json` `verification_commands`, `cargo test`, or any other project test or build command.
 6. Verification and scoped-review evidence bind the implementation commit and governed inputs; a scoped review records an explicit pass/block verdict, must be independent from the scope approver, and stays fresh only when every descendant/parent edge changes supported lifecycle persistence.
 7. Invalid policy, unavailable coverage comparison, failed evidence, stale ordering gates, and protected sequence-ledger edits without lifecycle coverage fail closed.
 8. Concurrent deltas follow declared dependency order and canonical Markdown application preserves unrelated sections.
@@ -88,7 +88,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `CorrectionResult` | Deterministic corrected change, event, effective definition, history, and gate-summary projection |
 | `DefinitionMutationResult` | Crate-private successful definition mutation plus the effective definition, correction history, and normal/strict summaries validated inside its persistence transaction |
 | `ApprovalLedger` | Ordered portable approval, allowlisted scope-adoption, and reopen history |
-| `CommandEvidence` | Exit evidence for one configured verification command |
+| `CommandEvidence` | Evidence for one verification step (in-process spec↔code sync) |
 | `AcceptanceInputKind` | Canonical file, symlink, gitlink, missing, or non-file topology kind |
 | `AcceptanceInputEntryV1` | Bounded path, kind, mode, payload digest, full-entry digest, and sorted owners for one accepted input |
 | `AcceptanceManifestV1` | Versioned sorted per-input acceptance manifest |
@@ -137,8 +137,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `audit_project` | `root: &Path` | `SddCheckReport` | Active workspaces + living policy/spec coherence only — does not rewalk archived terminal evidence |
 | `backfill_reopen_digests` | `root: &Path, dry_run: bool` | `Result<ReopenBackfillReport, String>` | Backfill 5.1 reopening digest fields on 5.0.1-era ledgers with verified, idempotent, dry-run-aware writes |
 | `begin_change_read_scope` | `root: &Path` | `ChangeReadScope` | Install one invocation-scoped read snapshot for list/show/status and project reports |
-| `check_change` | `root, optional id` | `Result<Option<VerificationRecord>, String>` | Select one approved/implementing change, materialize its canonical deltas, and verify it |
-| `check_change_with_strict` | `root, optional id, strict` | `Result<Option<VerificationRecord>, String>` | Run `check_change` with additive strict validators |
+| `check_change` | `root, optional id` | `Result<Option<VerificationRecord>, String>` | Select one approved/implementing change, materialize its canonical deltas, and compare specs to code |
+| `check_change_with_strict` | `root, optional id, strict` | `Result<Option<VerificationRecord>, String>` | Run `check_change` with warnings failing as they do under `specsync check --strict` |
 | `check_project` | `root: &Path` | `SddCheckReport` | Full lifecycle integrity including archive terminal evidence (tests and rare callers; not the default CLI path) |
 | `correct_interview_metadata` | `root, id, field, value, actor, reason` | `Result<CorrectionResult, String>` | Append a supported accepted-metadata correction and return the effective audited view |
 | `correction_history` | `root, record` | `Result<Vec<CorrectionRecord>, String>` | Load validated append-only correction records for inspection clients |
@@ -161,9 +161,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `reopen_change` | `root, id, actor, reason` | `Result<ReopenResult, String>` | Move stale accepted evidence to verifying and append an immutable supersession audit event |
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
-| `summarize_change_with_strict` | `root, record, explicit_strict` | `ChangeSummary` | Project the same status plus exact targeted/additive-strict validator commands |
-| `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Run configured tests and record commit/contract evidence |
-| `verify_change_with_strict` | `root, id, strict` | `Result<VerificationRecord, String>` | Run targeted validators plus additive strict policy/classification validators on the same evidence path |
+| `summarize_change_with_strict` | `root, record, explicit_strict` | `ChangeSummary` | Project the same status plus whether the next spec↔code pass is strict |
+| `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Compare specs to code in-process and record commit/contract evidence |
+| `verify_change_with_strict` | `root, id, strict` | `Result<VerificationRecord, String>` | The same spec↔code pass with warnings failing as they do under `specsync check --strict` |
 | `write_default_policy` | `root: &Path, verification_commands: Vec<String>` | `Result<(), String>` | Write new-project/adoption policy without overwriting existing policy |
 
 **Exported Methods**
@@ -196,9 +196,9 @@ Acceptance Criteria
 9. Change dependencies are acyclic and must be accepted or archived before dependent implementation begins.
 10. Meaningful-path coverage compares the branch with the current GitHub/remote default base after a rebase, falling back to the recorded creation commit only when no remote base is available.
 11. Approval digests hash repository-relative artifact paths so identical Git content validates across checkout locations and operating systems.
-12. Verification command detection prefers portable project-manifest commands and uses Fledge only when no native manifest is available.
+12. Verification-command detection remains for adoption-era policy files; `change check` does not execute the list.
 13. Persisted and hashed project paths use forward slashes on every operating system.
-14. Quiet reporting executes every configured command and preserves failures while suppressing only child stdout and stderr; normal checking and verification continue streaming diagnostics.
+14. `change check` does not spawn configured commands, so there is no child stdout to suppress.
 15. Reopening accepted evidence is rejected only when its delivery inputs are current AND its verification commit is still anchored in current history; reopening stale evidence never reapplies an already canonical semantic delta.
 16. Reacceptance of an already-applied change requires the definition digest captured by the latest audited reopen event unless every difference is a validated additive exact-owner correction.
 17. False default lifecycle fields remain absent from new persisted state, while definition validation recognizes both omitted and transitional explicit-false encodings so upgrades preserve existing approvals and verification; explicit acceptance appends stable definition evidence when the latest compatible approval uses the transitional encoding.
@@ -238,7 +238,7 @@ Acceptance Criteria
 
 **Scenario: Verified feature delivery**
 
-- **Given** an approved feature with `REQ-auth-001`, completed artifacts, and configured targeted tests
+- **Given** an approved feature with `REQ-auth-001`, completed artifacts, and matching specs and code
 - **When** implementation verifies, receives its scoped PR review, and runs `change finalize`
 - **Then** canonical requirements/specs update and the package moves to the dated archive in the same PR, ready for GitHub merge
 
@@ -291,7 +291,7 @@ Acceptance Criteria
 | Missing acceptance criteria or affected scope | Definition approval fails |
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |
 | Populated semantic delta with no recognized operation heading | Approval and historical validation name the allowed `## Added`, `## Modified`, and `## Removed` headings instead of reporting the file empty |
-| Verification command contains shell operators | Command is rejected without execution |
+| Spec documents an export that is not in source | `change check` fails with the spec finding; configured test commands are not run |
 | HEAD changes after verification | Acceptance requires re-verification |
 | Any intervening commit changes a disallowed path, even if later reverted | Status and strict checking require re-verification in every environment |
 | Accepted delivery evidence is still current AND its verification commit is still anchored | Reopen is rejected without changing lifecycle or audit state |
@@ -330,7 +330,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
-| 2026-08-30 | Fresh `init` writes SDD off; `require_change_for_meaningful_files` is false on new policies. `check` does not call `audit_project`. |
+| 2026-08-30 | Fresh `init` writes SDD off; `require_change_for_meaningful_files` is false on new policies. `check` does not call `audit_project`. `change check` is in-process spec↔code sync and does not spawn `verification_commands`. |
 | 2026-08-01 | Approve rejects ADDED existing living REQs; draft next_action prefers complete artifacts over approve when stubs remain. |
 | 2026-07-10 | v4: normalize imported, evidence, and digest paths across Windows and Unix |
 | 2026-07-10 | v3: make approval digests and detected verification commands portable across CI checkouts |

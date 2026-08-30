@@ -63,10 +63,10 @@ specsync change finalize CHG-0001-add-passkeys
 # commit the metadata/archive-only result; GitHub performs the merge
 ```
 
-`change check` applies approved semantic deltas and runs the affected component's configured
-verification for **this change only**. It does not re-validate archived terminal evidence —
-archives are history. Use `change audit` for project health over **active** workspaces and living
-specs. Explicit `--strict`, project policy, and deterministic release/security classification add
+`change check` applies approved semantic deltas and compares specs to code in-process for
+**this change only**. It does not run the project's tests and does not re-validate archived
+terminal evidence — archives are history. Use `change audit` for project health over **active**
+workspaces and living specs. CI owns `cargo test` / `swift test` / `bun test`. Explicit `--strict`, project policy, and deterministic release/security classification add
 validators to the same scoped evidence path. Source, test, configuration, or contract edits stale
 verification; implementation edits after scoped review stale the review. `change status` prints the
 exact `change review` command when this independent review is the next required action; `change

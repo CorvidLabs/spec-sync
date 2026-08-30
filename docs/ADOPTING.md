@@ -28,8 +28,9 @@ Pin explicitly. 6.0.0-rc.2 is a pre-release and will NOT be resolved by `latest`
     specsync generate
     specsync check
 
-`init` detects source directories and writes `.specsync/config.toml` and `.specsync/sdd.json`.
-`generate` scaffolds a spec per module from the source it finds.
+`init` detects source directories and writes `.specsync/config.toml` and `.specsync/sdd.json`
+with SDD **off**. `specsync check` is the product. Enable the change workflow later with
+`specsync change adopt` if you want it. `generate` scaffolds a spec per module from the source it finds.
 
 Read the generated `.specsync/config.toml` before going further. `init` guesses exclusions from
 the language it detects, and the guess is often wrong for a repo that mixes languages — a Swift

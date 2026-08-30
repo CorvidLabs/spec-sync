@@ -13,7 +13,7 @@ specsync check --strict
 
 Adoption writes `.specsync/sdd.json`, detects an explicit test command, reports canonical requirement companions that need stable IDs, and preserves existing companions without making empty files mandatory. If `openspec/` or `.specify/` is detected, active/canonical artifacts are imported with provenance while historical archives remain in place. Update GitHub Actions from `CorvidLabs/spec-sync@v4` to `@v5` after adoption.
 
-New projects initialized by 5.0 enable SDD by default and offer agent integration plus a first-change interview.
+New projects initialized by 6.0 write SDD **off**. `specsync check` is the product. Enable the change workflow with `specsync change adopt` if you want it.
 
 ## Migrating to SpecSync v4.0.0
 

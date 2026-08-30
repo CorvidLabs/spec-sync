@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 31
+version: 32
 status: active
 files:
   - src/commands/change.rs
@@ -105,6 +105,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-08-30 | `ship` / archived `next_action` no longer gate merge on writing lessons. |
 | 2026-08-01 | Draft next-action prefers complete artifacts over approve. |
 | 2026-07-10 | Initial 5.0 change command |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

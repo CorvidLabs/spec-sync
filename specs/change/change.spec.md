@@ -1,6 +1,6 @@
 ---
 module: change
-version: 112
+version: 113
 status: active
 files:
   - src/change.rs
@@ -218,7 +218,7 @@ Acceptance Criteria
 31. Immutable workflow-origin validation follows every bounded reachable canonical dated archive path for the exact change ID, preserving identity across archive, reopen, and cross-date rearchive moves.
 32. The workflow-v2 baseline retains its exact introduction bytes at every bounded touching commit and readable parent, rejecting rewrite-then-restore history.
 33. Answer, dependency, and supersession mutations load and validate correction history only after acquiring the lifecycle project lock.
-34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons; the agent that ran `finalize` writes them, guided by `next_action`.
+34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons. Folding them into `context.md` is a convention, not a `next_action` gate.
 35. This module defines no frontmatter reader of its own. Lesson counting, archived lesson bundles, and artifact completeness all read through `parser::strip_frontmatter`, the single canonical implementation, which ends frontmatter at its CLOSING delimiter LINE in either LF or CRLF encoding and never at the next `---` elsewhere in the document. A Markdown horizontal rule therefore never truncates a body to a fragment, a CRLF-authored companion is stripped exactly as an LF one is, a leading BOM never hides the opening delimiter, and a delimiter line padded with trailing whitespace still ends the block at BOTH ends. Four failure modes of the strippers this module used to own are gone with them: a written CRLF artifact is no longer refused as incomplete; an artifact that is only frontmatter is no longer accepted as written when it is closed at end of file, prefixed with a BOM, or opened with a delimiter carrying a trailing space; and prose above the first horizontal rule in a body is no longer deleted when the CLOSING delimiter carries one. One residual is stated rather than guessed at: an artifact opened with `----`, a Markdown thematic break and not a delimiter, still reads as written even when it holds nothing but frontmatter — accepting it as a delimiter would cut real bodies at their first rule, which is the worse failure, and deriving the gate from the generated scaffold instead would not close it either, because a file with a mangled opener no longer equals that scaffold.
 36. A `###` heading inside an open semantic-delta item is section CONTENT and does not end that item. Only `### REQUIREMENT <id>` and `### SPEC SECTION <name>` start a new item, and classification happens before the previous item is flushed — otherwise one section carrying subheadings becomes several items under one key and application keeps only the last, silently discarding documented behaviour the change never touched.
 37. A semantic delta declaring the same operation, target and key more than once is REFUSED. Applying it would keep the last body and discard the earlier ones with no diagnostic.
@@ -330,6 +330,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-08-30 | Fresh `init` writes SDD off; `require_change_for_meaningful_files` is false on new policies. `check` does not call `audit_project`. |
 | 2026-08-01 | Approve rejects ADDED existing living REQs; draft next_action prefers complete artifacts over approve when stubs remain. |
 | 2026-07-10 | v4: normalize imported, evidence, and digest paths across Windows and Unix |
 | 2026-07-10 | v3: make approval digests and detected verification commands portable across CI checkouts |

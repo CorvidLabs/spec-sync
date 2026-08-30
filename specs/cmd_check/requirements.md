@@ -77,19 +77,18 @@ Acceptance Criteria
 
 ### REQ-cmd-check-004
 
-The primary check command SHALL treat SDD lifecycle state as information and SHALL NOT
-derive its exit status from it.
+The primary check command SHALL be the bidirectional spec-to-code drift check
+and SHALL NOT consult SDD policy, active change workspaces, or archive history.
 
 Acceptance Criteria
 
-- The number of active changes is reported without affecting exit status in any supported
-  output format.
-- Workspace files that cannot be parsed, or that record an illegal state, produce an explicit
-  shape warning rather than a gate failure.
+- `specsync check` does not print an active-change count and does not emit
+  SDD workspace or archive findings.
 - Exit status derives solely from spec validation results, the effective enforcement mode,
   `--strict`, and `--require-coverage`.
 - Lifecycle gating remains reachable through the `change` verbs and `specsync change audit`,
-  whose behavior is unchanged.
+  whose behavior is unchanged. A project that never enables SDD can use `check` as the
+  whole product.
 
 ### REQ-cmd-check-005
 

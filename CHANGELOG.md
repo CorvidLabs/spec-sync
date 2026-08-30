@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`specsync check` is the product; SDD is opt-in.** Fresh `init` writes
+  `.specsync/sdd.json` with `enabled: false` and
+  `require_change_for_meaningful_files: false`. It no longer starts a first-change
+  interview. `specsync check` no longer calls `audit_project`, prints an active-change
+  count, or surfaces workspace/archive findings. Reverse coverage stays
+  `--require-coverage`. Enable the change workflow with `specsync change adopt`.
+  `SddPolicy::default()` still fail-closes omitted `enabled` / `require_change` fields
+  on deserialize so an old file missing those keys does not silently disable
+  enforcement. After `finalize` / `ship`, `next_action` no longer gates merge on
+  folding lessons into `context.md`; the archive still writes `lesson-bundle.md`.
+
 ### Removed
 
 - **Windows is no longer a supported target; no Windows binary is published.** SpecSync 6.0 ships

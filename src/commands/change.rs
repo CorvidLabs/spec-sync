@@ -1244,14 +1244,10 @@ fn ship_next_action(
             siblings_before.join(", ")
         )
     };
-    if fold_targets.is_empty() {
-        return remaining;
-    }
-    format!(
-        "write lessons into {} from {}, then {remaining}",
-        fold_targets.join(", "),
-        bundle
-    )
+    // The archive still writes the lesson bundle. Naming the fold in next_action
+    // made a documentation convention a merge gate. Keep the remaining guidance.
+    let _ = (fold_targets, bundle);
+    remaining
 }
 
 /// Name the fold-back step archival exists for, then the merge.
@@ -1266,15 +1262,8 @@ fn ship_next_action(
 /// point at the material. `next_action` is the mechanism the lifecycle already uses everywhere,
 /// and drill 032 confirms agents follow it to termination.
 fn lessons_next_action(root: &Path, id: &str, archive: &Path) -> String {
-    let targets = change::lesson_fold_targets(root, id);
-    if targets.is_empty() {
-        return "merge the PR on GitHub".to_string();
-    }
-    format!(
-        "write lessons into {} from {}, then merge the PR on GitHub",
-        targets.join(", "),
-        archive.join(change::LESSON_BUNDLE_FILE).display()
-    )
+    let _ = (change::lesson_fold_targets(root, id), archive);
+    "merge the PR on GitHub".to_string()
 }
 
 /// What merging before `finalize` actually costs.
@@ -3172,11 +3161,10 @@ fn git_commit_all(root: &std::path::Path, message: &str) -> Result<(), String> {
 mod ship_next_action_tests {
     use super::*;
 
-    // The regression: `finalize` named the lesson fold-back and `ship` did not, so on the verb
-    // the tool recommends, the bundle was written and nothing said it existed. Both exits must
-    // name it, and the fold-back must come FIRST — the merge is what makes skipping it permanent.
+    // Honest label: DISCRIMINATOR. Lessons are a convention, not a merge gate.
+    // On the unfixed binary this string started with "write lessons into…".
     #[test]
-    fn ship_names_the_lesson_fold_back_before_the_merge() {
+    fn ship_does_not_gate_merge_on_writing_lessons() {
         let next = ship_next_action(
             true,
             true,
@@ -3185,9 +3173,8 @@ mod ship_next_action_tests {
             "/archive/lesson-bundle.md",
         );
 
-        assert!(next.starts_with("write lessons into specs/change/context.md"));
-        assert!(next.contains("/archive/lesson-bundle.md"));
-        assert!(next.contains("merge the PR on GitHub when Required CI is green"));
+        assert_eq!(next, "merge the PR on GitHub when Required CI is green");
+        assert!(!next.contains("write lessons"), "got {next:?}");
     }
 
     // Honest label: this is the CONTROL. A change owning no specs has nothing to fold, and its
@@ -3244,7 +3231,10 @@ mod ship_next_action_tests {
             "/archive/lesson-bundle.md",
         );
 
-        assert!(next.starts_with("write lessons into specs/cmd_change/context.md"));
+        assert!(
+            !next.contains("write lessons"),
+            "lessons must not displace the sibling blocker: {next:?}"
+        );
         assert!(next.contains("do not merge while any change is active"));
         assert!(next.contains("other-change"));
     }

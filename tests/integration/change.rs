@@ -526,7 +526,9 @@ fn adopt_speckit_imports_constitution_and_active_feature_once() {
 }
 
 #[test]
-fn init_enables_sdd_for_new_projects() {
+fn init_leaves_sdd_off_for_new_projects() {
+    // Honest label: DISCRIMINATOR for SDD-off-by-default. On the unfixed binary
+    // init wrote `"enabled": true` and CI/check walked active changes.
     let temp = TempDir::new().unwrap();
     fs::create_dir_all(temp.path().join("src")).unwrap();
     fs::write(temp.path().join("src/lib.rs"), "pub fn hello() {}\n").unwrap();
@@ -538,7 +540,8 @@ fn init_enables_sdd_for_new_projects() {
         serde_json::from_str(&fs::read_to_string(temp.path().join(".specsync/sdd.json")).unwrap())
             .unwrap();
     assert_eq!(policy["version"], 2);
-    assert_eq!(policy["enabled"], true);
+    assert_eq!(policy["enabled"], false);
+    assert_eq!(policy["require_change_for_meaningful_files"], false);
     assert!(temp.path().join(".specsync/archive/changes").is_dir());
 }
 

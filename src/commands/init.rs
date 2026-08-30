@@ -4,14 +4,13 @@
 /// command fails closed on it. Naming the file and a concrete example here turns
 /// a later opaque failure into a task the user can finish immediately.
 const UNDETECTED_VERIFICATION_WARNING: &str = "No test command was detected for this project, so \
-`.specsync/sdd.json` has an empty `verification_commands` list. Lifecycle commands will fail until \
-you add one, for example: \"verification_commands\": [\"make test\"]";
+`.specsync/sdd.json` has an empty `verification_commands` list. That only matters if you enable \
+the SDD change workflow (`specsync change adopt`); `specsync check` does not use it.";
 
 use colored::Colorize;
-use dialoguer::{Confirm, Input};
 use serde::Serialize;
 use std::fs;
-use std::io::{IsTerminal, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -76,10 +75,12 @@ impl InitReport {
 pub fn cmd_init(root: &Path, repair: bool, format: OutputFormat) {
     match execute_init(root, repair) {
         Ok(report) => {
-            let should_bootstrap = report.created && matches!(format, OutputFormat::Text);
+            let should_hint_sdd = report.created && matches!(format, OutputFormat::Text);
             render_init_report(root, &report, format);
-            if should_bootstrap {
-                guided_sdd_bootstrap(root);
+            if should_hint_sdd {
+                println!(
+                    "  SDD change workflow is off. Enable with `specsync change adopt` if you want it."
+                );
             }
         }
         Err(report) => {
@@ -586,56 +587,6 @@ fn specsync_gitignore_content() -> String {
     ]
     .join("\n")
 }
-fn guided_sdd_bootstrap(root: &Path) {
-    if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
-        return;
-    }
-    let install_agents = Confirm::new()
-        .with_prompt("Install native spec-sync SDD skills for supported AI agents?")
-        .default(true)
-        .interact()
-        .unwrap_or(false);
-    if install_agents {
-        crate::agents::cmd_install(root, &[]);
-    }
-    let create_first = Confirm::new()
-        .with_prompt("Create the project's first verified SDD change now?")
-        .default(true)
-        .interact()
-        .unwrap_or(false);
-    if !create_first {
-        return;
-    }
-    let description: String = match Input::new()
-        .with_prompt("What do you want to change?")
-        .interact_text()
-    {
-        Ok(value) => value,
-        Err(error) => {
-            eprintln!(
-                "{} Could not start the interview: {error}",
-                "warning:".yellow()
-            );
-            return;
-        }
-    };
-    let request = crate::change::CreateChangeRequest {
-        description,
-        kind: crate::change::ChangeKind::Feature,
-        affected_specs: Vec::new(),
-        affected_paths: vec!["src/".into()],
-        requested_artifacts: Vec::new(),
-        no_spec_change: false,
-        rationale: None,
-    };
-    match crate::change::create_change(root, request) {
-        Ok(record) => {
-            println!("{} Created {}", "✓".green(), record.id);
-            println!("  Continue with: specsync change show {}", record.id);
-        }
-        Err(error) => eprintln!("{} {error}", "warning:".yellow().bold()),
-    }
-}
 
 /// Create the 5.0 `.specsync/` directory structure: directories, `config.toml`,
 /// `version` stamp, and `.specsync/.gitignore`. Mirrors what `specsync migrate`
@@ -888,10 +839,9 @@ mod tests {
     }
 
     #[test]
-    fn fresh_init_leaves_the_next_lifecycle_check_clean() {
-        // #542 first-five-minutes: `git init` → `specsync init` → commit →
-        // `specsync check` reported init's own protected output as uncovered
-        // meaningful delivery, a gate no change workspace could satisfy.
+    fn fresh_init_leaves_sdd_off_so_the_first_check_is_just_drift() {
+        // Honest label: DISCRIMINATOR. On the unfixed binary init enabled SDD
+        // and `check_project` required an active change covering `.specsync/`.
         let tmp = TempDir::new().unwrap();
         let root = tmp.path();
         let git = |args: &[&str]| {
@@ -913,52 +863,24 @@ mod tests {
         git(&["commit", "-qm", "init"]);
 
         cmd_init(root, false, crate::types::OutputFormat::Text);
+        let policy = crate::change::load_policy(root).unwrap();
         assert!(
-            root.join(".specsync/bootstrap.json").is_file(),
-            "init must record the protected files it created"
+            !policy.enabled,
+            "fresh init must leave SDD off so `check` is the product"
         );
-        // The gate must also survive being run before that output is committed:
-        // `HEAD~1` does not resolve in a one-commit repository.
-        let uncommitted = crate::change::check_project(root);
         assert!(
-            uncommitted.errors.is_empty(),
-            "checking before the bootstrap commit must not fail: {:?}",
-            uncommitted.errors
+            !policy.require_change_for_meaningful_files,
+            "fresh init must not require an active change for dirty paths"
         );
-        // Init tells the author to fill in verification commands when it cannot
-        // detect any. Doing so must not revoke the bootstrap it just recorded.
-        let policy_path = root.join(".specsync/sdd.json");
-        let write_policy = |policy: &crate::change::SddPolicy| {
-            fs::write(
-                &policy_path,
-                format!("{}\n", serde_json::to_string_pretty(policy).unwrap()),
-            )
-            .unwrap();
-        };
-        let mut policy = crate::change::load_policy(root).unwrap();
-        policy.verification_commands = vec!["true".to_string()];
-        write_policy(&policy);
-
-        git(&["add", "-A"]);
-        git(&["commit", "-qm", "Add: initialize spec-sync"]);
-
         let report = crate::change::check_project(root);
         assert!(
             report.errors.is_empty(),
-            "the first check after init must pass: {:?}",
+            "SDD-off check_project must not fail: {:?}",
             report.errors
         );
-
-        // The pin still covers the enforcement surface: widening the policy's
-        // meaningful paths revokes the exemption it was granted.
-        policy.meaningful_paths.push("private/".into());
-        write_policy(&policy);
         assert!(
-            crate::change::check_project(root)
-                .errors
-                .iter()
-                .any(|error| error.contains(".specsync/sdd.json")),
-            "editing a bootstrapped policy must revoke its own exemption"
+            !report.enabled,
+            "disabled policy must not report SDD as enabled"
         );
     }
 

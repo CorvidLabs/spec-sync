@@ -78,7 +78,7 @@ Use `change ship-status <id>` any time you are unsure which tip stage you are on
 
 ## Before pushing (MANDATORY — keep it FAST)
 
-**Never `git push` without a green pre-push gate.** The CI failures that look "obvious" (fmt, path coverage / SDD active change, undocumented exports) are exactly what this gate catches locally.
+**Never `git push` without a green pre-push gate.** The CI failures that look "obvious" (fmt, undocumented exports, coverage) are exactly what this gate catches locally.
 
 ```bash
 fledge lanes run pre-push
@@ -99,13 +99,13 @@ fledge lanes run pre-push
 - `cargo clippy -D warnings` (run in verify)
 - docs site / vscode package builds
 
-If step 3 fails with *meaningful changed paths are not covered by an active change*:
+If step 3 fails with undocumented exports or coverage:
 
-1. Create or update an active SDD change covering every dirty path (`change new` / expand `affected_paths`)
-2. Fill artifacts completely (no HTML TODO comment stubs)
-3. `change approve` then ensure the change is **implementing** or **verifying** (approved-only does not cover paths)
-4. Document any new public exports in the module spec Public API table
-5. Re-run `fledge lanes run pre-push`
+1. Document any new public exports in the module spec Public API table
+2. Add or expand a spec `files:` list so `--require-coverage` is met
+3. Re-run `fledge lanes run pre-push`
+
+SDD (`specsync change`) is optional. `specsync check` does not require an active change.
 
 When the PR is merge-ready (not every push):
 

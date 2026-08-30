@@ -1466,12 +1466,15 @@ pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> 
 }
 
 fn default_policy(root: &Path, verification_commands: Vec<String>) -> SddPolicy {
+    // Fresh `init` writes SDD *off*. `SddPolicy::default()` stays fail-closed for
+    // omitted fields on deserialize (an old file missing `enabled` must not read
+    // as disabled). New files set the off-by-default values explicitly.
     let mut policy = SddPolicy {
         verification_commands,
+        enabled: false,
+        require_change_for_meaningful_files: false,
         ..SddPolicy::default()
     };
-    policy.require_change_for_meaningful_files =
-        git_output(root, &["rev-parse", "--verify", "HEAD"]).is_some();
     for source_dir in crate::config::load_config(root).source_dirs {
         let normalized = source_dir.replace('\\', "/");
         let scope = if normalized == "." {

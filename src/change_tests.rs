@@ -11643,21 +11643,151 @@ fn scope_includes_a_spec_mapping_a_declared_path_with_no_declared_module() {
     .unwrap();
 
     let config = crate::config::load_config(root);
-    let (files, modules) = scoped_spec_files(root, &record, &config);
+    let scope = scoped_spec_files(root, &record, &config);
 
-    assert_eq!(modules, vec!["other".to_string()]);
+    assert_eq!(scope.filters, vec!["other".to_string()]);
+    assert!(scope.unresolved.is_empty(), "{:?}", scope.unresolved);
     assert!(
-        files
+        scope
+            .files
             .iter()
             .any(|file| file.ends_with("specs/other/other.spec.md")),
-        "{files:?}"
+        "{:?}",
+        scope.files
     );
     assert!(
-        !files
+        !scope
+            .files
             .iter()
             .any(|file| file.ends_with("specs/vendored/vendored.spec.md")),
-        "a spec mapping only paths outside the declared scope is not this change's: {files:?}"
+        "a spec mapping only paths outside the declared scope is not this change's: {:?}",
+        scope.files
     );
+}
+
+#[test]
+fn the_spec_filter_name_is_the_stem_filter_specs_matches_not_the_declared_module() {
+    // `filter_specs` matches `--spec` against the file stem with `.spec`
+    // stripped, never against frontmatter `module:`. Recording the declared
+    // module for a spec whose filename differs writes a command that selects
+    // nothing — the evidence would name a pass no one can reproduce.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    ensure_test_verification_policy(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        clean_spec("other", "src/other.rs").replace("module: other", "module: differently_named"),
+    )
+    .unwrap();
+    let record = create_change(
+        root,
+        CreateChangeRequest {
+            description: "Touch src with a mismatched module name".into(),
+            kind: ChangeKind::BugFix,
+            affected_specs: Vec::new(),
+            affected_paths: vec!["src/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("No public contract change".into()),
+        },
+    )
+    .unwrap();
+
+    let scope = scoped_spec_files(root, &record, &crate::config::load_config(root));
+
+    assert_eq!(
+        scope.filters,
+        vec!["other".to_string()],
+        "the filter is the stem `other`, not the declared module `differently_named`"
+    );
+}
+
+#[test]
+fn change_check_fails_when_a_declared_module_has_no_spec_on_disk() {
+    // Honest label: DISCRIMINATOR. Before this fix `scoped_spec_files` dropped a
+    // declared module whose spec was not on disk, so a change could name a
+    // contract, never write (or delete) its spec, and verify GREEN against zero
+    // of the modules it declared. A clean spec in path scope made the pass look
+    // real. `no_spec_change` is what isolates this gate: the effective-contract
+    // walk skips those records, so the scoped spec↔code pass is the only thing
+    // standing between this record and a vacuous green.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+
+    let mut record = completed_no_spec_record(root);
+    // Another spec IS in path scope (`affected_paths` is `src/`), so the run has
+    // real work to do and cannot pass merely for lack of anything to check.
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        clean_spec("other", "src/other.rs"),
+    )
+    .unwrap();
+    // The declared module's spec is gone.
+    fs::remove_file(root.join("specs/change/change.spec.md")).unwrap();
+
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let error = verify_change(root, &record.id).unwrap_err();
+
+    assert!(
+        error.contains("`change`"),
+        "the failure must name the module whose spec is missing: {error}"
+    );
+    assert!(
+        error.contains("verification.json"),
+        "a missing declared spec is a recorded spec↔code failure, so the retry is \
+         append-only like any other: {error}"
+    );
+    let recorded = load_verification(root, &record).unwrap();
+    assert!(!recorded.passed);
+    assert!(
+        recorded.commands[0].command.contains("--spec change"),
+        "evidence names the unresolved module so the command reproduces the verdict: {}",
+        recorded.commands[0].command
+    );
+    assert!(
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned"
+    );
+}
+
+#[test]
+fn change_check_passes_a_no_spec_change_delivery_that_maps_no_spec_at_all() {
+    // Honest label: CONTROL for the fix above. A change that declared NO module
+    // and whose declared paths map no spec has claimed no contract — an empty
+    // scope here is honest, not evaporation, and must stay a pass. A fix that
+    // failed every empty scope would go red here.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+
+    let mut record = no_spec_change_record_over_src(root, "Refactor with no spec anywhere");
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let verification = verify_change(root, &record.id).unwrap();
+
+    assert!(verification.passed);
+    assert_eq!(
+        verification.commands[0].command, "specsync check (no spec in scope)",
+        "a change that claimed no spec records exactly that"
+    );
+    assert!(!root.join("was-run").exists());
 }
 
 /// A `--no-spec-change` delivery over `src/` that declares NO module.

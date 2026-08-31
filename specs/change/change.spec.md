@@ -1,6 +1,6 @@
 ---
 module: change
-version: 116
+version: 117
 status: active
 files:
   - src/change.rs
@@ -331,6 +331,7 @@ Acceptance Criteria
 | Date | Change |
 |------|--------|
 | 2026-08-30 | Fresh `init` writes SDD off; `require_change_for_meaningful_files` is false on new policies. `check` does not call `audit_project`. `change check` is in-process spec↔code sync and does not spawn `verification_commands`. |
+| 2026-08-30 | v117: `change check` is scoped to the change. A declared module with no spec on disk fails by name instead of shrinking the scope to nothing; an empty scope stays a pass only for a change that claimed no contract. Evidence `--spec` names are the stems `filter_specs` matches. |
 | 2026-08-30 | `change adopt` is the on-switch `init` points at: it flips `enabled` on a policy written off, fails closed on one it cannot parse, and re-pins the bootstrap record it invalidates. `change check` is scoped to the change; evidence names `--spec` and only advertises `--strict` when requested. |
 | 2026-08-01 | Approve rejects ADDED existing living REQs; draft next_action prefers complete artifacts over approve when stubs remain. |
 | 2026-07-10 | v4: normalize imported, evidence, and digest paths across Windows and Unix |

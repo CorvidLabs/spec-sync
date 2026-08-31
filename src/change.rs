@@ -2952,19 +2952,63 @@ fn evidence_gap_detail(
 /// Project-wide validation is `specsync check`. `change check` is scoped by
 /// construction, so drift in a module this change does not own is not this
 /// change's failure to fix.
+struct ScopedSpecs {
+    /// Spec files this change is verified against.
+    files: Vec<PathBuf>,
+    /// `--spec` arguments naming that set, as `filter_specs` matches them.
+    filters: Vec<String>,
+    /// Declared modules with no spec file on disk. A scoping FAILURE, never an
+    /// empty scope — see `evaluate_spec_code_sync`.
+    unresolved: Vec<String>,
+}
+
+/// The `--spec` argument that selects this file.
+///
+/// `filter_specs` matches a filter against the file stem with a trailing
+/// `.spec` removed (`src/commands/mod.rs`), never against the frontmatter
+/// `module:` field. Deriving the name any other way records a command that
+/// selects nothing on a spec whose declared module and filename differ — a
+/// registry-mapped module most of all, where the two routinely differ.
+fn spec_filter_name(spec: &Path) -> String {
+    spec.file_stem()
+        .and_then(|stem| stem.to_str())
+        .map(|stem| stem.strip_suffix(".spec").unwrap_or(stem).to_string())
+        .unwrap_or_default()
+}
+
 fn scoped_spec_files(
     root: &Path,
     record: &ChangeRecord,
     config: &crate::types::SpecSyncConfig,
-) -> (Vec<PathBuf>, Vec<String>) {
+) -> ScopedSpecs {
     // Declared modules resolve through the local registry first, so a registered
     // non-conventional spec path is in scope exactly as a conventional one is.
     let mut selected: BTreeMap<PathBuf, String> = BTreeMap::new();
+    let mut unresolved = Vec::new();
+    // A declared module naming a spec that is not on disk is not "nothing to
+    // check". Dropping it silently let a change declare a contract, delete or
+    // never write its spec, and verify green against zero of the modules it
+    // named — while other specs pulled in by path scope made the pass look real.
+    let mut unresolved_filters = Vec::new();
     for module in &record.affected_specs {
-        if let Ok((spec_path, _)) = canonical_module_paths(root, &config.specs_dir, module)
-            && spec_path.is_file()
-        {
-            selected.insert(spec_path, module.clone());
+        match canonical_module_paths(root, &config.specs_dir, module) {
+            Ok((spec_path, _)) if spec_path.is_file() => {
+                let filter = spec_filter_name(&spec_path);
+                selected.insert(spec_path, filter);
+            }
+            Ok((spec_path, _)) => {
+                unresolved.push(format!(
+                    "declared module `{module}` has no spec at {}",
+                    portable_project_path(root, &spec_path)
+                ));
+                unresolved_filters.push(module.clone());
+            }
+            Err(error) => {
+                unresolved.push(format!(
+                    "declared module `{module}` cannot be resolved: {error}"
+                ));
+                unresolved_filters.push(module.clone());
+            }
         }
     }
     for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
@@ -2988,18 +3032,19 @@ fn scoped_spec_files(
         if !owns_a_declared_path {
             continue;
         }
-        let module = parsed.frontmatter.module.clone().unwrap_or_else(|| {
-            spec.file_stem()
-                .and_then(|stem| stem.to_str())
-                .map(|stem| stem.trim_end_matches(".spec").to_string())
-                .unwrap_or_default()
-        });
-        selected.insert(spec, module);
+        let filter = spec_filter_name(&spec);
+        selected.insert(spec, filter);
     }
-    let mut modules: Vec<String> = selected.values().cloned().collect();
-    modules.sort();
-    modules.dedup();
-    (selected.into_keys().collect(), modules)
+    // An unresolved module keeps its declared name in the filter list: rerunning
+    // the recorded command reproduces the same verdict, because `filter_specs`
+    // matches nothing for it and `check` exits non-zero.
+    let mut filters: BTreeSet<String> = selected.values().cloned().collect();
+    filters.extend(unresolved_filters);
+    ScopedSpecs {
+        files: selected.into_keys().collect(),
+        filters: filters.into_iter().collect(),
+        unresolved,
+    }
 }
 
 /// The exact command a reader can run to reproduce this verdict.
@@ -3032,7 +3077,7 @@ fn evaluate_spec_code_sync(
     strict: bool,
 ) -> Result<(CommandEvidence, Vec<String>), String> {
     let config = crate::config::load_config(root);
-    let (spec_files, modules) = scoped_spec_files(root, record, &config);
+    let scope = scoped_spec_files(root, record, &config);
     let schema_tables = crate::validator::get_schema_table_names(root, &config);
     // The shared helper `validate_effective_contracts` already uses; building the
     // snapshot twice by hand is how the two drift apart.
@@ -3041,7 +3086,12 @@ fn evaluate_spec_code_sync(
     let mut findings = Vec::new();
     let mut errors = 0usize;
     let mut warnings = 0usize;
-    for spec in &spec_files {
+    // Fail before validating anything else, so the message names the module the
+    // author has to write rather than burying it under findings from the specs
+    // that happened to resolve.
+    errors += scope.unresolved.len();
+    findings.extend(scope.unresolved.iter().cloned());
+    for spec in &scope.files {
         let result =
             crate::validator::validate_spec(spec, root, &schema_tables, &schema_columns, &config);
         let inline_ignores = fs::read_to_string(spec)
@@ -3060,7 +3110,7 @@ fn evaluate_spec_code_sync(
     let failed = errors > 0 || (strict && warnings > 0);
     Ok((
         CommandEvidence {
-            command: scoped_check_command(&modules, strict),
+            command: scoped_check_command(&scope.filters, strict),
             success: !failed,
             exit_code: Some(i32::from(failed)),
         },
@@ -7031,7 +7081,7 @@ fn summarize_change_with_effective(
     // pass strict — naming it otherwise printed a command `verify_change` never
     // records as evidence, so status and `verification.json` disagreed.
     let verification_commands = vec![scoped_check_command(
-        &scoped_spec_files(root, record, &crate::config::load_config(root)).1,
+        &scoped_spec_files(root, record, &crate::config::load_config(root)).filters,
         explicit_strict,
     )];
     let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)

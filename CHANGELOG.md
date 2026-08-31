@@ -35,9 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the union of the modules in `affected_specs` and the specs whose `files:` fall inside
   `affected_paths`, so a `--no-spec-change` delivery still verifies against the contracts its
   source can break. Project-wide validation is `specsync check`. Evidence names the scoped pass
-  a reader can rerun (`specsync check --spec <module> …`), and `change status` advertises that
+  a reader can rerun (`specsync check --spec <name> …`), and `change status` advertises that
   exact command — `--strict` appears only when `--strict` was requested, instead of whenever a
-  change was classified high-risk.
+  change was classified high-risk. A declared module that resolves to no spec file on disk fails
+  verification and is named, rather than being dropped from scope; an empty scope stays a pass
+  only for a change that declared no module and maps no spec. Recorded `--spec` names are the
+  names `filter_specs` matches, so the evidence command reproduces the verdict.
 
 - **`change check` compares specs to code. It does not run the project's tests.**
   Verification used to spawn `sdd.json` `verification_commands` (`cargo test` on this

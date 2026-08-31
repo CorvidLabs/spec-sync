@@ -90,7 +90,7 @@ fn ci_check_requires_persisted_verification_evidence() {
     state["state"] = serde_json::Value::String("verifying".into());
     fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
 
-    // Project-health audit inspects persisted verifying evidence; scoped check re-runs tests.
+    // Project-health audit inspects persisted verifying evidence.
     specsync()
         .env("CI", "true")
         .env_remove("GITHUB_WORKSPACE")
@@ -125,7 +125,10 @@ fn ci_check_requires_persisted_verification_evidence() {
 }
 
 #[test]
-fn comment_suppresses_configured_command_output_but_check_streams_it() {
+fn neither_comment_nor_change_check_spawns_configured_project_commands() {
+    // Honest label: DISCRIMINATOR for change check. The unfixed binary spawned
+    // `rustc --version --verbose` and printed `binary: rustc`. Comment is the
+    // control: it already stayed silent on both binaries.
     let temp = TempDir::new().unwrap();
     let root = setup_minimal_project(&temp);
     setup_active_change(&root, &["rustc --version --verbose"]);
@@ -146,7 +149,7 @@ fn comment_suppresses_configured_command_output_but_check_streams_it() {
         .args(["--root", root.to_str().unwrap(), "change", "check"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("binary: rustc"));
+        .stdout(predicate::str::contains("binary: rustc").not());
 }
 
 #[test]

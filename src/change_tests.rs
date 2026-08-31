@@ -9555,14 +9555,19 @@ fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecesso
         error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
     }));
 
-    fs::create_dir_all(root.join("specs/other")).unwrap();
-    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    // A failing verification must not clear the stale-predecessor finding. The
+    // failure has to sit inside the successor's own scope — `change check` is
+    // scoped, so drift in a module it neither declares nor maps is ignored.
+    // `auth_extra` maps `src/auth-extra.rs`, one of the successor's declared
+    // paths, so the scoped spec↔code pass is what fails.
+    let drifted_spec = root.join("specs/auth_extra/auth_extra.spec.md");
+    fs::create_dir_all(drifted_spec.parent().unwrap()).unwrap();
     fs::write(
-        root.join("specs/other/other.spec.md"),
+        &drifted_spec,
         PHANTOM_AUTH_SPEC
-            .replace("module: auth", "module: other")
-            .replace("src/auth.rs", "src/other.rs")
-            .replace("# Auth", "# Other"),
+            .replace("module: auth", "module: auth_extra")
+            .replace("src/auth.rs", "src/auth-extra.rs")
+            .replace("# Auth", "# Auth Extra"),
     )
     .unwrap();
     assert!(verify_change(root, &successor.id).is_err());
@@ -9570,7 +9575,7 @@ fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecesso
         error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
     }));
 
-    fs::remove_file(root.join("specs/other/other.spec.md")).unwrap();
+    fs::remove_file(&drifted_spec).unwrap();
     verify_change(root, &successor.id).unwrap();
     assert!(check_project(root).errors.iter().any(|error| {
         error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
@@ -11510,7 +11515,10 @@ fn change_check_does_not_execute_configured_project_commands() {
         verification.passed,
         "matching specs and code must pass without running project commands"
     );
-    assert_eq!(verification.commands[0].command, "specsync check");
+    assert_eq!(
+        verification.commands[0].command, "specsync check --spec auth",
+        "evidence must name the scoped pass a reader can rerun"
+    );
     assert!(
         !root.join("was-run").exists(),
         "configured verification_commands must not be spawned"
@@ -11542,6 +11550,322 @@ fn change_check_fails_when_specs_and_code_drift() {
             || error.contains("phantom")
             || error.contains("missing"),
         "spec↔code drift must fail change check, got {error}"
+    );
+}
+
+#[test]
+fn change_check_ignores_drift_in_an_unowned_spec() {
+    // Honest label: DISCRIMINATOR for scoping. On the unfixed binary
+    // `evaluate_spec_code_sync` walked every spec under `specs_dir`, so a
+    // phantom export in a module this change never declared failed its
+    // verification. `change check` is scoped: another module's drift is another
+    // change's problem, and the whole-project answer is `specsync check`.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["true".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    let mut record = completed_section_only_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    // `other` is neither in `affected_specs` (["auth"]) nor mapped by
+    // `affected_paths` (["src/auth.rs"]).
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let verification = verify_change(root, &record.id).unwrap();
+    assert!(
+        verification.passed,
+        "drift in a module this change does not own must not fail its scoped check"
+    );
+    assert_eq!(
+        verification.commands[0].command,
+        "specsync check --spec auth"
+    );
+}
+
+#[test]
+fn scope_includes_a_spec_mapping_a_declared_path_with_no_declared_module() {
+    // A `--no-spec-change` delivery declares no module. The specs mapping its
+    // source are still the contracts it can break, so scope is the union of
+    // declared modules AND specs whose `files:` fall inside a declared path.
+    // Without the second half this change would verify against nothing.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    ensure_test_verification_policy(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::create_dir_all(root.join("vendor")).unwrap();
+    fs::create_dir_all(root.join("specs/vendored")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(root.join("vendor/thing.rs"), "// vendored\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+    // CONTROL: mapped outside the declared scope, so it must stay out.
+    fs::write(
+        root.join("specs/vendored/vendored.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: vendored")
+            .replace("src/auth.rs", "vendor/thing.rs")
+            .replace("# Auth", "# Vendored"),
+    )
+    .unwrap();
+    let record = create_change(
+        root,
+        CreateChangeRequest {
+            description: "Refactor internals without a contract change".into(),
+            kind: ChangeKind::BugFix,
+            affected_specs: Vec::new(),
+            affected_paths: vec!["src/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("No public contract change".into()),
+        },
+    )
+    .unwrap();
+
+    let config = crate::config::load_config(root);
+    let (files, modules) = scoped_spec_files(root, &record, &config);
+
+    assert_eq!(modules, vec!["other".to_string()]);
+    assert!(
+        files
+            .iter()
+            .any(|file| file.ends_with("specs/other/other.spec.md")),
+        "{files:?}"
+    );
+    assert!(
+        !files
+            .iter()
+            .any(|file| file.ends_with("specs/vendored/vendored.spec.md")),
+        "a spec mapping only paths outside the declared scope is not this change's: {files:?}"
+    );
+}
+
+/// A `--no-spec-change` delivery over `src/` that declares NO module.
+///
+/// `completed_no_spec_record` declares `change`, so its scope survives even if
+/// scoping were to read `affected_specs` alone. The record that proves the union
+/// clause is load-bearing is the one that names no module at all.
+fn no_spec_change_record_over_src(root: &Path, description: &str) -> ChangeRecord {
+    ensure_test_verification_policy(root);
+    let mut record = create_change(
+        root,
+        CreateChangeRequest {
+            description: description.into(),
+            kind: ChangeKind::BugFix,
+            affected_specs: Vec::new(),
+            affected_paths: vec!["src/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("No public contract change".into()),
+        },
+    )
+    .unwrap();
+    record.acceptance_criteria = vec!["Internals are refactored without a contract change".into()];
+    record.answers.insert("public_contract".into(), "no".into());
+    record
+        .answers
+        .insert("architecture_risk".into(), "no".into());
+    persist_legacy_test_record(root, &mut record);
+    write_change_markdown(root, &record).unwrap();
+    for artifact in &record.selected_artifacts {
+        let content = if *artifact == ArtifactKind::Tasks {
+            "# Tasks\n\n- [x] Complete\n"
+        } else {
+            "# Complete\n\nReviewed.\n"
+        };
+        fs::write(
+            change_dir(root, &record.id).join(artifact.file_name()),
+            content,
+        )
+        .unwrap();
+    }
+    record
+}
+
+/// A spec that documents nothing and therefore cannot drift.
+fn clean_spec(module: &str, source: &str) -> String {
+    format!(
+        "---\nmodule: {module}\nversion: 1.0.0\nstatus: stable\nfiles:\n  - {source}\n---\n\n# {module}\n\n## Purpose\n\nFixture.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"
+    )
+}
+
+#[test]
+fn change_check_fails_a_no_spec_change_delivery_whose_mapped_spec_drifted() {
+    // Honest label: DISCRIMINATOR for the union clause, end to end through
+    // `verify_change` rather than through `scoped_spec_files` alone. A scoping
+    // rule that read only `affected_specs` would make this record — which names
+    // no module — verify against nothing and pass vacuously. Asserting the
+    // helper in isolation cannot catch that; only the verb can.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+
+    let mut record = no_spec_change_record_over_src(root, "Refactor internals over src");
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let error = verify_change(root, &record.id).unwrap_err();
+
+    assert!(
+        error.contains("does_not_exist") || error.contains("no matching export"),
+        "{error}"
+    );
+    // The effective-contract gate walks declared MODULES and returns before any
+    // attempt is recorded. Naming `verification.json` is what proves the failure
+    // came from the scoped spec↔code pass, which recorded an attempt.
+    assert!(
+        error.contains("verification.json"),
+        "the failure must be the recorded spec↔code pass, not an earlier gate: {error}"
+    );
+    assert_eq!(
+        load_verification(root, &record).unwrap().commands[0].command,
+        "specsync check --spec other",
+        "evidence must name the module reached through the declared path"
+    );
+    assert!(
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned"
+    );
+}
+
+#[test]
+fn change_check_passes_a_no_spec_change_delivery_when_only_an_unmapped_spec_drifted() {
+    // Honest label: CONTROL for the test above. A verifier that simply fails
+    // everything, or that widened scope back to the whole project, would go red
+    // here. The in-scope spec is clean and the drifted one maps `vendor/`, which
+    // this change never declared — and the recorded command proves the pass was
+    // over a real scope rather than an empty one.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("vendor")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::create_dir_all(root.join("specs/vendored")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(root.join("vendor/thing.rs"), "// vendored\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        clean_spec("other", "src/other.rs"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/vendored/vendored.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: vendored")
+            .replace("src/auth.rs", "vendor/thing.rs")
+            .replace("# Auth", "# Vendored"),
+    )
+    .unwrap();
+
+    let mut record = no_spec_change_record_over_src(root, "Refactor internals over src only");
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let verification = verify_change(root, &record.id).unwrap();
+
+    assert!(
+        verification.passed,
+        "drift in a spec mapping no declared path is not this change's failure"
+    );
+    assert_eq!(
+        verification.commands[0].command, "specsync check --spec other",
+        "the pass must be over a real scope, not an empty one"
+    );
+    assert!(
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned"
+    );
+}
+
+#[test]
+fn an_empty_scope_is_named_rather_than_written_as_a_project_wide_pass() {
+    // Recording a bare `specsync check` here would claim a project-wide pass
+    // that never ran.
+    assert_eq!(
+        scoped_check_command(&[], false),
+        "specsync check (no spec in scope)"
+    );
+    assert_eq!(
+        scoped_check_command(&["auth".to_string(), "billing".to_string()], false),
+        "specsync check --spec auth --spec billing"
+    );
+    assert_eq!(
+        scoped_check_command(&["auth".to_string()], true),
+        "specsync check --spec auth --strict"
+    );
+}
+
+#[test]
+fn status_does_not_advertise_strict_unless_strict_was_requested() {
+    // Honest label: DISCRIMINATOR for F4. `change` is one of the modules
+    // `change_requires_strict_validation` classifies as high-risk, so on the
+    // unfixed binary the summary advertised `specsync check --strict` while
+    // `verify_change` recorded plain `specsync check`. Status and evidence must
+    // name the same command.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let summary = summarize_change(root, &record);
+    assert!(
+        summary.strict_validation_required,
+        "the high-risk classification itself is still reported"
+    );
+    assert_eq!(
+        summary.verification_commands,
+        vec!["specsync check --spec change".to_string()],
+        "a classification is not a `--strict` invocation"
+    );
+    assert_eq!(
+        summarize_change_with_strict(root, &record, true).verification_commands,
+        vec!["specsync check --spec change --strict".to_string()]
+    );
+
+    let verification = verify_change(root, &record.id).unwrap();
+    assert_eq!(
+        vec![verification.commands[0].command.clone()],
+        summary.verification_commands,
+        "evidence must be the command status advertised"
     );
 }
 
@@ -11666,7 +11990,10 @@ fn cargo_manifest_path_detects_recursive_specsync_before_state_mutation() {
         verification.passed,
         "configured recursive cargo-run is not spawned, so spec↔code sync still runs"
     );
-    assert_eq!(verification.commands[0].command, "specsync check");
+    assert_eq!(
+        verification.commands[0].command,
+        "specsync check --spec auth"
+    );
     assert_eq!(
         load_change(root, &record.id).unwrap().state,
         ChangeState::Verifying
@@ -11800,16 +12127,19 @@ fn failed_spec_sync_is_retryable_with_append_only_history() {
     );
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
-    // Drift a spec this change does not own so effective-contract validation of
-    // `auth` still passes and the failure is the in-process spec↔code pass.
-    fs::create_dir_all(root.join("specs/other")).unwrap();
-    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    // The drift has to be inside this change's scope, or scoped verification
+    // ignores it. It also has to be outside `affected_specs`, because the
+    // effective-contract gate walks the declared MODULES and returns before any
+    // verification attempt is recorded — and the append-only attempt ledger is
+    // what this test is about. `auth_cli` maps `src/auth.rs`, the change's
+    // declared path, so the scoped spec↔code pass is the gate that fails.
+    let drifted_spec = root.join("specs/auth_cli/auth_cli.spec.md");
+    fs::create_dir_all(drifted_spec.parent().unwrap()).unwrap();
     fs::write(
-        root.join("specs/other/other.spec.md"),
+        &drifted_spec,
         PHANTOM_AUTH_SPEC
-            .replace("module: auth", "module: other")
-            .replace("src/auth.rs", "src/other.rs")
-            .replace("# Auth", "# Other"),
+            .replace("module: auth", "module: auth_cli")
+            .replace("# Auth", "# Auth CLI"),
     )
     .unwrap();
 
@@ -11828,7 +12158,7 @@ fn failed_spec_sync_is_retryable_with_append_only_history() {
         "configured verification_commands must not be spawned on a failed spec↔code pass"
     );
 
-    fs::remove_file(root.join("specs/other/other.spec.md")).unwrap();
+    fs::remove_file(&drifted_spec).unwrap();
     let successful = verify_change(root, &record.id).unwrap();
     assert!(successful.passed);
     let history: VerificationAttemptLedger = serde_json::from_slice(
@@ -14936,6 +15266,53 @@ fn subproject_policy_and_diff_paths_are_project_relative() {
         uncovered_meaningful_paths(&root, &SddPolicy::default(), &[record])
             .unwrap()
             .is_empty()
+    );
+}
+
+#[test]
+fn adopt_re_pins_the_bootstrap_record_it_invalidates() {
+    // `init` records a digest over the policy it wrote with SDD OFF, and
+    // `bootstrap_digest` covers `enabled`. Flipping that field invalidates the
+    // record — which does not fail, it silently stops exempting the file it was
+    // written to exempt. Adoption re-pins its own bytes.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"]);
+    git(&["commit", "-m", "base"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+    // What `specsync init` does: policy off, then pin it.
+    write_default_policy(root, Vec::new()).unwrap();
+    record_bootstrap_paths(root).unwrap();
+    assert!(!load_policy(root).unwrap().enabled);
+
+    adopt(root, false, None).unwrap();
+
+    let policy = load_policy(root).unwrap();
+    assert!(policy.enabled, "adopt is the on-switch");
+    let gated = SddPolicy {
+        require_change_for_meaningful_files: true,
+        ..policy
+    };
+    assert!(
+        !uncovered_meaningful_paths(root, &gated, &[])
+            .unwrap()
+            .contains(&POLICY_PATH.to_string()),
+        "the exemption init recorded must survive the flip adoption makes"
     );
 }
 

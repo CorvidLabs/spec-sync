@@ -20,6 +20,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enforcement. After `finalize` / `ship`, `next_action` no longer gates merge on
   folding lessons into `context.md`; the archive still writes `lesson-bundle.md`.
 
+- **`specsync change adopt` is the on-switch `init` points at.** `init` writes the policy off
+  and prints "Enable with `specsync change adopt`"; adoption previously wrote a policy only
+  when `.specsync/sdd.json` was missing — which it never is after `init` — so the advertised
+  path was a no-op and hand-editing JSON was the only way in. `adopt` now writes an enabled
+  policy when none exists, flips `enabled` on one written off, leaves every other field alone
+  (including `require_change_for_meaningful_files`), fails closed on a policy it cannot parse,
+  is idempotent on an already-enabled one, and re-pins the bootstrap record the flip
+  invalidates.
+
+- **`change check` is scoped to the change again.** Verification compared every spec in the
+  project, so drift in a module a change neither declared nor mapped failed its verification —
+  while five documents still promised "scoped verification for this change only". Scope is now
+  the union of the modules in `affected_specs` and the specs whose `files:` fall inside
+  `affected_paths`, so a `--no-spec-change` delivery still verifies against the contracts its
+  source can break. Project-wide validation is `specsync check`. Evidence names the scoped pass
+  a reader can rerun (`specsync check --spec <module> …`), and `change status` advertises that
+  exact command — `--strict` appears only when `--strict` was requested, instead of whenever a
+  change was classified high-risk.
+
 - **`change check` compares specs to code. It does not run the project's tests.**
   Verification used to spawn `sdd.json` `verification_commands` (`cargo test` on this
   repo). That is CI's job. `change check` now runs the same in-process spec↔code

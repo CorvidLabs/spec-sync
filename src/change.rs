@@ -2872,7 +2872,7 @@ fn verify_change_locked(root: &Path, id: &str, strict: bool) -> Result<Verificat
             evidence_gap_detail(&record, acceptance_evidence_present, &missing_evidence)
         ));
     }
-    let (sync, findings) = evaluate_spec_code_sync(root, strict)?;
+    let (sync, findings) = evaluate_spec_code_sync(root, &record, strict)?;
     let commands = vec![sync];
     let passed = commands.iter().all(|command| command.success);
     let verification = VerificationRecord {
@@ -2940,20 +2940,103 @@ fn evidence_gap_detail(
     )
 }
 
-/// Compare specs to source. Does not spawn a process, does not build, does not
-/// run the project's tests. `sdd.json` `verification_commands` are not executed.
+/// The specs one change owns, and the module names that name them.
+///
+/// Scope is the union of two claims the change already made at approval: the
+/// modules in `affected_specs`, and any spec whose `files:` mapping falls inside
+/// a declared `affected_paths` scope. The second half is not redundant — a
+/// `--no-spec-change` delivery declares no module at all, and the specs mapping
+/// its source are still the contracts it can break. Without it that change
+/// would verify against nothing.
+///
+/// Project-wide validation is `specsync check`. `change check` is scoped by
+/// construction, so drift in a module this change does not own is not this
+/// change's failure to fix.
+fn scoped_spec_files(
+    root: &Path,
+    record: &ChangeRecord,
+    config: &crate::types::SpecSyncConfig,
+) -> (Vec<PathBuf>, Vec<String>) {
+    // Declared modules resolve through the local registry first, so a registered
+    // non-conventional spec path is in scope exactly as a conventional one is.
+    let mut selected: BTreeMap<PathBuf, String> = BTreeMap::new();
+    for module in &record.affected_specs {
+        if let Ok((spec_path, _)) = canonical_module_paths(root, &config.specs_dir, module)
+            && spec_path.is_file()
+        {
+            selected.insert(spec_path, module.clone());
+        }
+    }
+    for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
+        if selected.contains_key(&spec) {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(&spec) else {
+            continue;
+        };
+        let normalized = content.replace("\r\n", "\n");
+        let Some(parsed) = crate::parser::parse_frontmatter(&normalized) else {
+            continue;
+        };
+        let owns_a_declared_path = parsed.frontmatter.files.iter().any(|file| {
+            let file = file.replace('\\', "/");
+            record
+                .affected_paths
+                .iter()
+                .any(|scope| path_matches_scope(&file, scope))
+        });
+        if !owns_a_declared_path {
+            continue;
+        }
+        let module = parsed.frontmatter.module.clone().unwrap_or_else(|| {
+            spec.file_stem()
+                .and_then(|stem| stem.to_str())
+                .map(|stem| stem.trim_end_matches(".spec").to_string())
+                .unwrap_or_default()
+        });
+        selected.insert(spec, module);
+    }
+    let mut modules: Vec<String> = selected.values().cloned().collect();
+    modules.sort();
+    modules.dedup();
+    (selected.into_keys().collect(), modules)
+}
+
+/// The exact command a reader can run to reproduce this verdict.
+///
+/// `--spec` matches by module name, so the recorded string re-runs the same
+/// scoped pass rather than the project-wide one. An empty scope is named as
+/// such instead of being written as a bare `specsync check`, which would claim
+/// a project-wide pass that never happened.
+fn scoped_check_command(modules: &[String], strict: bool) -> String {
+    if modules.is_empty() {
+        return "specsync check (no spec in scope)".to_string();
+    }
+    let mut command = String::from("specsync check");
+    for module in modules {
+        command.push_str(" --spec ");
+        command.push_str(module);
+    }
+    if strict {
+        command.push_str(" --strict");
+    }
+    command
+}
+
+/// Compare this change's specs to source. Does not spawn a process, does not
+/// build, does not run the project's tests. `sdd.json` `verification_commands`
+/// are not executed.
 fn evaluate_spec_code_sync(
     root: &Path,
+    record: &ChangeRecord,
     strict: bool,
 ) -> Result<(CommandEvidence, Vec<String>), String> {
     let config = crate::config::load_config(root);
-    let spec_files = crate::validator::find_spec_files(&root.join(&config.specs_dir));
+    let (spec_files, modules) = scoped_spec_files(root, record, &config);
     let schema_tables = crate::validator::get_schema_table_names(root, &config);
-    let schema_columns = config
-        .schema_dir
-        .as_deref()
-        .map(|directory| crate::schema::build_schema(&root.join(directory)))
-        .unwrap_or_default();
+    // The shared helper `validate_effective_contracts` already uses; building the
+    // snapshot twice by hand is how the two drift apart.
+    let schema_columns = crate::commands::build_schema_columns(root, &config);
     let ignore_rules = crate::ignore::IgnoreRules::load(root);
     let mut findings = Vec::new();
     let mut errors = 0usize;
@@ -2975,14 +3058,9 @@ fn evaluate_spec_code_sync(
         }
     }
     let failed = errors > 0 || (strict && warnings > 0);
-    let command = if strict {
-        "specsync check --strict"
-    } else {
-        "specsync check"
-    };
     Ok((
         CommandEvidence {
-            command: command.into(),
+            command: scoped_check_command(&modules, strict),
             success: !failed,
             exit_code: Some(i32::from(failed)),
         },
@@ -6947,11 +7025,15 @@ fn summarize_change_with_effective(
     let routing = load_verification_routing(root).unwrap_or_default();
     let strict_validation_required =
         explicit_strict || change_requires_strict_validation(record, &routing);
-    let verification_commands = vec![if strict_validation_required {
-        "specsync check --strict".into()
-    } else {
-        "specsync check".into()
-    }];
+    // Advertise the command that will actually run. `strict_validation_required`
+    // still reports that this change touches a high-risk path and should be
+    // checked with `--strict`, but only `--strict` on THIS invocation makes the
+    // pass strict — naming it otherwise printed a command `verify_change` never
+    // records as evidence, so status and `verification.json` disagreed.
+    let verification_commands = vec![scoped_check_command(
+        &scoped_spec_files(root, record, &crate::config::load_config(root)).1,
+        explicit_strict,
+    )];
     let terminal_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
         .then(|| terminal_evidence_summary(root, record));
     // Sequence-ledger freezes must outrank state-local next actions (including reopen /
@@ -7465,7 +7547,16 @@ fn check_project_with_command_output(
 
 pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<String>, String> {
     let mut actions = Vec::new();
-    actions.push(format!("enable SDD policy at {POLICY_PATH}"));
+    // Read outside the lock only to phrase the action line; the authoritative
+    // read that decides what is written happens under the lock below. A policy
+    // that does not parse is reported as work to do rather than as "already on",
+    // and the locked read then fails closed on it instead of overwriting it.
+    actions.push(match load_policy_checked(root) {
+        Ok(Some(policy)) if policy.enabled => {
+            format!("SDD policy is already enabled at {POLICY_PATH}")
+        }
+        _ => format!("enable SDD policy at {POLICY_PATH}"),
+    });
     actions.push(
         "adopt the workflow-v2 baseline for new changes while preserving workflow-v1 evidence"
             .into(),
@@ -7493,27 +7584,40 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
         validate_foreign_import(root, source)?;
     }
     let baseline_candidate = prepare_workflow_v2_adoption_candidate(root)?;
-    let policy_existed = root.join(POLICY_PATH).exists();
     let existing_bootstrap = fs::read_to_string(root.join(".specsync/adoption-report.json"))
         .ok()
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|value| value.get("bootstrap_policy").cloned());
-    let policy_content = if policy_existed {
-        None
-    } else {
-        Some(json_content(&default_policy(
-            root,
-            detect_verification_commands(root),
-        ))?)
+    // `adopt` is the on-switch. `init` writes the policy OFF, so deciding from
+    // mere file existence made adoption a no-op on every project that had run
+    // `init` — which is every project the hint is printed to.
+    //
+    // Read through `load_policy_checked` rather than `Path::exists`: a policy
+    // that does not parse must fail closed here, not be silently replaced by a
+    // fresh default that discards whatever the author had written.
+    //
+    // Only `enabled` moves. `require_change_for_meaningful_files` is left where
+    // the author left it: turning path coverage on here would revoke this file's
+    // own bootstrap exemption (its digest pins `enabled`) and demand an active
+    // change covering `.specsync/sdd.json` on the very next check.
+    let policy_content = match load_policy_checked(root)? {
+        None => Some(json_content(&SddPolicy {
+            enabled: true,
+            ..default_policy(root, detect_verification_commands(root))
+        })?),
+        Some(policy) if !policy.enabled => Some(json_content(&SddPolicy {
+            enabled: true,
+            ..policy
+        })?),
+        // Already adopted: idempotent, and the author's policy is not rewritten.
+        Some(_) => None,
     };
-    let bootstrap_policy = if policy_existed {
-        existing_bootstrap
-    } else {
-        policy_content
-            .as_deref()
-            .map(|content| adoption_bootstrap_record_for_content(root, content.as_bytes()))
-            .transpose()?
-            .flatten()
+    let bootstrap_policy = match policy_content.as_deref() {
+        // Re-pin over the bytes actually being written. `bootstrap_digest`
+        // covers `enabled`, so a flip that kept the old digest would silently
+        // revoke the exemption `init` recorded.
+        Some(content) => adoption_bootstrap_record_for_content(root, content.as_bytes())?,
+        None => existing_bootstrap,
     };
     let baseline_content = baseline_candidate
         .as_ref()
@@ -7537,12 +7641,30 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
     if let Some(baseline_content) = baseline_content {
         prepared.push((root.join(WORKFLOW_V2_BASELINE_PATH), baseline_content));
     }
+    // Only REFRESH a record that already exists — never create one here.
+    // `adopt` on a project that never ran `init` is exempted by the adoption
+    // report alone, and that report is deliberately the single authority for a
+    // policy adoption created (`adoption_bootstrap_covers_only_the_original_policy`).
+    // Writing a second, independent exemption would mean tampering with the
+    // report no longer revokes anything.
+    let refresh_bootstrap = root.join(BOOTSTRAP_RECORD_PATH).is_file()
+        && prepared
+            .iter()
+            .any(|(path, _)| path == &root.join(POLICY_PATH));
     if let Some(candidate) = baseline_candidate {
         write_prepared_files_checked(root, &prepared, || {
             validate_workflow_v2_adoption_git_snapshot(root, &candidate.git_snapshot)
         })?;
     } else {
         write_prepared_files(root, &prepared)?;
+    }
+    // `init` recorded a digest over the policy it wrote with SDD off. Flipping
+    // `enabled` invalidates it, and a stale bootstrap record does not fail — it
+    // silently stops exempting the file it was written to exempt. Re-pin here so
+    // the exemption survives adoption. A repository with no HEAD has no coverage
+    // gate to exempt from and returns early.
+    if refresh_bootstrap {
+        record_bootstrap_paths(root)?;
     }
     Ok(actions)
 }

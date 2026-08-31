@@ -436,6 +436,126 @@ fn adopt_existing_4x_project_is_idempotent() {
 }
 
 #[test]
+fn init_then_adopt_enables_sdd() {
+    // Honest label: DISCRIMINATOR. `init` writes the policy OFF and prints
+    // "Enable with `specsync change adopt`". On the unfixed binary `adopt`
+    // wrote a policy only when the file was MISSING — which it never is after
+    // `init` — so the advertised on-switch left `enabled: false` and the only
+    // way in was hand-editing JSON.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.rs"), "fn main() {}\n").unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "init"])
+        .assert()
+        .success();
+    let policy_path = root.join(".specsync/sdd.json");
+    let after_init: Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    assert_eq!(
+        after_init["enabled"], false,
+        "CONTROL: init still writes SDD off"
+    );
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "adopt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("enable SDD policy"));
+
+    let after_adopt: Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    assert_eq!(
+        after_adopt["enabled"], true,
+        "adopt is the on-switch the init hint promises"
+    );
+    assert_eq!(
+        after_adopt["require_change_for_meaningful_files"], false,
+        "adopt flips `enabled` only; path coverage stays where the author left it"
+    );
+
+    // The switch is live, not just a JSON edit: the lifecycle gate now bites.
+    let broken = root.join(".specsync/changes/broken-sibling");
+    fs::create_dir_all(&broken).unwrap();
+    fs::write(broken.join("state.json"), "{ this is not json\n").unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
+        .assert()
+        .stderr(
+            predicate::str::contains("state.json")
+                .or(predicate::str::contains("unreadable"))
+                .or(predicate::str::contains("invalid")),
+        );
+}
+
+#[test]
+fn adopt_is_idempotent_on_an_enabled_policy() {
+    // CONTROL for the on-switch: adopting an already-adopted project must not
+    // rewrite the author's policy, and must never reset a customized field to
+    // the fresh-project default.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.rs"), "fn main() {}\n").unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "init"])
+        .assert()
+        .success();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "adopt"])
+        .assert()
+        .success();
+
+    let policy_path = root.join(".specsync/sdd.json");
+    let mut policy: Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    policy["meaningful_paths"] = serde_json::json!(["src/", "private/"]);
+    policy["require_change_for_meaningful_files"] = serde_json::json!(true);
+    fs::write(&policy_path, serde_json::to_string_pretty(&policy).unwrap()).unwrap();
+    let before = fs::read(&policy_path).unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "adopt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("already enabled"));
+
+    assert_eq!(
+        fs::read(&policy_path).unwrap(),
+        before,
+        "adopting an enabled policy must leave it byte-identical"
+    );
+    let after: Value = serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    assert_eq!(after["enabled"], true);
+    assert_eq!(
+        after["meaningful_paths"],
+        serde_json::json!(["src/", "private/"])
+    );
+    assert_eq!(after["require_change_for_meaningful_files"], true);
+}
+
+#[test]
+fn adopt_fails_closed_on_a_policy_it_cannot_parse() {
+    // A corrupt policy must not be silently replaced by a fresh default that
+    // discards whatever the author had written.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/sdd.json"), "{ not json\n").unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "adopt"])
+        .assert()
+        .failure();
+    assert_eq!(
+        fs::read_to_string(root.join(".specsync/sdd.json")).unwrap(),
+        "{ not json\n"
+    );
+}
+
+#[test]
 fn adopt_openspec_imports_canonical_and_active_once() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();

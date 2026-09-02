@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a",
+  "implementation_commit": "e6df4cb3f8ac488a1bc5680c03f067417f0746a2",
+  "implementation_tree": "eb6d3ad36c8ca6496c3bd3db9ddc269e82900db3",
+  "contract_digest": "7120076276153a0b74f5e13cd3f799699809a0b2a62e6316c8fcfdabbd6e26e6",
+  "workspace_digest": "db482b5f81b6591cc5cda806358cb680940ab1111ff8ab84a4d31e8dde85534d",
+  "closing_digest": "864810aaed8657811d78e481820c56471f26bfbb7a0e219c37f256b4e6db0757",
+  "review_digest": "61b214821ef8d622083d36fa9193c545428cd31d2b5154e42e72c7e76252c8a0",
+  "finalization_digest": "fb16eb36f41b2676a663d6a57ee5df706bb3ea3f835e198778d43157743fb92a",
+  "timestamp": 1788358079
+}

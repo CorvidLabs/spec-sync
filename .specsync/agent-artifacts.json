@@ -24,12 +24,12 @@
     ".claude/skills/spec-sync/SKILL.md": {
       "tool": "claude",
       "template_version": 4,
-      "digest": "ab04a4b7982d4ee80894a9bca93c53acccddcc0f40a119cea86fa0de250bbf17"
+      "digest": "605bb5e15a39e406e00bf3276afe7bcef56bf55b16e8399cb23a7c9264fa7d05"
     },
     ".codex/skills/spec-sync/SKILL.md": {
       "tool": "codex",
       "template_version": 4,
-      "digest": "ab04a4b7982d4ee80894a9bca93c53acccddcc0f40a119cea86fa0de250bbf17"
+      "digest": "605bb5e15a39e406e00bf3276afe7bcef56bf55b16e8399cb23a7c9264fa7d05"
     },
     ".cursor/commands/specsync-audit.md": {
       "tool": "cursor",
@@ -54,7 +54,7 @@
     ".cursor/skills/spec-sync/SKILL.md": {
       "tool": "cursor",
       "template_version": 4,
-      "digest": "ab04a4b7982d4ee80894a9bca93c53acccddcc0f40a119cea86fa0de250bbf17"
+      "digest": "605bb5e15a39e406e00bf3276afe7bcef56bf55b16e8399cb23a7c9264fa7d05"
     },
     ".gemini/commands/specsync/audit.toml": {
       "tool": "gemini",
@@ -79,7 +79,7 @@
     ".gemini/skills/spec-sync/SKILL.md": {
       "tool": "gemini",
       "template_version": 4,
-      "digest": "ab04a4b7982d4ee80894a9bca93c53acccddcc0f40a119cea86fa0de250bbf17"
+      "digest": "605bb5e15a39e406e00bf3276afe7bcef56bf55b16e8399cb23a7c9264fa7d05"
     }
   }
 }

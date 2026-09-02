@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second",
+  "slug": "allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second",
+  "title": "Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer.",
+  "description": "Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer.",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "6a5a7a7d893fb43515c51514989e5b06674656c4",
+  "created_at": 1788309812,
+  "updated_at": 1788322909,
+  "affected_specs": [
+    "change",
+    "agents",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/agents.rs",
+    "src/commands/change.rs",
+    "tests/integration/change.rs",
+    "docs/ADOPTING.md",
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "specs/change/change.spec.md",
+    "specs/agents/agents.spec.md",
+    "specs/cmd_change/cmd_change.spec.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change review accepts the same actor as the definition approver. Solo projects can record review and ship without inventing a second identity. GitHub remains the merge authority for required reviewers. Existing tests that required a distinct reviewer now expect same-actor review to succeed. ADOPTING.md and AGENTS.md no longer tell solo adopters to pick a second identity."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

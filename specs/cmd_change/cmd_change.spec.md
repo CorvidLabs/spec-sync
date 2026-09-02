@@ -4,6 +4,7 @@ version: 35
 status: active
 files:
   - src/commands/change.rs
+  - docs/ADOPTING.md
 db_tables: []
 tracks: []
 depends_on:
@@ -83,7 +84,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Missing or mismatched supersede obligation | Command reports the exact predecessor/path/module/digest mismatch and exits 1 without definition mutation |
 | Invalid exact owner correction | Command reports the domain rejection and exits 1 without lifecycle mutation |
 | Invalid batch owner correction or empty discovery | Command reports the domain rejection and exits 1 without lifecycle mutation |
-| Scope approver records the scoped review, or the current verdict is blocking | Command reports the independent-review rejection and finalization remains blocked |
+| Current scoped-review verdict is blocking | Command reports the blocking verdict and finalization remains blocked |
 | Invalid correction ledger before answer, depend, or supersede | Command emits the safe integrity diagnostic and leaves lifecycle files unchanged |
 | Correction ledger changes after a successful mutation | Command renders the transaction's validated snapshot and does not report a false failure after persistence |
 | Affected module has no `context.md`, or it holds only scaffold prompts | Surfacing is skipped for that module and change creation is unaffected |
@@ -106,6 +107,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-09-01 | Scoped review next-action uses `--reviewer <human>`; same-actor review is allowed. |
 | 2026-08-30 | `change check` is spec↔code sync; it does not spawn `verification_commands`. |
 | 2026-08-30 | `ship` / archived `next_action` no longer gate merge on writing lessons. |
 | 2026-08-01 | Draft next-action prefers complete artifacts over approve. |
@@ -142,5 +144,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-24 | close-the-lessons-loop-surface-what-a-module-already-learned-at-proposal-name-where-a-lesson-goes-when-a-build-fails: Close the lessons loop: surface what a module already learned at proposal, name where a lesson goes when a build fails, and assemble the archived bundle at finalize |
 | 2026-08-24 | ship-must-name-the-lesson-fold-back-too-the-archive-bundle-is-written-and-only-finalize-says-so: Ship must name the lesson fold-back too: the archive bundle is written and only finalize says so |
 | 2026-08-29 | ship-status-readiness-must-ask-whether-the-scoped-review-is-current-and-say-so-when-it-cannot-tell: Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell |
+| 2026-09-02 | allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second: Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer. |
+| 2026-09-02 | finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a: Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity |
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
 | 2026-09-02 | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |

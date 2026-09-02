@@ -55,6 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pass as `specsync check`. Configured test/build commands are not executed.
   `change audit` no longer re-runs those commands in CI either.
 
+### Fixed
+
+- **Scoped review may be recorded by the same actor as definition approval.** SpecSync no longer
+  invents a two-person gate GitHub did not require. Solo projects can `change review --reviewer`
+  with the human who approved the definition. Distinct reviewers remain allowed. GitHub required
+  reviews remain the merge authority when a repository wants two humans.
+
 ### Removed
 
 - **Windows is no longer a supported target; no Windows binary is published.** SpecSync 6.0 ships

@@ -299,7 +299,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
         };
     for environment in ["local", "ci", "github"] {
         assert_surfaces(
-            "run `specsync change review harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
+            "run `specsync change review harden-verification-freshness --reviewer <human>` after the PR's scoped review passes",
             Some(true),
             environment,
         );
@@ -324,7 +324,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
         .success();
     for environment in ["local", "ci", "github"] {
         assert_surfaces(
-            "run `specsync change review harden-verification-freshness --reviewer <independent-reviewer>` after the PR's scoped review passes",
+            "run `specsync change review harden-verification-freshness --reviewer <human>` after the PR's scoped review passes",
             None,
             environment,
         );
@@ -837,7 +837,7 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
         assert_eq!(
             status["summary"]["next_action"],
             format!(
-                "run `specsync change review {id} --reviewer <independent-reviewer>` after the PR's scoped review passes"
+                "run `specsync change review {id} --reviewer <human>` after the PR's scoped review passes"
             )
         );
         specsync()

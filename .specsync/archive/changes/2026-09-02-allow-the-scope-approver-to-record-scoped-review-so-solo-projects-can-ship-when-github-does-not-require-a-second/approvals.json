@@ -1,0 +1,148 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1788310024,
+      "digest": "186c62b9b80f245dd072f3a53525146029e2834539a9d29918be55be701d8a0d",
+      "note": "User directed this fix ASAP after SpecSync blocked a solo merge GitHub already allowed on corvid-bot PR 29.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second",
+        "title": "Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer.",
+        "description": "Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer.",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "agents",
+          "change"
+        ],
+        "affected_paths": [
+          "AGENTS.md",
+          "docs/ADOPTING.md",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change review accepts the same actor as the definition approver. Solo projects can record review and ship without inventing a second identity. GitHub remains the merge authority for required reviewers. Existing tests that required a distinct reviewer now expect same-actor review to succeed. ADOPTING.md and AGENTS.md no longer tell solo adopters to pick a second identity."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "3731b438c26fb43426047b5e7d82dc9327b80c421aed5a02b3bfcab6c08af7d4",
+        "change": "bbbcad8155c50aeb3a5ac82c69b0651e0d02fd4fa2243b170914273ad63e6da3"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1788320011,
+      "digest": "52d98761d05a0a8ae23fe52602b624f466d07dd0ed4a45fac7df71e7c24a2016",
+      "note": "Re-approve after adding cmd_change ownership and completing tasks.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second",
+        "title": "Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer.",
+        "description": "Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer.",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "docs/ADOPTING.md",
+          "specs/agents/agents.spec.md",
+          "specs/change/change.spec.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change review accepts the same actor as the definition approver. Solo projects can record review and ship without inventing a second identity. GitHub remains the merge authority for required reviewers. Existing tests that required a distinct reviewer now expect same-actor review to succeed. ADOPTING.md and AGENTS.md no longer tell solo adopters to pick a second identity."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "3731b438c26fb43426047b5e7d82dc9327b80c421aed5a02b3bfcab6c08af7d4",
+        "change": "bbbcad8155c50aeb3a5ac82c69b0651e0d02fd4fa2243b170914273ad63e6da3",
+        "cmd_change": "995fef7857c314ca6a83f263ad27934bc8694304e8d5586f0caf5b557e1bd9d0"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1788320091,
+      "digest": "52d98761d05a0a8ae23fe52602b624f466d07dd0ed4a45fac7df71e7c24a2016",
+      "note": "Re-approve after adding requirement evidence table.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second",
+        "title": "Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer.",
+        "description": "Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer.",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "docs/ADOPTING.md",
+          "specs/agents/agents.spec.md",
+          "specs/change/change.spec.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change review accepts the same actor as the definition approver. Solo projects can record review and ship without inventing a second identity. GitHub remains the merge authority for required reviewers. Existing tests that required a distinct reviewer now expect same-actor review to succeed. ADOPTING.md and AGENTS.md no longer tell solo adopters to pick a second identity."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "3731b438c26fb43426047b5e7d82dc9327b80c421aed5a02b3bfcab6c08af7d4",
+        "change": "bbbcad8155c50aeb3a5ac82c69b0651e0d02fd4fa2243b170914273ad63e6da3",
+        "cmd_change": "995fef7857c314ca6a83f263ad27934bc8694304e8d5586f0caf5b557e1bd9d0"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788322909,
+      "digest": "7e314d37b4b79fe30cbd9875b99cc68c36adc72b8437f17604b12e30ae0c4856",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

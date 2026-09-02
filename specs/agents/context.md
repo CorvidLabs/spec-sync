@@ -23,6 +23,7 @@ Updated for 5.0 SDD. All four tools receive the verified lifecycle skill; Claude
 
 ## Notes
 
+- Generated SDD skill text tells the agent the scoped reviewer MAY be the definition approver. Do not invent a second identity to satisfy SpecSync; GitHub required reviews are the two-person gate when a repository wants one. Tracked `.claude` / `.codex` / `.cursor` / `.gemini` `SKILL.md` files are installer output: updating `SKILL_BODY` without regenerating them leaves checkouts teaching the old two-person gate. `tracked_skill_files_carry_the_current_same_actor_guidance` pins that.
 - The `create-spec` command's prompt body instructs the agent to parse either a bare module name or a natural-language feature description out of its arguments — that parsing happens in the agent's own reasoning, not in Rust code, since these are prompt files, not real CLI arg parsers.
 - Gemini's `.toml` command file is a hand-built string template (`gemini_create_spec_toml()`), not a serialized struct. That predates the `toml` crate, which this project has depended on since #483; nothing has migrated it.
 - Shared create-spec templates remove standalone `--minimal` flags before classifying the complete remaining input. The repository's Claude, Cursor, and Gemini command assets are regenerated from those templates and parity-tested byte for byte so contributors cannot receive stale first-token guidance.

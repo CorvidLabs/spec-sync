@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a",
+      "reviewer": "leif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "e6df4cb3f8ac488a1bc5680c03f067417f0746a2",
+      "contract_digest": "7120076276153a0b74f5e13cd3f799699809a0b2a62e6316c8fcfdabbd6e26e6",
+      "execution_digest": "55af91ef13b5252f361dca51de72049bd2b5d772e4c201cde9ce0d356cb8c881",
+      "workspace_digest": "db482b5f81b6591cc5cda806358cb680940ab1111ff8ab84a4d31e8dde85534d",
+      "timestamp": 1788358047
+    }
+  ]
+}

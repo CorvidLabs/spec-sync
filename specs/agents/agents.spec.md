@@ -4,6 +4,10 @@ version: 14
 status: stable
 files:
   - src/agents.rs
+  - .claude/skills/spec-sync/SKILL.md
+  - .codex/skills/spec-sync/SKILL.md
+  - .cursor/skills/spec-sync/SKILL.md
+  - .gemini/skills/spec-sync/SKILL.md
 db_tables: []
 depends_on: []
 ---
@@ -119,6 +123,7 @@ distinguish exact managed bytes from user customization.
 
 | Date | Author | Change |
 |------|--------|--------|
+| 2026-09-01 | leif | Generated SDD skill allows the definition approver to record scoped review (solo ship) |
 | 2026-08-30 | SpecSync | v12: generated `change check` skill describes spec↔code sync, not targeted tests |
 | 2026-07-10 | codex | v3: teach all four skills the verified SDD lifecycle and add create-change commands where supported |
 | 2026-07-01 | claude | v2: `install_agent` overwrites artifacts whose existing content differs from the current template (content-aware upgrade), instead of only writing missing files |
@@ -133,3 +138,5 @@ distinguish exact managed bytes from user customization.
 | 2026-08-19 | SpecSync | CHG-0158-the-forward-compatibility-valve-must-be-true-everywhere-it-is-claimed: The forward-compatibility valve must be true everywhere it is claimed |
 | 2026-08-30 | SpecSync | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
 | 2026-09-02 | SpecSync | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |
+| 2026-09-02 | SpecSync | allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second: Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer. |
+| 2026-09-02 | SpecSync | finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a: Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity |

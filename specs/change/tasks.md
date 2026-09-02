@@ -9,6 +9,7 @@ spec: change.spec.md
 - [x] Implement semantic requirement/spec deltas
 - [x] Implement digest-bound approvals and stale detection
 - [x] Implement configured verification and atomic acceptance
+- [x] Make `change check` in-process spec↔code sync rather than spawning `verification_commands`
 - [x] Implement concurrent delta conflict detection
 - [x] Implement adoption and external provenance import
 - [x] Complete full release validation

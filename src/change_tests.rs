@@ -88,9 +88,25 @@ fn effective_contract_workspaces_are_unique() {
     }
 }
 
+/// Lifecycle tests need SDD on. Fresh `init` still writes it off via `write_default_policy`.
+fn write_lifecycle_test_policy(root: &Path) {
+    let path = root.join(POLICY_PATH);
+    if path.exists() {
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let mut policy = SddPolicy::default();
+    policy.enabled = true;
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["true".into()];
+    write_json(&path, &policy).unwrap();
+}
+
 fn ensure_test_verification_policy(root: &Path) {
     if !root.join(POLICY_PATH).exists() {
-        write_default_policy(root, vec!["true".into()]).unwrap();
+        write_lifecycle_test_policy(root);
         return;
     }
     let mut policy = load_policy(root).unwrap();
@@ -421,7 +437,7 @@ fn workflow_v2_adoption_keeps_explicitly_anchored_workflow_v1_records_readable()
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -460,7 +476,7 @@ fn change_adopt_moves_only_new_changes_to_v2_without_rewriting_v1_policy() {
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -508,6 +524,44 @@ fn change_adopt_moves_only_new_changes_to_v2_without_rewriting_v1_policy() {
 }
 
 #[test]
+fn change_adopt_flips_only_enabled_on_a_disabled_v1_policy() {
+    // Invariant 20 promises a v1 policy stays byte-identical only while it is already
+    // enabled. A v1 policy an author switched off is the one case adoption rewrites, and
+    // it rewrites exactly one field.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.version = 1;
+    policy.enabled = false;
+    policy.meaningful_paths.push("ops/".into());
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "disabled workflow-v1 policy"]);
+    quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+    adopt(root, false, None).unwrap();
+
+    let after = load_policy(root).unwrap();
+    assert!(
+        after.enabled,
+        "adopt is the on-switch for a disabled v1 policy too"
+    );
+    assert_eq!(
+        SddPolicy {
+            enabled: false,
+            ..after
+        },
+        policy,
+        "adoption must rewrite `enabled` and nothing else"
+    );
+}
+
+#[test]
 fn change_adopt_rejects_uncommitted_workflow_v1_records_without_writes() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
@@ -517,7 +571,7 @@ fn change_adopt_rejects_uncommitted_workflow_v1_records_without_writes() {
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
     quiet_git(root, &["add", "seed.txt"]);
     quiet_git(root, &["commit", "-m", "trusted base"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -553,7 +607,7 @@ fn change_adopt_rejects_branch_only_workflow_v1_records_without_writes() {
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -598,7 +652,7 @@ fn change_adopt_rolls_back_when_comparison_ref_moves_during_publication() {
     fs::write(root.join("seed.txt"), "seed\n").unwrap();
     quiet_git(root, &["add", "seed.txt"]);
     quiet_git(root, &["commit", "-m", "seed"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -654,7 +708,7 @@ fn change_adopt_rejects_workflow_v1_records_without_git_history() {
         if initialize_git {
             quiet_git(root, &["init", "-b", "main"]);
         }
-        write_default_policy(root, Vec::new()).unwrap();
+        write_lifecycle_test_policy(root);
         let mut policy = load_policy(root).unwrap();
         policy.version = 1;
         write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -708,7 +762,7 @@ fn change_adopt_rolls_back_injected_publication_failure_and_retries_cleanly() {
 fn change_adopt_recovers_interrupted_publication_before_idempotent_retry() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -971,7 +1025,7 @@ fn merged_second_parent_baseline_cannot_reenable_workflow_v1_creation() {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut policy = load_policy(root).unwrap();
     policy.version = 1;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
@@ -1788,7 +1842,7 @@ fn a_baseline_is_still_frozen_by_its_canonical_byte_gate() {
 fn an_unknown_workflow_version_says_upgrade_rather_than_invalid() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record.workflow_version = 9;
     save_change(root, &record).unwrap();
@@ -2607,7 +2661,7 @@ fn deleted_tracked_symlink_is_missing_across_all_digest_surfaces() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let blob_source = root.join("symlink-target");
     fs::write(&blob_source, b"../shared/tool").unwrap();
     let output = Command::new("git")
@@ -2666,7 +2720,7 @@ fn modified_tracked_symlink_uses_current_file_topology() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let blob_source = root.join("symlink-target");
     fs::write(&blob_source, b"../shared/tool").unwrap();
     let output = Command::new("git")
@@ -2751,7 +2805,7 @@ fn sparse_absent_files_use_index_bytes_but_materialized_paths_fail_closed() {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("sparse.txt"), b"canonical sparse\n").unwrap();
     quiet_git(root, &["add", POLICY_PATH, "sparse.txt"]);
     quiet_git(root, &["commit", "-m", "track sparse file"]);
@@ -4340,7 +4394,7 @@ fn dated_lifecycle_archive_missing_state_fails_global_enumeration() {
 fn status_and_check_share_exact_and_stale_terminal_evidence() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -4391,7 +4445,7 @@ fn read_scope_memoizes_repeated_summary_git_lookups() {
 fn strict_check_reports_standalone_unprovable_archived_history() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -4669,7 +4723,7 @@ fn normal_merge_does_not_create_a_duplicate_accepted_transition() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(
         root.join("src/lib.rs"),
@@ -4713,7 +4767,7 @@ fn archive_post_move_failure_restores_exact_source_bytes_without_residue() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
     git(&["add", "."]);
@@ -4764,7 +4818,7 @@ fn authenticated_archive_ignores_later_input_drift_but_rejects_snapshot_tamperin
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
@@ -5073,7 +5127,7 @@ fn explicit_semantic_successor_covers_changed_entry_but_rejects_unchanged_entry(
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("README.md"), "base\n").unwrap();
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
@@ -5251,7 +5305,7 @@ fn legacy_reconstruction_deduplicates_identical_transitions_but_rejects_distinct
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("README.md"), "base\n").unwrap();
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
@@ -5709,7 +5763,7 @@ fn acknowledged_collision_allows_only_valid_audited_reopen_history() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = reidentify_as_ordinal(root, &record, "CHG-0001-harden-verification");
     git(&["add", "."]);
@@ -5828,7 +5882,10 @@ fn archive_waits_until_delivery_diff_no_longer_needs_coverage() {
     .unwrap();
     git(&["add", "src/lib.rs"]);
     git(&["commit", "-m", "base"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.require_change_for_meaningful_files = true;
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_no_spec_record(root);
     git(&["add", "src/lib.rs"]);
     git(&["commit", "-m", "feature"]);
@@ -5869,7 +5926,7 @@ fn accepted_evidence_survives_integrated_squash_merge_and_archives() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -5931,7 +5988,7 @@ fn refreshed_accepted_evidence_squash_merged_while_accepted_archives() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -6015,7 +6072,7 @@ fn squash_merged_recording_anchor_fails_closed_without_matching_evidence() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -6080,7 +6137,7 @@ fn accepted_evidence_survives_squash_merge_from_nested_project_root() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(&root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(&root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -6179,7 +6236,7 @@ fn squash_merged_acceptance_reopens_after_a_current_canonical_successor() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -6322,7 +6379,7 @@ fn squash_fallback_rejects_unintegrated_or_changed_evidence() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
@@ -7314,7 +7371,7 @@ fn portable_projection_rejects_clean_crlf_smudging_before_ledger_mutation() {
 fn strict_check_requires_definition_approval_only_in_gated_active_states() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     assert!(
         !check_project(root)
@@ -7557,7 +7614,7 @@ fn malformed_policy_fails_closed() {
 fn malformed_active_change_state_fails_closed() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let dir = root.join(CHANGES_PATH).join("CHG-0001-corrupt");
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("state.json"), "{ invalid json").unwrap();
@@ -8088,7 +8145,7 @@ fn definition_digest_rejects_oversized_canonical_sparse_bytes() {
 #[test]
 fn non_git_policy_disables_only_changed_path_coverage() {
     let temp = TempDir::new().unwrap();
-    write_default_policy(temp.path(), Vec::new()).unwrap();
+    write_lifecycle_test_policy(temp.path());
     assert!(
         !load_policy(temp.path())
             .unwrap()
@@ -8123,7 +8180,10 @@ fn committed_policy_cannot_be_disabled_or_deleted_locally() {
     fs::write(root.join("README.md"), "base\n").unwrap();
     git(&["add", "README.md"]);
     git(&["commit", "-m", "base"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.require_change_for_meaningful_files = true;
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
     fs::write(root.join(".specsync/version"), SDD_VERSION).unwrap();
     git(&["add", ".specsync/sdd.json", ".specsync/version"]);
     git(&["commit", "-m", "enable sdd"]);
@@ -8553,7 +8613,7 @@ fn working_tree_changes_invalidate_verification() {
 fn stale_accepted_change_reopens_with_audited_evidence_and_reaccepts() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -8629,7 +8689,7 @@ fn stale_accepted_change_reopens_with_audited_evidence_and_reaccepts() {
 fn reopen_binds_historical_verification_when_tip_no_longer_matches_closing() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -8763,7 +8823,7 @@ fn workflow_v2_reopen_after_finalization_accept_then_finalize_archives() {
 fn accepted_change_can_refresh_stale_definition_approval() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -8788,7 +8848,7 @@ fn accepted_change_can_refresh_stale_definition_approval() {
 fn legacy_workflow_finalize_refuses_and_names_accept_archive() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     assert_eq!(record.workflow_version, 1);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
@@ -8806,7 +8866,7 @@ fn legacy_workflow_finalize_refuses_and_names_accept_archive() {
 fn stale_accepted_change_error_names_uncovered_input_and_reopen_remediation() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -8855,7 +8915,7 @@ fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("README.md"), "base\n").unwrap();
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
@@ -8930,7 +8990,7 @@ fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
 fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, vec!["true".into()]).unwrap();
+    write_lifecycle_test_policy(root);
     fs::write(root.join("README.md"), "Initial review instructions.\n").unwrap();
     let mut record = create_change(
         root,
@@ -8998,7 +9058,7 @@ fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
 fn approve_rejects_a_declared_path_owned_by_an_undeclared_module() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("specs/legacy")).unwrap();
     fs::write(
             root.join("specs/legacy/legacy.spec.md"),
@@ -9048,7 +9108,7 @@ fn approve_rejects_a_declared_path_owned_by_an_undeclared_module() {
 fn never_closed_verifying_change_corrects_an_owner_without_a_reopen() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("specs/legacy")).unwrap();
     fs::write(
             root.join("specs/legacy/legacy.spec.md"),
@@ -9089,7 +9149,7 @@ fn never_closed_verifying_change_corrects_an_owner_without_a_reopen() {
 fn reopened_change_adds_exact_canonical_owner_without_replaying_delivery() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("specs/legacy")).unwrap();
     fs::write(
             root.join("specs/legacy/legacy.spec.md"),
@@ -9204,7 +9264,7 @@ fn reopened_change_adds_exact_canonical_owner_without_replaying_delivery() {
 fn batch_owner_corrections_append_transactionally_or_not_at_all() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, vec!["true".into()]).unwrap();
+    write_lifecycle_test_policy(root);
     fs::create_dir_all(root.join("src")).unwrap();
     fs::create_dir_all(root.join("specs/legacy")).unwrap();
     fs::create_dir_all(root.join("specs/current")).unwrap();
@@ -9392,7 +9452,7 @@ fn owner_batch_validation_queries_canonical_module_once() {
 fn owner_correction_rejects_invalid_requests_without_mutation() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -9442,7 +9502,9 @@ fn owner_correction_rejects_invalid_requests_without_mutation() {
 fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecessor() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut predecessor = completed_section_only_record(
         root,
         "## MODIFIED\n### SPEC SECTION Invariants\n\nOriginal governed behavior.\n",
@@ -9531,17 +9593,27 @@ fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecesso
         error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
     }));
 
-    let mut policy = load_policy(root).unwrap();
-    policy.verification_commands =
-        vec!["cargo metadata --manifest-path definitely-missing/Cargo.toml".into()];
-    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    // A failing verification must not clear the stale-predecessor finding. The
+    // failure has to sit inside the successor's own scope — `change check` is
+    // scoped, so drift in a module it neither declares nor maps is ignored.
+    // `auth_extra` maps `src/auth-extra.rs`, one of the successor's declared
+    // paths, so the scoped spec↔code pass is what fails.
+    let drifted_spec = root.join("specs/auth_extra/auth_extra.spec.md");
+    fs::create_dir_all(drifted_spec.parent().unwrap()).unwrap();
+    fs::write(
+        &drifted_spec,
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: auth_extra")
+            .replace("src/auth.rs", "src/auth-extra.rs")
+            .replace("# Auth", "# Auth Extra"),
+    )
+    .unwrap();
     assert!(verify_change(root, &successor.id).is_err());
     assert!(check_project(root).errors.iter().any(|error| {
         error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
     }));
 
-    policy.verification_commands = vec!["true".into()];
-    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::remove_file(&drifted_spec).unwrap();
     verify_change(root, &successor.id).unwrap();
     assert!(check_project(root).errors.iter().any(|error| {
         error.contains(&predecessor.id) && error.contains("stale for current delivery inputs")
@@ -9603,7 +9675,7 @@ fn refused_reopen_restores_the_archived_package() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -9660,7 +9732,7 @@ fn refused_reopen_restores_the_archived_package() {
 fn reaccept_rejects_definition_changes_after_canonical_application() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -9712,7 +9784,7 @@ fn reaccept_rejects_definition_changes_after_canonical_application() {
 fn accepted_metadata_correction_preserves_original_evidence_and_adds_artifacts() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = accept_completed_record(root, completed_no_spec_record(root));
     let original_answers = record.answers.clone();
     let original_artifacts = record.selected_artifacts.clone();
@@ -9786,7 +9858,7 @@ fn accepted_metadata_correction_preserves_original_evidence_and_adds_artifacts()
 fn metadata_correction_rejects_noops_unsupported_fields_and_missing_audit_inputs() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = accept_completed_record(root, completed_no_spec_record(root));
 
     let error = correct_interview_metadata(
@@ -9842,7 +9914,7 @@ fn correction_values_preserve_supported_boolean_aliases() {
 fn corrected_acceptance_requires_fresh_gates_and_never_replays_canonical_deltas() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let delta = "## MODIFIED\n\n### SPEC SECTION Invariants\n\nCorrected metadata never replays this canonical section.\n";
     let mut record = completed_section_only_record(root, delta);
     record.answers.insert("public_contract".into(), "no".into());
@@ -9933,7 +10005,7 @@ fn trusted_history_rejects_correction_rollback_and_divergent_same_count() {
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
     git(&["config", "core.autocrlf", "false"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_section_only_record(
         root,
         "## MODIFIED\n\n### SPEC SECTION Invariants\n\nAccepted passkey changes retain lifecycle evidence.\n",
@@ -10064,7 +10136,7 @@ fn full_history_finds_a_corrected_anchor_hidden_by_a_treesame_merge_result() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10148,7 +10220,7 @@ fn trusted_history_ignores_a_dangling_remote_default_symbolic_ref() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = accept_completed_record(root, completed_no_spec_record(root));
     git(&["add", "."]);
     git(&["commit", "-m", "accept definition"]);
@@ -10188,7 +10260,7 @@ fn historical_git_paths_are_nul_safe_in_a_non_ascii_project_directory() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(&root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(&root);
     let mut record = completed_section_only_record(
         &root,
         "## MODIFIED\n\n### SPEC SECTION Invariants\n\nHistorical paths remain byte-delimited.\n",
@@ -10257,7 +10329,7 @@ fn archived_change_uses_prior_active_correction_anchor() {
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
     git(&["config", "core.autocrlf", "false"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10326,7 +10398,7 @@ fn archived_only_corrected_snapshot_remains_a_trusted_anchor() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10407,7 +10479,7 @@ fn shallow_history_with_corrections_fails_closed() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10455,7 +10527,7 @@ fn shallow_rollback_tip_cannot_hide_a_corrected_acceptance() {
     fs::write(source.join("README.md"), "# Fixture\n").unwrap();
     git(&source, &["add", "."]);
     git(&source, &["commit", "-m", "base"]);
-    write_default_policy(&source, Vec::new()).unwrap();
+    write_lifecycle_test_policy(&source);
     let mut record = completed_no_spec_record(&source);
     record = accept_completed_record(&source, record);
     git(&source, &["add", "."]);
@@ -10545,7 +10617,7 @@ fn accepted_snapshot_with_a_stale_contract_is_not_an_anchor() {
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base definition"]);
@@ -10596,7 +10668,7 @@ fn accepted_snapshot_with_a_stale_contract_is_not_an_anchor() {
 fn correction_ledgers_fail_closed_and_hash_portably() {
     let first = TempDir::new().unwrap();
     let root = first.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let accepted = accept_completed_record(root, completed_no_spec_record(root));
     let result = correct_interview_metadata(
         root,
@@ -10672,7 +10744,7 @@ fn correction_ledgers_fail_closed_and_hash_portably() {
 fn text_correction_ledger_health_hides_invalid_ledger_detail() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = completed_no_spec_record(root);
     let ledger_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
 
@@ -10688,7 +10760,7 @@ fn text_correction_ledger_health_hides_invalid_ledger_detail() {
 fn mutation_rechecks_correction_ledger_after_lock_acquisition() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let record = completed_no_spec_record(root);
     let ledger_path = change_dir(root, &record.id).join(CORRECTIONS_FILE);
     let state_path = change_dir(root, &record.id).join("state.json");
@@ -10770,7 +10842,7 @@ fn acceptance_rechecks_late_dependency_state() {
 fn failed_evidence_keeps_local_check_red() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut record = completed_no_spec_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
@@ -11456,13 +11528,18 @@ fn missing_semantic_acceptance_evidence_is_not_reported_as_command_failure() {
     );
 }
 
+const PHANTOM_AUTH_SPEC: &str = "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `does_not_exist` | Phantom. |\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n";
+
 #[test]
-fn direct_recursive_verification_command_is_rejected_before_execution() {
+fn change_check_does_not_execute_configured_project_commands() {
+    // Honest label: DISCRIMINATOR. On the unfixed binary this command runs
+    // `verification_commands` (`true`, `cargo test`, …). A sentinel file must
+    // not appear.
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let mut policy = SddPolicy::default();
     policy.require_change_for_meaningful_files = false;
-    policy.verification_commands = vec!["specsync check --strict".into()];
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_section_only_record(
         root,
@@ -11471,23 +11548,557 @@ fn direct_recursive_verification_command_is_rejected_before_execution() {
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
 
+    let verification = verify_change(root, &record.id).unwrap();
+    assert!(
+        verification.passed,
+        "matching specs and code must pass without running project commands"
+    );
+    assert_eq!(
+        verification.commands[0].command, "specsync check --spec auth",
+        "evidence must name the scoped pass a reader can rerun"
+    );
+    assert!(
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned"
+    );
+}
+
+#[test]
+fn change_check_fails_when_specs_and_code_drift() {
+    // Honest label: CONTROL. A verifier that always passes (or ignores specs)
+    // would go green here. Phantom export is an error, not a warning.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["true".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    let mut record = completed_section_only_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), PHANTOM_AUTH_SPEC).unwrap();
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let error = verify_change(root, &record.id).unwrap_err();
+    assert!(
+        error.contains("does_not_exist")
+            || error.contains("out of sync")
+            || error.contains("phantom")
+            || error.contains("missing"),
+        "spec↔code drift must fail change check, got {error}"
+    );
+}
+
+#[test]
+fn change_check_ignores_drift_in_an_unowned_spec() {
+    // Honest label: DISCRIMINATOR for scoping. On the unfixed binary
+    // `evaluate_spec_code_sync` walked every spec under `specs_dir`, so a
+    // phantom export in a module this change never declared failed its
+    // verification. `change check` is scoped: another module's drift is another
+    // change's problem, and the whole-project answer is `specsync check`.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["true".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    let mut record = completed_section_only_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    // `other` is neither in `affected_specs` (["auth"]) nor mapped by
+    // `affected_paths` (["src/auth.rs"]).
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let verification = verify_change(root, &record.id).unwrap();
+    assert!(
+        verification.passed,
+        "drift in a module this change does not own must not fail its scoped check"
+    );
+    assert_eq!(
+        verification.commands[0].command,
+        "specsync check --spec auth"
+    );
+}
+
+#[test]
+fn scope_includes_a_spec_mapping_a_declared_path_with_no_declared_module() {
+    // A `--no-spec-change` delivery declares no module. The specs mapping its
+    // source are still the contracts it can break, so scope is the union of
+    // declared modules AND specs whose `files:` fall inside a declared path.
+    // Without the second half this change would verify against nothing.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    ensure_test_verification_policy(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::create_dir_all(root.join("vendor")).unwrap();
+    fs::create_dir_all(root.join("specs/vendored")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(root.join("vendor/thing.rs"), "// vendored\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+    // CONTROL: mapped outside the declared scope, so it must stay out.
+    fs::write(
+        root.join("specs/vendored/vendored.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: vendored")
+            .replace("src/auth.rs", "vendor/thing.rs")
+            .replace("# Auth", "# Vendored"),
+    )
+    .unwrap();
+    let record = create_change(
+        root,
+        CreateChangeRequest {
+            description: "Refactor internals without a contract change".into(),
+            kind: ChangeKind::BugFix,
+            affected_specs: Vec::new(),
+            affected_paths: vec!["src/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("No public contract change".into()),
+        },
+    )
+    .unwrap();
+
+    let config = crate::config::load_config(root);
+    let scope = scoped_spec_files(root, &record, &config);
+
+    assert_eq!(scope.filters, vec!["other".to_string()]);
+    assert!(scope.unresolved.is_empty(), "{:?}", scope.unresolved);
+    assert!(
+        scope
+            .files
+            .iter()
+            .any(|file| file.ends_with("specs/other/other.spec.md")),
+        "{:?}",
+        scope.files
+    );
+    assert!(
+        !scope
+            .files
+            .iter()
+            .any(|file| file.ends_with("specs/vendored/vendored.spec.md")),
+        "a spec mapping only paths outside the declared scope is not this change's: {:?}",
+        scope.files
+    );
+}
+
+#[test]
+fn the_spec_filter_name_is_the_stem_filter_specs_matches_not_the_declared_module() {
+    // `filter_specs` matches `--spec` against the file stem with `.spec`
+    // stripped, never against frontmatter `module:`. Recording the declared
+    // module for a spec whose filename differs writes a command that selects
+    // nothing — the evidence would name a pass no one can reproduce.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    ensure_test_verification_policy(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        clean_spec("other", "src/other.rs").replace("module: other", "module: differently_named"),
+    )
+    .unwrap();
+    let record = create_change(
+        root,
+        CreateChangeRequest {
+            description: "Touch src with a mismatched module name".into(),
+            kind: ChangeKind::BugFix,
+            affected_specs: Vec::new(),
+            affected_paths: vec!["src/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("No public contract change".into()),
+        },
+    )
+    .unwrap();
+
+    let scope = scoped_spec_files(root, &record, &crate::config::load_config(root));
+
+    assert_eq!(
+        scope.filters,
+        vec!["other".to_string()],
+        "the filter is the stem `other`, not the declared module `differently_named`"
+    );
+}
+
+#[test]
+fn mixed_scope_evidence_names_the_missing_module_but_does_not_rerun_faithfully() {
+    // Honest label: CHARACTERIZATION of a KNOWN RESIDUAL. It asserts what the
+    // evidence string can and cannot promise, so nobody restores the comment
+    // that claimed a faithful rerun in every case.
+    //
+    // With one declared module resolved and one missing, `change check` FAILS
+    // (the missing module is an error) and the recorded filters name both — the
+    // only place the persisted record says which module was missing. But
+    // `filter_specs` demotes an unmatched filter to a stderr warning as soon as
+    // any other filter matches, and check's exit-1 gate fires only on an empty
+    // match set, so rerunning that literal command can exit 0. If this ever
+    // fails, check why before changing it.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    ensure_test_verification_policy(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        clean_spec("other", "src/other.rs"),
+    )
+    .unwrap();
+    let mut record = create_change(
+        root,
+        CreateChangeRequest {
+            description: "Declare one resolvable and one missing module".into(),
+            kind: ChangeKind::BugFix,
+            affected_specs: vec!["other".into(), "absent".into()],
+            affected_paths: vec!["src/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("No public contract change".into()),
+        },
+    )
+    .unwrap();
+    record.acceptance_criteria = vec!["Mixed scope is recorded honestly".into()];
+
+    let scope = scoped_spec_files(root, &record, &crate::config::load_config(root));
+
+    assert_eq!(
+        scope.unresolved.len(),
+        1,
+        "the missing module is an error, not a silently smaller scope: {:?}",
+        scope.unresolved
+    );
+    assert!(
+        scope.unresolved[0].contains("`absent`"),
+        "{:?}",
+        scope.unresolved
+    );
+    assert_eq!(
+        scope.filters,
+        vec!["absent".to_string(), "other".to_string()],
+        "evidence names BOTH, so the record says which module was missing"
+    );
+    // The residual: this command names a filter that matches nothing alongside
+    // one that matches, which `filter_specs` treats as a warning, not an error.
+    assert_eq!(
+        scoped_check_command(&scope.filters, false),
+        "specsync check --spec absent --spec other"
+    );
+}
+
+#[test]
+fn change_check_fails_when_a_declared_module_has_no_spec_on_disk() {
+    // Honest label: DISCRIMINATOR. Before this fix `scoped_spec_files` dropped a
+    // declared module whose spec was not on disk, so a change could name a
+    // contract, never write (or delete) its spec, and verify GREEN against zero
+    // of the modules it declared. A clean spec in path scope made the pass look
+    // real. `no_spec_change` is what isolates this gate: the effective-contract
+    // walk skips those records, so the scoped spec↔code pass is the only thing
+    // standing between this record and a vacuous green.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+
+    let mut record = completed_no_spec_record(root);
+    // Another spec IS in path scope (`affected_paths` is `src/`), so the run has
+    // real work to do and cannot pass merely for lack of anything to check.
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        clean_spec("other", "src/other.rs"),
+    )
+    .unwrap();
+    // The declared module's spec is gone.
+    fs::remove_file(root.join("specs/change/change.spec.md")).unwrap();
+
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
     let error = verify_change(root, &record.id).unwrap_err();
 
-    assert!(error.contains("recursive lifecycle verification command"));
-    assert!(error.contains("specsync check --strict"));
+    assert!(
+        error.contains("`change`"),
+        "the failure must name the module whose spec is missing: {error}"
+    );
+    assert!(
+        error.contains("verification.json"),
+        "a missing declared spec is a recorded spec↔code failure, so the retry is \
+         append-only like any other: {error}"
+    );
+    let recorded = load_verification(root, &record).unwrap();
+    assert!(!recorded.passed);
+    assert!(
+        recorded.commands[0].command.contains("--spec change"),
+        "evidence names the unresolved module so the command reproduces the verdict: {}",
+        recorded.commands[0].command
+    );
+    assert!(
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned"
+    );
+}
+
+#[test]
+fn change_check_passes_a_no_spec_change_delivery_that_maps_no_spec_at_all() {
+    // Honest label: CONTROL for the fix above. A change that declared NO module
+    // and whose declared paths map no spec has claimed no contract — an empty
+    // scope here is honest, not evaporation, and must stay a pass. A fix that
+    // failed every empty scope would go red here.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+
+    let mut record = no_spec_change_record_over_src(root, "Refactor with no spec anywhere");
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let verification = verify_change(root, &record.id).unwrap();
+
+    assert!(verification.passed);
     assert_eq!(
-        load_change(root, &record.id).unwrap().state,
-        ChangeState::Implementing
+        verification.commands[0].command, "specsync check (no spec in scope)",
+        "a change that claimed no spec records exactly that"
+    );
+    assert!(!root.join("was-run").exists());
+}
+
+/// A `--no-spec-change` delivery over `src/` that declares NO module.
+///
+/// `completed_no_spec_record` declares `change`, so its scope survives even if
+/// scoping were to read `affected_specs` alone. The record that proves the union
+/// clause is load-bearing is the one that names no module at all.
+fn no_spec_change_record_over_src(root: &Path, description: &str) -> ChangeRecord {
+    ensure_test_verification_policy(root);
+    let mut record = create_change(
+        root,
+        CreateChangeRequest {
+            description: description.into(),
+            kind: ChangeKind::BugFix,
+            affected_specs: Vec::new(),
+            affected_paths: vec!["src/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("No public contract change".into()),
+        },
+    )
+    .unwrap();
+    record.acceptance_criteria = vec!["Internals are refactored without a contract change".into()];
+    record.answers.insert("public_contract".into(), "no".into());
+    record
+        .answers
+        .insert("architecture_risk".into(), "no".into());
+    persist_legacy_test_record(root, &mut record);
+    write_change_markdown(root, &record).unwrap();
+    for artifact in &record.selected_artifacts {
+        let content = if *artifact == ArtifactKind::Tasks {
+            "# Tasks\n\n- [x] Complete\n"
+        } else {
+            "# Complete\n\nReviewed.\n"
+        };
+        fs::write(
+            change_dir(root, &record.id).join(artifact.file_name()),
+            content,
+        )
+        .unwrap();
+    }
+    record
+}
+
+/// A spec that documents nothing and therefore cannot drift.
+fn clean_spec(module: &str, source: &str) -> String {
+    format!(
+        "---\nmodule: {module}\nversion: 1.0.0\nstatus: stable\nfiles:\n  - {source}\n---\n\n# {module}\n\n## Purpose\n\nFixture.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n"
+    )
+}
+
+#[test]
+fn change_check_fails_a_no_spec_change_delivery_whose_mapped_spec_drifted() {
+    // Honest label: DISCRIMINATOR for the union clause, end to end through
+    // `verify_change` rather than through `scoped_spec_files` alone. A scoping
+    // rule that read only `affected_specs` would make this record — which names
+    // no module — verify against nothing and pass vacuously. Asserting the
+    // helper in isolation cannot catch that; only the verb can.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+
+    let mut record = no_spec_change_record_over_src(root, "Refactor internals over src");
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let error = verify_change(root, &record.id).unwrap_err();
+
+    assert!(
+        error.contains("does_not_exist") || error.contains("no matching export"),
+        "{error}"
+    );
+    // The effective-contract gate walks declared MODULES and returns before any
+    // attempt is recorded. Naming `verification.json` is what proves the failure
+    // came from the scoped spec↔code pass, which recorded an attempt.
+    assert!(
+        error.contains("verification.json"),
+        "the failure must be the recorded spec↔code pass, not an earlier gate: {error}"
+    );
+    assert_eq!(
+        load_verification(root, &record).unwrap().commands[0].command,
+        "specsync check --spec other",
+        "evidence must name the module reached through the declared path"
     );
     assert!(
-        !change_dir(root, &record.id)
-            .join("verification.json")
-            .exists()
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned"
+    );
+}
+
+#[test]
+fn change_check_passes_a_no_spec_change_delivery_when_only_an_unmapped_spec_drifted() {
+    // Honest label: CONTROL for the test above. A verifier that simply fails
+    // everything, or that widened scope back to the whole project, would go red
+    // here. The in-scope spec is clean and the drifted one maps `vendor/`, which
+    // this change never declared — and the recorded command proves the pass was
+    // over a real scope rather than an empty one.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut policy = SddPolicy::default();
+    policy.require_change_for_meaningful_files = false;
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("vendor")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::create_dir_all(root.join("specs/vendored")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(root.join("vendor/thing.rs"), "// vendored\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        clean_spec("other", "src/other.rs"),
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/vendored/vendored.spec.md"),
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: vendored")
+            .replace("src/auth.rs", "vendor/thing.rs")
+            .replace("# Auth", "# Vendored"),
+    )
+    .unwrap();
+
+    let mut record = no_spec_change_record_over_src(root, "Refactor internals over src only");
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let verification = verify_change(root, &record.id).unwrap();
+
+    assert!(
+        verification.passed,
+        "drift in a spec mapping no declared path is not this change's failure"
+    );
+    assert_eq!(
+        verification.commands[0].command, "specsync check --spec other",
+        "the pass must be over a real scope, not an empty one"
     );
     assert!(
-        !change_dir(root, &record.id)
-            .join("verification-attempts.json")
-            .exists()
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned"
+    );
+}
+
+#[test]
+fn an_empty_scope_is_named_rather_than_written_as_a_project_wide_pass() {
+    // Recording a bare `specsync check` here would claim a project-wide pass
+    // that never ran.
+    assert_eq!(
+        scoped_check_command(&[], false),
+        "specsync check (no spec in scope)"
+    );
+    assert_eq!(
+        scoped_check_command(&["auth".to_string(), "billing".to_string()], false),
+        "specsync check --spec auth --spec billing"
+    );
+    assert_eq!(
+        scoped_check_command(&["auth".to_string()], true),
+        "specsync check --spec auth --strict"
+    );
+}
+
+#[test]
+fn status_does_not_advertise_strict_unless_strict_was_requested() {
+    // Honest label: DISCRIMINATOR for F4. `change` is one of the modules
+    // `change_requires_strict_validation` classifies as high-risk, so on the
+    // unfixed binary the summary advertised `specsync check --strict` while
+    // `verify_change` recorded plain `specsync check`. Status and evidence must
+    // name the same command.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+
+    let summary = summarize_change(root, &record);
+    assert!(
+        summary.strict_validation_required,
+        "the high-risk classification itself is still reported"
+    );
+    assert_eq!(
+        summary.verification_commands,
+        vec!["specsync check --spec change".to_string()],
+        "a classification is not a `--strict` invocation"
+    );
+    assert_eq!(
+        summarize_change_with_strict(root, &record, true).verification_commands,
+        vec!["specsync check --spec change --strict".to_string()]
+    );
+
+    let verification = verify_change(root, &record.id).unwrap();
+    assert_eq!(
+        vec![verification.commands[0].command.clone()],
+        summary.verification_commands,
+        "evidence must be the command status advertised"
     );
 }
 
@@ -11607,22 +12218,18 @@ fn cargo_manifest_path_detects_recursive_specsync_before_state_mutation() {
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
 
-    let error = verify_change(root, &record.id).unwrap_err();
-
-    assert!(error.contains("recursive lifecycle verification command"));
+    let verification = verify_change(root, &record.id).unwrap();
+    assert!(
+        verification.passed,
+        "configured recursive cargo-run is not spawned, so spec↔code sync still runs"
+    );
+    assert_eq!(
+        verification.commands[0].command,
+        "specsync check --spec auth"
+    );
     assert_eq!(
         load_change(root, &record.id).unwrap().state,
-        ChangeState::Implementing
-    );
-    assert!(
-        !change_dir(root, &record.id)
-            .join("verification.json")
-            .exists()
-    );
-    assert!(
-        !change_dir(root, &record.id)
-            .join("verification-attempts.json")
-            .exists()
+        ChangeState::Verifying
     );
 }
 
@@ -11740,13 +12347,12 @@ fn disabled_policy_skips_sequence_validation() {
 }
 
 #[test]
-fn failed_native_verification_is_retryable_with_append_only_history() {
+fn failed_spec_sync_is_retryable_with_append_only_history() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let mut policy = SddPolicy::default();
     policy.require_change_for_meaningful_files = false;
-    policy.verification_commands =
-        vec!["cargo metadata --manifest-path definitely-missing/Cargo.toml".into()];
+    policy.verification_commands = vec!["python3 -c \"open('was-run','w').write('ran')\"".into()];
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_section_only_record(
         root,
@@ -11754,19 +12360,38 @@ fn failed_native_verification_is_retryable_with_append_only_history() {
     );
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
+    // The drift has to be inside this change's scope, or scoped verification
+    // ignores it. It also has to be outside `affected_specs`, because the
+    // effective-contract gate walks the declared MODULES and returns before any
+    // verification attempt is recorded — and the append-only attempt ledger is
+    // what this test is about. `auth_cli` maps `src/auth.rs`, the change's
+    // declared path, so the scoped spec↔code pass is the gate that fails.
+    let drifted_spec = root.join("specs/auth_cli/auth_cli.spec.md");
+    fs::create_dir_all(drifted_spec.parent().unwrap()).unwrap();
+    fs::write(
+        &drifted_spec,
+        PHANTOM_AUTH_SPEC
+            .replace("module: auth", "module: auth_cli")
+            .replace("# Auth", "# Auth CLI"),
+    )
+    .unwrap();
 
     let first_error = verify_change(root, &record.id).unwrap_err();
-    // The failure names the exact command and where its evidence lives, so an
-    // author does not have to open verification.json to learn which step failed.
-    assert!(first_error.contains("cargo metadata --manifest-path definitely-missing/Cargo.toml"));
-    assert!(first_error.contains("verification.json"));
+    assert!(
+        first_error.contains("does_not_exist") || first_error.contains("no matching export"),
+        "{first_error}"
+    );
+    assert!(first_error.contains("verification.json"), "{first_error}");
     assert_eq!(
         load_change(root, &record.id).unwrap().state,
         ChangeState::Verifying
     );
+    assert!(
+        !root.join("was-run").exists(),
+        "configured verification_commands must not be spawned on a failed spec↔code pass"
+    );
 
-    policy.verification_commands = vec!["true".into()];
-    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::remove_file(&drifted_spec).unwrap();
     let successful = verify_change(root, &record.id).unwrap();
     assert!(successful.passed);
     let history: VerificationAttemptLedger = serde_json::from_slice(
@@ -12705,7 +13330,7 @@ fn accepted_later_sequence_owner_covers_post_acceptance_collision_acknowledgemen
     git(&["init", "-b", "main"]);
     git(&["config", "user.email", "test@example.com"]);
     git(&["config", "user.name", "Test"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut legacy_policy = load_policy(root).unwrap();
     legacy_policy.version = 1;
     write_json(&root.join(POLICY_PATH), &legacy_policy).unwrap();
@@ -14878,6 +15503,53 @@ fn subproject_policy_and_diff_paths_are_project_relative() {
 }
 
 #[test]
+fn adopt_re_pins_the_bootstrap_record_it_invalidates() {
+    // `init` records a digest over the policy it wrote with SDD OFF, and
+    // `bootstrap_digest` covers `enabled`. Flipping that field invalidates the
+    // record — which does not fail, it silently stops exempting the file it was
+    // written to exempt. Adoption re-pins its own bytes.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success()
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"]);
+    git(&["commit", "-m", "base"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+    // What `specsync init` does: policy off, then pin it.
+    write_default_policy(root, Vec::new()).unwrap();
+    record_bootstrap_paths(root).unwrap();
+    assert!(!load_policy(root).unwrap().enabled);
+
+    adopt(root, false, None).unwrap();
+
+    let policy = load_policy(root).unwrap();
+    assert!(policy.enabled, "adopt is the on-switch");
+    let gated = SddPolicy {
+        require_change_for_meaningful_files: true,
+        ..policy
+    };
+    assert!(
+        !uncovered_meaningful_paths(root, &gated, &[])
+            .unwrap()
+            .contains(&POLICY_PATH.to_string()),
+        "the exemption init recorded must survive the flip adoption makes"
+    );
+}
+
+#[test]
 fn adoption_bootstrap_covers_only_the_original_policy() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
@@ -15047,7 +15719,7 @@ fn overlapping_changes_cannot_lend_archive_attribution() {
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     let mut legacy_policy = load_policy(root).unwrap();
     legacy_policy.version = 1;
     write_json(&root.join(POLICY_PATH), &legacy_policy).unwrap();
@@ -16100,7 +16772,7 @@ fn orphaned_verification_commit_reopens_even_though_inputs_are_unchanged() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
@@ -16197,7 +16869,7 @@ fn a_squash_merged_archive_is_recorded_under_its_archive_path() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -16266,7 +16938,7 @@ fn an_archive_absent_from_the_default_branch_is_not_recorded() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     // origin/main is pinned to the base commit and never advances.
@@ -16328,7 +17000,7 @@ fn recorded_verification_survives_a_squash_that_preserves_content() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
     git(&["switch", "-c", "feature"]);
@@ -16390,7 +17062,7 @@ fn recorded_verification_is_stale_when_the_workspace_digest_does_not_match() {
         "pub fn ready() -> bool { false }\n",
     )
     .unwrap();
-    write_default_policy(root, Vec::new()).unwrap();
+    write_lifecycle_test_policy(root);
     git(&["add", "."]);
     git(&["commit", "-m", "base"]);
 
@@ -16950,5 +17622,348 @@ fn proc_locks_names_only_the_flock_write_holder_of_the_lock_file() {
     assert_eq!(
         proc_locks_flock_holders(contents, 8, 1, 1_111_111),
         Vec::<u32>::new()
+    );
+}
+
+// ─── Handoff readiness (REQ-change-093) ──────────────────────────────────────
+
+fn handoff_signals(state: ChangeState) -> HandoffSignals {
+    HandoffSignals {
+        state,
+        workflow_version: 2,
+        sequence_frozen: false,
+        open_questions: false,
+        artifacts_complete: true,
+        approval_valid: true,
+        correction_valid: true,
+        scoped_edits_uncommitted: Some(false),
+        verification_current: true,
+        scoped_review_current: true,
+        terminal_evidence_stale: false,
+    }
+}
+
+fn assert_handoff_has_no_digest(summary: &HandoffSummary) {
+    let text = format!(
+        "{} {} {}",
+        summary.reason,
+        summary.resume,
+        summary.before_clearing.join(" ")
+    );
+    assert!(
+        !text
+            .split(|c: char| !c.is_ascii_hexdigit())
+            .any(|word| word.len() >= 40),
+        "handoff prose must never carry a digest: {text}"
+    );
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_resume_is_always_change_status_and_never_a_digest() {
+    for state in [
+        ChangeState::Draft,
+        ChangeState::Approved,
+        ChangeState::Implementing,
+        ChangeState::Verifying,
+        ChangeState::Accepted,
+        ChangeState::Archived,
+    ] {
+        let summary = classify_handoff("add-passkeys", &handoff_signals(state));
+        assert_eq!(summary.resume, "specsync change status add-passkeys");
+        assert_handoff_has_no_digest(&summary);
+        if summary.readiness != HandoffReadiness::Safe {
+            assert!(
+                !summary.before_clearing.is_empty(),
+                "{state:?}: a verdict that is not safe must name what to do first"
+            );
+        }
+    }
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_sequence_freeze_outranks_every_state() {
+    for state in [
+        ChangeState::Draft,
+        ChangeState::Verifying,
+        ChangeState::Archived,
+    ] {
+        let mut signals = handoff_signals(state);
+        signals.sequence_frozen = true;
+        let summary = classify_handoff("add-passkeys", &signals);
+        assert_eq!(summary.readiness, HandoffReadiness::NotYet, "{state:?}");
+        assert!(summary.before_clearing[0].contains("freeze"));
+    }
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_draft_is_never_safe_and_names_the_next_boundary() {
+    let mut signals = handoff_signals(ChangeState::Draft);
+    signals.open_questions = true;
+    signals.artifacts_complete = false;
+    let questions = classify_handoff("add-passkeys", &signals);
+    assert_eq!(questions.readiness, HandoffReadiness::Conditional);
+    assert!(questions.before_clearing[0].contains("specsync change answer add-passkeys"));
+    assert!(questions.before_clearing[1].contains(".specsync/changes/add-passkeys/change.md"));
+
+    signals.open_questions = false;
+    let stubs = classify_handoff("add-passkeys", &signals);
+    assert_eq!(stubs.readiness, HandoffReadiness::Conditional);
+    assert!(stubs.reason.contains("stubs"));
+    assert!(stubs.before_clearing[0].contains("specsync change approve add-passkeys"));
+
+    signals.artifacts_complete = true;
+    let unapproved = classify_handoff("add-passkeys", &signals);
+    assert_eq!(unapproved.readiness, HandoffReadiness::Conditional);
+    assert_eq!(
+        unapproved.before_clearing,
+        vec!["run `specsync change approve add-passkeys --actor <name>`".to_string()]
+    );
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_stale_approval_is_not_yet_in_every_approved_state() {
+    for state in [
+        ChangeState::Approved,
+        ChangeState::Implementing,
+        ChangeState::Verifying,
+    ] {
+        let mut signals = handoff_signals(state);
+        signals.approval_valid = false;
+        // A dirty tree and stale evidence must not hide the stale approval behind a softer verdict.
+        signals.scoped_edits_uncommitted = Some(true);
+        signals.verification_current = false;
+        let summary = classify_handoff("add-passkeys", &signals);
+        assert_eq!(summary.readiness, HandoffReadiness::NotYet, "{state:?}");
+        assert!(summary.reason.contains("changed after it was approved"));
+        assert!(summary.before_clearing[0].contains("specsync change approve add-passkeys"));
+    }
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_uncommitted_scoped_edits_are_conditional_and_name_change_md() {
+    for state in [
+        ChangeState::Approved,
+        ChangeState::Implementing,
+        ChangeState::Verifying,
+    ] {
+        let mut signals = handoff_signals(state);
+        signals.scoped_edits_uncommitted = Some(true);
+        let summary = classify_handoff("add-passkeys", &signals);
+        assert_eq!(
+            summary.readiness,
+            HandoffReadiness::Conditional,
+            "{state:?}"
+        );
+        assert_eq!(summary.before_clearing[0], "commit the work in progress");
+        assert!(summary.before_clearing[1].contains(".specsync/changes/add-passkeys/change.md"));
+    }
+    // Outside a Git repository nothing is committed anyway; the unknown reads as clean.
+    let mut signals = handoff_signals(ChangeState::Approved);
+    signals.scoped_edits_uncommitted = None;
+    assert_eq!(
+        classify_handoff("add-passkeys", &signals).readiness,
+        HandoffReadiness::Safe
+    );
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_approved_and_implementing_with_a_clean_tree_are_safe() {
+    for state in [ChangeState::Approved, ChangeState::Implementing] {
+        let summary = classify_handoff("add-passkeys", &handoff_signals(state));
+        assert_eq!(summary.readiness, HandoffReadiness::Safe, "{state:?}");
+        assert!(summary.reason.contains("`change check`"));
+        assert!(summary.before_clearing.is_empty());
+    }
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_verifying_follows_evidence_currency() {
+    let mut signals = handoff_signals(ChangeState::Verifying);
+    signals.verification_current = false;
+    signals.scoped_review_current = false;
+    let stale = classify_handoff("add-passkeys", &signals);
+    assert_eq!(stale.readiness, HandoffReadiness::Conditional);
+    assert_eq!(
+        stale.before_clearing,
+        vec!["run `specsync change check add-passkeys --commit`".to_string()]
+    );
+
+    signals.verification_current = true;
+    let awaiting_review = classify_handoff("add-passkeys", &signals);
+    assert_eq!(awaiting_review.readiness, HandoffReadiness::Safe);
+    assert!(awaiting_review.reason.contains("independent review"));
+    // `HandoffSignals` carries no "verification committed" signal: currency is a
+    // content question, and `change check` without `--commit` leaves the evidence
+    // untracked. The reason may only claim what the classifier checked.
+    assert!(!awaiting_review.reason.contains("verification is committed"));
+    assert!(awaiting_review.reason.contains("verification is current"));
+
+    signals.scoped_review_current = true;
+    let ready = classify_handoff("add-passkeys", &signals);
+    assert_eq!(ready.readiness, HandoffReadiness::Safe);
+    assert!(ready.reason.contains("finalize"));
+    assert!(ready.reason.contains("do not commit"));
+    assert!(!ready.reason.contains("verification is committed"));
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_accepted_depends_on_workflow_and_ledgers() {
+    let mut signals = handoff_signals(ChangeState::Accepted);
+    signals.correction_valid = false;
+    let corrupt = classify_handoff("add-passkeys", &signals);
+    assert_eq!(corrupt.readiness, HandoffReadiness::NotYet);
+    assert!(corrupt.before_clearing[0].contains("corrections.json"));
+
+    signals.correction_valid = true;
+    // Workflow v2 acceptance is a recorded boundary even when legacy evidence would be stale.
+    signals.terminal_evidence_stale = true;
+    let v2 = classify_handoff("add-passkeys", &signals);
+    assert_eq!(v2.readiness, HandoffReadiness::Safe);
+    assert!(v2.reason.contains("finalize"));
+
+    signals.workflow_version = 1;
+    let legacy_stale = classify_handoff("add-passkeys", &signals);
+    assert_eq!(legacy_stale.readiness, HandoffReadiness::NotYet);
+    assert!(legacy_stale.before_clearing[0].contains("specsync change reopen add-passkeys"));
+
+    signals.terminal_evidence_stale = false;
+    let legacy_current = classify_handoff("add-passkeys", &signals);
+    assert_eq!(legacy_current.readiness, HandoffReadiness::Safe);
+    assert!(legacy_current.reason.contains("archive"));
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_archived_is_safe_with_nothing_to_do() {
+    let summary = classify_handoff("add-passkeys", &handoff_signals(ChangeState::Archived));
+    assert_eq!(summary.readiness, HandoffReadiness::Safe);
+    assert!(summary.before_clearing.is_empty());
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_readiness_serializes_kebab_case_and_prints_two_words() {
+    assert_eq!(
+        serde_json::to_string(&HandoffReadiness::NotYet).unwrap(),
+        "\"not-yet\""
+    );
+    assert_eq!(HandoffReadiness::NotYet.as_str(), "not yet");
+    let summary = classify_handoff("add-passkeys", &handoff_signals(ChangeState::Archived));
+    let json = serde_json::to_value(&summary).unwrap();
+    assert!(
+        json.get("before_clearing").is_none(),
+        "an empty step list is omitted, not printed as []"
+    );
+}
+
+/// The only signal the classifier cannot be handed by a test: whether the TREE under this
+/// change's paths is dirty. Evidence under `.specsync/` must never count — `review` then
+/// `finalize` runs with `review.json` uncommitted by design — while one edit under
+/// `affected_paths` must.
+// Verifies REQ-change-093.
+#[test]
+fn handoff_follows_the_lifecycle_and_ignores_uncommitted_lifecycle_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git command failed: {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"]);
+    git(&["commit", "-m", "base"]);
+
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    let draft = handoff_summary(root, &record);
+    assert_eq!(draft.readiness, HandoffReadiness::Conditional);
+    assert!(draft.before_clearing[0].contains("specsync change approve"));
+
+    let approved = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    // `src/` is still untracked: the work is on disk, its intent is not.
+    let dirty = handoff_summary(root, &approved);
+    assert_eq!(dirty.readiness, HandoffReadiness::Conditional);
+    assert_eq!(dirty.before_clearing[0], "commit the work in progress");
+
+    git(&["add", "."]);
+    git(&["commit", "-m", "Implement approved change"]);
+    let clean = handoff_summary(root, &approved);
+    assert_eq!(clean.readiness, HandoffReadiness::Safe, "{clean:?}");
+    assert!(clean.reason.contains("`change check`"));
+
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+    assert!(verification.passed);
+    git(&["add", "."]);
+    git(&["commit", "-m", "Record verification"]);
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+    assert!(verification.passed);
+    let verifying = load_change(root, &record.id).unwrap();
+    assert_eq!(verifying.state, ChangeState::Verifying);
+    let awaiting_review = handoff_summary(root, &verifying);
+    assert_eq!(
+        awaiting_review.readiness,
+        HandoffReadiness::Safe,
+        "{awaiting_review:?}"
+    );
+    assert!(awaiting_review.reason.contains("independent review"));
+
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    // review.json is uncommitted, exactly as the lifecycle wants it before finalize.
+    let reviewed = handoff_summary(root, &verifying);
+    assert_eq!(reviewed.readiness, HandoffReadiness::Safe, "{reviewed:?}");
+    assert!(reviewed.reason.contains("finalize"));
+
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    let edited = handoff_summary(root, &verifying);
+    assert_eq!(
+        edited.readiness,
+        HandoffReadiness::Conditional,
+        "{edited:?}"
+    );
+    assert!(edited.reason.contains("uncommitted edits"));
+    git(&["checkout", "--", "src/lib.rs"]);
+
+    let destination = finalize_change(root, &record.id).unwrap();
+    assert!(destination.is_dir());
+    let archived = load_change(root, &record.id).unwrap();
+    let done = handoff_summary(root, &archived);
+    assert_eq!(done.readiness, HandoffReadiness::Safe);
+    assert!(done.before_clearing.is_empty());
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn change_summary_carries_the_same_handoff_the_domain_computes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    let summary = summarize_change(root, &record);
+    assert_eq!(summary.handoff, handoff_summary(root, &record));
+    let json = serde_json::to_value(&summary).unwrap();
+    assert_eq!(json["handoff"]["readiness"], "conditional");
+    assert_eq!(
+        json["handoff"]["resume"],
+        format!("specsync change status {}", record.id)
     );
 }

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-core-check-paths-the-make-check-archive-narrowed-away",
+  "implementation_commit": "fe891f7abd9d98bfd6ed1b52cb4fbf8f959d83e3",
+  "implementation_tree": "5db816ec7b226b5d283296d1b3e8d6cb8221e058",
+  "contract_digest": "95507a16a9d4785b12638a57f25ddde99dfcc4345914391b649700f7a78a1bc7",
+  "workspace_digest": "3d7486925185a94d2f0d139da466ac723ead09a9140d42dc1da2b6430a30ae65",
+  "closing_digest": "59009cfca71385b4bc0b2959badbcdfd18b4e113f7690a9522964796ca5da11f",
+  "review_digest": "c7e60887629f43752ae7beb362e9eaa6ac43129c0d188c717dadffade1020881",
+  "finalization_digest": "5f9e161362ad3c0e3eebe219e02b8e10ed25948fa96b03bb7c2de0883560890e",
+  "timestamp": 1788316512
+}

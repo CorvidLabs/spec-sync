@@ -70,6 +70,8 @@ Acceptance Criteria
 - The first check after initialization reports no uncovered meaningful delivery for files
   initialization itself wrote.
 - Failure to write the record is reported as a warning and does not fail initialization.
+- Fresh `init` writes SDD off (`enabled: false`, `require_change_for_meaningful_files: false`)
+  so the first `specsync check` is drift-only.
 
 ### REQ-cmd-init-006
 

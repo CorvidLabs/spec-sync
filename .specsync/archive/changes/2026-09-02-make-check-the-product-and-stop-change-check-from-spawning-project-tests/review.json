@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "make-check-the-product-and-stop-change-check-from-spawning-project-tests",
+  "reviewer": "Kimi-K3",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "7ef1b442227410f9318d1b9b2dd8d151d594ca49",
+  "contract_digest": "bf4013a7a5ea9ad0781391bc11a3119395f11fc2dc82bf9bba0cba47233e2f3e",
+  "execution_digest": "cb64a172b13695e32b88987406c9793e4e07ab706412e587ecdca0431c8b8a5e",
+  "workspace_digest": "4328137a60353492a61274784f2282fbe1390cbeb3991bcb8ae5f80795253147",
+  "timestamp": 1788311388
+}

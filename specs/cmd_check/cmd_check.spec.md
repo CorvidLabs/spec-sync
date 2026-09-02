@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 27
+version: 29
 status: stable
 files:
   - src/commands/check.rs
@@ -26,8 +26,8 @@ depends_on:
 ## Purpose
 
 Implements the primary deterministic validation entry point, including one fallible schema
-snapshot, visible ignore suppression, caching, local Markdown auto-fix, structured formats, SDD
-gates, and optional drift issues.
+snapshot, visible ignore suppression, caching, local Markdown auto-fix, structured formats, and
+optional drift issues. SDD / change / archive history is not part of this command.
 
 ## Public API
 
@@ -50,6 +50,8 @@ gates, and optional drift issues.
 11. A warm hash-cache skip skips re-validation, never the previous findings: unchanged specs
     replay their stored snapshot, `specs_checked` counts them, and a hash-only cache with no
     snapshot is re-validated rather than reported clean.
+12. `check` does not consult SDD policy, active change workspaces, or archive history. Those
+    surfaces belong to `specsync change`.
 
 ## Behavioral Examples
 
@@ -116,6 +118,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-08-30 | v28: `check` no longer consults SDD, active changes, or archive history. Drift only. |
 | 2026-07-22 | v9: fail closed when malformed Gradle/manifest discovery makes coverage inconclusive, preserving structured JSON failure output |
 | 2026-07-10 | v5: add unified SDD lifecycle, approval, delta, effective-contract, and changed-path gates |
 | 2026-06-11 | v4: `--fix` bypasses the hash cache (no more silent no-op after a cached warning run); bare API-kind headings are promoted to export headers and symbols already documented in any Public API table are not re-added; partial export-coverage summary prints as ⚠ so the warning count matches printed warnings |
@@ -143,3 +146,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-27 | v25 / #723: Carry `manifest_notices` in the JSON payload, so the machine consumer acting on `passed` can see the manifest that was degraded rather than propagated |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |

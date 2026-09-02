@@ -282,34 +282,12 @@ pub fn cmd_check(
     // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
     // message under --format json). Default warn mode still exits 0 there.
     let (config, all_spec_files) = load_and_discover(root, true);
-    // Active workspaces + living specs only. Archives are history; full archive
-    // integrity is not part of `specsync check` (use `change audit` / internal
-    // check_project when a full historical walk is intentionally required).
-    // Lifecycle state is reported here, never enforced (REQ-cmd-check-004).
-    //
-    // `specsync check` is the bi-directional spec<->code drift check. Gating it on
-    // lifecycle state made every trust-layer failure — squash orphaning, ledger
-    // divergence, a stale evidence commit — present to the user as "the drift check
-    // is broken", and made the lifecycle a *stricter* gate than the specs it
-    // guarded: default enforcement is `warn`, which always exits 0, while this gate
-    // exited 1 unconditionally. Gating belongs to the `change` verbs and
-    // `specsync change audit`.
-    //
-    // Findings go to stderr in every format so machine consumers keep a signal
-    // without the stdout protocol being disturbed; the summary line is text-only.
-    let sdd_report = crate::change::audit_project(root);
-    if sdd_report.enabled {
-        for finding in sdd_report.warnings.iter().chain(sdd_report.errors.iter()) {
-            eprintln!("{} {finding}", "warning:".yellow().bold());
-        }
-        if matches!(format, Text) {
-            println!(
-                "{} {} active change(s)\n",
-                "•".dimmed(),
-                sdd_report.checked_changes
-            );
-        }
-    }
+    // `specsync check` is the bi-directional spec<->code drift check. It does not
+    // consult SDD policy, active changes, or archive history. Those live behind
+    // `specsync change` (opt-in). Walking them here made every trust-layer
+    // failure present as "the drift check is broken", and printing "N active
+    // change(s)" on the default path made history look like part of the product.
+    // REQ-cmd-check-004: exit status derives solely from spec validation.
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
     // CLI --enforcement flag overrides config; --strict implies strict enforcement.

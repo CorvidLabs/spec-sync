@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "make-check-the-product-and-stop-change-check-from-spawning-project-tests",
+  "slug": "make-check-the-product-and-stop-change-check-from-spawning-project-tests",
+  "title": "Make check the product and stop change check from spawning project tests",
+  "description": "Make check the product and stop change check from spawning project tests",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "359eeee2981f72ce915a65ccc36ade84127d93a9",
+  "created_at": 1788122673,
+  "updated_at": 1788312101,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cmd_check",
+    "cmd_init",
+    "agents"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "tests/integration/change.rs",
+    "tests/integration/comment.rs",
+    "site/src/content/docs/cli.md",
+    "site/src/content/docs/configuration.md",
+    "site/src/content/docs/quickstart.md",
+    "site/src/content/docs/workflow.md",
+    "docs/ADOPTING.md",
+    "MIGRATION.md",
+    "CHANGELOG.md",
+    "specs/agents/agents.spec.md",
+    "specs/agents/requirements.md",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/testing.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_check/cmd_check.spec.md",
+    "specs/cmd_init/cmd_init.spec.md",
+    "specs/cmd_init/requirements.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Fresh init writes SDD off and does not start a first-change interview.",
+    "specsync check does not call audit_project or print an active-change count.",
+    "change check compares specs to code in-process and does not spawn sdd.json verification_commands.",
+    "A configured verification_commands sentinel is not executed.",
+    "A phantom export still fails change check.",
+    "change audit no longer re-runs project test commands in CI."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

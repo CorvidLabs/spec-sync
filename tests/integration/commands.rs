@@ -2689,17 +2689,66 @@ fn init_then_check_is_usable_without_git_and_does_not_nag_about_legacy_layout() 
     let policy: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(root.join(".specsync/sdd.json")).unwrap())
             .unwrap();
-    assert_eq!(policy["enabled"], true);
+    assert_eq!(policy["enabled"], false);
     assert_eq!(policy["require_change_for_meaningful_files"], false);
 
-    // Lifecycle checks remain available without requiring impossible Git diff evidence.
     specsync()
         .arg("check")
         .arg("--root")
         .arg(root)
         .assert()
         .success()
-        .stderr(predicate::str::contains("Legacy 3.x layout").not());
+        .stderr(predicate::str::contains("Legacy 3.x layout").not())
+        .stdout(predicate::str::contains("active change").not())
+        .stderr(predicate::str::contains("active change").not());
+}
+
+#[test]
+fn check_does_not_walk_sdd_when_policy_is_on() {
+    // Honest label: DISCRIMINATOR. On the unfixed binary `check` printed
+    // "N active change(s)" and warned about unreadable workspaces because it
+    // called `audit_project`. `change audit` is the CONTROL — it must still
+    // see the corrupt workspace when SDD is enabled.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.rs"), "fn main() {}\n").unwrap();
+    specsync()
+        .arg("init")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success();
+    let policy_path = root.join(".specsync/sdd.json");
+    let mut policy: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    policy["enabled"] = serde_json::json!(true);
+    fs::write(&policy_path, serde_json::to_string_pretty(&policy).unwrap()).unwrap();
+    let broken = root.join(".specsync/changes/broken-sibling");
+    fs::create_dir_all(&broken).unwrap();
+    fs::write(broken.join("state.json"), "{ this is not json\n").unwrap();
+
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("active change").not())
+        .stderr(predicate::str::contains("unreadable").not())
+        .stderr(predicate::str::contains("state.json").not());
+
+    specsync()
+        .arg("change")
+        .arg("audit")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .stderr(
+            predicate::str::contains("state.json")
+                .or(predicate::str::contains("unreadable"))
+                .or(predicate::str::contains("invalid")),
+        );
 }
 
 #[test]

@@ -26,7 +26,7 @@ For every meaningful source, test, public documentation, schema, or configuratio
    `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
 4. Ask the user for the single scope approval, then run `specsync change approve <id>`.
 5. Implement code, canonical specs, and tests on the same branch. Run `specsync change check [<id>]`
-   for **scoped** verification of this change only (materialize deltas + targeted tests). Do **not**
+   for **scoped** verification of this change only (materialize deltas + spec↔code sync). Do **not**
    treat check as a full archive integrity walk. Use `specsync change audit` when you need project
    health over **active** workspaces and living specs. Archives are history.
 6. Complete ordinary pull-request review. For agent-authored work, have an independent reviewer
@@ -37,15 +37,17 @@ For every meaningful source, test, public documentation, schema, or configuratio
 
 ## Lifecycle verbs
 
-- `specsync change check [id]` — verify **this** change (materialize + targeted tests). Default daily path.
+- `specsync change check [id]` — verify **this** change (materialize + spec↔code sync). Default daily path.
 - `specsync change audit` — project health over **active** workspaces and living specs. Not archive history.
 - Archives are history; do not re-validate terminal evidence for every archived CHG on each check.
 - Slash commands: `/specsync:check`, `/specsync:audit` (Claude/Cursor/Gemini via `specsync agents install`).
 
 Never invent or self-grant the scope approval or independent review. If an approved definition
 changes, its digest becomes stale and must be approved again. `specsync change status` always
-prints one explicit next action. Historical repair commands remain available for older evidence,
-but new changes use this single workflow.
+prints one explicit next action and one `Handoff:` line. Clear context (or hand the change to a
+fresh session) only when `Handoff:` says `safe`; otherwise do what `Before clearing:` names first.
+Resume with `specsync change status <id>`. Historical repair commands remain available for older
+evidence, but new changes use this single workflow.
 
 Each canonical spec may have policy-selected companion files. Read and update the ones present; do not create empty companions only for ceremony:
 
@@ -186,10 +188,10 @@ const CREATE_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change new "$ARGUMENTS"
 6. After implementation, run scoped verification with `specsync change check <id>` (or `/specsync:check`). Use `specsync change audit` only for active-workspace project health — never expect check to rewalk archived terminal evidence."#;
 
 const CHECK_CHANGE_DESCRIPTION: &str =
-    "Run scoped SpecSync change verification for one change (materialize deltas + targeted tests)";
+    "Run scoped SpecSync change verification for one change (materialize deltas + spec↔code sync)";
 
 const CHECK_CHANGE_STEPS_MD: &str = r#"1. Prefer `specsync change check $ARGUMENTS` when an id or partial id is provided; otherwise run `specsync change check`.
-2. Expect **scoped** verification only — this change's materialization and verification commands. Do not run a full archive integrity walk.
+2. Expect **scoped** verification only — this change's materialization and in-process spec↔code sync. Do not run a full archive integrity walk.
 3. Stream/wait for exit. On success, follow the printed **Next:** action (review, PR, or finalize path).
 4. Do **not** run `specsync change audit` unless the user asked for project health over active workspaces and living specs."#;
 
@@ -202,7 +204,7 @@ const AUDIT_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change audit`.
 
 const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<module>/ synchronized with source code using spec-sync. Use this whenever creating, editing, or reviewing code in a module that has (or should have) a spec, or whenever the user mentions specs, spec-sync, companion files (tasks.md/requirements.md/context.md/testing.md/design.md), or asks to add/update a module's documentation.";
 const AGENT_ARTIFACT_MANIFEST_VERSION: u32 = 1;
-const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 3;
+const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 4;
 const AGENT_ARTIFACT_MANIFEST_PATH: &str = ".specsync/agent-artifacts.json";
 
 // `.specsync/agent-artifacts.json` is committed and shared, and `load_agent_artifact_manifest`
@@ -1126,6 +1128,10 @@ mod tests {
         assert!(skill.contains("specsync change check"));
         assert!(skill.contains("specsync change audit"));
         assert!(skill.contains("Lifecycle verbs"));
+        // Verifies REQ-agents-check-audit-commands-001: the installed skill tells agents
+        // to clear context only on a safe handoff and to do the named steps first otherwise.
+        assert!(skill.contains("only when `Handoff:` says `safe`"));
+        assert!(skill.contains("do what `Before clearing:` names first"));
 
         let check_command =
             fs::read_to_string(tmp.path().join(".claude/commands/specsync/check.md")).unwrap();

@@ -63,6 +63,11 @@ same-PR finalization without performing an external merge.
 Acceptance Criteria
 
 - `status` always prints exactly one explicit next action.
+- `status`, `show`, a passing `check`, `approve`, `review`, `finalize`, and ship's finalize each end
+  with exactly one `Handoff:` line (after `Next:` where one is printed) — `safe`, `conditional`, or
+  `not yet`, the domain's reason, and `Before clearing:` steps when it is not safe. JSON carries the
+  same decision under `summary.handoff` wherever a summary is rendered and under `handoff` on the
+  approve transition. The adapter renders the domain's verdict and never computes its own.
 - When scope approval is missing or stale, status prints the exact current digest next to that
   approval action.
 - Status requests renewed approval only for a material stable-scope change and lists each added or

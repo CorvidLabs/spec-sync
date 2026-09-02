@@ -197,8 +197,9 @@ Scans `source_dirs` for files matching the module name to auto-populate the `fil
 
 Upgrade a legacy 3.x project to the current layout. Moves config into `.specsync/`, converts it to
 TOML, extracts lifecycle history, and stamps the project version. Existing projects can then adopt
-the current verified lifecycle with `specsync change adopt`; existing policy and lifecycle evidence
-remain byte-identical while subsequent changes use the 6.0 single workflow. Adoption fails before
+the current verified lifecycle with `specsync change adopt`; adoption sets `enabled: true` on a
+policy written off, and otherwise existing policy and lifecycle evidence remain byte-identical while
+subsequent changes use the 6.0 single workflow. Adoption fails before
 writing when an uncommitted or branch-only legacy change is absent from the trusted comparison
 cutoff, and publishes its report, imports, and baseline atomically.
 
@@ -376,7 +377,9 @@ specsync change adopt --dry-run
 `acceptance_criteria` preserves scalar prose exactly; use a JSON array of strings to provide multiple criteria. `affected_specs` and `affected_paths` retain comma- and newline-separated list input.
 
 New changes require one digest-bound human scope approval. `change status` always names one next
-action; `change check` applies approved deltas and records targeted evidence for **one change**
+action and ends with one `Handoff:` line (`safe`, `conditional`, or `not yet`, the reason, and the
+steps to take before clearing context; `--json` carries it as `summary.handoff` — see
+[Clearing context between steps](workflow.md#clearing-context-between-steps)); `change check` applies approved deltas and records targeted evidence for **one change**
 (not archive history); `change audit` checks active workspaces and living specs; independent scoped
 review binds the implementation commit; and `change finalize` creates the dated archive in the same
 PR without merging externally. Global `--strict`, project policy, and release/security

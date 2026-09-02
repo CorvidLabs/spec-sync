@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-core-check-paths-the-make-check-archive-narrowed-away",
+  "reviewer": "Kimi-K3",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "fe891f7abd9d98bfd6ed1b52cb4fbf8f959d83e3",
+  "contract_digest": "95507a16a9d4785b12638a57f25ddde99dfcc4345914391b649700f7a78a1bc7",
+  "execution_digest": "5082cab9891405cce4416f875a408865d2644cf2c2d82e9b7f2852a1fcadd9ac",
+  "workspace_digest": "3d7486925185a94d2f0d139da466ac723ead09a9140d42dc1da2b6430a30ae65",
+  "timestamp": 1788316479
+}

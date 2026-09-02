@@ -63,10 +63,10 @@ specsync change finalize CHG-0001-add-passkeys
 # commit the metadata/archive-only result; GitHub performs the merge
 ```
 
-`change check` applies approved semantic deltas and runs the affected component's configured
-verification for **this change only**. It does not re-validate archived terminal evidence —
-archives are history. Use `change audit` for project health over **active** workspaces and living
-specs. Explicit `--strict`, project policy, and deterministic release/security classification add
+`change check` applies approved semantic deltas and compares specs to code in-process for
+**this change only**. It does not run the project's tests and does not re-validate archived
+terminal evidence — archives are history. Use `change audit` for project health over **active**
+workspaces and living specs. CI owns `cargo test` / `swift test` / `bun test`. Explicit `--strict`, project policy, and deterministic release/security classification add
 validators to the same scoped evidence path. Source, test, configuration, or contract edits stale
 verification; implementation edits after scoped review stale the review. `change status` prints the
 exact `change review` command when this independent review is the next required action; `change
@@ -86,6 +86,36 @@ actual merge commit/tree to a compact archive event before release validation ca
 Historical `start`, `verify`, `accept`, `archive`, `reopen`, `correct`, and `correct-owner`
 commands remain available to validate or repair older two-approval evidence. They are compatibility
 surfaces, not steps in the new-change workflow.
+
+### Clearing context between steps
+
+An agent session that clears its context at the wrong moment loses the intent behind uncommitted
+work; one that clears at a recorded boundary resumes cleanly. `change status`, `change show`, a
+passing `change check`, `change approve`, `change review`, and `change finalize` each end with one
+`Handoff:` line that says which of the two you are at:
+
+```text
+  Next: run `specsync change check CHG-0001-add-passkeys`
+  Handoff: conditional — uncommitted edits sit under this change's paths, and nothing on disk records why they were made. Before clearing: commit the work in progress; or write its intent and open ends into `.specsync/changes/CHG-0001-add-passkeys/change.md`
+```
+
+- `safe` — everything the next session needs is recorded. The reason says where it resumes:
+  a freshly approved definition resumes at `change check`; current verification resumes at the
+  independent review or at finalize; workflow-v2 acceptance and the archive need nothing further.
+- `conditional` — the lifecycle is consistent, but something lives only in this session. A
+  Draft is never `safe`: answer the open questions and approve first, or write the undecided
+  points into `change.md`. Uncommitted edits under the change's `affected_paths` are
+  `conditional` until they are committed or their intent is written down. Evidence under
+  `.specsync/` alone never counts — `review.json` is uncommitted between `review` and `finalize`
+  by design.
+- `not yet` — a gate is broken and the next session would not be able to see why: a stale
+  approval digest, a frozen sequence ledger, an invalid correction ledger, or stale legacy
+  terminal evidence. The line names the repair.
+
+Resume with `specsync change status <id>`. `--json` carries the same verdict as
+`summary.handoff` (`readiness`, `reason`, `resume`, `before_clearing`) wherever a change summary
+is rendered, and as `handoff` on the approve transition. The installed agent skill tells agents to
+clear context only on `safe` and to do what `Before clearing:` names first.
 
 ## 4. Reopen After Accepted Review Fixes
 
@@ -152,12 +182,12 @@ The repository includes executable examples for a [complete lifecycle](https://g
 specsync init
 ```
 
-This creates `.specsync/config.toml`, `.specsync/sdd.json`, the change/archive directories, detects
-verification commands, and offers native agent integration plus a first change interview. Existing
-projects remain unchanged until `specsync change adopt`; adoption preserves their policy and
-historical evidence while routing subsequent changes through this workflow. Commit and integrate
-every active legacy change first: adoption refuses to publish a partial migration when a v1 record
-is absent from the trusted comparison cutoff.
+This creates `.specsync/config.toml`, `.specsync/sdd.json` with the change workflow **off**, and
+the change/archive directories. It does not detect test commands or start a change interview.
+`specsync change adopt` turns the workflow on: it sets `enabled: true` and leaves every other
+policy field and all historical evidence untouched, then routes subsequent changes through this
+workflow. Commit and integrate every active legacy change first: adoption refuses to publish a
+partial migration when a v1 record is absent from the trusted comparison cutoff.
 
 ### Install hooks and agent instructions
 

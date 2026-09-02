@@ -436,6 +436,126 @@ fn adopt_existing_4x_project_is_idempotent() {
 }
 
 #[test]
+fn init_then_adopt_enables_sdd() {
+    // Honest label: DISCRIMINATOR. `init` writes the policy OFF and prints
+    // "Enable with `specsync change adopt`". On the unfixed binary `adopt`
+    // wrote a policy only when the file was MISSING — which it never is after
+    // `init` — so the advertised on-switch left `enabled: false` and the only
+    // way in was hand-editing JSON.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.rs"), "fn main() {}\n").unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "init"])
+        .assert()
+        .success();
+    let policy_path = root.join(".specsync/sdd.json");
+    let after_init: Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    assert_eq!(
+        after_init["enabled"], false,
+        "CONTROL: init still writes SDD off"
+    );
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "adopt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("enable SDD policy"));
+
+    let after_adopt: Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    assert_eq!(
+        after_adopt["enabled"], true,
+        "adopt is the on-switch the init hint promises"
+    );
+    assert_eq!(
+        after_adopt["require_change_for_meaningful_files"], false,
+        "adopt flips `enabled` only; path coverage stays where the author left it"
+    );
+
+    // The switch is live, not just a JSON edit: the lifecycle gate now bites.
+    let broken = root.join(".specsync/changes/broken-sibling");
+    fs::create_dir_all(&broken).unwrap();
+    fs::write(broken.join("state.json"), "{ this is not json\n").unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "audit"])
+        .assert()
+        .stderr(
+            predicate::str::contains("state.json")
+                .or(predicate::str::contains("unreadable"))
+                .or(predicate::str::contains("invalid")),
+        );
+}
+
+#[test]
+fn adopt_is_idempotent_on_an_enabled_policy() {
+    // CONTROL for the on-switch: adopting an already-adopted project must not
+    // rewrite the author's policy, and must never reset a customized field to
+    // the fresh-project default.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/main.rs"), "fn main() {}\n").unwrap();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "init"])
+        .assert()
+        .success();
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "adopt"])
+        .assert()
+        .success();
+
+    let policy_path = root.join(".specsync/sdd.json");
+    let mut policy: Value =
+        serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    policy["meaningful_paths"] = serde_json::json!(["src/", "private/"]);
+    policy["require_change_for_meaningful_files"] = serde_json::json!(true);
+    fs::write(&policy_path, serde_json::to_string_pretty(&policy).unwrap()).unwrap();
+    let before = fs::read(&policy_path).unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "adopt"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("already enabled"));
+
+    assert_eq!(
+        fs::read(&policy_path).unwrap(),
+        before,
+        "adopting an enabled policy must leave it byte-identical"
+    );
+    let after: Value = serde_json::from_str(&fs::read_to_string(&policy_path).unwrap()).unwrap();
+    assert_eq!(after["enabled"], true);
+    assert_eq!(
+        after["meaningful_paths"],
+        serde_json::json!(["src/", "private/"])
+    );
+    assert_eq!(after["require_change_for_meaningful_files"], true);
+}
+
+#[test]
+fn adopt_fails_closed_on_a_policy_it_cannot_parse() {
+    // A corrupt policy must not be silently replaced by a fresh default that
+    // discards whatever the author had written.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/sdd.json"), "{ not json\n").unwrap();
+
+    specsync()
+        .args(["--root", root.to_str().unwrap(), "change", "adopt"])
+        .assert()
+        .failure();
+    assert_eq!(
+        fs::read_to_string(root.join(".specsync/sdd.json")).unwrap(),
+        "{ not json\n"
+    );
+}
+
+#[test]
 fn adopt_openspec_imports_canonical_and_active_once() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
@@ -526,7 +646,9 @@ fn adopt_speckit_imports_constitution_and_active_feature_once() {
 }
 
 #[test]
-fn init_enables_sdd_for_new_projects() {
+fn init_leaves_sdd_off_for_new_projects() {
+    // Honest label: DISCRIMINATOR for SDD-off-by-default. On the unfixed binary
+    // init wrote `"enabled": true` and CI/check walked active changes.
     let temp = TempDir::new().unwrap();
     fs::create_dir_all(temp.path().join("src")).unwrap();
     fs::write(temp.path().join("src/lib.rs"), "pub fn hello() {}\n").unwrap();
@@ -538,7 +660,8 @@ fn init_enables_sdd_for_new_projects() {
         serde_json::from_str(&fs::read_to_string(temp.path().join(".specsync/sdd.json")).unwrap())
             .unwrap();
     assert_eq!(policy["version"], 2);
-    assert_eq!(policy["enabled"], true);
+    assert_eq!(policy["enabled"], false);
+    assert_eq!(policy["require_change_for_meaningful_files"], false);
     assert!(temp.path().join(".specsync/archive/changes").is_dir());
 }
 
@@ -2282,8 +2405,8 @@ fn migrate_5_0_backfills_reopening_digest_fields_idempotently() {
     assert_eq!(fs::read(&approvals_path).unwrap(), before);
 }
 
-/// Builds a project whose one change is implementing and ready for `change verify`,
-/// running exactly `verification_commands`.
+/// Builds a project whose one change is implementing and ready for `change verify`.
+/// Policy may still list `verification_commands`; `change check` does not execute them.
 #[cfg(unix)]
 fn change_ready_to_verify(root: &Path, verification_commands: &[String]) -> String {
     let git = |args: &[&str]| {
@@ -2450,14 +2573,13 @@ fn hold_cargo_build_lock(root: &Path, profile: &str) -> fs::File {
 
 // Verifies REQ-change-091.
 //
-// Honest label: DISCRIMINATOR, end to end through the shipped binary. Both
-// profile locks are held by this test process for the whole run, so the blocked
-// state is real and fixed rather than timed, and the notice has to name the one
-// `cargo test` actually contends on. The stand-in `cargo` returns immediately,
-// so the assertion is about what verification says, not how long it takes.
+// Honest label: DISCRIMINATOR, end to end through the shipped binary. The
+// unfixed binary spawned `verification_commands` and named a held Cargo lock
+// before that child blocked. This binary must not spawn, so both locks can be
+// held and stderr stays silent about them.
 #[cfg(unix)]
 #[test]
-fn a_held_cargo_build_lock_is_named_before_verification_blocks_on_it() {
+fn change_check_does_not_wait_on_a_held_cargo_build_lock() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let cargo = executable_script(&root.join("stand-in/cargo"), "#!/bin/sh\nexit 0\n");
@@ -2482,16 +2604,8 @@ fn a_held_cargo_build_lock_is_named_before_verification_blocks_on_it() {
     let stderr = String::from_utf8(stderr).unwrap();
 
     assert!(
-        stderr.contains("waiting on target/debug/.cargo-lock"),
-        "verification must name the lock it is blocked on: {stderr}"
-    );
-    assert!(
-        stderr.contains("blocked rather than compiling"),
-        "verification must distinguish blocked from a slow compile: {stderr}"
-    );
-    assert!(
-        !stderr.contains("target/release/.cargo-lock"),
-        "a held lock this command never waits on must not be reported: {stderr}"
+        !stderr.contains("waiting on"),
+        "change check must not spawn cargo, so a held lock is not named: {stderr}"
     );
 
     drop(debug);
@@ -2538,14 +2652,11 @@ fn an_unheld_cargo_build_lock_is_not_reported_during_verification() {
 
 // Verifies REQ-change-091.
 //
-// Honest label: DISCRIMINATOR for the reaping half, asserted on the structural
-// property rather than on a race. A child that leads its own process group can
-// be ended as a group when the parent is interrupted; one that inherits the
-// parent's group cannot be told apart from the parent's other descendants.
-// Nothing here waits on a clock: the child records its own group and exits.
+// Honest label: DISCRIMINATOR. The unfixed binary spawned the configured
+// reporter and wrote group.txt. This binary must leave that file absent.
 #[cfg(unix)]
 #[test]
-fn a_verification_child_runs_in_its_own_process_group() {
+fn change_check_does_not_spawn_a_configured_verification_child() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let record = root.join("group.txt");
@@ -2563,14 +2674,235 @@ fn a_verification_child_runs_in_its_own_process_group() {
         .assert()
         .success();
 
-    let recorded = fs::read_to_string(&record).expect("the verification child recorded its group");
-    let mut fields = recorded.split_whitespace();
-    let pid: i32 = fields.next().unwrap().parse().unwrap();
-    let group: i32 = fields.next().unwrap().parse().unwrap();
+    assert!(
+        !record.exists(),
+        "configured verification_commands must not be spawned"
+    );
+}
 
+// Verifies REQ-cmd-change-005 and REQ-change-093: every text result ends with exactly one
+// `Handoff:` line and JSON carries the same verdict under `summary.handoff`.
+#[test]
+fn status_prints_a_handoff_line_and_json_carries_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    git(&["add", "seed.txt"]);
+    git(&["commit", "-m", "seed"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    fs::create_dir_all(root.join("specs/lib")).unwrap();
+    fs::write(
+        root.join("specs/lib/lib.spec.md"),
+        "---\nmodule: lib\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Lib\n\n## Purpose\n\nLibrary entry point.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 1,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": ["true"],
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Tell agents when to clear",
+            "--kind",
+            "bug-fix",
+            "--path",
+            "src/lib.rs",
+            "--no-spec-change",
+            "--rationale",
+            "Internal lifecycle behavior only",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    let handoff_lines = |text: &str| -> Vec<String> {
+        text.lines()
+            .filter(|line| line.trim_start().starts_with("Handoff:"))
+            .map(str::to_string)
+            .collect()
+    };
+    let status_text = |root: &Path| -> String {
+        let output = specsync()
+            .args(["--root", root.to_str().unwrap(), "change", "status", id])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        String::from_utf8(output).unwrap()
+    };
+
+    // Draft: interview open, so the verdict is conditional and names the answer command.
+    let draft = status_text(root);
+    let lines = handoff_lines(&draft);
+    assert_eq!(lines.len(), 1, "exactly one Handoff line, got:\n{draft}");
+    assert!(
+        lines[0].contains("Handoff: conditional —"),
+        "draft is never safe, got:\n{draft}"
+    );
+    assert!(lines[0].contains("Before clearing:"));
+    let next_index = draft.find("Next:").expect("status prints Next:");
+    let handoff_index = draft.find("Handoff:").unwrap();
+    assert!(
+        next_index < handoff_index,
+        "Handoff follows Next:, got:\n{draft}"
+    );
+    let draft_json = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "status",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let draft_json: Value = serde_json::from_slice(&draft_json).unwrap();
+    assert_eq!(draft_json["summary"]["handoff"]["readiness"], "conditional");
     assert_eq!(
-        group, pid,
-        "the verification child must lead its own process group so an interrupted parent can end \
-         the whole group; recorded {recorded:?}"
+        draft_json["summary"]["handoff"]["resume"],
+        format!("specsync change status {id}")
+    );
+    assert!(
+        draft_json["summary"]["handoff"]["before_clearing"]
+            .as_array()
+            .is_some_and(|steps| !steps.is_empty())
+    );
+
+    for (question, answer) in [
+        ("acceptance_criteria", "The handoff line is printed"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let shown = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "show",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown: Value = serde_json::from_slice(&shown).unwrap();
+    for artifact in shown["change"]["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Print the handoff line.\n"
+        } else {
+            "# Complete\n\nReviewed lifecycle evidence.\n"
+        };
+        fs::write(
+            root.join(format!(".specsync/changes/{id}/{name}.md")),
+            content,
+        )
+        .unwrap();
+    }
+
+    // Approve with src/lib.rs still untracked: the transition JSON carries the verdict and
+    // the uncommitted scoped work makes it conditional.
+    let approved = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Reviewer",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let approved: Value = serde_json::from_slice(&approved).unwrap();
+    assert_eq!(approved["state"], "approved");
+    assert_eq!(approved["handoff"]["readiness"], "conditional");
+    assert_eq!(
+        approved["handoff"]["before_clearing"][0],
+        "commit the work in progress"
+    );
+
+    // Uncommitted lifecycle evidence under .specsync/ never counts; committing the work does.
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "implement"]);
+    let approved_text = status_text(root);
+    let lines = handoff_lines(&approved_text);
+    assert_eq!(
+        lines.len(),
+        1,
+        "exactly one Handoff line, got:\n{approved_text}"
+    );
+    assert!(
+        lines[0].contains("Handoff: safe —") && !lines[0].contains("Before clearing:"),
+        "a committed approved change is a clean boundary, got:\n{approved_text}"
+    );
+    assert!(
+        !lines[0]
+            .split(|character: char| !character.is_ascii_hexdigit())
+            .any(|word| word.len() >= 40),
+        "handoff prose never carries a digest, got:\n{}",
+        lines[0]
     );
 }

@@ -28,8 +28,9 @@ Pin explicitly. 6.0.0-rc.2 is a pre-release and will NOT be resolved by `latest`
     specsync generate
     specsync check
 
-`init` detects source directories and writes `.specsync/config.toml` and `.specsync/sdd.json`.
-`generate` scaffolds a spec per module from the source it finds.
+`init` detects source directories and writes `.specsync/config.toml` and `.specsync/sdd.json`
+with SDD **off**. `specsync check` is the product. Enable the change workflow later with
+`specsync change adopt` if you want it. `generate` scaffolds a spec per module from the source it finds.
 
 Read the generated `.specsync/config.toml` before going further. `init` guesses exclusions from
 the language it detects, and the guess is often wrong for a repo that mixes languages — a Swift
@@ -52,15 +53,21 @@ Fill the companion files too — `context.md`, `requirements.md`, `testing.md`, 
 are where a module accumulates what was learned about it. Unfilled scaffold markers are warnings
 until you run `--strict`, at which point they gate.
 
-## 3. Configure verification
+## 3. Turn the change workflow on (optional)
 
-Edit `.specsync/sdd.json` and set `verification_commands` to what actually proves this repo
-works — the same commands CI runs:
+`init` left `.specsync/sdd.json` with `enabled: false`. Skip this section if `specsync check`
+in CI is all you want. To drive changes through the lifecycle in §4:
 
-    "verification_commands": ["cargo test"]          // or swift test, bun test, pytest…
+    specsync change adopt
 
-These run on every `change check`, three times across a full lifecycle. Keep them fast or the
-lifecycle is unpleasant.
+That flips `enabled` and nothing else. `require_change_for_meaningful_files` stays `false`, so
+editing a source file without an active change is not an error; set it to `true` by hand if you
+want `change audit` to demand one.
+
+`change check` does not run your tests. It compares the specs this change owns or maps to the
+code, in-process, and records that as evidence. `verification_commands` is still accepted in
+`sdd.json` for adopters who list it, but nothing executes it — `cargo test` / `swift test` /
+`bun test` belong in CI, next to `specsync check`.
 
 ## 4. Drive one real change end to end
 
@@ -98,8 +105,11 @@ evidence, and the tool will tell you so.
 Both pins are needed and they pin different things: the `uses` ref pins the action code, the
 `version` input pins the binary it downloads.
 
-Use `fetch-depth: 0` on the checkout. The lifecycle gate compares a verification commit against
-HEAD's ancestry, and a shallow clone reports every change as orphaned.
+The action runs `specsync check` (and `specsync lifecycle enforce --all` when
+`lifecycle-enforce` is set). It does not run the change-workflow audit. If you turned the workflow
+on in §3 and want CI to gate on it, add a step that runs `specsync change audit`, and use
+`fetch-depth: 0` on that job's checkout: the audit compares each change's verification commit
+against HEAD's ancestry, and a shallow clone reports every change as orphaned.
 
 `strict: 'true'` is a decision, not a default. Without it an undocumented export is a warning and
 CI passes over drift. With it, drift gates.

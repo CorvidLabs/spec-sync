@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 11
+version: 13
 status: stable
 files:
   - src/commands/init.rs
@@ -15,7 +15,7 @@ depends_on:
 
 ## Purpose
 
-Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected source directories, canonical TOML configuration, SDD policy, version stamp, local-state ignore rules, lifecycle/change/archive directories, and optional guided agent/change bootstrap.
+Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected source directories, canonical TOML configuration, SDD policy written **disabled**, version stamp, local-state ignore rules, and lifecycle/change/archive directories. Does not start an SDD interview. Enable the change workflow later with `specsync change adopt`.
 
 ## Public API
 
@@ -23,14 +23,14 @@ Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected so
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `cmd_init` | `root: &Path` | `()` | Create the 5.0 `.specsync/` layout, TOML config, SDD policy, and detected verification command |
+| `cmd_init` | `root: &Path` | `()` | Create the 5.0 `.specsync/` layout, TOML config, and an SDD policy file with `enabled: false` |
 | `ensure_hashes_gitignored` | `root: &Path` | `Result<bool, String>` | Add `.specsync/hashes.json` to the root `.gitignore` (idempotent); returns `Ok(true)` if the entry was added, `Ok(false)` if already present, `Err` if the write fails |
 
 ## Invariants
 
 1. Auto-detects source directories via `config::detect_source_dirs()`.
 2. Never overwrites an existing current or legacy configuration; legacy configurations receive a migration hint.
-3. Writes the 5.0 policy, version, and layout deterministically without blocking in non-interactive environments.
+3. Writes the 5.0 policy, version, and layout deterministically without blocking in non-interactive environments. The written policy has `enabled: false` and `require_change_for_meaningful_files: false`.
 4. Local hash cache, lifecycle lock, and transaction journal files are ignored and never treated as portable project state.
 5. Re-running initialization is idempotent.
 
@@ -40,7 +40,7 @@ Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected so
 
 - **Given** no config exists
 - **When** `cmd_init(root)` runs
-- **Then** creates `.specsync/config.toml`, `.specsync/version`, `.specsync/.gitignore`, and the `lifecycle/`, `changes/`, `archive/` directories
+- **Then** creates `.specsync/config.toml`, `.specsync/version`, `.specsync/.gitignore`, and the `lifecycle/`, `changes/`, `archive/` directories. `.specsync/sdd.json` has `enabled: false`.
 
 ### Scenario: Config exists
 
@@ -77,6 +77,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-08-30 | v12: init writes SDD off (`enabled: false`); no guided first-change interview. `specsync check` is the product. |
 | 2026-07-10 | v3: initialize 5.0 SDD policy/archive and offer guided agent plus first-change bootstrap |
 | 2026-04-09 | Initial spec |
 | 2026-06-11 | v2: Init the v4 `.specsync/` layout instead of the legacy `specsync.json` so a fresh project never sees the migration nag |
@@ -88,3 +89,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-13 | CHG-0107-fix-the-first-five-minutes-of-spec-sync-init-leaves-a-repo-that-fails-check-sc: Fix the first five minutes of spec-sync: init leaves a repo that fails check, scaffold writes prose that check rejects, and a directory in files: makes check silently green |
 | 2026-08-14 | CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable: Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text |
+| 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |

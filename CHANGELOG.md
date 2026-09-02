@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`specsync check` is the product; SDD is opt-in.** Fresh `init` writes
+  `.specsync/sdd.json` with `enabled: false` and
+  `require_change_for_meaningful_files: false`. It no longer starts a first-change
+  interview. `specsync check` no longer calls `audit_project`, prints an active-change
+  count, or surfaces workspace/archive findings. Reverse coverage stays
+  `--require-coverage`. Enable the change workflow with `specsync change adopt`.
+  `SddPolicy::default()` still fail-closes omitted `enabled` / `require_change` fields
+  on deserialize so an old file missing those keys does not silently disable
+  enforcement. After `finalize` / `ship`, `next_action` no longer gates merge on
+  folding lessons into `context.md`; the archive still writes `lesson-bundle.md`.
+  `MIGRATION.md` keeps the 5.0 adopt recipe as history and adds a 6.0 / 6.1
+  section for existing consumers: upgrading the binary does not flip `sdd.json`
+  off; `check` no longer walks SDD; `change check` no longer runs
+  `verification_commands`; `init` writes SDD off; `adopt` flips `enabled` only. `docs/ADOPTING.md` and the site's quickstart/workflow/configuration/cli pages no longer say `init` detects test commands or offers a first-change interview, that `verification_commands` run on `change check`, or that adoption leaves the policy byte-for-byte (it rewrites `enabled`).
+
+- **`specsync change adopt` is the on-switch `init` points at.** `init` writes the policy off
+  and prints "Enable with `specsync change adopt`"; adoption previously wrote a policy only
+  when `.specsync/sdd.json` was missing — which it never is after `init` — so the advertised
+  path was a no-op and hand-editing JSON was the only way in. `adopt` now writes an enabled
+  policy when none exists, flips `enabled` on one written off, leaves every other field alone
+  (including `require_change_for_meaningful_files`), fails closed on a policy it cannot parse,
+  is idempotent on an already-enabled one, and re-pins the bootstrap record the flip
+  invalidates.
+
+- **`change check` is scoped to the change again.** Verification compared every spec in the
+  project, so drift in a module a change neither declared nor mapped failed its verification —
+  while five documents still promised "scoped verification for this change only". Scope is now
+  the union of the modules in `affected_specs` and the specs whose `files:` fall inside
+  `affected_paths`, so a `--no-spec-change` delivery still verifies against the contracts its
+  source can break. Project-wide validation is `specsync check`. Evidence names the scoped pass
+  it ran under (`specsync check --spec <name> …`), and `change status` advertises that
+  exact command — `--strict` appears only when `--strict` was requested, instead of whenever a
+  change was classified high-risk. A declared module that resolves to no spec file on disk fails
+  verification and is named, rather than being dropped from scope; an empty scope stays a pass
+  only for a change that declared no module and maps no spec. Recorded `--spec` names are the
+  names `filter_specs` matches. That command reproduces the verdict when every named spec
+  resolves or when none does; a mixed scope (one module resolved, one missing) fails the check
+  but can rerun green, because `filter_specs` demotes an unmatched filter to a warning once any
+  filter matches.
+
+- **`change check` compares specs to code. It does not run the project's tests.**
+  Verification used to spawn `sdd.json` `verification_commands` (`cargo test` on this
+  repo). That is CI's job. `change check` now runs the same in-process spec↔code
+  pass as `specsync check`. Configured test/build commands are not executed.
+  `change audit` no longer re-runs those commands in CI either.
+
 ### Removed
 
 - **Windows is no longer a supported target; no Windows binary is published.** SpecSync 6.0 ships
@@ -45,6 +93,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accepted, not resolved.
 
 ### Added
+
+- **`change status` says when it is safe to clear context.** Every text result of `status`,
+  `show`, a passing `check`, `approve`, `review`, `finalize`, and ship's finalize ends with one
+  `Handoff:` line — `safe`, `conditional`, or `not yet` — followed by the reason and, when it is
+  not safe, `Before clearing:` with the steps to take first. The verdict is a pure function of
+  lifecycle signals: a Draft is never safe (approval is the first clean boundary); uncommitted
+  edits under the change's `affected_paths` are `conditional` and name committing or writing
+  intent into `change.md`, while evidence under `.specsync/` alone never counts (`review.json`
+  sits uncommitted between `review` and `finalize` by design); a stale approval digest, a frozen
+  sequence ledger, an invalid correction ledger, or stale legacy terminal evidence is `not yet`
+  and names the repair; a clean approved tree, current verification, workflow-v2 acceptance, and
+  the archive are `safe`, and the reason says where the next session resumes. `--json` carries the
+  same object under `summary.handoff` wherever a change summary is rendered and under `handoff` on
+  the approve transition. No digest reaches the line. The installed agent skill (template
+  version 4) tells agents to clear context only on `safe` and to do what `Before clearing:` names
+  first; re-run `specsync agents install` to refresh it.
 
 - **6.0 release candidates ship installable binaries** (CorvidLabs/spec-sync#669).
   `v6.0.0-rc.1` was tagged correctly — annotated, right commit, marked pre-release — and carries

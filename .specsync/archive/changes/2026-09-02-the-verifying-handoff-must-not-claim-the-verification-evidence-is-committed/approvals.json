@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788316915,
+      "digest": "46d8f7bed8917cf0076a79b397ff266d15280bfd2c3d5d93e819bd272661cc67",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "the-verifying-handoff-must-not-claim-the-verification-evidence-is-committed",
+        "title": "The Verifying handoff must not claim the verification evidence is committed",
+        "description": "the Verifying handoff must not claim the verification evidence is committed",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Invariant 42 and REQ-change-093 prescribe the verdict and what the reason may not contain (digests); they do not prescribe the reason wording. The safe verdict in Verifying is correct — the lifecycle proceeds from uncommitted evidence — only the phrase overstates what the classifier checked.",
+        "acceptance_criteria": [
+          "After a passing change check without --commit, the record is Verifying with verification.json untracked and current. The Handoff line then reads safe with a reason that says the implementation is committed and its verification is current; it no longer says the verification is committed, because HandoffSignals carries no such signal and classify_handoff never checked it. A unit test pins that no Verifying reason claims the verification is committed. The verdict, resume command, and JSON shape are unchanged."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788317459,
+      "digest": "b4c26be1f44bad934f2a4224f826ee57ff0f42d03c2ae441e40405bb4dd1761e",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -1,6 +1,6 @@
 ---
 id: the-verifying-handoff-must-not-claim-the-verification-evidence-is-committed
-state: implementing
+state: archived
 type: bug_fix
 base_commit: d929a60d70903c0241d3a6411961ea168004d561
 ---

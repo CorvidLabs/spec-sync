@@ -425,6 +425,31 @@
         "REQ-cmd-check-004",
         "REQ-cmd-init-005"
       ]
+    },
+    {
+      "timestamp": 1788309528,
+      "commit": "9bec65453997e98871d87f1d18215076e01a1272",
+      "contract_digest": "e6a1e59a02405fe311611e109e8617c00de346c12a19eab60f9420b95a667578",
+      "execution_digest": "b4ed0bb90664ecdf64a6dd2adfba05aa9ef6b437324a896d73bacbb4b1cfdbda",
+      "workspace_digest": "4328137a60353492a61274784f2282fbe1390cbeb3991bcb8ae5f80795253147",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec archive --spec change --spec changelog --spec cli --spec cli_args --spec cmd_agents --spec cmd_archive_tasks --spec cmd_change --spec cmd_changelog --spec cmd_check --spec cmd_comment --spec cmd_compact --spec cmd_coverage --spec cmd_deps --spec cmd_diff --spec cmd_generate --spec cmd_hooks --spec cmd_import --spec cmd_init --spec cmd_init_registry --spec cmd_issues --spec cmd_lifecycle --spec cmd_merge --spec cmd_migrate --spec cmd_new --spec cmd_report --spec cmd_resolve --spec cmd_rules --spec cmd_scaffold --spec cmd_score --spec cmd_stale --spec cmd_view --spec cmd_wizard --spec commands --spec comment --spec compact --spec config --spec deps --spec exports --spec generator --spec git_utils --spec github --spec hash_cache --spec hooks --spec ignore --spec importer --spec manifest --spec mcp --spec merge --spec output --spec parser --spec registry --spec rehash --spec schema --spec scoring --spec types --spec util --spec validator --spec view --spec watch",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-023",
+        "REQ-change-049",
+        "REQ-change-050",
+        "REQ-change-058",
+        "REQ-change-091",
+        "REQ-cmd-check-004",
+        "REQ-cmd-init-005"
+      ]
     }
   ]
 }

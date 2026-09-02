@@ -7221,7 +7221,7 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
             ),
             ChangeState::Verifying if !signals.scoped_review_current => (
                 HandoffReadiness::Safe,
-                "verification is committed and current; a fresh session resumes at the independent review",
+                "the implementation is committed and its verification is current; a fresh session resumes at the independent review",
                 Vec::new(),
             ),
             ChangeState::Verifying => (

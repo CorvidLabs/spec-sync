@@ -17799,12 +17799,18 @@ fn handoff_verifying_follows_evidence_currency() {
     let awaiting_review = classify_handoff("add-passkeys", &signals);
     assert_eq!(awaiting_review.readiness, HandoffReadiness::Safe);
     assert!(awaiting_review.reason.contains("independent review"));
+    // `HandoffSignals` carries no "verification committed" signal: currency is a
+    // content question, and `change check` without `--commit` leaves the evidence
+    // untracked. The reason may only claim what the classifier checked.
+    assert!(!awaiting_review.reason.contains("verification is committed"));
+    assert!(awaiting_review.reason.contains("verification is current"));
 
     signals.scoped_review_current = true;
     let ready = classify_handoff("add-passkeys", &signals);
     assert_eq!(ready.readiness, HandoffReadiness::Safe);
     assert!(ready.reason.contains("finalize"));
     assert!(ready.reason.contains("do not commit"));
+    assert!(!ready.reason.contains("verification is committed"));
 }
 
 // Verifies REQ-change-093.

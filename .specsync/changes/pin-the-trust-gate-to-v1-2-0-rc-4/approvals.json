@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788388628,
+      "digest": "911dbc3f0cd0eb3131fd71eb3907327474f81db96622d17ea2a03a65f8dc1ad3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "pin-the-trust-gate-to-v1-2-0-rc-4",
+        "title": "Pin the Trust gate to v1.2.0-rc.4",
+        "description": "pin the Trust gate to v1.2.0-rc.4",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/workflows/trust.yml"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Trust action pin only (v1.1.1 → v1.2.0-rc.4); the dogfood 6.0.0 file:// mirror is unchanged",
+        "acceptance_criteria": [
+          "The Trust workflow pins CorvidLabs/trust to e0272543 (v1.2.0-rc.4) while specsync-version stays 6.0.0 against the runner-local file:// mirror."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

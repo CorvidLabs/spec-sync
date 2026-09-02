@@ -48,7 +48,7 @@ jobs:
       # exercising the pull-request binary as the immutable contract gate.
       - name: CorvidLabs Trust gate
         id: trust
-        uses: CorvidLabs/trust@a239f78658e5ad0f12fa230f494890e40c6e4d7b # v1.1.1
+        uses: CorvidLabs/trust@e0272543ad5c88ec75cea1e606cc2efa552af25b # v1.2.0-rc.4
         with:
           specsync-version: "6.0.0"
           specsync-download-base-url: file://${{ runner.temp }}/specsync-trust-mirror

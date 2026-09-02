@@ -152,12 +152,12 @@ The repository includes executable examples for a [complete lifecycle](https://g
 specsync init
 ```
 
-This creates `.specsync/config.toml`, `.specsync/sdd.json`, the change/archive directories, detects
-verification commands, and offers native agent integration plus a first change interview. Existing
-projects remain unchanged until `specsync change adopt`; adoption preserves their policy and
-historical evidence while routing subsequent changes through this workflow. Commit and integrate
-every active legacy change first: adoption refuses to publish a partial migration when a v1 record
-is absent from the trusted comparison cutoff.
+This creates `.specsync/config.toml`, `.specsync/sdd.json` with the change workflow **off**, and
+the change/archive directories. It does not detect test commands or start a change interview.
+`specsync change adopt` turns the workflow on: it sets `enabled: true` and leaves every other
+policy field and all historical evidence untouched, then routes subsequent changes through this
+workflow. Commit and integrate every active legacy change first: adoption refuses to publish a
+partial migration when a v1 record is absent from the trusted comparison cutoff.
 
 ### Install hooks and agent instructions
 

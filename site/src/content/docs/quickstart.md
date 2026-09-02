@@ -44,7 +44,7 @@ Navigate to your project root and run:
 specsync init
 ```
 
-This creates `.specsync/config.toml`, enables the verified lifecycle in `.specsync/sdd.json`, detects test commands, and offers to install native agent skills and create the first change.
+This creates `.specsync/config.toml` and `.specsync/sdd.json` with `enabled: false`. `specsync check` works immediately. The `change` commands below run either way; `specsync change adopt` sets `enabled: true`, which is what makes `specsync change audit` enforce the workflow in CI. Agent skills are installed separately with `specsync agents install`.
 
 ```toml
 specs_dir = "specs"

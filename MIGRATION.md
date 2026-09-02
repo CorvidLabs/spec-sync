@@ -2,7 +2,7 @@
 
 ## Adopting the 5.0 Verified SDD Lifecycle
 
-Upgrading the binary does not silently enable lifecycle enforcement in an existing project. Preview and explicitly adopt it:
+This section is the 5.0 recipe. It is not the 6.0 default. Upgrading a 4.x project to 5.0 did not silently enable lifecycle enforcement. Preview and explicitly adopt it:
 
 ```bash
 specsync change adopt --dry-run
@@ -11,9 +11,30 @@ specsync agents install
 specsync check --strict
 ```
 
-Adoption writes `.specsync/sdd.json`, detects an explicit test command, reports canonical requirement companions that need stable IDs, and preserves existing companions without making empty files mandatory. If `openspec/` or `.specify/` is detected, active/canonical artifacts are imported with provenance while historical archives remain in place. Update GitHub Actions from `CorvidLabs/spec-sync@v4` to `@v5` after adoption.
+On 5.0, adoption wrote `.specsync/sdd.json`, detected an explicit test command, reported canonical requirement companions that need stable IDs, and preserved existing companions without making empty files mandatory. If `openspec/` or `.specify/` was detected, active/canonical artifacts were imported with provenance while historical archives remained in place. Update GitHub Actions from `CorvidLabs/spec-sync@v4` to `@v5` after that 5.0 adoption.
 
-New projects initialized by 6.0 write SDD **off**. `specsync check` is the product. Enable the change workflow with `specsync change adopt` if you want it.
+## Migrating to 6.0 / 6.1
+
+Upgrading the binary does **not** flip an existing `.specsync/sdd.json` off. Omitted `enabled` and `require_change_for_meaningful_files` keys still deserialize as **on** (`SddPolicy::default()` is fail-closed).
+
+Existing 5.x consumers, in this order:
+
+1. **`specsync check` no longer walks SDD.** It does not inspect active changes, workspaces, or archives, even when the policy is enabled. Keep `specsync change audit` in CI if that gate is still wanted; it exits 1 on any active-workspace or living-spec error. The `CorvidLabs/spec-sync` GitHub Action runs `specsync check` (plus `lifecycle enforce --all` when `lifecycle-enforce` is set) and does not run the audit, so add it as its own step with a full-depth checkout. (The global `--strict` flag parses on `change audit` but has no effect there.)
+2. **`change check` no longer executes `sdd.json` `verification_commands`.** It compares this change's specs to code in-process. Put `cargo test` / `swift test` / equivalent in CI.
+3. **Fresh `init` writes SDD off** (`enabled: false`, `require_change_for_meaningful_files: false`, empty `verification_commands`). `specsync change adopt` is the on-switch: it writes an enabled policy when none exists, and on an existing file it flips **only** `enabled`. Path coverage stays where the author left it — so `init` then `adopt` gives you `enabled: true` with `require_change_for_meaningful_files: false`, which is **not** the 5.0 default. Set `require_change_for_meaningful_files: true` yourself if you want `change audit` (and archive) to require an active change for every meaningful-path edit. Hand-editing the policy changes its digest, so the bootstrap exemption `init` recorded for `.specsync/sdd.json` no longer covers the file and that edit needs an active change of its own. `adopt` fails closed on a policy it cannot parse and is a no-op on one already enabled. `enabled` governs `change audit` and archive-time path coverage; the `change new/approve/check/review/ship` verbs run either way.
+4. **Lessons are no longer a `next_action` merge gate.** After `finalize` / `ship`, the archive still writes `lesson-bundle.md`; folding it into `context.md` is optional.
+
+```bash
+# existing 5.x repo: binary upgrade does not disable SDD
+specsync change audit            # keep this in CI if you still want the lifecycle gate
+# cargo test / equivalent belongs in CI, not in change check
+
+# new clone / fresh init
+specsync init                    # SDD off
+specsync change adopt            # on-switch; flips enabled only
+```
+
+Pin the GitHub Action explicitly. Pre-releases are `@v6.0.0-rc.N` and are not resolved by a floating tag; once 6.0.0 is published, pin `@v6.0.0` (the form the README and site examples use). Do not treat a 5.0 `adopt` + `check --strict` sequence as an SDD gate on 6.0: `check` will not consult the change workflow.
 
 ## Migrating to SpecSync v4.0.0
 

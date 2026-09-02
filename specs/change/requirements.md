@@ -281,13 +281,28 @@ Acceptance Criteria
 
 ### REQ-change-023
 
-Verification SHALL compare specs to code in-process, SHALL NOT spawn project test or build
-commands, and SHALL preserve retryable attempt history without weakening unrelated gates.
+Verification SHALL compare THIS CHANGE's specs to code in-process, SHALL NOT spawn project
+test or build commands, and SHALL preserve retryable attempt history without weakening
+unrelated gates.
 
 Acceptance Criteria
 
-- `change check` records `specsync check` (or `specsync check --strict`) evidence and does not
-  execute `.specsync/sdd.json` `verification_commands`.
+- Scope is the union of the modules in `affected_specs` and every spec whose `files:` mapping
+  falls inside a declared `affected_paths` scope. Drift outside that scope does not fail this
+  change; project-wide validation is `specsync check`.
+- A declared module that resolves to no spec file on disk FAILS verification and is named in the
+  error, and the attempt is recorded like any other spec↔code failure so the retry after writing
+  the spec stays append-only. It is never dropped from scope, even when other specs are in path
+  scope and would otherwise make the pass look real.
+- An empty scope is a PASS only for a change that declared no module and whose declared paths map
+  no spec — a change that claimed no contract.
+- Evidence is the scoped command the verdict was reached under, `specsync check --spec <name> …`,
+  each name being what `filter_specs` matches (the file stem with `.spec` removed) rather than a
+  frontmatter `module:` that would select nothing, with `--strict` only when requested. It
+  reproduces the verdict when every named spec resolves or when none does; a mixed scope fails
+  the check but can rerun green, because an unmatched filter is demoted to a warning once any
+  filter matches.
+- `change check` does not execute `.specsync/sdd.json` `verification_commands`.
 - Direct re-entry into SpecSync through `SPECSYNC_VERIFICATION_CONTEXT` still fails once.
 - Failed spec↔code attempts remain inspectable and a corrected retry can record passed latest evidence.
 - Other failed or stale changes continue failing closed.
@@ -1200,8 +1215,8 @@ Lifecycle verification SHALL NOT spawn project test or build commands, so it SHA
 Cargo build-directory lock and SHALL NOT create a verification child process.
 
 Acceptance Criteria
-- `change check` records in-process spec↔code evidence named `specsync check` or
-  `specsync check --strict`.
+- `change check` records in-process spec↔code evidence naming its scope, as
+  `specsync check --spec <name> …`.
 - A configured `verification_commands` sentinel is not executed.
 - A held Cargo `.cargo-lock` is not named on stderr during `change check`.
 - A configured reporter script is not started.

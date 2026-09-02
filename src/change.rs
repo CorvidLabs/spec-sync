@@ -3035,9 +3035,18 @@ fn scoped_spec_files(
         let filter = spec_filter_name(&spec);
         selected.insert(spec, filter);
     }
-    // An unresolved module keeps its declared name in the filter list: rerunning
-    // the recorded command reproduces the same verdict, because `filter_specs`
-    // matches nothing for it and `check` exits non-zero.
+    // An unresolved module keeps its declared name in the filter list. That is
+    // the only place the persisted record names it: findings are not written to
+    // `verification.json`, so without this the stored evidence for a
+    // missing-spec failure would not say which module was missing.
+    //
+    // What that string does NOT promise is a faithful rerun in every case.
+    // `filter_specs` demotes an unmatched filter to a stderr warning as soon as
+    // any other filter matches, and `check`'s exit-1 gate fires only when the
+    // matched set is empty. So a scope with one module resolved and one not
+    // fails HERE and can still exit 0 on rerun. Reproduction is exact when every
+    // named spec resolves, or when none does; the authoritative record of a
+    // mixed-scope failure is this verdict, not the rerun.
     let mut filters: BTreeSet<String> = selected.values().cloned().collect();
     filters.extend(unresolved_filters);
     ScopedSpecs {
@@ -3047,12 +3056,15 @@ fn scoped_spec_files(
     }
 }
 
-/// The exact command a reader can run to reproduce this verdict.
+/// The scoped command this verdict was reached under.
 ///
-/// `--spec` matches by module name, so the recorded string re-runs the same
-/// scoped pass rather than the project-wide one. An empty scope is named as
-/// such instead of being written as a bare `specsync check`, which would claim
-/// a project-wide pass that never happened.
+/// `--spec` is matched against the file stem, so the recorded string names the
+/// same scoped set rather than the project-wide one. It reproduces the verdict
+/// exactly when every named spec resolves, or when none does — see the note in
+/// `scoped_spec_files` for the mixed case, which fails here but can rerun
+/// green. An empty scope is named as such instead of being written as a bare
+/// `specsync check`, which would claim a project-wide pass that never
+/// happened.
 fn scoped_check_command(modules: &[String], strict: bool) -> String {
     if modules.is_empty() {
         return "specsync check (no spec in scope)".to_string();

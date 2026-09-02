@@ -19,8 +19,9 @@ specsync init
 
 New projects receive the current layout. Existing projects can migrate configuration with
 `specsync migrate` and explicitly adopt the current verified lifecycle with
-`specsync change adopt`. Adoption preserves existing policy and lifecycle evidence byte-for-byte,
-records the pre-v2 cutoff, and routes subsequent changes through the 6.0 single workflow. Existing
+`specsync change adopt`. Adoption sets `enabled: true` on a policy written off and otherwise
+preserves existing policy and lifecycle evidence byte-for-byte, records the pre-v2 cutoff, and
+routes subsequent changes through the 6.0 single workflow. Existing
 v1 changes must already be present at the trusted cutoff; adoption is atomic and fails without
 changing the project when that compatibility condition is not met.
 

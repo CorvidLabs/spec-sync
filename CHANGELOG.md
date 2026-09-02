@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on deserialize so an old file missing those keys does not silently disable
   enforcement. After `finalize` / `ship`, `next_action` no longer gates merge on
   folding lessons into `context.md`; the archive still writes `lesson-bundle.md`.
+  `MIGRATION.md` keeps the 5.0 adopt recipe as history and adds a 6.0 / 6.1
+  section for existing consumers: upgrading the binary does not flip `sdd.json`
+  off; `check` no longer walks SDD; `change check` no longer runs
+  `verification_commands`; `init` writes SDD off; `adopt` flips `enabled` only. `docs/ADOPTING.md` and the site's quickstart/workflow/configuration/cli pages no longer say `init` detects test commands or offers a first-change interview, that `verification_commands` run on `change check`, or that adoption leaves the policy byte-for-byte (it rewrites `enabled`).
 
 - **`specsync change adopt` is the on-switch `init` points at.** `init` writes the policy off
   and prints "Enable with `specsync change adopt`"; adoption previously wrote a policy only
@@ -35,12 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the union of the modules in `affected_specs` and the specs whose `files:` fall inside
   `affected_paths`, so a `--no-spec-change` delivery still verifies against the contracts its
   source can break. Project-wide validation is `specsync check`. Evidence names the scoped pass
-  a reader can rerun (`specsync check --spec <name> …`), and `change status` advertises that
+  it ran under (`specsync check --spec <name> …`), and `change status` advertises that
   exact command — `--strict` appears only when `--strict` was requested, instead of whenever a
   change was classified high-risk. A declared module that resolves to no spec file on disk fails
   verification and is named, rather than being dropped from scope; an empty scope stays a pass
   only for a change that declared no module and maps no spec. Recorded `--spec` names are the
-  names `filter_specs` matches, so the evidence command reproduces the verdict.
+  names `filter_specs` matches. That command reproduces the verdict when every named spec
+  resolves or when none does; a mixed scope (one module resolved, one missing) fails the check
+  but can rerun green, because `filter_specs` demotes an unmatched filter to a warning once any
+  filter matches.
 
 - **`change check` compares specs to code. It does not run the project's tests.**
   Verification used to spawn `sdd.json` `verification_commands` (`cargo test` on this

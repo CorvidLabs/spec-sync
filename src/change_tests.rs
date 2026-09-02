@@ -524,6 +524,44 @@ fn change_adopt_moves_only_new_changes_to_v2_without_rewriting_v1_policy() {
 }
 
 #[test]
+fn change_adopt_flips_only_enabled_on_a_disabled_v1_policy() {
+    // Invariant 20 promises a v1 policy stays byte-identical only while it is already
+    // enabled. A v1 policy an author switched off is the one case adoption rewrites, and
+    // it rewrites exactly one field.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.version = 1;
+    policy.enabled = false;
+    policy.meaningful_paths.push("ops/".into());
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "disabled workflow-v1 policy"]);
+    quiet_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+    adopt(root, false, None).unwrap();
+
+    let after = load_policy(root).unwrap();
+    assert!(
+        after.enabled,
+        "adopt is the on-switch for a disabled v1 policy too"
+    );
+    assert_eq!(
+        SddPolicy {
+            enabled: false,
+            ..after
+        },
+        policy,
+        "adoption must rewrite `enabled` and nothing else"
+    );
+}
+
+#[test]
 fn change_adopt_rejects_uncommitted_workflow_v1_records_without_writes() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
@@ -11702,6 +11740,71 @@ fn the_spec_filter_name_is_the_stem_filter_specs_matches_not_the_declared_module
         scope.filters,
         vec!["other".to_string()],
         "the filter is the stem `other`, not the declared module `differently_named`"
+    );
+}
+
+#[test]
+fn mixed_scope_evidence_names_the_missing_module_but_does_not_rerun_faithfully() {
+    // Honest label: CHARACTERIZATION of a KNOWN RESIDUAL. It asserts what the
+    // evidence string can and cannot promise, so nobody restores the comment
+    // that claimed a faithful rerun in every case.
+    //
+    // With one declared module resolved and one missing, `change check` FAILS
+    // (the missing module is an error) and the recorded filters name both — the
+    // only place the persisted record says which module was missing. But
+    // `filter_specs` demotes an unmatched filter to a stderr warning as soon as
+    // any other filter matches, and check's exit-1 gate fires only on an empty
+    // match set, so rerunning that literal command can exit 0. If this ever
+    // fails, check why before changing it.
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    ensure_test_verification_policy(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "// other\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        clean_spec("other", "src/other.rs"),
+    )
+    .unwrap();
+    let mut record = create_change(
+        root,
+        CreateChangeRequest {
+            description: "Declare one resolvable and one missing module".into(),
+            kind: ChangeKind::BugFix,
+            affected_specs: vec!["other".into(), "absent".into()],
+            affected_paths: vec!["src/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("No public contract change".into()),
+        },
+    )
+    .unwrap();
+    record.acceptance_criteria = vec!["Mixed scope is recorded honestly".into()];
+
+    let scope = scoped_spec_files(root, &record, &crate::config::load_config(root));
+
+    assert_eq!(
+        scope.unresolved.len(),
+        1,
+        "the missing module is an error, not a silently smaller scope: {:?}",
+        scope.unresolved
+    );
+    assert!(
+        scope.unresolved[0].contains("`absent`"),
+        "{:?}",
+        scope.unresolved
+    );
+    assert_eq!(
+        scope.filters,
+        vec!["absent".to_string(), "other".to_string()],
+        "evidence names BOTH, so the record says which module was missing"
+    );
+    // The residual: this command names a filter that matches nothing alongside
+    // one that matches, which `filter_specs` treats as a warning, not an error.
+    assert_eq!(
+        scoped_check_command(&scope.filters, false),
+        "specsync check --spec absent --spec other"
     );
 }
 

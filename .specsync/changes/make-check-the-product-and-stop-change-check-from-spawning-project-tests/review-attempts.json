@@ -16,6 +16,22 @@
       "execution_digest": "f33a9a0df16234df37b6208f26c988b2c7dcbbe691803229bb8be6fa4eb5432c",
       "workspace_digest": "126bc94558c21502a27810e04fd26fae70bbf6e22c93e7f2db7c424fc441c287",
       "timestamp": 1788152208
+    },
+    {
+      "schema_version": 2,
+      "change_id": "make-check-the-product-and-stop-change-check-from-spawning-project-tests",
+      "reviewer": "Kimi-K3",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "8fc75fdf2cae2159a1ce8140228b1e507b5172e0",
+      "contract_digest": "e6a1e59a02405fe311611e109e8617c00de346c12a19eab60f9420b95a667578",
+      "execution_digest": "b4ed0bb90664ecdf64a6dd2adfba05aa9ef6b437324a896d73bacbb4b1cfdbda",
+      "workspace_digest": "4328137a60353492a61274784f2282fbe1390cbeb3991bcb8ae5f80795253147",
+      "timestamp": 1788311090
     }
   ]
 }

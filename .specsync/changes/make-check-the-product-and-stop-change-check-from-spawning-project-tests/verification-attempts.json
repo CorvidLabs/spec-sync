@@ -450,6 +450,31 @@
         "REQ-cmd-check-004",
         "REQ-cmd-init-005"
       ]
+    },
+    {
+      "timestamp": 1788311354,
+      "commit": "8fc75fdf2cae2159a1ce8140228b1e507b5172e0",
+      "contract_digest": "bf4013a7a5ea9ad0781391bc11a3119395f11fc2dc82bf9bba0cba47233e2f3e",
+      "execution_digest": "cb64a172b13695e32b88987406c9793e4e07ab706412e587ecdca0431c8b8a5e",
+      "workspace_digest": "4328137a60353492a61274784f2282fbe1390cbeb3991bcb8ae5f80795253147",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_change --spec cmd_check --spec cmd_init",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-check-audit-commands-001",
+        "REQ-change-023",
+        "REQ-change-049",
+        "REQ-change-050",
+        "REQ-change-058",
+        "REQ-change-091",
+        "REQ-cmd-check-004",
+        "REQ-cmd-init-005"
+      ]
     }
   ]
 }

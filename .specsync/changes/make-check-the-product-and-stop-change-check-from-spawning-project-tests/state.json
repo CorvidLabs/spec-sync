@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "359eeee2981f72ce915a65ccc36ade84127d93a9",
   "created_at": 1788122673,
-  "updated_at": 1788309530,
+  "updated_at": 1788311356,
   "affected_specs": [
     "change",
     "cmd_change",
@@ -20,9 +20,26 @@
     "agents"
   ],
   "affected_paths": [
-    "src/",
-    "tests/",
-    "site/"
+    "src/change.rs",
+    "src/change_tests.rs",
+    "tests/integration/change.rs",
+    "tests/integration/comment.rs",
+    "site/src/content/docs/cli.md",
+    "site/src/content/docs/configuration.md",
+    "site/src/content/docs/quickstart.md",
+    "site/src/content/docs/workflow.md",
+    "docs/ADOPTING.md",
+    "MIGRATION.md",
+    "CHANGELOG.md",
+    "specs/agents/agents.spec.md",
+    "specs/agents/requirements.md",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/testing.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_check/cmd_check.spec.md",
+    "specs/cmd_init/cmd_init.spec.md",
+    "specs/cmd_init/requirements.md"
   ],
   "no_spec_change": false,
   "no_spec_change_rationale": null,

@@ -1,0 +1,41 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788316207,
+      "digest": "95507a16a9d4785b12638a57f25ddde99dfcc4345914391b649700f7a78a1bc7",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cover-the-core-check-paths-the-make-check-archive-narrowed-away",
+        "title": "Cover the core-check paths the make-check archive narrowed away",
+        "description": "cover the core-check paths the make-check archive narrowed away",
+        "kind": "operations",
+        "affected_specs": [
+          "cmd_check",
+          "cmd_init"
+        ],
+        "affected_paths": [
+          "site/src/content/docs/deltas.md",
+          "src/commands/check.rs",
+          "src/commands/init.rs",
+          "tests/integration/commands.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The behaviour these four paths implement (check is the product and needs no SDD policy; init writes sdd.json with enabled:false and points at change adopt; the deltas guide) was specified and materialized by the archived make-check-the-product change. That record's affected_paths were narrowed to explicit files for finalize's acceptance manifest, which dropped these already-committed paths from coverage. No canonical spec text changes.",
+        "acceptance_criteria": [
+          "The core-check cut (84cb5cae, 359eeee2) changed src/commands/check.rs, src/commands/init.rs, tests/integration/commands.rs and site/src/content/docs/deltas.md, but the archived make-check-the-product record no longer lists them: its affected_paths were narrowed from directory scopes to explicit files so finalize could build an acceptance manifest, and these four were dropped. Done when all four paths are covered by an accepted change on this branch, specsync change audit --strict exits 0 on the branch tip with no active change, and specsync check --strict still passes with no spec text change."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

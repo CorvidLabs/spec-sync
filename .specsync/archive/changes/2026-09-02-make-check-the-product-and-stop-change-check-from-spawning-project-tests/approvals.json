@@ -212,6 +212,13 @@
         "cmd_check": "2fa66823637c5a4c555c21cf53e86e4e84ed02d09bd658b9110136b419b7c02c",
         "cmd_init": "6320669bc8f0ec969a36bc2a36a3ae6afb30a1e6e1c8ebe6494735103ce1235d"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788311427,
+      "digest": "5eaa9f5505dd4dd4e503d2229ce7ff4acac816d271423cf8d5a5fb323c3d93ba",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

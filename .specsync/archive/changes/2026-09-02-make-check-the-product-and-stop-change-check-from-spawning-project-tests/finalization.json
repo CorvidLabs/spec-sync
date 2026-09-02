@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "make-check-the-product-and-stop-change-check-from-spawning-project-tests",
+  "implementation_commit": "7ef1b442227410f9318d1b9b2dd8d151d594ca49",
+  "implementation_tree": "23ecd48823e2a85ad266d0a512e06be23a8bb6ac",
+  "contract_digest": "bf4013a7a5ea9ad0781391bc11a3119395f11fc2dc82bf9bba0cba47233e2f3e",
+  "workspace_digest": "4328137a60353492a61274784f2282fbe1390cbeb3991bcb8ae5f80795253147",
+  "closing_digest": "5eaa9f5505dd4dd4e503d2229ce7ff4acac816d271423cf8d5a5fb323c3d93ba",
+  "review_digest": "9896f75af4d6d432f680298007a0ebe603cf47320b2fe6a7c000da44b265f0c9",
+  "finalization_digest": "835a9c254529322fe40442b7ecf88eb0e52e6678e15ccc8b1b2f394daa6d0f39",
+  "timestamp": 1788311427
+}

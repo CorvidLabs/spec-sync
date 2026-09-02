@@ -1,6 +1,6 @@
 ---
 id: make-check-the-product-and-stop-change-check-from-spawning-project-tests
-state: verifying
+state: archived
 type: feature
 base_commit: 359eeee2981f72ce915a65ccc36ade84127d93a9
 ---

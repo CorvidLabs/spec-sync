@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "tell-agents-when-it-is-safe-to-clear-context",
+  "implementation_commit": "1a2ffb7ab967d8c6352cbcd6801b19cdf709d6d2",
+  "implementation_tree": "61f5e1d7b0c4159da38eb32e3cb89ff82ddf536f",
+  "contract_digest": "d32c5c0298f098b6aaeb04b7771818031ae98331508c75c0d0179d6fca9a6348",
+  "workspace_digest": "3d7486925185a94d2f0d139da466ac723ead09a9140d42dc1da2b6430a30ae65",
+  "closing_digest": "410e0f55f4b24542a8b1526afef7200bc276f16c5f2b17105198725d57433f58",
+  "review_digest": "5456ca03a4bab30e01c77ba78aa9decddd9a6e5190fbf73aa4a64cd59c3f8a61",
+  "finalization_digest": "337c37a522cedff66913a324f03346019c46dd483e4212be0a09780f989df5cd",
+  "timestamp": 1788315464
+}

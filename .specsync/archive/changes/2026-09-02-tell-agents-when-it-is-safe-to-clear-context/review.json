@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "tell-agents-when-it-is-safe-to-clear-context",
+  "reviewer": "Kimi-K3",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "1a2ffb7ab967d8c6352cbcd6801b19cdf709d6d2",
+  "contract_digest": "d32c5c0298f098b6aaeb04b7771818031ae98331508c75c0d0179d6fca9a6348",
+  "execution_digest": "8a9931195daae2b38d175d0ef6e59d558ad2254b506f9534323a78e8e957c18a",
+  "workspace_digest": "3d7486925185a94d2f0d139da466ac723ead09a9140d42dc1da2b6430a30ae65",
+  "timestamp": 1788315420
+}

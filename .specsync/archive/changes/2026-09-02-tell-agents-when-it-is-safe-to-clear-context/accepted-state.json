@@ -7,11 +7,11 @@
   "title": "Tell agents when it is safe to clear context",
   "description": "Tell agents when it is safe to clear context",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "ddbc9343fa30be3a2def39f2e559ca9cf6984d2c",
   "created_at": 1788312190,
-  "updated_at": 1788315022,
+  "updated_at": 1788315464,
   "affected_specs": [
     "change",
     "cmd_change",

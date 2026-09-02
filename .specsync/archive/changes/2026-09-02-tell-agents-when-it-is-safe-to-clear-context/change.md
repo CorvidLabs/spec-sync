@@ -1,6 +1,6 @@
 ---
 id: tell-agents-when-it-is-safe-to-clear-context
-state: implementing
+state: archived
 type: feature
 base_commit: ddbc9343fa30be3a2def39f2e559ca9cf6984d2c
 ---

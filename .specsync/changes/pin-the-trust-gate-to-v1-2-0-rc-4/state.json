@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "pin-the-trust-gate-to-v1-2-0-rc-4",
+  "slug": "pin-the-trust-gate-to-v1-2-0-rc-4",
+  "title": "Pin the Trust gate to v1.2.0-rc.4",
+  "description": "pin the Trust gate to v1.2.0-rc.4",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "93874b86c512cadc0c520c85a51581c6e3919c95",
+  "created_at": 1788383428,
+  "updated_at": 1788383444,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/trust.yml"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Trust action pin only (v1.1.1 → v1.2.0-rc.4); the dogfood 6.0.0 file:// mirror is unchanged",
+  "acceptance_criteria": [
+    "The Trust workflow pins CorvidLabs/trust to e0272543 (v1.2.0-rc.4) while specsync-version stays 6.0.0 against the runner-local file:// mirror."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

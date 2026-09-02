@@ -71,9 +71,13 @@ historical commit/blob, source event, adopted scope digest, authorization, and c
 digest; the independent scoped review is still mandatory before finalization. This is an explicit
 audited exception, not a reusable approval migration mechanism.
 
-Scoped review schema 2 records `pass` or `block`, rejects the scope approver as reviewer, and
-checks every descendant commit against every parent so a source change followed by a revert cannot
-reuse an earlier review. Archive recovery recognizes an accepted workspace already moved into its
+Scoped review schema 2 records `pass` or `block` and MAY be recorded by the same actor as the
+definition approver. SpecSync does not invent a two-person gate; GitHub remains the merge
+authority for required reviewers. Distinct reviewers remain allowed. The review still checks
+every descendant commit against every parent so a source change followed by a revert cannot
+reuse an earlier review. Hit on CorvidLabs/corvid-bot PR 29: GitHub required zero reviews and
+Trust was green, but `change review --reviewer leif` refused because `leif` had approved the
+definition. That refusal was the defect. Archive recovery recognizes an accepted workspace already moved into its
 dated destination and completes or restores it there, making a crash after rename retryable.
 
 A renewed direct workflow-v2 approval supersedes and removes any one-time legacy scope adoption;

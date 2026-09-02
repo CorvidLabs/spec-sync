@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second",
+  "implementation_commit": "37021bac64d46bcbe422509178909f2ffa68635e",
+  "implementation_tree": "1df76e3f92adbf81c781ce37a99925fe3ffff912",
+  "contract_digest": "52d98761d05a0a8ae23fe52602b624f466d07dd0ed4a45fac7df71e7c24a2016",
+  "workspace_digest": "9a028aac7b538ccf7b7a940ad79e894d0b4a854cdd67f7db1e4f3224012badaa",
+  "closing_digest": "7e314d37b4b79fe30cbd9875b99cc68c36adc72b8437f17604b12e30ae0c4856",
+  "review_digest": "d0741fbd1303954c61ac51ae4025820aa56df7600438815b2f1d16f6a6fcf9a5",
+  "finalization_digest": "171247450da5db3abc578520900aaf707fb5f214fd1583614635255430a1146f",
+  "timestamp": 1788322909
+}

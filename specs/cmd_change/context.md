@@ -13,9 +13,12 @@ The command layer intentionally contains no lifecycle policy, keeping agent and 
 `change correct-owner` also remains a thin adapter. It resolves repeated paths, a manifest, or `--all-missing` into domain entries, JSON emits the corrected persisted record, human output names the exact owner repair (or batch count) and next gate, and all path, ownership, state, and transactionality policy remains in `src/change.rs`.
 
 `change review` parses the optional verdict through the typed change-domain enum. Text names the
-stored verdict and JSON emits the exact review record; reviewer independence, evidence freshness,
-and finalization eligibility remain domain concerns. Reviewer text is a stable ASCII claim, every
-attempt is append-only, and hosted required-check provenance supplies authenticated merge trust.
+stored verdict and JSON emits the exact review record; reviewer-claim validation, evidence
+freshness, and finalization eligibility remain domain concerns. The reviewer MAY be the same
+actor as definition approval. Next-action copy uses `--reviewer <human>` so the command layer
+does not tell solo projects to invent a second identity. Reviewer text is a stable ASCII claim,
+every attempt is append-only, and hosted required-check provenance supplies authenticated merge
+trust. GitHub required reviews remain the two-person gate when a repository wants one.
 
 `answer`, `depend`, and `supersede` delegate correction-ledger health enforcement to their
 mutation-capable domain operations, which reload and validate the ledger while holding the same

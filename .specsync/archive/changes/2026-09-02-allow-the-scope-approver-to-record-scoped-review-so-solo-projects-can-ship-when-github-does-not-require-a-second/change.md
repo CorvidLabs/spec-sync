@@ -1,6 +1,6 @@
 ---
 id: allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 6a5a7a7d893fb43515c51514989e5b06674656c4
 ---

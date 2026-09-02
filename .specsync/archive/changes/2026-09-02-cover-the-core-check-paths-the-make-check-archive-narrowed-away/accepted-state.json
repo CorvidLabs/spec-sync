@@ -7,11 +7,11 @@
   "title": "Cover the core-check paths the make-check archive narrowed away",
   "description": "cover the core-check paths the make-check archive narrowed away",
   "kind": "operations",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "ea838cc3fc06c4cc528709051a60a4d03aaf5b3b",
   "created_at": 1788316146,
-  "updated_at": 1788316336,
+  "updated_at": 1788316512,
   "affected_specs": [
     "cmd_check",
     "cmd_init"

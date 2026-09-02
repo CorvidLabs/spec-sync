@@ -1,6 +1,6 @@
 ---
 id: cover-the-core-check-paths-the-make-check-archive-narrowed-away
-state: implementing
+state: archived
 type: operations
 base_commit: ea838cc3fc06c4cc528709051a60a4d03aaf5b3b
 ---

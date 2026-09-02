@@ -1,8 +1,8 @@
 ---
 id: pin-the-trust-gate-to-v1-2-0-rc-4
-state: draft
+state: implementing
 type: bug_fix
-base_commit: 93874b86c512cadc0c520c85a51581c6e3919c95
+base_commit: ac796b8eadd3092283093bbea331ec2d3494b527
 ---
 
 # Pin the Trust gate to v1.2.0-rc.4

@@ -7,10 +7,10 @@
   "title": "Pin the Trust gate to v1.2.0-rc.4",
   "description": "pin the Trust gate to v1.2.0-rc.4",
   "kind": "bug_fix",
-  "state": "draft",
-  "base_commit": "93874b86c512cadc0c520c85a51581c6e3919c95",
-  "created_at": 1788383428,
-  "updated_at": 1788383444,
+  "state": "implementing",
+  "base_commit": "ac796b8eadd3092283093bbea331ec2d3494b527",
+  "created_at": 1788388515,
+  "updated_at": 1788388631,
   "affected_specs": [
     "github"
   ],

@@ -1,6 +1,6 @@
 ---
 id: finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a
-state: implementing
+state: archived
 type: feature
 base_commit: 8e658a1f122df2af13edea8a4be7f4a3365e4a9d
 ---

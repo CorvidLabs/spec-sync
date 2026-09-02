@@ -19,6 +19,9 @@ actor as definition approval. Next-action copy uses `--reviewer <human>` so the 
 does not tell solo projects to invent a second identity. Reviewer text is a stable ASCII claim,
 every attempt is append-only, and hosted required-check provenance supplies authenticated merge
 trust. GitHub required reviews remain the two-person gate when a repository wants one.
+Ship-status stage actions are a second copy site: updating `next_action` and the stale-review
+blockers is not enough. After the domain gate allowed same-actor review, `ship_stages` still
+emitted `--reviewer <other>` until Kyntrin's review of #749 named the leftover.
 
 `answer`, `depend`, and `supersede` delegate correction-ledger health enforcement to their
 mutation-capable domain operations, which reload and validate the ledger while holding the same

@@ -7,11 +7,11 @@
   "title": "Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity",
   "description": "Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity",
   "kind": "feature",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "8e658a1f122df2af13edea8a4be7f4a3365e4a9d",
   "created_at": 1788357671,
-  "updated_at": 1788358021,
+  "updated_at": 1788358411,
   "affected_specs": [
     "cmd_change",
     "agents"

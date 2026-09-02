@@ -169,10 +169,9 @@ mutually exclusive, which is not obvious:
 Find the owning spec for a path by grepping the `files:` list in each `specs/<module>/*.spec.md`.
 A path with no owner is itself the problem — fix that before creating the change.
 
-**The reviewer may not be the approver.** Separation of duties is enforced, and the comparison is
-case-insensitive, so `Alice` cannot review what `alice` approved. Solo adopters hit this at the
-review step with everything else already green. Decide who the second identity is before you
-start.
+**The reviewer may be the approver.** Scoped review records who signed off. It does not invent a
+second person. If a repository wants two humans, that is GitHub required reviewers, not SpecSync.
+`Alice` may review what `alice` approved.
 
 **Build directories will wreck your verification.** Add `.build/`, `target/`, `node_modules/` to
 `.gitignore` before the first `change check`. Their churn moves the workspace digest and stales

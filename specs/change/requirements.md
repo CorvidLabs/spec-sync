@@ -660,38 +660,21 @@ Acceptance Criteria
 
 ### REQ-change-046
 
-Agent-authored changes SHALL receive one independent scoped review of implementation evidence before
-finalization.
+Agent-authored changes SHALL receive one scoped review of implementation evidence before finalization. The reviewer claim MAY be the same actor as the definition approver. SpecSync SHALL NOT invent a second-person requirement beyond GitHub's merge rules.
 
 Acceptance Criteria
 
-- Review input contains only the change package, implementation diff, canonical semantic delta, and
-  targeted evidence.
-- The result binds the implementation parent commit, those input digests, an explicit pass/block
-  verdict, a stable reviewer claim distinct from the scope approver, and the exact required
-  GitHub Actions check whose authenticated result is proven again by finalization.
-- Every review attempt is append-only; `review.json` is only the latest projection and cannot erase
-  a prior blocking result.
-- Native review recording and finalization run the same every-parent verification-freshness
-  validator as project checking, and every persisted review attempt revalidates that its reviewer
-  is distinct from the scope approver bound to that attempt's contract digest.
-- Every intervening commit is inspected against every parent; any implementation change, including
-  change-then-revert history, stales the review, while the metadata/archive-only finalization commit
-  does not rerun or stale it. Native and hosted validators load the same committed descendant,
-  parent, output, and timeout limits.
-- Scoped-review currency is a three-valued answer, not a predicate. It is `current` when every
-  recorded binding still agrees with the tree; `stale` when a bound digest moved or the descendant
-  walk ran and inspected a commit that changed a path outside this change's own lifecycle records;
-  and `unavailable` when the walk could not run at all — most often because a squash, rebase, amend,
-  or force-push rewrote the reviewed commit, leaving `implementation_commit..HEAD` with no range to
-  walk. A caller that reports an unavailable answer as a satisfied one is wrong in the direction
-  that costs the most, and one that reports it as a violation asserts a guarantee it never evaluated.
-- Content is decided before history: a review whose recorded contract, execution, or workspace digest
-  no longer matches the tree is `stale` for that reason, and the descendant walk's own availability
-  is consulted only once the content agrees.
+- Review input contains only the change package, implementation diff, canonical semantic delta, and targeted evidence.
+- The result binds the implementation parent commit, those input digests, an explicit pass/block verdict, a stable reviewer claim, and the exact required GitHub Actions check whose authenticated result is proven again by finalization.
+- The reviewer claim MAY equal the definition approver (comparison is still case-insensitive for identity, not for refusal).
+- Every review attempt is append-only; `review.json` is only the latest projection and cannot erase a prior blocking result.
+- Native review recording and finalization run the same every-parent verification-freshness validator as project checking.
+- Every intervening commit is inspected against every parent; any implementation change, including change-then-revert history, stales the review, while the metadata/archive-only finalization commit does not rerun or stale it.
+- Scoped-review currency remains the three-valued answer `current` / `stale` / `unavailable` as already specified.
+- Content is decided before history: a review whose recorded contract, execution, or workspace digest no longer matches the tree is `stale` for that reason.
 - Finalization fails when a required scoped review is missing or blocking.
-- Status states when review is needed and directs the user to open or update the PR so the configured
-  scoped-review check runs.
+- Status states when review is needed and directs the user to open or update the PR so the configured scoped-review check runs.
+- SpecSync does not refuse a ship solely because the reviewer is the definition approver.
 
 ### REQ-change-audit-project-001
 

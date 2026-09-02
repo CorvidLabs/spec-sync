@@ -1504,7 +1504,7 @@ fn workflow_v2_archive_survives_squash_merge_in_fresh_clone() {
 }
 
 #[test]
-fn scoped_review_requires_an_independent_passing_verdict() {
+fn scoped_review_allows_the_scope_approver_and_records_pass_and_block_verdicts() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let git = |args: &[&str]| {
@@ -1531,11 +1531,10 @@ fn scoped_review_requires_an_independent_passing_verdict() {
     git(&["commit", "-m", "Implement approved change"]);
     check_change(root, Some(&record.id)).unwrap();
 
-    let error = record_scoped_review(root, &record.id, "scope OWNER".into()).unwrap_err();
-    assert!(
-        error.contains("someone other than the scope approver"),
-        "{error}"
-    );
+    let same_actor =
+        record_scoped_review(root, &record.id, "scope OWNER".into()).expect("solo review");
+    assert_eq!(same_actor.reviewer, "scope OWNER");
+    assert_eq!(same_actor.verdict, ScopedReviewVerdict::Pass);
     let error =
         record_scoped_review(root, &record.id, "Independent\u{200b} reviewer".into()).unwrap_err();
     assert!(error.contains("stable ASCII identity"), "{error}");
@@ -1560,9 +1559,11 @@ fn scoped_review_requires_an_independent_passing_verdict() {
         &fs::read_to_string(scoped_review_attempts_path(root, &record)).unwrap(),
     )
     .unwrap();
-    assert_eq!(attempts.reviews.len(), 2);
-    assert_eq!(attempts.reviews[0].verdict, ScopedReviewVerdict::Block);
-    assert_eq!(attempts.reviews[1].verdict, ScopedReviewVerdict::Pass);
+    assert_eq!(attempts.reviews.len(), 3);
+    assert_eq!(attempts.reviews[0].reviewer, "scope OWNER");
+    assert_eq!(attempts.reviews[0].verdict, ScopedReviewVerdict::Pass);
+    assert_eq!(attempts.reviews[1].verdict, ScopedReviewVerdict::Block);
+    assert_eq!(attempts.reviews[2].verdict, ScopedReviewVerdict::Pass);
 }
 
 fn review_ledger_fixture(reviewer: &str) -> ScopedReviewAttemptLedger {
@@ -15203,7 +15204,7 @@ fn exact_and_multiple_verification_persistence_commits_remain_current() {
     assert_eq!(
         summarize_change(root, &record).next_action,
         format!(
-            "run `specsync change review {id} --reviewer <independent-reviewer>` after the PR's scoped review passes"
+            "run `specsync change review {id} --reviewer <human>` after the PR's scoped review passes"
         )
     );
     assert!(
@@ -15268,35 +15269,17 @@ fn scoped_review_persistence_mixed_with_source_change_is_stale() {
 }
 
 #[test]
-fn persisted_scoped_review_rejects_scope_approver_as_reviewer() {
+fn persisted_scoped_review_allows_scope_approver_as_reviewer() {
     let (temp, id, _) = verification_history_fixture();
     let root = temp.path();
     let verification_paths = verification_persistence_paths(&id);
     let verification_path_refs: Vec<&str> = verification_paths.iter().map(String::as_str).collect();
     commit_paths(root, &verification_path_refs, "persist verification");
-    let mut review = record_scoped_review(root, &id, "Independent Reviewer".into()).unwrap();
-    review.reviewer = "reviewer".into();
-    let attempts = ScopedReviewAttemptLedger {
-        schema_version: 1,
-        reviews: vec![review.clone()],
-    };
+    record_scoped_review(root, &id, "Reviewer".into()).unwrap();
     let record = load_change(root, &id).unwrap();
-    fs::write(
-        scoped_review_path(root, &record),
-        json_content(&review).unwrap(),
-    )
-    .unwrap();
-    fs::write(
-        scoped_review_attempts_path(root, &record),
-        json_content(&attempts).unwrap(),
-    )
-    .unwrap();
-
-    let error = load_scoped_review(root, &record).unwrap_err();
-    assert!(error.contains("also the scope approver"), "{error}");
-    let error =
-        accept_change_with_gate(root, &id, None, None, "finalization", true, true).unwrap_err();
-    assert!(error.contains("also the scope approver"), "{error}");
+    let loaded = load_scoped_review(root, &record).unwrap();
+    assert_eq!(loaded.reviewer, "Reviewer");
+    assert_eq!(loaded.verdict, ScopedReviewVerdict::Pass);
 }
 
 #[test]

@@ -5455,13 +5455,7 @@ fn validate_scoped_review_ledger_contents(
         {
             return Err("scoped review attempt history contains invalid evidence".into());
         }
-        let scope_approver = definition_approver_for_review_contract(&approvals, attempt)?;
-        if attempt.reviewer.eq_ignore_ascii_case(scope_approver) {
-            return Err(
-                "scoped review attempt history contains a reviewer who is also the scope approver"
-                    .into(),
-            );
-        }
+        definition_approver_for_review_contract(&approvals, attempt)?;
     }
     Ok(())
 }
@@ -6295,15 +6289,6 @@ pub fn record_scoped_review_with_verdict(
     ensure_definition_approval_valid(root, &record)?;
     let verification = load_verification(root, &record)?;
     let reviewer = validate_scoped_reviewer_claim(&reviewer)?;
-    let approvals = load_approvals(root, &record)?;
-    let scope_approver = effective_definition_approval(root, &record, &approvals)?
-        .actor
-        .trim();
-    if reviewer.eq_ignore_ascii_case(scope_approver) {
-        return Err(
-            "scoped review must be recorded by someone other than the scope approver".into(),
-        );
-    }
     let current_commit = git_output(root, &["rev-parse", "HEAD"])
         .ok_or_else(|| "scoped review requires a committed implementation".to_string())?;
     validate_verification_for_commit_binding(root, &record, &verification, true).map_err(|error| {
@@ -7456,7 +7441,7 @@ fn summarize_change_with_effective(
             }
             ChangeState::Verifying if !scoped_review_current => {
                 format!(
-                    "run `specsync change review {} --reviewer <independent-reviewer>` after the PR's scoped review passes",
+                    "run `specsync change review {} --reviewer <human>` after the PR's scoped review passes",
                     record.id
                 )
             }

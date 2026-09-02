@@ -905,16 +905,16 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                         .to_string(),
                 ),
                 None => blockers.push(format!(
-                    "the recorded scoped review cannot be read; re-run `specsync change review {} --reviewer <independent-reviewer>` before finalize",
+                    "the recorded scoped review cannot be read; re-run `specsync change review {} --reviewer <human>` before finalize",
                     record.id
                 )),
                 Some(change::ScopedReviewCurrency::Current) => {}
                 Some(change::ScopedReviewCurrency::Stale(reason)) => blockers.push(format!(
-                    "scoped review is stale — {reason}; re-run `specsync change review {} --reviewer <independent-reviewer>` before finalize",
+                    "scoped review is stale — {reason}; re-run `specsync change review {} --reviewer <human>` before finalize",
                     record.id
                 )),
                 Some(change::ScopedReviewCurrency::Unavailable(reason)) => warnings.push(format!(
-                    "scoped review currency could not be determined — {reason}; readiness cannot confirm it and finalize may refuse. Re-recording the review with `specsync change review {} --reviewer <independent-reviewer>` re-anchors it",
+                    "scoped review currency could not be determined — {reason}; readiness cannot confirm it and finalize may refuse. Re-recording the review with `specsync change review {} --reviewer <human>` re-anchors it",
                     record.id
                 )),
             }

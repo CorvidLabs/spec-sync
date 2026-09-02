@@ -61,7 +61,7 @@ Do **not** merge a PR while any SDD change is still active. Squash-merge without
 2. implement + keep affected_paths / Public API tables current
 3. change check <id> --commit          # product tip evidence on an ancestor of HEAD
 4. push product tip → wait for trust + implementation ready (when CI requires it)
-5. change review <id> --reviewer <other-than-approver>
+5. change review <id> --reviewer <human>   # may be the same actor as approve
 6. change ship <id>                    # or finalize; do NOT commit between review and ship
 7. commit archive tip if needed, push, wait for CI, then merge on GitHub
 ```

@@ -1368,6 +1368,8 @@ pub struct ChangeSummary {
     pub next_action: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terminal_evidence: Option<TerminalEvidenceSummary>,
+    /// Whether clearing context now loses anything, and what to do first if it does.
+    pub handoff: HandoffSummary,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1398,6 +1400,66 @@ impl TerminalEvidenceValidity {
             Self::CorruptHistory => "corrupt-history",
         }
     }
+}
+
+/// Whether an agent can clear its context — or hand this change to a fresh session — without
+/// losing something the lifecycle still needs. `Safe`: everything the next session needs is
+/// committed or recorded, and `specsync change status <id>` resumes it. `Conditional`: the work
+/// is on disk but its intent or lifecycle position is not pinned yet, so do `before_clearing`
+/// first or accept redoing a step. `NotYet`: something exists only in this session, and clearing
+/// now loses it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HandoffReadiness {
+    Safe,
+    Conditional,
+    NotYet,
+}
+
+impl HandoffReadiness {
+    /// The word the text line prints; `NotYet` reads as two words there, not the JSON hyphen.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Safe => "safe",
+            Self::Conditional => "conditional",
+            Self::NotYet => "not yet",
+        }
+    }
+}
+
+/// The handoff verdict for one change: readiness, one plain-language reason, the command a
+/// fresh session resumes with, and the steps to take before clearing when it is not safe.
+/// Every string is built from literals and the change ID only — never a digest — so the text
+/// line can print it verbatim.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HandoffSummary {
+    pub readiness: HandoffReadiness,
+    pub reason: String,
+    pub resume: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub before_clearing: Vec<String>,
+}
+
+/// The lifecycle facts a handoff verdict is decided from, gathered once by the caller so the
+/// decision itself is a pure function a test can drive without a repository.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HandoffSignals {
+    pub state: ChangeState,
+    pub workflow_version: u32,
+    /// A project-wide sequence-ledger freeze outranks every state-local verdict.
+    pub sequence_frozen: bool,
+    pub open_questions: bool,
+    pub artifacts_complete: bool,
+    pub approval_valid: bool,
+    pub correction_valid: bool,
+    /// Uncommitted edits under `affected_paths`, ignoring `.specsync/`. `None` when Git could
+    /// not answer (not a repository) and is read as clean: nothing there is committed anyway.
+    pub scoped_edits_uncommitted: Option<bool>,
+    pub verification_current: bool,
+    pub scoped_review_current: bool,
+    /// Legacy accepted evidence that no longer matches the tree, or a closing approval that
+    /// no longer validates; either needs a `reopen` with a reason only this session knows.
+    pub terminal_evidence_stale: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -7016,6 +7078,230 @@ pub fn summarize_change_with_strict(
     summarize_change_with_effective(root, record, explicit_strict, effective.as_ref())
 }
 
+/// The handoff verdict for one change, from the same signals `summarize_change` reads — but
+/// gathered only as far as the state needs. Text-mode `status` prints this on every change,
+/// and an archived record's terminal-evidence walk over the whole archive would turn that line
+/// into a minutes-long wait for a verdict that is `safe` regardless.
+pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
+    let sequence_frozen = sequence_ledger_freeze_next_action(root).is_some();
+    let mut signals = HandoffSignals {
+        state: record.state,
+        workflow_version: record.workflow_version,
+        sequence_frozen,
+        open_questions: false,
+        artifacts_complete: true,
+        approval_valid: true,
+        correction_valid: true,
+        scoped_edits_uncommitted: None,
+        verification_current: true,
+        scoped_review_current: true,
+        terminal_evidence_stale: false,
+    };
+    if sequence_frozen {
+        return classify_handoff(&record.id, &signals);
+    }
+    match record.state {
+        ChangeState::Archived => {}
+        ChangeState::Draft => {
+            signals.open_questions = !next_questions(record).is_empty();
+            signals.artifacts_complete =
+                signals.open_questions || validate_artifacts(root, record).is_ok();
+        }
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {
+            signals.approval_valid = ensure_definition_approval_valid(root, record).is_ok();
+            if signals.approval_valid {
+                signals.scoped_edits_uncommitted = scoped_edits_uncommitted(root, record);
+            }
+            if record.state == ChangeState::Verifying
+                && signals.approval_valid
+                && signals.scoped_edits_uncommitted != Some(true)
+            {
+                signals.verification_current = load_verification(root, record)
+                    .is_ok_and(|verification| verification_is_current(root, record, &verification));
+                signals.scoped_review_current = signals.verification_current
+                    && load_scoped_review(root, record)
+                        .is_ok_and(|review| scoped_review_is_current(root, record, &review));
+            }
+        }
+        ChangeState::Accepted => {
+            signals.correction_valid = effective_change_definition(root, record).is_ok();
+            if signals.correction_valid && record.workflow_version < 2 {
+                signals.terminal_evidence_stale = ensure_closing_approval_valid(root, record)
+                    .is_err()
+                    || terminal_evidence_summary(root, record).validity
+                        == TerminalEvidenceValidity::Stale;
+            }
+        }
+    }
+    classify_handoff(&record.id, &signals)
+}
+
+/// Decides handoff readiness from gathered lifecycle signals. Pure: the strings are built from
+/// literals and `id` only, so nothing digest-bearing can reach a text line through it.
+///
+/// The order is the order a fresh session would trip over things. A project-wide freeze comes
+/// first because it blocks every verb. A Draft is never `Safe` — approval is the first boundary
+/// `change status` can resume from, so until then the intent lives in this session. Once
+/// approved, a stale definition digest means the definition was edited after approval and only
+/// this session knows whether that was meant. Then uncommitted edits under the change's paths:
+/// the work is on disk, but nothing records why it was made. Then evidence currency: a stale
+/// check is redone, not lost, so that is `Conditional`. Evidence under `.specsync/` is never a
+/// signal — `review` then `finalize` runs with it uncommitted by design.
+pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
+    let resume = format!("specsync change status {id}");
+    let approve = format!("run `specsync change approve {id} --actor <name>`");
+    let change_md = format!("`.specsync/changes/{id}/change.md`");
+    let (readiness, reason, before_clearing): (HandoffReadiness, &str, Vec<String>) = if signals
+        .sequence_frozen
+    {
+        (
+            HandoffReadiness::NotYet,
+            "the change-sequence ledger is frozen project-wide, and a fresh session inherits the block without knowing what caused it",
+            vec!["clear the freeze named under Next".into()],
+        )
+    } else {
+        match signals.state {
+            ChangeState::Archived => (
+                HandoffReadiness::Safe,
+                "the change is archived; nothing this session knows is still needed",
+                Vec::new(),
+            ),
+            ChangeState::Draft if signals.open_questions => (
+                HandoffReadiness::Conditional,
+                "the interview is unfinished, so what this session has decided is not recorded yet",
+                vec![
+                    format!(
+                        "run `specsync change answer {id} <question> <answer>` for each remaining question"
+                    ),
+                    format!("or write the undecided points into {change_md}"),
+                ],
+            ),
+            ChangeState::Draft if !signals.artifacts_complete => (
+                HandoffReadiness::Conditional,
+                "selected artifacts still carry stubs and the definition is unapproved, so the intent behind them lives only here",
+                vec![
+                    format!(
+                        "finish the selected artifacts, then {approve} — approval is the first boundary a fresh session resumes from"
+                    ),
+                    format!("or write the open decisions into {change_md}"),
+                ],
+            ),
+            ChangeState::Draft => (
+                HandoffReadiness::Conditional,
+                "the definition is complete but unapproved; approval pins what this session decided",
+                vec![approve.clone()],
+            ),
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+                if !signals.approval_valid =>
+            {
+                (
+                    HandoffReadiness::NotYet,
+                    "the definition changed after it was approved, and only this session knows whether that edit was intended",
+                    vec![format!(
+                        "review the definition, then {approve} to re-pin it — or revert the edit"
+                    )],
+                )
+            }
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+                if signals.scoped_edits_uncommitted == Some(true) =>
+            {
+                (
+                    HandoffReadiness::Conditional,
+                    "uncommitted edits sit under this change's paths, and nothing on disk records why they were made",
+                    vec![
+                        "commit the work in progress".into(),
+                        format!("or write its intent and open ends into {change_md}"),
+                    ],
+                )
+            }
+            ChangeState::Verifying if !signals.verification_current => (
+                HandoffReadiness::Conditional,
+                "the tree moved after the last check, so a fresh session would resume from evidence that no longer matches",
+                vec![format!("run `specsync change check {id} --commit`")],
+            ),
+            ChangeState::Verifying if !signals.scoped_review_current => (
+                HandoffReadiness::Safe,
+                "verification is committed and current; a fresh session resumes at the independent review",
+                Vec::new(),
+            ),
+            ChangeState::Verifying => (
+                HandoffReadiness::Safe,
+                "verification and review are current; a fresh session resumes at finalize — do not commit before it runs",
+                Vec::new(),
+            ),
+            ChangeState::Approved | ChangeState::Implementing => (
+                HandoffReadiness::Safe,
+                "the approval pins the definition and the tree under this change is committed; a fresh session resumes at `change check`",
+                Vec::new(),
+            ),
+            ChangeState::Accepted if !signals.correction_valid => (
+                HandoffReadiness::NotYet,
+                "the correction ledger is invalid, so a fresh session cannot trust the accepted definition",
+                vec![format!(
+                    "restore `.specsync/changes/{id}/corrections.json` from trusted history"
+                )],
+            ),
+            ChangeState::Accepted if signals.workflow_version >= 2 => (
+                HandoffReadiness::Safe,
+                "acceptance is recorded and finalize needs nothing from this session — do not commit before it runs",
+                Vec::new(),
+            ),
+            ChangeState::Accepted if signals.terminal_evidence_stale => (
+                HandoffReadiness::NotYet,
+                "the accepted evidence went stale, and the reason is known only here",
+                vec![format!(
+                    "run `specsync change reopen {id} --actor <name> --reason <reason>` while the reason is still known"
+                )],
+            ),
+            ChangeState::Accepted => (
+                HandoffReadiness::Safe,
+                "the accepted evidence is current; a fresh session archives from the record on disk",
+                Vec::new(),
+            ),
+        }
+    };
+    HandoffSummary {
+        readiness,
+        reason: reason.into(),
+        resume,
+        before_clearing,
+    }
+}
+
+/// True when `git status` reports uncommitted changes under the change's `affected_paths`,
+/// ignoring `.specsync/`: lifecycle evidence is uncommitted by design between `change review`
+/// and `change finalize`, and counting it would report `conditional` at exactly the moment the
+/// lifecycle wants the tree left alone. `None` outside a Git repository.
+fn scoped_edits_uncommitted(root: &Path, record: &ChangeRecord) -> Option<bool> {
+    let paths: Vec<&str> = record
+        .affected_paths
+        .iter()
+        .map(String::as_str)
+        .filter(|path| !path.starts_with(".specsync/"))
+        .collect();
+    if paths.is_empty() {
+        return Some(false);
+    }
+    let mut args = vec!["status", "--porcelain", "--"];
+    args.extend(paths);
+    let output = Command::new("git")
+        .args(&args)
+        .current_dir(root)
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let listing = String::from_utf8_lossy(&output.stdout);
+    Some(listing.lines().any(|line| {
+        // `XY path` or `XY old -> new`; a quoted path is treated as an edit rather than parsed.
+        let path = line.get(3..).unwrap_or("");
+        let path = path.rsplit(" -> ").next().unwrap_or(path);
+        !path.starts_with(".specsync/")
+    }))
+}
+
 fn summarize_change_with_effective(
     root: &Path,
     record: &ChangeRecord,
@@ -7078,10 +7364,11 @@ fn summarize_change_with_effective(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    let verification_current = || {
-        load_verification(root, record)
-            .is_ok_and(|verification| verification_is_current(root, record, &verification))
-    };
+    // Only a verifying change has verification to be current; everywhere else the load is
+    // skipped, as it was when this was a closure the match called lazily.
+    let verification_current = record.state == ChangeState::Verifying
+        && load_verification(root, record)
+            .is_ok_and(|verification| verification_is_current(root, record, &verification));
     let scoped_review_current = load_scoped_review(root, record)
         .is_ok_and(|review| scoped_review_is_current(root, record, &review));
     let routing = load_verification_routing(root).unwrap_or_default();
@@ -7100,7 +7387,8 @@ fn summarize_change_with_effective(
         .then(|| terminal_evidence_summary(root, record));
     // Sequence-ledger freezes must outrank state-local next actions (including reopen /
     // finalize). Premature multi-id acknowledgements block change new/adopt project-wide.
-    let next_action = if let Some(remediation) = sequence_ledger_freeze_next_action(root) {
+    let sequence_freeze = sequence_ledger_freeze_next_action(root);
+    let next_action = if let Some(remediation) = sequence_freeze.clone() {
         remediation
     } else {
         match record.state {
@@ -7163,7 +7451,7 @@ fn summarize_change_with_effective(
             ChangeState::Verifying if !approval_valid => {
                 format!("run `specsync change approve {} --actor <name>`", record.id)
             }
-            ChangeState::Verifying if !verification_current() => {
+            ChangeState::Verifying if !verification_current => {
                 format!("run `specsync change check {}`", record.id)
             }
             ChangeState::Verifying if !scoped_review_current => {
@@ -7214,6 +7502,32 @@ fn summarize_change_with_effective(
             ChangeState::Archived => "merge the PR on GitHub if it is still open".into(),
         }
     };
+    let handoff = classify_handoff(
+        &record.id,
+        &HandoffSignals {
+            state: record.state,
+            workflow_version: record.workflow_version,
+            sequence_frozen: sequence_freeze.is_some(),
+            open_questions: !next_questions(record).is_empty(),
+            artifacts_complete,
+            approval_valid,
+            correction_valid,
+            scoped_edits_uncommitted: matches!(
+                record.state,
+                ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+            )
+            .then(|| scoped_edits_uncommitted(root, record))
+            .flatten(),
+            verification_current,
+            scoped_review_current,
+            terminal_evidence_stale: terminal_evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.validity == TerminalEvidenceValidity::Stale)
+                || (record.state == ChangeState::Accepted
+                    && record.workflow_version < 2
+                    && ensure_closing_approval_valid(root, record).is_err()),
+        },
+    );
     ChangeSummary {
         id: record.id.clone(),
         title: record.title.clone(),
@@ -7230,6 +7544,7 @@ fn summarize_change_with_effective(
         verification_commands,
         next_action,
         terminal_evidence,
+        handoff,
     }
 }
 

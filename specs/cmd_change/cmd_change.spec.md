@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 34
+version: 35
 status: active
 files:
   - src/commands/change.rs
@@ -50,6 +50,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge.
 6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact. The rule covers the scoped review as well as the verification: readiness asks whether the recorded review is current, reports that answer as `current`, `stale`, or `unavailable`, and treats only `current` as satisfied. An unavailable guarantee reported as a satisfied one is worse than the refusal it conceals, and readiness that never asks receives no negative answer and reads its own silence as a pass.
 7. The lessons loop surfaces at each of the three moments a lesson exists: `change new` names every affected module's `specs/<module>/context.md` that holds substantive prose, a FAILED `change check` names where to record what the failure taught, and BOTH `change finalize` and `change ship` name folding the archived bundle into those specs before their remaining guidance. Every surface is a pointer, never a dump, and none can fail a lifecycle command. A passing `change check` says nothing, and a change owning no affected specs receives the same guidance it received before the fold-back existed. Both verbs also emit a `lesson_bundle` path in `--json`.
+8. `status`, `show`, a passing `check`, `approve`, `review`, `finalize`, and ship's finalize each end their text result with exactly one `Handoff:` line — after `Next:` where one is printed — reading `safe`, `conditional`, or `not yet`, an em-dash, the domain's reason, and, when readiness is not safe, `Before clearing:` followed by the domain's steps. The line renders the domain's `HandoffSummary` verbatim: the adapter never decides readiness itself and never prints a digest on it. JSON carries the same object under `summary.handoff` wherever a change summary is rendered and under `handoff` on the approve transition.
 
 ## Behavioral Examples
 
@@ -142,3 +143,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-24 | ship-must-name-the-lesson-fold-back-too-the-archive-bundle-is-written-and-only-finalize-says-so: Ship must name the lesson fold-back too: the archive bundle is written and only finalize says so |
 | 2026-08-29 | ship-status-readiness-must-ask-whether-the-scoped-review-is-current-and-say-so-when-it-cannot-tell: Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell |
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
+| 2026-09-02 | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |

@@ -37,8 +37,10 @@ For every meaningful source, test, public documentation, schema, or configuratio
 
 Never invent or self-grant the scope approval or independent review. If an approved definition
 changes, its digest becomes stale and must be approved again. `specsync change status` always
-prints one explicit next action. Historical repair commands remain available for older evidence,
-but new changes use this single workflow.
+prints one explicit next action and one `Handoff:` line. Clear context (or hand the change to a
+fresh session) only when `Handoff:` says `safe`; otherwise do what `Before clearing:` names first.
+Resume with `specsync change status <id>`. Historical repair commands remain available for older
+evidence, but new changes use this single workflow.
 
 Each canonical spec may have policy-selected companion files. Read and update the ones present; do not create empty companions only for ceremony:
 

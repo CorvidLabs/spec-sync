@@ -2679,3 +2679,230 @@ fn change_check_does_not_spawn_a_configured_verification_child() {
         "configured verification_commands must not be spawned"
     );
 }
+
+// Verifies REQ-cmd-change-005 and REQ-change-093: every text result ends with exactly one
+// `Handoff:` line and JSON carries the same verdict under `summary.handoff`.
+#[test]
+fn status_prints_a_handoff_line_and_json_carries_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("seed.txt"), "seed\n").unwrap();
+    git(&["add", "seed.txt"]);
+    git(&["commit", "-m", "seed"]);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { true }\n").unwrap();
+    fs::create_dir_all(root.join("specs/lib")).unwrap();
+    fs::write(
+        root.join("specs/lib/lib.spec.md"),
+        "---\nmodule: lib\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n---\n\n# Lib\n\n## Purpose\n\nLibrary entry point.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 1,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": ["true"],
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let created = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "new",
+            "Tell agents when to clear",
+            "--kind",
+            "bug-fix",
+            "--path",
+            "src/lib.rs",
+            "--no-spec-change",
+            "--rationale",
+            "Internal lifecycle behavior only",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let created: Value = serde_json::from_slice(&created).unwrap();
+    let id = created["change"]["id"].as_str().unwrap();
+
+    let handoff_lines = |text: &str| -> Vec<String> {
+        text.lines()
+            .filter(|line| line.trim_start().starts_with("Handoff:"))
+            .map(str::to_string)
+            .collect()
+    };
+    let status_text = |root: &Path| -> String {
+        let output = specsync()
+            .args(["--root", root.to_str().unwrap(), "change", "status", id])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        String::from_utf8(output).unwrap()
+    };
+
+    // Draft: interview open, so the verdict is conditional and names the answer command.
+    let draft = status_text(root);
+    let lines = handoff_lines(&draft);
+    assert_eq!(lines.len(), 1, "exactly one Handoff line, got:\n{draft}");
+    assert!(
+        lines[0].contains("Handoff: conditional —"),
+        "draft is never safe, got:\n{draft}"
+    );
+    assert!(lines[0].contains("Before clearing:"));
+    let next_index = draft.find("Next:").expect("status prints Next:");
+    let handoff_index = draft.find("Handoff:").unwrap();
+    assert!(
+        next_index < handoff_index,
+        "Handoff follows Next:, got:\n{draft}"
+    );
+    let draft_json = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "status",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let draft_json: Value = serde_json::from_slice(&draft_json).unwrap();
+    assert_eq!(draft_json["summary"]["handoff"]["readiness"], "conditional");
+    assert_eq!(
+        draft_json["summary"]["handoff"]["resume"],
+        format!("specsync change status {id}")
+    );
+    assert!(
+        draft_json["summary"]["handoff"]["before_clearing"]
+            .as_array()
+            .is_some_and(|steps| !steps.is_empty())
+    );
+
+    for (question, answer) in [
+        ("acceptance_criteria", "The handoff line is printed"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+    ] {
+        specsync()
+            .args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "answer",
+                id,
+                question,
+                answer,
+            ])
+            .assert()
+            .success();
+    }
+    let shown = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "show",
+            id,
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let shown: Value = serde_json::from_slice(&shown).unwrap();
+    for artifact in shown["change"]["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = if name == "tasks" {
+            "# Tasks\n\n- [x] Print the handoff line.\n"
+        } else {
+            "# Complete\n\nReviewed lifecycle evidence.\n"
+        };
+        fs::write(
+            root.join(format!(".specsync/changes/{id}/{name}.md")),
+            content,
+        )
+        .unwrap();
+    }
+
+    // Approve with src/lib.rs still untracked: the transition JSON carries the verdict and
+    // the uncommitted scoped work makes it conditional.
+    let approved = specsync()
+        .args([
+            "--root",
+            root.to_str().unwrap(),
+            "--json",
+            "change",
+            "approve",
+            id,
+            "--actor",
+            "Reviewer",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let approved: Value = serde_json::from_slice(&approved).unwrap();
+    assert_eq!(approved["state"], "approved");
+    assert_eq!(approved["handoff"]["readiness"], "conditional");
+    assert_eq!(
+        approved["handoff"]["before_clearing"][0],
+        "commit the work in progress"
+    );
+
+    // Uncommitted lifecycle evidence under .specsync/ never counts; committing the work does.
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "implement"]);
+    let approved_text = status_text(root);
+    let lines = handoff_lines(&approved_text);
+    assert_eq!(
+        lines.len(),
+        1,
+        "exactly one Handoff line, got:\n{approved_text}"
+    );
+    assert!(
+        lines[0].contains("Handoff: safe —") && !lines[0].contains("Before clearing:"),
+        "a committed approved change is a clean boundary, got:\n{approved_text}"
+    );
+    assert!(
+        !lines[0]
+            .split(|character: char| !character.is_ascii_hexdigit())
+            .any(|word| word.len() >= 40),
+        "handoff prose never carries a digest, got:\n{}",
+        lines[0]
+    );
+}

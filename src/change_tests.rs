@@ -17624,3 +17624,340 @@ fn proc_locks_names_only_the_flock_write_holder_of_the_lock_file() {
         Vec::<u32>::new()
     );
 }
+
+// ─── Handoff readiness (REQ-change-093) ──────────────────────────────────────
+
+fn handoff_signals(state: ChangeState) -> HandoffSignals {
+    HandoffSignals {
+        state,
+        workflow_version: 2,
+        sequence_frozen: false,
+        open_questions: false,
+        artifacts_complete: true,
+        approval_valid: true,
+        correction_valid: true,
+        scoped_edits_uncommitted: Some(false),
+        verification_current: true,
+        scoped_review_current: true,
+        terminal_evidence_stale: false,
+    }
+}
+
+fn assert_handoff_has_no_digest(summary: &HandoffSummary) {
+    let text = format!(
+        "{} {} {}",
+        summary.reason,
+        summary.resume,
+        summary.before_clearing.join(" ")
+    );
+    assert!(
+        !text
+            .split(|c: char| !c.is_ascii_hexdigit())
+            .any(|word| word.len() >= 40),
+        "handoff prose must never carry a digest: {text}"
+    );
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_resume_is_always_change_status_and_never_a_digest() {
+    for state in [
+        ChangeState::Draft,
+        ChangeState::Approved,
+        ChangeState::Implementing,
+        ChangeState::Verifying,
+        ChangeState::Accepted,
+        ChangeState::Archived,
+    ] {
+        let summary = classify_handoff("add-passkeys", &handoff_signals(state));
+        assert_eq!(summary.resume, "specsync change status add-passkeys");
+        assert_handoff_has_no_digest(&summary);
+        if summary.readiness != HandoffReadiness::Safe {
+            assert!(
+                !summary.before_clearing.is_empty(),
+                "{state:?}: a verdict that is not safe must name what to do first"
+            );
+        }
+    }
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_sequence_freeze_outranks_every_state() {
+    for state in [
+        ChangeState::Draft,
+        ChangeState::Verifying,
+        ChangeState::Archived,
+    ] {
+        let mut signals = handoff_signals(state);
+        signals.sequence_frozen = true;
+        let summary = classify_handoff("add-passkeys", &signals);
+        assert_eq!(summary.readiness, HandoffReadiness::NotYet, "{state:?}");
+        assert!(summary.before_clearing[0].contains("freeze"));
+    }
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_draft_is_never_safe_and_names_the_next_boundary() {
+    let mut signals = handoff_signals(ChangeState::Draft);
+    signals.open_questions = true;
+    signals.artifacts_complete = false;
+    let questions = classify_handoff("add-passkeys", &signals);
+    assert_eq!(questions.readiness, HandoffReadiness::Conditional);
+    assert!(questions.before_clearing[0].contains("specsync change answer add-passkeys"));
+    assert!(questions.before_clearing[1].contains(".specsync/changes/add-passkeys/change.md"));
+
+    signals.open_questions = false;
+    let stubs = classify_handoff("add-passkeys", &signals);
+    assert_eq!(stubs.readiness, HandoffReadiness::Conditional);
+    assert!(stubs.reason.contains("stubs"));
+    assert!(stubs.before_clearing[0].contains("specsync change approve add-passkeys"));
+
+    signals.artifacts_complete = true;
+    let unapproved = classify_handoff("add-passkeys", &signals);
+    assert_eq!(unapproved.readiness, HandoffReadiness::Conditional);
+    assert_eq!(
+        unapproved.before_clearing,
+        vec!["run `specsync change approve add-passkeys --actor <name>`".to_string()]
+    );
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_stale_approval_is_not_yet_in_every_approved_state() {
+    for state in [
+        ChangeState::Approved,
+        ChangeState::Implementing,
+        ChangeState::Verifying,
+    ] {
+        let mut signals = handoff_signals(state);
+        signals.approval_valid = false;
+        // A dirty tree and stale evidence must not hide the stale approval behind a softer verdict.
+        signals.scoped_edits_uncommitted = Some(true);
+        signals.verification_current = false;
+        let summary = classify_handoff("add-passkeys", &signals);
+        assert_eq!(summary.readiness, HandoffReadiness::NotYet, "{state:?}");
+        assert!(summary.reason.contains("changed after it was approved"));
+        assert!(summary.before_clearing[0].contains("specsync change approve add-passkeys"));
+    }
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_uncommitted_scoped_edits_are_conditional_and_name_change_md() {
+    for state in [
+        ChangeState::Approved,
+        ChangeState::Implementing,
+        ChangeState::Verifying,
+    ] {
+        let mut signals = handoff_signals(state);
+        signals.scoped_edits_uncommitted = Some(true);
+        let summary = classify_handoff("add-passkeys", &signals);
+        assert_eq!(
+            summary.readiness,
+            HandoffReadiness::Conditional,
+            "{state:?}"
+        );
+        assert_eq!(summary.before_clearing[0], "commit the work in progress");
+        assert!(summary.before_clearing[1].contains(".specsync/changes/add-passkeys/change.md"));
+    }
+    // Outside a Git repository nothing is committed anyway; the unknown reads as clean.
+    let mut signals = handoff_signals(ChangeState::Approved);
+    signals.scoped_edits_uncommitted = None;
+    assert_eq!(
+        classify_handoff("add-passkeys", &signals).readiness,
+        HandoffReadiness::Safe
+    );
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_approved_and_implementing_with_a_clean_tree_are_safe() {
+    for state in [ChangeState::Approved, ChangeState::Implementing] {
+        let summary = classify_handoff("add-passkeys", &handoff_signals(state));
+        assert_eq!(summary.readiness, HandoffReadiness::Safe, "{state:?}");
+        assert!(summary.reason.contains("`change check`"));
+        assert!(summary.before_clearing.is_empty());
+    }
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_verifying_follows_evidence_currency() {
+    let mut signals = handoff_signals(ChangeState::Verifying);
+    signals.verification_current = false;
+    signals.scoped_review_current = false;
+    let stale = classify_handoff("add-passkeys", &signals);
+    assert_eq!(stale.readiness, HandoffReadiness::Conditional);
+    assert_eq!(
+        stale.before_clearing,
+        vec!["run `specsync change check add-passkeys --commit`".to_string()]
+    );
+
+    signals.verification_current = true;
+    let awaiting_review = classify_handoff("add-passkeys", &signals);
+    assert_eq!(awaiting_review.readiness, HandoffReadiness::Safe);
+    assert!(awaiting_review.reason.contains("independent review"));
+
+    signals.scoped_review_current = true;
+    let ready = classify_handoff("add-passkeys", &signals);
+    assert_eq!(ready.readiness, HandoffReadiness::Safe);
+    assert!(ready.reason.contains("finalize"));
+    assert!(ready.reason.contains("do not commit"));
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_accepted_depends_on_workflow_and_ledgers() {
+    let mut signals = handoff_signals(ChangeState::Accepted);
+    signals.correction_valid = false;
+    let corrupt = classify_handoff("add-passkeys", &signals);
+    assert_eq!(corrupt.readiness, HandoffReadiness::NotYet);
+    assert!(corrupt.before_clearing[0].contains("corrections.json"));
+
+    signals.correction_valid = true;
+    // Workflow v2 acceptance is a recorded boundary even when legacy evidence would be stale.
+    signals.terminal_evidence_stale = true;
+    let v2 = classify_handoff("add-passkeys", &signals);
+    assert_eq!(v2.readiness, HandoffReadiness::Safe);
+    assert!(v2.reason.contains("finalize"));
+
+    signals.workflow_version = 1;
+    let legacy_stale = classify_handoff("add-passkeys", &signals);
+    assert_eq!(legacy_stale.readiness, HandoffReadiness::NotYet);
+    assert!(legacy_stale.before_clearing[0].contains("specsync change reopen add-passkeys"));
+
+    signals.terminal_evidence_stale = false;
+    let legacy_current = classify_handoff("add-passkeys", &signals);
+    assert_eq!(legacy_current.readiness, HandoffReadiness::Safe);
+    assert!(legacy_current.reason.contains("archive"));
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_archived_is_safe_with_nothing_to_do() {
+    let summary = classify_handoff("add-passkeys", &handoff_signals(ChangeState::Archived));
+    assert_eq!(summary.readiness, HandoffReadiness::Safe);
+    assert!(summary.before_clearing.is_empty());
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn handoff_readiness_serializes_kebab_case_and_prints_two_words() {
+    assert_eq!(
+        serde_json::to_string(&HandoffReadiness::NotYet).unwrap(),
+        "\"not-yet\""
+    );
+    assert_eq!(HandoffReadiness::NotYet.as_str(), "not yet");
+    let summary = classify_handoff("add-passkeys", &handoff_signals(ChangeState::Archived));
+    let json = serde_json::to_value(&summary).unwrap();
+    assert!(
+        json.get("before_clearing").is_none(),
+        "an empty step list is omitted, not printed as []"
+    );
+}
+
+/// The only signal the classifier cannot be handed by a test: whether the TREE under this
+/// change's paths is dirty. Evidence under `.specsync/` must never count — `review` then
+/// `finalize` runs with `review.json` uncommitted by design — while one edit under
+/// `affected_paths` must.
+// Verifies REQ-change-093.
+#[test]
+fn handoff_follows_the_lifecycle_and_ignores_uncommitted_lifecycle_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git command failed: {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"]);
+    git(&["commit", "-m", "base"]);
+
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    let draft = handoff_summary(root, &record);
+    assert_eq!(draft.readiness, HandoffReadiness::Conditional);
+    assert!(draft.before_clearing[0].contains("specsync change approve"));
+
+    let approved = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    // `src/` is still untracked: the work is on disk, its intent is not.
+    let dirty = handoff_summary(root, &approved);
+    assert_eq!(dirty.readiness, HandoffReadiness::Conditional);
+    assert_eq!(dirty.before_clearing[0], "commit the work in progress");
+
+    git(&["add", "."]);
+    git(&["commit", "-m", "Implement approved change"]);
+    let clean = handoff_summary(root, &approved);
+    assert_eq!(clean.readiness, HandoffReadiness::Safe, "{clean:?}");
+    assert!(clean.reason.contains("`change check`"));
+
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+    assert!(verification.passed);
+    git(&["add", "."]);
+    git(&["commit", "-m", "Record verification"]);
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+    assert!(verification.passed);
+    let verifying = load_change(root, &record.id).unwrap();
+    assert_eq!(verifying.state, ChangeState::Verifying);
+    let awaiting_review = handoff_summary(root, &verifying);
+    assert_eq!(
+        awaiting_review.readiness,
+        HandoffReadiness::Safe,
+        "{awaiting_review:?}"
+    );
+    assert!(awaiting_review.reason.contains("independent review"));
+
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+    // review.json is uncommitted, exactly as the lifecycle wants it before finalize.
+    let reviewed = handoff_summary(root, &verifying);
+    assert_eq!(reviewed.readiness, HandoffReadiness::Safe, "{reviewed:?}");
+    assert!(reviewed.reason.contains("finalize"));
+
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { false }\n",
+    )
+    .unwrap();
+    let edited = handoff_summary(root, &verifying);
+    assert_eq!(
+        edited.readiness,
+        HandoffReadiness::Conditional,
+        "{edited:?}"
+    );
+    assert!(edited.reason.contains("uncommitted edits"));
+    git(&["checkout", "--", "src/lib.rs"]);
+
+    let destination = finalize_change(root, &record.id).unwrap();
+    assert!(destination.is_dir());
+    let archived = load_change(root, &record.id).unwrap();
+    let done = handoff_summary(root, &archived);
+    assert_eq!(done.readiness, HandoffReadiness::Safe);
+    assert!(done.before_clearing.is_empty());
+}
+
+// Verifies REQ-change-093.
+#[test]
+fn change_summary_carries_the_same_handoff_the_domain_computes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    let summary = summarize_change(root, &record);
+    assert_eq!(summary.handoff, handoff_summary(root, &record));
+    let json = serde_json::to_value(&summary).unwrap();
+    assert_eq!(json["handoff"]["readiness"], "conditional");
+    assert_eq!(
+        json["handoff"]["resume"],
+        format!("specsync change status {}", record.id)
+    );
+}

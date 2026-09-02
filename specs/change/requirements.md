@@ -1245,3 +1245,33 @@ Acceptance Criteria
   after `specsync change approve`. Approval binds the wording and only `check` puts it in the
   canonical spec, so a remedy naming approval alone walked the author into the silent skip.
 
+### REQ-change-093
+
+The lifecycle SHALL compute a handoff readiness for every change so an agent can tell whether
+clearing its context — or handing the change to a fresh session — loses anything the lifecycle
+still needs, and SHALL say what to do first when it does.
+
+Acceptance Criteria
+- `handoff_summary` returns `safe`, `conditional`, or `not-yet` with a plain-language reason, the
+  resume command `specsync change status <id>`, and, when readiness is not `safe`, at least one
+  concrete step to take before clearing. No reason or step contains a digest.
+- `classify_handoff` is a pure function of `HandoffSignals`; every branch has a unit test that
+  needs no repository.
+- A frozen sequence ledger, a definition changed after its approval, an invalid correction
+  ledger, and stale legacy terminal evidence are `not-yet`, and the step named is the repair the
+  lifecycle already requires (clear the freeze, re-approve, restore the ledger, reopen).
+- A Draft is never `safe`: open questions, stub artifacts, and a complete-but-unapproved
+  definition are each `conditional`, and the steps name answering, finishing the artifacts, or
+  approving — approval is the first boundary a fresh session can resume from.
+- Uncommitted edits under the change's `affected_paths` make an approved, implementing, or
+  verifying change `conditional` and name committing or writing the intent into `change.md`;
+  uncommitted files under `.specsync/` alone never do, because `change review` then
+  `change finalize` runs with that evidence uncommitted by design.
+- A verifying change whose recorded verification is stale is `conditional` and names
+  `specsync change check <id> --commit`; one whose verification is current is `safe` whether the
+  scoped review has been recorded yet or not, and the reason says which step a fresh session
+  resumes at.
+- An accepted workflow-v2 change and an archived change are `safe`.
+- `ChangeSummary` carries the decision as `handoff`, so JSON consumers read the same verdict the
+  text line prints.
+

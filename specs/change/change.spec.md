@@ -1,6 +1,6 @@
 ---
 module: change
-version: 117
+version: 118
 status: active
 files:
   - src/change.rs
@@ -40,6 +40,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 19. Only projects outside a Git repository may persist verification with no commit identity; an unborn Git repository with no `HEAD` still fails closed.
 20. Workflow-v2 adoption atomically freezes a comparison-base cutoff that precedes its unique introduction, opens its lifecycle lock without following symlinks, journals only lossless UTF-8 publication paths whose filename components cannot be confused with platform separators, confines them beneath the project without symlink traversal, leaves an existing enabled version-1 policy byte-identical (adoption rewrites only `enabled`, and only when it is off), refuses to strand v1 records absent from that cutoff, routes every subsequent change through workflow v2, and fails closed if any reachable parent introduced a subsequently absent baseline.
 21. Existing-change definition mutations validate correction-ledger integrity while holding the same project lock that guards persistence and return the validated effective-definition snapshot used by command output.
+22. Every change carries a handoff readiness — `safe`, `conditional`, or `not-yet` — computed as a pure function of its lifecycle signals: a project-wide sequence freeze, open interview questions, artifact completeness, definition-approval currency, correction-ledger validity, uncommitted edits under `affected_paths` (never `.specsync/` evidence, which the review → finalize pair leaves uncommitted by design), verification currency, scoped-review currency, and terminal-evidence staleness. A Draft is never `safe` because approval is the first boundary a fresh session can resume from; the summary names one plain-language reason without digests, the resume command `specsync change status <id>`, and the steps to take before clearing when readiness is not `safe`.
 
 ## Public API
 
@@ -107,7 +108,10 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `TerminalEvidenceValidity` | State-aware exact, successor-covered, stale, authenticated-history, or corrupt-history evidence conclusion |
 | `TerminalEvidenceSummary` | Shared terminal validity plus optional fail-closed reason |
 | `TerminalEvidenceResult` | Change ID paired with its shared terminal-evidence summary |
-| `ChangeSummary` | Human/agent status projection with approval health/current scope digest, plain-language material expansion, validator plan, scoped-review freshness, exactly one next action, and optional terminal evidence |
+| `HandoffReadiness` | `Safe`, `Conditional`, or `NotYet`: whether clearing context now loses anything the lifecycle has not recorded; serialized kebab-case, printed as `safe` / `conditional` / `not yet` |
+| `HandoffSummary` | Readiness, a plain-language reason, the `specsync change status <id>` resume command, and the steps to take before clearing; carries no digest |
+| `HandoffSignals` | The complete, digest-free input to `classify_handoff`: state, workflow version, sequence-ledger freeze, open questions, artifact completeness, approval/correction validity, uncommitted scoped edits, verification/review currency, and stale legacy terminal evidence |
+| `ChangeSummary` | Human/agent status projection with approval health/current scope digest, plain-language material expansion, validator plan, scoped-review freshness, exactly one next action, a handoff verdict, and optional terminal evidence |
 | `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
 | `UnreadableChange` | One active-change workspace that exists on disk but could not be read, carrying its directory identity and a reason naming the offending path |
 | `ChangeRoster` | The active-change roster as two separate facts: the records that were read and the workspaces that could not be, so absence and unreadability cannot share a value |
@@ -140,6 +144,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `check_change` | `root, optional id` | `Result<Option<VerificationRecord>, String>` | Select one approved/implementing change, materialize its canonical deltas, and compare this change's specs to code |
 | `check_change_with_strict` | `root, optional id, strict` | `Result<Option<VerificationRecord>, String>` | Run `check_change` with warnings failing as they do under `specsync check --strict` |
 | `check_project` | `root: &Path` | `SddCheckReport` | Full lifecycle integrity including archive terminal evidence (tests and rare callers; not the default CLI path) |
+| `classify_handoff` | `id, signals` | `HandoffSummary` | Pure classification of handoff readiness from `HandoffSignals`; the only source of the verdict, so text and JSON cannot disagree |
 | `correct_interview_metadata` | `root, id, field, value, actor, reason` | `Result<CorrectionResult, String>` | Append a supported accepted-metadata correction and return the effective audited view |
 | `correction_history` | `root, record` | `Result<Vec<CorrectionRecord>, String>` | Load validated append-only correction records for inspection clients |
 | `create_change` | `root: &Path, request: CreateChangeRequest` | `Result<ChangeRecord, String>` | Create a sequential draft workspace and adaptive artifacts |
@@ -148,6 +153,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `finalize_change` | `root, id` | `Result<PathBuf, String>` | Validate current verification/review evidence and transactionally produce the dated same-PR archive |
 | `find_change_dir` | Resolves a change's workspace wherever it lives, active or archived — the single answer to where a change's artifacts are |
 | `floor_sequence_ledger_to_committed` | `root: &Path` | `Result<Option<(u64, u64)>, String>` | Raise a working-tree sequence ledger to the committed high-water mark before staging, returning the previous and adopted values so the caller can disclose the raise, or `None` when the ledger is already at or above it |
+| `handoff_summary` | `root, record` | `HandoffSummary` | Gather only the signals the record's state needs — never the archive-history walk for an Archived record — and classify them; the same verdict `ChangeSummary.handoff` carries |
 | `lesson_fold_targets` | `root, id` | `Vec<String>` | Module context paths this change's lessons are folded into at archival; empty when the change is unreadable or owns no specs |
 | `list_changes` | `root: &Path` | `Result<ChangeRoster, String>` | List active changes in stable ID order alongside the workspaces that could not be read; `Err` only when the changes directory itself is unreadable |
 | `load_change` | `root: &Path, id: &str` | `Result<ChangeRecord, String>` | Load active or archived change state |
@@ -226,6 +232,7 @@ Acceptance Criteria
 39. Markdown under `.specsync/` is pinned to `eol=lf` in `.gitattributes`, beside the JSON already pinned there and for the reason that file already states: change artifacts and semantic delta bodies are read as lifecycle evidence, so a working tree that rewrites them into CRLF makes honest, unmodified work arrive in non-canonical form. The pin governs this repository's own working trees; it is not a substitute for readers that tolerate CRLF, because an adopter's repository, a tarball, or an archive extracted without Git is never covered by it.
 40. A recorded delta binding is MONOTONE within one approval ledger. Every writer of a `definition` gate records the per-module delta digest it approved — ordinary approval, the normalizing approval inside explicit acceptance, and both members of the portable SpecSync 5.0.1 pair alike — so within a ledger the binding only ever goes from absent to present. An effective definition approval that records no delta wording while another definition approval in the same ledger records it is a claim being withdrawn, not evidence predating the binding, and materialization and acceptance refuse it and name the re-approval remedy. Absence across a whole ledger still reads as unknown, because that is the only shape recorded history has: a change is either from before the binding existed or from after it, never both.
 41. `canonical_applied` records that materialization RAN, never that it ran for the delta bodies on disk now, so `change check` and acceptance decide from the canonical artefacts instead of from the flag alone. Materialization produces three outputs per module — the delta applied to the canonical files, the spec's `version:` bump, and the spec's Change Log row — and the flag's short-circuit skipped ALL THREE, so a delta corrected after review and re-approved satisfied the delta binding (a new approval signs the new body) and then left changed contract text with no bump and no row while `change check`, `change audit --strict` and `specsync check --strict` all passed. A module is materialized again when its delta is not fully reflected in the canonical files or when its Change Log carries no row for the change, and is left untouched when both hold: a byte-identical re-approval still writes nothing, and one change bumps one module's version exactly once. Convergence is scoped to an already-applied change — on a first materialization every application refusal still fires, and only afterwards does an already-reflected item, such as a `## REMOVED` block that is already absent, read as done rather than as an error.
+42. Handoff readiness is a PURE function of `HandoffSignals`, and the verdict a session sees in text is the same object JSON carries under `summary.handoff`. A frozen sequence ledger, a stale approval digest, an invalid correction ledger, and stale legacy terminal evidence are `not yet` and name their repair, because clearing context there strands the next session on a gate it cannot see the cause of. A Draft is never `safe` — the interview and artifacts live only in the session's head until approval records them — so it is `conditional` and names approval as the first clean boundary. Uncommitted edits under `affected_paths` are `conditional` and name committing or writing intent into `change.md`; evidence under `.specsync/` alone never counts, because `review.json` is uncommitted between `review` and `finalize` by design. A current approval on a clean tree, a Verifying change with current verification, an Accepted workflow-v2 change, and an Archived change are `safe`, and the reason says where the next session resumes. The reason, the resume command, and the steps carry the change ID and literal prose only; no digest reaches them.
 
 ## Behavioral Examples
 
@@ -277,6 +284,12 @@ Acceptance Criteria
 - **Given** a delivery scope containing a tracked parent directory and enough exact tracked children to cross the pathspec batch boundary
 - **When** Git returns one child through both the parent pathspec and its later exact pathspec
 - **Then** identical mode/object pairs are represented once, while either a mode or object mismatch fails closed
+
+**Scenario: Handoff verdict follows the lifecycle, not the evidence files**
+
+- **Given** an approved change whose implementation is committed and whose independent review just wrote an uncommitted `review.json`
+- **When** the session asks `handoff_summary` before and after editing one file under `affected_paths`
+- **Then** the review file alone leaves the verdict `safe` resuming at finalize, the edit turns it `conditional` naming a commit or a `change.md` note, and neither reason carries a digest
 
 **Scenario: Correction history changes while a mutation waits**
 
@@ -456,3 +469,4 @@ Acceptance Criteria
 | 2026-08-29 | decide-canonical-materialization-from-the-artefacts-instead-of-the-canonical-applied-flag-so-a-delta-corrected-after: Decide canonical materialization from the artefacts instead of the canonical_applied flag so a delta corrected after review and re-approved reaches the canonical spec with its version bump and Change Log row |
 | 2026-08-29 | ship-status-readiness-must-ask-whether-the-scoped-review-is-current-and-say-so-when-it-cannot-tell: Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell |
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
+| 2026-09-02 | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |

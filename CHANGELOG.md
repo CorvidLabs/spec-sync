@@ -94,6 +94,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`change status` says when it is safe to clear context.** Every text result of `status`,
+  `show`, a passing `check`, `approve`, `review`, `finalize`, and ship's finalize ends with one
+  `Handoff:` line — `safe`, `conditional`, or `not yet` — followed by the reason and, when it is
+  not safe, `Before clearing:` with the steps to take first. The verdict is a pure function of
+  lifecycle signals: a Draft is never safe (approval is the first clean boundary); uncommitted
+  edits under the change's `affected_paths` are `conditional` and name committing or writing
+  intent into `change.md`, while evidence under `.specsync/` alone never counts (`review.json`
+  sits uncommitted between `review` and `finalize` by design); a stale approval digest, a frozen
+  sequence ledger, an invalid correction ledger, or stale legacy terminal evidence is `not yet`
+  and names the repair; a clean approved tree, current verification, workflow-v2 acceptance, and
+  the archive are `safe`, and the reason says where the next session resumes. `--json` carries the
+  same object under `summary.handoff` wherever a change summary is rendered and under `handoff` on
+  the approve transition. No digest reaches the line. The installed agent skill (template
+  version 4) tells agents to clear context only on `safe` and to do what `Before clearing:` names
+  first; re-run `specsync agents install` to refresh it.
+
 - **6.0 release candidates ship installable binaries** (CorvidLabs/spec-sync#669).
   `v6.0.0-rc.1` was tagged correctly — annotated, right commit, marked pre-release — and carries
   zero assets, because the release lane refused at its first job and every job downstream skipped.

@@ -377,7 +377,9 @@ specsync change adopt --dry-run
 `acceptance_criteria` preserves scalar prose exactly; use a JSON array of strings to provide multiple criteria. `affected_specs` and `affected_paths` retain comma- and newline-separated list input.
 
 New changes require one digest-bound human scope approval. `change status` always names one next
-action; `change check` applies approved deltas and records targeted evidence for **one change**
+action and ends with one `Handoff:` line (`safe`, `conditional`, or `not yet`, the reason, and the
+steps to take before clearing context; `--json` carries it as `summary.handoff` — see
+[Clearing context between steps](workflow.md#clearing-context-between-steps)); `change check` applies approved deltas and records targeted evidence for **one change**
 (not archive history); `change audit` checks active workspaces and living specs; independent scoped
 review binds the implementation commit; and `change finalize` creates the dated archive in the same
 PR without merging externally. Global `--strict`, project policy, and release/security

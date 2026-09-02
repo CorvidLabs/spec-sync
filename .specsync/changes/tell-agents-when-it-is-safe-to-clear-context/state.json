@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "tell-agents-when-it-is-safe-to-clear-context",
+  "slug": "tell-agents-when-it-is-safe-to-clear-context",
+  "title": "Tell agents when it is safe to clear context",
+  "description": "Tell agents when it is safe to clear context",
+  "kind": "feature",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "ddbc9343fa30be3a2def39f2e559ca9cf6984d2c",
+  "created_at": 1788312190,
+  "updated_at": 1788315016,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "agents"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/commands/change.rs",
+    "src/agents.rs",
+    "tests/integration/change.rs",
+    "site/src/content/docs/workflow.md",
+    "site/src/content/docs/cli.md",
+    "CHANGELOG.md",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/testing.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_change/requirements.md",
+    "specs/agents/agents.spec.md",
+    "specs/agents/requirements.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Every change status, show, check, approve, review, and finalize text result prints exactly one Handoff line that says safe, conditional, or not yet, gives one reason in plain language without digests, and when it is not safe names the concrete steps to take before clearing context.",
+    "The JSON summary carries the same decision under summary.handoff with readiness, reason, resume, and before_clearing.",
+    "Uncommitted edits under the change affected_paths make the handoff conditional; uncommitted lifecycle evidence under .specsync/ alone does not, because review then finalize is designed to run with that evidence uncommitted.",
+    "A Draft change is never reported as safe; approval is the first clean boundary, and an approved change with a clean tree and current evidence is safe.",
+    "A stale approval digest, a frozen sequence ledger, an invalid correction ledger, and stale legacy terminal evidence are all reported as not yet with the repair named.",
+    "The handoff decision is a pure function of gathered lifecycle signals with a unit test per branch, and the installed agent skill tells agents to clear context only when the Handoff line says safe."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

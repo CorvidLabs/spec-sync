@@ -1,0 +1,62 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788312442,
+      "digest": "d32c5c0298f098b6aaeb04b7771818031ae98331508c75c0d0179d6fca9a6348",
+      "note": "Session instruction (2026-09-01): fold the handoff guidance into PR 748 as its own change and get it all in. Approved scope: a Handoff: line and summary.handoff computed from lifecycle signals, agent skill guidance, docs.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "tell-agents-when-it-is-safe-to-clear-context",
+        "title": "Tell agents when it is safe to clear context",
+        "description": "Tell agents when it is safe to clear context",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/workflow.md",
+          "specs/agents/agents.spec.md",
+          "specs/agents/requirements.md",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "specs/change/testing.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/cmd_change/requirements.md",
+          "src/agents.rs",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A Draft change is never reported as safe; approval is the first clean boundary, and an approved change with a clean tree and current evidence is safe.",
+          "A stale approval digest, a frozen sequence ledger, an invalid correction ledger, and stale legacy terminal evidence are all reported as not yet with the repair named.",
+          "Every change status, show, check, approve, review, and finalize text result prints exactly one Handoff line that says safe, conditional, or not yet, gives one reason in plain language without digests, and when it is not safe names the concrete steps to take before clearing context.",
+          "The JSON summary carries the same decision under summary.handoff with readiness, reason, resume, and before_clearing.",
+          "The handoff decision is a pure function of gathered lifecycle signals with a unit test per branch, and the installed agent skill tells agents to clear context only when the Handoff line says safe.",
+          "Uncommitted edits under the change affected_paths make the handoff conditional; uncommitted lifecycle evidence under .specsync/ alone does not, because review then finalize is designed to run with that evidence uncommitted."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "74c04ae7b71b231fbfdc93821d1ae5fbbd0213a6be679a9c06fb8dc6c0a06746",
+        "change": "7618e591f6554dacf9ddb10b215025e25ecf3945466b5111bbb49252db174b03",
+        "cmd_change": "fb8fa55b0055d35777748a672ea722477ca11a28038c8315d59f28ae1c792658"
+      }
+    }
+  ],
+  "reopenings": []
+}

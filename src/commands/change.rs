@@ -164,7 +164,9 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             } else {
                 change::approve_definition(root, &id, actor, note)
             };
-            result.map(|record| print_transition(&record, format, "definition approved"))
+            result.map(|record| {
+                print_transition_with_handoff(root, &record, format, "definition approved")
+            })
         }
         ChangeAction::Start { id } => change::start_implementation(root, &id)
             .map(|record| print_transition(&record, format, "implementation started")),
@@ -197,13 +199,16 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             result.map(|review| {
                 match format {
                     OutputFormat::Json => print_json(&review),
-                    _ => println!(
-                        "{} {} independent review recorded as {} at {}",
-                        "✓".green(),
-                        review.change_id,
-                        review.verdict.as_str(),
-                        review.implementation_commit
-                    ),
+                    _ => {
+                        println!(
+                            "{} {} independent review recorded as {} at {}",
+                            "✓".green(),
+                            review.change_id,
+                            review.verdict.as_str(),
+                            review.implementation_commit
+                        );
+                        print_handoff_line_for(root, &review.change_id);
+                    }
                 }
             })
         }),
@@ -392,6 +397,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     println!("  Archive: {}", path.display());
                     println!("  Implementation: {}", finalization.implementation_commit);
                     println!("  Next: {}", lessons_next_action(root, &id, &path));
+                    print_handoff_line_for(root, &id);
                 }
             }
             Ok(())
@@ -471,6 +477,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                                     "  Next: {}",
                                     text_mode_next_action(root, &change_record, &questions)
                                 );
+                                print_handoff_line(&change::handoff_summary(root, &change_record));
                             }
                         } else {
                             eprintln!(
@@ -606,6 +613,8 @@ fn print_record(
             print_change_text_identity(record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
+            // The handoff line is literal prose plus the change ID; no digest reaches it.
+            print_handoff_line(&change::handoff_summary(root, record));
             print_change_text_answers(record);
             print_change_text_correction_counts(record);
             if include_questions && !questions.is_empty() {
@@ -663,6 +672,7 @@ fn print_mutation_record(
             print_change_text_identity(record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
+            print_handoff_line(&change::handoff_summary(root, record));
             print_change_text_answers(record);
             // Keep correction-derived snapshot values out of the human sink. A state-only reload
             // preserves the established counts without rereading corrections.json; failure is
@@ -1886,6 +1896,7 @@ fn run_ship(
                 );
             }
             println!("  Next: {next}");
+            print_handoff_line_for(root, &record.id);
             if !siblings_before.is_empty() {
                 println!(
                     "  {}",
@@ -2201,6 +2212,54 @@ fn print_transition(record: &ChangeRecord, format: OutputFormat, message: &str) 
             message,
             record.state.as_str()
         ),
+    }
+}
+
+/// The approve transition, plus the handoff verdict the new state produces: text gets the
+/// `Handoff:` line, JSON gets it as `handoff` beside the transition.
+fn print_transition_with_handoff(
+    root: &Path,
+    record: &ChangeRecord,
+    format: OutputFormat,
+    message: &str,
+) {
+    let handoff = change::handoff_summary(root, record);
+    match format {
+        OutputFormat::Json => print_json(&serde_json::json!({
+            "id": record.id,
+            "state": record.state,
+            "message": message,
+            "handoff": handoff,
+        })),
+        _ => {
+            print_transition(record, format, message);
+            print_handoff_line(&handoff);
+        }
+    }
+}
+
+/// The `Handoff:` line every lifecycle text result ends with: whether clearing context now
+/// loses anything, in the domain's words. `HandoffSummary` is built from literals and the
+/// change ID only, so no digest can reach this sink through it.
+fn print_handoff_line(handoff: &change::HandoffSummary) {
+    let mut line = format!(
+        "  Handoff: {} — {}",
+        handoff.readiness.as_str(),
+        handoff.reason
+    );
+    if !handoff.before_clearing.is_empty() {
+        line.push_str(". Before clearing: ");
+        line.push_str(&handoff.before_clearing.join("; "));
+    }
+    println!("{line}");
+}
+
+/// Reloads the record by ID — after review or finalize the caller holds only the evidence —
+/// and prints its handoff line. A record that cannot be reloaded prints nothing rather than a
+/// guess; the command's own result already stands.
+fn print_handoff_line_for(root: &Path, id: &str) {
+    if let Ok(record) = change::load_change(root, id) {
+        print_handoff_line(&change::handoff_summary(root, &record));
     }
 }
 

@@ -88,7 +88,7 @@ Write a `deltas/<module>.md` describing the requirement being added or changed, 
     # …write the code…
     specsync change check <id>
     specsync change check <id> --commit
-    specsync change review <id> --reviewer "<someone else>"
+    specsync change review <id> --reviewer "<human>"
     specsync change ship <id>
 
 Then commit and merge. **Merge only after `ship`** — merging first orphans the verification
@@ -117,14 +117,15 @@ CI passes over drift. With it, drift gates.
 ## Things that will bite you, in the order they will
 
 **Your merge strategy decides what a landed change still owes you.** Verification evidence and
-the independent review are both recorded against a commit hash. **A squash-merge rewrites that
+the scoped review are both recorded against a commit hash. **A squash-merge rewrites that
 hash**, so anything that reads history across the merge loses its footing.
 
-What a squash costs you is the **independent review**, and only that. The review check walks the
+What a squash costs you is the **scoped review**, and only that. The review check walks the
 commits between the review and `HEAD` to prove nothing changed except the change's own records,
 and a squash makes that walk impossible rather than merely false — so expect to record a fresh
-review after a squash. CorvidLabs/spec-sync#694 tracks it, and it needs a decision about what a
-review proves rather than a patch.
+review after a squash. The reviewer MAY be the same human who approved the definition.
+CorvidLabs/spec-sync#694 tracks it, and it needs a decision about what a review proves rather
+than a patch.
 
 What a squash **no longer** costs you is re-verification. Ship readiness stopped depending on the
 recorded commit being reachable; it asks whether the recorded plan and tree still match what was

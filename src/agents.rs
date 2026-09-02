@@ -1695,4 +1695,28 @@ mod tests {
             "a manifest missing a required field must still be refused"
         );
     }
+
+    #[test]
+    fn tracked_skill_files_carry_the_current_same_actor_guidance() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let expected = "Do not invent a second identity for solo work.";
+        for relative in [
+            ".claude/skills/spec-sync/SKILL.md",
+            ".codex/skills/spec-sync/SKILL.md",
+            ".cursor/skills/spec-sync/SKILL.md",
+            ".gemini/skills/spec-sync/SKILL.md",
+        ] {
+            let path = root.join(relative);
+            let body = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            assert!(
+                body.contains(expected),
+                "{relative} must match current SKILL_BODY same-actor guidance"
+            );
+            assert!(
+                !body.contains("have an independent reviewer"),
+                "{relative} must not require a second identity"
+            );
+        }
+    }
 }

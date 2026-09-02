@@ -4,6 +4,10 @@ version: 14
 status: stable
 files:
   - src/agents.rs
+  - .claude/skills/spec-sync/SKILL.md
+  - .codex/skills/spec-sync/SKILL.md
+  - .cursor/skills/spec-sync/SKILL.md
+  - .gemini/skills/spec-sync/SKILL.md
 db_tables: []
 depends_on: []
 ---
@@ -135,3 +139,4 @@ distinguish exact managed bytes from user customization.
 | 2026-08-30 | SpecSync | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
 | 2026-09-02 | SpecSync | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |
 | 2026-09-02 | SpecSync | allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second: Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer. |
+| 2026-09-02 | SpecSync | finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a: Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity |

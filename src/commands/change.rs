@@ -201,7 +201,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     OutputFormat::Json => print_json(&review),
                     _ => {
                         println!(
-                            "{} {} independent review recorded as {} at {}",
+                            "{} {} scoped review recorded as {} at {}",
                             "✓".green(),
                             review.change_id,
                             review.verdict.as_str(),
@@ -788,7 +788,7 @@ fn text_mode_next_action(
         }
         ChangeState::Verifying => {
             format!(
-                "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — independent review then finalize before merging; merging first orphans verification evidence and blocks earlier accepted changes sharing a delivery input from archiving"
+                "run `specsync change check {id} --commit` if needed, then `specsync change ship-status {id}` (or `ship {id}`) — scoped review then finalize before merging; merging first orphans verification evidence and blocks earlier accepted changes sharing a delivery input from archiving"
             )
         }
         ChangeState::Accepted if record.workflow_version >= 2 => {
@@ -901,7 +901,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             // of them may do is stay silent and let readiness read the silence as a pass.
             match &review_currency {
                 None if !review_present => warnings.push(
-                    "no scoped review recorded yet; finalize requires independent review"
+                    "no scoped review recorded yet; finalize requires scoped review"
                         .to_string(),
                 ),
                 None => blockers.push(format!(
@@ -1423,12 +1423,12 @@ fn ship_stages(
             "scoped review is recorded and current".to_string()
         } else if product_done && review.present() {
             format!(
-                "re-record the independent review: `specsync change review {id} --reviewer <other>` — the recorded review is `{}` against this tree, and finalize requires a current one",
+                "re-record the scoped review: `specsync change review {id} --reviewer <human>` — the recorded review is `{}` against this tree, and finalize requires a current one",
                 review.label()
             )
         } else if product_done {
             format!(
-                "record independent review: `specsync change review {id} --reviewer <other>` then push a review_only tip if CI requires it; wait for trust reuse"
+                "record scoped review: `specsync change review {id} --reviewer <human>` then push a review_only tip if CI requires it; wait for trust reuse"
             )
         } else {
             "complete product tip first".to_string()
@@ -1453,7 +1453,7 @@ fn ship_stages(
                 "run `specsync change ship {id}` (or finalize), push the archive tip, wait for CI, then merge"
             )
         } else {
-            "complete product tip and independent review first".to_string()
+            "complete product tip and scoped review first".to_string()
         },
     }));
 

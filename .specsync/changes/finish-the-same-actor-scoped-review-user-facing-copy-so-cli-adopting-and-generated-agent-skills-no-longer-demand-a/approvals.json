@@ -1,0 +1,93 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1788357801,
+      "digest": "7120076276153a0b74f5e13cd3f799699809a0b2a62e6316c8fcfdabbd6e26e6",
+      "note": "User asked to continue and address PR reviews. Completes Kyntrin CHANGES_REQUESTED on spec-sync#749: leftover CLI/ADOPTING/generated-skill copy still demanded a second identity.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a",
+        "title": "Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity",
+        "description": "Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".claude/skills/spec-sync/SKILL.md",
+          ".codex/skills/spec-sync/SKILL.md",
+          ".cursor/skills/spec-sync/SKILL.md",
+          ".gemini/skills/spec-sync/SKILL.md",
+          "docs/ADOPTING.md",
+          "src/agents.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "CLI next-action and ship-status copy uses --reviewer <human> and names scoped review, not a second identity.",
+          "Tracked Claude, Codex, Cursor, and Gemini SKILL.md files match the current generated skill body: the reviewer MAY be the definition approver.",
+          "docs/ADOPTING.md no longer tells adopters to pass --reviewer \"<someone else>\"."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "ef5677a30e295141aa3ed32f81c7c6aac647099f7ec58e576adefd922b70ca2d",
+        "cmd_change": "9a11e5e491e9de9028fab7255a3cd3a058d520b60f82b55da66723e9a94eb263"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1788357939,
+      "digest": "7120076276153a0b74f5e13cd3f799699809a0b2a62e6316c8fcfdabbd6e26e6",
+      "note": "Re-approve after completing tasks.md checkboxes.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a",
+        "title": "Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity",
+        "description": "Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity",
+        "kind": "feature",
+        "affected_specs": [
+          "agents",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".claude/skills/spec-sync/SKILL.md",
+          ".codex/skills/spec-sync/SKILL.md",
+          ".cursor/skills/spec-sync/SKILL.md",
+          ".gemini/skills/spec-sync/SKILL.md",
+          "docs/ADOPTING.md",
+          "src/agents.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "CLI next-action and ship-status copy uses --reviewer <human> and names scoped review, not a second identity.",
+          "Tracked Claude, Codex, Cursor, and Gemini SKILL.md files match the current generated skill body: the reviewer MAY be the definition approver.",
+          "docs/ADOPTING.md no longer tells adopters to pass --reviewer \"<someone else>\"."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "ef5677a30e295141aa3ed32f81c7c6aac647099f7ec58e576adefd922b70ca2d",
+        "cmd_change": "9a11e5e491e9de9028fab7255a3cd3a058d520b60f82b55da66723e9a94eb263"
+      }
+    }
+  ],
+  "reopenings": []
+}

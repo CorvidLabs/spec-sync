@@ -4,6 +4,7 @@ version: 35
 status: active
 files:
   - src/commands/change.rs
+  - docs/ADOPTING.md
 db_tables: []
 tracks: []
 depends_on:
@@ -144,5 +145,6 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-08-24 | ship-must-name-the-lesson-fold-back-too-the-archive-bundle-is-written-and-only-finalize-says-so: Ship must name the lesson fold-back too: the archive bundle is written and only finalize says so |
 | 2026-08-29 | ship-status-readiness-must-ask-whether-the-scoped-review-is-current-and-say-so-when-it-cannot-tell: Ship-status readiness must ask whether the scoped review is current, and say so when it cannot tell |
 | 2026-09-02 | allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second: Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer. |
+| 2026-09-02 | finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a: Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity |
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
 | 2026-09-02 | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |

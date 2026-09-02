@@ -22,9 +22,10 @@ For every meaningful source, test, public documentation, schema, or configuratio
    for **scoped** verification of this change only (materialize deltas + spec↔code sync). Do **not**
    treat check as a full archive integrity walk. Use `specsync change audit` when you need project
    health over **active** workspaces and living specs. Archives are history.
-6. Complete ordinary pull-request review. For agent-authored work, have an independent reviewer
-   inspect the change package, implementation diff, canonical spec delta, and targeted evidence
-   once, then record it with `specsync change review <id> --reviewer "<identity>"`.
+6. Complete ordinary pull-request review. For agent-authored work, have a human inspect the
+   change package, implementation diff, canonical spec delta, and targeted evidence once, then
+   record it with `specsync change review <id> --reviewer "<identity>"`. The reviewer MAY be the
+   same person who approved the definition. Do not invent a second identity for solo work.
 7. Run `specsync change finalize <id>` to create the same-PR metadata/archive-only commit, then
    merge through GitHub. SpecSync does not merge the pull request.
 
@@ -35,7 +36,7 @@ For every meaningful source, test, public documentation, schema, or configuratio
 - Archives are history; do not re-validate terminal evidence for every archived CHG on each check.
 - Slash commands: `/specsync:check`, `/specsync:audit` (Claude/Cursor/Gemini via `specsync agents install`).
 
-Never invent or self-grant the scope approval or independent review. If an approved definition
+Never invent or self-grant the scope approval. If an approved definition
 changes, its digest becomes stale and must be approved again. `specsync change status` always
 prints one explicit next action and one `Handoff:` line. Clear context (or hand the change to a
 fresh session) only when `Handoff:` says `safe`; otherwise do what `Before clearing:` names first.

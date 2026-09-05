@@ -79,7 +79,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `DefinitionApprovalPairRole` | Current/full or legacy/projected role for one marked portable definition member |
 | `DefinitionApprovalPairV1` | Versioned pair identity, projection, role, change/correction coordinates, event index, and both digests |
 | `ReopenRecord` | Immutable audit event preserving superseded closing approval, prior verification, actor, reason, transition, stale/current input digests, and the staleness cause when the digests are equal |
-| `ReopenCauseV1` | Why accepted evidence was stale when delivery-input digests alone cannot show it; absent means the inputs drifted |
+| `ReopenCauseV1` | Why accepted evidence was stale despite matching inputs: unanchored verification or unreconstructible legacy acceptance; absent means inputs drifted |
 | `recorded_verification_is_current` | Whether a change's recorded verification still matches the tree and plan on disk, as a content question; missing or unreadable evidence is not current |
 | `ReopenResult` | Deterministic change-plus-audit result returned by the reopen transition |
 | `ReopenBackfillReport` | Per-change repair, skip, and failure detail for a `migrate 5.0` ledger backfill |
@@ -205,10 +205,10 @@ Acceptance Criteria
 12. Verification-command detection remains for adoption-era policy files; `change check` does not execute the list.
 13. Persisted and hashed project paths use forward slashes on every operating system.
 14. `change check` does not spawn configured commands, so there is no child stdout to suppress.
-15. Reopening accepted evidence is rejected only when its delivery inputs are current AND its verification commit is still anchored in current history; reopening stale evidence never reapplies an already canonical semantic delta.
+15. Reopening accepted evidence is rejected as current only when its delivery inputs are current, its verification commit is anchored, and any manifest-less legacy acceptance is historically reconstructible; reopening stale evidence never reapplies an already canonical semantic delta.
 16. Reacceptance of an already-applied change requires the definition digest captured by the latest audited reopen event unless every difference is a validated additive exact-owner correction.
 17. False default lifecycle fields remain absent from new persisted state, while definition validation recognizes both omitted and transitional explicit-false encodings so upgrades preserve existing approvals and verification; explicit acceptance appends stable definition evidence when the latest compatible approval uses the transitional encoding.
-18. An unreachable verification commit is itself an admissible staleness axis for audited reopen, recorded as an explicit cause in the reopen ledger; every other authentication check stays fatal, and reacceptance still requires canonical acceptance or deterministic semantic succession provable from trusted history.
+18. An unreachable verification commit or failed manifest-less legacy acceptance reconstruction is an admissible staleness axis for audited reopen, recorded as an explicit cause in the reopen ledger. Definition, verification, and closing authentication checks remain fatal; reopening grants no archival authority to the old evidence and fresh verification and closing remain mandatory.
 19. Acceptance appends a Change Log row matching the canonical table's existing column schema and uses the post-bump version when the schema includes `Version`.
 20. Generated bookkeeping never replaces explicit delivery scope; registry authority, policy enablement, and native command identity are evaluated consistently before lifecycle enforcement.
 21. Trusted correction-history discovery ignores unresolved remote-default references and parses Git tree paths without quoting ambiguity; regression fixtures preserve quoted-path coverage where supported while remaining valid on Windows.
@@ -474,4 +474,5 @@ Acceptance Criteria
 | 2026-09-02 | allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second: Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer. |
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
 | 2026-09-02 | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |
+| 2026-09-05 | allow-audited-reopening-when-legacy-acceptance-cannot-be-reconstructed: Allow audited reopening when legacy acceptance cannot be reconstructed |
 | 2026-09-05 | archive-preflight-lets-the-package-being-closed-cover-the-legacy-change-it-supersedes-and-stale-input-diagnostics-name: Archive preflight lets the package being closed cover the legacy change it supersedes, and stale-input diagnostics name the refused successor |

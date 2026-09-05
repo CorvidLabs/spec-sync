@@ -4,6 +4,10 @@ spec: change.spec.md
 
 # Testing
 
+The legacy reconstruction authentication control also asserts that missing actor/reason and a tampered closing digest fail without writing lifecycle state. Existing current-manifest and unanchored-commit reopening tests cover the other recovery causes.
+
+- `REQ-change-094`: `legacy_reopen_recovers_unreconstructible_current_acceptance` reproduces an anchored manifest-less acceptance whose current raw inputs match but whose transition tree cannot reproduce the signature. It fails on the unfixed implementation at the current-evidence refusal and checks audited recovery, sequence-history preservation, fresh acceptance with a modern manifest, and archival. `legacy_reopen_refuses_reconstructible_current_acceptance_without_mutation` passes before and after the fix and asserts refusal leaves state and approvals byte-identical while archival succeeds.
+
 Unit tests cover IDs, requirement grammar, semantic application, unsafe command rejection, adaptive policy, stale approvals, conflicts, and the full acceptance/archive path. CLI integration tests cover JSON interviews, rationale enforcement, dry-run adoption, and new-project enablement. Release validation runs the full Rust, spec, docs, audit, and build matrix.
 
 ## Requirement Evidence

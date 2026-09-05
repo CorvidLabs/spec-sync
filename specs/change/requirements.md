@@ -212,7 +212,7 @@ Acceptance Criteria
 The lifecycle SHALL provide an audited recovery transition when accepted verification is genuinely stale after exact and semantic-successor validation.
 
 Acceptance Criteria
-- Reopen requires an explicit non-empty human actor and reason and rejects accepted evidence that is both exact-or-successor-covered AND still anchored in current history, using the shared validity reason.
+- Reopen requires an explicit non-empty human actor and reason and rejects accepted evidence that is exact-or-successor-covered, still anchored in current history, and historically reconstructible when it is manifest-less legacy acceptance.
 - Reopen moves stale accepted evidence to verifying so strict checks remain red until a fresh verification run succeeds.
 - Prior definition approval, verification, closing approval, manifests, successor evidence, and accepted snapshot remain inspectable in append-only audit history.
 - Reacceptance requires a new closing approval and does not reapply canonical deltas already accepted.
@@ -224,8 +224,8 @@ Acceptance Criteria
 Audited reopening SHALL recognize only provable canonical acceptance and deterministic semantic succession recorded in trusted Git history.
 
 Acceptance Criteria
-- Definition digest, passed evidence, closing approval, stale delivery inputs, actor, and reason remain mandatory.
-- An unreachable verification commit is an admissible staleness axis for reopen in its own right, recorded as an explicit cause in the reopen ledger. It never substitutes for the succession evidence reacceptance requires, and every other authentication check remains fatal.
+- Definition digest, passed evidence, closing approval, a supported staleness cause, actor, and reason remain mandatory.
+- An unreachable verification commit or failed manifest-less legacy acceptance reconstruction is an admissible staleness axis for reopen, recorded as an explicit cause in the reopen ledger. Neither substitutes for fresh verification or closing approval; existing definition, verification, and closing authentication checks remain fatal.
 - ID order, timestamps, lexicographic ordering, and independent path/spec scope overlap are never succession evidence.
 - Repeated trusted commits yielding identical canonical reconstructed evidence are deduplicated; distinct reconstructions fail as ambiguous.
 - A descendant feature branch preserves squash-accepted evidence only when the remote default branch records the same accepted state, definition, delivery inputs, and closing approval.
@@ -1255,4 +1255,14 @@ Acceptance Criteria
 - An accepted workflow-v2 change and an archived change are `safe`.
 - `ChangeSummary` carries the decision as `handoff`, so JSON consumers read the same verdict the
   text line prints.
+
+### REQ-change-094
+
+The lifecycle SHALL allow audited reopening of manifest-less legacy accepted evidence when historical acceptance reconstruction fails, even if current delivery inputs match and the verification commit is anchored.
+
+Acceptance Criteria
+- Record an explicit legacy reconstruction failure cause and preserve prior closing and verification evidence.
+- Reconstructible legacy evidence and current manifest-backed evidence remain non-reopenable.
+- Authentication, explicit actor and reason, fresh verification, and new closing approval remain mandatory.
+- Reverification and acceptance produce a modern manifest that can be archived.
 

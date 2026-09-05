@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "allow-audited-reopening-when-legacy-acceptance-cannot-be-reconstructed",
+  "slug": "allow-audited-reopening-when-legacy-acceptance-cannot-be-reconstructed",
+  "title": "Allow audited reopening when legacy acceptance cannot be reconstructed",
+  "description": "Allow audited reopening when legacy acceptance cannot be reconstructed",
+  "kind": "feature",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "6b1717038edb467d95bb483861f0c076da76deb5",
+  "created_at": 1788624407,
+  "updated_at": 1788625936,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Legacy accepted records without a manifest can reopen with explicit actor and reason when historical reconstruction fails despite current inputs and anchored evidence; the audit preserves prior evidence and records the cause; reconstructible legacy and current modern evidence still refuse; fresh verification and acceptance permit archival."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

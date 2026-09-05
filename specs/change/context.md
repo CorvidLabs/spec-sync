@@ -472,3 +472,40 @@ Content is decided before history, and the ordering is load-bearing rather than 
 can fail at once; a review that is stale by content AND anchored to a rewritten commit is stale for a
 reason the reader can act on today, and answering "the walk was unavailable" about it would be true
 and useless.
+
+A silent `continue` is a diagnostic that lies. The successor walk of `validate_accepted_inputs_recursive`
+refused candidates for seven different reasons and recorded one of them, so the message for the other
+six was "no accepted or archived successor change covers it" — false in the field case, where the only
+successor was the package `finalize` was closing, and `change audit` had just rated it `exact`. #685's
+rule applies inside a walk as much as at a command boundary: the moment a check knows why it refused
+something is the moment that reason is cheapest to keep, and `RejectedSuccessor` keeps it. Recording a
+reason also made the reproduction self-diagnosing — the first fixed thing was the message, and the
+message then named the failing check.
+
+The anchor of a transition that history does not hold yet is a label, not a commit, and any consumer
+that hands it to git gets a decided-looking negative. `authenticated_accepted_transition_for` admits the
+working-tree closing evidence for exactly the package whose acceptance is not in history — the one
+being closed, or an archive whose commit has not been made — and labels it `working-tree-closing-evidence`
+on purpose. `semantic_tuple_transition_is_valid` used that label as a commit for `merge-base` and for the
+detached-worktree read of the successor entry, so the tuple "did not hold" during the only window in
+which it could have covered anything. The honest tree for that window is the working tree the evidence
+was signed against (`accept_change_with_gate` checked its base ancestry against HEAD), not
+`verification.commit`, which `validate_verification_for_commit_binding` says is an informational key.
+The label is now a named constant so the next consumer can ask which shape it holds.
+
+The closing token has to travel with the walk, not stop at the preflight that minted it. `PendingArchiveClose`
+was forwarded to the historical-integrity preflight of the archived projection and to nothing else, so the
+successor walk one line below re-authenticated the same projection as a reader — which is fine for a
+first archive (the fallback admits a not-in-history package to everyone) and fatal for a re-finalize
+after reopen (#540), where the fallback is gated on `is_closing`. The rule is now written on the token's
+doc comment: readers pass `None`; the preflight forwards what it holds; `is_closing` keeps the token
+inert for every package but the one being closed.
+
+A map that is both "what to evaluate" and "what may cover it" cannot shrink one without shrinking
+the other. `terminal_evidence_results_with_records` took one map, and the active-only audit handed
+it the active listing to save loading archives — so an active legacy change could never be covered
+by a finalized successor, because finalizing IS archiving. The first field round proved `finalize`;
+the second, with the fixed binary, showed `audit` still calling the predecessor uncovered with the
+pre-fix wording, which was the tell: no successor had been refused, none had been seen. The two roles
+are now two parameters, and the audit loads archived records only when it has an active terminal
+record to judge, only as candidates, and authenticates only one that declares the obligation.

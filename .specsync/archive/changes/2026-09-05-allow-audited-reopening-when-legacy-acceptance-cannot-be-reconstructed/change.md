@@ -1,6 +1,6 @@
 ---
 id: allow-audited-reopening-when-legacy-acceptance-cannot-be-reconstructed
-state: implementing
+state: archived
 type: feature
 base_commit: 6b1717038edb467d95bb483861f0c076da76deb5
 ---

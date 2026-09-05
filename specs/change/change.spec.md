@@ -312,8 +312,10 @@ Acceptance Criteria
 | Reopen actor or reason is empty | Reopen is rejected before any mutation |
 | Concurrent changes edit the same semantic key | Progress requires dependency ordering or rebase |
 | Ownership correction is not exact, additive, in-scope, and canonically provable | Correction is rejected transactionally |
-| Covered delivery input of an accepted change changes with no covering accepted successor | Unified check names the input path, its owner, and the `change reopen` remediation |
-| Covered delivery input changes while every covering successor is itself stale | Unified check names the input, the sorted covering successor IDs, and their stale evidence state |
+| Covered delivery input of an accepted change changes and no successor claims it | Unified check names the input path, its owner, and the `change reopen` remediation |
+| Covered delivery input changes while every successor that claimed it was refused | Unified check names the input and each refused successor with its reason, sorted by ID; a workflow-v1 predecessor with a refused workflow-v2 successor is directed to finish that successor, never to `change reopen` |
+| Archive preflight finds that the package being closed is the only successor covering a legacy change it supersedes | The preflight authenticates that package with its closing token and checks its succession tuples against the working tree its closing evidence signed; finalize succeeds and the predecessor is successor-covered before and after the archive commit |
+| `change audit` judges an active legacy accepted change whose changed inputs a finalized (archived) successor covers | Archives are offered as successor candidates without being evaluated; the predecessor is reported successor-covered, and a refused archived successor is named with its reason |
 | Covered delivery input disappears from the current inventory | Unified check names the missing path and the restore-or-reopen remediation |
 | Non-inert local registry cannot be parsed while resolving a module | Canonical path resolution fails closed with `failed to parse local registry {path} while resolving `{module}`` |
 | A repeated stage-zero path has a different mode or object ID | Git candidate inspection fails closed without replacing the first observation |
@@ -473,3 +475,4 @@ Acceptance Criteria
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
 | 2026-09-02 | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |
 | 2026-09-05 | allow-audited-reopening-when-legacy-acceptance-cannot-be-reconstructed: Allow audited reopening when legacy acceptance cannot be reconstructed |
+| 2026-09-05 | archive-preflight-lets-the-package-being-closed-cover-the-legacy-change-it-supersedes-and-stale-input-diagnostics-name: Archive preflight lets the package being closed cover the legacy change it supersedes, and stale-input diagnostics name the refused successor |

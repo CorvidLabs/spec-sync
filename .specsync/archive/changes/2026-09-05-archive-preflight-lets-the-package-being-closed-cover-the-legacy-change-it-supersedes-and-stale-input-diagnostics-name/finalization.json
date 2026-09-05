@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "archive-preflight-lets-the-package-being-closed-cover-the-legacy-change-it-supersedes-and-stale-input-diagnostics-name",
+  "implementation_commit": "3ec50edbb84382e43a3be9b422bfba46ad8dcb89",
+  "implementation_tree": "f572a85fd16bace8a3a97df06380346974ac30aa",
+  "contract_digest": "880cf5b2accf137f1faab21c40857f8e3584b729abdad67605cdde0881f392a7",
+  "workspace_digest": "0a648075f9c66c959031f8db6e4bbe469dda2b2d50930b309859f00c759528ff",
+  "closing_digest": "568fb3dbbe69c4dbcd69c86da1ae4d93ab039ba0e97cfb5cb6bc7bdbc37cd900",
+  "review_digest": "e241dad3cc26f45fe3fb5fe661b15f5289057865ae8d7553db4d3441e15d8198",
+  "finalization_digest": "3bf8792f7b35fb74eeb8176ea740a8140cf8315dd46f26e0eb2b2aeaec7f2c04",
+  "timestamp": 1788646886
+}

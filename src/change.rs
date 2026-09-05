@@ -44,6 +44,9 @@ const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
 const CORRECTIONS_FILE: &str = "corrections.json";
 const SCOPED_REVIEW_FILE: &str = "review.json";
 const SCOPED_REVIEW_ATTEMPTS_FILE: &str = "review-attempts.json";
+/// The anchor label `authenticated_accepted_transition_for` returns for closing evidence it
+/// admitted from the working tree. Deliberately not a commit: history holds none for it yet.
+const WORKING_TREE_CLOSING_EVIDENCE_ANCHOR: &str = "working-tree-closing-evidence";
 const SCOPED_REVIEW_REQUIRED_CHECK: &str = "SpecSync scoped review";
 const PORTABLE_DEFINITION_PROJECTION_V501: &str = "specsync-5.0.1";
 const DEFINITION_APPROVAL_PAIR_DOMAIN: &[u8] = b"specsync.definition-approval-pair.v1";
@@ -3413,7 +3416,7 @@ fn reopen_unarchived_change(
     let tip_matches_closing = current_verification.passed
         && superseded_approval.digest == closing_digest(&record, &current_verification);
     let anchored = if tip_matches_closing {
-        authenticate_accepted_evidence_with_anchor(root, &record)?.1
+        authenticate_accepted_evidence_with_anchor(root, &record, None)?.1
     } else {
         accepted_evidence_is_anchored(root, &record, &prior_verification)
     };
@@ -3435,8 +3438,15 @@ fn reopen_unarchived_change(
         let records = list_all_changes_checked(root)?;
         let mut visiting = BTreeSet::new();
         let mut memo = BTreeMap::new();
-        if validate_accepted_inputs_recursive(root, &record, &records, &mut visiting, &mut memo)
-            .is_ok()
+        if validate_accepted_inputs_recursive(
+            root,
+            &record,
+            &records,
+            &mut visiting,
+            &mut memo,
+            None,
+        )
+        .is_ok()
         {
             return Err(
                 "accepted change delivery inputs are current (exact or successor-covered) and its verification commit is still anchored in current history; reopen is allowed only when accepted evidence is stale"
@@ -6913,6 +6923,10 @@ fn archive_change_with_options(
         ));
     }
     simulated.insert(record.id.clone(), archived_projection);
+    // The projection is also the one successor that can cover a change this package supersedes,
+    // and the token is what lets it speak for itself here: without it the walk judged the package
+    // by a history whose closing commit has not been made, refused it silently, and reported the
+    // superseded change as uncovered during the very finalize that was covering it.
     for candidate in simulated
         .values()
         .filter(|candidate| candidate.state == ChangeState::Accepted)
@@ -6925,6 +6939,7 @@ fn archive_change_with_options(
             &simulated,
             &mut visiting,
             &mut memo,
+            pending_close.as_ref(),
         ) {
             let _ = remove_file_durable(&accepted_snapshot);
             return Err(format!(
@@ -7692,7 +7707,7 @@ fn check_project_with_command_output(
             .collect()
     };
     let (terminal_evidence, mut archived_integrity_cache) = if include_archive_integrity {
-        terminal_evidence_results_with_records(root, &all_records)
+        terminal_evidence_results_with_records(root, &all_records, &all_records)
     } else {
         // Only evaluate terminal evidence for active accepted/archived-in-flight records.
         let active_terminal: BTreeMap<_, _> = records
@@ -7704,7 +7719,23 @@ fn check_project_with_command_output(
         if active_terminal.is_empty() {
             (Vec::new(), Default::default())
         } else {
-            terminal_evidence_results_with_records(root, &active_terminal)
+            // An active terminal record is judged against every change that could cover its
+            // inputs, and a finalized successor is an archive. Archives are loaded here only as
+            // candidates -- none of them is evaluated, and only one declaring a matching
+            // obligation is ever authenticated -- and only when there is an active terminal
+            // record to judge, so the empty common case still loads none.
+            match list_all_changes_checked(root) {
+                Ok(successors) => {
+                    terminal_evidence_results_with_records(root, &active_terminal, &successors)
+                }
+                Err(error) => {
+                    return SddCheckReport {
+                        enabled: true,
+                        errors: vec![error],
+                        ..SddCheckReport::default()
+                    };
+                }
+            }
         }
     };
     let mut report = SddCheckReport {
@@ -12303,6 +12334,30 @@ fn semantic_acceptance_item_exists_for_module(
     }))
 }
 
+/// The acceptance-entry digest `predecessor_id` signs for `path` in the checkout at `tree`.
+///
+/// `tree` is a detached worktree of one commit for `acceptance_entry_digest_at_commit`, and the
+/// project root itself for the one successor whose acceptance is not in history yet (see
+/// `semantic_tuple_transition_is_valid`).
+fn acceptance_entry_digest_in_tree(
+    tree: &Path,
+    predecessor_id: &str,
+    path: &str,
+) -> Result<String, String> {
+    let mut predecessor = load_change(tree, predecessor_id)?;
+    predecessor.state = ChangeState::Accepted;
+    predecessor.affected_paths = vec![path.to_string()];
+    let manifest = acceptance_manifest(tree, &predecessor, &[])?;
+    manifest
+        .entries
+        .iter()
+        .find(|entry| entry.path == path)
+        .map(|entry| entry.entry_digest.clone())
+        .ok_or_else(|| {
+            format!("succession base tree predecessor `{predecessor_id}` has no entry for `{path}`")
+        })
+}
+
 fn acceptance_entry_digest_at_commit(
     root: &Path,
     commit: &str,
@@ -12329,22 +12384,7 @@ fn acceptance_entry_digest_at_commit(
             String::from_utf8_lossy(&added.stderr).trim()
         ));
     }
-    let result = (|| {
-        let mut predecessor = load_change(&tree, predecessor_id)?;
-        predecessor.state = ChangeState::Accepted;
-        predecessor.affected_paths = vec![path.to_string()];
-        let manifest = acceptance_manifest(&tree, &predecessor, &[])?;
-        manifest
-            .entries
-            .iter()
-            .find(|entry| entry.path == path)
-            .map(|entry| entry.entry_digest.clone())
-            .ok_or_else(|| {
-                format!(
-                    "succession base tree predecessor `{predecessor_id}` has no entry for `{path}`"
-                )
-            })
-    })();
+    let result = acceptance_entry_digest_in_tree(&tree, predecessor_id, path);
     let removed = Command::new("git")
         .args([
             "worktree",
@@ -12361,10 +12401,14 @@ fn acceptance_entry_digest_at_commit(
     result
 }
 
+/// `pending` is the archive preflight's closing token, forwarded to the successor's transition
+/// lookup so a package being re-finalized after a reopen (#540) can present its closing evidence.
+/// See `PendingArchiveClose`.
 fn semantic_tuple_transition_is_valid(
     root: &Path,
     successor: &ChangeRecord,
     tuple: &SemanticSuccessionTupleV1,
+    pending: Option<&PendingArchiveClose<'_>>,
 ) -> Result<bool, String> {
     let Some(base) = successor.base_commit.as_deref() else {
         return Ok(false);
@@ -12374,12 +12418,25 @@ fn semantic_tuple_transition_is_valid(
     if base_old != tuple.predecessor_entry_digest {
         return Ok(false);
     }
-    let (anchor, _, _) = match authenticated_accepted_transition(root, successor) {
+    let (anchor, _, _) = match authenticated_accepted_transition_for(root, successor, pending) {
         Ok(transition) => transition,
         Err(_) => return Ok(false),
     };
+    // History holds no acceptance transition for the package `finalize` is closing right now,
+    // nor for an archive whose commit has not been made yet: the transition is the working-tree
+    // closing evidence, and its label is not a commit. Handing the label to git read as "the
+    // tuple does not hold", which is how the only successor able to cover a legacy change was
+    // dropped during its own finalize. That evidence was admitted for the tree it was signed
+    // against -- the working tree, whose base ancestry `accept_change_with_gate` checked against
+    // HEAD -- so that is where the successor entry is read from.
+    let closing = anchor == WORKING_TREE_CLOSING_EVIDENCE_ANCHOR;
     let ancestor = Command::new("git")
-        .args(["merge-base", "--is-ancestor", base, &anchor])
+        .args([
+            "merge-base",
+            "--is-ancestor",
+            base,
+            if closing { "HEAD" } else { anchor.as_str() },
+        ])
         .current_dir(root)
         .stderr(Stdio::null())
         .status()
@@ -12387,10 +12444,12 @@ fn semantic_tuple_transition_is_valid(
     if !ancestor.success() {
         return Ok(false);
     }
-    Ok(
+    let successor_digest = if closing {
+        acceptance_entry_digest_in_tree(root, &successor.id, &tuple.path)
+    } else {
         acceptance_entry_digest_at_commit(root, &anchor, &successor.id, &tuple.path)
-            .is_ok_and(|digest| digest == tuple.successor_entry_digest),
-    )
+    };
+    Ok(successor_digest.is_ok_and(|digest| digest == tuple.successor_entry_digest))
 }
 
 fn acceptance_input_owners(
@@ -14545,8 +14604,11 @@ fn anchor_precedes_an_introduction(
 /// knows that the closing evidence under `package` is evidence it authenticated out of the
 /// change's own ACTIVE workspace moments ago, and that the commit which would introduce the
 /// package is the one this command is preparing. Every reading path -- `status`, `audit`, `list`,
-/// `ship-status`, the corpus census, the successor and legacy-baseline checks -- passes `None` and
-/// is judged entirely by history, which is what #660 requires.
+/// `ship-status`, the corpus census, the legacy-baseline check -- passes `None` and is judged
+/// entirely by history, which is what #660 requires. The successor-coverage walk forwards whatever
+/// its caller holds: `None` from every reader, and the token from the archive preflight, where the
+/// package being closed is the only successor that can cover the changes it supersedes and would
+/// otherwise be judged by a history its own commit has not yet written.
 ///
 /// The token is deliberately NOT minted for a post-move resume whose package was found already
 /// sitting in the archive. That shape cannot be told from an attacker flipping a committed
@@ -14709,7 +14771,7 @@ fn authenticated_accepted_transition_for(
             eligible.insert(
                 key,
                 (
-                    "working-tree-closing-evidence".into(),
+                    WORKING_TREE_CLOSING_EVIDENCE_ANCHOR.into(),
                     state_bytes,
                     accepted,
                 ),
@@ -15297,7 +15359,7 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
     }
     if read_scope_value(root, |_| Some(())).is_some() {
         let result = list_all_changes_checked(root).map(|records| {
-            let (results, _) = terminal_evidence_results_with_records(root, &records);
+            let (results, _) = terminal_evidence_results_with_records(root, &records, &records);
             results
                 .into_iter()
                 .map(|result| (result.id, result.evidence))
@@ -15370,9 +15432,18 @@ fn terminal_evidence_summary_with_records(
     )
 }
 
+/// Terminal evidence for every accepted or archived record in `records`, each judged against
+/// `successors` as the universe of changes that may cover its changed inputs.
+///
+/// The two maps are distinct on purpose. The active-only audit evaluates active terminal records
+/// alone, but a finalized successor is an archive, so a legacy accepted change superseded by the
+/// v2 change that had just finalized over it was reported as uncovered by `audit` while the
+/// archive preflight and the full walk both saw the cover. Evaluating fewer records never means
+/// offering fewer successors.
 fn terminal_evidence_results_with_records(
     root: &Path,
     records: &BTreeMap<String, ChangeRecord>,
+    successors: &BTreeMap<String, ChangeRecord>,
 ) -> (Vec<TerminalEvidenceResult>, ArchivedIntegrityCache) {
     let mut visiting = BTreeSet::new();
     let mut memo = BTreeMap::new();
@@ -15385,7 +15456,7 @@ fn terminal_evidence_results_with_records(
             evidence: terminal_evidence_summary_with_validation_state(
                 root,
                 record,
-                records,
+                successors,
                 &mut visiting,
                 &mut memo,
                 &mut archived_cache,
@@ -15415,7 +15486,7 @@ fn terminal_evidence_summary_with_validation_state(
             },
         };
     }
-    match validate_accepted_inputs_recursive(root, record, records, visiting, memo) {
+    match validate_accepted_inputs_recursive(root, record, records, visiting, memo, None) {
         Ok(AcceptedInputValidity::Exact) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Exact,
             reason: None,
@@ -15435,16 +15506,21 @@ fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(
     let records = list_all_changes_checked(root)?;
     let mut visiting = BTreeSet::new();
     let mut memo = BTreeMap::new();
-    validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo).map(|_| ())
+    validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo, None)
+        .map(|_| ())
 }
 
+/// `pending` is the closing token of `archive_change_with_options`, forwarded so the package that
+/// command is closing can authenticate as the successor of a change it supersedes. Every reading
+/// path passes `None`. See `PendingArchiveClose`.
 fn authenticate_accepted_evidence_with_anchor(
     root: &Path,
     record: &ChangeRecord,
+    pending: Option<&PendingArchiveClose<'_>>,
 ) -> Result<(VerificationRecord, bool), String> {
     validate_acceptance_owner_correction_records(record)?;
     if record.state == ChangeState::Archived {
-        validate_archived_accepted_snapshot(root, record, None)?;
+        validate_archived_accepted_snapshot(root, record, pending)?;
     }
     let verification = load_verification(root, record)?;
     if !verification.passed {
@@ -15510,8 +15586,9 @@ fn accepted_evidence_is_anchored(
 fn authenticate_accepted_evidence(
     root: &Path,
     record: &ChangeRecord,
+    pending: Option<&PendingArchiveClose<'_>>,
 ) -> Result<VerificationRecord, String> {
-    match authenticate_accepted_evidence_with_anchor(root, record)? {
+    match authenticate_accepted_evidence_with_anchor(root, record, pending)? {
         (verification, true) => Ok(verification),
         (_, false) => Err("accepted change verification commit is not in current history and canonical acceptance is not recorded on the remote default branch".into()),
     }
@@ -15781,8 +15858,8 @@ fn load_legacy_archive_baseline_context(
     match authority.state {
         ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {}
         ChangeState::Accepted | ChangeState::Archived => {
-            let authority_verification =
-                authenticate_accepted_evidence(root, authority).map_err(|error| {
+            let authority_verification = authenticate_accepted_evidence(root, authority, None)
+                .map_err(|error| {
                     format!("legacy archive baseline authority is not closing-valid: {error}")
                 })?;
             let manifest = authority_verification
@@ -16307,12 +16384,15 @@ fn git_blob_bytes_batch(root: &Path, objects: &[&str]) -> Result<Vec<Vec<u8>>, S
     Ok(blobs)
 }
 
+/// `pending` is the closing token of the archive preflight, forwarded to every successor lookup
+/// the walk makes; readers pass `None`. See `PendingArchiveClose`.
 fn validate_accepted_inputs_recursive(
     root: &Path,
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
     visiting: &mut BTreeSet<String>,
     memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    pending: Option<&PendingArchiveClose<'_>>,
 ) -> Result<AcceptedInputValidity, String> {
     if let Some(result) = memo.get(&record.id) {
         return result.clone();
@@ -16330,7 +16410,7 @@ fn validate_accepted_inputs_recursive(
         ));
     }
     let result = (|| {
-        let verification = authenticate_accepted_evidence(root, record)?;
+        let verification = authenticate_accepted_evidence(root, record, pending)?;
         let expected_digest = verification
             .acceptance_input_digest
             .as_deref()
@@ -16383,7 +16463,7 @@ fn validate_accepted_inputs_recursive(
             {
                 if expected.path == SEQUENCE_PATH
                     && later_sequence_owner_covers_historical_input(
-                        root, record, records, visiting, memo,
+                        root, record, records, visiting, memo, pending,
                     )?
                 {
                     successor_covered = true;
@@ -16396,8 +16476,13 @@ fn validate_accepted_inputs_recursive(
             }
             for owner in &expected.owners {
                 let mut covered = false;
-                let mut stale_covering_successors = BTreeSet::new();
+                let mut rejected_successors = BTreeMap::new();
                 for candidate in records.values() {
+                    // Only a successor that declares this obligation can cover it: authenticated
+                    // succession tuples are one-to-one with the record's declared obligations,
+                    // and the legacy reconstruction requires the declaration too. Deciding that
+                    // first keeps every refusal recorded below about a successor that claimed
+                    // the input.
                     if candidate.id == record.id
                         || !matches!(
                             candidate.state,
@@ -16405,13 +16490,28 @@ fn validate_accepted_inputs_recursive(
                         )
                         || candidate.no_spec_change
                         || !happens_after(candidate, record)
+                        || !declares_succession_obligation(candidate, &record.id, expected, owner)
                     {
                         continue;
                     }
+                    let mut reject = |reason: String| {
+                        rejected_successors.insert(
+                            candidate.id.clone(),
+                            RejectedSuccessor {
+                                workflow_version: candidate.workflow_version,
+                                reason,
+                            },
+                        );
+                    };
                     let candidate_verification =
-                        match authenticate_accepted_evidence(root, candidate) {
+                        match authenticate_accepted_evidence(root, candidate, pending) {
                             Ok(verification) => verification,
-                            Err(_) => continue,
+                            Err(error) => {
+                                reject(format!(
+                                    "its accepted evidence did not authenticate: {error}"
+                                ));
+                                continue;
+                            }
                         };
                     let candidate_manifest = if let Some(manifest) =
                         candidate_verification.acceptance_manifest.as_ref()
@@ -16420,7 +16520,12 @@ fn validate_accepted_inputs_recursive(
                     } else {
                         match resolved_acceptance_manifest(root, candidate) {
                             Ok(manifest) => manifest,
-                            Err(_) => continue,
+                            Err(error) => {
+                                reject(format!(
+                                    "its acceptance manifest could not be resolved: {error}"
+                                ));
+                                continue;
+                            }
                         }
                     };
                     let tuple = if let Some(evidence) =
@@ -16443,34 +16548,73 @@ fn validate_accepted_inputs_recursive(
                         None
                     };
                     let Some(tuple) = tuple else {
+                        reject(format!(
+                            "its acceptance evidence carries no succession tuple for `{}` (owner `{owner}`)",
+                            expected.path
+                        ));
                         continue;
                     };
                     if !candidate_manifest.entries.iter().any(|entry| {
                         entry.path == expected.path
                             && entry.entry_digest == tuple.successor_entry_digest
                             && entry.owners.contains(owner)
-                    }) || !semantic_acceptance_item_exists_for_module(root, candidate, owner)
-                        .unwrap_or(false)
-                        || !semantic_tuple_transition_is_valid(root, candidate, &tuple)
-                            .unwrap_or(false)
-                    {
+                    }) {
+                        reject(format!(
+                            "its acceptance manifest does not carry `{}` at the succession tuple's successor digest for owner `{owner}`",
+                            expected.path
+                        ));
                         continue;
                     }
-                    if validate_accepted_inputs_recursive(root, candidate, records, visiting, memo)
-                        .is_ok()
-                    {
-                        covered = true;
-                        successor_covered = true;
-                        break;
+                    // A decided negative and a failure to evaluate are different answers (#743).
+                    match semantic_acceptance_item_exists_for_module(root, candidate, owner) {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            reject(format!(
+                                "its `{owner}` delta carries no non-removed semantic item"
+                            ));
+                            continue;
+                        }
+                        Err(error) => {
+                            reject(format!("its `{owner}` delta could not be read: {error}"));
+                            continue;
+                        }
                     }
-                    stale_covering_successors.insert(candidate.id.clone());
+                    match semantic_tuple_transition_is_valid(root, candidate, &tuple, pending) {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            reject(format!(
+                                "its succession tuple for `{}` does not hold between its base commit and its acceptance anchor",
+                                expected.path
+                            ));
+                            continue;
+                        }
+                        Err(error) => {
+                            reject(format!(
+                                "its succession tuple for `{}` could not be evaluated: {error}",
+                                expected.path
+                            ));
+                            continue;
+                        }
+                    }
+                    match validate_accepted_inputs_recursive(
+                        root, candidate, records, visiting, memo, pending,
+                    ) {
+                        Ok(_) => {
+                            covered = true;
+                            successor_covered = true;
+                            break;
+                        }
+                        Err(error) => {
+                            reject(format!("its own delivery-input evidence is stale: {error}"))
+                        }
+                    }
                 }
                 if !covered {
                     return Err(stale_input_remediation_reason(
-                        &record.id,
+                        record,
                         &expected.path,
                         owner,
-                        &stale_covering_successors,
+                        &rejected_successors,
                     ));
                 }
             }
@@ -16486,24 +16630,53 @@ fn validate_accepted_inputs_recursive(
     result
 }
 
+/// A successor that claimed to cover a stale delivery input and was refused, with the reason.
+///
+/// The successor walk used to drop every refusal on the floor -- `Err(_) => continue` -- so the
+/// diagnostic could only say that no successor covers the input, which was false whenever one
+/// existed and was refused for a reason the tool knew at that moment (#685). The workflow version
+/// travels with the reason because the remediation depends on it.
+struct RejectedSuccessor {
+    workflow_version: u32,
+    reason: String,
+}
+
 fn stale_input_remediation_reason(
-    record_id: &str,
+    record: &ChangeRecord,
     path: &str,
     owner: &str,
-    stale_covering_successors: &BTreeSet<String>,
+    rejected_successors: &BTreeMap<String, RejectedSuccessor>,
 ) -> String {
-    if stale_covering_successors.is_empty() {
+    if rejected_successors.is_empty() {
+        return format!(
+            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {}` to re-verify the accepted change",
+            record.id
+        );
+    }
+    let rejections = rejected_successors
+        .iter()
+        .map(|(id, rejected)| format!("successor `{id}` was rejected: {}", rejected.reason))
+        .collect::<Vec<_>>()
+        .join("; ");
+    // Reopening a legacy change replays its canonical delta over whatever a workflow-v2 successor
+    // materialized: its `## ADDED` section block conflicts with the successor's `## MODIFIED` of
+    // the same section, and its `## MODIFIED` requirement blocks overwrite the amended wording.
+    // Finishing the successor is the remedy, so the legacy reopen is not offered beside it.
+    let current_successors = rejected_successors
+        .iter()
+        .filter(|(_, rejected)| rejected.workflow_version >= 2)
+        .map(|(id, _)| format!("`specsync change status {id}`"))
+        .collect::<Vec<_>>();
+    if record.workflow_version < 2 && !current_successors.is_empty() {
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {record_id}` to re-verify the accepted change"
+            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; bring a covering successor to `specsync change finalize` ({} names its next step) rather than reopening `{}`, because reopening a legacy change replays its canonical delta over the successor's materialization",
+            current_successors.join(", "),
+            record.id
         )
     } else {
-        let successors = stale_covering_successors
-            .iter()
-            .map(|id| format!("`{id}`"))
-            .collect::<Vec<_>>()
-            .join(", ");
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance; covering successor change(s) {successors} have stale delivery-input evidence of their own; verify and accept a covering successor, or run `specsync change reopen {record_id}` to re-verify the accepted change"
+            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+            record.id
         )
     }
 }
@@ -16514,6 +16687,7 @@ fn later_sequence_owner_covers_historical_input(
     records: &BTreeMap<String, ChangeRecord>,
     visiting: &mut BTreeSet<String>,
     memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    pending: Option<&PendingArchiveClose<'_>>,
 ) -> Result<bool, String> {
     validate_change_sequences(root)?;
     let Some(ledger) = load_change_sequence_ledger(root)? else {
@@ -16528,7 +16702,7 @@ fn later_sequence_owner_covers_historical_input(
     {
         return Ok(false);
     }
-    let verification = match authenticate_accepted_evidence(root, owner) {
+    let verification = match authenticate_accepted_evidence(root, owner, pending) {
         Ok(verification) => verification,
         Err(_) => return Ok(false),
     };
@@ -16546,7 +16720,25 @@ fn later_sequence_owner_covers_historical_input(
     }) {
         return Ok(false);
     }
-    Ok(validate_accepted_inputs_recursive(root, owner, records, visiting, memo).is_ok())
+    Ok(validate_accepted_inputs_recursive(root, owner, records, visiting, memo, pending).is_ok())
+}
+
+/// True when `candidate` declares the obligation that would let it cover `predecessor_entry`
+/// for `owner` on behalf of `predecessor_id`.
+fn declares_succession_obligation(
+    candidate: &ChangeRecord,
+    predecessor_id: &str,
+    predecessor_entry: &AcceptanceInputEntryV1,
+    owner: &str,
+) -> bool {
+    candidate.supersedes.iter().any(|edge| {
+        edge.predecessor_id == predecessor_id
+            && edge.obligations.iter().any(|obligation| {
+                obligation.path == predecessor_entry.path
+                    && obligation.module == owner
+                    && obligation.predecessor_entry_digest == predecessor_entry.entry_digest
+            })
+    })
 }
 
 fn semantic_tuple_matches_obligation(
@@ -16568,15 +16760,9 @@ fn legacy_semantic_successor_tuple(
     owner: &str,
     candidate: &ChangeRecord,
 ) -> Result<Option<SemanticSuccessionTupleV1>, String> {
-    let obligation_exists = candidate.supersedes.iter().any(|edge| {
-        edge.predecessor_id == predecessor.id
-            && edge.obligations.iter().any(|obligation| {
-                obligation.path == predecessor_entry.path
-                    && obligation.module == owner
-                    && obligation.predecessor_entry_digest == predecessor_entry.entry_digest
-            })
-    });
-    if !obligation_exists || !semantic_acceptance_item_exists_for_module(root, candidate, owner)? {
+    if !declares_succession_obligation(candidate, &predecessor.id, predecessor_entry, owner)
+        || !semantic_acceptance_item_exists_for_module(root, candidate, owner)?
+    {
         return Ok(None);
     }
     let manifest = resolved_acceptance_manifest(root, candidate)?;

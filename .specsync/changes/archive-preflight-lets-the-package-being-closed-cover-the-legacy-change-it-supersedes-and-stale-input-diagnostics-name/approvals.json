@@ -1,4 +1,46 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788642895,
+      "digest": "880cf5b2accf137f1faab21c40857f8e3584b729abdad67605cdde0881f392a7",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "archive-preflight-lets-the-package-being-closed-cover-the-legacy-change-it-supersedes-and-stale-input-diagnostics-name",
+        "title": "Archive preflight lets the package being closed cover the legacy change it supersedes, and stale-input diagnostics name the refused successor",
+        "description": "Archive preflight lets the package being closed cover the legacy change it supersedes, and stale-input diagnostics name the refused successor",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/context.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A stale delivery-input diagnostic names every successor that claimed the input and was refused, with the reason (sorted by successor ID), instead of reporting that no successor covers it",
+          "Regression tests: finalize_archives_a_v2_successor_that_supersedes_a_legacy_accepted_change and stale_accepted_change_error_names_the_successor_rejected_for_failed_authentication fail on ac796b8 and pass with the fix",
+          "When the stale predecessor is workflow v1 and a refused claiming successor is workflow v2, the diagnostic directs the operator to finish that successor and does not offer `specsync change reopen` of the legacy change",
+          "`specsync change finalize` of a workflow-v2 change that supersedes inputs of a legacy accepted change succeeds: the archive post-move preflight authenticates the package being closed with its closing token and reads its succession entries from the working tree, so the legacy change is successor-covered before and after the archive commit"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7b324aee99c961ab11fe804a1a6351e0c51c80f316f62dc29374e22a17e48c1d"
+      }
+    }
+  ],
   "reopenings": []
 }

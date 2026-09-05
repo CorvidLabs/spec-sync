@@ -7,10 +7,11 @@
   "title": "Archive preflight lets the package being closed cover the legacy change it supersedes, and stale-input diagnostics name the refused successor",
   "description": "Archive preflight lets the package being closed cover the legacy change it supersedes, and stale-input diagnostics name the refused successor",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "6b1717038edb467d95bb483861f0c076da76deb5",
   "created_at": 1788631880,
-  "updated_at": 1788632251,
+  "updated_at": 1788642978,
   "affected_specs": [
     "change"
   ],

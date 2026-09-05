@@ -1,0 +1,12 @@
+---
+change: archive-preflight-lets-the-package-being-closed-cover-the-legacy-change-it-supersedes-and-stale-input-diagnostics-name
+artifact: research
+---
+
+# Research
+
+- Field reproduction: CorvidLabs/swift-algorand `chore/specsync-6`, change `canonical-messagepack-encoding-conformance-for-consensus-v42-…` superseding six inputs of legacy `CHG-0001`; `change audit --format json` rates it `"validity": "exact"`; `change finalize` refuses with the preflight error. Related: #751, #688, #685 (the tool knows the useful thing at the moment it would help), #540 (re-finalize after reopen is the shape that needs the token), #660 (readers are judged by history), #743 (a decided negative and an unavailable answer are different answers).
+- Trace on ac796b8 for the archived projection of the package being closed: `authenticate_accepted_evidence` passes — the package is not in history, so `closing_evidence_may_speak` holds and the working-tree fallback admits it even without the token; the declared-obligation, tuple, and manifest checks pass; `semantic_tuple_transition_is_valid` returns `Ok(false)` because `git merge-base --is-ancestor <base> working-tree-closing-evidence` cannot resolve the label; `.unwrap_or(false)` and `continue` drop it; `stale_covering_successors` stays empty, so the message is "no accepted or archived successor change covers it".
+- The token matters for the second shape, a re-finalize after reopen (#540): the package IS in history and the working-tree fallback is gated on `is_closing`. Without forwarding, `validate_archived_accepted_snapshot(.., None)` refuses the projection before any tuple is read.
+- `validate_verification_for_commit_binding` documents that `verification.commit` is an informational correlation key, not a binding of the signed tree, so the working tree — not that commit — is the honest anchor for a closing package.
+- The message family is the one REQ-change-036 already specifies; the previous shape named "covering successor change(s) … have stale delivery-input evidence of their own" for exactly one of the refusal kinds and nothing for the others.

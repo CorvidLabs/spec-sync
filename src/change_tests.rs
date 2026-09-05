@@ -8898,11 +8898,10 @@ fn stale_accepted_change_error_names_uncovered_input_and_reopen_remediation() {
     );
 }
 
-// Verifies REQ-change-034.
-#[test]
-fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
-    let temp = TempDir::new().unwrap();
-    let root = temp.path();
+/// A legacy accepted change whose `auth` inputs have since changed, and the later accepted
+/// change that supersedes every one of them. Both acceptances are committed and recorded on the
+/// remote default branch, so `check_project` is clean until one of the two is disturbed.
+fn accepted_change_with_covering_successor(root: &Path) -> (ChangeRecord, ChangeRecord) {
     let git = |args: &[&str]| {
         assert!(
             Command::new("git")
@@ -8972,10 +8971,47 @@ fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
     git(&["commit", "-m", "accept semantic successor"]);
     git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
     assert!(check_project(root).errors.is_empty());
+    (predecessor, successor)
+}
+
+// Verifies REQ-change-036.
+#[test]
+fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (predecessor, successor) = accepted_change_with_covering_successor(root);
 
     fs::write(root.join("src/auth.rs"), "// Authentication module v3.\n").unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; covering successor change(s) `{}` have stale delivery-input evidence of their own; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its own delivery-input evidence is stale: delivery input `src/auth.rs` (owner `auth`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {}` to re-verify the accepted change; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
+        predecessor.id, successor.id, successor.id, predecessor.id
+    );
+    let stale_report = check_project(root);
+    assert!(
+        stale_report.errors.iter().any(|error| *error == expected),
+        "{:?}",
+        stale_report.errors
+    );
+}
+
+/// The successor walk must say which successor it refused and why (#685). Its authentication
+/// failures used to be `Err(_) => continue`, so the diagnostic claimed no successor existed.
+// Verifies REQ-change-036.
+#[test]
+fn stale_accepted_change_error_names_the_successor_rejected_for_failed_authentication() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (predecessor, successor) = accepted_change_with_covering_successor(root);
+
+    let mut verification = load_verification(root, &successor).unwrap();
+    verification.passed = false;
+    write_json(
+        &change_dir(root, &successor.id).join("verification.json"),
+        &verification,
+    )
+    .unwrap();
+    let expected = format!(
+        "{}: accepted change verification is stale for current delivery inputs: delivery input `specs/auth/auth.spec.md` (owner `auth`) changed after acceptance; successor `{}` was rejected: its accepted evidence did not authenticate: accepted change has failed verification evidence; verify and accept a covering successor, or run `specsync change reopen {}` to re-verify the accepted change",
         predecessor.id, successor.id, predecessor.id
     );
     let stale_report = check_project(root);
@@ -8983,6 +9019,152 @@ fn stale_accepted_change_error_names_covering_successor_with_stale_evidence() {
         stale_report.errors.iter().any(|error| *error == expected),
         "{:?}",
         stale_report.errors
+    );
+}
+
+/// The archive post-move preflight must accept a workflow-v2 successor that supersedes a legacy
+/// accepted change's inputs -- during that successor's OWN finalize.
+///
+/// Field reproduction: CorvidLabs/swift-algorand `chore/specsync-6`, where a v2 change superseding
+/// six inputs of legacy `CHG-0001` was rated `exact` by `change audit` and then refused by
+/// `finalize` with "no accepted or archived successor change covers it". The only possible
+/// successor was the package being closed, and the preflight judged it by a history the closing
+/// commit had not yet written.
+// Verifies REQ-change-024 and REQ-change-036.
+#[test]
+fn finalize_archives_a_v2_successor_that_supersedes_a_legacy_accepted_change() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git command failed: {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    write_lifecycle_test_policy(root);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "base"]);
+
+    let delta = "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication remains governed.\n";
+    let mut predecessor = completed_section_only_record(root, delta);
+    predecessor = approve_definition(root, &predecessor.id, Some("Reviewer".into()), None).unwrap();
+    predecessor = start_implementation(root, &predecessor.id).unwrap();
+    verify_change(root, &predecessor.id).unwrap();
+    predecessor = accept_change(root, &predecessor.id, Some("Closer".into()), None).unwrap();
+    assert_eq!(predecessor.workflow_version, 1);
+    git(&["add", "."]);
+    git(&["commit", "-m", "accept legacy predecessor"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let obligations: Vec<AcceptanceInputEntryV1> = load_verification(root, &predecessor)
+        .unwrap()
+        .acceptance_manifest
+        .unwrap()
+        .entries
+        .into_iter()
+        .filter(|entry| {
+            entry.owners.iter().any(|owner| owner == "auth")
+                && entry.path != "specs/auth/requirements.md"
+        })
+        .collect();
+
+    let mut successor = current_workflow_record(root, completed_current_record(root));
+    for artifact in &successor.selected_artifacts {
+        let content = if *artifact == ArtifactKind::Tasks {
+            "# Tasks\n\n- [x] Complete the successor.\n"
+        } else {
+            "# Complete\n\nReviewed content.\n"
+        };
+        fs::write(
+            change_dir(root, &successor.id).join(artifact.file_name()),
+            content,
+        )
+        .unwrap();
+    }
+    fs::write(
+        delta_path(root, &successor, "auth"),
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication is governed by the successor.\n",
+    )
+    .unwrap();
+    successor
+        .affected_paths
+        .extend(obligations.iter().map(|entry| entry.path.clone()));
+    successor.affected_paths.sort();
+    successor.affected_paths.dedup();
+    save_change(root, &successor).unwrap();
+    write_change_markdown(root, &successor).unwrap();
+    for entry in &obligations {
+        successor = add_supersedes_obligation(
+            root,
+            &successor.id,
+            &predecessor.id,
+            &entry.path,
+            "auth",
+            &entry.entry_digest,
+        )
+        .unwrap();
+    }
+    successor = approve_definition(root, &successor.id, Some("Scope owner".into()), None).unwrap();
+    fs::write(root.join("src/auth.rs"), "// Authentication module v2.\n").unwrap();
+    check_change(root, Some(&successor.id)).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "Implement successor"]);
+    check_change(root, Some(&successor.id)).unwrap();
+    record_scoped_review(root, &successor.id, "Independent reviewer".into()).unwrap();
+
+    let archived = finalize_change(root, &successor.id).unwrap();
+    assert!(
+        archived.starts_with(root.join(ARCHIVE_PATH)),
+        "{}",
+        archived.display()
+    );
+    assert_eq!(
+        load_change(root, &successor.id).unwrap().state,
+        ChangeState::Archived
+    );
+    // The legacy predecessor is successor-covered before the archive commit is made, and after.
+    let report = check_project(root);
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    git(&["add", "."]);
+    git(&["commit", "-m", "Finalize successor"]);
+    let report = check_project(root);
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+
+    // Disturb the successor's own inputs. The predecessor is stale again, and the diagnostic
+    // names the successor it refused and why -- and does not offer the legacy reopen, which would
+    // replay the predecessor's canonical delta over the successor's materialization.
+    fs::write(root.join("src/auth.rs"), "// Authentication module v3.\n").unwrap();
+    let report = check_project(root);
+    let error = report
+        .errors
+        .iter()
+        .find(|error| error.starts_with(&format!("{}: ", predecessor.id)))
+        .unwrap_or_else(|| panic!("{:?}", report.errors));
+    assert!(
+        error.contains(&format!(
+            "successor `{}` was rejected: its own delivery-input evidence is stale: delivery input `src/auth.rs` (owner `auth`) changed after acceptance",
+            successor.id
+        )),
+        "{error}"
+    );
+    assert!(
+        error.contains(&format!(
+            "bring a covering successor to `specsync change finalize` (`specsync change status {}` names its next step) rather than reopening `{}`",
+            successor.id, predecessor.id
+        )),
+        "{error}"
+    );
+    assert!(
+        !error.contains(&format!("run `specsync change reopen {}`", predecessor.id)),
+        "{error}"
     );
 }
 

@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Tasks
 
+- [x] Allow audited reopen of unreconstructible legacy acceptance with matching current inputs (#751).
+
 - [x] Implement durable change state and adaptive artifacts
 - [x] Implement deterministic interview and JSON projection
 - [x] Implement semantic requirement/spec deltas

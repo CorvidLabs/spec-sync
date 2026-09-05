@@ -9130,13 +9130,32 @@ fn finalize_archives_a_v2_successor_that_supersedes_a_legacy_accepted_change() {
         load_change(root, &successor.id).unwrap().state,
         ChangeState::Archived
     );
-    // The legacy predecessor is successor-covered before the archive commit is made, and after.
-    let report = check_project(root);
-    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    // The legacy predecessor is successor-covered before the archive commit is made, and after --
+    // on the full walk and on the active-only audit. The audit evaluates no archive, but the
+    // archived successor must still be in its candidate universe, or the predecessor reads as
+    // uncovered by the very change that just finalized over it (the swift-algorand field
+    // finding, second round).
+    let successor_covers = |root: &Path| {
+        let report = check_project(root);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        let audit = audit_project(root);
+        assert!(audit.errors.is_empty(), "{:?}", audit.errors);
+        let evidence = audit
+            .terminal_evidence
+            .iter()
+            .find(|evidence| evidence.id == predecessor.id)
+            .unwrap_or_else(|| panic!("{:?}", audit.terminal_evidence));
+        assert_eq!(
+            evidence.evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            evidence.evidence.reason
+        );
+    };
+    successor_covers(root);
     git(&["add", "."]);
     git(&["commit", "-m", "Finalize successor"]);
-    let report = check_project(root);
-    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    successor_covers(root);
 
     // Disturb the successor's own inputs. The predecessor is stale again, and the diagnostic
     // names the successor it refused and why -- and does not offer the legacy reopen, which would
@@ -9166,6 +9185,10 @@ fn finalize_archives_a_v2_successor_that_supersedes_a_legacy_accepted_change() {
         !error.contains(&format!("run `specsync change reopen {}`", predecessor.id)),
         "{error}"
     );
+    // The audit says the same thing as the full walk: it refused the same successor for the same
+    // reason, rather than never having seen it.
+    let audit = audit_project(root);
+    assert!(audit.errors.contains(error), "{:?}", audit.errors);
 }
 
 // Verifies REQ-change-034.

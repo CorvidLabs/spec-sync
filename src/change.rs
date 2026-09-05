@@ -7685,7 +7685,7 @@ fn check_project_with_command_output(
             .collect()
     };
     let (terminal_evidence, mut archived_integrity_cache) = if include_archive_integrity {
-        terminal_evidence_results_with_records(root, &all_records)
+        terminal_evidence_results_with_records(root, &all_records, &all_records)
     } else {
         // Only evaluate terminal evidence for active accepted/archived-in-flight records.
         let active_terminal: BTreeMap<_, _> = records
@@ -7697,7 +7697,23 @@ fn check_project_with_command_output(
         if active_terminal.is_empty() {
             (Vec::new(), Default::default())
         } else {
-            terminal_evidence_results_with_records(root, &active_terminal)
+            // An active terminal record is judged against every change that could cover its
+            // inputs, and a finalized successor is an archive. Archives are loaded here only as
+            // candidates -- none of them is evaluated, and only one declaring a matching
+            // obligation is ever authenticated -- and only when there is an active terminal
+            // record to judge, so the empty common case still loads none.
+            match list_all_changes_checked(root) {
+                Ok(successors) => {
+                    terminal_evidence_results_with_records(root, &active_terminal, &successors)
+                }
+                Err(error) => {
+                    return SddCheckReport {
+                        enabled: true,
+                        errors: vec![error],
+                        ..SddCheckReport::default()
+                    };
+                }
+            }
         }
     };
     let mut report = SddCheckReport {
@@ -15321,7 +15337,7 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
     }
     if read_scope_value(root, |_| Some(())).is_some() {
         let result = list_all_changes_checked(root).map(|records| {
-            let (results, _) = terminal_evidence_results_with_records(root, &records);
+            let (results, _) = terminal_evidence_results_with_records(root, &records, &records);
             results
                 .into_iter()
                 .map(|result| (result.id, result.evidence))
@@ -15394,9 +15410,18 @@ fn terminal_evidence_summary_with_records(
     )
 }
 
+/// Terminal evidence for every accepted or archived record in `records`, each judged against
+/// `successors` as the universe of changes that may cover its changed inputs.
+///
+/// The two maps are distinct on purpose. The active-only audit evaluates active terminal records
+/// alone, but a finalized successor is an archive, so a legacy accepted change superseded by the
+/// v2 change that had just finalized over it was reported as uncovered by `audit` while the
+/// archive preflight and the full walk both saw the cover. Evaluating fewer records never means
+/// offering fewer successors.
 fn terminal_evidence_results_with_records(
     root: &Path,
     records: &BTreeMap<String, ChangeRecord>,
+    successors: &BTreeMap<String, ChangeRecord>,
 ) -> (Vec<TerminalEvidenceResult>, ArchivedIntegrityCache) {
     let mut visiting = BTreeSet::new();
     let mut memo = BTreeMap::new();
@@ -15409,7 +15434,7 @@ fn terminal_evidence_results_with_records(
             evidence: terminal_evidence_summary_with_validation_state(
                 root,
                 record,
-                records,
+                successors,
                 &mut visiting,
                 &mut memo,
                 &mut archived_cache,

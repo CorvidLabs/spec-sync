@@ -498,3 +498,12 @@ first archive (the fallback admits a not-in-history package to everyone) and fat
 after reopen (#540), where the fallback is gated on `is_closing`. The rule is now written on the token's
 doc comment: readers pass `None`; the preflight forwards what it holds; `is_closing` keeps the token
 inert for every package but the one being closed.
+
+A map that is both "what to evaluate" and "what may cover it" cannot shrink one without shrinking
+the other. `terminal_evidence_results_with_records` took one map, and the active-only audit handed
+it the active listing to save loading archives — so an active legacy change could never be covered
+by a finalized successor, because finalizing IS archiving. The first field round proved `finalize`;
+the second, with the fixed binary, showed `audit` still calling the predecessor uncovered with the
+pre-fix wording, which was the tell: no successor had been refused, none had been seen. The two roles
+are now two parameters, and the audit loads archived records only when it has an active terminal
+record to judge, only as candidates, and authenticates only one that declares the obligation.

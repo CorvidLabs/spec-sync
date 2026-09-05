@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "allow-audited-reopening-when-legacy-acceptance-cannot-be-reconstructed",
+  "implementation_commit": "c483d350e3df09216af1e9d2508ddac5bc1f8227",
+  "implementation_tree": "5525584f2ab93834da36889c75a073fbaa568c96",
+  "contract_digest": "4bf698dcdb2292cbb7c31da6864fd9f7975960d9ee65b67255bbcb624d205513",
+  "workspace_digest": "0a648075f9c66c959031f8db6e4bbe469dda2b2d50930b309859f00c759528ff",
+  "closing_digest": "8f99b8760660dd7edb866b50a116a93094f896f90a87e45c035a6a4d98e1f3f9",
+  "review_digest": "7f52beeb6d9e8354278779291a117bfe1643ae891702a925f29ee0c2eefa3aa8",
+  "finalization_digest": "096ed431976c639edfb4e3de61118c5c0989d60fbcaa8c596a3f1298d1ca1266",
+  "timestamp": 1788645882
+}

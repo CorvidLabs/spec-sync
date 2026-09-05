@@ -9931,7 +9931,7 @@ fn legacy_reopen_fixture(root: &Path, mismatch_at_transition: bool) -> ChangeRec
         )
     );
     assert!(
-        authenticate_accepted_evidence_with_anchor(root, &record)
+        authenticate_accepted_evidence_with_anchor(root, &record, None)
             .unwrap()
             .1
     );

@@ -1,6 +1,6 @@
 ---
 id: archive-preflight-lets-the-package-being-closed-cover-the-legacy-change-it-supersedes-and-stale-input-diagnostics-name
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 6b1717038edb467d95bb483861f0c076da76deb5
 ---

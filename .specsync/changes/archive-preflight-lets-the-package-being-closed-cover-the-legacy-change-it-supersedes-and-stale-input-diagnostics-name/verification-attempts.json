@@ -42,6 +42,27 @@
         "REQ-change-036",
         "REQ-change-audit-project-001"
       ]
+    },
+    {
+      "timestamp": 1788644515,
+      "commit": "115c10beb6f36ac116a9dd68e46699a024ee3e2c",
+      "contract_digest": "880cf5b2accf137f1faab21c40857f8e3584b729abdad67605cdde0881f392a7",
+      "execution_digest": "26a9c2e98747177b2415a3542afd01dcf7e875e99b9fd8c0942565177de91175",
+      "workspace_digest": "656728cc3d35c922e05e09a25e1a66beab2d136285511049c22ce5d420392f3d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-020",
+        "REQ-change-024",
+        "REQ-change-036",
+        "REQ-change-audit-project-001"
+      ]
     }
   ]
 }

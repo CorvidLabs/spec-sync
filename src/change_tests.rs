@@ -9653,6 +9653,206 @@ fn reopen_rejects_current_evidence_and_requires_explicit_audit_fields() {
     );
 }
 
+// A legacy acceptance can sign the current content while its recorded transition
+// contains different content. Restoring the signed content leaves reopen's old
+// digest/anchor predicate satisfied, but archive cannot reconstruct the transition.
+fn legacy_reopen_fixture(root: &Path, mismatch_at_transition: bool) -> ChangeRecord {
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let mut record = completed_no_spec_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "implementation"]);
+    verify_change(root, &record.id).unwrap();
+    record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    let mut verification = load_verification(root, &record).unwrap();
+    verification.acceptance_input_digest =
+        Some(acceptance_input_digest(root, &record, &[]).unwrap());
+    verification.acceptance_manifest = None;
+    write_json(
+        &change_dir(root, &record.id).join("verification.json"),
+        &verification,
+    )
+    .unwrap();
+    let mut ledger = load_approvals(root, &record).unwrap();
+    ledger
+        .approvals
+        .iter_mut()
+        .rev()
+        .find(|a| a.gate == "acceptance")
+        .unwrap()
+        .digest = closing_digest(&record, &verification);
+    write_json(
+        &change_dir(root, &record.id).join("approvals.json"),
+        &ledger,
+    )
+    .unwrap();
+    let source = fs::read(root.join("src/lib.rs")).unwrap();
+    if mismatch_at_transition {
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn ready() -> bool { false }\n",
+        )
+        .unwrap();
+    }
+    git(&["add", "."]);
+    git(&["commit", "-m", "legacy acceptance transition"]);
+    if mismatch_at_transition {
+        fs::write(root.join("src/lib.rs"), source).unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-m", "restore signed delivery content"]);
+    }
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    assert_eq!(
+        verification.acceptance_input_digest.as_deref(),
+        Some(
+            acceptance_input_digest(root, &record, &[])
+                .unwrap()
+                .as_str()
+        )
+    );
+    assert!(
+        authenticate_accepted_evidence_with_anchor(root, &record)
+            .unwrap()
+            .1
+    );
+    record
+}
+
+#[test]
+fn legacy_reopen_recovers_unreconstructible_current_acceptance() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = legacy_reopen_fixture(root, true);
+    let prior = load_verification(root, &record).unwrap();
+    let error = archive_change(root, &record.id).unwrap_err();
+    assert!(
+        error.contains("cannot reproduce its signed raw-content aggregate"),
+        "{error}"
+    );
+    let reopened = reopen_change(
+        root,
+        &record.id,
+        "Reviewer".into(),
+        "Refresh unreconstructible legacy acceptance (#751)".into(),
+    )
+    .unwrap();
+    assert_eq!(reopened.change.state, ChangeState::Verifying);
+    assert_eq!(
+        reopened.audit.stale_acceptance_input_digest,
+        reopened.audit.current_acceptance_input_digest
+    );
+    assert_eq!(
+        serde_json::to_value(&reopened.audit).unwrap()["stale_evidence_cause"],
+        "legacy_acceptance_unreconstructible"
+    );
+    assert_eq!(
+        serde_json::to_value(&reopened.audit.prior_verification).unwrap(),
+        serde_json::to_value(prior).unwrap()
+    );
+    assert!(reopened_change_preserves_sequence_history(
+        root,
+        &reopened.change
+    ));
+    verify_change(root, &record.id).unwrap();
+    accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    assert!(
+        load_verification(root, &record)
+            .unwrap()
+            .acceptance_manifest
+            .is_some()
+    );
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["add", "."]);
+    git(&["commit", "-m", "record refreshed acceptance"]);
+    git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    archive_change(root, &record.id).unwrap();
+}
+
+#[test]
+fn legacy_reopen_refuses_reconstructible_current_acceptance_without_mutation() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = legacy_reopen_fixture(root, false);
+    assert!(resolved_acceptance_manifest(root, &record).is_ok());
+    let dir = change_dir(root, &record.id);
+    let state = fs::read(dir.join("state.json")).unwrap();
+    let ledger = fs::read(dir.join("approvals.json")).unwrap();
+    let error =
+        reopen_change(root, &record.id, "Reviewer".into(), "Still current".into()).unwrap_err();
+    assert!(error.contains("delivery inputs are current"), "{error}");
+    assert_eq!(fs::read(dir.join("state.json")).unwrap(), state);
+    assert_eq!(fs::read(dir.join("approvals.json")).unwrap(), ledger);
+    archive_change(root, &record.id).unwrap();
+}
+
+#[test]
+fn legacy_reopen_reconstruction_failure_does_not_bypass_authentication() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = legacy_reopen_fixture(root, true);
+    let dir = change_dir(root, &record.id);
+    let state = fs::read(dir.join("state.json")).unwrap();
+    let approvals = fs::read(dir.join("approvals.json")).unwrap();
+    for (actor, reason, expected) in [
+        ("", "Refresh legacy evidence", "non-empty human actor"),
+        ("Reviewer", "", "non-empty reason"),
+    ] {
+        let error = reopen_change(root, &record.id, actor.into(), reason.into()).unwrap_err();
+        assert!(error.contains(expected), "{error}");
+        assert_eq!(fs::read(dir.join("state.json")).unwrap(), state);
+        assert_eq!(fs::read(dir.join("approvals.json")).unwrap(), approvals);
+    }
+    let mut ledger = load_approvals(root, &record).unwrap();
+    ledger
+        .approvals
+        .iter_mut()
+        .rev()
+        .find(|a| a.gate == "acceptance")
+        .unwrap()
+        .digest = "0".repeat(64);
+    write_json(&dir.join("approvals.json"), &ledger).unwrap();
+    let tampered = fs::read(dir.join("approvals.json")).unwrap();
+    let error = reopen_change(
+        root,
+        &record.id,
+        "Reviewer".into(),
+        "Refresh legacy evidence".into(),
+    )
+    .unwrap_err();
+    assert!(
+        error.contains("closing approval does not match verification evidence"),
+        "{error}"
+    );
+    assert_eq!(fs::read(dir.join("state.json")).unwrap(), state);
+    assert_eq!(fs::read(dir.join("approvals.json")).unwrap(), tampered);
+}
+
 /// A reopen that is correctly refused must not consume the dated archive package. The
 /// un-archive is a move performed before the preconditions are known to hold, so every
 /// failure after it has to put the package back; otherwise the refusal leaves an active

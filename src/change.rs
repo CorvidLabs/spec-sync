@@ -999,6 +999,7 @@ pub struct ReopenRecord {
 #[serde(rename_all = "snake_case")]
 pub enum ReopenCauseV1 {
     VerificationCommitUnanchored,
+    LegacyAcceptanceUnreconstructible,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2077,7 +2078,14 @@ fn reopened_change_preserves_sequence_history(root: &Path, record: &ChangeRecord
         || reopening.to_state != ChangeState::Verifying
         || !reopening.prior_verification.passed
         || (reopening.stale_acceptance_input_digest == reopening.current_acceptance_input_digest
-            && reopening.stale_evidence_cause != Some(ReopenCauseV1::VerificationCommitUnanchored))
+            && !matches!(
+                reopening.stale_evidence_cause,
+                Some(ReopenCauseV1::VerificationCommitUnanchored)
+            )
+            && !(reopening.stale_evidence_cause
+                == Some(ReopenCauseV1::LegacyAcceptanceUnreconstructible)
+                && record.workflow_version < 2
+                && reopening.prior_verification.acceptance_manifest.is_none()))
         || reopening
             .prior_verification
             .acceptance_input_digest
@@ -3409,13 +3417,21 @@ fn reopen_unarchived_change(
     } else {
         accepted_evidence_is_anchored(root, &record, &prior_verification)
     };
-    if !inputs_drifted && anchored {
+    // Archive reconstructs manifest-less legacy inputs at acceptance transitions.
+    // Matching today's inputs and an anchored commit do not prove that historical
+    // reconstruction can succeed (#751). Failure permits an audited refresh, not
+    // archival of the old evidence; every authentication check above still applies.
+    let legacy_unreconstructible = record.workflow_version < 2
+        && prior_verification.acceptance_manifest.is_none()
+        && reconstruct_legacy_acceptance_manifest(root, &record, &stale_acceptance_input_digest)
+            .is_err();
+    if !inputs_drifted && anchored && !legacy_unreconstructible {
         return Err(
             "accepted change delivery inputs are current (exact or successor-covered) and its verification commit is still anchored in current history; reopen is allowed only when accepted evidence is stale"
                 .into(),
         );
     }
-    if tip_matches_closing && anchored {
+    if tip_matches_closing && anchored && !legacy_unreconstructible {
         let records = list_all_changes_checked(root)?;
         let mut visiting = BTreeSet::new();
         let mut memo = BTreeMap::new();
@@ -3440,7 +3456,13 @@ fn reopen_unarchived_change(
         prior_verification,
         stale_acceptance_input_digest,
         current_acceptance_input_digest,
-        stale_evidence_cause: (!anchored).then_some(ReopenCauseV1::VerificationCommitUnanchored),
+        stale_evidence_cause: if !anchored {
+            Some(ReopenCauseV1::VerificationCommitUnanchored)
+        } else if legacy_unreconstructible {
+            Some(ReopenCauseV1::LegacyAcceptanceUnreconstructible)
+        } else {
+            None
+        },
     };
     ledger.reopenings.push(audit.clone());
     record.state = ChangeState::Verifying;

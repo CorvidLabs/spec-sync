@@ -1,0 +1,41 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "kyntrin",
+      "timestamp": 1788624517,
+      "digest": "4bf698dcdb2292cbb7c31da6864fd9f7975960d9ee65b67255bbcb624d205513",
+      "note": "User authorized issue #751 implementation on a clean branch in this session.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "allow-audited-reopening-when-legacy-acceptance-cannot-be-reconstructed",
+        "title": "Allow audited reopening when legacy acceptance cannot be reconstructed",
+        "description": "Allow audited reopening when legacy acceptance cannot be reconstructed",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Legacy accepted records without a manifest can reopen with explicit actor and reason when historical reconstruction fails despite current inputs and anchored evidence; the audit preserves prior evidence and records the cause; reconstructible legacy and current modern evidence still refuse; fresh verification and acceptance permit archival."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "9fa9e8cf48f9fa2fa9d65effa4196c6120c63123f7800f7ec99b720ddffd57d0"
+      }
+    }
+  ],
+  "reopenings": []
+}

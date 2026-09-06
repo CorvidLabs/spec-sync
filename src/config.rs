@@ -514,7 +514,7 @@ fn validate_toml_config_types(table: &toml::Table) -> Result<(), String> {
             let module = value
                 .as_table()
                 .ok_or_else(|| format!("`modules.{name}` must be a table"))?;
-            for key in ["files", "depends_on", "dependsOn"] {
+            for key in ["files", "depends_on", "dependsOn", "owns"] {
                 validate_toml_field(module, key, "an array of strings", is_toml_string_array)?;
             }
         }
@@ -986,10 +986,10 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
         names.sort();
         for name in names {
             let module = &config.modules[name];
-            // A module with no files and no deps carries no data and would not
-            // round-trip (the reader materializes a module only from a key line),
-            // so skip it to keep the writer and reader symmetric.
-            if module.files.is_empty() && module.depends_on.is_empty() {
+            // A module with no files, no deps, and no owned paths carries no data and
+            // would not round-trip (the reader materializes a module only from a key
+            // line), so skip it to keep the writer and reader symmetric.
+            if module.files.is_empty() && module.depends_on.is_empty() && module.owns.is_empty() {
                 continue;
             }
             lines.push(String::new());
@@ -1010,6 +1010,17 @@ pub fn config_to_toml(config: &SpecSyncConfig) -> String {
                     "depends_on = [{}]",
                     module
                         .depends_on
+                        .iter()
+                        .map(|s| format!("\"{}\"", toml_escape(s)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            if !module.owns.is_empty() {
+                lines.push(format!(
+                    "owns = [{}]",
+                    module
+                        .owns
                         .iter()
                         .map(|s| format!("\"{}\"", toml_escape(s)))
                         .collect::<Vec<_>>()
@@ -1717,6 +1728,7 @@ fn parse_toml_modules_nested(
     match key {
         "files" => module.files = parse_toml_string_array(value),
         "depends_on" | "dependsOn" => module.depends_on = parse_toml_string_array(value),
+        "owns" => module.owns = parse_toml_string_array(value),
         _ => {
             eprintln!("Warning: unknown key \"{key}\" in [modules] section (ignored)");
         }
@@ -2959,6 +2971,7 @@ verify_issues = false
             crate::types::ModuleDefinition {
                 files: vec!["src/a.ts".to_string(), "src/b.ts".to_string()],
                 depends_on: vec!["util".to_string()],
+                owns: vec!["tests/core".to_string(), "Package.swift".to_string()],
             },
         );
         config.modules.insert(
@@ -2966,6 +2979,7 @@ verify_issues = false
             crate::types::ModuleDefinition {
                 files: vec!["src/u.ts".to_string()],
                 depends_on: vec![],
+                owns: vec![],
             },
         );
 
@@ -2982,9 +2996,37 @@ verify_issues = false
         let core = reloaded.modules.get("core").expect("core module");
         assert_eq!(core.files, vec!["src/a.ts", "src/b.ts"]);
         assert_eq!(core.depends_on, vec!["util"]);
+        assert_eq!(core.owns, vec!["tests/core", "Package.swift"]);
         let util = reloaded.modules.get("util").expect("util module");
         assert_eq!(util.files, vec!["src/u.ts"]);
         assert!(util.depends_on.is_empty());
+        assert!(util.owns.is_empty());
+    }
+
+    #[test]
+    fn test_module_owns_alone_round_trips_and_is_not_a_files_mapping() {
+        // A module that owns paths beyond its spec's `files:` and maps no source of its own
+        // still carries data, so the writer emits it and the reader materializes it.
+        let mut config = SpecSyncConfig::default();
+        config.modules.insert(
+            "algorand".to_string(),
+            crate::types::ModuleDefinition {
+                files: vec![],
+                depends_on: vec![],
+                owns: vec!["Tests/AlgorandTests".to_string()],
+            },
+        );
+        let toml_str = config_to_toml(&config);
+        assert!(toml_str.contains("[modules.\"algorand\"]"), "{toml_str}");
+        assert!(
+            toml_str.contains("owns = [\"Tests/AlgorandTests\"]"),
+            "{toml_str}"
+        );
+        assert!(!toml_str.contains("files ="), "{toml_str}");
+        let reloaded = roundtrip_toml(&config);
+        let module = reloaded.modules.get("algorand").expect("algorand module");
+        assert_eq!(module.owns, vec!["Tests/AlgorandTests"]);
+        assert!(module.files.is_empty());
     }
 
     #[test]
@@ -3031,6 +3073,7 @@ verify_issues = false
                 // a Windows path (backslashes) and a path containing a comma
                 files: vec!["src\\win\\a.ts".to_string(), "src/b,c.ts".to_string()],
                 depends_on: vec![],
+                owns: vec![],
             },
         );
         let reloaded = roundtrip_toml(&config);

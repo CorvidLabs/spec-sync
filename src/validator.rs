@@ -3501,6 +3501,7 @@ mod tests {
             crate::types::ModuleDefinition {
                 files: vec!["src/strutil.py".to_string(), "src/strutil.mjs".to_string()],
                 depends_on: Vec::new(),
+                owns: Vec::new(),
             },
         );
         let specs = vec![

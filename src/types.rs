@@ -406,7 +406,8 @@ pub struct SpecSyncConfig {
     pub parse_mode: ParseMode,
 
     /// Module definitions — override auto-detected modules with explicit groupings.
-    /// Keys are module names, values are objects with `files` and optional `depends_on`.
+    /// Keys are module names, values are objects with `files` and optional `depends_on`
+    /// and `owns`.
     #[serde(default)]
     pub modules: std::collections::HashMap<String, ModuleDefinition>,
 
@@ -661,6 +662,12 @@ pub struct ModuleDefinition {
     /// Other module names this module depends on.
     #[serde(default)]
     pub depends_on: Vec<String>,
+    /// Paths this module owns for change acceptance beyond its spec's `files:` — each a
+    /// project-relative file, or a directory that owns everything beneath it. Read by the
+    /// change lifecycle only: an owned path is never a source mapping, so `check` demands no
+    /// spec coverage for it.
+    #[serde(default)]
+    pub owns: Vec<String>,
 }
 
 /// Registry entry mapping module names to spec file paths.

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "add-the-owns-field-to-the-moduledefinition-literals-in-the-validator-and-generator-tests",
+  "slug": "add-the-owns-field-to-the-moduledefinition-literals-in-the-validator-and-generator-tests",
+  "title": "Add the owns field to the ModuleDefinition literals in the validator and generator tests",
+  "description": "Add the owns field to the ModuleDefinition literals in the validator and generator tests",
+  "kind": "refactor",
+  "state": "draft",
+  "base_commit": "404fe4d6fcef380d3675bab5cc1d2d4786d0401c",
+  "created_at": 1788653804,
+  "updated_at": 1788653876,
+  "affected_specs": [
+    "validator",
+    "generator"
+  ],
+  "affected_paths": [
+    "src/validator.rs",
+    "src/generator.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Three test-only struct literals gain the new owns field so the crate compiles; validator and generator behaviour, contracts, and public API are unchanged",
+  "acceptance_criteria": [
+    "`src/validator.rs` and `src/generator.rs` compile with the new `owns` field present on every `ModuleDefinition` literal in their tests, and no validator or generator behaviour, contract, or public export changes"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

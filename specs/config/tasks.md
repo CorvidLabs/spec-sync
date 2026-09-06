@@ -22,3 +22,4 @@ spec: config.spec.md
 - [x] Reject wrong-shaped `github` and `github.repo` values in exact-byte checked JSON parsing
 - [x] Share config precedence and lexical source classification with retained CLI discovery
 - [x] Preserve explicit-source validation and malformed legacy config warning compatibility
+- [x] Parse, validate, and round-trip `owns` under `[modules."<name>"]` without making it a source mapping

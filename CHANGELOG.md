@@ -57,6 +57,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`finalize` can close a workflow-v2 change that supersedes a legacy accepted change** (#753).
+  Every attempt failed with `archive post-move preflight would invalidate CHG-0001-…: delivery
+  input … changed after acceptance and no accepted or archived successor change covers it` —
+  one command after `change audit` rated the successor's evidence `exact`. The preflight handed
+  a working-tree label to `git merge-base` and never let the package being closed cover the
+  change it supersedes. The pending close is now threaded through the preflight; each refused
+  successor is named with its reason instead of being skipped silently; `change audit` loads
+  archives as successor candidates; and a v1 predecessor is no longer advised to `reopen`.
+
+- **`reopen` admits an audited refresh of a legacy acceptance that cannot be reconstructed**
+  (#752, closes #751). Matching input digests and an anchored verification commit did not prove
+  a manifest-less acceptance could be rebuilt, so such a change was impossible to archive while
+  `reopen` insisted its evidence was current. The refusal is kept for reconstructible and
+  manifest-backed records; the unreconstructible case records
+  `legacy_acceptance_unreconstructible` in the append-only audit, and fresh verification plus
+  acceptance produce a modern manifest that archives.
+
 - **Scoped review may be recorded by the same actor as definition approval.** SpecSync no longer
   invents a two-person gate GitHub did not require. Solo projects can `change review --reviewer`
   with the human who approved the definition. Distinct reviewers remain allowed. GitHub required

@@ -1,6 +1,6 @@
 ---
 id: let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived
-state: draft
+state: implementing
 type: feature
 base_commit: 404fe4d6fcef380d3675bab5cc1d2d4786d0401c
 ---

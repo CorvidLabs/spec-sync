@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "add-the-owns-field-to-the-moduledefinition-literals-in-the-validator-and-generator-tests",
+  "implementation_commit": "61bdc40740ea31c6791e0da39bacfde6c9b4f398",
+  "implementation_tree": "f21658feb1730eeeb6ad6b8f5534437cd563a820",
+  "contract_digest": "ea34b405a23910e915132507c60280f15938a1f4401cf6d6a6f805cbdd9c3da3",
+  "workspace_digest": "b644fed3525c74a1fa6d85e092a31ee5141020c371a9b6ea69351236ba339594",
+  "closing_digest": "889741f8daf57da93b066d3dbe2a591f7cc9735756fa967ae5376d9618d24c74",
+  "review_digest": "2171bf63d5a57cfbe260236a47bd61455172d6939fa336064d949b566108c023",
+  "finalization_digest": "20c5569ec1cbb136a439c5c8286b625b9ca9ec9c1de9aace8ea4c37b21b37228",
+  "timestamp": 1788795631
+}

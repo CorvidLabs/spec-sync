@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "add-the-owns-field-to-the-moduledefinition-literals-in-the-validator-and-generator-tests",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "61bdc40740ea31c6791e0da39bacfde6c9b4f398",
+  "contract_digest": "ea34b405a23910e915132507c60280f15938a1f4401cf6d6a6f805cbdd9c3da3",
+  "execution_digest": "a2916cc7f4e3e0547835518010bb9b23c92b14a4222670af0702b59070697337",
+  "workspace_digest": "b644fed3525c74a1fa6d85e092a31ee5141020c371a9b6ea69351236ba339594",
+  "timestamp": 1788795624
+}

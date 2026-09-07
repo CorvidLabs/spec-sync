@@ -1,0 +1,142 @@
+{
+  "timestamp": 1788795608,
+  "commit": "61bdc40740ea31c6791e0da39bacfde6c9b4f398",
+  "contract_digest": "ea34b405a23910e915132507c60280f15938a1f4401cf6d6a6f805cbdd9c3da3",
+  "execution_digest": "a2916cc7f4e3e0547835518010bb9b23c92b14a4222670af0702b59070697337",
+  "workspace_digest": "b644fed3525c74a1fa6d85e092a31ee5141020c371a9b6ea69351236ba339594",
+  "acceptance_input_digest": "c96f37c81fd18944689e958147cec90afb72a15d2e659cc91df9558c263df2d0",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "specs/generator/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f7187c7c90e526c5f3043c02d0f66e22e904fcdd8858f20453d428714f99161c",
+        "entry_digest": "8960a14af7f55ef2b53f1d38a792d959adc3e693db0013af35e323f291be7b1b",
+        "owners": [
+          "generator"
+        ]
+      },
+      {
+        "path": "specs/generator/generator.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f29c721accf51e89e8a9098e1b23e4d7f467bc9468d07645ff1afc5ab3b19739",
+        "entry_digest": "3f106298255d720e4f6ae35ff6e16ca182e86e7e40ab4f3a5beb8f6f102052dd",
+        "owners": [
+          "generator"
+        ]
+      },
+      {
+        "path": "specs/generator/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fe40c3c8b54bee6e655ab8f41d3b64a2a8f7df602915cb8f6bd1a07c5afd9c8c",
+        "entry_digest": "4fdc44b09ba1f75384822fb47e4b671afd4f1764046155d0649941a1072ea2e8",
+        "owners": [
+          "generator"
+        ]
+      },
+      {
+        "path": "specs/generator/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5d65e4fca59da15643cfb8f194358215f12c49aede299a965dd3298268e67abc",
+        "entry_digest": "83b5d5a47e84f4c1cde9f42ac06e495689a6fcf072052b106cb08ecdf8123772",
+        "owners": [
+          "generator"
+        ]
+      },
+      {
+        "path": "specs/generator/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2508d613729d4bc1bb60dc21e988ebf150dc9d68321d503e29bba3ccdbb060b7",
+        "entry_digest": "b2b7b703af17571be87d4f9d0aaf6f2ea8202bb903510dd0b63a2ce743fc362d",
+        "owners": [
+          "generator"
+        ]
+      },
+      {
+        "path": "specs/validator/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "36e3089688e3b9b867f39652b90df2304c0166dcd3a7caabcde4c813556329a5",
+        "entry_digest": "e937e4d80126e3943fc5f3be31f9ff32195d2ada2b7f101551a3d1fa8d5e8e98",
+        "owners": [
+          "validator"
+        ]
+      },
+      {
+        "path": "specs/validator/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9f81a0ff0d93676b5c13aea95a2604dc9db4455f94ac576cecdf44415900d2e8",
+        "entry_digest": "d9e0cf148c0c309f4d996751f015c53ae3d9363b74651a6cc801b9699e702e72",
+        "owners": [
+          "validator"
+        ]
+      },
+      {
+        "path": "specs/validator/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8a63359ac4b8bb403202131a82498133359c5063d5a9386a0a1b4671a997f950",
+        "entry_digest": "26943c838defe3ac7db44470c37585a37beaf1416c64fa74691e13b2b983d04a",
+        "owners": [
+          "validator"
+        ]
+      },
+      {
+        "path": "specs/validator/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "88aa38ed2586874febd5226e8194e1c3cf79c1ca650c03d69a328d7c4e27fc8c",
+        "entry_digest": "04efa7f260cfc557bf1cf0ce30efe3d81a9ad92386d02feb8896d6dfd0fc65d7",
+        "owners": [
+          "validator"
+        ]
+      },
+      {
+        "path": "specs/validator/validator.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "653af505e472e8ab712d66067e94beb8cbdfa508644ba31c52d5af69b77833ac",
+        "entry_digest": "d4b0a64735c349bdecac73e579964fa5064064df98487dc06a719e6e33db9ab0",
+        "owners": [
+          "validator"
+        ]
+      },
+      {
+        "path": "src/generator.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "01cd216ff72b14ab22e29083857cc2259f6b0d13318ba4dddb476471f75d35a4",
+        "entry_digest": "5ddbc777b8a20b3b1eb7133501f483979aeb13757ad8255925c82da12d913d85",
+        "owners": [
+          "generator"
+        ]
+      },
+      {
+        "path": "src/validator.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2a0220caf5d081a4dc4214e4bd0991e7fb25371fc595b1264611825cf8d3f408",
+        "entry_digest": "161c0aa3bd549b1c6a5c00425b19e8d7c99bcde6e63b471db839640ea062f9a4",
+        "owners": [
+          "validator"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec generator --spec validator",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived",
+  "implementation_commit": "d9a3190cdd1b7eb356d6c5c9ef98071d1e6f12d6",
+  "implementation_tree": "4fccaae99460bfdb1d12e189b7485f5506e55ed4",
+  "contract_digest": "da2f1f58fad0901daaaedd98e3f8d270f156c71542ad549b499d4d5447375816",
+  "workspace_digest": "b644fed3525c74a1fa6d85e092a31ee5141020c371a9b6ea69351236ba339594",
+  "closing_digest": "81790c89f8f596fe3dd591478fa67acc3d6e3b6be74120c300363ef3f968ad81",
+  "review_digest": "81f358a6a5f5b54f88c26228609c2854b453025e1ae4a3accfde715bb97dd32e",
+  "finalization_digest": "1137f9aebbd45d6115a92cbd81ca8bdbd40fa60a8a25f1ce38d9253f235cf207",
+  "timestamp": 1788795501
+}

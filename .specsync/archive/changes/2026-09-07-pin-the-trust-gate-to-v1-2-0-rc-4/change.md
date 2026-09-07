@@ -1,6 +1,6 @@
 ---
 id: pin-the-trust-gate-to-v1-2-0-rc-4
-state: implementing
+state: archived
 type: bug_fix
 base_commit: ac796b8eadd3092283093bbea331ec2d3494b527
 ---

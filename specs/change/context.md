@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Context
 
+Issue #587: timeout cleanup tests observe child identity synchronously in a test-only parent hook. A stopped-child case makes progress impossible during the deadline; a 4 MiB stdin payload exercises the writer. waitpid with WNOHANG distinguishes already-reaped children from live children and zombies without probing a potentially reused PID. Test-only observation records the actual writer join. Production deadlines and APIs are unchanged.
+
 Issue #751: explicit legacy reopen now evaluates the same historical manifest reconstruction archive requires, after authenticating the prior evidence. Matching current raw inputs plus an anchored commit no longer strand an unreconstructible acceptance. The append-only audit records `legacy_acceptance_unreconstructible`; sequence-history validation recognizes that cause only for manifest-less workflow-v1 evidence. Reverification creates a modern manifest. Existing ledgers retain their serialization; older binaries cannot read the new cause once a recovery writes it. Ordinary status and archive authentication are unchanged.
 
 Canonical module maturity remains under `specsync lifecycle`; SDD delivery uses six separate states. `.specsync/sdd.json` is a dedicated versioned policy so existing projects remain opt-in. Human artifacts and deltas are Markdown, while state, approvals, and evidence are JSON. `change check` compares specs to code in-process and does not run the project's tests.

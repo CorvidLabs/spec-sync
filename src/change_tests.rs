@@ -3345,28 +3345,74 @@ fn bounded_git_runner_times_out_a_silent_process() {
 #[cfg(unix)]
 #[test]
 fn timed_out_git_runner_reaps_child_and_joins_blocked_writer() {
-    let temp = TempDir::new().unwrap();
-    let pid_path = temp.path().join("child.pid");
-    let mut command = Command::new("sh");
-    command.env("SPECSYNC_TEST_PID_PATH", &pid_path);
-    let error = run_git_command_bounded_with_deadline(
+    assert_timed_out_git_runner_cleanup(false);
+}
+
+#[cfg(unix)]
+#[test]
+fn timed_out_git_runner_reaps_child_before_child_can_make_progress() {
+    assert_timed_out_git_runner_cleanup(true);
+}
+
+#[cfg(unix)]
+fn assert_timed_out_git_runner_cleanup(stop_child: bool) {
+    let pid = std::rc::Rc::new(Cell::new(None));
+    let observed_pid = std::rc::Rc::clone(&pid);
+    TEST_GIT_STDIN_WRITER_JOINED.with(|joined| joined.set(false));
+    TEST_GIT_CHILD_SPAWNED.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |pid| {
+            observed_pid.set(Some(pid));
+            if stop_child {
+                // Stop the child before starting the runner's deadline. No child-side
+                // readiness write or stdin read can be needed for cleanup to succeed.
+                // SAFETY: pid belongs to the live child just spawned by this thread.
+                assert_eq!(unsafe { libc::kill(pid as libc::pid_t, libc::SIGSTOP) }, 0);
+                let mut status = 0;
+                loop {
+                    // SAFETY: status is writable and this thread owns the child.
+                    let waited =
+                        unsafe { libc::waitpid(pid as libc::pid_t, &mut status, libc::WUNTRACED) };
+                    if waited == -1
+                        && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted
+                    {
+                        continue;
+                    }
+                    assert_eq!(waited, pid as libc::pid_t);
+                    break;
+                }
+                assert!(libc::WIFSTOPPED(status));
+            }
+        }));
+    });
+    let mut command = Command::new("sleep");
+    let result = run_git_command_bounded_with_deadline(
         &mut command,
-        &["-c", "echo $$ > \"$SPECSYNC_TEST_PID_PATH\"; exec sleep 30"],
+        &["30"],
         Some(vec![b'x'; 4 * 1024 * 1024]),
         1024,
         Duration::from_millis(50),
-    )
-    .unwrap_err();
+    );
+    let pid = pid.get().expect("parent must observe the spawned child");
+    // waitpid identifies our child without probing a PID that could have been reused.
+    // SAFETY: no status pointer is requested; WNOHANG never waits for a live child.
+    let remaining =
+        unsafe { libc::waitpid(pid as libc::pid_t, std::ptr::null_mut(), libc::WNOHANG) };
+    let wait_error = std::io::Error::last_os_error();
+    if remaining == 0 {
+        // A deliberately broken runner still owns this live, unreaped child.
+        // SAFETY: the unreaped child PID remains reserved until this wait completes.
+        unsafe {
+            libc::kill(pid as libc::pid_t, libc::SIGKILL);
+            libc::waitpid(pid as libc::pid_t, std::ptr::null_mut(), 0);
+        }
+    }
+    let error = result.unwrap_err();
     assert!(error.contains("wall-clock deadline"), "{error}");
-
-    let pid = fs::read_to_string(&pid_path).unwrap();
-    let status = Command::new("kill")
-        .args(["-0", pid.trim()])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .unwrap();
-    assert!(!status.success(), "timed-out child {pid} was not reaped");
+    assert_eq!(remaining, -1, "timed-out child {pid} was not reaped");
+    assert_eq!(wait_error.raw_os_error(), Some(libc::ECHILD));
+    TEST_GIT_STDIN_WRITER_JOINED.with(|joined| {
+        assert!(joined.get(), "blocked stdin writer was not joined");
+    });
 }
 
 #[cfg(unix)]

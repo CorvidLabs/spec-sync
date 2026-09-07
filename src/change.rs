@@ -74,6 +74,8 @@ static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = Onc
 static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
 #[cfg(test)]
 thread_local! {
+    static TEST_GIT_CHILD_SPAWNED: RefCell<Option<Box<dyn FnOnce(u32)>>> = RefCell::new(None);
+    static TEST_GIT_STDIN_WRITER_JOINED: Cell<bool> = const { Cell::new(false) };
     static TRANSACTION_WRITE_FAILURE_INDEX: RefCell<Option<usize>> = const { RefCell::new(None) };
     static TRANSACTION_AFTER_JOURNAL_HOOK: RefCell<Option<Box<dyn FnOnce()>>> =
         RefCell::new(None);
@@ -12814,6 +12816,12 @@ fn run_git_command_bounded_with_deadline(
     let mut child = command
         .spawn()
         .map_err(|error| format!("failed to run `git {}`: {error}", args.join(" ")))?;
+    #[cfg(test)]
+    TEST_GIT_CHILD_SPAWNED.with(|hook| {
+        if let Some(hook) = hook.borrow_mut().take() {
+            hook(child.id());
+        }
+    });
     let stdout = match child.stdout.take() {
         Some(stdout) => stdout,
         None => {
@@ -12890,8 +12898,10 @@ fn run_git_command_bounded_with_deadline(
         .map_err(|_| "Git stderr reader panicked".to_string())
         .and_then(|result| result.map_err(|error| format!("failed to read Git stderr: {error}")));
     let write_result = writer.map(|writer| {
-        writer
-            .join()
+        let joined = writer.join();
+        #[cfg(test)]
+        TEST_GIT_STDIN_WRITER_JOINED.with(|observed| observed.set(true));
+        joined
             .map_err(|_| "Git stdin writer panicked".to_string())
             .and_then(|result| {
                 result.map_err(|error| format!("failed to write Git stdin: {error}"))

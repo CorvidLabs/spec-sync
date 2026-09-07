@@ -1,6 +1,6 @@
 ---
 module: change
-version: 120
+version: 121
 status: active
 files:
   - src/change.rs
@@ -480,3 +480,4 @@ Acceptance Criteria
 | 2026-09-05 | allow-audited-reopening-when-legacy-acceptance-cannot-be-reconstructed: Allow audited reopening when legacy acceptance cannot be reconstructed |
 | 2026-09-05 | archive-preflight-lets-the-package-being-closed-cover-the-legacy-change-it-supersedes-and-stale-input-diagnostics-name: Archive preflight lets the package being closed cover the legacy change it supersedes, and stale-input diagnostics name the refused successor |
 | 2026-09-07 | let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived: Let a module own paths beyond its spec files so a later change can supersede the exact-only inputs of an archived bootstrap change |
+| 2026-09-07 | make-bounded-git-timeout-cleanup-tests-independent-of-child-startup-scheduling: Make bounded Git timeout cleanup tests independent of child startup scheduling |

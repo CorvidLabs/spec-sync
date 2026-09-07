@@ -1,6 +1,6 @@
 ---
 id: make-ship-status-product-stage-completion-use-current-verification-content-consistently
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 249a3e0db7e083569440e864501c416072feb5a6
 ---

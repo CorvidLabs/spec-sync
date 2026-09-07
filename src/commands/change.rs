@@ -972,7 +972,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         &tip,
         verification_commit.as_deref(),
         verification_present,
-        verification_ancestor,
+        verification_current,
         review_status,
         ready_to_finalize,
     );
@@ -1379,12 +1379,12 @@ fn ship_stages(
     tip: &HeadTip,
     verification_commit: Option<&str>,
     verification_present: bool,
-    verification_ancestor: bool,
+    verification_current: bool,
     review: ShipReviewStatus,
     ready_to_finalize: bool,
 ) -> Vec<serde_json::Value> {
     let id = record.id.as_str();
-    let verified = verification_present && verification_ancestor && verification_commit.is_some();
+    let verified = verification_present && verification_current && verification_commit.is_some();
     let mut stages = Vec::new();
 
     let product_done = verified
@@ -1398,7 +1398,7 @@ fn ship_stages(
         "status": if product_done { "done" } else { "current" },
         "sha": verification_commit,
         "action": if product_done {
-            "product verification evidence is on an ancestor of HEAD".to_string()
+            "product verification evidence is current for this content".to_string()
         } else {
             format!("run `specsync change check {id} --commit`, push the product tip, wait for trust + implementation ready")
         },
@@ -2765,6 +2765,16 @@ if the floor call is removed from this function"
             "the premise: the squash destroyed the recorded commit"
         );
 
+        assert_eq!(report["stages"][0]["id"], "product_tip");
+        assert_eq!(
+            report["stages"][0]["status"], "done",
+            "current content must complete the product stage despite rewritten ancestry: {report}"
+        );
+        assert_eq!(
+            report["stages"][0]["action"],
+            "product verification evidence is current for this content"
+        );
+
         // #689, untouched: the verification half is a content question and the content is
         // intact, so nothing about verification may block.
         let blockers: Vec<&str> = report["blockers"]
@@ -2805,6 +2815,46 @@ if the floor call is removed from this function"
             Some("unavailable"),
             "a squash makes the descendant walk unobtainable, not violated: {report}"
         );
+    }
+
+    #[test]
+    fn ship_status_product_stage_rejects_stale_content_with_ancestor_evidence() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        let id = reviewed_change_fixture(root);
+        fs::write(
+            root.join("README.md"),
+            "# fixture\n\nchanged after verification\n",
+        )
+        .unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "change verified content"]);
+
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_eq!(report["verification_ancestor_of_head"], true);
+        assert!(!change::recorded_verification_is_current(root, &record));
+        assert_eq!(report["ready_to_finalize"], false);
+        assert_eq!(report["stages"][0]["status"], "current", "{report}");
+    }
+
+    #[test]
+    fn ship_status_product_stage_rejects_missing_verification() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        let id = reviewed_change_fixture(root);
+        fs::remove_file(
+            root.join(".specsync/changes")
+                .join(&id)
+                .join("verification.json"),
+        )
+        .unwrap();
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_eq!(report["ready_to_finalize"], false);
+        assert_eq!(report["stages"][0]["status"], "current", "{report}");
     }
 
     /// The ship lane may narrow the next action; it may never contradict the

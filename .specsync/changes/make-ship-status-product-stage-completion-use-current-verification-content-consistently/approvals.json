@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788818336,
+      "digest": "2dd894478f3a3f2bd3a15ffeb4c1365463678290f9d9d4e014a669f8328d51a8",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-ship-status-product-stage-completion-use-current-verification-content-consistently",
+        "title": "Make ship-status product-stage completion use current verification content consistently",
+        "description": "Make ship-status product-stage completion use current verification content consistently",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "specs/cmd_change",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Product-stage completion uses the same verification-content currency predicate as readiness; unchanged verified content after rewritten ancestry reports product verification done; altered content still reports incomplete; text and JSON agree; review currency and finalization policy remain enforced."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "6bc882b63b858f74ef9c31c3784ad9c612f89bd59f9b77a8685514e7da171625"
+      }
+    }
+  ],
+  "reopenings": []
+}

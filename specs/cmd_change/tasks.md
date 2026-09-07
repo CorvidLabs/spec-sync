@@ -16,3 +16,6 @@ spec: cmd_change.spec.md
 - [x] Delegate answer, depend, and supersede to locked domain ledger validation before persistence
 - [x] Render successful mutations from their validated domain transaction snapshots
 - [x] Select the locked normal/strict summary instead of recomputing machine output after persistence
+
+- [x] Use recorded verification content currency consistently in the product stage and readiness (#745).
+- [x] Add preserved-content squash and stale-content ancestor regression controls.

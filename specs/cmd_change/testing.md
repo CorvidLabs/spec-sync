@@ -22,3 +22,5 @@ reporting a false failure after persistence. It also proves a live summary becom
 corruption while both transaction-captured normal/strict summaries remain valid. CodeQL enforces
 that correction-ledger-derived values remain confined to the JSON branch; text-only counts come
 from an independent state reload.
+
+REQ-cmd-change-016: report-level regressions assert a preserved-content squash completes the product stage, stale content with ancestor evidence does not, and missing evidence does not. The first two failed against the previous implementation. Existing report/finalize agreement checks continue to enforce stale and unavailable review behavior. Run `cargo test --bin specsync commands::change::tests`.

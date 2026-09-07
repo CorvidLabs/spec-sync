@@ -74,3 +74,5 @@ Where a guarantee cannot be evaluated, the honest report is a third answer, not 
 re-anchors it — not a blocker, because asserting that an unobtainable guarantee ought to block would
 decide an open design question by accident. Readiness can decline to answer without also deciding
 what should happen next.
+
+Issue #745 extends the same verification-content predicate used by readiness to the product-tip stage. Commit ancestry remains diagnostic; it no longer substitutes for freshness in product-stage completion. The scoped-review currency check is unchanged, so unavailable review evidence may still prevent finalization even when product verification is current.

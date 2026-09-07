@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "d9a3190cdd1b7eb356d6c5c9ef98071d1e6f12d6",
+      "contract_digest": "da2f1f58fad0901daaaedd98e3f8d270f156c71542ad549b499d4d5447375816",
+      "execution_digest": "953372af3766958d9c41532ae70485f0cc5c7136d71cecb56ec1ab94567b05a1",
+      "workspace_digest": "b644fed3525c74a1fa6d85e092a31ee5141020c371a9b6ea69351236ba339594",
+      "timestamp": 1788795493
+    }
+  ]
+}

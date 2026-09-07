@@ -103,6 +103,13 @@
         "config": "a9ca5e919006ecf7a59a434a4761f29a01905d8d47cf7ebd82acf7637140432a",
         "types": "6da64afd65a61fb81b854e5f578cd68b6d5104dd5a3aec5f0a2bb7c64dcce8d2"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788795501,
+      "digest": "81790c89f8f596fe3dd591478fa67acc3d6e3b6be74120c300363ef3f968ad81",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

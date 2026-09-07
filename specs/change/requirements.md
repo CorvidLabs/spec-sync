@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 22020)
-Total output lines: 1282
-
 ---
 spec: change.spec.md
 ---
@@ -322,7 +319,747 @@ Acceptance Criteria
 - Accepted or authenticated archived successors selected as candidates require valid definition, verification, closing approval, history integration, and recursive exact-or-successor-covered current inputs; standalone archives require historical integrity without equality to today's inputs.
 - Every changed input expands to one obligation per signed canonical owner and every obligation matches one exact predecessor/path/module/old-digest/new-digest tuple from the same successor.
 - Multiple terminal successors may cover disjoint obligations, while cycles fail closed and completed validity results are memoized.
-- The archive preflight forward…12020 tokens truncated… archive-to-active direction fails a test, so the defect where a reopened change could never be closed again cannot return silently.
+- The archive preflight forwards its closing token into the successor walk, so the package being closed authenticates as a successor of the changes it supersedes exactly as its own historical-integrity preflight authenticates it; every reading path passes no token and is judged by history alone.
+- A successor whose acceptance transition is not in history — the package being closed, or an archive whose commit has not been made — is admitted only through its working-tree closing evidence, and its succession tuple is then checked against the working tree that evidence signed, with base ancestry checked against HEAD; once the archive commit exists, history is again the sole anchor.
+- A changed input whose signed owners are all reserved exact labels names no module of its own: its claimants are the modules under which later accepted or archived successors declared it, each claimant is judged by every check a signed owner's successor passes, one authenticated claimant covers the input, and otherwise every refused claimant is named with its reason and the frozen label as the input's owner.
+
+### REQ-change-025
+
+Semantic-delta preparation and application SHALL resolve canonical spec and companion paths through the committed registry.
+
+Acceptance Criteria
+
+- Registry-backed non-conventional module paths receive semantic spec and requirements updates.
+- Conventional paths remain the fallback when no mapping exists.
+- Unsafe registry paths fail closed.
+
+### REQ-change-026
+
+The lifecycle SHALL treat canonical numeric sequence claims and historical collision acknowledgements as protected exact repository evidence across arbitrarily wide numeric sequences.
+
+Acceptance Criteria
+
+- Numeric change sequences contain at least four ASCII digits, use exactly four zero-padded digits below 10000, and use unpadded decimal digits at or above 10000.
+- Successor identity ordering compares parsed numeric sequence first and full canonical ID second, so `CHG-10000-*` follows `CHG-9999-*` while acknowledged same-sequence collisions remain deterministic.
+- Malformed, noncanonical-width, and numerically unrepresentable IDs fail closed instead of participating in successor ordering.
+- The committed sequence ledger always requires lifecycle coverage even when `.specsync/` is ignored.
+- A change that edits the ledger covers it as a delivery input; no change generates a claim to cover, because nothing allocates a sequence.
+- An acknowledgement matches the exact currently located ID set and remains valid only when every member is accepted or archived.
+- Removed IDs, added IDs, single surviving records, and draft, approved, implementing, or verifying collision members fail closed.
+
+### REQ-change-027
+
+Configured verification SHALL reject direct and indirect entry into every SpecSync lifecycle command surface.
+
+Acceptance Criteria
+
+- Nested `check`, `change`, and `lifecycle` commands fail before performing validation or mutation.
+- Native verification commands remain unaffected and execute once.
+- The diagnostic names the configured parent command.
+
+### REQ-change-028
+
+Effective contract and canonical-successor validation SHALL use canonical repository resolution without redundant full-project hashing.
+
+Acceptance Criteria
+
+- Effective validation reads registry-backed canonical specs through the safe project-path resolver.
+- Conventional canonical paths remain the fallback when no registry mapping exists.
+- Unsafe registry mappings fail closed before effective validation.
+- The current project digest is computed at most once per canonical-successor candidate scan.
+
+### REQ-change-029
+
+Acceptance evidence SHALL preserve historical validity across valid later sequence claims without weakening current sequence-ledger integrity.
+
+Acceptance Criteria
+
+- Creating a later valid lifecycle record does not stale an earlier accepted record solely because the sequence ledger advanced.
+- Historical reconstruction uses the earlier owner and includes only collision acknowledgements whose sequence is not later than that owner.
+- When acknowledged legacy collision members signed one canonical committed ledger for their shared sequence, reconstruction reuses those exact historical bytes instead of substituting each member's ID.
+- The current sequence owner remains bound to the exact current ledger content.
+- Malformed claims, claims without a workspace, non-maximum claims, duplicate sequences, and invalid collision acknowledgements fail closed.
+- Every covered path other than a valid later-owned sequence ledger remains acceptance-digest input.
+
+### REQ-change-030
+
+Lifecycle enforcement SHALL preserve explicit user scope, precise canonical companion coverage, registry authority, policy opt-out boundaries, and native verification commands while retaining fail-closed SpecSync recursion protection across Cargo manifest selection.
+
+Acceptance Criteria
+
+- Generated sequence bookkeeping does not satisfy or suppress the interview question for source, test, documentation, or configuration scope.
+- Registry-resolved modules cover only their exact canonical spec and the standard `requirements.md`, `tasks.md`, `context.md`, `testing.md`, and `design.md` companions; unrelated siblings and the containing directory are not implicitly covered.
+- Both registry files remain protected lifecycle inputs because they control canonical writes.
+- An explicitly disabled SDD policy returns without sequence-ledger validation.
+- Native `cargo run -- check` commands remain classified as non-SpecSync unless Cargo is actually selecting SpecSync by manifest identity, `default-run`, binary, or package.
+- Both `--manifest-path <path>` and `--manifest-path=<path>` participate in Cargo identity detection, and unsafe explicit manifest paths fail closed.
+- `change check` does not execute configured commands, so a policy listing `cargo run --bin specsync -- check` cannot recurse through verification.
+- Direct SpecSync lifecycle commands remain rejected when invoked under `SPECSYNC_VERIFICATION_CONTEXT`.
+- Cargo argument parsing still tokenizes ordinary whitespace, quoted values, and trailing comments without shell execution.
+
+### REQ-change-031
+
+The deterministic change interview SHALL preserve free-text user intent exactly while parsing multi-value scope answers only through explicit, question-appropriate list semantics.
+
+Acceptance Criteria
+
+- A scalar acceptance criterion containing commas or line breaks remains one criterion with its punctuation and internal text preserved.
+- A JSON array of strings explicitly represents multiple acceptance criteria.
+- Affected-spec and affected-path questions retain comma/newline list parsing.
+- Boolean and scalar interview answers retain their existing semantics.
+- Persisted state and rendered change documents preserve the parsed criterion text without silent fragments.
+
+### REQ-change-032
+
+The verified lifecycle SHALL support human-authorized, append-only correction of explicitly
+supported accepted interview metadata without rewriting history or replaying canonical deltas.
+
+Acceptance Criteria
+
+- Only `public_contract` and `architecture_risk` accept normalized `yes` or `no` corrections.
+- Every event preserves the original value and records the prior effective value, corrected value,
+  actor, non-empty reason, timestamp, added artifacts, prior gate evidence, and portable
+  domain-separated prior/corrected metadata-view digests.
+- Effective answers and selected artifacts are derived from a validated ordered correction ledger;
+  artifacts are monotonic and malformed, truncated, reordered, unsupported, or tampered history
+  fails closed.
+- A correction moves an accepted canonically applied change to verifying and requires fresh
+  definition approval, verification, and closing approval.
+- Corrected acceptance prepares no canonical semantic-delta application, and repeated corrections
+  preserve all earlier evidence across portable checkouts and squash integration.
+
+### REQ-change-033
+
+The verified lifecycle SHALL support human-authorized, append-only correction of an exact
+acceptance-input canonical owner for an audited reopened, already-applied change without changing
+semantic scope or replaying canonical deltas.
+
+Acceptance Criteria
+
+- `change correct-owner` requires an exact portable path, canonical module, non-empty actor, and
+  non-empty reason.
+- The target is canonical-applied, verifying through an audited reopen, and unchanged from the
+  reopened definition except for validated ownership-correction entries.
+- The path is already covered by the original affected paths, and the named module's current
+  canonical spec explicitly owns that exact source path.
+- Corrections are immutable, sequenced, definition-bound records; duplicates, removals, malformed
+  values, tampering, and ambiguous ownership fail before mutation.
+- Original affected specs, semantic deltas, approvals, reopen evidence, and prior verification are
+  preserved byte-for-byte.
+- The corrected definition requires explicit reapproval, fresh verification, and closing approval.
+- Acceptance adds the corrected module only to the exact manifest entry's sorted owner set and
+  never reapplies canonical deltas.
+- Records without ownership corrections preserve their existing serialized bytes and digests.
+
+### REQ-change-034
+
+The change lifecycle SHALL allow accepted evidence to be reopened when delivery inputs are stale, even if verification.json tip no longer matches the closing approval, by binding reopen to the historical verification attempt that authenticates the closing digest.
+
+Acceptance Criteria
+- Reopen succeeds when attempt history contains the acceptance-bound verification the closing approval signed.
+- After reopen, re-verify and re-accept (or finalize on workflow v2) restore a matching closing approval.
+- Definition approval can be refreshed while accepted when the definition digest is stale.
+- Commit reachability is a second staleness axis alongside delivery-input drift. Reopen admits exactly the axes for which no restore exists: content that drifted can be put back, but an orphaned commit can only be superseded.
+
+### REQ-change-035
+
+Acknowledged immutable sequence collisions SHALL remain valid while an accepted member completes an
+audited delivery-only reopen, provided its already-applied definition, prior passing verification,
+superseded closing approval, and exact accepted-to-verifying transition remain valid.
+
+Acceptance Criteria
+
+- A structurally valid audited reopen keeps the collision acknowledgement usable during verification.
+- A reopen caused by an unreachable verification commit records identical stale and current delivery-input digests and still preserves immutable sequence history; the recorded cause, not digest inequality, is what proves the evidence was stale.
+- Missing, tampered, definition-stale, unapplied, or non-verifying reopen evidence remains mutable.
+- The reopened member still requires fresh verification and a new closing approval before acceptance.
+- Collision IDs are never renumbered, deleted, or silently rewritten.
+
+### REQ-change-036
+
+Stale accepted-change verification diagnostics SHALL name the offending delivery input and state the concrete remediation, without changing the underlying freshness model.
+
+Acceptance Criteria
+
+- A changed covered input that no accepted or archived successor claims reports the input path, its owner module, and the `specsync change reopen <id>` remediation.
+- A changed covered input that one or more successors claimed and were refused for reports the input path, its owner module, and each refused successor with the reason it was refused — its evidence did not authenticate, its manifest could not be resolved, its evidence carries no tuple for the input, its manifest does not carry the tuple's successor entry, its delta has no semantic item, its tuple does not hold or could not be evaluated, or its own delivery-input evidence is stale — sorted by successor ID; a refusal is never reported as the absence of a successor.
+- When the stale change is workflow v1 and a refused successor is workflow v2, the diagnostic directs the operator to finish that successor (`specsync change status <successor>` names its next step) and does not offer `specsync change reopen` of the legacy change, whose replayed canonical delta would overwrite the successor's materialization; every other combination directs the operator to verify and accept a covering successor or reopen the accepted change.
+- A covered input that disappeared from the current inventory reports the missing path and the restore-or-reopen remediation; a changed exact-only input that no successor claims reports the path and the audited-reopen remediation, and names the supersede alternative under `[modules."<name>"] owns` wherever the configuration can grant the path; a changed exact-only input whose claimants were all refused is reported like a signed owner's input, with the frozen label as its owner; missing delivery-input evidence keeps its established phrase and gains the reopen remediation.
+- Every stale reason remains deterministic: sorted successor IDs, no timestamps, and no environment-dependent content.
+- The `accepted change verification is stale for current delivery inputs` check prefix, the terminal-evidence validity values, and every freshness predicate remain unchanged.
+
+### REQ-change-037
+
+Accepted-change archival SHALL trust squash-merged evidence when an in-history commit records the
+change as accepted with byte-identical state, verification, and approvals, so discarding the
+original acceptance-transition commit in a squash merge never blocks archival.
+
+Acceptance Criteria
+
+- Only commits reachable from `HEAD` or the remote default qualify as recording anchors.
+- Byte equality, accepted-state identity, and projection checks remain mandatory per anchor.
+- The exactly-one-eligible rule still fails closed on missing or ambiguous evidence.
+- First-acceptance transition anchors and the archived `accepted-state.json` scan keep priority;
+  the recording-anchor fallback runs only when they find nothing.
+- A change with no matching in-history accepted record remains unarchivable.
+
+### REQ-change-038
+
+Legacy acceptance-manifest reconstruction SHALL assign the exact delivery owner to
+production-source inputs with no deterministic canonical owner, so adoption-era archived ledgers
+validate without per-repo remediation.
+
+Acceptance Criteria
+
+- Only pre-manifest (legacy) reconstruction is relaxed; current acceptance stays fail-closed.
+- Historical aggregate reproduction, closing-approval authentication, and the exactly-one
+  distinct reconstruction rule are unchanged.
+- The exact delivery owner assignment appears only in reconstructed manifests, never in newly
+  signed ones.
+- No new command, state transition, or persisted evidence format is introduced.
+
+### REQ-change-039
+
+The verified lifecycle SHALL allow one transactional batch of audited exact acceptance-owner
+corrections so rollout-era gaps with many omitted owners need only one reapprove → verify → accept
+cycle, without weakening per-entry scope, ownership, or append-only sequencing rules.
+
+Acceptance Criteria
+
+- A batch may be supplied as repeated path/module pairs, a manifest file, or `--all-missing` with
+  one canonical module.
+- Every entry is validated independently against the same rules as a single `correct-owner`.
+- Each accepted entry becomes its own sequenced `AcceptanceOwnerCorrection` record.
+- If any entry is invalid, the command fails closed and persists no corrections from the batch.
+- Single-path `correct-owner` remains supported and equivalent to a one-entry batch.
+
+### REQ-change-040
+
+SpecSync SHALL provide a native, idempotent migration that backfills 5.1 reopening digest
+fields on 5.0.1-era change ledgers with a verification pass before any write.
+
+Acceptance Criteria
+
+- `stale` always reproduces the embedded prior verification's acceptance-input digest.
+- `current` comes from the superseding verification's signed digest, else a live recomputation.
+- Records already carrying both fields are never modified; re-running is a no-op.
+- A reopening that cannot be repaired deterministically fails without mutating its ledger.
+- Repaired ledgers re-parse and re-validate before the write lands.
+- `check` on an un-migrated ledger prints the `specsync migrate 5.0` remediation, not a raw
+  serde error.
+
+### REQ-change-041
+
+Canonical module path resolution SHALL fall back to default `specs/<module>/<module>.spec.md` paths when the local registry file is missing or an inert stub, without weakening fail-closed behavior for invalid non-inert registries.
+
+Acceptance Criteria
+
+- An inert 5.0.1-era empty registry stub does not block `canonical_module_paths` resolution.
+- Conventional `specs/<module>/<module>.spec.md` paths remain the fallback when the registry is missing or inert and no mapping applies.
+- A non-inert unparsable local registry still fails closed with the exact pre-fix diagnostic `failed to parse local registry {path} while resolving `{module}``.
+- Named registries with safe mappings continue to win over the conventional fallback.
+
+### REQ-change-042
+
+Git candidate inspection SHALL deduplicate repeated stage-zero paths only when their normalized
+mode and object identity are exact, while conflicting observations fail closed.
+
+Acceptance Criteria
+
+- A stage-zero path returned through overlapping bounded pathspec batches is represented once when
+  every observed mode and normalized object ID is identical.
+- A repeated path with a differing mode fails closed without replacing the first observation.
+- A repeated path with a differing object ID fails closed without replacing the first observation.
+- Parent-directory and exact-child candidate scopes remain valid across pathspec batch boundaries.
+- Deterministic output bounds, unresolved-stage rejection, malformed metadata rejection, and
+  out-of-scope path rejection remain unchanged.
+
+### REQ-change-043
+
+The verified lifecycle SHALL provide one discoverable workflow and one file layout with one human
+scope approval for every new change.
+
+Acceptance Criteria
+
+- The path is `change new` → one `change approve` → implement → `change check` → ordinary PR
+  review → `change finalize` → GitHub merge.
+- There is no lifecycle-mode selection, second SpecSync approval, closing approval gate, alternate archive
+  layout, or SpecSync merge command.
+- Scope approval binds stable intent, acceptance criteria, public-contract/risk declarations, and
+  affected spec/path/dependency/supersession scope—not implementation, test/evidence,
+  semantic-delta materialization, canonical materialization, or lifecycle metadata.
+- Non-material execution/evidence changes preserve scope approval, invalidate their separate
+  execution digest, and require fresh automated validators plus the one scoped review.
+- A demonstrable stable-scope change requires renewed approval, and status explains each added or
+  removed criterion, affected spec/path, dependency, supersession obligation, or changed intent in
+  plain language.
+- Checking off an already-approved task records implementation progress without changing either
+  scope or execution digests; changing task text preserves scope but stales execution evidence.
+- Every status result prints exactly one explicit next action.
+- Expected missing-history ancestry probes never leak raw Git fatal diagnostics into status output.
+- Explicit `--strict`, project policy, or release/security classification adds full-history,
+  full-suite, security, or release validators to the same verification evidence without changing
+  the state machine, workflow, approval count, commands, finalization, archive, or layout.
+- Existing two-approval records remain readable and verifiable without reinterpretation or resigning.
+- Workflow-v2 adoption records one immutable project cutoff at the stable comparison-base ancestor
+  when available; `change adopt` activates that baseline without rewriting an existing version-1
+  policy, refuses before mutation when any existing workflow-v1 record is absent from the proposed
+  cutoff, and atomically publishes policy, imports, report, and baseline so interruption or failure
+  cannot partially activate workflow v2; every transaction target has a lossless UTF-8,
+  platform-separator-safe journal identity and is confined beneath the project with symlink
+  components rejected before and during publication. The lifecycle lock is likewise opened through
+  a no-follow project capability before any metadata write. All subsequent changes use workflow
+  v2, its introduction remains valid after squash/rebase, and a workflow-v1 record remains eligible
+  only when that exact ID/version with omitted or explicit version-1 origin existed at the trusted
+  cutoff.
+- Every bounded workflow-v2 baseline-touching commit and readable parent retains the exact
+  introduction bytes, so rewrite→restore history cannot conceal a changed cutoff and deleting a
+  committed baseline—including one introduced only on a merged parent—cannot silently reactivate
+  workflow v1.
+- Workflow-origin history boundedly follows every reachable canonical dated archive state path for
+  the exact change ID, so archive→reopen→rearchive moves preserve the immutable creation anchor.
+- The one CHG-0068 adoption fails closed and requests full trusted history when its immutable
+  allowlisted commit/blob anchor is unavailable.
+
+### REQ-change-044
+
+The lifecycle SHALL finalize and archive a change on its implementation PR through one
+metadata/archive-only commit without repeating implementation validation.
+
+Acceptance Criteria
+
+- `change finalize` requires the approved implementation parent to have every required green check.
+- The finalization child may change only exact approved lifecycle/archive paths and must preserve
+  code, canonical spec, requirements, tests, configuration, and delivery-tree relationships.
+- Finalization applies semantic deltas, writes accepted state, validates bidirectional ownership,
+  and moves the same package to `.specsync/archive/changes/YYYY-MM-DD-<id>/` transactionally.
+- A process interruption between terminal archive-file writes is recovered from the transaction
+  journal before retry, including after a calendar rollover.
+- A fresh clone after squash or rebase merge authenticates the exact surviving archived subtree
+  when the original implementation commit object is no longer reachable.
+- The lightweight archive lane validates parent checks, diff classification, unchanged tree,
+  archive integrity, ownership, and finalization digest and reports success to required CI.
+- Product tests and independent scoped review are not rerun for a valid archive-only child.
+- `change finalize` makes the PR ready; GitHub alone performs the merge.
+
+### REQ-change-045
+
+Lifecycle validation SHALL reuse a deterministic invocation-scoped snapshot and bounded evidence
+queries without weakening fail-closed historical conclusions.
+
+Acceptance Criteria
+
+- Active/archive records, canonical owners, Git comparison state, candidate entries, and completed
+  terminal evidence are loaded or computed at most once per invocation key.
+- Git and evidence queries have deterministic bounds independent of overlapping path scopes.
+- Dependency and successor graphs use stable ordering.
+- Canonical owner batches are validated in one pass.
+- Warm and cold validation return identical errors, warnings, path coverage, and evidence validity.
+
+### REQ-change-046
+
+Agent-authored changes SHALL receive one scoped review of implementation evidence before finalization. The reviewer claim MAY be the same actor as the definition approver. SpecSync SHALL NOT invent a second-person requirement beyond GitHub's merge rules.
+
+Acceptance Criteria
+
+- Review input contains only the change package, implementation diff, canonical semantic delta, and targeted evidence.
+- The result binds the implementation parent commit, those input digests, an explicit pass/block verdict, a stable reviewer claim, and the exact required GitHub Actions check whose authenticated result is proven again by finalization.
+- The reviewer claim MAY equal the definition approver (comparison is still case-insensitive for identity, not for refusal).
+- Every review attempt is append-only; `review.json` is only the latest projection and cannot erase a prior blocking result.
+- Native review recording and finalization run the same every-parent verification-freshness validator as project checking.
+- Every intervening commit is inspected against every parent; any implementation change, including change-then-revert history, stales the review, while the metadata/archive-only finalization commit does not rerun or stale it.
+- Scoped-review currency remains the three-valued answer `current` / `stale` / `unavailable` as already specified.
+- Content is decided before history: a review whose recorded contract, execution, or workspace digest no longer matches the tree is `stale` for that reason.
+- Finalization fails when a required scoped review is missing or blocking.
+- Status states when review is needed and directs the user to open or update the PR so the configured scoped-review check runs.
+- SpecSync does not refuse a ship solely because the reviewer is the definition approver.
+
+### REQ-change-audit-project-001
+
+The change module SHALL expose `audit_project` that validates active change workspaces and living SDD policy/spec coherence without rewalking archived terminal evidence by default.
+
+Acceptance Criteria
+
+- `audit_project` does not load or re-authenticate every archived change's terminal evidence.
+- An active terminal record is judged against every accepted or archived change as a successor candidate: archived records are loaded only when such a record exists, only as candidates and never for evaluation, and only one that declares a matching obligation is authenticated. A legacy accepted change superseded by a finalized successor is successor-covered on the audit path exactly as on the full walk, and a refused archived successor is named with its reason.
+- `check_project` remains available for full integrity including archives (tests / rare callers).
+- CLI project-health surface uses the active-only path.
+
+### REQ-change-check-scoped-002
+
+`check_change` SHALL continue to materialize approved deltas and run verification for one selected change only; project-wide archive integrity is not part of that function.
+
+Acceptance Criteria
+- Selecting zero, one, or many open changes behaves as before (nothing / that id / error listing ids).
+- Archive terminal evidence is not required for a successful scoped check.
+
+
+### REQ-change-047
+
+The change lifecycle SHALL prefer completing incomplete selected artifacts over definition approval for draft changes once the interview is complete and artifact completeness validation fails.
+
+Acceptance Criteria
+
+- When selected artifacts contain incomplete HTML TODO comment stubs or are empty, summarize_change sets artifacts_complete to false and next_action does not recommend change approve.
+- After selected artifacts are complete, draft next action may recommend definition approval.
+
+### REQ-change-048
+
+The change lifecycle SHALL refuse definition approval when a semantic delta uses ADDED for a requirement ID whose requirement heading already exists in the living module requirements file, and the diagnostic SHALL steer agents to MODIFIED.
+
+Acceptance Criteria
+
+- validate_delta_files and approve_definition fail with cannot add existing block for living requirement IDs under ADDED.
+- The error text mentions MODIFIED.
+- MODIFIED of an existing living requirement ID validates successfully.
+
+### REQ-change-049
+
+Lifecycle verification SHALL resolve evidence completeness before comparing specs
+to code, SHALL name the artifact and section an author must edit to close an
+evidence gap, and SHALL NOT spawn the project's test or build commands. Spec↔code
+sync is the verifier. Delta application
+SHALL converge when an `## ADDED` block is already present with byte-identical content, and
+SHALL reject a duplicate `CHG-NNNN` ordinal claimed by two distinct changes from the same
+base commit.
+
+Acceptance Criteria
+
+- Incomplete acceptance or requirement evidence fails before spec↔code sync runs.
+- The evidence-gap message names the change `testing.md` and its `## Requirement evidence`
+  table. Drift failure names the spec finding, not a test-suite exit code.
+- Configured `verification_commands` in `.specsync/sdd.json` are not executed.
+- An `## ADDED` block already present with byte-identical content applies as a no-op, so
+  re-deriving the canonical tree converges.
+- An `## ADDED` block present with different content fails and directs the author to
+  `## MODIFIED`.
+- Two distinct changes claiming one ordinal from the same base commit are rejected at
+  definition approval and by `change audit`; differing or unknown base commits are accepted.
+
+### REQ-change-050
+
+SpecSync SHALL leave a newly initialised project able to complete its own lifecycle, and
+SHALL treat an active-change directory that contains no `state.json` as not an active change
+in this working tree rather than as corruption.
+
+Acceptance Criteria
+
+- Fresh `init` writes SDD off with an empty `verification_commands` list; `specsync check` is
+  the next step and does not need a project test command.
+- A change directory with no `state.json` is skipped by active-change discovery, so
+  `change new` succeeds on a branch that does not contain an earlier change.
+- Every other read error, including an unreadable or malformed `state.json`, still fails closed.
+- Verification exposes a lock-free body so a caller already holding the project lock can
+  re-run it without deadlocking on the non-reentrant lock.
+
+### REQ-change-051
+
+Git candidate scope guards SHALL admit the tracked files that a directory
+candidate expands to, treating a returned path as in scope when it equals a
+candidate or is a descendant of one.
+
+Acceptance Criteria
+
+- A `:(top,literal)` pathspec naming a directory expands to every tracked file
+  beneath it; those files are in scope because the directory requested them.
+- Descendant matching compares at the path separator, so an unrelated sibling
+  such as `a/bc` is never admitted by the candidate `a/b`.
+- The index, modified, visibility and fsmonitor guards apply identical scope
+  semantics; no guard admits a path the others would reject.
+- A path sharing no candidate ancestor remains rejected, preserving the guard
+  against Git returning genuinely out-of-scope paths.
+- Evidence collection succeeds in a repository containing archived changes,
+  which is the state of every project past its first archival.
+
+### REQ-change-052
+
+The change module SHALL hold canonical ownership of its own logic, leaving each
+command wiring module the sole canonical owner of its own file.
+
+Acceptance Criteria
+
+- `specs/change/change.spec.md` lists `src/change.rs` and does not list
+  `src/commands/change.rs`.
+- `specs/cmd_change/cmd_change.spec.md` remains the sole claimant of
+  `src/commands/change.rs`.
+- No source file is claimed by two specs.
+
+### REQ-change-053
+
+Canonical ownership of declared paths SHALL be resolved when the definition is
+approved, and a change that has never closed SHALL be able to correct an
+acceptance input owner without an audited reopen event.
+
+Acceptance Criteria
+
+- Approving a definition rejects declared paths that no declared module
+  canonically owns, naming every offending path in one error.
+- Paths that do not yet exist are not rejected at approve, since the owning spec
+  may claim them in the same change; they remain enforced at finalize.
+- A change with justified `no_spec_change` (empty declared specs) is not
+  ownership-rejected at approve, because there is no owner set to resolve
+  against; finalize still enforces production ownership. Empty specs without
+  that justification fail closed at definition validation and at ownership
+  validation.
+- A change at verifying that has never closed may correct an acceptance input
+  owner under a currently valid definition approval. That substitute is for
+  guided-path reachability, not audit-equivalent provenance to an
+  Accepted→reopen cycle.
+- A change that did close continues to require an audited reopen, unchanged.
+
+### REQ-change-054
+
+Change artifact completeness SHALL treat HTML TODO comments, bare TODO lines, and markdown headings whose title is only TODO (optionally with a trailing description after a colon) as incomplete placeholder content.
+
+Acceptance Criteria
+
+- `change approve` rejects when any selected artifact body is empty or only placeholder TODO content after YAML frontmatter.
+- `change status` / next-action guidance list those incomplete artifact paths and do not recommend approve.
+- Artifacts with real prose or completed checklist items remain complete even when a section heading is present.
+- HTML TODO comments continue to mark an artifact incomplete.
+
+### REQ-change-056
+
+The change domain SHALL expose correction-ledger health to text lifecycle inspection without
+returning correction values, ledger bytes, or digest material to a human output path.
+
+Acceptance Criteria
+
+- Malformed, unauthenticated, or otherwise invalid correction history produces a deterministic
+  invalid-health result.
+- The text-facing diagnostic is generic, names the correction ledger, and directs restoration
+  from trusted history.
+- The diagnostic contains no correction value, ledger fragment, or digest.
+- Valid correction history continues to permit normal text lifecycle inspection.
+
+### REQ-change-057
+
+Existing-change definition mutations SHALL validate correction-ledger integrity inside the same
+project-lock transaction that persists their state.
+
+Acceptance Criteria
+
+- `answer_question`, `add_dependency`, and `add_supersedes_obligation` acquire the project lock
+  before loading and validating the current correction ledger.
+- A ledger corrupted while a mutation waits for the lock causes a deterministic safe failure and
+  leaves every lifecycle file other than the external corruption byte-for-byte unchanged.
+- The safe diagnostic contains no correction value, ledger fragment, or digest.
+- A successful mutation returns the effective definition, correction history, and normal/strict
+  machine summaries validated by its transaction, so command rendering does not reread the ledger
+  or emit a contradictory result after persistence.
+- The documented `answer_question`, `add_dependency`, and `add_supersedes_obligation` wrappers
+  remain compiled in production while command-only snapshot variants carry the richer response.
+- Valid mutations retain their established state and output behavior.
+
+### REQ-change-058
+
+The lifecycle check SHALL NOT spawn configured verification commands, and the
+quiet-output variant used solely to keep lifecycle findings out of a machine-consumed
+report stream SHALL NOT exist.
+
+Acceptance Criteria
+
+- `change check` and `change audit` do not execute `.specsync/sdd.json` `verification_commands`.
+- The quiet-output check path and its selector type are absent rather than retained
+  unused, so no caller can reintroduce suppressed-output command execution.
+- Failed spec↔code evidence remains inspectable in `verification.json`.
+
+### REQ-change-060
+
+A bootstrap record SHALL exempt a path from lifecycle path coverage only when that exemption cannot
+be used to hide product delivery or later policy edits.
+
+Acceptance Criteria
+
+- A recorded path is honored only when it is a protected SDD path, is absent at the delivery
+  comparison base, its recorded base commit is an ancestor of `HEAD`, and its content still matches
+  the recorded digest.
+- A bootstrap record never exempts a path that is not a protected SDD path.
+- Editing a bootstrapped file revokes its own exemption and the normal change workflow applies from
+  that point on.
+- Bootstrap records written in the earlier single-path shape continue to be honored.
+
+### REQ-change-061
+
+The digest recorded for a bootstrapped policy SHALL pin the enforcement surface rather than the
+file's bytes.
+
+Acceptance Criteria
+
+- Every field that determines whether the coverage gate applies is covered by the digest.
+- Verification commands are excluded, so populating them as initialization instructs does not revoke
+  the bootstrap.
+- A policy file that cannot be parsed falls back to a digest of its bytes.
+
+### REQ-change-062
+
+Resolution of the delivery comparison base SHALL succeed in a repository containing a single commit.
+
+Acceptance Criteria
+
+- Both a range form and a bare commit reduce to a single commit through its merge base with `HEAD`.
+- No resolution path depends on a parent commit existing.
+
+### REQ-change-063
+
+An unfinished spec section SHALL gate on whether a change authored it, not on its content shape.
+
+Acceptance Criteria
+
+- A generated section no active change authored produces no fatal effective-contract finding.
+- A section an active change authored and then emptied remains fatal, through both the pending and
+  the applied delta paths.
+- Unknown authorship fails closed and exempts nothing.
+- Ignore configuration is applied through the project's ignore rules rather than re-derived.
+- Suppressions are reported as warnings rather than dropped silently.
+
+### REQ-change-064
+
+The uncovered-paths remediation SHALL stay readable regardless of how many paths are
+reported.
+
+Acceptance Criteria
+- At most a fixed number of paths are named explicitly.
+- Any remainder is summarized with a count and a covering-prefix suggestion.
+
+### REQ-change-065
+
+A semantic delta SHALL accept subheadings within an item's body, and SHALL identify its own
+items by keyword rather than by heading depth.
+
+Acceptance Criteria
+- A subheading met while an item is open is treated as that item's content.
+- The spec sections a scaffold generates are accepted verbatim as delta content, without editing the spec first.
+- A subheading appearing before any item is opened remains an error, because it cannot be attached to anything.
+- That error names both valid item forms so the required shape is discoverable from the message.
+
+### REQ-change-066
+
+The change module's tests SHALL live in their own file while remaining inline for name resolution.
+
+Acceptance Criteria
+- Tests are declared with `#[cfg(test)] #[path]` so `use super::*` continues to reach every private item; a sibling module would force visibility changes across hundreds of items and turn a move into an edit.
+- Test-only helpers and fault-injection hooks that production code paths reference remain in the production file, because they instrument production code rather than merely living beside it.
+- A future split of this module is verified by counting test functions and passing tests before and after, not by reading the diff: a move that loses a test still compiles and still passes.
+
+### REQ-change-067
+
+A refused reopen SHALL leave the archive as finalize wrote it.
+
+Acceptance Criteria
+- The dated archive package remains at its original path, with no orphan in the active workspace and the record still archived.
+- The refusal states that the archive was restored, so a user whose reopen failed knows the package survived; if the restore itself fails, the message names the path to move back by hand.
+- Retrying reproduces the same refusal rather than a different one, because the first attempt consumed nothing.
+- A reopen that legitimately succeeds still un-archives, so the restore cannot be satisfied by never moving anything.
+
+### REQ-change-068
+
+Enumerating active changes SHALL return what could be read and what could not, as separate facts, so that no caller can mistake an unreadable workspace for an absent one.
+
+Acceptance Criteria
+- The roster reports readable records and unreadable workspaces separately, and each unreadable entry carries the workspace identity and a reason naming the offending path.
+- A workspace that cannot be read does not abort enumeration: its healthy siblings are still returned.
+- A failure that leaves no partial truth to report — the changes directory itself being unreadable — remains a hard error rather than an empty roster.
+- A directory with no state file is still skipped rather than reported unreadable, because a husk left by a branch switch is not an active change here.
+- The plain record list used by digest, ledger and successor computations continues to fail closed on any unreadable workspace, since a silently short roster is worse there than a hard error.
+- A project with no active changes still yields an empty roster with nothing unreadable.
+
+### REQ-change-069
+
+Declaring an additional affected module SHALL never remove a verification command from what a change receives.
+
+Acceptance Criteria
+- The command set selected for a scope is a superset of the set selected for any subset of that scope, so widening declared scope can only add verification.
+- A declared module with no component routing entry contributes the project-wide verification commands, because a module nobody routed is not a module that needs no verification.
+- A change scoped entirely to routed modules still receives only its component commands, so targeted verification remains available.
+- A change declaring no affected module still receives the project-wide verification commands.
+- Strict escalation continues to append its own commands without removing any already selected.
+
+### REQ-change-070
+
+A lifecycle commit SHALL NOT record a change sequence ledger below the highest sequence already committed, and SHALL disclose any raise it performs.
+
+Acceptance Criteria
+- Before staging, a working-tree ledger lower than the committed high-water mark is raised to it, so no lifecycle commit can lower the recorded mark.
+- A working-tree ledger at or above the committed mark is left exactly as the author wrote it, because raising is the only direction this rule may move a ledger and a mark that is already higher is not a regression to repair.
+- The raise is reported on a stream that survives quiet output and does not contaminate a machine-readable payload, naming both the previous and the adopted value.
+- Acknowledged collisions recorded on either side are preserved across the raise rather than replaced by one side's copy.
+- Every staging site in the lifecycle applies the rule, so a commit path added later cannot reintroduce the regression by bypassing one of them.
+
+### REQ-change-072
+
+The change sequence ledger gate SHALL judge a ledger against the highest mark the current branch has itself recorded, and SHALL NOT refuse a branch for trailing the default branch.
+
+Acceptance Criteria
+- A branch whose ledger is older than the default branch's, but consistent with its own history, is accepted. Nothing mints an ordinal any more, so trailing the default branch cannot lead to reminting one.
+- A ledger below the highest mark the branch itself recorded is refused, including when the branch raised the ledger and then rewrote it downwards to a value still above the point at which it diverged.
+- The gate consults no remote, so a repository without an origin is judged by the same rule rather than having the gate silently disabled.
+- The refusal names the mark that was lost and a recovery command that applies to the branch's own history.
+
+### REQ-change-073
+
+Scoped review evidence SHALL be permitted to move between a change's active workspace and its archive in either direction, and SHALL be refused anywhere else.
+
+Acceptance Criteria
+- A change that was finalized, reopened, re-checked and re-reviewed can be finalized again, leaving exactly one archive package and no active workspace.
+- The move performed by reopen is accepted on the same terms as the move performed by finalize, since both relocate the same evidence between the only two locations a change occupies.
+- Relocation to any other path is still refused, so the check continues to detect evidence moved outside the lifecycle.
+
+### REQ-change-074
+
+An archived change package SHALL NOT retain a directory that holds no regular file at any depth, and enumeration SHALL treat such a directory under the archive as an absent change rather than a damaged one.
+
+Acceptance Criteria
+- Shipping a change whose `deltas/` is empty leaves no untrackable directory in the dated archive package, so a checkout of a commit that predates the package removes the package entirely instead of stranding a husk that `git status` reports as clean.
+- A directory under the archive that holds no regular file at any depth is skipped by `change new`, `change audit`, `change adopt` and `check`, since git cannot represent it and its presence records the absence of a change rather than a corrupt one.
+- A directory under the archive that holds at least one regular file but no `state.json` is still refused, so the allowance cannot be satisfied by ignoring corruption.
+- Directories in an archived package that do hold files are preserved, so pruning removes only what git could never have committed.
+
+### REQ-change-075
+
+A semantic delta parser SHALL distinguish a file that is empty from a file that has content
+but no recognized operation heading, SHALL name the allowed operation headings in that
+second case, SHALL accept item headings case-insensitively, and SHALL apply the same empty
+versus unrecognized wording on the historical delta path.
+
+Acceptance Criteria
+- A file whose only content is prose or unrecognized text reports that it contains no recognized operation headings and names `## Added`, `## Modified`, and `## Removed`, instead of reporting that the file is empty.
+- A file that is empty or whitespace-only still reports that it is empty.
+- `### requirement` and `### spec section` parse as `### REQUIREMENT` and `### SPEC SECTION`.
+- An unrecognized `##` heading is still refused and names the allowed operation values.
+- An unrecognized `###` heading before any item is still refused and still names both valid item forms.
+- A `###` line that is not an item keyword, met while an item is open, remains that item's content.
+- A valid uppercase delta still parses to the same items.
+- The historical delta walk uses the same empty-versus-unrecognized distinction and does not report a populated unrecognized file as empty.
+
+### REQ-change-076
+
+The effective checkout overrides SHALL be read from Git in a single configuration query rather than one query per key, and SHALL derive the same values that separate per-key queries produced.
+
+Acceptance Criteria
+- The four `core` keys that determine the checkout overrides are obtained in one `git config` invocation instead of four.
+- A key set more than once resolves to its last value, matching what a single-key query returns.
+- A key present with no value normalizes exactly as the empty value does.
+- A key written under a mixed-case section, or with surrounding whitespace, normalizes identically.
+- No matching key is treated as unset rather than as a failure.
+- A malformed configuration file still fails loudly and is never read as unset, so a broken repository cannot be mistaken for a default one.
+- No value is cached: every read still queries Git, so a configuration change between reads is still observed.
+
+### REQ-change-077
+
+A bounded Git read SHALL be bounded for the response it can actually receive, not for the response the call it replaced received.
+
+Acceptance Criteria
+- Reading the effective checkout overrides succeeds when the four core keys are set in more than one configuration scope, the ordinary layout of a global file plus a repository-local override.
+- The values derived equal what a separate per-key query returns for each key, compared against that query rather than against an assumption about which scope takes precedence.
+- A genuinely unbounded response is still refused, so the deterministic-output guard is retained rather than removed.
+
+### REQ-change-078
+
+The rule governing where committed scoped review evidence may move SHALL be pinned by tests that fail when either the permitted directions or the refusal itself is removed.
+
+Acceptance Criteria
+- Removing the archive-to-active direction fails a test, so the defect where a reopened change could never be closed again cannot return silently.
 - Deleting the guard entirely fails a test, and fails a different one than the direction removal does, so a fix and the refusal it lives inside are pinned independently.
 - A move to any location other than a change's active workspace and its archive is refused, asserted in both directions.
 - Deleting committed review evidence is refused.

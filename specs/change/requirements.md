@@ -252,6 +252,7 @@ Acceptance Criteria
 - A supported pre-approval supersede transition records a durable definition-bound predecessor edge with explicit path/module/predecessor-digest obligations.
 - Closing evidence binds each adopted obligation only when the same successor has the module's semantic delta and an exact old/new transition from its trusted definition-signed base tree to its descendant unique accepted-transition tree — or, while that transition is not yet in history, to the working tree its closing evidence was signed against; the acceptance commit's immediate parent is not the before tree.
 - Every owner of a changed input requires its own same-successor path/module obligation; owner intersection and cross-record path/spec unions fail closed.
+- A changed input whose signed owners are all reserved exact labels requires one obligation from a successor whose module owns the path under the current configuration; a `supersede` declaration for such an entry is admitted only for a module that owns the path now, and refused otherwise with the frozen label and the `[modules."<name>"] owns` remedy named, while a module that is not a signed owner of an entry a module signed is still refused.
 - A reopened canonical-applied change validates its current canonical modules without replaying its already-applied semantic delta.
 - Strict project checks reject a reopened definition that reacceptance would reject.
 - Definition reapproval keeps a canonical-applied reopened record in verifying so fresh evidence remains mandatory.
@@ -320,6 +321,7 @@ Acceptance Criteria
 - Multiple terminal successors may cover disjoint obligations, while cycles fail closed and completed validity results are memoized.
 - The archive preflight forwards its closing token into the successor walk, so the package being closed authenticates as a successor of the changes it supersedes exactly as its own historical-integrity preflight authenticates it; every reading path passes no token and is judged by history alone.
 - A successor whose acceptance transition is not in history — the package being closed, or an archive whose commit has not been made — is admitted only through its working-tree closing evidence, and its succession tuple is then checked against the working tree that evidence signed, with base ancestry checked against HEAD; once the archive commit exists, history is again the sole anchor.
+- A changed input whose signed owners are all reserved exact labels names no module of its own: its claimants are the modules under which later accepted or archived successors declared it, each claimant is judged by every check a signed owner's successor passes, one authenticated claimant covers the input, and otherwise every refused claimant is named with its reason and the frozen label as the input's owner.
 
 ### REQ-change-025
 
@@ -482,7 +484,7 @@ Acceptance Criteria
 - A changed covered input that no accepted or archived successor claims reports the input path, its owner module, and the `specsync change reopen <id>` remediation.
 - A changed covered input that one or more successors claimed and were refused for reports the input path, its owner module, and each refused successor with the reason it was refused — its evidence did not authenticate, its manifest could not be resolved, its evidence carries no tuple for the input, its manifest does not carry the tuple's successor entry, its delta has no semantic item, its tuple does not hold or could not be evaluated, or its own delivery-input evidence is stale — sorted by successor ID; a refusal is never reported as the absence of a successor.
 - When the stale change is workflow v1 and a refused successor is workflow v2, the diagnostic directs the operator to finish that successor (`specsync change status <successor>` names its next step) and does not offer `specsync change reopen` of the legacy change, whose replayed canonical delta would overwrite the successor's materialization; every other combination directs the operator to verify and accept a covering successor or reopen the accepted change.
-- A covered input that disappeared from the current inventory reports the missing path and the restore-or-reopen remediation; a changed exact-only input reports the path and the audited-reopen remediation; missing delivery-input evidence keeps its established phrase and gains the reopen remediation.
+- A covered input that disappeared from the current inventory reports the missing path and the restore-or-reopen remediation; a changed exact-only input that no successor claims reports the path and the audited-reopen remediation, and names the supersede alternative under `[modules."<name>"] owns` wherever the configuration can grant the path; a changed exact-only input whose claimants were all refused is reported like a signed owner's input, with the frozen label as its owner; missing delivery-input evidence keeps its established phrase and gains the reopen remediation.
 - Every stale reason remains deterministic: sorted successor IDs, no timestamps, and no environment-dependent content.
 - The `accepted change verification is stale for current delivery inputs` check prefix, the terminal-evidence validity values, and every freshness predicate remain unchanged.
 
@@ -1265,4 +1267,16 @@ Acceptance Criteria
 - Reconstructible legacy evidence and current manifest-backed evidence remain non-reopenable.
 - Authentication, explicit actor and reason, fresh verification, and new closing approval remain mandatory.
 - Reverification and acceptance produce a modern manifest that can be archived.
+
+### REQ-change-095
+
+The change lifecycle SHALL let a module own delivery paths beyond its spec's `files:` through `[modules."<name>"] owns` in the project configuration, and SHALL judge a successor's eligibility to supersede a predecessor entry signed under a reserved exact owner by the module that owns the path now rather than by the frozen label.
+
+Acceptance Criteria
+
+- An `owns` entry is a project-relative file, or a directory that owns everything beneath it, matched the way `affected_paths` scopes are; an acceptance manifest signs a matching path under every declared module that owns it, ahead of the reserved `@exact:test` and `@exact:delivery` classes, and a directory entry takes ownership like a file.
+- Configured ownership reaches acceptance manifests and semantic succession only: an owned path is not a source mapping, `specsync check` demands no spec coverage for it, a spec's `files:` list still does not lift a mapped test out of `@exact:test`, and no path under `.specsync/` or among the protected SDD paths is configurable.
+- `change supersede` accepts a module for a predecessor entry whose signed owners are all reserved exact labels when the module owns the path under the current configuration, refuses it otherwise naming the frozen label and the `owns` remedy without persisting anything, and keeps refusing a module that is not a signed owner of an entry a module signed.
+- The succession tuple is unchanged — the successor's module, the predecessor entry digest, and the successor entry digest, with the digest-matches-base-tree rule intact — and no owner correction, reopen, or additional audit record is required to supersede an exact-only entry.
+- A workflow-v2 successor that edits, deletes, and re-signs exact-only inputs of an archived bootstrap change finalizes, and the bootstrap is successor-covered on the full walk and on the active-only audit before and after the archive commit.
 

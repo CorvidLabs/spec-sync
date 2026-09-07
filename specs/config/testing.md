@@ -19,3 +19,4 @@ spec: config.spec.md
 | Retained CLI config with an explicit linked source root | Do not pre-scan the root; normal validation reports the unsafe mapping |
 | Retained CLI config with invalid UTF-8 | Emit the established fail-loud warning and use safe defaults; MCP selected-config reads still reject it |
 | Serialization | No retired inference keys |
+| `[modules."<name>"] owns` | Round-trips through `config_to_toml` and `load_config`, alone or beside `files`; a non-array value is rejected by checked TOML validation; coverage ignores it |

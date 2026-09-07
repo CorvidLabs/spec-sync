@@ -1,6 +1,6 @@
 ---
 module: config
-version: 24
+version: 25
 status: stable
 files:
   - src/config.rs
@@ -166,6 +166,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-08-27 | v22 / #723: Record whether `source_dirs` was stated or inferred, so a failure to infer it cannot overrule a project that stated it |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-09-07 | let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived: Let a module own paths beyond its spec files so a later change can supersede the exact-only inputs of an archived bootstrap change |
 
 ## Config File Structure
 
@@ -185,5 +186,5 @@ The configuration file supports the following top-level sections:
 | `schema_pattern` (`schemaPattern` in legacy JSON) | `String` | Regex for SQL CREATE TABLE extraction |
 | `github` | `GitHubConfig` | GitHub integration settings (`repo`, `labels`, `create_on_drift`) |
 | `rules` | `ValidationRules` | Custom validation rules (`max_staleness_days`, etc.) |
-| `modules` | `Map<String, ModuleDefinition>` | User-defined module groupings |
+| `modules` | `Map<String, ModuleDefinition>` | User-defined module groupings: `files` (a source mapping), `depends_on`, and `owns` — project-relative files or directories the module owns for change acceptance beyond its spec's `files:`, read by the change lifecycle alone and never a source mapping |
 

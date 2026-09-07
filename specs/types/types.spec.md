@@ -1,6 +1,6 @@
 ---
 module: types
-version: 15
+version: 16
 status: stable
 files:
   - src/types.rs
@@ -39,7 +39,7 @@ Core deterministic data structures and enums shared across the codebase: configu
 | `CoverageReport` | File and LOC coverage metrics for the project, plus what shaped them: files referenced but missing, links not traversed, and manifests degraded rather than propagated |
 | `SpecSyncConfig` | User-provided configuration loaded from specsync.json or .specsync.toml |
 | `RegistryEntry` | Registry entry mapping module names to spec file paths for cross-project resolution |
-| `ModuleDefinition` | User-defined module grouping in specsync.json with files and depends_on lists |
+| `ModuleDefinition` | User-defined module grouping in `.specsync/config.toml` / specsync.json with `files` and `depends_on` lists, and `owns` — paths the module owns for change acceptance beyond its spec's `files:`, never a source mapping |
 | `ValidationRules` | Custom validation rules configured in specsync.json (required_sections, max_staleness_days, etc.) |
 | `GitHubConfig` | GitHub integration config — `repo: Option<String>`, `labels: Vec<String>`, `create_on_drift: bool` |
 | `CustomRule` | A declarative custom validation rule defined in specsync.json — name, type, section, pattern, min_words, severity, message, applies_to filter |
@@ -173,3 +173,4 @@ Core deterministic data structures and enums shared across the codebase: configu
 | 2026-08-27 | v13 / #723: `SpecSyncConfig.source_dirs_set` records whether the source list was stated or inferred, and `CoverageReport.manifest_notices` carries a manifest that was degraded rather than allowed to veto it |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-09-07 | let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived: Let a module own paths beyond its spec files so a later change can supersede the exact-only inputs of an archived bootstrap change |

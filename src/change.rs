@@ -4240,6 +4240,30 @@ fn validate_declared_path_ownership(root: &Path, record: &ChangeRecord) -> Resul
     ))
 }
 
+/// Whether `module` owns `relative` today by the rule that signs acceptance entries for
+/// `record`: its spec's `files:`, its canonical companions, or a configured `owns` path.
+/// Production source that no declared module owns is not owned, not an error.
+fn module_currently_owns_path(
+    root: &Path,
+    record: &ChangeRecord,
+    relative: &str,
+    module: &str,
+    evidence: &GitEvidence,
+) -> Result<bool, String> {
+    match acceptance_input_owners(
+        root,
+        record,
+        relative,
+        &[],
+        evidence,
+        UnownedProductionSource::Reject,
+    ) {
+        Ok(owners) => Ok(owners.iter().any(|owner| owner == module)),
+        Err(error) if error.contains("without deterministic canonical ownership") => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
 fn production_source_lacks_canonical_owner_with_evidence(
     root: &Path,
     record: &ChangeRecord,
@@ -8530,6 +8554,7 @@ fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {
 }
 
 fn validate_supersedes_semantics(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let mut owner_evidence: Option<GitEvidence> = None;
     for edge in &record.supersedes {
         let predecessor = load_change(root, &edge.predecessor_id)?;
         if !matches!(
@@ -8603,12 +8628,53 @@ fn validate_supersedes_semantics(root: &Path, record: &ChangeRecord) -> Result<(
                     edge.predecessor_id, obligation.path
                 ));
             }
-            if obligation.module.starts_with("@exact:")
-                || !entry.owners.contains(&obligation.module)
+            if obligation.module.starts_with("@exact:") {
+                return Err(format!(
+                    "module `{}` is not a successor-eligible signed owner of predecessor path `{}`",
+                    obligation.module, obligation.path
+                ));
+            }
+            if entry.owners.contains(&obligation.module) {
+                continue;
+            }
+            // A reserved exact owner is not a module's claim: it records that no module owned
+            // the input when the predecessor signed it. That claim is retired by whichever
+            // module owns the path now -- the same rule that will sign the successor's own entry
+            // for it -- so eligibility is read from the current configuration rather than from
+            // the frozen label. A signed module owner's claim stays with that module.
+            if !entry
+                .owners
+                .iter()
+                .all(|owner| owner.starts_with("@exact:"))
             {
                 return Err(format!(
                     "module `{}` is not a successor-eligible signed owner of predecessor path `{}`",
                     obligation.module, obligation.path
+                ));
+            }
+            if owner_evidence.is_none() {
+                owner_evidence = Some(acceptance_owner_spec_evidence(root, record)?);
+            }
+            let currently_owns = owner_evidence
+                .as_ref()
+                .map(|evidence| {
+                    module_currently_owns_path(
+                        root,
+                        record,
+                        &obligation.path,
+                        &obligation.module,
+                        evidence,
+                    )
+                })
+                .transpose()?
+                .unwrap_or(false);
+            if !currently_owns {
+                return Err(format!(
+                    "module `{}` does not currently own predecessor path `{}` (signed `{}`); grant it with `owns` under `[modules.\"{}\"]` in `.specsync/config.toml`",
+                    obligation.module,
+                    obligation.path,
+                    entry.owners.join("`, `"),
+                    obligation.module
                 ));
             }
         }
@@ -12460,18 +12526,30 @@ fn acceptance_input_owners(
     evidence: &GitEvidence,
     unowned_source: UnownedProductionSource,
 ) -> Result<Vec<String>, String> {
-    if path_is_governed_test_or_fixture(relative) {
-        return Ok(vec![EXACT_TEST_OWNER.to_string()]);
-    }
-    if path_is_recognized_delivery_metadata(relative) {
-        return Ok(vec![EXACT_DELIVERY_OWNER.to_string()]);
-    }
     let config = crate::config::load_config(root);
+    // Configured ownership is decided before the reserved exact classes. A test, fixture, or
+    // delivery path that a declared module owns through `[modules."<name>"] owns` is that
+    // module's input, not `@exact:test` or `@exact:delivery` -- which is what lets a later
+    // change supersede it instead of reopening the change that signed it. A spec's `files:`
+    // list does not do this: a mapped test stays exact-only, as it always has.
+    let mut owners: Vec<String> = record
+        .affected_specs
+        .iter()
+        .filter(|module| configured_module_owns_path(&config, module, relative))
+        .cloned()
+        .collect();
+    if owners.is_empty() {
+        if path_is_governed_test_or_fixture(relative) {
+            return Ok(vec![EXACT_TEST_OWNER.to_string()]);
+        }
+        if path_is_recognized_delivery_metadata(relative) {
+            return Ok(vec![EXACT_DELIVERY_OWNER.to_string()]);
+        }
+    }
     let override_content: BTreeMap<String, &str> = overrides
         .iter()
         .map(|(path, content)| Ok((strict_portable_project_path(root, path)?, content.as_str())))
         .collect::<Result<_, String>>()?;
-    let mut owners = Vec::new();
     for module in &record.affected_specs {
         let (spec_path, requirements_path) =
             canonical_module_paths(root, &config.specs_dir, module)?;
@@ -12579,6 +12657,33 @@ fn path_is_governed_test_or_fixture(path: &str) -> bool {
         || path.contains("/test/")
         || path.contains("/fixtures/")
         || path.contains("/__fixtures__/")
+}
+
+/// Whether `[modules."<module>"] owns` in the project configuration gives `module` the path
+/// `relative`: an exact project-relative path, or a directory that owns everything beneath it,
+/// matched the way `affected_paths` scopes are. Ownership declared here reaches acceptance
+/// manifests and semantic succession only -- it is not a source mapping, so `specsync check`
+/// demands no spec coverage for an owned path. The lifecycle's own ledger under `.specsync/`
+/// is never configurable: its reserved exact owners are what the sequence-ledger succession
+/// rule reads.
+fn configured_module_owns_path(
+    config: &crate::types::SpecSyncConfig,
+    module: &str,
+    relative: &str,
+) -> bool {
+    if !ownership_is_configurable(relative) {
+        return false;
+    }
+    config.modules.get(module).is_some_and(|definition| {
+        definition.owns.iter().any(|scope| {
+            normalize_project_path(scope).is_ok_and(|scope| path_matches_scope(relative, &scope))
+        })
+    })
+}
+
+/// Whether the project configuration may grant a module ownership of `relative`.
+fn ownership_is_configurable(relative: &str) -> bool {
+    !relative.starts_with(".specsync/") && !is_protected_sdd_path(relative)
 }
 
 fn path_is_production_source(root: &Path, path: &str) -> bool {
@@ -16469,147 +16574,52 @@ fn validate_accepted_inputs_recursive(
                     successor_covered = true;
                     continue;
                 }
-                return Err(format!(
-                    "exact-only delivery input `{}` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change",
-                    expected.path, record.id
-                ));
+                // A reserved exact owner records that no module owned the input when it was
+                // signed, so the entry names nobody to look for. The module that owns the path
+                // now may have superseded it: its obligation names the module and its signed
+                // manifest carries the input under that module, so the claimants are read from
+                // the successors, and each is judged exactly as a signed owner's successor is.
+                let claimants = succession_claimants(records, record, expected);
+                if claimants.is_empty() {
+                    return Err(exact_only_input_remediation_reason(record, &expected.path));
+                }
+                let mut rejected_successors = BTreeMap::new();
+                if !claimants.iter().any(|module| {
+                    successor_covers_input(
+                        root,
+                        record,
+                        records,
+                        visiting,
+                        memo,
+                        pending,
+                        expected,
+                        module,
+                        &mut rejected_successors,
+                    )
+                }) {
+                    return Err(stale_input_remediation_reason(
+                        record,
+                        &expected.path,
+                        &expected.owners.join("`, `"),
+                        &rejected_successors,
+                    ));
+                }
+                successor_covered = true;
+                continue;
             }
             for owner in &expected.owners {
-                let mut covered = false;
                 let mut rejected_successors = BTreeMap::new();
-                for candidate in records.values() {
-                    // Only a successor that declares this obligation can cover it: authenticated
-                    // succession tuples are one-to-one with the record's declared obligations,
-                    // and the legacy reconstruction requires the declaration too. Deciding that
-                    // first keeps every refusal recorded below about a successor that claimed
-                    // the input.
-                    if candidate.id == record.id
-                        || !matches!(
-                            candidate.state,
-                            ChangeState::Accepted | ChangeState::Archived
-                        )
-                        || candidate.no_spec_change
-                        || !happens_after(candidate, record)
-                        || !declares_succession_obligation(candidate, &record.id, expected, owner)
-                    {
-                        continue;
-                    }
-                    let mut reject = |reason: String| {
-                        rejected_successors.insert(
-                            candidate.id.clone(),
-                            RejectedSuccessor {
-                                workflow_version: candidate.workflow_version,
-                                reason,
-                            },
-                        );
-                    };
-                    let candidate_verification =
-                        match authenticate_accepted_evidence(root, candidate, pending) {
-                            Ok(verification) => verification,
-                            Err(error) => {
-                                reject(format!(
-                                    "its accepted evidence did not authenticate: {error}"
-                                ));
-                                continue;
-                            }
-                        };
-                    let candidate_manifest = if let Some(manifest) =
-                        candidate_verification.acceptance_manifest.as_ref()
-                    {
-                        manifest.clone()
-                    } else {
-                        match resolved_acceptance_manifest(root, candidate) {
-                            Ok(manifest) => manifest,
-                            Err(error) => {
-                                reject(format!(
-                                    "its acceptance manifest could not be resolved: {error}"
-                                ));
-                                continue;
-                            }
-                        }
-                    };
-                    let tuple = if let Some(evidence) =
-                        candidate_verification.semantic_succession.as_ref()
-                    {
-                        evidence
-                            .tuples
-                            .iter()
-                            .find(|tuple| {
-                                semantic_tuple_matches_obligation(
-                                    tuple, &record.id, expected, owner,
-                                )
-                            })
-                            .cloned()
-                    } else if candidate_verification.acceptance_manifest.is_none() {
-                        legacy_semantic_successor_tuple(root, record, expected, owner, candidate)
-                            .ok()
-                            .flatten()
-                    } else {
-                        None
-                    };
-                    let Some(tuple) = tuple else {
-                        reject(format!(
-                            "its acceptance evidence carries no succession tuple for `{}` (owner `{owner}`)",
-                            expected.path
-                        ));
-                        continue;
-                    };
-                    if !candidate_manifest.entries.iter().any(|entry| {
-                        entry.path == expected.path
-                            && entry.entry_digest == tuple.successor_entry_digest
-                            && entry.owners.contains(owner)
-                    }) {
-                        reject(format!(
-                            "its acceptance manifest does not carry `{}` at the succession tuple's successor digest for owner `{owner}`",
-                            expected.path
-                        ));
-                        continue;
-                    }
-                    // A decided negative and a failure to evaluate are different answers (#743).
-                    match semantic_acceptance_item_exists_for_module(root, candidate, owner) {
-                        Ok(true) => {}
-                        Ok(false) => {
-                            reject(format!(
-                                "its `{owner}` delta carries no non-removed semantic item"
-                            ));
-                            continue;
-                        }
-                        Err(error) => {
-                            reject(format!("its `{owner}` delta could not be read: {error}"));
-                            continue;
-                        }
-                    }
-                    match semantic_tuple_transition_is_valid(root, candidate, &tuple, pending) {
-                        Ok(true) => {}
-                        Ok(false) => {
-                            reject(format!(
-                                "its succession tuple for `{}` does not hold between its base commit and its acceptance anchor",
-                                expected.path
-                            ));
-                            continue;
-                        }
-                        Err(error) => {
-                            reject(format!(
-                                "its succession tuple for `{}` could not be evaluated: {error}",
-                                expected.path
-                            ));
-                            continue;
-                        }
-                    }
-                    match validate_accepted_inputs_recursive(
-                        root, candidate, records, visiting, memo, pending,
-                    ) {
-                        Ok(_) => {
-                            covered = true;
-                            successor_covered = true;
-                            break;
-                        }
-                        Err(error) => {
-                            reject(format!("its own delivery-input evidence is stale: {error}"))
-                        }
-                    }
-                }
-                if !covered {
+                if !successor_covers_input(
+                    root,
+                    record,
+                    records,
+                    visiting,
+                    memo,
+                    pending,
+                    expected,
+                    owner,
+                    &mut rejected_successors,
+                ) {
                     return Err(stale_input_remediation_reason(
                         record,
                         &expected.path,
@@ -16617,6 +16627,7 @@ fn validate_accepted_inputs_recursive(
                         &rejected_successors,
                     ));
                 }
+                successor_covered = true;
             }
         }
         Ok(if successor_covered {
@@ -16628,6 +16639,172 @@ fn validate_accepted_inputs_recursive(
     visiting.remove(&record.id);
     memo.insert(record.id.clone(), result.clone());
     result
+}
+
+/// Whether some accepted or archived successor that claims `expected` of `record` for `owner`
+/// authenticates as covering it. Every claimant that does not is recorded in
+/// `rejected_successors` with the reason it was refused, keyed by successor ID.
+#[allow(clippy::too_many_arguments)]
+fn successor_covers_input(
+    root: &Path,
+    record: &ChangeRecord,
+    records: &BTreeMap<String, ChangeRecord>,
+    visiting: &mut BTreeSet<String>,
+    memo: &mut BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    pending: Option<&PendingArchiveClose<'_>>,
+    expected: &AcceptanceInputEntryV1,
+    owner: &str,
+    rejected_successors: &mut BTreeMap<String, RejectedSuccessor>,
+) -> bool {
+    for candidate in records.values() {
+        // Only a successor that declares this obligation can cover it: authenticated
+        // succession tuples are one-to-one with the record's declared obligations,
+        // and the legacy reconstruction requires the declaration too. Deciding that
+        // first keeps every refusal recorded below about a successor that claimed
+        // the input.
+        if candidate.id == record.id
+            || !matches!(
+                candidate.state,
+                ChangeState::Accepted | ChangeState::Archived
+            )
+            || candidate.no_spec_change
+            || !happens_after(candidate, record)
+            || !declares_succession_obligation(candidate, &record.id, expected, owner)
+        {
+            continue;
+        }
+        let mut reject = |reason: String| {
+            rejected_successors.insert(
+                candidate.id.clone(),
+                RejectedSuccessor {
+                    workflow_version: candidate.workflow_version,
+                    reason,
+                },
+            );
+        };
+        let candidate_verification = match authenticate_accepted_evidence(root, candidate, pending)
+        {
+            Ok(verification) => verification,
+            Err(error) => {
+                reject(format!(
+                    "its accepted evidence did not authenticate: {error}"
+                ));
+                continue;
+            }
+        };
+        let candidate_manifest =
+            if let Some(manifest) = candidate_verification.acceptance_manifest.as_ref() {
+                manifest.clone()
+            } else {
+                match resolved_acceptance_manifest(root, candidate) {
+                    Ok(manifest) => manifest,
+                    Err(error) => {
+                        reject(format!(
+                            "its acceptance manifest could not be resolved: {error}"
+                        ));
+                        continue;
+                    }
+                }
+            };
+        let tuple = if let Some(evidence) = candidate_verification.semantic_succession.as_ref() {
+            evidence
+                .tuples
+                .iter()
+                .find(|tuple| semantic_tuple_matches_obligation(tuple, &record.id, expected, owner))
+                .cloned()
+        } else if candidate_verification.acceptance_manifest.is_none() {
+            legacy_semantic_successor_tuple(root, record, expected, owner, candidate)
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
+        let Some(tuple) = tuple else {
+            reject(format!(
+                "its acceptance evidence carries no succession tuple for `{}` (owner `{owner}`)",
+                expected.path
+            ));
+            continue;
+        };
+        if !candidate_manifest.entries.iter().any(|entry| {
+            entry.path == expected.path
+                && entry.entry_digest == tuple.successor_entry_digest
+                && entry.owners.iter().any(|entry_owner| entry_owner == owner)
+        }) {
+            reject(format!(
+                "its acceptance manifest does not carry `{}` at the succession tuple's successor digest for owner `{owner}`",
+                expected.path
+            ));
+            continue;
+        }
+        // A decided negative and a failure to evaluate are different answers (#743).
+        match semantic_acceptance_item_exists_for_module(root, candidate, owner) {
+            Ok(true) => {}
+            Ok(false) => {
+                reject(format!(
+                    "its `{owner}` delta carries no non-removed semantic item"
+                ));
+                continue;
+            }
+            Err(error) => {
+                reject(format!("its `{owner}` delta could not be read: {error}"));
+                continue;
+            }
+        }
+        match semantic_tuple_transition_is_valid(root, candidate, &tuple, pending) {
+            Ok(true) => {}
+            Ok(false) => {
+                reject(format!(
+                    "its succession tuple for `{}` does not hold between its base commit and its acceptance anchor",
+                    expected.path
+                ));
+                continue;
+            }
+            Err(error) => {
+                reject(format!(
+                    "its succession tuple for `{}` could not be evaluated: {error}",
+                    expected.path
+                ));
+                continue;
+            }
+        }
+        match validate_accepted_inputs_recursive(root, candidate, records, visiting, memo, pending)
+        {
+            Ok(_) => return true,
+            Err(error) => reject(format!("its own delivery-input evidence is stale: {error}")),
+        }
+    }
+    false
+}
+
+/// The modules under which later accepted or archived changes claim `predecessor_entry` of
+/// `predecessor`, sorted. An exact-only entry names no module of its own, so these are the
+/// owners it is judged against.
+fn succession_claimants(
+    records: &BTreeMap<String, ChangeRecord>,
+    predecessor: &ChangeRecord,
+    predecessor_entry: &AcceptanceInputEntryV1,
+) -> BTreeSet<String> {
+    records
+        .values()
+        .filter(|candidate| {
+            candidate.id != predecessor.id
+                && matches!(
+                    candidate.state,
+                    ChangeState::Accepted | ChangeState::Archived
+                )
+                && !candidate.no_spec_change
+                && happens_after(candidate, predecessor)
+        })
+        .flat_map(|candidate| candidate.supersedes.iter())
+        .filter(|edge| edge.predecessor_id == predecessor.id)
+        .flat_map(|edge| edge.obligations.iter())
+        .filter(|obligation| {
+            obligation.path == predecessor_entry.path
+                && obligation.predecessor_entry_digest == predecessor_entry.entry_digest
+        })
+        .map(|obligation| obligation.module.clone())
+        .collect()
 }
 
 /// A successor that claimed to cover a stale delivery input and was refused, with the reason.
@@ -16679,6 +16856,23 @@ fn stale_input_remediation_reason(
             record.id
         )
     }
+}
+
+/// The remedy for a changed input whose only signed owners are reserved exact labels. Reopening
+/// replays the change; a successor supersedes the input under a module that owns it now, which
+/// is the remedy for a bootstrap change whose whole tree was signed exact-only, so it is named
+/// wherever the configuration can grant it.
+fn exact_only_input_remediation_reason(record: &ChangeRecord, path: &str) -> String {
+    let mut reason = format!(
+        "exact-only delivery input `{path}` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change",
+        record.id
+    );
+    if ownership_is_configurable(path) {
+        reason.push_str(
+            ", or supersede it from a later change under a module granted the path by `owns` in `.specsync/config.toml`",
+        );
+    }
+    reason
 }
 
 fn later_sequence_owner_covers_historical_input(

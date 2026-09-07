@@ -1622,6 +1622,7 @@ mod tests {
             crate::types::ModuleDefinition {
                 files: vec!["src/custom.rs".to_string()],
                 depends_on: vec![],
+                owns: vec![],
             },
         );
         let project =
@@ -1981,6 +1982,7 @@ mod tests {
             crate::types::ModuleDefinition {
                 files: vec!["src/foo.rs".to_string(), "src/bar.rs".to_string()],
                 depends_on: vec![],
+                owns: vec![],
             },
         );
         let files = find_files_for_module(root, "my-module", &config);
@@ -2005,6 +2007,7 @@ mod tests {
             crate::types::ModuleDefinition {
                 files: vec!["src/widget".to_string()],
                 depends_on: vec![],
+                owns: vec![],
             },
         );
 

@@ -7,6 +7,10 @@ spec: config.spec.md
 - Current and legacy JSON/TOML layouts remain readable for migration.
 - Retired AI key names are recognized only to emit value-safe migration guidance, then ignored.
 - Configuration never interprets provider credentials or commands.
+- `[modules."<name>"] owns` lists paths a module owns for change acceptance beyond its spec's `files:`
+  — a file, or a directory that owns everything beneath it. It is parsed, validated as a string array,
+  and serialized beside `files` and `depends_on`; a module carrying only `owns` still round-trips. The
+  key is read by the change lifecycle alone: it is not a source mapping and takes no part in coverage.
 - Source discovery recognizes supported language files plus default measurable HTML, HTM, and CSS content at the root or within top-level directories while preserving ignored-directory and empty-project behavior.
 - Checked source-directory and manifest discovery surface malformed or unreadable Gradle settings;
   existing infallible entry points remain compatibility wrappers, with scan fallback for source dirs.

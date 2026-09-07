@@ -509,3 +509,34 @@ the second, with the fixed binary, showed `audit` still calling the predecessor 
 pre-fix wording, which was the tell: no successor had been refused, none had been seen. The two roles
 are now two parameters, and the audit loads archived records only when it has an active terminal
 record to judge, only as candidates, and authenticates only one that declares the obligation.
+
+Ownership is what makes an input supersedable, and a spec's `files:` list was its only source. Every
+path an acceptance manifest signed that no declared spec listed — tests, fixtures, the package manifest,
+a DocC catalog, CI — carried a reserved exact owner, `@exact:test` or `@exact:delivery`, and an exact
+owner is not a module: `change supersede --spec` refused it as "not a successor-eligible signed owner",
+and the walk's only remedy for a changed exact-only input was an audited reopen of the change that
+signed it. In a repository bootstrapped by a whole-tree governance change (swift-algorand's `CHG-0001`
+declared `Sources/`, `Tests/`, `Package.swift`, `.github/`), that froze every non-spec file for every
+later change — a Swift Testing port of the legacy tests, the removal of the deprecated APIs they
+exercised, a DocC gate in `Package.swift` — and the reopen replays the bootstrap's canonical delta over
+its successors' materialization. `correct-owner` could not help: it wants a reopened predecessor and a
+module that canonically owns the path, which for a test none does.
+
+`[modules."<name>"] owns` in `.specsync/config.toml` is the second source of ownership. It is read by
+`acceptance_input_owners` ahead of the reserved classes, for the modules a change declares, and nowhere
+else: an owned path is not a source mapping, so `specsync check` demands no spec coverage for it, and a
+spec's `files:` still does not lift a mapped test out of `@exact:test`. A directory entry takes
+ownership like a file. The lifecycle's own ledger under `.specsync/` is never configurable, because the
+sequence-ledger succession rule reads its exact owners.
+
+Succession is judged against ownership NOW, not against the frozen label. A predecessor's manifest is
+immutable and still says `@exact:test`; the tuple that supersedes the entry records the successor's
+module, the predecessor entry digest, and the successor entry digest exactly as before, and the
+successor's own signed manifest carries the path under that module. So `supersede` accepts a module
+that owns the path under the current configuration when the predecessor entry names only exact owners,
+the walk reads the claimants of an exact-only entry from the successors' declared obligations instead of
+from the entry, and each claimant is judged by the same checks a signed owner's successor passes. A
+signed module owner's claim is not retired this way: an entry a module signed still wants that module's
+successor. There is no new audit record, on purpose — the two signed manifests and the tuple between
+them already prove who owned the path when, and a third ledger would only be one more thing to
+authenticate.

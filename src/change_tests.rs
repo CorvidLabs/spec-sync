@@ -9191,6 +9191,446 @@ fn finalize_archives_a_v2_successor_that_supersedes_a_legacy_accepted_change() {
     assert!(audit.errors.contains(error), "{:?}", audit.errors);
 }
 
+fn run_git(root: &Path, args: &[&str]) {
+    assert!(
+        Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .status()
+            .unwrap()
+            .success(),
+        "git command failed: {args:?}"
+    );
+}
+
+/// A repository bootstrapped by a whole-tree legacy change, the swift-algorand shape: the
+/// bootstrap declares the test tree and the package manifest beside its module's source, and
+/// is accepted and committed before any `owns` configuration exists, so its signed manifest
+/// carries every non-spec path under a reserved exact owner. Returns the accepted bootstrap
+/// and its signed manifest.
+fn exact_only_bootstrap_fixture(root: &Path) -> (ChangeRecord, AcceptanceManifestV1) {
+    run_git(root, &["init", "-b", "main"]);
+    run_git(root, &["config", "user.email", "test@example.com"]);
+    run_git(root, &["config", "user.name", "Test"]);
+    write_lifecycle_test_policy(root);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    fs::create_dir_all(root.join("tests/auth")).unwrap();
+    fs::write(root.join("tests/auth/legacy.rs"), "// XCTest-era test.\n").unwrap();
+    fs::write(
+        root.join("tests/auth/deprecated.rs"),
+        "// Exercises a deprecated trapping API.\n",
+    )
+    .unwrap();
+    fs::write(root.join("Package.swift"), "// swift-tools-version: 6.0\n").unwrap();
+    run_git(root, &["add", "."]);
+    run_git(root, &["commit", "-m", "base"]);
+
+    let delta = "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication remains governed.\n";
+    let mut bootstrap = completed_section_only_record(root, delta);
+    bootstrap
+        .affected_paths
+        .extend(["tests/auth".to_string(), "Package.swift".to_string()]);
+    bootstrap.affected_paths.sort();
+    save_change(root, &bootstrap).unwrap();
+    write_change_markdown(root, &bootstrap).unwrap();
+    bootstrap = approve_definition(root, &bootstrap.id, Some("Reviewer".into()), None).unwrap();
+    bootstrap = start_implementation(root, &bootstrap.id).unwrap();
+    verify_change(root, &bootstrap.id).unwrap();
+    bootstrap = accept_change(root, &bootstrap.id, Some("Closer".into()), None).unwrap();
+    assert_eq!(bootstrap.workflow_version, 1);
+    run_git(root, &["add", "."]);
+    run_git(root, &["commit", "-m", "accept bootstrap"]);
+    run_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let signed = load_verification(root, &bootstrap)
+        .unwrap()
+        .acceptance_manifest
+        .unwrap();
+    let owners = |path: &str| {
+        signed
+            .entries
+            .iter()
+            .find(|entry| entry.path == path)
+            .unwrap_or_else(|| panic!("{path}: {:?}", signed.entries))
+            .owners
+            .clone()
+    };
+    assert_eq!(owners("src/auth.rs"), vec!["auth".to_string()]);
+    assert_eq!(
+        owners("tests/auth/legacy.rs"),
+        vec![EXACT_TEST_OWNER.to_string()]
+    );
+    assert_eq!(
+        owners("tests/auth/deprecated.rs"),
+        vec![EXACT_TEST_OWNER.to_string()]
+    );
+    assert_eq!(
+        owners("Package.swift"),
+        vec![EXACT_DELIVERY_OWNER.to_string()]
+    );
+    (bootstrap, signed)
+}
+
+/// A workflow-v2 successor of the bootstrap declaring the same test tree and package manifest
+/// plus `extra_paths`, with complete artifacts and an `auth` delta, ready to adopt obligations.
+fn successor_over_exact_only_bootstrap(root: &Path, extra_paths: &[&str]) -> ChangeRecord {
+    let mut successor = current_workflow_record(root, completed_current_record(root));
+    for artifact in &successor.selected_artifacts {
+        let content = if *artifact == ArtifactKind::Tasks {
+            "# Tasks\n\n- [x] Complete the successor.\n"
+        } else {
+            "# Complete\n\nReviewed content.\n"
+        };
+        fs::write(
+            change_dir(root, &successor.id).join(artifact.file_name()),
+            content,
+        )
+        .unwrap();
+    }
+    fs::write(
+        delta_path(root, &successor, "auth"),
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication is governed by the successor.\n",
+    )
+    .unwrap();
+    successor
+        .affected_paths
+        .extend(["tests/auth".to_string(), "Package.swift".to_string()]);
+    successor
+        .affected_paths
+        .extend(extra_paths.iter().map(|path| path.to_string()));
+    successor.affected_paths.sort();
+    successor.affected_paths.dedup();
+    save_change(root, &successor).unwrap();
+    write_change_markdown(root, &successor).unwrap();
+    successor
+}
+
+fn manifest_entry<'a>(
+    manifest: &'a AcceptanceManifestV1,
+    path: &str,
+) -> &'a AcceptanceInputEntryV1 {
+    manifest
+        .entries
+        .iter()
+        .find(|entry| entry.path == path)
+        .unwrap_or_else(|| panic!("{path}: {:?}", manifest.entries))
+}
+
+// Verifies REQ-change-050 with REQ-change-020 and REQ-change-024.
+//
+// Field shape: CorvidLabs/swift-algorand, bootstrapped by a whole-tree governance change
+// (`CHG-0001` declared `Sources/`, `Tests/`, `Package.swift`, `.github/`, ...). Its acceptance
+// manifest gave `algorand` only the paths its spec's `files:` listed; every legacy XCTest file,
+// `Package.swift`, and the DocC catalog were signed `@exact:test` or `@exact:delivery`. An
+// exact-only input could not be superseded (`change supersede --spec algorand` refused the
+// module as "not a successor-eligible signed owner"), `@exact:delivery` is not a module, and the
+// preflight's only remedy for a changed one was an audited reopen of the bootstrap -- which
+// replays its canonical delta over every successor's materialization. So a Swift Testing port
+// of the legacy tests, removal of the deprecated APIs they exercised, and a DocC gate in
+// `Package.swift` (PR #20's carve-out) were frozen for every later change.
+//
+// With `[modules."auth"] owns = ["tests/auth", "Package.swift"]`, the successor's own entries
+// for those paths -- the directory entry included -- are signed `auth`, the frozen `@exact:*`
+// predecessor entries are successor-eligible for the module that owns the paths now, and
+// finalize archives the successor with the bootstrap successor-covered on both surfaces, before
+// and after the archive commit. No `correct-owner`, no reopen, and `check` demands no spec
+// coverage for the owned paths because they are not source mappings.
+#[test]
+fn configured_module_ownership_lets_a_v2_successor_supersede_exact_only_inputs_of_a_bootstrap_change()
+ {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (bootstrap, signed) = exact_only_bootstrap_fixture(root);
+    let directory = manifest_entry(&signed, "tests/auth");
+    assert_eq!(directory.kind, AcceptanceInputKind::NonFile);
+    assert_eq!(directory.owners, vec![EXACT_TEST_OWNER.to_string()]);
+
+    // Before the configuration grants `auth` the paths, an exact-only entry refuses the module
+    // -- the field refusal, now naming the remedy -- and the refusal persists nothing.
+    let mut successor = successor_over_exact_only_bootstrap(root, &["specs/auth/auth.spec.md"]);
+    let refused = add_supersedes_obligation(
+        root,
+        &successor.id,
+        &bootstrap.id,
+        "tests/auth/legacy.rs",
+        "auth",
+        &manifest_entry(&signed, "tests/auth/legacy.rs").entry_digest,
+    )
+    .unwrap_err();
+    assert_eq!(
+        refused,
+        "module `auth` does not currently own predecessor path `tests/auth/legacy.rs` (signed `@exact:test`); grant it with `owns` under `[modules.\"auth\"]` in `.specsync/config.toml`"
+    );
+    assert!(
+        load_change(root, &successor.id)
+            .unwrap()
+            .supersedes
+            .is_empty()
+    );
+
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[modules.\"auth\"]\nowns = [\"tests/auth\", \"Package.swift\"]\n",
+    )
+    .unwrap();
+    let obligations = [
+        "src/auth.rs",
+        "specs/auth/auth.spec.md",
+        "tests/auth/legacy.rs",
+        "tests/auth/deprecated.rs",
+        "Package.swift",
+    ];
+    for path in obligations {
+        successor = add_supersedes_obligation(
+            root,
+            &successor.id,
+            &bootstrap.id,
+            path,
+            "auth",
+            &manifest_entry(&signed, path).entry_digest,
+        )
+        .unwrap();
+    }
+    successor = approve_definition(root, &successor.id, Some("Scope owner".into()), None).unwrap();
+    // Remove the deprecated API, port one legacy test, delete the one that exercised the
+    // removed API, and gate a dependency in the package manifest.
+    fs::write(root.join("src/auth.rs"), "// Authentication module v2.\n").unwrap();
+    fs::write(
+        root.join("tests/auth/legacy.rs"),
+        "// Swift Testing port.\n",
+    )
+    .unwrap();
+    fs::remove_file(root.join("tests/auth/deprecated.rs")).unwrap();
+    fs::write(
+        root.join("Package.swift"),
+        "// swift-tools-version: 6.0\n// DocC plugin gated behind an environment flag.\n",
+    )
+    .unwrap();
+    check_change(root, Some(&successor.id)).unwrap();
+    run_git(root, &["add", "."]);
+    run_git(root, &["commit", "-m", "Implement successor"]);
+    check_change(root, Some(&successor.id)).unwrap();
+    record_scoped_review(root, &successor.id, "Independent reviewer".into()).unwrap();
+
+    let archived = finalize_change(root, &successor.id).unwrap();
+    assert!(
+        archived.starts_with(root.join(ARCHIVE_PATH)),
+        "{}",
+        archived.display()
+    );
+    let successor = load_change(root, &successor.id).unwrap();
+    assert_eq!(successor.state, ChangeState::Archived);
+
+    // The successor signs every owned path under `auth`, the directory entry and the deleted
+    // file included, and each succession tuple binds the frozen predecessor entry digest to the
+    // module that owns the path now.
+    let verification = load_verification(root, &successor).unwrap();
+    let manifest = verification.acceptance_manifest.clone().unwrap();
+    for path in ["tests/auth", "Package.swift"]
+        .into_iter()
+        .chain(obligations)
+    {
+        assert_eq!(
+            manifest_entry(&manifest, path).owners,
+            vec!["auth".to_string()],
+            "{path}"
+        );
+    }
+    assert_eq!(
+        manifest_entry(&manifest, "tests/auth").kind,
+        AcceptanceInputKind::NonFile
+    );
+    assert_eq!(
+        manifest_entry(&manifest, "tests/auth/deprecated.rs").kind,
+        AcceptanceInputKind::Missing
+    );
+    let tuples = verification.semantic_succession.unwrap().tuples;
+    assert_eq!(tuples.len(), obligations.len(), "{tuples:?}");
+    for path in obligations {
+        let tuple = tuples
+            .iter()
+            .find(|tuple| tuple.path == path)
+            .unwrap_or_else(|| panic!("{path}: {tuples:?}"));
+        assert_eq!(tuple.predecessor_id, bootstrap.id);
+        assert_eq!(tuple.module, "auth");
+        assert_eq!(
+            tuple.predecessor_entry_digest,
+            manifest_entry(&signed, path).entry_digest
+        );
+        assert_eq!(
+            tuple.successor_entry_digest,
+            manifest_entry(&manifest, path).entry_digest
+        );
+    }
+
+    // The bootstrap is successor-covered before the archive commit and after it, on the full
+    // walk and on the active-only audit, without a reopen or an owner correction.
+    let successor_covers = |root: &Path| {
+        let report = check_project(root);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        let audit = audit_project(root);
+        assert!(audit.errors.is_empty(), "{:?}", audit.errors);
+        let evidence = audit
+            .terminal_evidence
+            .iter()
+            .find(|evidence| evidence.id == bootstrap.id)
+            .unwrap_or_else(|| panic!("{:?}", audit.terminal_evidence));
+        assert_eq!(
+            evidence.evidence.validity,
+            TerminalEvidenceValidity::SuccessorCovered,
+            "{:?}",
+            evidence.evidence.reason
+        );
+    };
+    successor_covers(root);
+    run_git(root, &["add", "."]);
+    run_git(root, &["commit", "-m", "Finalize successor"]);
+    successor_covers(root);
+
+    // Disturbing an owned input after the archive stales the successor, so every exact-only
+    // entry it covered is reported through it -- the first in path order is `Package.swift`,
+    // with the frozen label as its owner -- naming the archived successor and its reason exactly
+    // as a signed owner's successor would be named, and steering away from the reopen.
+    fs::write(
+        root.join("tests/auth/legacy.rs"),
+        "// Edited after the archive.\n",
+    )
+    .unwrap();
+    let report = check_project(root);
+    let error = report
+        .errors
+        .iter()
+        .find(|error| error.starts_with(&format!("{}: ", bootstrap.id)))
+        .unwrap_or_else(|| panic!("{:?}", report.errors));
+    assert!(
+        error.contains(&format!(
+            "delivery input `Package.swift` (owner `@exact:delivery`) changed after acceptance; successor `{}` was rejected: its own delivery-input evidence is stale: delivery input `tests/auth/legacy.rs` (owner `auth`) changed after acceptance",
+            successor.id
+        )),
+        "{error}"
+    );
+    assert!(
+        !error.contains(&format!("run `specsync change reopen {}`", bootstrap.id)),
+        "{error}"
+    );
+}
+
+// Verifies REQ-change-050.
+// The configuration grants `auth` the test tree and nothing else. `Package.swift` stays
+// `@exact:delivery` for the successor too, so the bootstrap's frozen entry for it has no
+// module that owns it now, and the obligation is refused with the same message the field saw
+// -- after the granted path has already been adopted, and without touching the record.
+#[test]
+fn supersede_refuses_an_exact_only_input_the_configuration_grants_no_module() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (bootstrap, signed) = exact_only_bootstrap_fixture(root);
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[modules.\"auth\"]\nowns = [\"tests/auth\"]\n",
+    )
+    .unwrap();
+    let successor = successor_over_exact_only_bootstrap(root, &[]);
+    let successor = add_supersedes_obligation(
+        root,
+        &successor.id,
+        &bootstrap.id,
+        "tests/auth/legacy.rs",
+        "auth",
+        &manifest_entry(&signed, "tests/auth/legacy.rs").entry_digest,
+    )
+    .unwrap();
+    let refused = add_supersedes_obligation(
+        root,
+        &successor.id,
+        &bootstrap.id,
+        "Package.swift",
+        "auth",
+        &manifest_entry(&signed, "Package.swift").entry_digest,
+    )
+    .unwrap_err();
+    assert_eq!(
+        refused,
+        "module `auth` does not currently own predecessor path `Package.swift` (signed `@exact:delivery`); grant it with `owns` under `[modules.\"auth\"]` in `.specsync/config.toml`"
+    );
+    let persisted = load_change(root, &successor.id).unwrap();
+    assert_eq!(persisted.supersedes, successor.supersedes);
+    assert_eq!(persisted.supersedes.len(), 1);
+    assert_eq!(persisted.supersedes[0].obligations.len(), 1);
+    assert_eq!(
+        persisted.supersedes[0].obligations[0].path,
+        "tests/auth/legacy.rs"
+    );
+
+    // A signed module owner's claim stays with that module: the historical rule is unchanged
+    // for an entry a module signed, whatever the configuration says now.
+    let evidence = acceptance_owner_spec_evidence(root, &persisted).unwrap();
+    assert_eq!(
+        acceptance_input_owners(
+            root,
+            &persisted,
+            "src/auth.rs",
+            &[],
+            &evidence,
+            UnownedProductionSource::Reject,
+        )
+        .unwrap(),
+        vec!["auth".to_string()]
+    );
+}
+
+// Verifies REQ-change-050.
+#[test]
+fn configured_ownership_overrides_reserved_exact_classes_for_declared_modules_only() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nTests remain governed.\n",
+    );
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n\n[modules.\"auth\"]\nowns = [\"tests/auth\", \"Package.swift\", \".specsync\"]\n\n[modules.\"billing\"]\nowns = [\"tests/billing\"]\n",
+    )
+    .unwrap();
+    let evidence = git_evidence(root, &BTreeSet::new()).unwrap();
+    let owners = |path: &str| {
+        acceptance_input_owners(
+            root,
+            &record,
+            path,
+            &[],
+            &evidence,
+            UnownedProductionSource::Reject,
+        )
+        .unwrap()
+    };
+    // A configured path is the declared module's input, whether it is a test file, the
+    // directory entry itself, or root delivery metadata.
+    assert_eq!(owners("tests/auth/legacy.rs"), vec!["auth".to_string()]);
+    assert_eq!(owners("tests/auth"), vec!["auth".to_string()]);
+    assert_eq!(owners("Package.swift"), vec!["auth".to_string()]);
+    // The reserved classes stand wherever nothing declared owns the path: a module the change
+    // does not declare, a test tree no module owns, and a mapped-but-unowned test.
+    assert_eq!(
+        owners("tests/billing/invoice.rs"),
+        vec![EXACT_TEST_OWNER.to_string()]
+    );
+    assert_eq!(owners("tests/other.rs"), vec![EXACT_TEST_OWNER.to_string()]);
+    assert_eq!(
+        owners("fledge.toml"),
+        vec![EXACT_DELIVERY_OWNER.to_string()]
+    );
+    // The lifecycle's own ledger is never configurable ownership.
+    assert_eq!(
+        owners(".specsync/config.toml"),
+        vec![EXACT_DELIVERY_OWNER.to_string()]
+    );
+    assert_eq!(
+        owners(".specsync/change-sequence.json"),
+        vec![EXACT_DELIVERY_OWNER.to_string()]
+    );
+}
+
 // Verifies REQ-change-034.
 #[test]
 fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
@@ -9238,7 +9678,7 @@ fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
 
     fs::write(root.join("README.md"), "Final review instructions.\n").unwrap();
     let expected = format!(
-        "{}: accepted change verification is stale for current delivery inputs: exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change",
+        "{}: accepted change verification is stale for current delivery inputs: exact-only delivery input `README.md` changed after acceptance and requires an audited reopen; run `specsync change reopen {}` to re-verify the accepted change, or supersede it from a later change under a module granted the path by `owns` in `.specsync/config.toml`",
         record.id, record.id
     );
     let stale_report = check_project(root);

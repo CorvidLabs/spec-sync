@@ -145,3 +145,12 @@ Acceptance Criteria
 - A project that never expressed an enforcement preference is unaffected.
 - The documented default matches the value the type declares.
 
+### REQ-config-013
+
+Module configuration SHALL accept `owns` under `[modules."<name>"]` as a list of project-relative paths the module owns for the change lifecycle beyond its spec's `files:`.
+
+Acceptance Criteria
+- `owns` is parsed from canonical TOML and legacy JSON, typed as an array of strings by the checked parser, and serialized by `config_to_toml` beside `files` and `depends_on`; a module carrying only `owns` still round-trips.
+- The key is not a source mapping: coverage, export extraction, and `find_files_for_module` ignore it, and an owned path is never demanded to have spec coverage.
+- An omitted `owns` leaves every existing behaviour unchanged.
+

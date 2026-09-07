@@ -154,11 +154,14 @@ Override automatic source ownership when a module spans unusual paths:
 [modules."auth"]
 files = ["src/auth/service.ts", "src/auth/middleware.ts"]
 depends_on = ["database"]
+owns = ["tests/auth", "Package.swift"]
 
 [modules."api"]
 files = ["src/routes/"]
 depends_on = ["auth", "database"]
 ```
+
+`owns` gives a module paths beyond its spec's `files:` for the change lifecycle — a file, or a directory that owns everything beneath it. An acceptance manifest signs an owned path under the module instead of the reserved `@exact:test` / `@exact:delivery` owners, so a later change can `change supersede` it under that module even when the change that first signed it is archived. Owned paths are not source mappings: `check` demands no spec coverage for them, and nothing under `.specsync/` can be owned.
 
 ## GitHub integration
 

@@ -1,0 +1,73 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788762179,
+      "digest": "ea34b405a23910e915132507c60280f15938a1f4401cf6d6a6f805cbdd9c3da3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "add-the-owns-field-to-the-moduledefinition-literals-in-the-validator-and-generator-tests",
+        "title": "Add the owns field to the ModuleDefinition literals in the validator and generator tests",
+        "description": "Add the owns field to the ModuleDefinition literals in the validator and generator tests",
+        "kind": "refactor",
+        "affected_specs": [
+          "generator",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/generator.rs",
+          "src/validator.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Three test-only struct literals gain the new owns field so the crate compiles; validator and generator behaviour, contracts, and public API are unchanged",
+        "acceptance_criteria": [
+          "`src/validator.rs` and `src/generator.rs` compile with the new `owns` field present on every `ModuleDefinition` literal in their tests, and no validator or generator behaviour, contract, or public export changes"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788762190,
+      "digest": "ea34b405a23910e915132507c60280f15938a1f4401cf6d6a6f805cbdd9c3da3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "add-the-owns-field-to-the-moduledefinition-literals-in-the-validator-and-generator-tests",
+        "title": "Add the owns field to the ModuleDefinition literals in the validator and generator tests",
+        "description": "Add the owns field to the ModuleDefinition literals in the validator and generator tests",
+        "kind": "refactor",
+        "affected_specs": [
+          "generator",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/generator.rs",
+          "src/validator.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Three test-only struct literals gain the new owns field so the crate compiles; validator and generator behaviour, contracts, and public API are unchanged",
+        "acceptance_criteria": [
+          "`src/validator.rs` and `src/generator.rs` compile with the new `owns` field present on every `ModuleDefinition` literal in their tests, and no validator or generator behaviour, contract, or public export changes"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "make-ship-status-product-stage-completion-use-current-verification-content-consistently",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ab424040b5252377cd1103329983eb65077cf6df",
+  "contract_digest": "2dd894478f3a3f2bd3a15ffeb4c1365463678290f9d9d4e014a669f8328d51a8",
+  "execution_digest": "377c292e5d33a7893f463a9b09a8eba1a729ea7a1a1aeb8991eaeb573dd65c60",
+  "workspace_digest": "b1ca8c7865731b09eee7aa40e0337c8d6ab80cc3779f33544d1e3dddfae36d84",
+  "timestamp": 1788821300
+}

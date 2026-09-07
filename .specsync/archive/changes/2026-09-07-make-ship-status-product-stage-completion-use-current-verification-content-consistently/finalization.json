@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "make-ship-status-product-stage-completion-use-current-verification-content-consistently",
+  "implementation_commit": "ab424040b5252377cd1103329983eb65077cf6df",
+  "implementation_tree": "1764f6416da8accd71cb96fd438e44f2e94c0cbb",
+  "contract_digest": "2dd894478f3a3f2bd3a15ffeb4c1365463678290f9d9d4e014a669f8328d51a8",
+  "workspace_digest": "b1ca8c7865731b09eee7aa40e0337c8d6ab80cc3779f33544d1e3dddfae36d84",
+  "closing_digest": "eefbd08f0da4578210a618cfa494b7cc75493c501faa9e26c254f0a1359abf53",
+  "review_digest": "8ff553a595fd08e717e2a8d2463704977a5957ef1086e8deb8e27185232ed196",
+  "finalization_digest": "1e838c6b1bbe68b1a881692385ddc23a160c801668967056e903be91526926d5",
+  "timestamp": 1788821323
+}

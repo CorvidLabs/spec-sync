@@ -48,6 +48,38 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1788794250,
+      "commit": "d0930a792caedd008ce43ef5e70ea9099dd1f702",
+      "contract_digest": "ea34b405a23910e915132507c60280f15938a1f4401cf6d6a6f805cbdd9c3da3",
+      "execution_digest": "a2916cc7f4e3e0547835518010bb9b23c92b14a4222670af0702b59070697337",
+      "workspace_digest": "b644fed3525c74a1fa6d85e092a31ee5141020c371a9b6ea69351236ba339594",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec generator --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1788794251,
+      "commit": "b94754583c22846f5045426b20ec313a7e5fa732",
+      "contract_digest": "ea34b405a23910e915132507c60280f15938a1f4401cf6d6a6f805cbdd9c3da3",
+      "execution_digest": "a2916cc7f4e3e0547835518010bb9b23c92b14a4222670af0702b59070697337",
+      "workspace_digest": "b644fed3525c74a1fa6d85e092a31ee5141020c371a9b6ea69351236ba339594",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec generator --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

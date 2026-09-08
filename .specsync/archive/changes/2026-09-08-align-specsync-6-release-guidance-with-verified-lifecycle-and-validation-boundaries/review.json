@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "align-specsync-6-release-guidance-with-verified-lifecycle-and-validation-boundaries",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "5878fddcf16afdcfe03dff7e734eb21ed07294b4",
+  "contract_digest": "08048b29a11923b6284b15a20f6f28efda5707fce7520b9996b81518b5695ad8",
+  "execution_digest": "8123ddab87bdff5ac97331c420fbd8fcdce413d6a6cc5e2b2d03ce3bf3b4309b",
+  "workspace_digest": "7cb2b5a8e4e4b34498b4099ab9481fccf22f51e353cdf55d5f910717c01d3e20",
+  "timestamp": 1788829050
+}

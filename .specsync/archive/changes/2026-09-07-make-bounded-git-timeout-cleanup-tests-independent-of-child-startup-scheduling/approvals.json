@@ -1,0 +1,48 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788823382,
+      "digest": "0257545cd91cad8cc94991ef1a6b8d7d9d017518c1634afde66b8b0f4df4b3a3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-bounded-git-timeout-cleanup-tests-independent-of-child-startup-scheduling",
+        "title": "Make bounded Git timeout cleanup tests independent of child startup scheduling",
+        "description": "Make bounded Git timeout cleanup tests independent of child startup scheduling",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Timeout cleanup regression obtains the spawned child PID in the parent without a child-written readiness file; it still asserts deadline failure and child termination/reaping with a blocked stdin payload; deterministic delayed-start and cleanup negative controls distinguish the race from cleanup defects; repeated targeted runs and required verification pass without changing production deadlines or release gates."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "45d6b694300748599567933e629f9d4ff879e2338fb1f5f2db67bc3984eb74fb"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788825153,
+      "digest": "a264626d6594e5fb286a307dae1fe62c1c24b61c2fb6d5e6c884c79ff250c5fd",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

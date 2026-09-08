@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "make-bounded-git-timeout-cleanup-tests-independent-of-child-startup-scheduling",
+  "slug": "make-bounded-git-timeout-cleanup-tests-independent-of-child-startup-scheduling",
+  "title": "Make bounded Git timeout cleanup tests independent of child startup scheduling",
+  "description": "Make bounded Git timeout cleanup tests independent of child startup scheduling",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "4908a238a0030a451b3647c2a708403704545157",
+  "created_at": 1788823271,
+  "updated_at": 1788825481,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "specs/change"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Timeout cleanup regression obtains the spawned child PID in the parent without a child-written readiness file; it still asserts deadline failure and child termination/reaping with a blocked stdin payload; deterministic delayed-start and cleanup negative controls distinguish the race from cleanup defects; repeated targeted runs and required verification pass without changing production deadlines or release gates."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

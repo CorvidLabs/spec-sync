@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Testing
 
+REQ-change-096: `timed_out_git_runner_reaps_child_and_joins_blocked_writer` and `timed_out_git_runner_reaps_child_before_child_can_make_progress` capture PID after spawn in the parent, require a deadline error, assert ECHILD after runner cleanup, and observe the stdin writer join. The latter stops the child before starting the deadline. Neither test depends on a child-written readiness file. Cleanup and writer-join mutations must fail these assertions.
+
 The legacy reconstruction authentication control also asserts that missing actor/reason and a tampered closing digest fail without writing lifecycle state. Existing current-manifest and unanchored-commit reopening tests cover the other recovery causes.
 
 - `REQ-change-094`: `legacy_reopen_recovers_unreconstructible_current_acceptance` reproduces an anchored manifest-less acceptance whose current raw inputs match but whose transition tree cannot reproduce the signature. It fails on the unfixed implementation at the current-evidence refusal and checks audited recovery, sequence-history preservation, fresh acceptance with a modern manifest, and archival. `legacy_reopen_refuses_reconstructible_current_acceptance_without_mutation` passes before and after the fix and asserts refusal leaves state and approvals byte-identical while archival succeeds.

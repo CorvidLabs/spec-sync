@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Tasks
 
+- [x] Replace child-written PID evidence with deterministic parent observation and stopped-child timeout coverage (#587).
+
 - [x] Allow audited reopen of unreconstructible legacy acceptance with matching current inputs (#751).
 
 - [x] Implement durable change state and adaptive artifacts

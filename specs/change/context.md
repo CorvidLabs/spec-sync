@@ -542,3 +542,7 @@ signed module owner's claim is not retired this way: an entry a module signed st
 successor. There is no new audit record, on purpose — the two signed manifests and the tuple between
 them already prove who owned the path when, and a third ledger would only be one more thing to
 authenticate.
+
+## Release review: claims and authentication
+
+The stored scoped-review provider declaration is format-validated metadata bound to the recorded review; it is not a live provider response or authenticated identity. Local finalization validates the claim, verdict, history, and content currency. Authenticated provenance must be enforced by separately configured hosted checks and policy verification. The CLI, canonical REQ-change-046, and Public API description now state that boundary consistently. Existing blocking, append-only, same-approver, and freshness rules are unchanged.

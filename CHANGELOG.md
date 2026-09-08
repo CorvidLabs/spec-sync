@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.0]
+
+Release candidate: stable publication is pending. Add the release date only when the stable tag is published.
+
 ### Changed
 
 - **6.0 adoption guidance now states the validation and trust boundaries.** Structural spec checks do not establish arbitrary prose behavior or execute product tests. Approval digests bind content, while actor labels do not authenticate identity; signed provenance needs an enforced verification policy. Coordinate 6.x lifecycle writers and pin the actual binary used by CI and Trust. New changes archive on the same PR before merge; legacy recovery is documented separately.
@@ -2572,23 +2576,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Private CorvidLabs/spec-sync-sandbox dogfood for workflow-v2 adopt is recorded in sandbox scenario 019; tagging 6.0.0 remains gated on this PR.
 
-<!-- No date, deliberately. `validate-release-version.py:450` requires a `## [6.0.0]` section to
-     exist whenever the crate version is 6.0.0, so this heading is present throughout the
-     pre-release window by design. It carried `- 2026-07-29` until that was corrected: no `v6.0.0`
-     tag and no v6.0.0 release have ever existed — every 6.0 tag to date is a pre-release, latest
-     `v6.0.0-rc.10` — so the date claimed a ship that never happened, to every reader of this file.
-     2026-07-29 was when 6.0 work began.
-
-     Keep a Changelog dates released versions only. Add the date at the stable tag, when the
-     `[Unreleased]` entries above fold in here. -->
-
-## [6.0.0]
-
 ### Added
 
 - **One guided change workflow for SpecSync 6.0** — `change status` always names one next action,
-  `change check` applies approved deltas and runs affected-component verification, one independent
-  scoped PR review binds the implementation, and `change finalize` creates the dated archive in the
+  `change check` applies approved deltas and runs affected-component verification, one scoped human
+  PR review binds the implementation, and `change finalize` creates the dated archive in the
   same PR without merging externally.
 - **Additive strict validation** — global `--strict`, project policy, and deterministic
   release/security classification add validators to the same workflow/evidence instead of

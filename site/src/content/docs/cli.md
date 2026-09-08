@@ -351,27 +351,49 @@ Manage the single verified change workflow. Every command supports global `--jso
 
 ```bash
 specsync change new "Add passkeys" --kind feature --spec auth --path src/auth.rs
-specsync change answer CHG-0001-add-passkeys acceptance_criteria "Passkey login works"
-specsync change depend CHG-0002-update-ui CHG-0001-add-passkeys
+specsync change answer add-passkeys acceptance_criteria "Passkey login works"
+# answer remaining questions and complete the selected artifacts before approval
 specsync change list
-specsync change show CHG-0001-add-passkeys
-specsync change status CHG-0001-add-passkeys
-specsync change approve CHG-0001-add-passkeys
-specsync change check CHG-0001-add-passkeys
+specsync change show add-passkeys
+specsync change status add-passkeys
+specsync change approve add-passkeys --actor "Ada"
+# implement and test the approved scope
+specsync change check add-passkeys --commit
 specsync change audit
-specsync change review CHG-0001-add-passkeys --reviewer "Independent reviewer"
-specsync change finalize CHG-0001-add-passkeys
-# GitHub branch protection or merge queue performs the merge
-# Historical repair commands remain available:
-specsync change reopen CHG-0001-add-passkeys --actor "Ada" --reason "Review fixes changed governed inputs"
+# push the product tip, wait for required checks, then complete human review
+specsync change review add-passkeys --reviewer "Ada"
+specsync change finalize add-passkeys
+# commit and push the archive result; wait for checks before GitHub merges
+```
+
+For a separately created draft successor called `update-ui`, dependency and exact succession
+are declared before its scope approval. Set `PREDECESSOR_ENTRY_DIGEST` to the full
+`specsync.acceptance-entry.v1` digest of the accepted predecessor entry; `--spec` names its
+canonical owner. A digest or module placeholder is not valid evidence.
+
+```bash
+specsync change depend update-ui add-passkeys
+specsync change supersede update-ui add-passkeys \
+  --path src/auth.rs --spec auth --digest "$PREDECESSOR_ENTRY_DIGEST"
+specsync change adopt --dry-run
+```
+
+`reopen` supports eligible accepted or archived workflow-v2 evidence as well as legacy records:
+
+```bash
+specsync change reopen add-passkeys --actor "Ada" --reason "Review fixes changed governed inputs"
+# resume through check --commit, human review, review, and finalize
+```
+
+Historical workflow-v1 correction examples retain numeric IDs:
+
+```bash
 specsync change correct CHG-0001-add-passkeys architecture_risk yes --actor "Ada" --reason "Review found architectural impact"
 specsync change correct-owner CHG-0001-add-passkeys --path src/auth.rs --spec auth --actor "Ada" --reason "Owner omitted from the accepted affected-spec list"
 specsync change correct-owner CHG-0001-add-passkeys --path src/a.rs --path src/b.rs --spec auth --actor "Ada" --reason "Batch repair"
 specsync change correct-owner CHG-0001-add-passkeys --manifest owners.json --actor "Ada" --reason "Batch repair"
 specsync change correct-owner CHG-0001-add-passkeys --all-missing --spec auth --actor "Ada" --reason "Assign every omitted owner"
-specsync change supersede CHG-0002-update-ui CHG-0001-add-passkeys --path specs/auth/auth.spec.md --module auth
 specsync change archive CHG-0001-add-passkeys
-specsync change adopt --dry-run
 ```
 
 `acceptance_criteria` preserves scalar prose exactly; use a JSON array of strings to provide multiple criteria. `affected_specs` and `affected_paths` retain comma- and newline-separated list input.
@@ -380,13 +402,18 @@ New changes require one digest-bound human scope approval. `change status` alway
 action and ends with one `Handoff:` line (`safe`, `conditional`, or `not yet`, the reason, and the
 steps to take before clearing context; `--json` carries it as `summary.handoff` — see
 [Clearing context between steps](workflow.md#clearing-context-between-steps)); `change check` applies approved deltas and records targeted evidence for **one change**
-(not archive history); `change audit` checks active workspaces and living specs; independent scoped
+(not archive history); `change audit` checks active workspaces and living specs; scoped human
 review binds the implementation commit; and `change finalize` creates the dated archive in the same
 PR without merging externally. Global `--strict`, project policy, and release/security
 classification add validators to this same path. Existing `start`, `verify`, `accept`, `archive`,
-`reopen`, `correct`, and `correct-owner` commands remain compatible with historical two-approval
-evidence. Neither repair path reapplies an already-canonical semantic delta. `change adopt` enables
+`correct`, and `correct-owner` commands remain compatible with historical two-approval
+evidence. `reopen` also repairs eligible workflow-v2 terminal evidence. Recovery preserves the
+already-canonical semantic delta rather than applying it again. `change adopt` enables
 SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
+
+Reviewer labels and stored provider declarations do not authenticate identity. Local finalization
+checks recorded content and history; authenticated provenance requires separately configured
+hosted checks and policy verification. The scope approver may perform the implementation review.
 
 Use `change correct-owner` to append audited exact canonical owner corrections for reopened acceptance evidence — for example owners omitted from a historical affected-spec list. The single form takes one `--path`/`--spec` pair; the batch form accepts repeated `--path` flags (one shared `--spec` or paired lists), a `--manifest` file (JSON `[{path, module}]` or TSV), or `--all-missing --spec <module>` to discover every production-source affected path that lacks canonical ownership. Every entry validates independently against the single-correction rules, and the batch is transactional: if any entry is invalid, no corrections from the batch are persisted. Use `change supersede` before definition approval when a later change adopts an exact predecessor path/module obligation, so the predecessor's accepted evidence remains successor-covered instead of going stale. A predecessor entry signed under a reserved exact owner (`@exact:test`, `@exact:delivery`) can be adopted by any module that owns the path now through `[modules."<name>"] owns` in `.specsync/config.toml`; no reopen or owner correction is needed.
 

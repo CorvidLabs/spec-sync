@@ -1,6 +1,6 @@
 ---
 module: change
-version: 121
+version: 122
 status: active
 files:
   - src/change.rs
@@ -15,7 +15,7 @@ depends_on:
 
 ## Purpose
 
-Provides the SpecSync verified spec-driven development lifecycle: one scope approval, targeted verification, one independent scoped review, same-PR finalization, and compatible audited recovery for historical evidence.
+Provides the SpecSync verified spec-driven development lifecycle: one scope approval, targeted verification, one scoped human review, same-PR finalization, and compatible audited recovery for historical evidence.
 
 ## Contract
 
@@ -96,8 +96,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `SemanticSuccessionTupleV1` | Exact predecessor, path, module, old-entry digest, and new-entry digest transition |
 | `SemanticSuccessionEvidenceV1` | Versioned sorted one-to-one closing evidence for approved supersedes obligations |
 | `VerificationRecord` | Commit-bound verification result with separate stable-scope and volatile-execution digests, commands, requirement coverage, and optional acceptance manifest/succession evidence |
-| `ScopedReviewVerdict` | Explicit passing or blocking conclusion for one independent scoped review |
-| `ScopedReviewProvenanceProvider` | External provider class that authenticates the required scoped-review result |
+| `ScopedReviewVerdict` | Explicit passing or blocking conclusion for one scoped human review |
+| `ScopedReviewProvenanceProvider` | Stored provenance-provider declaration; identity authentication requires separately enforced external policy |
 | `ScopedReviewProvenanceV1` | Versioned required GitHub Actions check binding carried by review evidence |
 | `ScopedReviewRecord` | Stable reviewer claim, required-check provenance, explicit verdict, implementation commit, scope/execution/workspace digests, and review timestamp bound before finalization |
 | `ScopedReviewCurrency` | Three-valued answer to whether a recorded scoped review still holds: current, stale carrying what moved, or unavailable when the guarantee could not be evaluated at all |
@@ -287,7 +287,7 @@ Acceptance Criteria
 
 **Scenario: Handoff verdict follows the lifecycle, not the evidence files**
 
-- **Given** an approved change whose implementation is committed and whose independent review just wrote an uncommitted `review.json`
+- **Given** an approved change whose implementation is committed and whose scoped human review just wrote an uncommitted `review.json`
 - **When** the session asks `handoff_summary` before and after editing one file under `affected_paths`
 - **Then** the review file alone leaves the verdict `safe` resuming at finalize, the edit turns it `conditional` naming a commit or a `change.md` note, and neither reason carries a digest
 
@@ -481,3 +481,4 @@ Acceptance Criteria
 | 2026-09-05 | archive-preflight-lets-the-package-being-closed-cover-the-legacy-change-it-supersedes-and-stale-input-diagnostics-name: Archive preflight lets the package being closed cover the legacy change it supersedes, and stale-input diagnostics name the refused successor |
 | 2026-09-07 | let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived: Let a module own paths beyond its spec files so a later change can supersede the exact-only inputs of an archived bootstrap change |
 | 2026-09-07 | make-bounded-git-timeout-cleanup-tests-independent-of-child-startup-scheduling: Make bounded Git timeout cleanup tests independent of child startup scheduling |
+| 2026-09-08 | complete-specsync-6-promotion-and-public-release-contracts: Clarify scoped reviewer claims and the separate authentication policy boundary |

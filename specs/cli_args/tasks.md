@@ -19,3 +19,5 @@ spec: cli_args.spec.md
 - [x] Add batch selection grammar for correct-owner (repeated path/spec, manifest, all-missing)
 - [x] Add optional migrate source-family positional for the 5.0 ledger backfill
 - [x] Add an explicit pass/block verdict to the plain scoped-review command
+
+- [x] Clarify scoped-review claims versus separately enforced authentication without changing runtime review rules.

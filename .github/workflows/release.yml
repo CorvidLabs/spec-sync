@@ -330,7 +330,7 @@ jobs:
         #
         # It is `if: always()`, so the failure is silent in the step list and lands as a MISSING
         # ARTIFACT: no `macos.json`, so the evidence upload is `if-no-files-found: error`, so
-        # `record-qualification` never gets its three platform files, so the RC gate posts
+        # `record-qualification` never gets its two platform files, so the RC gate posts
         # `failure` and can never go green. A missing interpreter three jobs upstream presents
         # as an unqualifiable release candidate.
         #
@@ -570,8 +570,8 @@ jobs:
           mapfile -t evidence_files < <(
             find qualification-evidence -type f -name '*.json' -print | sort
           )
-          if [[ "${#evidence_files[@]}" -ne 3 ]]; then
-            echo "::error::RC workflow did not retain exactly three platform evidence records"
+          if [[ "${#evidence_files[@]}" -ne 2 ]]; then
+            echo "::error::RC workflow did not retain exactly two platform evidence records"
             exit 1
           fi
           evidence_arguments=()
@@ -780,7 +780,7 @@ jobs:
         #
         # It is `if: always()`, so the failure is silent in the step list and lands as a MISSING
         # ARTIFACT: no `macos.json`, so the evidence upload is `if-no-files-found: error`, so
-        # `record-qualification` never gets its three platform files, so the RC gate posts
+        # `record-qualification` never gets its two platform files, so the RC gate posts
         # `failure` and can never go green. A missing interpreter three jobs upstream presents
         # as an unqualifiable release candidate.
         #
@@ -880,8 +880,8 @@ jobs:
           mapfile -t evidence_files < <(
             find qualification-evidence-final -type f -name '*.json' -print | sort
           )
-          if [[ "${#evidence_files[@]}" -ne 3 ]]; then
-            echo "::error::Release requires exactly three original platform evidence records"
+          if [[ "${#evidence_files[@]}" -ne 2 ]]; then
+            echo "::error::Release requires exactly two original platform evidence records"
             exit 1
           fi
           evidence_arguments=()

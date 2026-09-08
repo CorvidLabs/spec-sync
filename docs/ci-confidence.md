@@ -35,16 +35,16 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 
 ### Tier B: immutable release candidates
 
-- Ubuntu, macOS, and Windows integration and release validation against one exact candidate SHA
+- Ubuntu and macOS integration and release validation against one exact candidate SHA
 - any additional release or security matrix required by project policy
 
 The Trust split remains non-protected. CHG-0075 applies the separately pinned protected-workflow
 update: Ubuntu is the authoritative integration platform for ordinary development and product PRs,
-while macOS and Windows run only in the immutable release-candidate cycle:
+while macOS runs in the immutable release-candidate cycle. Windows is not a qualified or published target as of 6.0:
 
 1. Freeze an exact candidate commit on an RC branch and create an immutable RC marker/tag for that
    SHA.
-2. Run the required Ubuntu, macOS, and Windows integration/release gates against that same SHA.
+2. Run the required Ubuntu and macOS integration/release gates against that same SHA.
 3. Refuse the final release tag and uploads unless every required platform is green for the unchanged
    candidate SHA.
 
@@ -138,7 +138,7 @@ release lane is the one workflow whose most important job runs exactly once.
 |-----|--------|
 | `resolve` | **Executed.** `workflow_dispatch` with `dry_run=true` against `v6.0.0-rc.7` — the first dispatch in this repository's history. |
 | `validate` | **Executed**, same run. Both rulesets read and accepted. |
-| `qualify` | Ubuntu and macOS only as of #735. It first ran on `rc.8` and failed on Windows there and on `rc.9`; `rc.1`–`rc.7` had died in `resolve` in 8–13 seconds, so the matrix never ran at all. Windows is now dropped from the lane rather than fixed forward, so the retained `#[cfg(windows)]` code is compiled and run **nowhere** — those guarantees are best-effort and unverified. No candidate has yet qualified; `rc.10` is the first to try. |
+| `qualify` | **Executed successfully on RC16**, Ubuntu and macOS at `ffba9a32b664a7b3308350c162f0ac808f24efe3` in [run 34172484287](https://github.com/CorvidLabs/spec-sync/actions/runs/34172484287). That evidence applies only to RC16; a changed release tree requires a fresh candidate. Windows remains unqualified and unpublished. |
 | `promote` | **Never executed.** |
 
 `promote` cannot be rehearsed here. `final_tag` is derived from the candidate's own `Cargo.toml`
@@ -167,6 +167,23 @@ nothing on the failing paths, and the tag is pushed as the last action of the jo
 leaves the tag namespace untouched, and the idempotent branch means a retry after a *later* job
 fails is safe rather than a second release. The one non-recoverable outcome — a tag pointing at the
 wrong commit — is the case that refuses.
+
+## Remaining publication evidence
+
+A `dry_run=true` dispatch selects validation-only mode. It does not execute the promotion or
+publication jobs, authenticate a real tag push, or publish packages. Exercise the actual evidence
+guards and read-only candidate validators separately, and retain their refusal controls.
+
+Before stable publication, qualify the final merged tree under a new immutable RC, inspect every
+required check and review thread, and verify signed provenance with the required policy. A soft
+Trust result alone is not a satisfied provenance policy. The count guards and exact platform
+validator must both agree on Ubuntu/macOS; missing, extra, duplicate, failed, or mixed-identity
+receipts remain invalid.
+
+GitHub Releases, crates.io, and the Homebrew tap are separate publication channels. Confirm the
+6.0 package/version and binary identity on each advertised channel after deliberate publication;
+do not infer package availability from a source tag. The standalone site emits redirects to the
+CorvidLabs hub, so verify the hub actually serves the corrected pages after its deployment.
 
 ## Trust lifecycle policy
 

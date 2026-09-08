@@ -1,0 +1,61 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788832685,
+      "digest": "eb88dd4dd35b6459c2551e018487b50238a3f30de85eb49ac0fbd88d38ff6223",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "complete-specsync-6-promotion-and-public-release-contracts",
+        "title": "Complete SpecSync 6 promotion and public release contracts",
+        "description": "Complete SpecSync 6 promotion and public release contracts",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cli_args"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/scripts/validate-release-candidate.py",
+          ".github/workflows/release.yml",
+          "CHANGELOG.md",
+          "README.md",
+          "SECURITY.md",
+          "docs/ci-confidence.md",
+          "site/src/content/docs/cli.md",
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/cli_args/cli_args.spec.md",
+          "specs/cli_args/context.md",
+          "specs/cli_args/requirements.md",
+          "specs/cli_args/tasks.md",
+          "src/cli.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "CLI help and canonical review contracts distinguish a digest-bound reviewer claim from separately configured authenticated provenance, with no runtime identity or release gate weakened.",
+          "Executable regression controls exercise both workflow evidence-count guards and fail when the obsolete three-record expectation is restored.",
+          "Promotion and final publication accept exactly the current required Ubuntu and macOS evidence set, and reject missing, duplicate, extra, failed, or mixed-identity evidence without bypassing release protections.",
+          "README and CLI examples use supported slug workflows and valid supersede flags; security support and release notes describe the 6.0 rollout without claiming an unpublished release already shipped.",
+          "The exact final tree passes required local and hosted verification, Trust, provenance, independent review, and a fresh RC qualification before stable publication."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "93d0e09089b07ff499c26e546aa65a77698a0a609cde6ce234f488eba3b464e1",
+        "cli_args": "a2c92aa548fd73dc7a1db2b82319e1a49c32b73a432f50f9e200002a651f922b"
+      }
+    }
+  ],
+  "reopenings": []
+}

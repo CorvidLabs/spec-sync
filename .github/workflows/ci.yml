@@ -285,6 +285,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --verbose
       - run: cargo test --verbose
+      - name: Run published lifecycle examples
+        run: python3 .github/scripts/test-sdd-examples.py --bin target/debug/specsync
       - run: cargo clippy -- -D warnings
 
   fmt:

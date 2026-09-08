@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "repair-executable-lifecycle-demos",
+  "slug": "repair-executable-lifecycle-demos",
+  "title": "Repair executable lifecycle demos",
+  "description": "Repair executable lifecycle demos",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "ffba9a32b664a7b3308350c162f0ac808f24efe3",
+  "created_at": 1788838607,
+  "updated_at": 1788838689,
+  "affected_specs": [],
+  "affected_paths": [
+    "examples/sdd-lifecycle",
+    "examples/sdd-concurrent-changes",
+    "examples/sdd-five-epics",
+    ".github/scripts/test-sdd-examples.py",
+    ".github/workflows/ci.yml"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Repair standalone example scripts, their documentation, and executable example checks; no library or CLI runtime contract changes",
+  "acceptance_criteria": [
+    "All three published demos exit successfully with the SpecSync 6 binary; generated slug IDs and selected artifacts drive lifecycle commands; dependent-before-prerequisite remains rejected; each archive is committed sequentially; the five-epic demo executes its product tests and cannot report success after test failure; CI executes the examples and negative controls"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

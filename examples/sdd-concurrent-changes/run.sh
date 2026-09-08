@@ -11,26 +11,19 @@ git config user.email example@specsync.dev
 git config user.name "SpecSync Example"
 printf '# Ordered changes\n' > README.md
 "$bin" init >/dev/null
-# Operations-only projects need a bounded fallback so scoped check can record evidence.
-python3 - <<'PY'
-import json
-from pathlib import Path
-
-path = Path(".specsync/sdd.json")
-policy = json.loads(path.read_text())
-if not policy.get("verification_commands"):
-    policy["verification_commands"] = ["true"]
-    path.write_text(json.dumps(policy, indent=2) + "\n")
-PY
 git add .
 git commit -m "Initialize example" >/dev/null
 
 create_change() {
   local description="$1"
   local path="$2"
-  local id="$3"
-  "$bin" change new "$description" --kind operations --path "$path" \
-    --no-spec-change --rationale "Operational ordering only" >/dev/null
+  local output_name="$3"
+  local created
+  local id
+  created="$("$bin" change new "$description" --kind operations --path "$path" \
+    --no-spec-change --rationale "Operational ordering only" --json)"
+  id="$(printf '%s' "$created" | python3 -c 'import json,sys; print(json.load(sys.stdin)["change"]["id"])')"
+  printf -v "$output_name" '%s' "$id"
   "$bin" change answer "$id" acceptance_criteria "$description is complete" >/dev/null
   "$bin" change answer "$id" public_contract no >/dev/null
   "$bin" change answer "$id" architecture_risk no >/dev/null
@@ -40,10 +33,8 @@ create_change() {
   printf '# Testing\n\nOrdering is verified by lifecycle gates.\n' > "$dir/testing.md"
 }
 
-first="CHG-0001-deploy-dependent-service"
-second="CHG-0002-provision-prerequisite"
-create_change "Deploy dependent service" "ops/service/" "$first"
-create_change "Provision prerequisite" "ops/platform/" "$second"
+create_change "Deploy dependent service" "ops/service/" first
+create_change "Provision prerequisite" "ops/platform/" second
 "$bin" change depend "$first" "$second" >/dev/null
 "$bin" change approve "$first" --actor "Example Scope Owner" >/dev/null
 "$bin" change approve "$second" --actor "Example Scope Owner" >/dev/null

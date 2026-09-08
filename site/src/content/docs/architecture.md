@@ -51,24 +51,30 @@ The CLI is the source of truth. Editor extensions, GitHub Actions, MCP clients, 
 digest-bound. Changes to scoped code, tests, configuration, file kind, executable mode, or
 contract inputs invalidate stale evidence. Strict policy adds validators to the same evidence path.
 
-**Git-native history.** Canonical specs, semantic deltas, requirements, decisions, and evidence remain reviewable as ordinary files. Accepted changes archive only after delivery integration.
+**Git-native history.** Canonical specs, semantic deltas, requirements, decisions, and evidence remain reviewable as ordinary files. New changes archive on the same PR before GitHub merges the delivery.
 
 **One engine for humans and agents.** Native skills present the deterministic CLI interview conversationally; they do not create a separate agent-only lifecycle.
 
 ## Validation pipeline
 
-### 1. Lifecycle gate
+Ordinary `specsync check` performs structural validation; it does not audit active change workspaces or archives, even when SDD is enabled.
 
-When SDD is enabled, SpecSync validates active workspaces, approvals, semantic deltas, task completion, requirement evidence, and meaningful-path coverage.
+A successful check validates configured structure, exported API names, source mappings, dependency declarations, and supported schema rules. It does not prove that arbitrary natural-language requirements describe the implementation; reviewers and product tests establish those behaviors.
 
-### 2. Structural contract
+### Optional lifecycle validation
+
+Use `change check` for scoped evidence and spec-to-code validation, and `change audit` for active-workspace and living-spec health. Lifecycle commands enforce applicable approval, semantic delta, task, evidence, and path-coverage policy. Product tests run separately in CI.
+
+Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate.
+
+### 1. Structural contract
 
 - Parse frontmatter and required fields
 - Verify source files and dependency specs exist
 - Require configured `##` sections
 - Validate requirement and companion conventions
 
-### 3. API and schema surface
+### 2. API and schema surface
 
 - Detect each source language
 - Extract public symbols using its configured parser
@@ -77,11 +83,11 @@ When SDD is enabled, SpecSync validates active workspaces, approvals, semantic d
 
 Spec-only symbols are errors. Code-only symbols and undocumented schema details are warnings that become failures in strict mode.
 
-### 4. Dependency graph
+### 3. Dependency graph
 
 Source imports are mapped to owning specs and compared with `depends_on`. Strict mode rejects undeclared imports, missing modules, and cycles.
 
-### 5. Coverage and quality
+### 4. Coverage and quality
 
 Coverage measures source files and LOC governed by specs. Scoring evaluates frontmatter, required sections, API completeness, depth, and freshness.
 

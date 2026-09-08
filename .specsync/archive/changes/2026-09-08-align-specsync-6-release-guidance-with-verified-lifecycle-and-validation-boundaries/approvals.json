@@ -1,0 +1,166 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788827587,
+      "digest": "08048b29a11923b6284b15a20f6f28efda5707fce7520b9996b81518b5695ad8",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "align-specsync-6-release-guidance-with-verified-lifecycle-and-validation-boundaries",
+        "title": "Align SpecSync 6 release guidance with verified lifecycle and validation boundaries",
+        "description": "Align SpecSync 6 release guidance with verified lifecycle and validation boundaries",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "MIGRATION.md",
+          "docs/ADOPTING.md",
+          "site/src/content/docs/architecture.md",
+          "site/src/content/docs/companion-files.md",
+          "site/src/content/docs/why-specsync.md",
+          "site/src/content/docs/workflow.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Correct public guidance to describe existing verified behavior and rollout constraints; no executable behavior, API, or canonical module contract changes.",
+        "acceptance_criteria": [
+          "Public 6.0 guidance accurately separates structural checking from semantic proof and content-bound approval from authenticated identity; describes same-PR archival before merge and the actual scope of check versus change audit; warns against mixed 5.x/6.x lifecycle writers and explains explicit Trust binary pinning; labels legacy recovery commands; removes obsolete numeric-sequence and post-merge archival claims in the scoped pages; docs build and existing contract checks pass without changing executable behavior."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788829083,
+      "digest": "eafc089f7945479fe8caa916ceb354894ea34d296045109cc0971dbd5b0d292c",
+      "note": "Same-PR finalization closing digest"
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788834968,
+      "digest": "b1751d36a7a6756fd8e146b4b8f270a31ff64f08f74a68fbb9ea4576548f895f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [
+    {
+      "schema_version": 1,
+      "change_id": "align-specsync-6-release-guidance-with-verified-lifecycle-and-validation-boundaries",
+      "actor": "0xLeif",
+      "reason": "Address PR761 review: document supported workflow-v2 reopen recovery within the approved seven-file guidance scope",
+      "timestamp": 1788830497,
+      "from_state": "archived",
+      "to_state": "verifying",
+      "superseded_approval": {
+        "gate": "finalization",
+        "actor": "specsync:finalization",
+        "timestamp": 1788829083,
+        "digest": "eafc089f7945479fe8caa916ceb354894ea34d296045109cc0971dbd5b0d292c",
+        "note": "Same-PR finalization closing digest"
+      },
+      "prior_verification": {
+        "timestamp": 1788828110,
+        "commit": "5878fddcf16afdcfe03dff7e734eb21ed07294b4",
+        "contract_digest": "08048b29a11923b6284b15a20f6f28efda5707fce7520b9996b81518b5695ad8",
+        "execution_digest": "8123ddab87bdff5ac97331c420fbd8fcdce413d6a6cc5e2b2d03ce3bf3b4309b",
+        "workspace_digest": "7cb2b5a8e4e4b34498b4099ab9481fccf22f51e353cdf55d5f910717c01d3e20",
+        "acceptance_input_digest": "82371dd9c3706f802159ee778e2974f40ae757a9b33c54d762dde630f2a8939a",
+        "acceptance_manifest": {
+          "schema_version": 1,
+          "entries": [
+            {
+              "path": "CHANGELOG.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "c5358af2a627aad38488977b12e9aefbe1022bc0677be4e5417f32429388311a",
+              "entry_digest": "616e141330764a8678e6a5ae4b41ebeb1062add21646bf27822f2c44b32f50a1",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "MIGRATION.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "00d1b3a0508d8b033787874a5f041af59c336121d4cbfe24f99878423350c9d2",
+              "entry_digest": "9557ac3705cbd5d9e8c97965e744f2e691b0217e0a8d0d950b909e3268c0c60a",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "docs/ADOPTING.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "d3df1cf17e5946d8ce4db92ecf5725705711809b00899036a967263d93e1ca9f",
+              "entry_digest": "474fc1edea453ed2c86ad72ac1900ea0c280f3ad26eacef4ba9c0f426bd96285",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/architecture.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "85d1b18a203137b5c71c7a1fd0c40970974a5c73179d0568730569d5e29f10ef",
+              "entry_digest": "b1cfc2a35dbd0bfd08e413f204febbf568e8f99ca1b08e1497483dcb26d9727d",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/companion-files.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "862a46aade6374b29ab5c4293daf7a94d7a566597f7dc75bd82cf74cfbb6ea6b",
+              "entry_digest": "8212ed6a91340f35b18d7cc54d902984c36e568060b93463ed172d864d8e2b8a",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/why-specsync.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "24052e569986df6526362f6217a1a3d1e3bef55ae0a478ffd53927c4b4e448fe",
+              "entry_digest": "21869199ff802de9bc7b7acfdb2806ef58be6410298312ca3c9689382755554c",
+              "owners": [
+                "@exact:delivery"
+              ]
+            },
+            {
+              "path": "site/src/content/docs/workflow.md",
+              "kind": "file",
+              "mode": 33188,
+              "payload_digest": "27238dd0e7e4a9cb121d37cb37359821d669430db615a7dc5b5d792533c3bc81",
+              "entry_digest": "d8b07c3d8d57d6ecdc99c89fbd0a4e4ff388b41f743a14582bec0a642d940ad4",
+              "owners": [
+                "@exact:delivery"
+              ]
+            }
+          ]
+        },
+        "passed": true,
+        "commands": [
+          {
+            "command": "specsync check --spec cmd_change --strict",
+            "success": true,
+            "exit_code": 0
+          }
+        ],
+        "requirement_ids": []
+      },
+      "stale_acceptance_input_digest": "82371dd9c3706f802159ee778e2974f40ae757a9b33c54d762dde630f2a8939a",
+      "current_acceptance_input_digest": "b28a24fe66ab1c38a3f59ee3a1a026be54b20876bdfa3a06480412b24d819366"
+    }
+  ]
+}

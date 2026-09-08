@@ -52,7 +52,7 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 | Semantic deltas and canonical merge | **Yes** | No | **Yes** |
 | Bidirectional spec ↔ real code exports | **Yes** | Extension/agent analysis | No |
 | Stable requirement → test evidence | **Required** | Artifact-level by default | Artifact-level by default |
-| Digest-bound human approvals | **One scope approval** plus independent scoped PR review | Workflow gates | Confirmation at archive |
+| Digest-bound human approvals | **One scope approval** plus scoped human PR review | Workflow gates | Confirmation at archive |
 | Active code checked against future contract | **Deterministic blocking gate** | Agent/workflow analysis | Agentic `/opsx:verify`; non-blocking by default |
 | Concurrent semantic conflict detection | **Deterministic pre-check / finalize gate** | Workflow/extension dependent | Sync/archive-time agentic handling |
 | Configured tests executed by CI gate | **Yes** | Configurable workflow shell steps | Agentic verification |
@@ -130,10 +130,14 @@ SpecSync was built for the AI-assisted development era:
 Specs aren't static documents — they have a lifecycle:
 
 ```
-draft → approved → implementing → verifying → accepted → archived
+draft → approved → implementing → verifying → scoped review → archived → GitHub merge
 ```
 
-SpecSync manages this lifecycle with deterministic interviews, adaptive artifacts, semantic deltas, two human approval gates, requirement/test traceability, effective-contract validation, and immutable archives. Canonical module maturity remains separate.
+SpecSync manages new changes with deterministic interviews, adaptive artifacts, semantic deltas, one scope approval, a human implementation review, requirement/test traceability, and immutable archives. The reviewer may be the scope approver. Finalize on the same PR before merging. Canonical module maturity remains separate.
+
+A successful check validates configured structure, exported API names, source mappings, dependency declarations, and supported schema rules. It does not prove that arbitrary natural-language requirements describe the implementation; reviewers and product tests establish those behaviors.
+
+Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate.
 
 ### Zero Dependencies
 

@@ -22,7 +22,7 @@ new → one scope approval → implement → check → PR review → finalize �
 | **Approved** | A human approves the scope/definition digest once | `change approve` |
 | **Implementing** | Code, canonical specs, and tests follow the approved package | `change check` |
 | **Verifying** | Targeted evidence is current and one scoped PR review is required | `change check`, ordinary PR review |
-| **Archived** | Finalization atomically applies deltas and moves the package to dated history in the same PR | `change finalize` |
+| **Archived** | Finalization records closure and moves the package to dated history in the same PR | `change finalize` |
 
 Module maturity (`draft → review → active → stable → deprecated → archived`) remains separately available through `specsync lifecycle`.
 
@@ -30,37 +30,42 @@ Module maturity (`draft → review → active → stable → deprecated → arch
 
 ```bash
 specsync change new "Add passkeys" --spec auth --path src/auth.rs --json
-specsync change answer CHG-0001-add-passkeys acceptance_criteria \
+specsync change answer add-passkeys acceptance_criteria \
   "A registered passkey authenticates the user" --json
-specsync change answer CHG-0001-add-passkeys public_contract yes --json
-specsync change answer CHG-0001-add-passkeys architecture_risk yes --json
+specsync change answer add-passkeys public_contract yes --json
+specsync change answer add-passkeys architecture_risk yes --json
 ```
 
 Acceptance criteria preserve the submitted prose as one criterion, including commas and line breaks. To submit more than one criterion, pass an explicit JSON string array such as `'["Passkey login works", "Recovery remains available"]'`. Scope questions such as `affected_specs` and `affected_paths` continue to accept comma- or newline-separated lists.
 
 The shared deterministic engine asks only unresolved questions and selects requirements, research, design, plan, tasks, context, testing, docs, or custom artifacts according to change type and risk. Agent skills present the same questions conversationally.
 
-Every new change also updates `.specsync/change-sequence.json`. Because that protected claim is committed, two branches that independently select the same numeric sequence conflict during Git integration instead of silently creating duplicate `CHG-NNNN` records. Sequences use at least four digits and continue past `CHG-9999`. Strict lifecycle checking scans active and archived workspaces together. Historical collisions can be preserved only by listing the exact sequence and complete set of immutable accepted or archived full IDs under `acknowledged_collisions`; adding or removing an ID, or including a mutable lifecycle state, makes the baseline fail closed.
+New changes use a slug derived from their description, such as `add-passkeys`. Use the ID
+returned by `change new`. A repeated description is refused and names the existing change;
+choose a distinct description for distinct work. The sequence ledger preserves historical
+numeric identities only. It no longer allocates new change numbers and must not be hand-edited.
 
 ## 2. Approve and Implement
 
 Complete selected artifacts and semantic deltas, then obtain explicit human approval:
 
 ```bash
-specsync change approve CHG-0001-add-passkeys
+specsync change approve add-passkeys
 ```
 
-Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Only a change to the approved stable intent, contract, acceptance criteria, or affected scope requires renewed human approval. Implementation details, tests, evidence, canonical delta materialization, and lifecycle metadata preserve that approval while automated verification and the independent scoped review are refreshed.
+Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Only a change to the approved stable intent, contract, acceptance criteria, or affected scope requires renewed human approval. Implementation details, tests, evidence, canonical delta materialization, and lifecycle metadata preserve that approval while automated verification and the scoped human review are refreshed.
 
 ## 3. Check, Review, and Finalize
 
 ```bash
-specsync change check CHG-0001-add-passkeys
+specsync change check add-passkeys --commit
+# push the product tip after local gates and wait for required checks
 # open or update the PR, then complete ordinary PR review
-# after an independent scoped reviewer passes the change package, diff, spec delta, and evidence:
-specsync change review CHG-0001-add-passkeys --reviewer "Ada Reviewer"
-specsync change finalize CHG-0001-add-passkeys
-# commit the metadata/archive-only result; GitHub performs the merge
+# after a human reviewer passes the change package, diff, spec delta, and evidence:
+specsync change review add-passkeys --reviewer "Ada Reviewer"
+specsync change finalize add-passkeys
+# do not commit between review and finalize
+# commit and push the archive result, wait for required checks, then merge on GitHub
 ```
 
 `change check` applies approved semantic deltas and compares specs to code in-process for
@@ -69,21 +74,19 @@ terminal evidence — archives are history. Use `change audit` for project healt
 workspaces and living specs. CI owns `cargo test` / `swift test` / `bun test`. Explicit `--strict`, project policy, and deterministic release/security classification add
 validators to the same scoped evidence path. Source, test, configuration, or contract edits stale
 verification; implementation edits after scoped review stale the review. `change status` prints the
-exact `change review` command when this independent review is the next required action; `change
+exact `change review` command when this human implementation review is the next required action; `change
 review` records the completed review and does not replace the repository's ordinary PR review.
 
-The reviewer value is a stable ASCII claim recorded with an append-only pass/block trail. It is not
-the trust root: required CI authenticates the official `SpecSync scoped review` GitHub Actions check
-on the exact implementation parent before the finalization child can merge.
+Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate. The scope approver may also perform the implementation review.
 
-`change finalize` requires current verification and independent review, writes domain-separated
-finalization evidence, and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/` in one
-metadata/archive-only commit. Its lightweight CI lane proves the parent implementation checks were
-green and the child changed only approved lifecycle/archive paths; it does not rerun product tests
-or scoped review. GitHub branch protection or merge queue owns the merge. A post-merge job binds the
-actual merge commit/tree to a compact archive event before release validation can proceed.
+`change finalize` requires current verification and scoped review, writes finalization evidence,
+and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. Run `review` and
+`finalize` (or `ship`) consecutively without an intervening commit. Commit the archive result
+on the same PR and wait for required checks. Never merge while a change on that PR remains active.
+GitHub protection and required workflows enforce hosted review and provenance policy where
+configured; the local reviewer label alone does not supply that authentication.
 
-Historical `start`, `verify`, `accept`, `archive`, `reopen`, `correct`, and `correct-owner`
+Historical `start`, `verify`, `accept`, `archive`, `correct`, and `correct-owner`
 commands remain available to validate or repair older two-approval evidence. They are compatibility
 surfaces, not steps in the new-change workflow.
 
@@ -95,13 +98,13 @@ passing `change check`, `change approve`, `change review`, and `change finalize`
 `Handoff:` line that says which of the two you are at:
 
 ```text
-  Next: run `specsync change check CHG-0001-add-passkeys`
-  Handoff: conditional — uncommitted edits sit under this change's paths, and nothing on disk records why they were made. Before clearing: commit the work in progress; or write its intent and open ends into `.specsync/changes/CHG-0001-add-passkeys/change.md`
+  Next: run `specsync change check add-passkeys`
+  Handoff: conditional — uncommitted edits sit under this change's paths, and nothing on disk records why they were made. Before clearing: commit the work in progress; or write its intent and open ends into `.specsync/changes/add-passkeys/change.md`
 ```
 
 - `safe` — everything the next session needs is recorded. The reason says where it resumes:
   a freshly approved definition resumes at `change check`; current verification resumes at the
-  independent review or at finalize; workflow-v2 acceptance and the archive need nothing further.
+  human implementation review or at finalize; workflow-v2 acceptance and the archive need nothing further.
 - `conditional` — the lifecycle is consistent, but something lives only in this session. A
   Draft is never `safe`: answer the open questions and approve first, or write the undecided
   points into `change.md`. Uncommitted edits under the change's `affected_paths` are
@@ -117,7 +120,34 @@ Resume with `specsync change status <id>`. `--json` carries the same verdict as
 is rendered, and as `handoff` on the approve transition. The installed agent skill tells agents to
 clear context only on `safe` and to do what `Before clearing:` names first.
 
-## 4. Reopen After Accepted Review Fixes
+## 4. Recover accepted or archived evidence
+
+`reopen` also supports workflow-v2. An interrupted finalization can leave an accepted record
+with a terminal finalization approval; an already archived change can also need recovery when
+its accepted delivery inputs become stale. For an eligible record whose approved definition
+is unchanged, use the audited recovery path:
+
+```bash
+specsync change reopen add-passkeys \
+  --actor "Ada Reviewer" \
+  --reason "Review correction changed a scoped delivery input after finalization"
+specsync change check add-passkeys --commit
+# push the corrected product tip, wait for required checks, and complete human review
+specsync change review add-passkeys --reviewer "Ada Reviewer"
+specsync change finalize add-passkeys
+# commit and push the archive result; wait for required checks before merging
+```
+
+An archived package moves back to the active workspace on a successful reopen. The audit
+preserves its prior state and superseded terminal approval. A refused reopen restores the
+archive. Consult `change status <id>` first: missing terminal evidence or an unchanged current
+record does not justify reopening, and a changed definition requires its own approval path.
+Do not add legacy `accept` to this workflow-v2 sequence.
+
+### Legacy workflow-v1 recovery
+
+The numeric IDs and `verify` / `accept` commands below describe historical workflow-v1 records.
+Consult `change status <id>` before repairing that evidence.
 
 If final review changes a governed source, test, configuration, policy, or contract input after acceptance, strict checking correctly rejects the stale closing evidence. Do not edit lifecycle JSON or archive the active workspace. Record an audited transition instead:
 
@@ -129,9 +159,9 @@ specsync change verify CHG-0001-add-passkeys
 specsync change accept CHG-0001-add-passkeys --actor "Ada Reviewer"
 ```
 
-Reopen is allowed only when the accepted delivery-input digest is stale. It moves the change back to `verifying`, embeds the prior verification and superseded closing approval in append-only audit history, and leaves strict CI red until a fresh verification succeeds. Reacceptance records a new closing approval without applying the already-canonical semantic delta a second time. Use global `--json` to receive the deterministic change and versioned audit objects.
+Eligible recovery includes stale accepted delivery inputs and supported historical cases where the old evidence cannot be reconstructed. The CLI checks the recorded history and reports eligibility; missing or arbitrary evidence is not permission to bypass validation. It moves the change back to `verifying`, embeds the prior verification and superseded closing approval in append-only audit history, and leaves strict CI red until a fresh verification succeeds. Reacceptance records a new closing approval without applying the already-canonical semantic delta a second time. Use global `--json` to receive the deterministic change and versioned audit objects.
 
-Squash-integrated changes and changes partially superseded by later canonical work may also reopen when current Git history records their accepted state or later recorded canonical changes govern every affected contract surface. The unchanged definition, passed evidence, valid closing approval, stale delivery inputs, explicit actor, and audit reason remain mandatory; copied or arbitrary off-history evidence is rejected.
+Squash-integrated changes and changes partially superseded by later canonical work may also reopen when current Git history records their accepted state or later recorded canonical changes govern every affected contract surface. The unchanged definition, passed evidence, valid closing approval, an eligible recovery cause, explicit actor, and audit reason remain mandatory; copied or arbitrary off-history evidence is rejected.
 
 The reopened definition must remain identical to the contract that originally applied the canonical delta. If review requires new or changed requirements, deltas, or other definition artifacts, create a new change workspace; reacceptance fails closed instead of silently ignoring those edits.
 
@@ -150,9 +180,12 @@ specsync change accept CHG-0001-add-passkeys --actor "Ada Reviewer"
 
 `correct-owner` is intentionally exact and additive. The path must already be inside the original delivery scope, the named module's current canonical spec must list that source file, and the change must be already applied and in `verifying` through an audited reopen. The command cannot add paths, affected specs, requirements, or semantic deltas. It preserves prior approval and reopen evidence, makes the definition approval stale, and requires fresh approval, verification, and closing approval. Reacceptance adds the corrected module only to that manifest entry and does not apply the canonical delta again. If the needed change is a real semantic rescope, create a successor change instead.
 
-When a later canonical change expands a governed contract, it can keep an accepted predecessor from deadlocking implementation only when it is an exact successor: it has a higher sequence, current human-approved definition, semantic deltas, and complete coverage of every predecessor spec and path. A verifying successor also needs fresh passed evidence. Draft, no-spec, partial, failed, stale-definition, or abandoned records never suppress predecessor errors.
+Historical succession checks preserve exact coverage and approval requirements. For new
+slug-based changes, use the supported `change supersede` workflow to record predecessor,
+path, and module obligations before approval; do not infer succession from numeric ordering.
+A partial, draft, failed, or stale record is not proof that predecessor obligations were met.
 
-## 5. Correct Accepted Classification Metadata
+## 5. Legacy workflow-v1 recovery: correct accepted classification
 
 Use `change correct` when the accepted delivery evidence is current but review proves that the original `public_contract` or `architecture_risk` answer was wrong:
 

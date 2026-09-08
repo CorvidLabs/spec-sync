@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **6.0 adoption guidance now states the validation and trust boundaries.** Structural spec checks do not establish arbitrary prose behavior or execute product tests. Approval digests bind content, while actor labels do not authenticate identity; signed provenance needs an enforced verification policy. Coordinate 6.x lifecycle writers and pin the actual binary used by CI and Trust. New changes archive on the same PR before merge; legacy recovery is documented separately.
+
 - **`specsync check` is the product; SDD is opt-in.** Fresh `init` writes
   `.specsync/sdd.json` with `enabled: false` and
   `require_change_for_meaningful_files: false`. It no longer starts a first-change

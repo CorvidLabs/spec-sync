@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "repair-executable-lifecycle-demos",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "ab3330039e1398ae9efb15a6819bed220b003858",
+      "contract_digest": "9607bbb397ceb6933e6eba2498beec4e4ae541c11b9159a4eb8b2a3ff85394fc",
+      "execution_digest": "75446f83d4b3763d8e1ebb779a824f5cfc23344ce8a98b1805237e254376dc5d",
+      "workspace_digest": "dc3b7704e84f76283b349b387d3bd4f867900ce995d8d36e7d801b2f66d426de",
+      "timestamp": 1788839586
+    }
+  ]
+}

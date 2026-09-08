@@ -36,6 +36,18 @@ specsync change adopt            # on-switch; flips enabled only
 
 Pin the GitHub Action explicitly. Pre-releases are `@v6.0.0-rc.N` and are not resolved by a floating tag; once 6.0.0 is published, pin `@v6.0.0` (the form the README and site examples use). Do not treat a 5.0 `adopt` + `check --strict` sequence as an SDD gate on 6.0: `check` will not consult the change workflow.
 
+### Validation, approval, and rollout boundaries
+
+A successful check validates configured structure, exported API names, source mappings, dependency declarations, and supported schema rules. It does not prove that arbitrary natural-language requirements describe the implementation; reviewers and product tests establish those behaviors.
+
+Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate.
+
+Coordinate the upgrade of all lifecycle writers to the selected 6.x version, including developer machines, agents, hooks, and CI. Older 5.x writers may reject slug-based changes or discard newer record fields. The 6.x downgrade checks detect damaged or downgraded evidence; they do not make mixed-version writes safe. Check `specsync --version` in each execution environment before resuming active work.
+
+Pin the SpecSync executable separately from any Action or Trust wrapper. Use a wrapper revision that supports the selected binary version; adding an input to an older wrapper is not sufficient. This repository validates its candidate binary and supplies it to Trust through an explicit `specsync-version` and a runner-local `file://` mirror. Adopters should validate their own wrapper and binary source, and require provenance policy verification if it is a release gate.
+
+For new changes, complete scope approval, implementation, scoped verification, and human implementation review, then run `review` and `ship` consecutively without an intervening commit. Commit the archive result on the same PR, wait for required checks, and merge only after every active change is archived. Legacy recovery commands are for historical evidence, not the normal 6.x delivery path.
+
 ## Migrating to SpecSync v4.0.0
 
 This guide covers upgrading from SpecSync 3.x to 4.0.0.

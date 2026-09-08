@@ -142,7 +142,7 @@ spec: auth.spec.md
 - Session-store timeout
 ```
 
-Every requirement introduced by an active semantic delta must appear in verification evidence before acceptance. Record what is actually tested; do not turn intended future coverage into a passing claim.
+Every requirement introduced by an active semantic delta must have the required evidence mapping for scoped verification. A mapping does not prove a test ran: `change check` validates evidence and compares specs with code but does not execute product tests. Record actual test results from CI or local execution separately; do not turn intended future coverage into a passing claim.
 
 ## Optional `design.md`
 
@@ -157,7 +157,7 @@ Use `design.md` for layout, component hierarchy, interaction states, tokens, acc
 
 ## Relationship to change workspaces
 
-Canonical companions describe the current module. `.specsync/changes/CHG-*` describes a proposed delivery:
+Canonical companions describe the current module. `.specsync/changes/<change-id>/` describes a proposed delivery:
 
 | Canonical companion | Change-workspace counterpart |
 |---|---|
@@ -166,6 +166,6 @@ Canonical companions describe the current module. `.specsync/changes/CHG-*` desc
 | `context.md` | Change-specific constraints and background |
 | `testing.md` | Planned and recorded evidence for affected requirement IDs |
 
-At acceptance, SpecSync applies semantic deltas atomically to canonical truth. The change workspace remains active until delivery is integrated, then archives as immutable history.
+For new 6.x changes, `change check` materializes approved semantic deltas into canonical specs and records scoped verification. After human implementation review, run `review` and `finalize` (or `ship`) without an intervening commit. Commit the archive result on the same PR, wait for required checks, and only then merge on GitHub.
 
 Continue with the [spec format](spec-format.md), [workflow guide](workflow.md), or [quick start](quickstart.md).

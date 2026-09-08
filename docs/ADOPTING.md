@@ -3,9 +3,8 @@
 This page is written to be **pasted wholesale into an agent session** in the repository you
 want to adopt spec-sync in. It is also readable on its own.
 
-Everything below was checked against `specsync 6.0.0` (`v6.0.0-rc.2`) — every verb, flag, and
-path is one the binary actually accepts. The "will bite you" section is not speculative; each
-entry is something hit while adopting spec-sync in a real repository.
+This guide describes the 6.0 workflow. Select an explicit release or candidate and verify the
+installed binary before adoption; historical recovery guidance is labeled separately.
 
 ---
 
@@ -18,9 +17,15 @@ change end to end so the loop is proven rather than assumed.
 
 ## Install
 
-Pin explicitly. 6.0.0-rc.2 is a pre-release and will NOT be resolved by `latest`.
+Pin explicitly. After the stable release is published, install its source tag:
 
-    cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.0.0-rc.2 --locked specsync
+    cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.0.0 --locked specsync
+    specsync --version
+
+Before stable publication, replace `v6.0.0` with the explicitly selected `v6.0.0-rc.N`
+candidate tag. A source tag alone does not guarantee downloadable binary assets exist.
+
+Coordinate the upgrade of all lifecycle writers to the selected 6.x version, including developer machines, agents, hooks, and CI. Older 5.x writers may reject slug-based changes or discard newer record fields. The 6.x downgrade checks detect damaged or downgraded evidence; they do not make mixed-version writes safe. Check `specsync --version` in each execution environment before resuming active work.
 
 ## 1. Initialise and generate
 
@@ -52,6 +57,10 @@ thing this tool exists to tell you.
 Fill the companion files too — `context.md`, `requirements.md`, `testing.md`, `tasks.md`. They
 are where a module accumulates what was learned about it. Unfilled scaffold markers are warnings
 until you run `--strict`, at which point they gate.
+
+A successful check validates configured structure, exported API names, source mappings, dependency declarations, and supported schema rules. It does not prove that arbitrary natural-language requirements describe the implementation; reviewers and product tests establish those behaviors.
+
+Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate.
 
 ## 3. Turn the change workflow on (optional)
 
@@ -86,24 +95,30 @@ Write a `deltas/<module>.md` describing the requirement being added or changed, 
 
     specsync change approve <id> --actor "<you>"
     # …write the code…
-    specsync change check <id>
     specsync change check <id> --commit
+    # push the product tip after local gates; wait for required CI and complete human PR review
     specsync change review <id> --reviewer "<human>"
     specsync change ship <id>
 
-Then commit and merge. **Merge only after `ship`** — merging first orphans the verification
-evidence, and the tool will tell you so.
+Run `review` and `ship` consecutively, without committing between them. The reviewer may be
+the scope approver. Commit and push the archive result, wait for required checks, then merge
+on GitHub. **Merge only after every active change on the PR is archived.**
 
 ## 5. Wire CI
 
-    - uses: CorvidLabs/spec-sync@v6.0.0-rc.2
+    # After stable publication; for a candidate choose a release with binary assets.
+    - uses: CorvidLabs/spec-sync@v6.0.0
       with:
-        version: 6.0.0-rc.2
+        version: 6.0.0
         strict: 'true'
         lifecycle-enforce: 'true'
 
 Both pins are needed and they pin different things: the `uses` ref pins the action code, the
-`version` input pins the binary it downloads.
+`version` input pins the binary it downloads. For a prerelease, replace both pins with the
+selected published candidate. When using a Trust wrapper, verify that its pinned revision
+supports the requested SpecSync version and binary source. This repository passes its validated
+candidate through an explicit version and runner-local mirror; an old wrapper may otherwise
+continue using 5.x. A soft provenance setting alone does not enforce release provenance.
 
 The action runs `specsync check` (and `specsync lifecycle enforce --all` when
 `lifecycle-enforce` is set). It does not run the change-workflow audit. If you turned the workflow
@@ -116,38 +131,12 @@ CI passes over drift. With it, drift gates.
 
 ## Things that will bite you, in the order they will
 
-**Your merge strategy decides what a landed change still owes you.** Verification evidence and
-the scoped review are both recorded against a commit hash. **A squash-merge rewrites that
-hash**, so anything that reads history across the merge loses its footing.
-
-What a squash costs you is the **scoped review**, and only that. The review check walks the
-commits between the review and `HEAD` to prove nothing changed except the change's own records,
-and a squash makes that walk impossible rather than merely false — so expect to record a fresh
-review after a squash. The reviewer MAY be the same human who approved the definition.
-CorvidLabs/spec-sync#694 tracks it, and it needs a decision about what a review proves rather
-than a patch.
-
-What a squash **no longer** costs you is re-verification. Ship readiness stopped depending on the
-recorded commit being reachable; it asks whether the recorded plan and tree still match what was
-verified, which is true under every merge strategy. Measured across all three: squash, rebase and
-merge-commit each reach `ready to finalize`.
-
-Check your repository's settings before you adopt, not after:
-
-    gh api repos/OWNER/REPO --jq '{merge:.allow_merge_commit, squash:.allow_squash_merge, rebase:.allow_rebase_merge}'
-
-If rebase-merge is disabled and squash is the only option, **you will hit this every time**, and
-`gh pr merge --rebase` will silently fall back to squash without telling you.
-
-**There is no configuration that avoids it, and no advice worth giving.** spec-sync's own
-repository is squash-only (`merge: false, rebase: false, squash: true`), and only **21 of its 198
-archived changes — 11% — still have a reachable verification commit**. Telling you to rebase-merge
-would be telling you to do something the tool's own repository cannot do.
-
-**Merging before `finalize` costs more than it says.** It orphans that change's evidence — and it
-also blocks **every earlier accepted change sharing a delivery input** from archiving, until the
-merged one is finalized or those predecessors are reopened. One early merge can stall an unbounded
-set of older changes. Finalize first, every time.
+**Archive on the PR before merging.** Verification and scoped-review evidence have different
+currency rules. A squash can make a historical review's ancestry unavailable even when verified
+content still matches. That is a recovery concern for changes merged while still active, not a
+reason to schedule fresh review after every normal merge. Complete review and finalization on
+the PR first. Use `change ship-status <id>` for the current gate and `change status <id>` for
+the supported recovery action if an older change was already merged prematurely.
 
 **Scope freezes at approval, not at creation.** You can widen `affected_specs` and
 `affected_paths` while the change is `draft`. Once approved you cannot, and there is no withdraw
@@ -162,7 +151,7 @@ and scope freezes at approval, so by then the only exit is to redo the change.
 The remedy is to declare the owning specs **and** `--no-spec-change` together. They are not
 mutually exclusive, which is not obvious:
 
-    specsync change new "<summary>" --kind fix \
+    specsync change new "<summary>" --kind bug-fix \
       --spec change --spec cmd_change \
       --path src/change.rs --path src/commands/change.rs \
       --no-spec-change --rationale "behaviour only, no spec text changes"
@@ -181,15 +170,10 @@ evidence you just recorded.
 **Making a symbol more visible is a contract change.** Widening something to `pub(crate)` makes
 it an export the spec must document. This is the drift check working, not a bug.
 
-**Two state traps, with escapes that are not in the error text.**
-
-- `check --commit` then `accept` can deadlock on a reopened workflow-v1 change: the
-  verification-recording commit leaves `HEAD` one ahead of the evidence it records, and looping
-  `check --commit` never converges because each run recreates the condition. **Escape: run `check`
-  WITHOUT `--commit`.**
-- `ship` refuses a stale review while `review` refuses to run in `accepted` state, so the verb that
-  would fix it is unreachable from the state you discover it in. **Escape: `finalize` rather than
-  `ship`.**
+**Legacy workflow-v1 recovery is separate.** Historical `verify`, `accept`, `reopen`, and
+classification/owner corrections repair older evidence. Use `change status <id>` and the
+[workflow recovery guidance](../site/src/content/docs/workflow.md) for the state you actually
+have. Do not insert legacy acceptance or post-merge recovery into the new slug-based workflow.
 
 **`db_tables` needs `.sql` migrations to be checkable.** If your schema lives in application code,
 declare `db_tables` anyway — as of 6.0.0-rc.5 it is a notice, not a `strict`-gating warning. Point
@@ -206,46 +190,10 @@ The point of archival is not filing — it is that a module accumulates what was
   scoping**; it is there because a previous change paid for it.
 - While building, put what you learn in the change's own `context.md` — prior attempts, dead ends,
   anything already ruled out.
-- At `finalize` — and at `ship`, which finalizes for you — spec-sync writes a `lesson-bundle.md`
-  into the archive, and both verbs name the step ahead of their remaining guidance:
-
-      Next: write lessons into specs/<module>/context.md from <archive>/lesson-bundle.md,
-            then merge the PR on GitHub
-
-  **Do that before merging.** A change's own `context.md` is archived and read by nobody; the
-  spec's `context.md` is read before every future change to that module. This is the only point in
-  the lifecycle where knowledge compounds instead of merely being recorded.
-
-**The fold-back is itself a change, and the obvious scoping makes it recurse.** Writing into
-`specs/<module>/context.md` touches tracked paths, so the fold needs its own lifecycle record.
-Declare that record against the modules it edits — the obvious thing to do — and its own
-`finalize` hands you the same instruction for the same specs, which needs another change, which
-gets the instruction again. There is no cycle detection and no warning; the instruction just never
-stops.
-
-What stops it is declaring no specs at all. A change with no affected specs owns no modules, so
-there is nothing to fold into, and both verbs print their plain merge guidance instead:
-
-    specsync change new "Fold the <topic> lessons into the <module> contexts" \
-      --kind documentation --path specs/<module>/context.md \
-      --no-spec-change \
-      --rationale "fold-back of an archived lesson bundle; no spec text or behaviour changes"
-
-Note what is absent: no `--spec`. That is the mechanism. `--no-spec-change` on its own is not
-enough, because it coexists with `--spec` (above), and a fold that declares specs is told to fold
-again. The rationale has to be true of this change in particular — it folds an already-archived
-bundle into `context.md` companions and alters no canonical spec text, requirement, or behaviour.
-If that is not true, it is not a fold-back and must not be scoped as one.
-
-Keep such a change to `context.md` paths. A spec companion is not production source, so it does
-not trip the owning-module refusal above; production source in the same change does — and it would
-have lessons of its own to fold. Fold separately.
-
-Measured on this repository: 6 of 183 archived changes have ever touched a spec's `context.md`.
-The fold-back is the step that gets skipped.
-
-If a module's lessons grow long, treat that as a signal the module is too large or too hot — not as
-something to compact away.
+- At `finalize` or `ship`, spec-sync writes a `lesson-bundle.md` into the archive.
+  Folding useful lessons into a module's `context.md` is optional and is not a merge gate.
+  If you choose to update tracked companions later, scope that documentation change normally;
+  no recursive fold-back change is required merely because another archive contains lessons.
 
 ## Verify the adoption
 

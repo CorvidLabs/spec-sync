@@ -130,10 +130,14 @@ SpecSync was built for the AI-assisted development era:
 Specs aren't static documents — they have a lifecycle:
 
 ```
-draft → approved → implementing → verifying → accepted → archived
+draft → approved → implementing → verifying → scoped review → archived → GitHub merge
 ```
 
-SpecSync manages this lifecycle with deterministic interviews, adaptive artifacts, semantic deltas, two human approval gates, requirement/test traceability, effective-contract validation, and immutable archives. Canonical module maturity remains separate.
+SpecSync manages new changes with deterministic interviews, adaptive artifacts, semantic deltas, one scope approval, a human implementation review, requirement/test traceability, and immutable archives. The reviewer may be the scope approver. Finalize on the same PR before merging. Canonical module maturity remains separate.
+
+A successful check validates configured structure, exported API names, source mappings, dependency declarations, and supported schema rules. It does not prove that arbitrary natural-language requirements describe the implementation; reviewers and product tests establish those behaviors.
+
+Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate.
 
 ### Zero Dependencies
 

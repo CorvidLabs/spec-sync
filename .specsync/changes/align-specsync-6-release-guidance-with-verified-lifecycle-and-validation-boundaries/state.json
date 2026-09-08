@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "align-specsync-6-release-guidance-with-verified-lifecycle-and-validation-boundaries",
+  "slug": "align-specsync-6-release-guidance-with-verified-lifecycle-and-validation-boundaries",
+  "title": "Align SpecSync 6 release guidance with verified lifecycle and validation boundaries",
+  "description": "Align SpecSync 6 release guidance with verified lifecycle and validation boundaries",
+  "kind": "documentation",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "ffba9a32b664a7b3308350c162f0ac808f24efe3",
+  "created_at": 1788827397,
+  "updated_at": 1788828104,
+  "affected_specs": [],
+  "affected_paths": [
+    "MIGRATION.md",
+    "CHANGELOG.md",
+    "docs/ADOPTING.md",
+    "site/src/content/docs/architecture.md",
+    "site/src/content/docs/workflow.md",
+    "site/src/content/docs/why-specsync.md",
+    "site/src/content/docs/companion-files.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Correct public guidance to describe existing verified behavior and rollout constraints; no executable behavior, API, or canonical module contract changes.",
+  "acceptance_criteria": [
+    "Public 6.0 guidance accurately separates structural checking from semantic proof and content-bound approval from authenticated identity; describes same-PR archival before merge and the actual scope of check versus change audit; warns against mixed 5.x/6.x lifecycle writers and explains explicit Trust binary pinning; labels legacy recovery commands; removes obsolete numeric-sequence and post-merge archival claims in the scoped pages; docs build and existing contract checks pass without changing executable behavior."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

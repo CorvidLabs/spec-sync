@@ -1,0 +1,41 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788827587,
+      "digest": "08048b29a11923b6284b15a20f6f28efda5707fce7520b9996b81518b5695ad8",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "align-specsync-6-release-guidance-with-verified-lifecycle-and-validation-boundaries",
+        "title": "Align SpecSync 6 release guidance with verified lifecycle and validation boundaries",
+        "description": "Align SpecSync 6 release guidance with verified lifecycle and validation boundaries",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "MIGRATION.md",
+          "docs/ADOPTING.md",
+          "site/src/content/docs/architecture.md",
+          "site/src/content/docs/companion-files.md",
+          "site/src/content/docs/why-specsync.md",
+          "site/src/content/docs/workflow.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Correct public guidance to describe existing verified behavior and rollout constraints; no executable behavior, API, or canonical module contract changes.",
+        "acceptance_criteria": [
+          "Public 6.0 guidance accurately separates structural checking from semantic proof and content-bound approval from authenticated identity; describes same-PR archival before merge and the actual scope of check versus change audit; warns against mixed 5.x/6.x lifecycle writers and explains explicit Trust binary pinning; labels legacy recovery commands; removes obsolete numeric-sequence and post-merge archival claims in the scoped pages; docs build and existing contract checks pass without changing executable behavior."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

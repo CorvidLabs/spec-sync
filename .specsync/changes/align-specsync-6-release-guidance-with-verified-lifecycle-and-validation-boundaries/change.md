@@ -1,6 +1,6 @@
 ---
 id: align-specsync-6-release-guidance-with-verified-lifecycle-and-validation-boundaries
-state: archived
+state: verifying
 type: documentation
 base_commit: ffba9a32b664a7b3308350c162f0ac808f24efe3
 ---

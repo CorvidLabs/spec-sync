@@ -52,7 +52,7 @@ SpecSync occupies a third space: **validated hand-written specs**. You write the
 | Semantic deltas and canonical merge | **Yes** | No | **Yes** |
 | Bidirectional spec ↔ real code exports | **Yes** | Extension/agent analysis | No |
 | Stable requirement → test evidence | **Required** | Artifact-level by default | Artifact-level by default |
-| Digest-bound human approvals | **One scope approval** plus independent scoped PR review | Workflow gates | Confirmation at archive |
+| Digest-bound human approvals | **One scope approval** plus scoped human PR review | Workflow gates | Confirmation at archive |
 | Active code checked against future contract | **Deterministic blocking gate** | Agent/workflow analysis | Agentic `/opsx:verify`; non-blocking by default |
 | Concurrent semantic conflict detection | **Deterministic pre-check / finalize gate** | Workflow/extension dependent | Sync/archive-time agentic handling |
 | Configured tests executed by CI gate | **Yes** | Configurable workflow shell steps | Agentic verification |

@@ -170,10 +170,13 @@ evidence you just recorded.
 **Making a symbol more visible is a contract change.** Widening something to `pub(crate)` makes
 it an export the spec must document. This is the drift check working, not a bug.
 
-**Legacy workflow-v1 recovery is separate.** Historical `verify`, `accept`, `reopen`, and
-classification/owner corrections repair older evidence. Use `change status <id>` and the
-[workflow recovery guidance](../site/src/content/docs/workflow.md) for the state you actually
-have. Do not insert legacy acceptance or post-merge recovery into the new slug-based workflow.
+**Recovery depends on the recorded workflow.** `reopen` also supports eligible accepted or
+archived workflow-v2 changes with stale delivery evidence, including interrupted finalization
+after terminal approval. Keep the approved definition unchanged, record the actor and reason,
+then use `reopen` → `check --commit` → human review → `review` → `finalize`. Historical
+`verify` / `accept` and classification/owner corrections have separate recovery guidance.
+Use `change status <id>` and the [workflow recovery guidance](../site/src/content/docs/workflow.md)
+for the state you actually have. Recovery does not replace finalizing before a normal merge.
 
 **`db_tables` needs `.sql` migrations to be checkable.** If your schema lives in application code,
 declare `db_tables` anyway — as of 6.0.0-rc.5 it is a notice, not a `strict`-gating warning. Point

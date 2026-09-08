@@ -86,7 +86,7 @@ on the same PR and wait for required checks. Never merge while a change on that 
 GitHub protection and required workflows enforce hosted review and provenance policy where
 configured; the local reviewer label alone does not supply that authentication.
 
-Historical `start`, `verify`, `accept`, `archive`, `reopen`, `correct`, and `correct-owner`
+Historical `start`, `verify`, `accept`, `archive`, `correct`, and `correct-owner`
 commands remain available to validate or repair older two-approval evidence. They are compatibility
 surfaces, not steps in the new-change workflow.
 
@@ -120,9 +120,34 @@ Resume with `specsync change status <id>`. `--json` carries the same verdict as
 is rendered, and as `handoff` on the approve transition. The installed agent skill tells agents to
 clear context only on `safe` and to do what `Before clearing:` names first.
 
-## 4. Legacy workflow-v1 recovery: reopen after acceptance
+## 4. Recover accepted or archived evidence
 
-The numeric IDs and `verify` / `accept` commands below describe historical workflow-v1 records. New 6.x changes use the workflow above. Consult `change status <id>` before repairing historical evidence.
+`reopen` also supports workflow-v2. An interrupted finalization can leave an accepted record
+with a terminal finalization approval; an already archived change can also need recovery when
+its accepted delivery inputs become stale. For an eligible record whose approved definition
+is unchanged, use the audited recovery path:
+
+```bash
+specsync change reopen add-passkeys \
+  --actor "Ada Reviewer" \
+  --reason "Review correction changed a scoped delivery input after finalization"
+specsync change check add-passkeys --commit
+# push the corrected product tip, wait for required checks, and complete human review
+specsync change review add-passkeys --reviewer "Ada Reviewer"
+specsync change finalize add-passkeys
+# commit and push the archive result; wait for required checks before merging
+```
+
+An archived package moves back to the active workspace on a successful reopen. The audit
+preserves its prior state and superseded terminal approval. A refused reopen restores the
+archive. Consult `change status <id>` first: missing terminal evidence or an unchanged current
+record does not justify reopening, and a changed definition requires its own approval path.
+Do not add legacy `accept` to this workflow-v2 sequence.
+
+### Legacy workflow-v1 recovery
+
+The numeric IDs and `verify` / `accept` commands below describe historical workflow-v1 records.
+Consult `change status <id>` before repairing that evidence.
 
 If final review changes a governed source, test, configuration, policy, or contract input after acceptance, strict checking correctly rejects the stale closing evidence. Do not edit lifecycle JSON or archive the active workspace. Record an audited transition instead:
 

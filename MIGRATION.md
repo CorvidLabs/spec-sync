@@ -46,7 +46,7 @@ Coordinate the upgrade of all lifecycle writers to the selected 6.x version, inc
 
 Pin the SpecSync executable separately from any Action or Trust wrapper. Use a wrapper revision that supports the selected binary version; adding an input to an older wrapper is not sufficient. This repository validates its candidate binary and supplies it to Trust through an explicit `specsync-version` and a runner-local `file://` mirror. Adopters should validate their own wrapper and binary source, and require provenance policy verification if it is a release gate.
 
-For new changes, complete scope approval, implementation, scoped verification, and human implementation review, then run `review` and `ship` consecutively without an intervening commit. Commit the archive result on the same PR, wait for required checks, and merge only after every active change is archived. Legacy recovery commands are for historical evidence, not the normal 6.x delivery path.
+For new changes, complete scope approval, implementation, scoped verification, and human implementation review, then run `review` and `ship` consecutively without an intervening commit. Commit the archive result on the same PR, wait for required checks, and merge only after every active change is archived. Legacy `verify` / `accept` recovery is for historical evidence. Workflow-v2 also supports audited `reopen` recovery for eligible accepted or archived records; resume through `check`, human review, `review`, and `finalize`. Recovery does not replace the normal archive-before-merge path.
 
 ## Migrating to SpecSync v4.0.0
 

@@ -38,6 +38,25 @@
         "REQ-change-046",
         "REQ-cli-args-015"
       ]
+    },
+    {
+      "timestamp": 1788877512,
+      "commit": "849dce2c8ed8f1aeda4ca2b40e6d3db43047c1e3",
+      "contract_digest": "eb88dd4dd35b6459c2551e018487b50238a3f30de85eb49ac0fbd88d38ff6223",
+      "execution_digest": "1550ba87fa7368924bc260d050c32b359605b0ac241b677ccffb545b1c381ce1",
+      "workspace_digest": "1137cd17deac0381a344fe6ef74bf605ef7fd1103c54e82d4d19f11da8126c95",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cli_args",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-046",
+        "REQ-cli-args-015"
+      ]
     }
   ]
 }

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "repair-executable-lifecycle-demos",
+  "implementation_commit": "ab3330039e1398ae9efb15a6819bed220b003858",
+  "implementation_tree": "ce8305b44f8500e1c9d2d22a9b5f385a671a92b4",
+  "contract_digest": "9607bbb397ceb6933e6eba2498beec4e4ae541c11b9159a4eb8b2a3ff85394fc",
+  "workspace_digest": "dc3b7704e84f76283b349b387d3bd4f867900ce995d8d36e7d801b2f66d426de",
+  "closing_digest": "98fa414f133cc148f3901734ae7f4397a84128449f1cdd1032d93b1304be1d3f",
+  "review_digest": "aa782fc9bc8cc09d3b95f71d163272d1a51f9b1223b2f1ee5b6b88f8c9adc4dc",
+  "finalization_digest": "4638c20b454eacaa07d8bd4a28fe8a235fb740f11ca14fb8e919306667edf5dd",
+  "timestamp": 1788839615
+}

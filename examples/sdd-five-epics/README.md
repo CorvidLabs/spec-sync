@@ -8,7 +8,7 @@ This executable example builds a disposable Rust product and evolves it through 
 4. audit events, and
 5. health reporting.
 
-Every epic uses the real SpecSync 6.0 lifecycle: deterministic interview, complete adaptive artifacts, semantic requirement/spec delta, one human scope approval, ordered dependency, implementation, Cargo tests, scoped `change check` evidence, independent scoped review, and same-PR `change finalize` into the immutable dated archive. The project is preserved after the run so its Git history and evidence can be inspected.
+Every epic uses the real SpecSync 6.0 lifecycle: deterministic interview, complete adaptive artifacts, semantic requirement/spec delta, one human scope approval, ordered dependency, implementation, explicit Cargo tests, scoped `change check` evidence, scoped human review, and same-PR `change finalize` into the immutable dated archive. The project is preserved after the run so its Git history and evidence can be inspected.
 
 ```bash
 SPECSYNC_BIN=/absolute/path/to/specsync ./run.sh

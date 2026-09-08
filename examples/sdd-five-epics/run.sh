@@ -117,13 +117,6 @@ titles=(
     "Record welcome audit event"
     "Expose welcome health"
 )
-slugs=(
-    "add-welcome-message"
-    "localize-welcome-message"
-    "personalize-welcome-message"
-    "record-welcome-audit-event"
-    "expose-welcome-health"
-)
 functions=(
     "welcome_message"
     "localized_welcome"
@@ -148,6 +141,7 @@ requirements=(
 
 api_rows='| `product_name` | Return the stable product name |'
 previous_id=""
+ids=()
 
 implement_epic() {
     case "$1" in
@@ -177,13 +171,13 @@ implement_epic() {
 for index in 0 1 2 3 4; do
     number=$((index + 1))
     requirement=$(printf 'REQ-product-%03d' "$number")
-    id=$(printf 'CHG-%04d-%s' "$number" "${slugs[$index]}")
     title="${titles[$index]}"
     function="${functions[$index]}"
     outcome="${outcomes[$index]}"
     requirement_text="${requirements[$index]}"
 
-    "$bin" change new "$title" --kind feature --spec product --path src/lib.rs >/dev/null
+    created="$("$bin" change new "$title" --kind feature --spec product --path src/lib.rs --path tests/product.rs --json)"
+    id="$(printf '%s' "$created" | python3 -c 'import json,sys; print(json.load(sys.stdin)["change"]["id"])')"
     "$bin" change answer "$id" acceptance_criteria "$outcome" >/dev/null
     "$bin" change answer "$id" public_contract yes >/dev/null
     "$bin" change answer "$id" architecture_risk yes >/dev/null
@@ -211,6 +205,7 @@ for index in 0 1 2 3 4; do
 
     "$bin" change approve "$id" --actor "Epic Product Reviewer" >/dev/null
     implement_epic "$number"
+    cargo test --quiet
     # Materialize approved deltas and run targeted verification before binding evidence.
     "$bin" change check "$id"
     git add .
@@ -220,6 +215,7 @@ for index in 0 1 2 3 4; do
     "$bin" change finalize "$id" >/dev/null
     git add .
     git commit -m "Finalize epic $number archive" >/dev/null
+    ids+=("$id")
     previous_id="$id"
 done
 
@@ -239,13 +235,13 @@ done
     printf -- '- Verification records: %s/5\n' "$(find .specsync/archive/changes -name verification.json | wc -l | tr -d ' ')"
     printf -- '- Canonical product spec version: %s\n' "$(awk '/^version:/ { print $2; exit }' specs/product/product.spec.md)"
     printf -- '- Permanent product requirements: %s\n' "$(grep -c '^### REQ-product-' specs/product/requirements.md)"
-    printf -- '- Passing product tests: 6\n'
+    printf -- '- Product tests: `cargo test --quiet` passed after every epic\n'
     printf '\n## Epic dependency chain\n\n'
-    printf '1. CHG-0001 is the root epic.\n'
-    printf '2. CHG-0002 depends on CHG-0001.\n'
-    printf '3. CHG-0003 depends on CHG-0002.\n'
-    printf '4. CHG-0004 depends on CHG-0003.\n'
-    printf '5. CHG-0005 depends on CHG-0004.\n'
+    printf '1. %s is the root epic.\n' "${ids[0]}"
+    printf '2. %s depends on %s.\n' "${ids[1]}" "${ids[0]}"
+    printf '3. %s depends on %s.\n' "${ids[2]}" "${ids[1]}"
+    printf '4. %s depends on %s.\n' "${ids[3]}" "${ids[2]}"
+    printf '5. %s depends on %s.\n' "${ids[4]}" "${ids[3]}"
     printf '\n## Installed native agent surfaces\n\n```text\n'
     find .claude .cursor .codex .gemini -type f 2>/dev/null | sort
     printf '```\n\n## Git timeline\n\n```text\n'

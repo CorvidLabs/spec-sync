@@ -11,27 +11,15 @@ git config user.email example@specsync.dev
 git config user.name "SpecSync Example"
 printf '# Example project\n' > README.md
 "$bin" init >/dev/null
-# Documentation-only projects need a bounded fallback so scoped check can record evidence.
-python3 - <<'PY'
-import json
-from pathlib import Path
-
-path = Path(".specsync/sdd.json")
-policy = json.loads(path.read_text())
-if not policy.get("verification_commands"):
-    policy["verification_commands"] = ["true"]
-    path.write_text(json.dumps(policy, indent=2) + "\n")
-PY
 git add .
 git commit -m "Initialize example" >/dev/null
 
-"$bin" change new "Clarify contributor workflow" \
+created="$("$bin" change new "Clarify contributor workflow" \
   --kind documentation \
   --path README.md \
   --no-spec-change \
-  --rationale "Documentation wording does not alter the technical contract" >/dev/null
-
-id="CHG-0001-clarify-contributor-workflow"
+  --rationale "Documentation wording does not alter the technical contract" --json)"
+id="$(printf '%s' "$created" | python3 -c 'import json,sys; print(json.load(sys.stdin)["change"]["id"])')"
 "$bin" change answer "$id" acceptance_criteria \
   "Contributors can follow the documented workflow" >/dev/null
 "$bin" change answer "$id" public_contract no >/dev/null

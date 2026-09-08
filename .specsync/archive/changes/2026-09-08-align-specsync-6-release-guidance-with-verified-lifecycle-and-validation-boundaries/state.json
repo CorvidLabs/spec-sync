@@ -7,11 +7,11 @@
   "title": "Align SpecSync 6 release guidance with verified lifecycle and validation boundaries",
   "description": "Align SpecSync 6 release guidance with verified lifecycle and validation boundaries",
   "kind": "documentation",
-  "state": "accepted",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "ffba9a32b664a7b3308350c162f0ac808f24efe3",
   "created_at": 1788827397,
-  "updated_at": 1788829084,
+  "updated_at": 1788835398,
   "affected_specs": [],
   "affected_paths": [
     "MIGRATION.md",

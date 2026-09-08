@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "align-specsync-6-release-guidance-with-verified-lifecycle-and-validation-boundaries",
+  "implementation_commit": "65de8d9d16c39fca3d38bfa4e139dca30cf8e523",
+  "implementation_tree": "f70ed5796f023bc8733bacbf6fce2ce4ed238b30",
+  "contract_digest": "08048b29a11923b6284b15a20f6f28efda5707fce7520b9996b81518b5695ad8",
+  "workspace_digest": "08b4f72b0753551d3b35dd216a01c7fb21a2e95a6b7de398e43211862356471c",
+  "closing_digest": "b1751d36a7a6756fd8e146b4b8f270a31ff64f08f74a68fbb9ea4576548f895f",
+  "review_digest": "cda9019c7abfb7754e69374d5a432a146d45047504df41a01245c298b6ced449",
+  "finalization_digest": "db05e22ab6724bb8d5c9ede498740f9cf1ee82f8503b09999cbd064f60a40d28",
+  "timestamp": 1788834969
+}

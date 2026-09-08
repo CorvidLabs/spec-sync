@@ -12,7 +12,7 @@ Synthesise from what actually happened below; do not restate the change descript
 
 ## Evidence
 
-- Verification commit: `5878fddcf16afdcfe03dff7e734eb21ed07294b4`
+- Verification commit: `65de8d9d16c39fca3d38bfa4e139dca30cf8e523`
 - Base commit: `ffba9a32b664a7b3308350c162f0ac808f24efe3`
 - Verified by: `specsync check --spec cmd_change --strict`
 
@@ -27,6 +27,12 @@ RC16 source passes the full local verification lane and hosted PR checks. This a
 The seven scoped pages now distinguish structural checks from behavioral proof, content-bound approvals from authenticated identity, current slug workflows from legacy recovery, and finalization from GitHub merge. No executable or canonical contract files changed.
 
 Validation: Astro check reported zero errors/warnings/hints; all 23 site tests passed; the site built 43 redirect pages. Because the standalone site redirects to the CorvidLabs hub, the changed Markdown was also rendered locally with the existing marked dependency and inspected separately. This does not claim the hub has deployed these edits. Strict SpecSync passed all 62 specs with 100 percent source coverage. Full local verification and Trust are recorded separately after completion.
+
+## PR review correction
+
+The hosted review correctly identified that reopen is not workflow-v1-only. Source and the existing workflow_v2_reopen_after_finalization_accept_then_finalize_archives regression prove workflow-v2 recovery after terminal finalization approval. The current docs now show reopen, check, human review, review, and finalize; archived recovery and refusal restoration are documented. The existing refused_reopen_restores_the_archived_package regression also passes. The comparison table now says scoped human review consistently. These are corrections within the approved guidance scope; the original definition is unchanged.
+
+Independent Claude review through Rune found a separate two-versus-three promotion evidence-count defect and additional public surfaces outside this scope. Those require a separate release-hardening change; they are not silently included here.
 
 ## From the change's design.md
 

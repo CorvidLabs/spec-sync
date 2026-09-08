@@ -172,6 +172,98 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1788830700,
+      "commit": "65de8d9d16c39fca3d38bfa4e139dca30cf8e523",
+      "contract_digest": "08048b29a11923b6284b15a20f6f28efda5707fce7520b9996b81518b5695ad8",
+      "execution_digest": "116bc4e7d2baf50a1fafc154261462dc9b50e9b7886768b645f25828a99598a6",
+      "workspace_digest": "08b4f72b0753551d3b35dd216a01c7fb21a2e95a6b7de398e43211862356471c",
+      "acceptance_input_digest": "36b5d7c95e4179ad94e1b2a0bda1126284e32467dd1f73bef5a13c1138b37d20",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c5358af2a627aad38488977b12e9aefbe1022bc0677be4e5417f32429388311a",
+            "entry_digest": "616e141330764a8678e6a5ae4b41ebeb1062add21646bf27822f2c44b32f50a1",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "MIGRATION.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d9d5e900d991c071d7c7c45c8e8c4edc111136a860962d8d7311bf6f03bda47d",
+            "entry_digest": "895eb8503c265567e9116659fb52537e34352f89f2affa80f5437af2ff3afb08",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "docs/ADOPTING.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "46c7112518d04e1847783b4a1b814f7401601d3baf1f9110b130af30b5f44768",
+            "entry_digest": "26a47727b80294aa3c186f9acd4c32b4d646aeaf2d88cfa3a93a41910464b0e8",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/architecture.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "85d1b18a203137b5c71c7a1fd0c40970974a5c73179d0568730569d5e29f10ef",
+            "entry_digest": "b1cfc2a35dbd0bfd08e413f204febbf568e8f99ca1b08e1497483dcb26d9727d",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/companion-files.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "862a46aade6374b29ab5c4293daf7a94d7a566597f7dc75bd82cf74cfbb6ea6b",
+            "entry_digest": "8212ed6a91340f35b18d7cc54d902984c36e568060b93463ed172d864d8e2b8a",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/why-specsync.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3137cd40be62d30c678b216ca686718c86142551ed53411f16e0de7c5779a765",
+            "entry_digest": "94a8cbe3a44fba8a7253868255e99d329babba7b8e658cde3bc5336c467fcdc8",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/workflow.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5e4eeb8f8e735671a5a1e9091caadd7cb38def18fdfb7292e9da64aa2ae45c84",
+            "entry_digest": "5f8a502a999acb139b2e489004eea5c273c2e30fe10cf223730b93b877634a69",
+            "owners": [
+              "@exact:delivery"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_change --strict",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

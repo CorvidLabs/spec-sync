@@ -60,7 +60,7 @@ requirements.md  why the behavior exists and how success is judged
 auth.spec.md      the module/API contract checked against code
 context.md        decisions, constraints, and files the next agent needs
 testing.md        requirement-to-test evidence
-CHG-*/            approved deltas, verification, and the delivery audit trail
+<change-id>/      approved deltas, verification, and the delivery audit trail
 ```
 
 Add the missing contract row—or make the export private—then rerun the check. CI turns green while the requirement, context, evidence, and exact contract change remain reviewable in Git.

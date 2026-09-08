@@ -330,12 +330,12 @@ jobs:
         #
         # It is `if: always()`, so the failure is silent in the step list and lands as a MISSING
         # ARTIFACT: no `macos.json`, so the evidence upload is `if-no-files-found: error`, so
-        # `record-qualification` never gets its two platform files, so the RC gate posts
-        # `failure` and can never go green. A missing interpreter three jobs upstream presents
-        # as an unqualifiable release candidate.
+        # `record-qualification` never gets both platform files (Ubuntu and macOS, the
+        # `REQUIRED_PLATFORMS` set), so the RC gate posts `failure` and can never go green. A
+        # missing interpreter in one matrix leg presents as an unqualifiable release candidate.
         #
         # `shell: python3` is not a built-in keyword; the custom form below is what works
-        # everywhere, and `python3` exists on all three runner images.
+        # everywhere, and `python3` exists on both runner images.
         shell: python3 {0}
         env:
           PLATFORM: ${{ matrix.platform }}
@@ -611,7 +611,8 @@ jobs:
   # read as proof of an authority nobody enforces.
   #
   # WHAT IS UNCHANGED: `needs` still requires `resolve`, `validate`, and `authorize-release`, so a
-  # tag created by THIS job still follows a qualified candidate on three platforms. And both
+  # tag created by THIS job still follows a candidate qualified on both required platforms
+  # (Ubuntu and macOS, the `REQUIRED_PLATFORMS` set). And both
   # immutability rulesets still admit no bypass actor, so once `vX.Y.Z` exists nobody — this token
   # included — can move or delete it. Immutability was always the protection that mattered most,
   # and it is untouched.
@@ -780,12 +781,12 @@ jobs:
         #
         # It is `if: always()`, so the failure is silent in the step list and lands as a MISSING
         # ARTIFACT: no `macos.json`, so the evidence upload is `if-no-files-found: error`, so
-        # `record-qualification` never gets its two platform files, so the RC gate posts
-        # `failure` and can never go green. A missing interpreter three jobs upstream presents
-        # as an unqualifiable release candidate.
+        # `record-qualification` never gets both platform files (Ubuntu and macOS, the
+        # `REQUIRED_PLATFORMS` set), so the RC gate posts `failure` and can never go green. A
+        # missing interpreter in one matrix leg presents as an unqualifiable release candidate.
         #
         # `shell: python3` is not a built-in keyword; the custom form below is what works
-        # everywhere, and `python3` exists on all three runner images.
+        # everywhere, and `python3` exists on both runner images.
         shell: python3 {0}
         env:
           ARTIFACT: ${{ matrix.artifact }}

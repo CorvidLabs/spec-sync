@@ -17,7 +17,7 @@ spec: cmd_init.spec.md
 ## Requirement Evidence
 
 - `REQ-cmd-init-001`: `write_current_layout_creates_full_structure`, `fresh_init_is_not_legacy_layout`, and `init_enables_sdd_for_new_projects`.
-- `REQ-cmd-init-002`: current-layout integration tests assert `.specsync/config.toml`, `.specsync/sdd.json`, and the `5.0.0` version stamp.
+- `REQ-cmd-init-002`: current-layout integration tests assert `.specsync/config.toml`, `.specsync/sdd.json`, and the `6.0.0` version stamp.
 
 ## Reviewer Checklist
 

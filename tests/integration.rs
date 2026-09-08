@@ -44,6 +44,9 @@ mod regression_w1;
 #[path = "integration/watch.rs"]
 mod watch;
 
+#[path = "integration/quickstart.rs"]
+mod quickstart;
+
 /// Guard against silently-orphaned integration test files (issue #585).
 ///
 /// `tests/integration/regression_w1.rs` sat on disk for months with 20 tests and

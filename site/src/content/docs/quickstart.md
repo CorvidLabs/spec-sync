@@ -76,7 +76,7 @@ specsync change new "Document and verify the existing authentication module" \
   --spec auth --path src/auth
 ```
 
-Answer the returned questions, complete its adaptively selected artifacts, and approve the definition before implementation. Agents installed during `init` conduct this interview conversationally.
+Answer the returned questions, complete its adaptively selected artifacts, and approve the definition before implementation. Agents installed with `specsync agents install` conduct this interview conversationally.
 
 > **Two completeness checks fire before the one `change approve` checkpoint succeeds:**
 >

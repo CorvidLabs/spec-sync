@@ -13,7 +13,7 @@ A **semantic delta** is the machine-applicable record of how a change modifies c
 Each change workspace carries one delta file per affected spec module:
 
 ```text
-.specsync/changes/CHG-0001-add-passkeys/deltas/auth.md
+.specsync/changes/add-passkeys/deltas/auth.md
 ```
 
 The file name must match the module name of an affected spec. Definition approval fails until the set of delta modules **exactly matches** the change's affected specs:
@@ -101,7 +101,7 @@ Practical consequence: an export documented only in an approved delta already co
 
 Two active changes that touch the same delta surface produce deterministic validation errors — conflicting edits cannot silently interleave. Ordering tools:
 
-- `specsync change depend CHG-0002 CHG-0001` declares that CHG-0002 builds on CHG-0001.
+- `specsync change depend update-ui add-passkeys` declares that `update-ui` builds on `add-passkeys`.
 - When several active deltas compose into one effective contract, declared dependencies determine their topological order; change IDs provide the deterministic order among otherwise independent changes.
 
 Fix classification edits to accepted metadata with `change correct` rather than editing delta files after acceptance — fresh classification edits no longer conflict with sibling accepted deltas, but stale accepted content still routes through the audited correction chain.

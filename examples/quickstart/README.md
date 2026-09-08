@@ -1,6 +1,6 @@
 # Quickstart example
 
-The committed reference for the [5-Minute Start](../../README.md#get-started-in-5-minutes) walk-through in the main README.
+The committed reference for the [Quick start](../../README.md#quick-start) walk-through in the main README.
 
 This is a tiny Rust library with a single public function and one
 matching SpecSync spec. Use it as:
@@ -37,8 +37,16 @@ specsync check
 Expected output:
 
 ```text
-✓ greeter (v1, draft) — 1 source file, 7/7 sections
-1 spec checked, 0 errors, 0 warnings
+specs/greeter/greeter.spec.md
+  ✓ Frontmatter valid
+  ✓ All source files exist
+  ✓ All required sections present
+  ✓ 1/1 exports documented
+  ✓ All dependency specs exist
+
+1 specs checked: 1 passed, 0 warning(s), 0 failed
+File coverage: 1/1 (100%)
+LOC coverage:  13/13 (100%)
 ```
 
 ## Make it fail
@@ -54,9 +62,11 @@ pub fn farewell(name: &str) -> String {
 ' >> src/lib.rs
 
 specsync check
-# Warning: greeter — undocumented export `farewell` in src/lib.rs
+#   ⚠ Undocumented export 'farewell' from src/lib.rs
 
-# Add it to the spec's Public API section, run again, green.
+# `specsync check --strict` (the CI form) turns that warning into a
+# failing exit. Add `farewell` to the spec's Public API table, run
+# again, green.
 ```
 
 This is the loop: code + spec stay in sync, or CI catches it.

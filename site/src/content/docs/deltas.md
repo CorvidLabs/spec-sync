@@ -4,7 +4,7 @@ section: "Reference"
 order: 3
 ---
 
-A **semantic delta** is the machine-applicable record of how a change modifies canonical spec truth. Deltas are what let the 5.x lifecycle keep spec edits inside the same verified workflow as code edits: nothing reaches the canonical spec except through a delta that was approved, verified, and accepted.
+A **semantic delta** is the machine-applicable record of how a change modifies canonical spec truth. Deltas are what let the 6.0 lifecycle keep spec edits inside the same verified workflow as code edits: nothing reaches the canonical spec except through a delta that was approved, materialized by `change check`, reviewed, and finalized.
 
 ---
 
@@ -58,7 +58,7 @@ Acceptance Criteria
 - Calling the revocation endpoint invalidates every session owned by that user.
 ```
 
-Once accepted, requirement IDs remain reserved; removing one creates a permanent tombstone that prevents later reuse. Before acceptance, every added or modified requirement ID in the delta must have **test or declared evidence** bound to it, or verification fails:
+Once finalized, requirement IDs remain reserved; removing one creates a permanent tombstone that prevents later reuse. During `change check`, every added or modified requirement ID in the delta must have **test or declared evidence** bound to it, or verification fails:
 
 ```text
 requirement evidence missing for REQ-auth-004
@@ -91,9 +91,9 @@ than only its own additions.
 
 ## The Effective Contract
 
-While a change is active, `specsync check` validates code against the **effective contract**: the canonical spec composed with all approved, non-conflicting deltas.
+While a change is active, the `change` commands validate against the **effective contract**: the canonical spec composed with all approved, non-conflicting deltas. Plain `specsync check` reads only the canonical files on disk; it does not consult change workspaces.
 
-Practical consequence: an export documented only in an approved delta already counts as documented during implementation — validation reports reflect the composed view, not just the canonical files. The canonical spec itself is updated only at acceptance.
+Practical consequence: an approved delta must compose cleanly with the canonical spec and with every other active delta before it can be applied. The canonical spec itself is updated when `change check` materializes the approved delta — after that, `specsync check` sees the new contract too.
 
 ---
 
@@ -115,7 +115,7 @@ targeted verification. After ordinary and scoped PR review, `specsync change fin
 implementation and moves the package into the dated archive in the same PR:
 
 - the canonical spec's `version` increments,
-- the Change Log records the acceptance,
+- the Change Log records the change,
 - requirement blocks land in the canonical `requirements.md`.
 
 Application is protected against double-apply: if a block already exists in the canonical spec
@@ -162,7 +162,7 @@ Acceptance Criteria
 | `revoke_all_sessions` | Revokes every session owned by the given user. |
 ```
 
-> **Note:** Runnable end-to-end usage — creating the change, answering the interview, approving, verifying, and accepting — is demonstrated in `examples/sdd-five-epics/run.sh` and `examples/sdd-lifecycle/run.sh`.
+> **Note:** Runnable end-to-end usage — creating the change, answering the interview, approving, checking, reviewing, and finalizing — is demonstrated in `examples/sdd-five-epics/run.sh` and `examples/sdd-lifecycle/run.sh`.
 
 ---
 

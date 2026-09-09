@@ -13,6 +13,20 @@ Release candidate: stable publication is pending. Add the release date only when
 
 ### Changed
 
+- **Public documentation and the release runbook describe the shipped 6.0.0, not the candidate
+  window.** README, the documentation site, `MIGRATION.md`, `docs/ADOPTING.md`, `SECURITY.md`,
+  `CONTRIBUTING.md`, the example READMEs and `docs/ci-confidence.md` were swept against the 6.0
+  binary and workflows: every example uses slug change identities and the single
+  approve → `check --commit` → `review` → `finalize` lifecycle, `init` is documented as writing
+  `sdd.json` with the workflow off and starting no interview, `check` output samples match what
+  the binary prints, Action examples pin `@v6.0.0` with `version: '6.0.0'`, and Windows is stated
+  as neither built nor qualified. `import` now carries the caveat that it writes a draft skeleton
+  which does not pass `check` until `files:` and the sections are completed (#416), and the
+  migration guide tells 5.x operators to land every workflow-v1 change before `change adopt`
+  (#674). `docs/RELEASING.md` is the new operator runbook for cutting a stable release from an
+  immutable candidate: preconditions, the two-platform qualification, the never-yet-executed
+  `promote`, and the manual crates.io and Homebrew steps that follow.
+
 - **6.0 adoption guidance now states the validation and trust boundaries.** Structural spec checks do not establish arbitrary prose behavior or execute product tests. Approval digests bind content, while actor labels do not authenticate identity; signed provenance needs an enforced verification policy. Coordinate 6.x lifecycle writers and pin the actual binary used by CI and Trust. New changes archive on the same PR before merge; legacy recovery is documented separately.
 
 - **`specsync check` is the product; SDD is opt-in.** Fresh `init` writes

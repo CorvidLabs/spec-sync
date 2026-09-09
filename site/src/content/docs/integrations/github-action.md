@@ -13,6 +13,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.0.0
   with:
+    version: '6.0.0'
     strict: 'true'
     require-coverage: '100'
 ```
@@ -23,7 +24,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 
 | Input | Default | Description |
 |:------|:--------|:------------|
-| `version` | `6.0.0` | Release version to download; set `latest` to follow the newest release |
+| `version` | `6.0.0` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you |
 | `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
@@ -50,6 +51,7 @@ jobs:
           fetch-depth: 0
       - uses: CorvidLabs/spec-sync@v6.0.0
         with:
+          version: '6.0.0'
           strict: 'true'
           require-coverage: '100'
 ```
@@ -149,7 +151,7 @@ jobs:
 ```yaml
 - name: Install specsync
   run: |
-    curl -sL https://github.com/CorvidLabs/spec-sync/releases/latest/download/specsync-linux-x86_64.tar.gz | tar xz
+    curl -sL https://github.com/CorvidLabs/spec-sync/releases/download/v6.0.0/specsync-linux-x86_64.tar.gz | tar xz
     sudo mv specsync-linux-x86_64 /usr/local/bin/specsync
 
 - name: Spec check

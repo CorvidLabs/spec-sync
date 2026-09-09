@@ -32,7 +32,7 @@ depends_on:
 |:------|:-----|:------------|
 | `module` | `string` | Module name for display and identification |
 | `version` | `number` | Increment when the spec changes |
-| `status` | `enum` | `draft`, `review`, `stable`, or `deprecated` |
+| `status` | `enum` | `draft`, `review`, `active`, `stable`, `deprecated`, or `archived` |
 | `files` | `string[]` | Source files this spec covers (must be non-empty) |
 
 ### Optional Fields

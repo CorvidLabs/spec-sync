@@ -1,12 +1,12 @@
 name: 'spec-sync'
-description: 'Gate verified SDD changes and validate module specs against source code with SpecSync'
+description: 'Validate module specs against source code with SpecSync (check, optional lifecycle enforcement, PR comments)'
 branding:
   icon: 'check-circle'
   color: 'green'
 
 inputs:
   version:
-    description: 'SpecSync version to use (e.g. "1.0.0" or "latest")'
+    description: 'SpecSync release to download (e.g. "6.0.0"). Pin an exact version; "latest" resolves the newest GitHub release and is not recommended for CI. Linux and macOS runners only'
     required: false
     default: '6.0.0'
   download-base-url:

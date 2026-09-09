@@ -21,7 +21,7 @@ This document summarizes the shipped product boundary and what remains explicitl
 - `depends_on: ["owner/repo@module"]` syntax in spec frontmatter
 - `specsync resolve` — local dependency resolution with existence checks
 - `specsync resolve --remote` — opt-in remote registry fetching via GitHub
-- `specsync-registry.toml` — declares available specs per repo
+- `.specsync/registry.toml` — declares available specs per repo
 - `specsync init-registry` — auto-generates registry from existing specs
 - Cross-project refs are **metadata only** in `specsync check` (no CI cost)
 
@@ -38,8 +38,9 @@ This document summarizes the shipped product boundary and what remains explicitl
 - `score` — quality scoring
 - `resolve` — dependency resolution (local + optional remote)
 - `add-spec` — scaffold a single new spec with companions
-- `init` — create config file
+- `init` — create `.specsync/` (`config.toml`, `registry.toml`, `sdd.json` with the change workflow off)
 - `init-registry` — create registry file
+- `change` — opt-in verified change lifecycle (`change adopt` turns it on; `check` never inspects it)
 - `watch` — continuous validation on file changes
 - `mcp` — MCP server mode for AI agent integration
 - All commands support `--json` output
@@ -55,7 +56,10 @@ This document summarizes the shipped product boundary and what remains explicitl
 - Published on VS Code Marketplace as `corvidlabs.specsync`
 
 ### Configuration
-- `specsync.json` (JSON) and `.specsync.toml` (TOML) config formats
+- `.specsync/config.toml` (TOML); legacy `specsync.json` / `.specsync.toml` are still read as a fallback
+
+### Platforms
+- Linux and macOS binaries (x86_64 and aarch64). No Windows binary is built or published as of 6.0
 
 ## Out of Scope (Deferred / Not Planned)
 

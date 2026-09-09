@@ -18,7 +18,7 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 | Site / VS Code extension | **CI** | `site`, `vscode-extension` |
 | Action packaging consumer | **CI** | `action-consumer` |
 | Deterministic risk (Augur) | **Trust only** | Trust action risk gate |
-| Provenance (Attest) | **Trust only** | Trust action provenance |
+| Provenance (Attest) | **Trust** (PR gate) | Trust action provenance; CI's `attest` job also records a best-effort note on `main` after `ci-gate` |
 | Lifecycle *re-suite* (full test again) | **None — removed** | Was duplicate of CI |
 
 ## Confidence tiers
@@ -38,8 +38,8 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 - Ubuntu and macOS integration and release validation against one exact candidate SHA
 - any additional release or security matrix required by project policy
 
-The Trust split remains non-protected. CHG-0075 applies the separately pinned protected-workflow
-update: Ubuntu is the authoritative integration platform for ordinary development and product PRs,
+The Trust split remains non-protected. The separately pinned protected-workflow update applies:
+Ubuntu is the authoritative integration platform for ordinary development and product PRs,
 while macOS runs in the immutable release-candidate cycle. Windows is not a qualified or published target as of 6.0:
 
 1. Freeze an exact candidate commit on an RC branch and create an immutable RC marker/tag for that
@@ -174,11 +174,13 @@ A `dry_run=true` dispatch selects validation-only mode. It does not execute the 
 publication jobs, authenticate a real tag push, or publish packages. Exercise the actual evidence
 guards and read-only candidate validators separately, and retain their refusal controls.
 
-Before stable publication, qualify the final merged tree under a new immutable RC, inspect every
-required check and review thread, and verify signed provenance with the required policy. A soft
-Trust result alone is not a satisfied provenance policy. The count guards and exact platform
-validator must both agree on Ubuntu/macOS; missing, extra, duplicate, failed, or mixed-identity
-receipts remain invalid.
+Before stable publication, qualify the final merged tree under a new immutable RC: RC16's evidence
+covers `ffba9a32` only, so the final merged `main` tree must be frozen as a new immutable RC (the
+next `-rc.N`) and qualified before `promote` runs — neither that run nor the final tag exists as
+of this writing. Inspect every required check and review thread, and verify signed provenance with the
+required policy. A soft Trust result alone is not a satisfied provenance policy. The count guards
+and exact platform validator must both agree on Ubuntu/macOS; missing, extra, duplicate, failed,
+or mixed-identity receipts remain invalid.
 
 GitHub Releases, crates.io, and the Homebrew tap are separate publication channels. Confirm the
 6.0 package/version and binary identity on each advertised channel after deliberate publication;
@@ -226,7 +228,7 @@ workflow is the cross-platform authority for an exact immutable candidate SHA.
 
 1. Putting `test` / full `lanes.verify` back into Trust’s GitHub lifecycle
 2. Making Trust the only place that runs tests (drops release-candidate multi-OS validation)
-3. Dropping Windows/macOS without an immutable-SHA release-candidate gate
+3. Dropping macOS (or any required platform) without an immutable-SHA release-candidate gate
 4. Running `cargo test` in both CI and Trust “just to be safe” (doubles cost, same bugs)
 
 ## Related

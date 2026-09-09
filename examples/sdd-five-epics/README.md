@@ -24,7 +24,7 @@ A successful run ends with:
 
 - SpecSync `6.0.0`,
 - five finalized and archived epics with zero active changes,
-- five definition approvals and five scoped-review records,
+- ten approval records (one definition approval and one finalization approval per epic) and five scoped-review records,
 - five verification records,
 - a six-version canonical spec with six permanent requirements,
 - six passing product tests,

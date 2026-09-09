@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "align-public-documentation-and-the-release-runbook-with-the-shipped-specsync-6-0-0",
+  "implementation_commit": "bd910f4fd3217cb59f573037bdc1f0aedded285c",
+  "implementation_tree": "b058267fa7c722a118239a935d55d026250d29ae",
+  "contract_digest": "fe22ec9806509f0d8af817aa05109a6628a3ee25725ee258c8592c8a32a27f6b",
+  "workspace_digest": "0d2baa4bd9ef680e4e71016860db8742f2301a490c6990c2c07ea928015a907d",
+  "closing_digest": "7fadef47f2d0372382d0bd1e85fd8c39227b4bd56d366a0214b65507f5f4a35c",
+  "review_digest": "d226000221e9ec01a86da72a5cdda81758e54fdf4e9bab82c560cffafc1d6c1f",
+  "finalization_digest": "90e2f6f36cbce5256900ac571b73a0b335795b9ff5df2810c8e85f9ff6362360",
+  "timestamp": 1788931637
+}

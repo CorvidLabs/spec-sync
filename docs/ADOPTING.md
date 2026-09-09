@@ -22,8 +22,9 @@ Pin explicitly. After the stable release is published, install its source tag:
     cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.0.0 --locked specsync
     specsync --version
 
-Before stable publication, replace `v6.0.0` with the explicitly selected `v6.0.0-rc.N`
-candidate tag. A source tag alone does not guarantee downloadable binary assets exist.
+To try a pre-release instead, replace `v6.0.0` with the explicitly selected `v6.0.0-rc.N`
+candidate tag. A source tag alone does not guarantee downloadable binary assets exist. Prebuilt
+binaries exist for Linux and macOS only; 6.0 publishes no Windows binary (#735).
 
 Coordinate the upgrade of all lifecycle writers to the selected 6.x version, including developer machines, agents, hooks, and CI. Older 5.x writers may reject slug-based changes or discard newer record fields. The 6.x downgrade checks detect damaged or downgraded evidence; they do not make mixed-version writes safe. Check `specsync --version` in each execution environment before resuming active work.
 
@@ -106,16 +107,17 @@ on GitHub. **Merge only after every active change on the PR is archived.**
 
 ## 5. Wire CI
 
-    # After stable publication; for a candidate choose a release with binary assets.
+    # For a candidate instead, choose a release that has binary assets.
     - uses: CorvidLabs/spec-sync@v6.0.0
       with:
-        version: 6.0.0
+        version: '6.0.0'
         strict: 'true'
         lifecycle-enforce: 'true'
 
 Both pins are needed and they pin different things: the `uses` ref pins the action code, the
-`version` input pins the binary it downloads. For a prerelease, replace both pins with the
-selected published candidate. When using a Trust wrapper, verify that its pinned revision
+`version` input pins the binary it downloads; prefer the exact tag over a floating major ref. For a
+prerelease, replace both pins with the selected published candidate. The action runs on Linux
+and macOS runners and refuses a Windows runner. When using a Trust wrapper, verify that its pinned revision
 supports the requested SpecSync version and binary source. This repository passes its validated
 candidate through an explicit version and runner-local mirror; an old wrapper may otherwise
 continue using 5.x. A soft provenance setting alone does not enforce release provenance.
@@ -179,7 +181,7 @@ Use `change status <id>` and the [workflow recovery guidance](../site/src/conten
 for the state you actually have. Recovery does not replace finalizing before a normal merge.
 
 **`db_tables` needs `.sql` migrations to be checkable.** If your schema lives in application code,
-declare `db_tables` anyway — as of 6.0.0-rc.5 it is a notice, not a `strict`-gating warning. Point
+declare `db_tables` anyway — in 6.0 it is a notice, not a `strict`-gating warning. Point
 `schema_dir` at your migrations only if you actually have them.
 
 **A repeated description is refused by name.** Change identities are slugs derived from the
@@ -201,7 +203,7 @@ The point of archival is not filing — it is that a module accumulates what was
 ## Verify the adoption
 
     specsync check --strict          # 0 warnings, exports documented
-    specsync change audit --strict   # clean
+    specsync change audit            # clean (the global --strict flag has no effect here)
     ls .specsync/archive/changes/    # your first change, archived
 
 If all three hold, the loop is real. Report what you set up, what you had to correct in the

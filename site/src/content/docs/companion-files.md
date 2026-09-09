@@ -74,11 +74,11 @@ spec: auth.spec.md
 - [x] Add session-store bulk revocation.
 - [x] Add requirement-level regression coverage.
 
-## Post-5.0 Roadmap
+## Roadmap
 
 - [ ] Add administrator-initiated revocation.
 
-## Post-5.0 Test Debt
+## Test Debt
 
 - [ ] Add the long-running multi-region consistency fixture.
 ```

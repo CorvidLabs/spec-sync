@@ -33,15 +33,16 @@ Specs reference functions that were renamed. Code exports things the spec doesn'
 
 ```bash
 cargo install specsync          # or use the GitHub Action, or download a binary
-specsync init                   # create .specsync/config.toml
+specsync init                   # create .specsync/config.toml (change workflow off)
 specsync change new "Add auth"  # start the deterministic SDD interview
-specsync change answer CHG-... acceptance_criteria "Auth succeeds" --json
-specsync change approve CHG-... # one human scope approval
+specsync change answer add-auth acceptance_criteria "Auth succeeds" --json
+specsync change approve add-auth # one human scope approval
 # implement code, specs, and tests
-specsync change check CHG-...   # scoped verify for this change (not archive history)
+specsync change check add-auth --commit  # scoped verify for this change (not archive history)
 specsync change audit           # active workspaces + living specs
-# open/update the PR for ordinary + scoped review
-specsync change finalize CHG-... # same-PR metadata/archive-only finalization
+# open/update the PR; after ordinary PR review, record the scoped review
+specsync change review add-auth --reviewer "Ada"
+specsync change finalize add-auth # same-PR archive; commit and push the result
 # GitHub performs the merge
 specsync check                  # validate specs against code
 specsync coverage               # see what's covered

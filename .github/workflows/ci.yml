@@ -276,7 +276,8 @@ jobs:
     if: needs.classify.outputs.full == 'true'
     # Ordinary development has one authoritative integration platform. The
     # immutable release-candidate workflow qualifies the exact candidate SHA on
-    # Ubuntu, macOS, and Windows before any final tag can be created.
+    # Ubuntu and macOS (the `REQUIRED_PLATFORMS` set; Windows is not built or
+    # qualified in 6.0) before any final tag can be created.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

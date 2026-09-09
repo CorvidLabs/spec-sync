@@ -13,7 +13,7 @@
 
 Rust · single binary · 33 languages · no SpecSync API key required
 
-[Quick start](#quick-start) · [Full SDD lifecycle](#full-sdd-lifecycle) · [Live documentation](https://corvidlabs.xyz/spec-sync/docs/) · [Examples](#executable-examples) · [Comparisons](#how-it-compares)
+[Quick start](#quick-start) · [Verified change workflow](#verified-change-workflow) · [Live documentation](https://corvidlabs.xyz/spec-sync/docs/) · [Examples](#executable-examples) · [Comparisons](#how-it-compares)
 
 </div>
 
@@ -48,9 +48,18 @@ The same check runs locally and in CI:
 ```console
 $ specsync check --strict
 specs/auth/auth.spec.md
-  ⚠ undocumented export `revoke_session`
+  ✓ Frontmatter valid
+  ✓ All source files exist
+  ✓ All required sections present
+  ⚠ 1/2 exports documented
+  ⚠ Undocumented export 'revoke_session' from src/auth.rs
+  ✓ All dependency specs exist
 
-1 warning treated as an error in strict mode
+1 specs checked: 1 passed, 2 warning(s), 0 failed
+File coverage: 1/1 (100%)
+LOC coverage:  2/2 (100%)
+
+--strict mode: 2 warning(s) treated as errors
 ```
 
 The fix preserves more than a generated document:
@@ -119,10 +128,9 @@ workflow-v2 `reopen` when accepted or archived evidence becomes stale.
 
 ## Install
 
-The stable 6.0 examples below apply after publication to the corresponding channel. During
-the candidate period, select an explicit RC source tag or a published prerelease with binary
-assets, and check `specsync --version`; Cargo, Homebrew, and GitHub Releases are separate
-publication steps. Pin all lifecycle writers and CI to the selected 6.x version.
+crates.io, Homebrew, and GitHub Releases are separate publication steps: each channel serves
+6.0.0 only after that publication has happened. Confirm what you received with
+`specsync --version`, and pin all lifecycle writers and CI to the same 6.x version.
 
 ### Cargo
 

@@ -19,7 +19,8 @@ Install the `specsync` CLI:
 cargo install specsync
 ```
 
-Or download a prebuilt binary from [GitHub Releases](https://github.com/CorvidLabs/spec-sync/releases).
+Or download a prebuilt binary from [GitHub Releases](https://github.com/CorvidLabs/spec-sync/releases)
+(Linux and macOS; no Windows binary is published as of 6.0).
 
 ## Extension Settings
 
@@ -35,4 +36,4 @@ Or download a prebuilt binary from [GitHub Releases](https://github.com/CorvidLa
 - **SpecSync: Show Coverage** — open coverage report
 - **SpecSync: Score Spec Quality** — open quality report
 - **SpecSync: Generate Missing Specs** — scaffold new specs
-- **SpecSync: Initialize Config** — create the `.specsync/` v4 project layout
+- **SpecSync: Initialize Config** — run `specsync init` to create the `.specsync/` project layout

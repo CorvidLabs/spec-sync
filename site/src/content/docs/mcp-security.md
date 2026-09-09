@@ -94,8 +94,8 @@ root retention and after retained manifest discovery but before selected-spec/so
 Gate callers propagate failures from either checkpoint. This guarantee is scoped to the
 `compute_coverage_checked` operation: a command-wide immutable CLI analysis snapshot and generic
 structured discovery outcomes remain assigned to later CLI/outcome/generation work outside
-GitHub #414's MCP boundary. Hosted Windows runtime remains the acceptance authority for
-junction/reparse behavior.
+GitHub #414's MCP boundary. The junction/reparse guards remain in the code, but no Windows
+binary is published and no hosted Windows runtime exercises them as of 6.0.
 
 Cargo path authority comes only from semantic target, dependency, workspace-dependency,
 target-specific dependency, patch, and replacement tables. An arbitrary metadata key named `path`

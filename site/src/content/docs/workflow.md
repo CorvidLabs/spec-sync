@@ -21,7 +21,7 @@ new → one scope approval → implement → check → PR review → finalize �
 | **Draft** | Deterministic interview selects scope and adaptive artifacts | `change new`, `change answer` |
 | **Approved** | A human approves the scope/definition digest once | `change approve` |
 | **Implementing** | Code, canonical specs, and tests follow the approved package | `change check` |
-| **Verifying** | Targeted evidence is current and one scoped PR review is required | `change check`, ordinary PR review |
+| **Verifying** | Targeted evidence is current and one scoped PR review is required | `change check`, ordinary PR review, `change review` |
 | **Archived** | Finalization records closure and moves the package to dated history in the same PR | `change finalize` |
 
 Module maturity (`draft → review → active → stable → deprecated → archived`) remains separately available through `specsync lifecycle`.
@@ -229,7 +229,7 @@ specsync hooks install
 ```
 
 This installs:
-- **Agent instructions** — `CLAUDE.md`, `.cursor/rules`, `.github/copilot-instructions.md`, `AGENTS.md` — so AI coding tools know to respect specs
+- **Agent instructions** — `CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`, `AGENTS.md` — so AI coding tools know to respect specs
 - **Pre-commit hook** — runs `specsync check` before every commit, blocking commits with spec errors
 
 Check what's installed with `specsync hooks status`.
@@ -324,9 +324,9 @@ Common fixes:
 
 | Error | Fix |
 |:------|:----|
-| Phantom export `foo` not found in source | Remove `foo` from the spec, or add it to the code |
-| Undocumented export `bar` | Add `bar` to the Public API table |
-| File `src/old.ts` not found | Update the `files` list in frontmatter |
+| Spec documents 'foo' but no matching export found in source | Remove `foo` from the spec, or add it to the code |
+| Undocumented export 'bar' from src/mod.ts | Add `bar` to the Public API table |
+| Source file not found: src/old.ts | Update the `files` list in frontmatter |
 | Required section missing | Add the section heading and content |
 
 When working with an AI agent, pipe `--json` output for structured error handling:
@@ -493,7 +493,7 @@ server root. Claude Code, Cursor, and Windsurf can call them directly. See [For 
 specsync hooks install
 ```
 
-Generates instruction files (`CLAUDE.md`, `.cursor/rules`, etc.) that tell AI agents to read specs before modifying code, update specs when changing APIs, and run validation after changes.
+Generates instruction files (`CLAUDE.md`, `.cursorrules`, `AGENTS.md`, etc.) that tell AI agents to read specs before modifying code, update specs when changing APIs, and run validation after changes.
 
 ### JSON output for scripting
 

@@ -1,6 +1,6 @@
 ---
 id: quote-schema-pattern-regex-as-valid-toml-in-the-full-config-fixture
-state: implementing
+state: archived
 type: bug_fix
 base_commit: a9169aacb0d8807c85dd5e752ebe32453d9c9b8b
 ---

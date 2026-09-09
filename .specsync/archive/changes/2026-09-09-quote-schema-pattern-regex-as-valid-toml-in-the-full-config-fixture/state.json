@@ -7,11 +7,11 @@
   "title": "Quote schema_pattern regex as valid TOML in the full-config fixture",
   "description": "quote schema_pattern regex as valid TOML in the full-config fixture",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "a9169aacb0d8807c85dd5e752ebe32453d9c9b8b",
   "created_at": 1788984169,
-  "updated_at": 1788984648,
+  "updated_at": 1788984778,
   "affected_specs": [
     "config"
   ],

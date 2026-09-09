@@ -63,6 +63,29 @@ Release candidate: stable publication is pending. Add the release date only when
 
 ### Fixed
 
+- **A fresh 6.0 `init` stamps `.specsync/version` with `6.0.0`, not `5.0.0`.** `SDD_VERSION`
+  was still the 5.0 layout version, so every project initialized by a 6.0 binary carried a stamp
+  claiming the 5.0 layout while its `sdd.json`, slug identities and `bootstrap.json` were 6.0's.
+  Nothing in 6.0 reads the stamp's value (`migrate` compares it only to `4.0.0`), so this changes
+  no behaviour today; it is fixed now because a later 6.x that needs to tell a 6.0-initialized
+  tree from a 5.x one has nowhere else to look, and a wrong stamp cannot be corrected after it has
+  been committed into thousands of repositories. Existing stamps are left alone.
+
+- **The committed quickstart example now validates standalone.** `examples/quickstart/` listed
+  `examples/quickstart/src/lib.rs` — a path relative to the outer repository — and carried
+  `status: draft`, so from its own root `specsync check` reported the source as "not created
+  yet", coverage as 0/1, and skipped export validation, which meant the README's "make it fail"
+  step (add `farewell`, see a warning) could not produce a warning. The spec now maps `src/lib.rs`
+  as `active` with a Public API table; the README shows the real output; and two integration
+  tests pin the three promises (strict check passes with full coverage, the added export is
+  reported, `--strict` fails on it).
+
+- **Release-note text corrected in the `[6.0.0]` section.** The BREAKING exit-code entry still said
+  `check` "prints the active-change count and emits lifecycle findings as warnings", which the
+  entry at the top of `[Unreleased]` had since removed; and the archive-only CI entry still
+  advertised a post-merge merge-binding job that #499 deleted. Neither described the shipped
+  binary or workflows.
+
 - **`finalize` can close a workflow-v2 change that supersedes a legacy accepted change** (#753).
   Every attempt failed with `archive post-move preflight would invalidate CHG-0001-…: delivery
   input … changed after acceptance and no accepted or archived successor change covers it` —
@@ -2024,9 +2047,10 @@ Release candidate: stable publication is pending. Add the release date only when
   `specsync check` locally before upgrading, or set `--enforcement warn` while you clear them.**
 
 - **BREAKING (exit codes): `specsync check` no longer fails because of SDD lifecycle state.**
-  Lifecycle state is now reported, not enforced: `check` prints the active-change count and
-  emits lifecycle findings as warnings on stderr, and its exit status is determined solely by
-  spec validation results, the effective enforcement mode, `--strict`, and `--require-coverage`.
+  Lifecycle state is no longer part of `check` at all (see the `[Unreleased]` entry above:
+  `check` does not inspect active changes, workspaces, or archives — that is `change audit`),
+  and its exit status is determined solely by spec validation results, the effective
+  enforcement mode, `--strict`, and `--require-coverage`.
   A repository that was red *only* for lifecycle reasons — stale verification evidence, a
   squash-orphaned evidence commit, a diverged sequence ledger — now exits 0.
 
@@ -2585,9 +2609,10 @@ Release candidate: stable publication is pending. Add the release date only when
 - **Additive strict validation** — global `--strict`, project policy, and deterministic
   release/security classification add validators to the same workflow/evidence instead of
   selecting another lifecycle, approval count, or artifact layout.
-- **Positive archive-only CI and merge binding** — a lightweight child lane proves parent checks,
-  exact archive shape, unchanged delivery tree, ownership, review, and finalization digest; a
-  post-merge job records a compact check/comment bound to the actual merge commit before release.
+- **Positive archive-only CI** — a lightweight child lane proves parent checks, exact archive
+  shape, unchanged delivery tree, ownership, review, and finalization digest. (An earlier draft of
+  this entry also promised a post-merge job binding the merge commit; that job,
+  `post-merge-archive.yml`, was deleted in #499 and no post-merge binding ships in 6.0.)
 
 ### Changed
 

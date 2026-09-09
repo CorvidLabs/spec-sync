@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "correct-the-6-0-init-version-stamp-quickstart-example-and-release-notes",
+  "implementation_commit": "6c81a6d6002abcd0b1c75e47604a85b7287f905e",
+  "implementation_tree": "41b8162bdf5a0f846793aa5ca6f9ae4cf9768e6a",
+  "contract_digest": "c1ae16c217e9a2234814d8ea16255c016f08c59ef90a2752b35097c69eb7a6a2",
+  "workspace_digest": "e17e7f7a8b86bcb0ada4174c8ce71a1839ba9f6c299c0d738cf31cd6cac769e4",
+  "closing_digest": "10198aa634303329e2d409dbba7da663d7ce45d08585b64efc133f56d88478c6",
+  "review_digest": "a2cd8eaa86baadd63bb569ea435d739e13b25ae8f49db4a8337c54c4f20d354e",
+  "finalization_digest": "61412bcf7cff713acadf64f9965b9a9cc907014d944e4f877918c7953100441c",
+  "timestamp": 1788924674
+}

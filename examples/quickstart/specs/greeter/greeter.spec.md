@@ -1,9 +1,9 @@
 ---
 module: greeter
-version: 1
-status: draft
+version: 2
+status: active
 files:
-  - examples/quickstart/src/lib.rs
+  - src/lib.rs
 ---
 
 # greeter
@@ -17,8 +17,9 @@ directions.
 
 ## Public API
 
-- `pub fn greet(name: &str) -> String` — Returns a greeting for `name`.
-  The greeting is a localized `"hello, <name>!"` string.
+| Name | Kind | Description |
+|---|---|---|
+| `greet` | function | Returns the greeting `"hello, <name>!"` for `name`. |
 
 ## Invariants
 
@@ -45,4 +46,6 @@ assert_eq!(greet("Leif"), "hello, Leif!");
 
 ## Change Log
 
+- 2.0 — `status: active` and `files:` relative to the example root, so the
+  example validates standalone and export drift is reported
 - 1.0 — initial spec for the canonical SpecSync quickstart example

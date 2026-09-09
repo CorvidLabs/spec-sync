@@ -10,10 +10,10 @@ spec: cmd_init.spec.md
 
 ## Acceptance Criteria
 
-- `cmd_init` writes `.specsync/config.toml`, a `5.0.0` version stamp, `.specsync/sdd.json`, lifecycle/change/archive directories, and auto-detected source directories.
-- On a terminal, init offers native agent installation and creation of the first verified change; non-interactive/CI initialization never blocks for input.
+- `cmd_init` writes `.specsync/config.toml`, a `6.0.0` version stamp, `.specsync/sdd.json`, lifecycle/change/archive directories, and auto-detected source directories.
+- `init` never starts a change interview and never blocks for input, on a terminal or in CI; the change workflow is enabled afterwards with `specsync change adopt` and agent skills with `specsync agents install`.
 - If either `specsync.json` or `.specsync.toml` already exists, init prints a message and returns without writing.
-- On success, init prints the created v5 layout and detected source directories.
+- On success, init prints the created `.specsync` layout and detected source directories.
 - After writing the config, `ensure_hashes_gitignored` adds `.specsync/hashes.json` to the root `.gitignore` (with a comment header) unless it is already present; the result is reported as a success line, a no-op, or a warning.
 - `ensure_hashes_gitignored` is idempotent: re-running never duplicates the entry.
 

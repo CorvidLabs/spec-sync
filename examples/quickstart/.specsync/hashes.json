@@ -1,6 +1,19 @@
 {
+  "format_version": 1,
   "hashes": {
-    "specs/greeter/greeter.spec.md": "6782ce4a0e61b63a86e4d5b7402222b5d0f3f652a0f0c79069d6f85e7b2b3502",
+    ".specsync/config.toml": "4e2db2ac1b8e0e7ff3591bace38bea4677a55caaa90957fdf54e2a3f10a4f591",
+    "specs/greeter/greeter.spec.md": "acdeba10c139f942b13748c6049516090fd062b0b033006a71817b492a957774",
     "src/lib.rs": "84c50c0e12e7547d0b60e0f7db578d105dc00f19be885be1ca8f760e53eda371"
+  },
+  "snapshots": {
+    "specs/greeter/greeter.spec.md": {
+      "snapshot_version": 1,
+      "spec_path": "specs/greeter/greeter.spec.md",
+      "errors": [],
+      "warnings": [],
+      "notices": [],
+      "input_digest": "3de62e81c66500c1ebaa055c877def8af8bbd5ce818587bdded46abb6d656d3b",
+      "snapshot_digest": "ce21281f03d82527f1a656eb5e8e1b4913a894742e83a864208a598a17356797"
+    }
   }
 }

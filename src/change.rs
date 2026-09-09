@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-pub const SDD_VERSION: &str = "5.0.0";
+pub const SDD_VERSION: &str = "6.0.0";
 const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is invalid; restore corrections.json from trusted history before inspecting lifecycle status";
 const POLICY_PATH: &str = ".specsync/sdd.json";
 const CHANGES_PATH: &str = ".specsync/changes";

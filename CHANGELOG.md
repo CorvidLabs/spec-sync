@@ -97,7 +97,8 @@ Release candidate: stable publication is pending. Add the release date only when
 - **Git children no longer inherit `GITHUB_TOKEN` or `GIT_DIR`.** The MCP server and every other
   `git_utils` caller spawn `git` with a cleared environment and an allowlist. Nested-project
   roots (a specsync project inside a repository subdirectory) still discover the parent work
-  tree; `GIT_CEILING_DIRECTORIES` is not pinned to the project root's parent.
+  tree; `GIT_CEILING_DIRECTORIES` is not pinned on the default path. MCP snapshot dispatch
+  pins the ceiling to the snapshot parent so a tempfile inside a host worktree cannot walk up.
 
 - **`check --fix` no longer space-wipes fenced Public API examples when it also renames a
   near-miss heading.** Header discovery still runs on a fence-blanked copy; the original section

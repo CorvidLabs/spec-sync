@@ -22,6 +22,8 @@ spec: git_utils.spec.md
 | `is_git_repo_detects_repo_and_non_repo` | `true` inside an initialized repo, `false` in a plain temp dir |
 | `git_inherited_env_excludes_secrets_and_git_overrides` | Secrets and git overrides are absent from the child allowlist |
 | `is_git_repo_detects_project_inside_repository_subdirectory` | `true` for a directory with no `.git` of its own that sits inside a real repository |
+| `discovery_ceiling_isolates_a_subdirectory_from_host_walk_up` | `with_discovery_ceiling(parent(snap))` makes `is_git_repo(snap)` false; nested project stays true outside the closure |
+| `discovery_ceiling_does_not_leak_after_the_closure` | After the closure returns, default `git_cmd` is ceiling-free again |
 
 ## Behavioral Verification
 

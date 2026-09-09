@@ -67,9 +67,12 @@ Score and other tools that need git history spawn `git` through a shared helper.
 with a cleared environment. Only `PATH`, locale, home, and temp variables are copied from the
 parent; `GITHUB_TOKEN`, `GH_TOKEN`, `GIT_DIR`, `GIT_ASKPASS`, `GIT_INDEX_FILE`, and `SSH_AUTH_SOCK`
 are not forwarded. `GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0` are set. The child does
-not pin `GIT_CEILING_DIRECTORIES`: a project whose root is a subdirectory of a git repository
-must still discover that work tree. Inherited git overrides are already wiped by the cleared
-environment. Snapshot isolation is the caller's job — place the snapshot outside any repository.
+not pin `GIT_CEILING_DIRECTORIES` on the default path: a project whose root is a subdirectory
+of a git repository must still discover that work tree. Inherited git overrides are already wiped
+by the cleared environment. MCP snapshot tool and resource dispatch pin
+`GIT_CEILING_DIRECTORIES` to the snapshot parent for the duration of git probes, so a tempfile
+sitting inside a host worktree (`TMPDIR` pointing at the repo) cannot walk up into that
+worktree. CLI callers never enter that wrap.
 
 ## Manifest discovery
 

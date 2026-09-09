@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788930175,
+      "digest": "b831acd2ad44cfb420e2c9e705826b3db552a90758907419b950fc37a75218cd",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help",
+        "title": "Insert check --fix export rows into the existing Public API table and state the strict enforcement default in CLI help",
+        "description": "Insert check --fix export rows into the existing Public API table and state the strict enforcement default in CLI help",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cli_args",
+          "cmd_check"
+        ],
+        "affected_paths": [
+          "specs/cli_args",
+          "specs/cmd_check",
+          "src/cli.rs",
+          "src/commands/check.rs",
+          "tests/integration/fix.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "check --fix inserts a new export row directly after the last row of the nearest Public API table in the section or subsection, under a heading, a bold label, or no label, and preserves trailing prose; a section with no table still receives rows at its end; a subsequent check --strict passes on the fixed spec; the --enforcement help summary names strict as the default; targeted fix integration tests, clippy, fmt, and strict spec validation pass"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli_args": "52acb37fa9eb1db32b41edbf1d739352a64a5477e108d37895dff9b4b7fb5b77",
+        "cmd_check": "feaab855aca155e9af8249d9e7b410cb1b92ddde210f225934e13c6a81a2e2bb"
+      }
+    }
+  ],
+  "reopenings": []
+}

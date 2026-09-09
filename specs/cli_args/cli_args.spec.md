@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 22
+version: 23
 status: stable
 files:
   - src/cli.rs
@@ -144,3 +144,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-08-08 | CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship: Ship --push --wait archive tip orchestration for buttery multi-tip ship |
 | 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |
 | 2026-09-08 | complete-specsync-6-promotion-and-public-release-contracts: Clarify scoped reviewer claims and the separate authentication policy boundary |
+| 2026-09-09 | insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help: Insert check --fix export rows into the existing Public API table and state the strict enforcement default in CLI help |

@@ -33,7 +33,7 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub json: bool,
 
-    /// Enforcement mode: warn (default, exit 0), enforce-new (block unspecced files), strict (exit 1 on errors).
+    /// Enforcement mode: strict (default, exit 1 on errors), enforce-new (block unspecced files), warn (exit 0).
     /// Overrides the `enforcement` field in .specsync/config.toml.
     #[arg(long, value_name = "MODE", global = true)]
     pub enforcement: Option<types::EnforcementMode>,

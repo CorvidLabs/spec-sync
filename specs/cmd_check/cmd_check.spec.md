@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 29
+version: 31
 status: stable
 files:
   - src/commands/check.rs
@@ -73,6 +73,12 @@ optional drift issues. SDD / change / archive history is not part of this comman
 - **When** `cmd_check` runs with `--fix`
 - **Then** the export is appended to the matching Public API table (functions to the functions table, types to the types table) with a generated description prompt and the file is rewritten
 
+### Scenario: Auto-fix extends an existing table instead of trailing prose
+
+- **Given** a `## Public API` section whose table (under a `### Heading`, a `**Bold**` label, or no label) is followed by prose such as an "Acceptance Criteria" paragraph
+- **When** `cmd_check` runs with `--fix` for an undocumented export
+- **Then** the new row is inserted directly after the last row of that table, the prose is preserved after it, pipe-shaped lines inside fenced or indented code examples are never treated as table rows, and a subsequent `check --strict` passes; only a section with no table at all receives rows at its end
+
 ### Scenario: JSON output format
 
 - **Given** `--format json` is set
@@ -118,6 +124,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-09-08 | v30 / #615: `--fix` inserts new export rows after the last row of the nearest table in the section or subsection, never after trailing prose, so rows are no longer orphaned outside every table |
 | 2026-08-30 | v28: `check` no longer consults SDD, active changes, or archive history. Drift only. |
 | 2026-07-22 | v9: fail closed when malformed Gradle/manifest discovery makes coverage inconclusive, preserving structured JSON failure output |
 | 2026-07-10 | v5: add unified SDD lifecycle, approval, delta, effective-contract, and changed-path gates |
@@ -147,3 +154,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
+| 2026-09-09 | insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help: Insert check --fix export rows into the existing Public API table and state the strict enforcement default in CLI help |

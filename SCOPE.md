@@ -38,7 +38,7 @@ This document summarizes the shipped product boundary and what remains explicitl
 - `score` — quality scoring
 - `resolve` — dependency resolution (local + optional remote)
 - `add-spec` — scaffold a single new spec with companions
-- `init` — create `.specsync/` (`config.toml`, `registry.toml`, `sdd.json` with the change workflow off)
+- `init` — create `.specsync/` (`config.toml`, the version stamp, `sdd.json` with the change workflow off); `registry.toml` comes from `init-registry`
 - `init-registry` — create registry file
 - `change` — opt-in verified change lifecycle (`change adopt` turns it on; `check` never inspects it)
 - `watch` — continuous validation on file changes

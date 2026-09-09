@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788982977,
+      "digest": "b447b7c24c599a7c9859f9a97920ec6fe41beddf2a1c8bd50905fd4b13e78193",
+      "note": "owner pre-authorization per docs/6-0-overnight-brief.md; human inspection at PR merge",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "use-current-workflow-fixtures-in-verification-persistence-tests",
+        "title": "Use current-workflow fixtures in verification persistence tests",
+        "description": "use current-workflow fixtures in verification persistence tests",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Specs already name v1 Verifying as verify then accept then archive. These tests asserted v2 review and finalize next_action while building records through the v1 helper; switch the fixture to the current workflow so the v1 contract stays intact.",
+        "acceptance_criteria": [
+          "verification persistence tests that assert v2 review or finalize next_action build current-workflow records; workflow_v1_verifying_next_action_names_verify_accept_archive still passes; cargo test exact_and_multiple_verification_persistence_commits_remain_current and scoped_review_persistence_commit_keeps_verification_current pass"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

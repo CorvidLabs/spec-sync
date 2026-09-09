@@ -16063,7 +16063,10 @@ fn verification_history_fixture() -> (TempDir, String, VerificationRecord) {
     policy.require_change_for_meaningful_files = false;
     policy.verification_commands.clear();
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
-    let mut record = completed_no_spec_record(root);
+    // Persistence + scoped-review tests assert v2 review/finalize next_action.
+    // completed_no_spec_record is workflow v1; keep v1 covered by
+    // workflow_v1_verifying_next_action_names_verify_accept_archive.
+    let mut record = completed_no_spec_current_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
     quiet_git(root, &["add", "--all"]);

@@ -1,6 +1,6 @@
 ---
 id: mcp-tools-lock-file-and-mcp-lock-diff
-state: implementing
+state: archived
 type: feature
 base_commit: 7fc6912d2e0afd12f4e97a1a70c77f961aba8a10
 ---

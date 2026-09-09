@@ -7,11 +7,11 @@
   "title": "MCP tools lock file and mcp lock/diff",
   "description": "MCP tools lock file and mcp lock/diff",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "7fc6912d2e0afd12f4e97a1a70c77f961aba8a10",
   "created_at": 1788965577,
-  "updated_at": 1788967546,
+  "updated_at": 1788968189,
   "affected_specs": [
     "mcp",
     "cli_args"

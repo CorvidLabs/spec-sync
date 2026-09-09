@@ -9,13 +9,13 @@ verify the starting state before trusting it.
 
 | Item | State |
 |---|---|
-| `main` | `e2dc2612` after PR #765 (docs sweep + `docs/RELEASING.md`), plus PR #766 (`check --fix` row placement, `--enforcement` help default, SCOPE.md) if it merged before you start; check. Any local checkout may be stale: `git fetch origin` and work from `origin/main`, never from an old branch such as `leif/specsync-6-release` (which sits at `ffba9a32`, where the guards still say three and `SDD_VERSION` is 5.0.0). |
+| `main` | `bc344615` after PR #765 (docs sweep + `docs/RELEASING.md`) and PR #766 (`check --fix` row placement, `--enforcement` help default, SCOPE.md), plus this brief's own PR #767. Any local checkout may be stale: `git fetch origin` and work from `origin/main`, never from an old branch such as `leif/specsync-6-release` (which sits at `ffba9a32`, where the guards still say three and `SDD_VERSION` is 5.0.0). |
 | Version | `Cargo.toml` `6.0.0`; `action.yml` default `6.0.0`; `SDD_VERSION` `6.0.0`. |
 | Last qualified RC | `v6.0.0-rc.16` at `ffba9a32` (run 34172484287). It does **not** cover the current tree. No `v6.0.0` tag exists. |
 | Published channels | GitHub pre-release assets: rc.14. crates.io: 5.2.0. Homebrew tap: 5.2.0. |
 | Consumers (#647) | All four known consumers pass an explicit `version: 6.0.0-rc.12`: corvid-account, podo-web and raven via `uses: CorvidLabs/spec-sync@29392630 # v6.0.0-rc.12`, podo-android via `@v6.0.0-rc.12`. None floats `latest`, so repointing `releases/latest` is safe. (Issue #647's table and `docs/RELEASING.md` section 1 describe the pre-migration state; correct the runbook line.) |
-| Open PRs | #766 only, if not yet merged: package archived on the PR, required checks green; squash-merge it before new work, then rebase anything you branch. |
-| Remote branches | `main`, `leif/fix-615-check-fix-table-rows` (#766), `leif/mcp-security-history-recovery` (56 unmerged July commits; leave it). |
+| Open PRs | None expected. If one exists, read it; do not replay `review`/`ship` on a package that is already archived (`change review` requires `verifying`); verify its checks and leave the merge to the human. |
+| Remote branches | `main`, `leif/mcp-security-history-recovery` (56 unmerged July commits; leave it). |
 | Issues | Already closed with citations on 2026-09-09: #677 #672 #603 #667 #660 #648 #631 #641 #647 #615. Close at the stable tag, not before: #628 (`action.yml` default `6.0.0` is valid once `v6.0.0` exists). New: #768 (three `check --fix` scanner edge cases deferred from the #766 review). The other 47 open issues were triaged as defer-to-6.x; re-triage only what your drills touch, and cite a commit when you close anything. |
 | Known 6.0.x defects (not blockers) | #656 deleting `verification-attempts.json` bypasses the empty-attempts guard at finalize; #653 malformed JSON config passes silently in `rules`/`rehash`/`compact`; #416 importer writes `files: []` skeletons (docs caveat landed); #615 second half (placeholder rows counted as documented); #675 version skew reads as "invalid change ID"; #690 `ship-status` suggests `check --commit` from `Accepted` (legacy path only); #768 three `check --fix` table-scanner edge cases deferred from the #766 review (two tables in one subsection, indented literal fence marker, fenced `###` line before the table), each needing a drill and a regression test. |
 | Release runbook | `docs/RELEASING.md` (verified against `release.yml`, `rc-assets.yml`, validators). |
@@ -28,7 +28,9 @@ verify the starting state before trusting it.
 2. Every defect found that a first-time 6.0 user would hit is fixed with tests on `main`, through the
    SDD lifecycle, or is explicitly listed as deferred with the reason.
 3. One final PR (more only if a fix needs its own spec ownership) with all change packages archived
-   on the PR, all Codex/corvid-agent threads addressed, all required checks green, ready to merge.
+   on the PR, all Codex/corvid-agent threads addressed, all required checks green, **left open for
+   the human to inspect and merge in the morning**. Do not merge it yourself; do not close issues
+   fixed tonight until it merges (comment "fixed in PR #N" instead).
 4. A handoff section at the end of the report listing the exact human steps remaining: cut the RC,
    dispatch `promote`, `cargo publish`, Homebrew bump, changelog date, `v6` floating tag.
 
@@ -43,9 +45,14 @@ verify the starting state before trusting it.
   package:
   `change new` → `answer` → artifacts → `approve --actor 0xLeif` → implement → `check --commit` →
   push → CI green → `review --reviewer 0xLeif` → `ship` (no commit between review and ship) →
-  commit the archive tip → push → merge. The owner pre-authorizes definition approvals and scoped
-  reviews recorded as `0xLeif` for work inside this brief's scope; a change outside it needs the
-  owner.
+  commit the archive tip → push → (human merge). Approval and review identity: the owner decided,
+  in the session that wrote this brief, to pre-authorize definition approvals and scoped reviews
+  recorded as `0xLeif` for work inside this brief's scope, so the run is not blocked overnight.
+  That is a disclosed delegation, not a human inspection of each generated scope, so every such
+  record must carry `--note "owner pre-authorization per docs/6-0-overnight-brief.md; human
+  inspection at PR merge"`, the final PR body must list every package approved this way, and the
+  morning human inspects the PR before merging. A change outside this brief's scope stops and
+  waits for the owner.
 - Production source needs a declared canonical owner: on `change new`, pass `--spec <module>` for
   every module whose spec `files:` lists a touched `src/` path, or finalize/`ship` refuses with
   "production source without deterministic canonical ownership". When the spec text does not
@@ -96,11 +103,13 @@ refute. Weight P1 claims 3, P2 claims 1. Report the weighted pass fraction. Mini
 - Upgrade path: a 5.2.0-initialized project with one in-flight workflow-v1 change follows
   `MIGRATION.md` literally and ends with the v1 change landed and a v2 change archived; a v1 change
   merged after the cutoff is refused with the documented message (#674).
-- GitHub Action: `CorvidLabs/spec-sync@<this tree>` with `version: 6.0.0-rc.16` and the packaged
-  action consumer pass on a sandbox repo (`CorvidLabs/spec-sync-sandbox` exists) on `ubuntu-latest`
-  and `macos-latest`; `strict: true` fails on drift; `comment: true` posts.
+- GitHub Action: `CorvidLabs/spec-sync@<this tree>` on a sandbox repo (`CorvidLabs/spec-sync-sandbox`)
+  on `ubuntu-latest` and `macos-latest`; `strict: true` fails on drift; `comment: true` posts.
+  Only rc.14 has published release assets, so the download cell must use `version: 6.0.0-rc.14`;
+  to exercise the tree's own binary, use the `download-base-url` input against a runner-local
+  mirror the way `ci.yml`'s `action-consumer` job does. Never publish assets to make this pass.
 - Docs walkthroughs executed literally by an agent that may only follow the text: README quick
-  start, `site/src/content/docs/quickstart.md`, `workflow.md`, `MIGRATION.md`,
+  start, `site/src/content/docs/quickstart.md`, `site/src/content/docs/workflow.md`, `MIGRATION.md`,
   `examples/*/README.md`, `docs/RELEASING.md` sections 1 to 3 (dry run only).
 - Contract stability: `--help` for every verb matches the CLI reference; JSON shapes of `check`,
   `change list`, `change status`, `coverage`, `score` are stable across a clean and a degraded

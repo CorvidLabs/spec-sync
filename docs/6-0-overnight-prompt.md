@@ -25,13 +25,17 @@ Read these first, in this order, before doing anything else:
 
 Hard rules, restated because they are the ones that matter unattended: never create any tag,
 never dispatch `promote`, never `cargo publish`, never touch the Homebrew tap, never force-push
-`main`, never change a security alert. `release.yml` with `dry_run=true` is the only release
-dispatch you may make. Every meaningful change goes through one SDD change package and is
-archived on its PR before merge; the owner (0xLeif) pre-authorizes definition approvals and
-scoped reviews recorded as `--actor 0xLeif` / `--reviewer 0xLeif` for work inside the brief's
-scope, and allows `gh pr merge --squash --admin` over a stale automated block once every review
-thread is addressed and resolved. Run `fledge lanes run pre-push` before every push and
-`fledge lanes run verify` before calling any change done.
+`main`, never change a security alert, never merge the final PR. `release.yml` with
+`dry_run=true` is the only release dispatch you may make. Every meaningful change goes through
+one SDD change package and is archived on its PR. The owner (0xLeif) decided, in the session
+that wrote the brief, to pre-authorize definition approvals and scoped reviews recorded as
+`--actor 0xLeif` / `--reviewer 0xLeif` for work inside the brief's scope so you are not blocked
+overnight; that is a disclosed delegation, not a human inspection, so pass
+`--note "owner pre-authorization per docs/6-0-overnight-brief.md; human inspection at PR merge"`
+on every such record, list every package approved this way in the final PR body, and leave the
+merge to the human. Anything outside the brief's scope stops and waits. Run
+`fledge lanes run pre-push` before every push and `fledge lanes run verify` before calling any
+change done.
 
 How to work. Use workflows for every substantive phase; you have the budget for roughly fifty
 subagents at a time and should use it. Pipeline by default, barrier only when a phase needs all
@@ -46,9 +50,9 @@ without the transcript.
 Phases, each its own workflow, each read and judged by you before the next starts:
 
 Phase 0, orient (10 to 15 agents, read-only). Verify the brief's starting-state table against the
-live repository and GitHub; note any drift in the journal. Check whether PR #766 merged; if it is
-open and green, finish its lifecycle (review, ship, archive tip, merge) exactly as `AGENTS.md`
-describes. Build the release binary from `main` (`cargo build --release`; `touch` the sources
+live repository and GitHub; note any drift in the journal. Expect no open PRs; if one exists, read
+its state, never replay `review`/`ship` on an already archived package, and leave any merge to
+the human. Build the release binary from `main` (`cargo build --release`; `touch` the sources
 first) and keep its path. Enumerate the confidence checklist from the brief into concrete,
 numbered claims with a P1/P2 weight each and write it to `docs/6-0-confidence-checklist.md`
 before any drill runs; the checklist is fixed from this point, and later discoveries append,
@@ -90,10 +94,11 @@ output, SHA), the list of deferred items, and a "what could still force a 7.0" s
 forward from `docs/6-0-release-review.md`. If the score is below 95 percent or any P1 is open, go
 back to Phase 3.
 
-Phase 5, hand off. Land the final PR through the full lifecycle (approve, `check --commit`, push,
-CI green, address Codex and corvid-agent threads, resolve them, review, ship, archive tip, CI
-green). Close the issues the brief lists as already fixed on main, each with a comment naming
-the commit or PR, plus any you fixed tonight. End the report with the exact human steps that
+Phase 5, hand off. Take the final PR through the full lifecycle up to, but not including, the
+merge: approve, `check --commit`, push, CI green, address Codex and corvid-agent threads and
+resolve them, review, ship, archive tip, CI green, PR body listing every package and its
+pre-authorized approvals. Leave it open for the human. Comment "fixed in PR #N" on the issues
+you fixed tonight without closing them; the human closes them after merging. End the report with the exact human steps that
 remain, copied from `docs/RELEASING.md`: cut the next `-rc.N` from the merged tree, watch
 qualification, dispatch `promote`, `cargo publish`, Homebrew bump, changelog date, `v6` floating
 tag. Your last message must stand on its own: score, what you fixed, what you deferred, what the

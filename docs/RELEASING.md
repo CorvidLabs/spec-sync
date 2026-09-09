@@ -14,9 +14,12 @@ release. crates.io and Homebrew are manual and come after.
 
 - `main` is green and the commit you intend to ship is on `origin/main`. `validate` refuses any
   candidate that is not an ancestor of `origin/main`.
-- No active change workspace: `.specsync/changes/` must not exist (changes archive on their PR).
+- No active change workspace: `.specsync/changes/` contains no change directories (`init` creates the
+  directory and finalization leaves it in place, so check its contents, not its existence:
+  `specsync change list` prints `No active SDD changes.`).
 - `Cargo.toml` `[package] version` and `Cargo.lock` carry the exact version the tag will name
-  (`6.0.0`). The RC tag `vX.Y.Z-rc.N` must match it byte for byte; `validate` fails otherwise.
+  (`6.0.0`). `validate` parses the RC tag `vX.Y.Z-rc.N` and requires its `X.Y.Z` component to equal
+  the Cargo version; a mismatch fails the run.
 - The three validators pass at the candidate commit:
 
 ```bash
@@ -35,9 +38,12 @@ URL), the `trust.yml` pin and mirror, exact-head checkouts in `spec-check`/`trus
 `oven-sh/setup-bun@v2` with `bun-version: 1.3.14` appears exactly once in `ci.yml` `site`,
 `ci.yml` `vscode-extension`, and `pages.yml` `build`, and nowhere else.
 
-- Consumer pins (#647). `action.yml` at a consumer's own ref decides the binary; a wrapper with
-  no explicit `version:` downloads `releases/latest`. Publishing a non-prerelease repoints
-  `latest`. Before promoting, confirm each known consumer passes an explicit `version:`:
+- Consumer pins (#647). `action.yml` at a consumer's own `uses:` ref decides the binary: with no
+  explicit `version:` input the wrapper uses that revision's embedded default, which is `latest`
+  for the `@v4` / `@v4.5.0` wrappers and `6.0.0` for `@v6.0.0` and `@main`. Publishing a
+  non-prerelease repoints `releases/latest`, so every consumer on an old wrapper without an
+  explicit `version:` moves with it. Before promoting, confirm each known consumer passes an
+  explicit `version:`:
 
 ```bash
 for r in corvid-account podo-web podo-android; do
@@ -89,10 +95,12 @@ gh api repos/CorvidLabs/spec-sync/commits/<sha>/check-runs \
 A pushed RC tag creates **no** GitHub release and no binaries. If testers need an installable
 candidate, create a pre-release by hand, then dispatch `rc-assets.yml`, which refuses anything
 that is not an existing published pre-release and attaches the same five archives `build`
-produces. Optional; a candidate can go straight to promotion.
+produces. Optional; a candidate can go straight to promotion. `--verify-tag` is required: without
+it, a mistyped or missing tag makes `gh release create` mint that tag from the default branch,
+and the ruleset then makes the unqualified tag permanent.
 
 ```bash
-gh release create v6.0.0-rc.17 --prerelease --title "SpecSync 6.0.0-rc.17" --notes "Release candidate"
+gh release create v6.0.0-rc.17 --verify-tag --prerelease --title "SpecSync 6.0.0-rc.17" --notes "Release candidate"
 gh workflow run rc-assets.yml --ref main -f tag=v6.0.0-rc.17
 ```
 
@@ -202,8 +210,9 @@ Announce: link the release, say `releases/latest` now serves 6.0.0, point at `MI
   be moved or removed. The remedy for a bad stable release is a new version (`6.0.1`) through
   the same lane; the remedy for a bad candidate is the next `N`.
 - **Release assets are not replaced.** `release` refuses an existing release and uploads with
-  `overwrite_files: false`; the lane cannot be re-run to swap binaries. Marking `v6.0.0` as a
-  pre-release by hand is the only way to move `releases/latest` back to the previous release.
+  `overwrite_files: false`; the lane cannot be re-run to swap binaries. To move `releases/latest`
+  back to the previous release without reclassifying the bad one, run
+  `gh release edit <previous-tag> --latest`.
 - **crates.io is append-only.** `cargo yank --version 6.0.0` hides it from new resolutions;
   the version cannot be republished.
 - **Homebrew tap and CHANGELOG are ordinary git.** Revert the formula PR to move users back.

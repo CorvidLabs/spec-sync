@@ -18,7 +18,7 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync scaffold <name>` | Full scaffold: spec + companions + registry entry + source detection |
 | `specsync add-spec <name>` | Scaffold a spec with companion files (tasks.md, context.md) |
 | `specsync hooks install` | Install git pre-commit hooks and IDE agent snippets |
-| `specsync agents install` | Install skills plus `/specsync:create-spec`, `create-change`, `check`, and `audit` (Claude Code/Cursor/Codex/Gemini CLI) |
+| `specsync agents install` | Install the spec-sync skill for Claude Code, Cursor, Codex, and Gemini CLI, plus the `/specsync:create-spec`, `create-change`, `check`, and `audit` commands for Claude Code, Cursor, and Gemini CLI (Codex receives the skill only) |
 | `specsync resolve --remote` | Resolve cross-project spec references |
 | `specsync diff --base <ref>` | Show export changes since a git ref (useful for CI/PR reviews) |
 | `specsync report` | Per-module coverage report with stale/incomplete detection |
@@ -165,7 +165,7 @@ Each `*.spec.md` needs YAML frontmatter (`module`, `version`, `status`, `files`)
 
 ## MCP Integration
 
-For richer integration, run `specsync mcp` to start the MCP server. This exposes `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score`, `specsync_init`, `specsync_issues`, and `specsync_list_specs` as callable tools.
+For richer integration, run `specsync mcp` to start the MCP server. By default it is read-only and exposes `specsync_check`, `specsync_coverage`, `specsync_score`, `specsync_issues`, and `specsync_list_specs`; `specsync mcp --allow-write` adds the mutating `specsync_generate` and `specsync_init` tools.
 
 ## CI vs Trust (approximately 95% confidence, no duplicate suites)
 

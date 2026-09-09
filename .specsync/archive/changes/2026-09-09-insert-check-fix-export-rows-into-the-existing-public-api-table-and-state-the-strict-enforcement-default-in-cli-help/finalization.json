@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help",
+  "implementation_commit": "133f717ca1f0b54da10c4ec197d00045476f1457",
+  "implementation_tree": "e46fbc2fa850d7cb569c0d76c2afe1d9edaf4169",
+  "contract_digest": "b51a2fe223f749ba46067c34ff09a0c6a4a177a7c690faaacaf1a224df11711a",
+  "workspace_digest": "465b557a0b5f43e1300179bc8185482bc3f2b610c499e1317f6c5bbf404da60b",
+  "closing_digest": "41dd49b4ee9b851fd134c0403fd5612b963fb08381d50b2f9ab368d7ff9ebee9",
+  "review_digest": "814abadc218809a387318177e8ce6ce956b20a7981301201976202e67cb6e4bb",
+  "finalization_digest": "18a3bb7aa470d1124b2102df79677dd8e0470ec20e2430ae996c3b2ba76de45a",
+  "timestamp": 1788933527
+}

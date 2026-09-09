@@ -1,6 +1,6 @@
 ---
 id: insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help
-state: verifying
+state: archived
 type: bug_fix
 base_commit: 38354c51ad3a4ba2408b8daf906dd1a9a0d5659f
 ---

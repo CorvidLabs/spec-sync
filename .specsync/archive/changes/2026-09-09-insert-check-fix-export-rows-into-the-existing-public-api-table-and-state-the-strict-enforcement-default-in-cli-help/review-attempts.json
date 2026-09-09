@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "133f717ca1f0b54da10c4ec197d00045476f1457",
+      "contract_digest": "b51a2fe223f749ba46067c34ff09a0c6a4a177a7c690faaacaf1a224df11711a",
+      "execution_digest": "3cf0f8fc073224e5506c7dccfdd81568c1e01e92367abaa6116df4aad06a924b",
+      "workspace_digest": "465b557a0b5f43e1300179bc8185482bc3f2b610c499e1317f6c5bbf404da60b",
+      "timestamp": 1788933485
+    }
+  ]
+}

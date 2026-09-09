@@ -61,6 +61,15 @@ Diagnostics contain only bounded, sanitized project-relative paths and content-f
 A completely inspected project with no issue references is reported directly without requiring
 provider access.
 
+## Git child environment
+
+Score and other tools that need git history spawn `git` through a shared helper. The child starts
+with a cleared environment. Only `PATH`, locale, home, and temp variables are copied from the
+parent; `GITHUB_TOKEN`, `GH_TOKEN`, `GIT_DIR`, `GIT_ASKPASS`, `GIT_INDEX_FILE`, and `SSH_AUTH_SOCK`
+are not forwarded. `GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0` are set, and
+`GIT_CEILING_DIRECTORIES` is pinned to the project root's parent so a snapshot sitting inside a
+host worktree cannot walk up into it.
+
 ## Manifest discovery
 
 MCP snapshot and confinement discovery parse bounded Cargo manifests as real TOML, including

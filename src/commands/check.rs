@@ -1145,7 +1145,7 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
         .map(|p| api_start + 1 + p)
         .unwrap_or(content.len());
 
-    let api_section = content[api_start..api_end].to_string();
+    let api_section = crate::parser::blank_fenced_code(&content[api_start..api_end]);
     let mut modified = false;
 
     // Canonical export subsection names. Levenshtein distance ≤ 2 triggers a rename.
@@ -1402,10 +1402,15 @@ fn auto_fix_specs(
                 .map(|p| api_start + 1 + p)
                 .unwrap_or(content.len());
             let api_section = &content[api_start..api_end];
+            let api_section_for_headers = crate::parser::blank_fenced_code(api_section);
 
             // Collect start offsets (relative to api_section) of every ### subsection
-            let sub_positions: Vec<usize> =
-                sub_re.find_iter(api_section).map(|m| m.start()).collect();
+            // outside fenced examples. A fenced `### Exported Functions` is quoted
+            // text, not an insertion target (#768.3).
+            let sub_positions: Vec<usize> = sub_re
+                .find_iter(&api_section_for_headers)
+                .map(|m| m.start())
+                .collect();
 
             // Recognized export subsections: (lowercased header, absolute start, absolute end)
             let export_subs: Vec<(String, usize, usize)> = sub_positions

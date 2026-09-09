@@ -1,0 +1,32 @@
+{
+  "timestamp": 1788962102,
+  "commit": "0d0251bf62b30696a710a2a421becac02405539b",
+  "contract_digest": "e756cbadf80685ff9dea5fe1775a440d01f5cc22114cec0a98c5856871fbf2fb",
+  "execution_digest": "6d6bac8264163bc1932108bd9482aab756e55a71686b215e698484eba516fa94",
+  "workspace_digest": "764372d4b836032c80b160fdb992bc5bc68297bf071953e778db45615caf5dd2",
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec change --spec cli --spec cli_args --spec cmd_check --spec cmd_generate --spec cmd_new --spec cmd_scaffold --spec config --spec generator --spec git_utils --spec mcp --spec parser",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-change-097",
+    "REQ-change-098",
+    "REQ-change-099",
+    "REQ-cli-011",
+    "REQ-cli-args-017",
+    "REQ-cmd-check-016",
+    "REQ-cmd-generate-002",
+    "REQ-cmd-new-001",
+    "REQ-cmd-new-004",
+    "REQ-cmd-scaffold-004",
+    "REQ-config-014",
+    "REQ-generator-005",
+    "REQ-git-utils-005",
+    "REQ-mcp-008",
+    "REQ-parser-004"
+  ]
+}

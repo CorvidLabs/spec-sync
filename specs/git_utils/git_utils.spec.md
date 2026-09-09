@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 7
+version: 8
 status: stable
 files:
   - src/git_utils.rs
@@ -99,3 +99,4 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-08-14 | #572: Made `git_last_commit_hash` private and replaced it with `spec_baseline -> SpecBaseline`, plus `missing_history -> Option<MissingHistory>`. The old `Option<String>` conflated "spec not in history" with "no history", and four of five callers read the second as the first |
 | 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |
 | 2026-08-18 | CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness: A staleness answer must not read an unreadable source as freshness |
+| 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |

@@ -1075,6 +1075,8 @@ pub struct GenerationOutcome {
     pub generated: usize,
     /// Paths (relative to root) of the spec files written.
     pub generated_paths: Vec<String>,
+    /// Unspecced modules skipped because no source files were found.
+    pub skipped_no_files: Vec<String>,
 }
 
 /// Generate CLI scaffolds through a retained project-root capability.
@@ -1108,6 +1110,7 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
 
         let module_files = module_files_from_coverage(report, module_name, config);
         if module_files.is_empty() {
+            outcome.skipped_no_files.push(module_name.clone());
             continue;
         }
 
@@ -1163,7 +1166,7 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
     Ok(outcome)
 }
 
-fn confined_generation_path(path: &Path, label: &str) -> Result<PathBuf, String> {
+pub(crate) fn confined_generation_path(path: &Path, label: &str) -> Result<PathBuf, String> {
     if path.is_absolute() {
         return Err(format!(
             "Generate {label} must remain beneath the retained project root: {}",
@@ -1352,6 +1355,7 @@ pub fn generate_specs_for_unspecced_modules(
         let module_files = find_files_for_module(root, module_name, config);
 
         if module_files.is_empty() {
+            outcome.skipped_no_files.push(module_name.clone());
             continue;
         }
 
@@ -1410,6 +1414,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
         let module_files = find_files_for_module(root, module_name, config);
 
         if module_files.is_empty() {
+            outcome.skipped_no_files.push(module_name.clone());
             continue;
         }
 
@@ -2127,5 +2132,18 @@ mod tests {
         let spec = "## Public API\n\n";
         let rendered = populate_public_api_table(spec, &["$value".to_string()]);
         assert!(rendered.contains("| `$value` |"), "{rendered}");
+    }
+
+    #[test]
+    fn confined_generation_path_rejects_escape_and_absolute() {
+        let err = confined_generation_path(Path::new("../outside"), "scaffold --dir").unwrap_err();
+        assert!(
+            err.contains("must remain beneath the retained project root"),
+            "{err}"
+        );
+        let abs = confined_generation_path(Path::new("/tmp/out"), "scaffold --dir").unwrap_err();
+        assert!(abs.contains("/tmp/out"), "{abs}");
+        let ok = confined_generation_path(Path::new("specs/custom"), "scaffold --dir").unwrap();
+        assert_eq!(ok, PathBuf::from("specs/custom"));
     }
 }

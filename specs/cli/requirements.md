@@ -172,3 +172,11 @@ Acceptance Criteria
 - Dropping a published platform does not license removing handling for content authored on it. CRLF line endings, Windows-reserved filenames, Windows-invalid characters, and backslash path separators are read by Linux and macOS users whenever a repository has one contributor on Windows, so that handling is scoped to the content, not to the binary set.
 - The crate continues to build from source on Windows. What ends at 6.0 is the prebuilt executable, not the platform's ability to compile one.
 
+### REQ-cli-011
+
+The default `check` dispatch SHALL merge `--spec` flags with positional SPEC filters before calling `cmd_check`.
+
+Acceptance Criteria
+- A default (no-subcommand) invocation still runs Check with an empty spec filter.
+- `specsync check --spec auth` and `specsync check auth` produce the same scoped validation.
+

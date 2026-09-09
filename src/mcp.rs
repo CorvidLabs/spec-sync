@@ -7669,6 +7669,7 @@ project(':override').projectDir = file('vendor/custom')
         let outcome = crate::generator::GenerationOutcome {
             generated: 1,
             generated_paths: vec!["specs/missing/missing.spec.md".to_string()],
+            skipped_no_files: Vec::new(),
         };
 
         let error = validate_generation_outcome(tmp.path(), &expected, &outcome).unwrap_err();
@@ -8402,6 +8403,7 @@ project(':override').projectDir = file('vendor/custom')
         let outcome = crate::generator::GenerationOutcome {
             generated: expected.len(),
             generated_paths: Vec::new(),
+            skipped_no_files: Vec::new(),
         };
 
         let error = validate_generation_outcome(tmp.path(), &expected, &outcome).unwrap_err();
@@ -8424,6 +8426,7 @@ project(':override').projectDir = file('vendor/custom')
                 "specs/first/first.spec.md".to_string(),
                 "specs/second/second.spec.md".to_string(),
             ],
+            skipped_no_files: Vec::new(),
         };
 
         assert_eq!(MAX_GENERATED_OUTPUT_BYTES, 64 * 1024 * 1024);

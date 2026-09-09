@@ -35,15 +35,12 @@ spec: cmd_new.spec.md
 
 ### REQ-cmd-new-001
 
-The new command SHALL create a non-overwriting spec scaffold from validated module input and detected source exports.
+`specsync new` SHALL emit every heading in the project's `required_sections` (the same skeleton `add-spec` / `generate` write), not a four-section subset.
 
 Acceptance Criteria
-- `specsync new <module>` creates `<specs_dir>/<module>/<module>.spec.md` with frontmatter (`module`, `version: 1`, `status: draft`, `files:`, `db_tables: []`, `depends_on: []`) and the standard section skeleton (Purpose, Public API, Dependencies, Change Log).
-- Source files are detected by scanning each configured `source_dirs` entry for a directory named `<module>` (recursively) and for a top-level file whose stem equals `<module>`, filtered by `source_extensions`; detected paths are relative, forward-slash, sorted, and de-duplicated.
-- When no source files are found, the spec is still created with `files: []`.
-- Exported symbols from the detected source files are collected via `exports::get_exported_symbols`, de-duplicated, and rendered as Public API rows; each row carries a review prompt to document the export rather than a placeholder marker.
-- `--full` invokes `generator::generate_companion_files_for_spec`, creating `tasks.md`, `context.md`, `requirements.md`, `testing.md`, and `design.md` only when `companions.design` is enabled in config.
-- An existing target spec file causes exit code 1 with an error message; the command never overwrites it.
+- A spec created by `new` contains Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, and Change Log.
+- Public API rows are pre-populated from detected exports via `generator::generate_spec`.
+- The private `chrono_lite_today` helper is gone; the Change Log date comes from the shared generator.
 
 ### REQ-cmd-new-002
 
@@ -61,3 +58,12 @@ Acceptance Criteria
 
 Acceptance Criteria
 - The Public API it writes contains only symbols `check` will accept.
+
+### REQ-cmd-new-004
+
+`specsync new` SHALL refuse a module name under the same rules as `scaffold` (`validate_scaffold_module_name` plus case-collision).
+
+Acceptance Criteria
+- Reserved names (`change`, `specs`, `con`), leading dashes, spaces, and path separators exit 1 with `invalid module name` and write nothing.
+- A case-fold collision with an existing spec directory is refused before any write.
+

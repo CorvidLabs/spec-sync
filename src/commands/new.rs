@@ -7,16 +7,20 @@ use crate::config::load_config;
 use crate::exports;
 use crate::generator;
 
-use super::validate_module_name;
+use super::{check_case_collision, validate_scaffold_module_name};
 
 /// Quick-create a minimal spec for a module with auto-detected source files.
 pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
-    if let Err(e) = validate_module_name(module_name) {
+    if let Err(e) = validate_scaffold_module_name(module_name) {
         eprintln!("{e}");
         process::exit(1);
     }
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
+    if let Err(e) = check_case_collision(&specs_dir, module_name) {
+        eprintln!("{e}");
+        process::exit(1);
+    }
     let spec_dir = specs_dir.join(module_name);
     let spec_file = spec_dir.join(format!("{module_name}.spec.md"));
 
@@ -48,69 +52,11 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
             "  or define the module in your config — `specsync check` fails on empty `files:`."
         );
     }
-    let files_yaml = if source_files.is_empty() {
-        "files: []\n".to_string()
-    } else {
-        let items: String = source_files.iter().map(|f| format!("  - {f}\n")).collect();
-        format!("files:\n{items}")
-    };
 
-    // Auto-detect exports from source files
-    let mut all_exports: Vec<String> = Vec::new();
-    for file in &source_files {
-        // Consistency with validate/score/diff: never extract from a path that
-        // escapes the project root.
-        if !crate::validator::source_within_root(root, file) {
-            continue;
-        }
-        let full_path = root.join(file);
-        // Scaffold the API table from the configured export surface, not from
-        // every member: under `export_level = "type"` the member rows document
-        // symbols `check` does not recognize as exports (#474).
-        all_exports.extend(exports::get_exported_symbols_full(
-            &full_path,
-            config.export_level,
-            config.parse_mode,
-        ));
-    }
-    // Deduplicate
-    let mut seen = std::collections::HashSet::new();
-    all_exports.retain(|s| seen.insert(s.clone()));
-
-    let api_table = if all_exports.is_empty() {
-        "| Export | Description |\n|--------|-------------|".to_string()
-    } else {
-        let header = "| Export | Description |\n|--------|-------------|";
-        let rows: String = all_exports
-            .iter()
-            .map(|e| {
-                format!(
-                    "| `{e}` | Document the export's responsibility and caller-visible behavior. |"
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        format!("{header}\n{rows}")
-    };
-
-    // Detect depends_on from source imports
-    let deps_yaml = "depends_on: []";
-
-    let spec_content = format!(
-        "---\nmodule: {module_name}\nversion: 1\nstatus: draft\n{files_yaml}db_tables: []\n{deps_yaml}\n---\n\n\
-         # {module_name}\n\n\
-         ## Purpose\n\n\
-         Document this module's responsibility, inputs, outputs, and ownership boundaries.\n\n\
-         ## Public API\n\n\
-         {api_table}\n\n\
-         ## Dependencies\n\n\
-         List runtime dependencies and the specific symbols, services, or data they provide.\n\n\
-         ## Change Log\n\n\
-         | Change | Date | Version |\n\
-         |--------|------|---------|\n\
-         | Created | {date} | 1 |\n",
-        date = chrono_lite_today(),
-    );
+    // Same skeleton as `add-spec` / `generate`: every required_sections heading
+    // `init` writes, plus a pre-populated Public API table from detected exports.
+    let spec_content =
+        generator::generate_spec(module_name, &source_files, root, &specs_dir, &config);
 
     if let Err(e) = fs::write(&spec_file, &spec_content) {
         eprintln!("{} Failed to write spec: {e}", "Error:".red());
@@ -127,11 +73,11 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
             source_files.len()
         );
     }
-    if !all_exports.is_empty() {
+    let export_count = generator::collect_exports_for_files(root, &source_files, &config).len();
+    if export_count > 0 {
         println!(
-            "  {} Pre-populated {} export(s) in Public API",
+            "  {} Pre-populated {export_count} export(s) in Public API",
             "→".cyan(),
-            all_exports.len()
         );
     }
 
@@ -229,50 +175,6 @@ fn detect_module_sources(
 
     files.sort();
     files
-}
-
-/// Simple date string without pulling in chrono crate.
-fn chrono_lite_today() -> String {
-    use std::time::SystemTime;
-    let secs = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    // Simple days-since-epoch calculation
-    let days = secs / 86400;
-    let mut y = 1970i64;
-    let mut remaining = days as i64;
-
-    loop {
-        let days_in_year = if is_leap(y) { 366 } else { 365 };
-        if remaining < days_in_year {
-            break;
-        }
-        remaining -= days_in_year;
-        y += 1;
-    }
-
-    let month_days = if is_leap(y) {
-        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-
-    let mut m = 0;
-    for (i, &md) in month_days.iter().enumerate() {
-        if remaining < md as i64 {
-            m = i + 1;
-            break;
-        }
-        remaining -= md as i64;
-    }
-    let d = remaining + 1;
-
-    format!("{y}-{m:02}-{d:02}")
-}
-
-fn is_leap(y: i64) -> bool {
-    y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)
 }
 
 #[cfg(test)]

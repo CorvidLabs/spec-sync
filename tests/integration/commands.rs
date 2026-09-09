@@ -2561,6 +2561,42 @@ fn generate_no_op_when_fully_covered() {
 }
 
 #[test]
+fn generate_fails_closed_when_unspecced_modules_have_no_source_files() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        r#"
+specs_dir = "specs"
+source_dirs = ["src"]
+
+[modules.ghost]
+files = ["src/ghost.ts"]
+"#,
+    )
+    .unwrap();
+
+    specsync()
+        .arg("generate")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains("have no source files to bind"));
+
+    specsync()
+        .args(["generate", "--json", "--root"])
+        .arg(root)
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(predicate::str::contains("skipped_no_files"));
+}
+
+#[test]
 fn generate_rejects_retired_provider_and_model_flags() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

@@ -1151,8 +1151,17 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
     match parse_json_config(&content, root) {
         Ok(config) => config,
         Err(error) => {
-            eprintln!("Warning: failed to parse specsync.json: {error}");
-            SpecSyncConfig::default()
+            eprintln!(
+                "Warning: failed to parse {}: {error}",
+                config_path.display()
+            );
+            SpecSyncConfig {
+                load_error: Some(format!(
+                    "config file {} exists but could not be loaded; built-in defaults are in use",
+                    config_path.display()
+                )),
+                ..SpecSyncConfig::default()
+            }
         }
     }
 }
@@ -2312,12 +2321,39 @@ mod tests {
     }
 
     #[test]
-    fn test_load_config_malformed_json_returns_defaults() {
+    fn test_load_config_malformed_json_sets_load_error() {
         let tmp = TempDir::new().unwrap();
         fs::write(tmp.path().join("specsync.json"), "not valid json {{{").unwrap();
 
-        let config = load_config(tmp.path());
-        assert_eq!(config.specs_dir, "specs"); // default
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config.load_error.as_deref().is_some_and(|error| {
+                error.contains("could not be loaded") && error.contains("specsync.json")
+            }),
+            "malformed JSON must set load_error, got {:?}",
+            config.load_error
+        );
+        assert_eq!(config.specs_dir, "specs"); // default standing in, not applied
+    }
+
+    #[test]
+    fn test_load_config_malformed_v4_json_sets_load_error() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.json"),
+            "{ not json at all",
+        )
+        .unwrap();
+
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config.load_error.as_deref().is_some_and(|error| {
+                error.contains("could not be loaded") && error.contains("config.json")
+            }),
+            "malformed v4 JSON must set load_error, got {:?}",
+            config.load_error
+        );
     }
 
     #[test]

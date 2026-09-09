@@ -1,0 +1,163 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788961997,
+      "digest": "e756cbadf80685ff9dea5fe1775a440d01f5cc22114cec0a98c5856871fbf2fb",
+      "note": "owner pre-authorization per docs/6-0-overnight-brief.md; human inspection at PR merge",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving",
+        "title": "Close the SpecSync 6.0.0 P1 release defects found in overnight proving",
+        "description": "Close the SpecSync 6.0.0 P1 release defects found in overnight proving",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cli",
+          "cli_args",
+          "cmd_check",
+          "cmd_generate",
+          "cmd_new",
+          "cmd_scaffold",
+          "config",
+          "generator",
+          "git_utils",
+          "mcp",
+          "parser"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "README.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/mcp-security.md",
+          "site/src/content/docs/quickstart.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/cli.rs",
+          "src/commands/check.rs",
+          "src/commands/generate.rs",
+          "src/commands/new.rs",
+          "src/commands/scaffold.rs",
+          "src/config.rs",
+          "src/generator.rs",
+          "src/git_utils.rs",
+          "src/lifecycle-validation-limits.json",
+          "src/main.rs",
+          "src/mcp.rs",
+          "src/parser.rs",
+          "tests/integration/check.rs",
+          "tests/integration/commands.rs",
+          "tests/integration/config.rs",
+          "tests/integration/fix.rs",
+          "tests/integration/quickstart.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "cargo publish --dry-run compiles because lifecycle limits are bundled under src/; specsync new emits all seven init-required sections and refuses reserved names; malformed JSON config exits 1 on rules/rehash/compact/deps/archive-tasks/view; git children drop GITHUB_TOKEN and GIT_DIR and pin GIT_CEILING_DIRECTORIES; deleting or emptying verification-attempts.json refuses adopted finalization; CRLF definition payloads hash as LF; fenced Public API examples are not documented exports and check --fix ignores fenced ### headings; check --spec NAME parses; generate exits 1 when unspecced modules have no files; scaffold --dir cannot escape the project root; README and site quick start succeed without --strict on a stub scaffold."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "1eb3e535e94160344d68e0bc627672466245e627477a6f1abafc2f8626d82018",
+        "cli": "bcc6ad2f20b0ee5a3705483fcb050d0affb6fd7ecbcc1898976b1598bc62a150",
+        "cli_args": "fc08b4e1040ee99cf285e299a26128c58e38ca272b7e3e89467654fa83316796",
+        "cmd_check": "b88b58bcab97ffd3982263094fe9076083b2c5a6baf6385068fe4e05fd854b26",
+        "cmd_generate": "c1a56949ce91b52ac863b424717b5a08a177cdcf92db8754084bd9669d43c586",
+        "cmd_new": "3621169610475b1dcb5a9328d213cff0bca9c57f4ec4c9bad58af8f668385cac",
+        "cmd_scaffold": "a5c0da76236421cdfb7065d1bc76f341ba21f080602791512358c4055081d3de",
+        "config": "05bb2cad3f45270fb0a166f32a296933106a58076dd454f1549fb23303836aa1",
+        "generator": "7f62497b1f383bdfec124709b25122e2cb0029393016232c70da819c05a16fd7",
+        "git_utils": "c26f9a709dfa546db20b9f20ec8fe7e28a2b5cdf7de5ea63c6b862d21c616e00",
+        "mcp": "ef3dc544677981a923652365cd933681536d5103e2c4d367b8a09a2647a3907f",
+        "parser": "d74ca497da92d4da25e29489b93aa0c3a053e8bf98a8adfedbc8a1d373281c2f"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788962099,
+      "digest": "e756cbadf80685ff9dea5fe1775a440d01f5cc22114cec0a98c5856871fbf2fb",
+      "note": "owner pre-authorization per docs/6-0-overnight-brief.md; human inspection at PR merge",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving",
+        "title": "Close the SpecSync 6.0.0 P1 release defects found in overnight proving",
+        "description": "Close the SpecSync 6.0.0 P1 release defects found in overnight proving",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cli",
+          "cli_args",
+          "cmd_check",
+          "cmd_generate",
+          "cmd_new",
+          "cmd_scaffold",
+          "config",
+          "generator",
+          "git_utils",
+          "mcp",
+          "parser"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "README.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/mcp-security.md",
+          "site/src/content/docs/quickstart.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/cli.rs",
+          "src/commands/check.rs",
+          "src/commands/generate.rs",
+          "src/commands/new.rs",
+          "src/commands/scaffold.rs",
+          "src/config.rs",
+          "src/generator.rs",
+          "src/git_utils.rs",
+          "src/lifecycle-validation-limits.json",
+          "src/main.rs",
+          "src/mcp.rs",
+          "src/parser.rs",
+          "tests/integration/check.rs",
+          "tests/integration/commands.rs",
+          "tests/integration/config.rs",
+          "tests/integration/fix.rs",
+          "tests/integration/quickstart.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "cargo publish --dry-run compiles because lifecycle limits are bundled under src/; specsync new emits all seven init-required sections and refuses reserved names; malformed JSON config exits 1 on rules/rehash/compact/deps/archive-tasks/view; git children drop GITHUB_TOKEN and GIT_DIR and pin GIT_CEILING_DIRECTORIES; deleting or emptying verification-attempts.json refuses adopted finalization; CRLF definition payloads hash as LF; fenced Public API examples are not documented exports and check --fix ignores fenced ### headings; check --spec NAME parses; generate exits 1 when unspecced modules have no files; scaffold --dir cannot escape the project root; README and site quick start succeed without --strict on a stub scaffold."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "1eb3e535e94160344d68e0bc627672466245e627477a6f1abafc2f8626d82018",
+        "cli": "bcc6ad2f20b0ee5a3705483fcb050d0affb6fd7ecbcc1898976b1598bc62a150",
+        "cli_args": "fc08b4e1040ee99cf285e299a26128c58e38ca272b7e3e89467654fa83316796",
+        "cmd_check": "b88b58bcab97ffd3982263094fe9076083b2c5a6baf6385068fe4e05fd854b26",
+        "cmd_generate": "c1a56949ce91b52ac863b424717b5a08a177cdcf92db8754084bd9669d43c586",
+        "cmd_new": "3621169610475b1dcb5a9328d213cff0bca9c57f4ec4c9bad58af8f668385cac",
+        "cmd_scaffold": "a5c0da76236421cdfb7065d1bc76f341ba21f080602791512358c4055081d3de",
+        "config": "05bb2cad3f45270fb0a166f32a296933106a58076dd454f1549fb23303836aa1",
+        "generator": "442086b3514f2851c3b673ff44bd6bc3770f273bd826ba34480c3473a007e219",
+        "git_utils": "c26f9a709dfa546db20b9f20ec8fe7e28a2b5cdf7de5ea63c6b862d21c616e00",
+        "mcp": "ef3dc544677981a923652365cd933681536d5103e2c4d367b8a09a2647a3907f",
+        "parser": "fa9e2da967ef652c148d349c55cce85b136e46a44abad8f03a1b53e8dd3f8bf7"
+      }
+    }
+  ],
+  "reopenings": []
+}

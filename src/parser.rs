@@ -771,6 +771,61 @@ static TABLE_ROW_RE: LazyLock<Regex> =
 static METHOD_HEADER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^####\s+.*(?:Methods|Constructor|Properties)").unwrap());
 
+/// Replace every line inside a fenced code block (and the fence lines) with
+/// spaces of the same byte length, preserving newlines so both line numbers
+/// and byte offsets still line up with the original.
+///
+/// Public API tables, `###` subsection splits, and `--fix` heading scans all
+/// walk Markdown. A fenced example that happens to look like a table row or a
+/// `### Exported Functions` heading is quoted text, not the contract —
+/// counting those backticks as documented exports let a spec pass `--strict`
+/// at 100% documented with an empty real table. `--fix` uses the blanked
+/// offsets as indexes into the original, so the blanking must not shrink.
+pub(crate) fn blank_fenced_code(body: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut open_fence: Option<(char, usize)> = None;
+    for line in body.split_inclusive('\n') {
+        let content = line.strip_suffix('\n').unwrap_or(line);
+        let had_newline = line.ends_with('\n');
+        let trimmed = content.trim_start();
+        let marker = ['`', '~'].into_iter().find_map(|c| {
+            let run = trimmed.chars().take_while(|ch| *ch == c).count();
+            (run >= 3).then_some((c, run))
+        });
+        let blank_line = |out: &mut String| {
+            out.extend(std::iter::repeat(' ').take(content.len()));
+            if had_newline {
+                out.push('\n');
+            }
+        };
+        match (open_fence, marker) {
+            (Some((open_char, open_len)), Some((c, len)))
+                if c == open_char && len >= open_len && trimmed[len..].trim().is_empty() =>
+            {
+                open_fence = None;
+                blank_line(&mut out);
+                continue;
+            }
+            (Some(_), _) => {
+                blank_line(&mut out);
+                continue;
+            }
+            (None, Some(open)) => {
+                open_fence = Some(open);
+                blank_line(&mut out);
+                continue;
+            }
+            (None, None) => {}
+        }
+        out.push_str(content);
+        if had_newline {
+            out.push('\n');
+        }
+    }
+    debug_assert_eq!(out.len(), body.len());
+    out
+}
+
 /// Extract symbol names from the spec's Public API section.
 /// Only extracts the FIRST nonempty backtick-quoted symbol in each table row.
 /// Skips class method sub-tables.
@@ -799,10 +854,11 @@ pub(crate) fn get_duplicate_spec_symbols(body: &str) -> Vec<String> {
 
 fn collect_spec_symbols(body: &str) -> Vec<String> {
     let mut symbols = Vec::new();
+    let body = blank_fenced_code(body);
 
     // Find the Public API section manually (no lookahead in Rust regex).
     // Use regex for exact line match — avoids false positives like "## Public API Overview".
-    let api_start = match find_section_offset(body, "Public API") {
+    let api_start = match find_section_offset(&body, "Public API") {
         Some(pos) => pos,
         None => return symbols,
     };
@@ -890,8 +946,9 @@ fn collect_spec_symbols(body: &str) -> Vec<String> {
 /// that a human already documented under a non-export heading.
 pub fn get_all_api_table_symbols(body: &str) -> Vec<String> {
     let mut symbols = Vec::new();
+    let body = blank_fenced_code(body);
 
-    let api_start = match find_section_offset(body, "Public API") {
+    let api_start = match find_section_offset(&body, "Public API") {
         Some(pos) => pos,
         None => return symbols,
     };
@@ -1724,6 +1781,55 @@ Something
 "#;
         let symbols = get_spec_symbols(body);
         assert_eq!(symbols, vec!["createAuth", "validateToken", "AuthConfig"]);
+    }
+
+    #[test]
+    fn fenced_example_backticks_are_not_documented_exports() {
+        let body = r#"## Public API
+
+```markdown
+| Export | Description |
+|--------|-------------|
+| `quotedLogin` | fenced example, not the contract |
+```
+
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `realLogin` | user: string | bool | Real export |
+"#;
+        assert_eq!(get_spec_symbols(body), vec!["realLogin"]);
+        assert_eq!(get_all_api_table_symbols(body), vec!["realLogin"]);
+    }
+
+    #[test]
+    fn fenced_exported_heading_is_not_a_public_api_subsection() {
+        let body = r#"## Public API
+
+```
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `ghost` | | | quoted heading and row |
+```
+
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `real` | | | real row |
+"#;
+        assert_eq!(get_spec_symbols(body), vec!["real"]);
+        assert_eq!(get_all_api_table_symbols(body), vec!["real"]);
+        let blanked = blank_fenced_code(body);
+        assert_eq!(blanked.len(), body.len());
+        assert_eq!(
+            blanked.matches("`ghost`").count(),
+            0,
+            "blank_fenced_code must remove fenced rows"
+        );
     }
 
     #[test]

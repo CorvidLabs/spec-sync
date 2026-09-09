@@ -50,3 +50,13 @@ Generated specs SHALL contain only symbols the configured surface includes.
 Acceptance Criteria
 - A generated spec, once activated, passes `check` without orphan-export errors.
 - The tool cannot emit a spec its own validator rejects.
+
+### REQ-generator-005
+
+Generation SHALL record unspecced modules skipped because no source files were found, and SHALL confine generated destinations beneath the retained project root.
+
+Acceptance Criteria
+- `GenerationOutcome.skipped_no_files` is populated on the retained path and both ambient generate paths when a module has no files.
+- `confined_generation_path` is `pub(crate)` so `scaffold --dir` can reuse it.
+- Absolute paths and `..` components are refused with `must remain beneath the retained project root`.
+

@@ -77,6 +77,47 @@ Release candidate: stable publication is pending. Add the release date only when
 
 ### Fixed
 
+- **`cargo publish` for 6.0.0 compiles.** `src/change.rs` embedded
+  `.github/scripts/lifecycle-validation-limits.json` via `include_str!`, which is outside
+  Cargo.toml's `include` set (`/src/**`). The limits file is now bundled at
+  `src/lifecycle-validation-limits.json` (kept byte-identical to the CI copy).
+
+- **Deleting `verification-attempts.json` no longer lets `ship` adopt HEAD** (#656). Missing and
+  empty ledgers are the same evidence. A Verifying change also refuses to recreate a missing
+  ledger.
+
+- **`specsync new` emits every required section `init` configures**, reusing the `generate` /
+  `add-spec` skeleton, and applies the same module-name rules as `scaffold` (reserved names,
+  charset, case-collision).
+
+- **A malformed JSON config refuses `rules` / `rehash` / `compact` / `deps` / `archive-tasks` /
+  `view` instead of rewriting files over built-in defaults** (#653, completing #583). Parse
+  failure now sets `load_error` the same way an unreadable file does.
+
+- **Git children no longer inherit `GITHUB_TOKEN` or `GIT_DIR`.** The MCP server and every other
+  `git_utils` caller spawn `git` with a cleared environment, an allowlist, and
+  `GIT_CEILING_DIRECTORIES` pinned to the project root's parent.
+
+- **`ship` / `finalize` no longer refuse a CRLF checkout.** Definition-artifact digests fold
+  `\r\n` to `\n` the same way delta bodies already did, so post-move archive hashing matches the
+  LF blob Git stored.
+
+- **The Public API symbol reader ignores fenced examples**, so backtick names inside a sample
+  are not counted as documented exports. `check --fix` likewise ignores a fenced `###` heading
+  (#768.3).
+
+- **`check --spec NAME` is a real, repeatable flag**, matching the command `change check`
+  records in verification evidence.
+
+- **`generate` fails closed when unspecced modules have no source files** instead of exiting 0
+  with an empty write set. JSON includes `skipped_no_files`.
+
+- **`scaffold --dir` cannot write outside the project root.** Absolute and `..` paths are
+  refused through the same confinement helper `generate` uses.
+
+- **README and site quick start no longer fail at the first step.** Create a source file before
+  `add-spec`, and do not run `--strict` on a stub scaffold.
+
 - **A fresh 6.0 `init` stamps `.specsync/version` with `6.0.0`, not `5.0.0`.** `SDD_VERSION`
   was still the 5.0 layout version, so every project initialized by a 6.0 binary carried a stamp
   claiming the 5.0 layout while its `sdd.json`, slug identities and `bootstrap.json` were 6.0's.

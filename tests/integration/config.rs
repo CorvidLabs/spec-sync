@@ -941,6 +941,21 @@ fn new_auto_detects_single_source_file() {
         "files must not be empty, got:\n{spec}"
     );
 
+    for heading in [
+        "## Purpose",
+        "## Public API",
+        "## Invariants",
+        "## Behavioral Examples",
+        "## Error Cases",
+        "## Dependencies",
+        "## Change Log",
+    ] {
+        assert!(
+            spec.contains(heading),
+            "specsync new must emit required section {heading}, got:\n{spec}"
+        );
+    }
+
     // The quickstart flow: the generated spec must pass `specsync check`
     specsync()
         .args(["check", "--root", root.to_str().unwrap()])
@@ -965,6 +980,60 @@ fn new_warns_when_no_source_files_match() {
         .assert()
         .success()
         .stderr(predicate::str::contains("No source files matched"));
+}
+
+#[test]
+fn new_refuses_reserved_and_invalid_module_names() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn greet() {}\n").unwrap();
+
+    for name in ["change", "specs", "con", "-dash", "my module"] {
+        specsync()
+            .args(["new", "--root"])
+            .arg(root)
+            .arg("--")
+            .arg(name)
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(predicate::str::contains("invalid module name"));
+        assert!(
+            !root.join("specs").join(name).exists(),
+            "refused name `{name}` must not write a spec"
+        );
+    }
+}
+
+#[test]
+fn malformed_json_config_refuses_rules_rehash_compact_and_view() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/config.json"), "{ not json {{{").unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn greet() {}\n").unwrap();
+
+    let cases: &[&[&str]] = &[
+        &["rules"],
+        &["rehash"],
+        &["compact"],
+        &["deps"],
+        &["archive-tasks"],
+        &["view", "--role", "dev"],
+    ];
+    for args in cases {
+        specsync()
+            .args(*args)
+            .arg("--root")
+            .arg(root)
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(predicate::str::contains("could not be loaded"));
+    }
 }
 
 /// `scaffold` gets the same single-source-file fallback as `new`.
@@ -1021,6 +1090,39 @@ fn scaffold_rejects_module_name_path_traversal() {
         !root.parent().unwrap().join("escape").exists(),
         "a spec/companion escaped the project root"
     );
+}
+
+#[test]
+fn scaffold_dir_must_stay_beneath_the_project_root() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn greet() {}\n").unwrap();
+
+    specsync()
+        .args(["scaffold", "widget", "--dir", "../escape", "--root"])
+        .arg(root)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "must remain beneath the retained project root",
+        ));
+    assert!(
+        !root.parent().unwrap().join("escape").exists(),
+        "scaffold --dir must not write outside the project"
+    );
+
+    specsync()
+        .args(["scaffold", "widget", "--dir", "/tmp", "--root"])
+        .arg(root)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains(
+            "scaffold --dir must remain beneath",
+        ));
 }
 
 /// The original repro: a spec with a warning gets recorded in the hash cache,

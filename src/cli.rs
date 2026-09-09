@@ -72,6 +72,10 @@ pub enum Command {
         /// Include git-based staleness warnings (specs behind source by N+ commits)
         #[arg(long)]
         stale: Option<Option<usize>>,
+        /// Repeatable module filter. Same matching as positional SPEC.
+        /// Recorded by `change check` as `specsync check --spec <name>`.
+        #[arg(long = "spec", value_name = "NAME")]
+        spec: Vec<String>,
         /// Spec filters — validates all if omitted. Matches by: module name (e.g. "cli"),
         /// filename stem ("cli.spec"), relative path ("specs/cli/cli.spec.md"), or absolute path.
         #[arg(value_name = "SPEC")]
@@ -748,6 +752,19 @@ mod tests {
                 assert!(fix);
                 assert!(dry_run);
                 assert_eq!(specs, vec!["cli".to_string(), "parser".to_string()]);
+            }
+            _ => panic!("expected a Check command"),
+        }
+    }
+
+    #[test]
+    fn check_accepts_repeatable_spec_flag() {
+        let cli = Cli::try_parse_from(["specsync", "check", "--spec", "auth", "--spec", "billing"])
+            .unwrap();
+        match cli.command {
+            Some(Command::Check { spec, specs, .. }) => {
+                assert_eq!(spec, vec!["auth".to_string(), "billing".to_string()]);
+                assert!(specs.is_empty());
             }
             _ => panic!("expected a Check command"),
         }

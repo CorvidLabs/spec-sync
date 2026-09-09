@@ -33,6 +33,39 @@ fn check_valid_project_passes() {
 }
 
 #[test]
+fn check_repeatable_spec_flag_filters_the_same_as_positional() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    fs::create_dir_all(root.join("src/billing")).unwrap();
+    fs::write(
+        root.join("src/billing/service.ts"),
+        "export function charge() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/billing")).unwrap();
+    fs::write(
+        root.join("specs/billing/billing.spec.md"),
+        complete_coverage_spec("billing", &["src/billing/service.ts"]),
+    )
+    .unwrap();
+
+    specsync()
+        .args(["check", "--spec", "auth", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("auth"))
+        .stdout(predicate::str::contains("0 failed"));
+
+    specsync()
+        .args(["check", "--spec", "auth", "--spec", "billing", "--root"])
+        .arg(&root)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("billing"));
+}
+
+#[test]
 fn no_specs_json_preserves_empty_notices_channel() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

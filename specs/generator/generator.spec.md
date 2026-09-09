@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 18
+version: 19
 status: stable
 files:
   - src/generator.rs
@@ -36,12 +36,13 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | `generate_companion_files_from_template` | `spec_dir, module_name, template_dir, design_enabled` | `()` | Generate companion files from a custom template directory with fallback to defaults; creates design.md only when `design_enabled` is true |
 | `collect_exports_for_files` | `root, source_files` | `Vec<String>` | Collect exported symbols across the given source files |
 | `populate_public_api_table` | `spec, exports` | `String` | Insert or refresh a Public API table from discovered export names |
+| `confined_generation_path` | `path: &Path, label: &str` | `Result<PathBuf, String>` | Refuse absolute and parent-directory destinations so generate/scaffold writes stay under the retained root |
 
 **Exported Types**
 
 | Type | Description |
 |------|-------------|
-| `GenerationOutcome` | Deterministic generation result: generated count and relative generated paths |
+| `GenerationOutcome` | Deterministic generation result: generated count, relative generated paths, and modules skipped because no source files were found |
 
 ## Invariants
 
@@ -124,3 +125,4 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | 2026-08-27 | v16 / #723: `CoverageReport` also carries manifest discovery that was degraded rather than allowed to veto an explicitly configured `source_dirs` |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |

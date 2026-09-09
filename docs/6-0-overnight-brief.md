@@ -48,9 +48,10 @@ verify the starting state before trusting it.
   commit the archive tip → push → (human merge). Approval and review identity: the owner decided,
   in the session that wrote this brief, to pre-authorize definition approvals and scoped reviews
   recorded as `0xLeif` for work inside this brief's scope, so the run is not blocked overnight.
-  That is a disclosed delegation, not a human inspection of each generated scope, so every such
-  record must carry `--note "owner pre-authorization per docs/6-0-overnight-brief.md; human
-  inspection at PR merge"`, the final PR body must list every package approved this way, and the
+  That is a disclosed delegation, not a human inspection of each generated scope, so every
+  `change approve` must carry `--note "owner pre-authorization per docs/6-0-overnight-brief.md;
+  human inspection at PR merge"` (`change review` has no note flag; its provenance is the PR
+  body), the final PR body must list every package approved and reviewed this way, and the
   morning human inspects the PR before merging. A change outside this brief's scope stops and
   waits for the owner.
 - Production source needs a declared canonical owner: on `change new`, pass `--spec <module>` for
@@ -111,9 +112,12 @@ refute. Weight P1 claims 3, P2 claims 1. Report the weighted pass fraction. Mini
 - Docs walkthroughs executed literally by an agent that may only follow the text: README quick
   start, `site/src/content/docs/quickstart.md`, `site/src/content/docs/workflow.md`, `MIGRATION.md`,
   `examples/*/README.md`, `docs/RELEASING.md` sections 1 to 3 (dry run only).
-- Contract stability: `--help` for every verb matches the CLI reference; JSON shapes of `check`,
-  `change list`, `change status`, `coverage`, `score` are stable across a clean and a degraded
-  tree; exit codes match the documented enforcement modes; unknown config keys warn, unknown
+- Contract stability: `--help` for every verb matches the CLI reference; the JSON output of
+  `check`, `change list`, `change status`, `coverage` and `score` matches its documented shape on
+  a clean tree and on a degraded tree (`change list --json` and `change status --json` are
+  documented to return a bare array when healthy and an object with `changes`/`unreadable` plus
+  a non-zero exit when degraded; that variant is the contract, not a failure); exit codes match
+  the documented enforcement modes; unknown config keys warn, unknown
   `state.json` fields survive a read, `workflow_version: 3` is refused with the documented message.
 - Tamper drills: edit `approvals.json` actor, delete `verification-attempts.json`, `git mv` an
   archive dir, strip `workflow_version`; each either is refused as documented or is listed as a

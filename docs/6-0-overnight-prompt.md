@@ -32,8 +32,9 @@ that wrote the brief, to pre-authorize definition approvals and scoped reviews r
 `--actor 0xLeif` / `--reviewer 0xLeif` for work inside the brief's scope so you are not blocked
 overnight; that is a disclosed delegation, not a human inspection, so pass
 `--note "owner pre-authorization per docs/6-0-overnight-brief.md; human inspection at PR merge"`
-on every such record, list every package approved this way in the final PR body, and leave the
-merge to the human. Anything outside the brief's scope stops and waits. Run
+on every `change approve` (`change review` takes only `--reviewer` and `--verdict`; its
+provenance is the PR body), list every package approved and reviewed this way in the final PR
+body, and leave the merge to the human. Anything outside the brief's scope stops and waits. Run
 `fledge lanes run pre-push` before every push and `fledge lanes run verify` before calling any
 change done.
 

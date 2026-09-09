@@ -1,0 +1,491 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1788982073,
+      "commit": "7df304a20edd77a5cc32396a1239b08577605077",
+      "contract_digest": "528040c9d6bd447889b8710b522a998f34cb593955e2c1fccabc6f436ec511e1",
+      "execution_digest": "754d7abdd571160ed5d8514f3d7fb08b9b13a6728afa806d7f14ad971bbea398",
+      "workspace_digest": "31ba65f1bac082297f640c04ca3c719a8dcd0aa43b92dea361d497b8944a057d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec config --spec git_utils --spec hooks --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-100",
+        "REQ-change-101",
+        "REQ-config-015",
+        "REQ-git-utils-007",
+        "REQ-hooks-002",
+        "REQ-hooks-003",
+        "REQ-merge-003"
+      ]
+    },
+    {
+      "timestamp": 1788982075,
+      "commit": "bb71855eb6af82ca52b373dd24ce7c4f3a6aa7c0",
+      "contract_digest": "528040c9d6bd447889b8710b522a998f34cb593955e2c1fccabc6f436ec511e1",
+      "execution_digest": "754d7abdd571160ed5d8514f3d7fb08b9b13a6728afa806d7f14ad971bbea398",
+      "workspace_digest": "31ba65f1bac082297f640c04ca3c719a8dcd0aa43b92dea361d497b8944a057d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec config --spec git_utils --spec hooks --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-100",
+        "REQ-change-101",
+        "REQ-config-015",
+        "REQ-git-utils-007",
+        "REQ-hooks-002",
+        "REQ-hooks-003",
+        "REQ-merge-003"
+      ]
+    },
+    {
+      "timestamp": 1788982187,
+      "commit": "48f09541be8c22e4ed6f391a6d382d05690711c5",
+      "contract_digest": "528040c9d6bd447889b8710b522a998f34cb593955e2c1fccabc6f436ec511e1",
+      "execution_digest": "754d7abdd571160ed5d8514f3d7fb08b9b13a6728afa806d7f14ad971bbea398",
+      "workspace_digest": "7a731f3f086b9f37704b2718bd4440aabc4f2d577bade316e5a2fbb4b25849e8",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec config --spec git_utils --spec hooks --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-100",
+        "REQ-change-101",
+        "REQ-config-015",
+        "REQ-git-utils-007",
+        "REQ-hooks-002",
+        "REQ-hooks-003",
+        "REQ-merge-003"
+      ]
+    },
+    {
+      "timestamp": 1788982189,
+      "commit": "62549c80d7fcbd7087707966c62548c3d990bae2",
+      "contract_digest": "528040c9d6bd447889b8710b522a998f34cb593955e2c1fccabc6f436ec511e1",
+      "execution_digest": "754d7abdd571160ed5d8514f3d7fb08b9b13a6728afa806d7f14ad971bbea398",
+      "workspace_digest": "7a731f3f086b9f37704b2718bd4440aabc4f2d577bade316e5a2fbb4b25849e8",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec config --spec git_utils --spec hooks --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-100",
+        "REQ-change-101",
+        "REQ-config-015",
+        "REQ-git-utils-007",
+        "REQ-hooks-002",
+        "REQ-hooks-003",
+        "REQ-merge-003"
+      ]
+    },
+    {
+      "timestamp": 1788982189,
+      "commit": "5c3bbbce6473994dc8ad50d0feacb34b2555b959",
+      "contract_digest": "528040c9d6bd447889b8710b522a998f34cb593955e2c1fccabc6f436ec511e1",
+      "execution_digest": "754d7abdd571160ed5d8514f3d7fb08b9b13a6728afa806d7f14ad971bbea398",
+      "workspace_digest": "7a731f3f086b9f37704b2718bd4440aabc4f2d577bade316e5a2fbb4b25849e8",
+      "acceptance_input_digest": "11c51ce428b139e4d6c107e7410d1387150cf58ad7c3378a482989a752f34f3f",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "487c6dcde99b2e55e34ca83e254b55b4b0070ff8da7fc353ac703e5600acb9f0",
+            "entry_digest": "26ed4569181ea8dd91609a164377e10d62ad4d3b09c8497b32137225a981dae3",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "MIGRATION.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "34cbb9cb1244eaf702ad7f33a5791a00676264cb00cbaacaf2bdd3c9dda6eaf0",
+            "entry_digest": "3b77569ff77ba696c7a484f6e06991d909b261f183dedb5f279d33871a32c072",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "docs/6-0-confidence-report.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f0e426b0d317442f13847f3770de024361d1931df1b844a735aa9a29c7efe500",
+            "entry_digest": "766eb44cf4c16d99a10e7a292275d2b542d4727e4d3336080e5319ea2df273a8",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/change/change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "00b57932549594e79fc4ddd6bd8b11410febc81848af4f1476e9eb5f62993cec",
+            "entry_digest": "8812c77e516089c3dc371d3da2d00824aeb1d7a2946f2a42749f4d462fe9ea1c",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "91cdefe44cdf1155b06ac0fd0fa6dcd736df5b626f8a81f44f0f6ecdb76b1ea7",
+            "entry_digest": "c8ca6448940af5aedc8c99a8f93261e93d02df847a0fa3f59caeda3bb7159a8e",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f66d023e83e6f37a7ca6ff31ced3c4c58dcbdf27dbaba5d1af6b8d53fdc64bd7",
+            "entry_digest": "ec95cdf85d8dfd9d5e24007b4c87d4392a2f85ec6d079951f2474aab5361a3a1",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d033dbe6fec6c3c371dbb86f1a3b058aac23ec1c7886d405820a961539cc11f7",
+            "entry_digest": "007da9852de5166b7f82bf5ab023af406e4ce90b25436807f7b0596f58319607",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "33b4448c11cfbf2d8fd4badc716d8477ada6f4f86bda0b9f2c53e8bba3b673de",
+            "entry_digest": "f7378f8c05cfb8bbbe4af6631146d5af6b8e40dcdeb0a9c8bec6f9b11519c442",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/config/config.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ccc013e5564b7b402e57dbf2e8e4e4a8d161e44e18844d42fc8b945e0de101c0",
+            "entry_digest": "96da5f4be7713fcfeb5ba5b5557c05f99b56b0d1fed3b976e5038b82ce83eec7",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "86e8fcf5ad34f8ac91713fb8eb6b1d4231f8cf6c203155fb7e0ceafc63363dff",
+            "entry_digest": "35338f90b476299c8d2c4341c9d6d2317a9691fa1834aa1ccaf12c5ed01a6bbf",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "997f67ff624833c16b8d76112de4fb79658c481b335762b4d484fa0a1672ee32",
+            "entry_digest": "41695a615b23fa25235df03aa8aa8a0ba65a2b280b78b24f85c73a4c509a19c9",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c7daf38c32a62a60d24fd2233a1aae99b5b2a83a66c686e9bf4e63ff70246b8a",
+            "entry_digest": "4b656aba279d73e40223feb64ae05493ab887c9e351e7ec59855b926a6c2e03e",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2ca429fbabaf1dd990fd9f226661fa9595493995a5a91c1a103e9aa81ad17ad5",
+            "entry_digest": "0a56ab7b8f36e6c7069ace90fcc9808d2240e68b5844970df613d9e56159884c",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/git_utils/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3d23c5d6f50f66a3278715f83da9b12095e5c01c5374bf6f9c7e97ba8eb732d6",
+            "entry_digest": "88a0bc3945d29f90a29dca7312af9577e6c64d83e76f871e7f320bc2e926d44d",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/git_utils.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8533b3598bd52363b82ad96cd62b603ac50a62bb1b4b444f3338125baff4b894",
+            "entry_digest": "f6042275253d93870e2fe66097a45711bfddb29f1d12ff5dacebd00275587278",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8eabcddad04258c93c6d7a41a0fd8534cd10735755040df536430b39572961de",
+            "entry_digest": "30cf5919386f160bb04db9403f19aae3cfb9d8374ea421466c5a8090af525778",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b3370fc085f4d1e795079622404c8afc1abd78517689f94a36084382d25323a8",
+            "entry_digest": "f4ed5633928d3f85bd01f5ff8e957ff3948fb858885a052afec80c2818e2ce0e",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b9f492d600c6a0f6cd1e28318e7fe665742f10001bd197e334de995954573813",
+            "entry_digest": "1cea05005279e5f3b601d141fb6fe148e8fe55087a4bf8fc9af9d81fe200895a",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/hooks/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f6c07ef5a9f924d0a9b6a720cf20e1c06d35e882e8baed4dd79566d5cacd56ff",
+            "entry_digest": "2426425942b30ee2a8c33e246c5792b56b19c1aaa5fff9231b1674b568977c32",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "specs/hooks/hooks.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9a261457ac334948b6ad39d1f8dc345e86b70a0b252327aed91b7f94f0a55ea8",
+            "entry_digest": "10044b243406681d0be62ec0f0c85ee573b42aa736291e231cc892ce8bae2229",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "specs/hooks/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e712c92381185ceec37466f77f8e61e03f2498f95f2c89d8de857d168c5f490e",
+            "entry_digest": "52e9b90e97f9c3f70734f8afc61a61118a2b8a0a83217bc9928909bf8046befa",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "specs/hooks/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ae98561d04692615f99e1588ccc6008c0da43ad5a54a5e6e631605cc34567778",
+            "entry_digest": "90179e1c68b51755a255fef8901d3b608e80edd2519e9a881f4f702191061462",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "specs/hooks/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3d29a556230f45183d663692f7d28b6d912c4280f5b78da1fc332fccead1c9cd",
+            "entry_digest": "f0e4711079a79e4c126ec066375db79ed04b7eaac13e89acbd85c2ce19b8afbc",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "specs/merge/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "68bcbb6bbd8ad7a23d13298de7c8a563651c30d7c52dca9fc58be9b71205003b",
+            "entry_digest": "e5da265b8ac9f745b18020c3354985253c0d71b31b1fce5587ce5ea0ab71931a",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/merge.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "309a33d6b22a3c9e0cf9822ccb580c07c5d2cb60902adbe5b6a830aaa9ad9831",
+            "entry_digest": "b58483fd2e6f0097930744db06892fecc4269be88bc420b50245237d6897d78f",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bca3372d41bc5a5dca5aaf78e073018d34caf28d8bd8e2b747fc5eea0f56dad3",
+            "entry_digest": "1445040dba0c655c0e34fdf6d56f7689780da8d5546bb8adac4b37f92dbd0d74",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ed11ca9310158ea60b163bbcb73bdbed08857db9c560c17cb4d21ab33d191ae2",
+            "entry_digest": "eb86c4bfaa14cdeeeb6f4e46a5006a1e4039095cd18fded6db2dcb400aae166a",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9ed7a262eda7a0635540e4056fc83bd2367e9819ea751607b7b3da33b0bb7a89",
+            "entry_digest": "032f1e9a6811695cbb45317b0d3b86d8a540ccb8d0d13207b947d28627866035",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "src/change.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a81edbd2edfc276d7dc72acc910db7b5d2cacd6d5cadeff38007ef203d19961d",
+            "entry_digest": "29ad69e63bd9952bc11c01df79a050d7eca2a70826d4d78cae67b9588466798c",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change_tests.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "463916b45b50e285dd12d844d73c3f779e21a18665e9b127e9bfd01f26a184b1",
+            "entry_digest": "e3b711cdfbcf3cc6c0ec2a9a1016bd5939b1638aeee001a11c03880b878c4d7f",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/config.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a7212e3922ba27385ee7a10ccfdc8ff8ed4bbf5972a30d31fb1c0a5f7fc7e1c0",
+            "entry_digest": "78b46c2e8ca8a8850732ee2da6811778d9954d3600822d729158e7ed79f7f1e9",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "src/git_utils.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5823a207e3a4dd307683ca72bebf55d0d3e77821a35163f65c13241005a5567e",
+            "entry_digest": "796f4578eda8579ea38263b9a727e9e5f1b1d64d6af3777ed20285ed12bb2d03",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "src/hooks.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9b966fe4116f0dc89b65c2ccce5b1868308b7cea7254d76c44c3ab492daa8f77",
+            "entry_digest": "a34fdd1c9ba6486af9c588ffa86c8b9b1cb08268c3946941d8021df56b04d0ce",
+            "owners": [
+              "hooks"
+            ]
+          },
+          {
+            "path": "src/merge.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7f522c5ed3b7983f0790bb8624f6c86417e06c9cec3885593af701f53afc7d61",
+            "entry_digest": "273b6c4c72c38d13f750fd0598a5fda1fb425892d2ae7a3b7df2da473da1b391",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "tests/integration/config.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "907f48c0de80c49eb05f2797f14d357cc07b733563e462c1eb21b3b9b7c1016d",
+            "entry_digest": "d2cce7d5bcd20115327cc3029ae5c5adb0030b5a4a08f8c188015f89ef3e0c21",
+            "owners": [
+              "@exact:test"
+            ]
+          },
+          {
+            "path": "tests/integration/quickstart.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dd3b202dd492401b9bbffa483671d5be371ab7ac6dabf0e1b02872c3d79ef1f0",
+            "entry_digest": "c05bd97c86615a018d5d6d2e9f8bcb80628580f89586bae39eecfc3027835df7",
+            "owners": [
+              "@exact:test"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec config --spec git_utils --spec hooks --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-100",
+        "REQ-change-101",
+        "REQ-config-015",
+        "REQ-git-utils-007",
+        "REQ-hooks-002",
+        "REQ-hooks-003",
+        "REQ-merge-003"
+      ]
+    }
+  ]
+}

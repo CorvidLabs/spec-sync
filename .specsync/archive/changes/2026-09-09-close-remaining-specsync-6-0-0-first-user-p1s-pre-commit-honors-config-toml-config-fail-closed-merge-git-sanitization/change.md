@@ -1,6 +1,6 @@
 ---
 id: close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 7df304a20edd77a5cc32396a1239b08577605077
 ---

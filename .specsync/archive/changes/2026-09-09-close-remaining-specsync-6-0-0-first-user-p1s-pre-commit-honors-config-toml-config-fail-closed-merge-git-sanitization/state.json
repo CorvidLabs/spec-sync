@@ -7,11 +7,11 @@
   "title": "Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs",
   "description": "Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "7df304a20edd77a5cc32396a1239b08577605077",
   "created_at": 1788980970,
-  "updated_at": 1788982190,
+  "updated_at": 1788982522,
   "affected_specs": [
     "hooks",
     "config",

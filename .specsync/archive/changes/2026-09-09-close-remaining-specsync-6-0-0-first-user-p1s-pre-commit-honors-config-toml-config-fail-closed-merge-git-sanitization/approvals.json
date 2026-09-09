@@ -51,6 +51,13 @@
         "hooks": "06aa5da692ee250fa88858b6c7617766483fd20543b2623beae98deb86943158",
         "merge": "19010bdad5a15a3ecd54246fb9d716a3e5bcfe4dce86cd57077950c1bfd545d6"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788982253,
+      "digest": "c4c26f80a16a59dfcbebaeb48031771b8c483ec24826d79abba595d593f700ea",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "38354c51ad3a4ba2408b8daf906dd1a9a0d5659f",
   "created_at": 1788929689,
-  "updated_at": 1788929991,
+  "updated_at": 1788930290,
   "affected_specs": [],
   "affected_paths": [
     "README.md",
@@ -33,7 +33,8 @@
     "examples/sdd-five-epics/README.md",
     "vscode-extension/README.md",
     ".github/workflows/ci.yml",
-    ".github/workflows/rc-assets.yml"
+    ".github/workflows/rc-assets.yml",
+    ".github/workflows/release.yml"
   ],
   "no_spec_change": true,
   "no_spec_change_rationale": "Documentation, runbook, Action metadata text, and lane comments only; no canonical spec contract, command grammar, or runtime behaviour changes",

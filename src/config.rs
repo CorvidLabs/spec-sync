@@ -438,15 +438,15 @@ fn validate_toml_config_types(table: &toml::Table) -> Result<(), String> {
     ] {
         validate_toml_field(table, key, "a string", toml::Value::is_str)?;
     }
-    if let Some(enforcement) = table.get("enforcement").and_then(toml::Value::as_str) {
-        if !matches!(
+    if let Some(enforcement) = table.get("enforcement").and_then(toml::Value::as_str)
+        && !matches!(
             enforcement,
             "strict" | "warn" | "enforce-new" | "enforce_new"
-        ) {
-            return Err(format!(
-                "unknown enforcement \"{enforcement}\" (expected \"warn\", \"enforce-new\", or \"strict\")"
-            ));
-        }
+        )
+    {
+        return Err(format!(
+            "unknown enforcement \"{enforcement}\" (expected \"warn\", \"enforce-new\", or \"strict\")"
+        ));
     }
     for key in [
         "source_dirs",

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "align-public-documentation-and-the-release-runbook-with-the-shipped-specsync-6-0-0",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "bd910f4fd3217cb59f573037bdc1f0aedded285c",
+      "contract_digest": "fe22ec9806509f0d8af817aa05109a6628a3ee25725ee258c8592c8a32a27f6b",
+      "execution_digest": "13b31fc950616d7d9163e8fe730cc93f44cd082064866374a37fca03dec5e605",
+      "workspace_digest": "0d2baa4bd9ef680e4e71016860db8742f2301a490c6990c2c07ea928015a907d",
+      "timestamp": 1788931595
+    }
+  ]
+}

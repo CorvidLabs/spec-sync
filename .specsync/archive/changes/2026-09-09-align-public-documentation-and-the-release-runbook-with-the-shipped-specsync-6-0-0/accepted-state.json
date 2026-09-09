@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "align-public-documentation-and-the-release-runbook-with-the-shipped-specsync-6-0-0",
+  "slug": "align-public-documentation-and-the-release-runbook-with-the-shipped-specsync-6-0-0",
+  "title": "Align public documentation and the release runbook with the shipped SpecSync 6.0.0",
+  "description": "Align public documentation and the release runbook with the shipped SpecSync 6.0.0",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "38354c51ad3a4ba2408b8daf906dd1a9a0d5659f",
+  "created_at": 1788929689,
+  "updated_at": 1788931637,
+  "affected_specs": [],
+  "affected_paths": [
+    "README.md",
+    "MIGRATION.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "SCOPE.md",
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "action.yml",
+    "fledge.toml",
+    "docs/RELEASING.md",
+    "docs/ADOPTING.md",
+    "docs/ci-confidence.md",
+    "site/src/content/docs/",
+    "examples/quickstart/README.md",
+    "examples/sdd-lifecycle/README.md",
+    "examples/sdd-concurrent-changes/README.md",
+    "examples/sdd-five-epics/README.md",
+    "vscode-extension/README.md",
+    ".github/workflows/ci.yml",
+    ".github/workflows/rc-assets.yml",
+    ".github/workflows/release.yml"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Documentation, runbook, Action metadata text, and lane comments only; no canonical spec contract, command grammar, or runtime behaviour changes",
+  "acceptance_criteria": [
+    "README, site docs, MIGRATION, ADOPTING, SECURITY, CONTRIBUTING, SCOPE, AGENTS, action metadata text, example READMEs and ci-confidence describe the shipped 6.0.0 binary and workflow with no candidate-window wording, retired CHG identities, rejected flags, or Windows support claims; the import caveat (#416) and the pre-adopt v1 guidance (#674) are present; docs/RELEASING.md gives a maintainer the exact qualify, promote, crates.io and Homebrew sequence; site lint, tests and build pass; release-version and runtime-pin validators pass; the example scripts still pass with the 6.0 binary"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

@@ -7,11 +7,11 @@
   "title": "Align public documentation and the release runbook with the shipped SpecSync 6.0.0",
   "description": "Align public documentation and the release runbook with the shipped SpecSync 6.0.0",
   "kind": "documentation",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "38354c51ad3a4ba2408b8daf906dd1a9a0d5659f",
   "created_at": 1788929689,
-  "updated_at": 1788930996,
+  "updated_at": 1788932019,
   "affected_specs": [],
   "affected_paths": [
     "README.md",

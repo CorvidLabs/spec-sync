@@ -1,6 +1,6 @@
 ---
 id: align-public-documentation-and-the-release-runbook-with-the-shipped-specsync-6-0-0
-state: verifying
+state: archived
 type: documentation
 base_commit: 38354c51ad3a4ba2408b8daf906dd1a9a0d5659f
 ---

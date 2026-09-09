@@ -1054,16 +1054,41 @@ fn build_fix_row(
     }
 }
 
+/// True when `line` is a markdown table row (or separator) such as `| a | b |`.
+fn is_table_row(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.len() > 2 && trimmed.starts_with('|') && trimmed.ends_with('|')
+}
+
 /// Column count of the first markdown table row found in `section`, if any.
 fn table_column_count(section: &str) -> Option<usize> {
     section.lines().find_map(|line| {
         let trimmed = line.trim();
-        if trimmed.len() > 2 && trimmed.starts_with('|') && trimmed.ends_with('|') {
+        if is_table_row(trimmed) {
             Some(trimmed[1..trimmed.len() - 1].split('|').count())
         } else {
             None
         }
     })
+}
+
+/// Byte offset (relative to `block`) of the start of the line following the
+/// last markdown table row in `block`, if `block` contains a table at all.
+///
+/// `--fix` inserts new export rows here so they extend the existing table.
+/// Appending at the end of the section or subsection instead put the rows
+/// after any trailing prose (e.g. an "Acceptance Criteria" paragraph), where
+/// they are orphaned pipe-delimited text outside every table (#615).
+fn table_rows_end(block: &str) -> Option<usize> {
+    let mut end = None;
+    let mut offset = 0;
+    for line in block.split_inclusive('\n') {
+        offset += line.len();
+        if is_table_row(line) {
+            end = Some(offset);
+        }
+    }
+    end
 }
 
 /// Normalize near-miss export headers within ## Public API.
@@ -1406,23 +1431,30 @@ fn auto_fix_specs(
                 // offsets remain valid as the content grows
                 for (&target, syms) in syms_by_target.iter().rev() {
                     let (_, start, end) = export_subs[target];
-                    let columns = table_column_count(&content[start..end]);
+                    let block = &content[start..end];
+                    let columns = table_column_count(block);
                     let rows = build_rows(syms, columns);
+                    // Extend the subsection's table; only fall back to the
+                    // subsection end when it has no table yet.
+                    let insert_at = table_rows_end(block).map_or(end, |p| start + p);
                     new_content = format!(
                         "{}\n{}\n{}",
-                        new_content[..end].trim_end(),
+                        new_content[..insert_at].trim_end(),
                         rows,
-                        &new_content[end..]
+                        &new_content[insert_at..]
                     );
                 }
             } else if sub_positions.is_empty() {
-                // No ### subsections — flat table or empty body; insert at section end
+                // No ### subsections — flat table (possibly under a bold
+                // `**Functions**` label) or empty body. Extend the existing
+                // table when there is one; otherwise insert at section end.
                 let rows = build_rows(&undocumented, table_column_count(api_section));
+                let insert_at = table_rows_end(api_section).map_or(api_end, |p| api_start + p);
                 new_content = format!(
                     "{}\n{}\n{}",
-                    content[..api_end].trim_end(),
+                    content[..insert_at].trim_end(),
                     rows,
-                    &content[api_end..]
+                    &content[insert_at..]
                 );
             } else {
                 // Has subsections but none are recognized export headers;

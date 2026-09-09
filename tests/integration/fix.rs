@@ -363,6 +363,246 @@ Auth module.
     );
 }
 
+// Regression (#615): when the Public API section (or export subsection) ends
+// in prose after its table, --fix appended the new rows after that prose,
+// producing orphaned pipe-delimited lines outside any table.
+fn spec_with_public_api(api_body: &str) -> String {
+    format!(
+        r#"---
+module: auth
+version: 1
+status: active
+files:
+  - src/auth/service.ts
+db_tables: []
+depends_on: []
+---
+
+# Auth
+
+## Purpose
+
+Auth module.
+
+## Public API
+{api_body}
+## Invariants
+
+1. Always valid.
+
+## Behavioral Examples
+
+### Scenario: Basic
+
+- **Given** precondition
+- **When** action
+- **Then** result
+
+## Error Cases
+
+| Condition | Behavior |
+|-----------|----------|
+| Bad token | Rejects the request |
+
+## Dependencies
+
+None
+
+## Change Log
+
+| Date | Author | Change |
+|------|--------|--------|
+| 2026-01-01 | test | Initial spec |
+"#
+    )
+}
+
+/// Every line between the first table row and the last is a table row: no
+/// prose, blank line, or heading sits between them. Returns the table lines.
+fn assert_rows_contiguous(updated: &str, row_marker: &str) {
+    let lines: Vec<&str> = updated.lines().collect();
+    let last_row = lines
+        .iter()
+        .rposition(|l| l.contains(row_marker))
+        .expect("added row is present");
+    let first_row = lines
+        .iter()
+        .position(|l| l.trim_start().starts_with('|'))
+        .expect("a table header exists");
+    assert!(
+        first_row < last_row,
+        "table header must precede the added row"
+    );
+    for line in &lines[first_row..=last_row] {
+        assert!(
+            line.trim_start().starts_with('|'),
+            "expected only table rows between the table header and the added row, found: {line:?}\n---\n{updated}"
+        );
+    }
+}
+
+#[test]
+fn fix_inserts_row_into_table_under_bold_label_before_trailing_prose() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function a() {}\nexport function b() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = spec_with_public_api(
+        r#"
+**Functions**
+
+| Name | Kind | Description |
+|------|------|-------------|
+| `a` | fn | Documented already |
+
+Acceptance Criteria
+
+- Callers see only the documented surface.
+"#,
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), &spec).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        updated.contains("| `b` | TODO | Document caller-visible behavior and constraints. |"),
+        "row for `b` should use the table's three columns:\n{updated}"
+    );
+    assert_rows_contiguous(&updated, "| `b` |");
+    let row_pos = updated.find("| `b` |").unwrap();
+    let prose_pos = updated.find("Acceptance Criteria").unwrap();
+    assert!(
+        row_pos < prose_pos,
+        "row for `b` must land inside the table, not after the trailing prose:\n{updated}"
+    );
+    assert!(
+        updated.contains(
+            "Acceptance Criteria\n\n- Callers see only the documented surface.\n\n## Invariants"
+        ),
+        "trailing prose must be preserved verbatim:\n{updated}"
+    );
+
+    // The fixed spec must now satisfy a strict check.
+    specsync()
+        .args([
+            "check",
+            "--strict",
+            "--force",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+}
+
+#[test]
+fn fix_inserts_row_into_table_under_heading_subsection() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function a() {}\nexport function b() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = spec_with_public_api(
+        r#"
+### Exported Functions
+
+| Export | Description |
+|--------|-------------|
+| `a` | Documented already |
+
+Functions are re-exported from the barrel.
+
+### Usage Notes
+
+Call `a` first.
+"#,
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), &spec).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        updated.contains("| `b` | Document caller-visible behavior and constraints. |"),
+        "row for `b` should use the two-column layout:\n{updated}"
+    );
+    assert_rows_contiguous(&updated, "| `b` |");
+    let row_pos = updated.find("| `b` |").unwrap();
+    let prose_pos = updated.find("Functions are re-exported").unwrap();
+    let next_sub = updated.find("### Usage Notes").unwrap();
+    assert!(
+        row_pos < prose_pos && prose_pos < next_sub,
+        "row must sit in the Exported Functions table, before its trailing prose:\n{updated}"
+    );
+
+    specsync()
+        .args([
+            "check",
+            "--strict",
+            "--force",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+}
+
+#[test]
+fn fix_creates_rows_at_section_end_when_no_table_exists() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(root.join("src/auth/service.ts"), "export function b() {}\n").unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = spec_with_public_api(
+        r#"
+Nothing is documented yet.
+"#,
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), &spec).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        updated.contains(
+            "Nothing is documented yet.\n| `b` | Document caller-visible behavior and constraints. |\n\n## Invariants"
+        ),
+        "with no table, rows are still appended at the end of the section:\n{updated}"
+    );
+}
+
 // Regression: fix_near_miss_headers used a small hardcoded pattern list and missed
 // many real-world typos (singular forms, uncommon letter transpositions, etc.).
 // Now uses Levenshtein distance ≤ 2 against a canonical list.

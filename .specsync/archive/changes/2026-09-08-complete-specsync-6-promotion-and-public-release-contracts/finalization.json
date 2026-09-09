@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "complete-specsync-6-promotion-and-public-release-contracts",
+  "implementation_commit": "011d711e3c262a9c3a6b7226553c7ce471bc8f51",
+  "implementation_tree": "4426f663ed9573d21abdfd9a867b32d70a1d7843",
+  "contract_digest": "eb88dd4dd35b6459c2551e018487b50238a3f30de85eb49ac0fbd88d38ff6223",
+  "workspace_digest": "1137cd17deac0381a344fe6ef74bf605ef7fd1103c54e82d4d19f11da8126c95",
+  "closing_digest": "6ccc82d3b5fde9981a83f045b9dcf2b73b66ddf892c4c7dceab577f360e8367c",
+  "review_digest": "d98806b50a750bee25a2c158437ce894df0571d2be555a579baea7392fc13c53",
+  "finalization_digest": "74461530ce17f699f83e538bf97eee840bd026b6e6a7f2fc6a1fe7724d329db4",
+  "timestamp": 1788878420
+}

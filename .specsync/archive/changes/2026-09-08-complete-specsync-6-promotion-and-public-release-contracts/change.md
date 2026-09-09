@@ -1,6 +1,6 @@
 ---
 id: complete-specsync-6-promotion-and-public-release-contracts
-state: implementing
+state: archived
 type: bug_fix
 base_commit: ffba9a32b664a7b3308350c162f0ac808f24efe3
 ---

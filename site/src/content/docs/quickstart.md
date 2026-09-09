@@ -69,11 +69,31 @@ See [Configuration](configuration.md) for all options.
 
 ---
 
-## 2. Create a Verified Change
+## 2. Add a source file and a spec
+
+`specsync init` does not create source or specs. Write a file first so the scaffold can bind it:
+
+```bash
+mkdir -p src
+cat > src/auth.ts <<'EOF'
+export function login(): boolean {
+  return true;
+}
+EOF
+
+specsync add-spec auth
+specsync check
+```
+
+`add-spec` writes every required section `init` configured and pre-populates the Public API table from detected exports. Stub sections (Invariants, examples, errors) still warn; fill them before `specsync check --strict`. `check --strict` on an empty scaffold is expected to fail.
+
+## 3. Create a Verified Change
+
+Once a spec exists, record work against it:
 
 ```bash
 specsync change new "Document and verify the existing authentication module" \
-  --spec auth --path src/auth
+  --spec auth --path src/auth.ts
 ```
 
 Answer the returned questions, complete its adaptively selected artifacts, and approve the definition before implementation. Agents installed with `specsync agents install` conduct this interview conversationally.
@@ -102,7 +122,7 @@ project policy, and release/security classification add validators to this same 
 create another lifecycle or approval. See the [Workflow Guide](workflow.md) for requirements,
 semantic deltas, approval digests, targeted evidence, scoped review, and same-PR finalization.
 
-## 3. Generate Specs
+## 4. Generate Specs
 
 Generate template specs for all source modules:
 
@@ -163,7 +183,7 @@ Handles user authentication via JWT tokens.
 
 ---
 
-## 4. Validate
+## 5. Validate
 
 Run validation to check specs against your code:
 
@@ -215,7 +235,7 @@ specsync check --require-coverage 80
 
 ---
 
-## 5. Iterate
+## 6. Iterate
 
 Fix the issues SpecSync found:
 
@@ -227,7 +247,7 @@ Then run `specsync check` again until everything passes.
 
 ---
 
-## 6. Add to CI
+## 7. Add to CI
 
 ### GitHub Action
 

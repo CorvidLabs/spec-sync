@@ -88,6 +88,7 @@ fn run() {
         create_issues: false,
         explain: false,
         stale: None,
+        spec: vec![],
         specs: vec![],
     });
 
@@ -126,24 +127,29 @@ fn run() {
             create_issues,
             explain,
             stale,
+            spec,
             specs,
-        } => commands::check::cmd_check(
-            &root,
-            cli.strict,
-            cli.enforcement,
-            cli.require_coverage,
-            format,
-            fix,
-            dry_run,
-            backup,
-            force,
-            create_issues,
-            explain,
-            stale,
-            &specs,
-            &cli.exclude_status,
-            &cli.only_status,
-        ),
+        } => {
+            let mut filters = spec;
+            filters.extend(specs);
+            commands::check::cmd_check(
+                &root,
+                cli.strict,
+                cli.enforcement,
+                cli.require_coverage,
+                format,
+                fix,
+                dry_run,
+                backup,
+                force,
+                create_issues,
+                explain,
+                stale,
+                &filters,
+                &cli.exclude_status,
+                &cli.only_status,
+            )
+        }
         Command::Coverage => commands::coverage::cmd_coverage(
             &root,
             cli.strict,

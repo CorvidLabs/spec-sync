@@ -18841,3 +18841,173 @@ fn change_summary_carries_the_same_handoff_the_domain_computes() {
         format!("specsync change status {}", record.id)
     );
 }
+
+#[test]
+fn bundled_lifecycle_limits_match_the_github_scripts_copy() {
+    let bundled = include_str!("lifecycle-validation-limits.json");
+    let github = include_str!("../.github/scripts/lifecycle-validation-limits.json");
+    assert_eq!(
+        bundled, github,
+        "src/lifecycle-validation-limits.json must stay byte-identical to the CI copy so crates.io and release.yml cannot drift"
+    );
+}
+
+#[test]
+fn canonical_definition_payload_folds_crlf_to_lf() {
+    let lf = b"## Purpose\n\nHello\n";
+    let crlf = b"## Purpose\r\n\r\nHello\r\n";
+    assert_eq!(
+        canonical_definition_artifact_payload("change.md", lf),
+        canonical_definition_artifact_payload("change.md", crlf)
+    );
+    assert_eq!(
+        canonical_definition_artifact_payload("change.md", crlf),
+        b"## Purpose\n\nHello\n"
+    );
+}
+
+#[test]
+fn canonical_definition_payload_preserves_a_lone_carriage_return() {
+    let payload = b"progress\rbar\n";
+    assert_eq!(
+        canonical_definition_artifact_payload("change.md", payload),
+        payload
+    );
+}
+
+#[test]
+fn canonical_tasks_payload_folds_crlf_before_checkbox_rewrite() {
+    let crlf = b"- [x] done\r\n- [ ] open\r\n";
+    let lf = b"- [x] done\n- [ ] open\n";
+    assert_eq!(
+        canonical_definition_artifact_payload("pkg/tasks.md", crlf),
+        canonical_definition_artifact_payload("pkg/tasks.md", lf)
+    );
+    let rewritten = canonical_definition_artifact_payload("pkg/tasks.md", crlf);
+    assert!(
+        rewritten.windows(4).any(|w| w == b"[ ] "),
+        "checkbox rewrite must still run after CRLF fold, got {rewritten:?}"
+    );
+}
+
+#[test]
+fn deleting_verification_attempts_refuses_adopted_finalization() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git command failed: {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "commit.gpgsign", "false"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"]);
+    git(&["commit", "-m", "base"]);
+
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    check_change(root, Some(&record.id)).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "Implement approved change"]);
+    check_change(root, Some(&record.id)).unwrap();
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+
+    let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
+    assert!(attempts_path.is_file(), "verify must have written a ledger");
+    fs::remove_file(&attempts_path).unwrap();
+
+    git(&[
+        "commit",
+        "--allow-empty",
+        "-m",
+        "move HEAD after verification",
+    ]);
+
+    let error = accept_change_with_gate(root, &record.id, None, None, "finalization", true, false)
+        .expect_err("missing attempts ledger must not adopt HEAD");
+    assert!(
+        error.contains("cannot adopt the implementation commit"),
+        "expected empty-ledger adoption refusal, got {error}"
+    );
+}
+
+#[test]
+fn emptying_verification_attempts_refuses_adopted_finalization() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git command failed: {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "commit.gpgsign", "false"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"]);
+    git(&["commit", "-m", "base"]);
+
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    check_change(root, Some(&record.id)).unwrap();
+    git(&["add", "."]);
+    git(&["commit", "-m", "Implement approved change"]);
+    check_change(root, Some(&record.id)).unwrap();
+    record_scoped_review(root, &record.id, "Independent reviewer".into()).unwrap();
+
+    let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
+    fs::write(&attempts_path, "{\"schema_version\":1,\"attempts\":[]}\n").unwrap();
+
+    git(&[
+        "commit",
+        "--allow-empty",
+        "-m",
+        "move HEAD after verification",
+    ]);
+
+    let error = accept_change_with_gate(root, &record.id, None, None, "finalization", true, false)
+        .expect_err("empty attempts ledger must not adopt HEAD");
+    assert!(
+        error.contains("cannot adopt the implementation commit"),
+        "expected empty-ledger adoption refusal, got {error}"
+    );
+}
+
+#[test]
+fn verifying_change_refuses_to_recreate_a_missing_attempts_ledger() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let mut record = completed_no_spec_current_record(root);
+    record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    record = start_implementation(root, &record.id).unwrap();
+    verify_change(root, &record.id).unwrap();
+    record = load_change(root, &record.id).unwrap();
+    assert_eq!(record.state, ChangeState::Verifying);
+
+    let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
+    fs::remove_file(&attempts_path).unwrap();
+    let verification = load_verification(root, &record).unwrap();
+    let error = record_verification_attempt(root, &record, &verification)
+        .expect_err("Verifying must not mint a fresh empty ledger");
+    assert!(
+        error.contains("verification attempt history is missing"),
+        "got {error}"
+    );
+}

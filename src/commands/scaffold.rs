@@ -132,7 +132,32 @@ pub fn cmd_scaffold(
         process::exit(1);
     }
     let config = load_config(root);
-    let specs_dir = dir.unwrap_or_else(|| root.join(&config.specs_dir));
+    let specs_dir = match dir {
+        Some(requested) => {
+            let relative = if requested.is_absolute() {
+                match requested.strip_prefix(root) {
+                    Ok(stripped) => stripped.to_path_buf(),
+                    Err(_) => {
+                        eprintln!(
+                            "scaffold --dir must remain beneath the project root: {}",
+                            requested.display()
+                        );
+                        process::exit(1);
+                    }
+                }
+            } else {
+                requested
+            };
+            match generator::confined_generation_path(&relative, "scaffold --dir") {
+                Ok(confined) => root.join(confined),
+                Err(error) => {
+                    eprintln!("{error}");
+                    process::exit(1);
+                }
+            }
+        }
+        None => root.join(&config.specs_dir),
+    };
     if let Err(e) = super::check_case_collision(&specs_dir, module_name) {
         eprintln!("{e}");
         process::exit(1);

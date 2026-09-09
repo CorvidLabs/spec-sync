@@ -78,3 +78,48 @@ fn quickstart_example_reports_the_readme_undocumented_export() {
         .failure()
         .stdout(predicate::str::contains("Undocumented export 'farewell'"));
 }
+
+#[test]
+fn readme_quick_start_init_add_spec_and_check_succeed() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    specsync()
+        .args(["init", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/auth.ts"),
+        "export function login(): boolean {\n  return true;\n}\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["add-spec", "auth", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success();
+
+    specsync()
+        .arg("coverage")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success();
+
+    specsync()
+        .args(["score", "--all", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+}

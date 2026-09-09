@@ -179,11 +179,20 @@ under WSL, or build it from source with `cargo install specsync`.
 # Initialize configuration with the change workflow off
 specsync init
 
+# Write a source file first so the scaffold can bind it
+mkdir -p src
+cat > src/auth.ts <<'EOF'
+export function login(): boolean {
+  return true;
+}
+EOF
+
 # Scaffold a module contract and companion files
 specsync add-spec auth
 
-# Validate contract ↔ code in both directions
-specsync check --strict
+# Validate. A fresh scaffold still has stub sections, so this is a warning
+# pass — fill Purpose, Invariants, examples, and errors before `--strict`.
+specsync check
 
 # Measure coverage and spec quality
 specsync coverage

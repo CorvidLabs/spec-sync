@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving",
+  "implementation_commit": "dbcd64156437c32ca22e0fbc2bb973c6f0283fdf",
+  "implementation_tree": "bb3ee545acd1f797eafadad37415a60fa6e51c35",
+  "contract_digest": "e756cbadf80685ff9dea5fe1775a440d01f5cc22114cec0a98c5856871fbf2fb",
+  "workspace_digest": "25b7584e4d52c2ce63c9a294739cea046100b9e2c88fe8ad6165a17f838b44c9",
+  "closing_digest": "c0cd6c67dc807432f5a857eae7b403f53420bc36fda1882f8d30400a20b90930",
+  "review_digest": "73ffa8be053c3b4b158c2942feb94537b2ab41d7f3ce0d6eb6a02d7b76f7fe24",
+  "finalization_digest": "105feca2aa0d1c7c18a4dbeac27ffeb961ad4fe5bde8deafab92297c5775029c",
+  "timestamp": 1788963375
+}

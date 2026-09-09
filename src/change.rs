@@ -354,11 +354,9 @@ struct LifecycleValidationLimits {
 fn lifecycle_validation_limits() -> &'static LifecycleValidationLimits {
     static LIMITS: OnceLock<LifecycleValidationLimits> = OnceLock::new();
     LIMITS.get_or_init(|| {
-        let limits: LifecycleValidationLimits = serde_json::from_str(include_str!(concat!(
-            "../.github/scripts/",
-            "lifecycle-validation-limits.json"
-        )))
-        .expect("bundled lifecycle validation limits must be valid JSON");
+        let limits: LifecycleValidationLimits =
+            serde_json::from_str(include_str!("lifecycle-validation-limits.json"))
+                .expect("bundled lifecycle validation limits must be valid JSON");
         assert!(limits.git_max_output_bytes > 0);
         assert!(limits.git_timeout_seconds > 0);
         assert!(limits.scoped_review_max_descendants > 0);
@@ -6560,11 +6558,6 @@ fn accept_change_with_gate(
                     history.schema_version
                 ));
             }
-            if verification_adopted && history.attempts.is_empty() {
-                return Err(
-                    "verification attempt history cannot adopt the implementation commit".into(),
-                );
-            }
             history
         } else {
             VerificationAttemptLedger {
@@ -6572,6 +6565,14 @@ fn accept_change_with_gate(
                 attempts: Vec::new(),
             }
         };
+        // Missing and empty are the same evidence: nothing recorded the
+        // implementation commit. Deleting the ledger used to skip the guard
+        // that emptying it tripped (#656).
+        if verification_adopted && attempts.attempts.is_empty() {
+            return Err(
+                "verification attempt history cannot adopt the implementation commit".into(),
+            );
+        }
         attempts.attempts.push(verification.clone());
         prepared.push((attempts_path, json_content(&attempts)?));
     }
@@ -11109,15 +11110,37 @@ fn definition_digest_from_snapshot_with_task_mode(
 }
 
 fn canonical_definition_artifact_payload(relative: &str, payload: &[u8]) -> Vec<u8> {
+    // Line endings are not content for definition artifacts: Git blob capture is
+    // LF, but post-move archive paths are untracked and `core.autocrlf=true`
+    // feeds CRLF working-tree bytes into the same digest. Fold `\r\n` → `\n`
+    // the same way `canonical_delta_body` does; a lone `\r` stays.
+    let mut canonical = fold_crlf_to_lf(payload);
     if !relative.ends_with("/tasks.md") {
-        return payload.to_vec();
+        return canonical;
     }
 
-    let mut canonical = payload.to_vec();
     for offset in markdown_task_checkbox_offsets(&canonical) {
         canonical[offset] = b' ';
     }
     canonical
+}
+
+fn fold_crlf_to_lf(payload: &[u8]) -> Vec<u8> {
+    if !payload.contains(&b'\r') {
+        return payload.to_vec();
+    }
+    let mut out = Vec::with_capacity(payload.len());
+    let mut index = 0;
+    while index < payload.len() {
+        if payload[index] == b'\r' && payload.get(index + 1) == Some(&b'\n') {
+            out.push(b'\n');
+            index += 2;
+        } else {
+            out.push(payload[index]);
+            index += 1;
+        }
+    }
+    out
 }
 
 fn markdown_task_checkbox_offsets(payload: &[u8]) -> Vec<usize> {
@@ -17445,6 +17468,11 @@ fn record_verification_attempt(
             ));
         }
         history
+    } else if record.state == ChangeState::Verifying {
+        // A Verifying change already recorded at least one attempt. Recreating
+        // an empty ledger here would drop that history the same way deleting
+        // the file bypasses the empty-ledger adoption guard (#656).
+        return Err("verification attempt history is missing".into());
     } else {
         VerificationAttemptLedger {
             schema_version: 1,

@@ -122,16 +122,21 @@ fn cmd_generate_all(
         verify_generate_root_or_exit(retained_root, json);
         let output = serde_json::json!({
             "generated": outcome.generated_paths,
+            "skipped_no_files": outcome.skipped_no_files,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
-        let gate = compute_exit_code(
-            total_errors,
-            total_warnings,
-            strict,
-            enforcement,
-            &coverage,
-            require_coverage,
-        );
+        let gate = if outcome.generated == 0 && !outcome.skipped_no_files.is_empty() {
+            1
+        } else {
+            compute_exit_code(
+                total_errors,
+                total_warnings,
+                strict,
+                enforcement,
+                &coverage,
+                require_coverage,
+            )
+        };
         process::exit(gate);
     }
 
@@ -181,6 +186,19 @@ fn cmd_generate_all(
             passed = p;
             total = t;
         }
+    } else if !outcome.skipped_no_files.is_empty() {
+        eprintln!(
+            "  {} No specs generated — {} unspecced module(s) have no source files to bind:",
+            "⚠".yellow(),
+            outcome.skipped_no_files.len()
+        );
+        for module in &outcome.skipped_no_files {
+            eprintln!("    - {module}");
+        }
+        eprintln!(
+            "  Add source files or map them in config before re-running `specsync generate`."
+        );
+        process::exit(1);
     }
 
     verify_generate_root_or_exit(retained_root, json);
@@ -293,16 +311,21 @@ fn cmd_generate_batch(
             "generated": outcome.generated_paths,
             "skipped_already_specced": already_specced,
             "skipped_not_found": not_found,
+            "skipped_no_files": outcome.skipped_no_files,
         });
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
-        let gate = compute_exit_code(
-            total_errors,
-            total_warnings,
-            strict,
-            enforcement,
-            &coverage,
-            require_coverage,
-        );
+        let gate = if outcome.generated == 0 && !outcome.skipped_no_files.is_empty() {
+            1
+        } else {
+            compute_exit_code(
+                total_errors,
+                total_warnings,
+                strict,
+                enforcement,
+                &coverage,
+                require_coverage,
+            )
+        };
         process::exit(gate);
     }
 
@@ -359,6 +382,20 @@ fn cmd_generate_batch(
             outcome.generated,
             to_generate.len()
         );
+        if outcome.generated == 0 && !outcome.skipped_no_files.is_empty() {
+            eprintln!(
+                "  {} No specs generated — {} unspecced module(s) have no source files to bind:",
+                "⚠".yellow(),
+                outcome.skipped_no_files.len()
+            );
+            for module in &outcome.skipped_no_files {
+                eprintln!("    - {module}");
+            }
+            eprintln!(
+                "  Add source files or map them in config before re-running `specsync generate`."
+            );
+            process::exit(1);
+        }
     }
 
     // Final coverage + exit status

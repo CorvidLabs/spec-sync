@@ -1,6 +1,6 @@
 ---
 module: parser
-version: 12
+version: 13
 status: stable
 files:
   - src/parser.rs
@@ -41,7 +41,7 @@ Markdown file.
 | `parse_frontmatter` | `content: &str` | `Option<ParsedSpec>` | Parse supported-subset frontmatter delimited by `---` from a spec file, in LF or CRLF, returning an LF-only body |
 | `strip_frontmatter` | `text: &str` | `&str` | Return the Markdown body with YAML frontmatter removed, borrowed from the input; the single canonical stripper |
 | `parse_checked_issue_references` | `content: &str` | `Result<(Vec<u64>, Vec<u64>), String>` | Parse and strictly validate top-level `implements` and `tracks` issue-reference lists from real YAML frontmatter |
-| `get_spec_symbols` | `body: &str` | `Vec<String>` | Extract backtick-quoted symbol names from the `## Public API` section tables |
+| `get_spec_symbols` | `body: &str` | `Vec<String>` | Extract backtick-quoted symbol names from the `## Public API` section tables, ignoring fenced examples |
 | `get_missing_sections` | `body: &str, required_sections: &[String]` | `Vec<String>` | Check which required `##` sections are missing from the spec body |
 | `is_export_header` | `header: &str` | `bool` | Return whether a `###` header denotes an exported-symbols subsection |
 | `section_has_content` | `body: &str, section: &str` | `bool` | Return whether the `## Section` block contains substantive content |
@@ -49,9 +49,10 @@ Markdown file.
 | `find_section_offset` | `body: &str, section: &str` | `Option<usize>` | Return the byte offset of an exact `## Section` heading |
 | `body_has_section` | `body: &str, section: &str` | `bool` | Return whether the body contains an exact `## Section` heading |
 | `get_near_miss_sections` | `body: &str, required_sections: &[String]` | `Vec<(String, String)>` | Return missing canonical sections paired with near-miss headings |
-| `get_all_api_table_symbols` | `body: &str` | `Vec<String>` | Extract the first backtick-quoted symbol from every Public API table row |
+| `get_all_api_table_symbols` | `body: &str` | `Vec<String>` | Extract the first backtick-quoted symbol from every Public API table row, ignoring fenced examples |
 | `get_duplicate_spec_symbols` | Find duplicate symbols in a spec body |
 | `is_boilerplate_line` | Detect placeholder documentation lines |
+| `blank_fenced_code` | `body: &str` | `String` | Space-blank fenced code at the original byte length so Public API readers and `--fix` ignore quoted examples |
 
 ## Invariants
 
@@ -210,3 +211,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-13 | CHG-0108-stop-reporting-success-for-checks-that-did-not-happen-gate-drafts-that-document: Stop reporting success for checks that did not happen: gate drafts that document a contract over present source, drop cold-cache drift noise, and stop taking quoted frontmatter paths literally |
 | 2026-08-25 | one-canonical-frontmatter-reader-for-crlf-checkouts: One canonical frontmatter reader for CRLF checkouts |
 | 2026-08-27 | one-delimiter-rule-for-every-frontmatter-reader-at-both-ends-of-the-block: One delimiter rule for every frontmatter reader, at both ends of the block |
+| 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |

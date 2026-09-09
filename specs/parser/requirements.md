@@ -95,3 +95,12 @@ Acceptance Criteria
   a block that is a single blank line.
 - `parse_frontmatter` returns an LF-only body when the frontmatter is LF and only the body is CRLF.
 
+### REQ-parser-004
+
+Public API symbol extraction SHALL ignore fenced code. Backtick names inside a fenced example are quoted text, not documented exports.
+
+Acceptance Criteria
+- `get_spec_symbols` and `get_all_api_table_symbols` run on fence-blanked text.
+- `blank_fenced_code` preserves the original byte length so offsets remain valid for `--fix`.
+- A fenced `### Exported Functions` heading does not create an export subsection.
+

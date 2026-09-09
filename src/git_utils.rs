@@ -1,6 +1,61 @@
 use std::path::Path;
 use std::process::Command;
 
+/// Host environment keys a git child is allowed to inherit.
+///
+/// Secrets (`GITHUB_TOKEN`, `GH_TOKEN`, `SSH_AUTH_SOCK`) and git overrides
+/// (`GIT_DIR`, `GIT_ASKPASS`, `GIT_INDEX_FILE`) are intentionally absent.
+const GIT_INHERITED_ENV: &[&str] = &[
+    "PATH",
+    "PATHEXT",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "TZ",
+    "SYSTEMROOT",
+    "WINDIR",
+    "COMSPEC",
+];
+
+/// Spawn `git` without inheriting host secrets or repo-override variables.
+///
+/// The MCP server (and every other caller of this module) used to PATH-resolve
+/// `git` with the full parent environment, so a read-only `specsync mcp` process
+/// that needed `GITHUB_TOKEN` for issue verification forwarded that token — and
+/// `GIT_DIR` / `GIT_ASKPASS` — to whatever `git` was first on `PATH`.
+///
+/// Keep a small allowlist so git can actually run (PATH, locale, temp, home)
+/// and pin `GIT_CEILING_DIRECTORIES` to `root`'s parent so a snapshot sitting
+/// inside a host worktree cannot walk up into it.
+fn git_cmd(root: &Path) -> Command {
+    let mut command = Command::new("git");
+    command.env_clear();
+    for key in GIT_INHERITED_ENV {
+        if let Some(value) = std::env::var_os(key) {
+            command.env(key, value);
+        }
+    }
+    command.env("GIT_TERMINAL_PROMPT", "0");
+    command.env("GIT_OPTIONAL_LOCKS", "0");
+    command.env("LC_ALL", "C");
+    let absolute = root.canonicalize().unwrap_or_else(|_| {
+        std::env::current_dir()
+            .unwrap_or_else(|_| Path::new(".").to_path_buf())
+            .join(root)
+    });
+    if let Some(parent) = absolute.parent() {
+        command.env("GIT_CEILING_DIRECTORIES", parent);
+    }
+    command.current_dir(root);
+    command
+}
+
 /// Why a tree cannot be asked how far a spec has fallen behind its source.
 ///
 /// Both variants mean the same thing to a caller measuring drift: there is no
@@ -91,9 +146,8 @@ pub fn spec_baseline(root: &Path, spec_file: &str) -> SpecBaseline {
 /// Deliberately private: its `None` is ambiguous, and every caller outside this
 /// module must go through [`spec_baseline`], which disambiguates it.
 fn last_commit_hash(root: &Path, file: &str) -> Option<String> {
-    let output = Command::new("git")
+    let output = git_cmd(root)
         .args(["log", "-1", "--format=%H", "--", file])
-        .current_dir(root)
         .output()
         .ok()?;
     let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -110,15 +164,14 @@ pub fn git_commits_since(root: &Path, spec_commit: &str, source_file: &str) -> u
     // to its state at `spec_commit`, and pure commit counting would report
     // phantom drift. If the working-tree content matches the content at
     // `spec_commit`, there is nothing to catch up on.
-    if let Ok(diff) = Command::new("git")
+    if let Ok(diff) = git_cmd(root)
         .args(["diff", "--quiet", spec_commit, "--", source_file])
-        .current_dir(root)
         .status()
         && diff.success()
     {
         return 0;
     }
-    let output = match Command::new("git")
+    let output = match git_cmd(root)
         .args([
             "rev-list",
             "--count",
@@ -126,7 +179,6 @@ pub fn git_commits_since(root: &Path, spec_commit: &str, source_file: &str) -> u
             "--",
             source_file,
         ])
-        .current_dir(root)
         .output()
     {
         Ok(o) => o,
@@ -141,9 +193,8 @@ pub fn git_commits_since(root: &Path, spec_commit: &str, source_file: &str) -> u
 
 /// Check if the current directory is inside a git repository.
 pub fn is_git_repo(root: &Path) -> bool {
-    Command::new("git")
+    git_cmd(root)
         .args(["rev-parse", "--is-inside-work-tree"])
-        .current_dir(root)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
@@ -157,9 +208,8 @@ pub fn is_git_repo(root: &Path) -> bool {
 /// git repository" rather than reporting everything current (#558) — it is the
 /// state `git init` leaves behind, which is where the quick start begins.
 pub fn has_commits(root: &Path) -> bool {
-    Command::new("git")
+    git_cmd(root)
         .args(["rev-parse", "--verify", "HEAD"])
-        .current_dir(root)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
@@ -196,9 +246,8 @@ pub fn source_was_deleted(root: &Path, since: &str, path: &str) -> bool {
     // `<rev>:./<path>` resolves relative to cwd, which is `root`; the
     // repo-root-relative form would answer the wrong question whenever the
     // project sits in a subdirectory of the repository.
-    std::process::Command::new("git")
+    git_cmd(root)
         .args(["cat-file", "-e", &format!("{since}:./{path}")])
-        .current_dir(root)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
@@ -395,5 +444,42 @@ mod tests {
 
         let plain = TempDir::new().unwrap();
         assert!(!is_git_repo(plain.path()));
+    }
+
+    #[test]
+    fn git_inherited_env_excludes_secrets_and_git_overrides() {
+        for denied in [
+            "GITHUB_TOKEN",
+            "GH_TOKEN",
+            "GIT_DIR",
+            "GIT_ASKPASS",
+            "GIT_AUTHOR_NAME",
+            "GIT_AUTHOR_EMAIL",
+            "GIT_INDEX_FILE",
+            "SSH_AUTH_SOCK",
+        ] {
+            assert!(
+                !GIT_INHERITED_ENV.contains(&denied),
+                "{denied} must not be forwarded to git children"
+            );
+        }
+        assert!(
+            GIT_INHERITED_ENV.contains(&"PATH"),
+            "git must still be able to resolve from PATH"
+        );
+    }
+
+    #[test]
+    fn git_ceiling_stops_walk_into_a_host_worktree() {
+        let host = init_repo();
+        commit_file(host.path(), "src/auth.rs", "fn login() {}", "add source");
+        let snapshot = host.path().join("mcp-snapshot");
+        fs::create_dir(&snapshot).unwrap();
+        fs::write(snapshot.join("README"), "snap\n").unwrap();
+        assert!(
+            !is_git_repo(&snapshot),
+            "a snapshot sitting inside a host worktree must not inherit that repo via git walk-up"
+        );
+        assert!(is_git_repo(host.path()));
     }
 }

@@ -27,6 +27,8 @@ specsync check                          # basic validation
 specsync check --strict                 # warnings become errors
 specsync check --strict --require-coverage 100
 specsync check --json                   # machine-readable output
+specsync check --spec auth               # one module (repeatable)
+specsync check auth                     # same filter, positional SPEC
 ```
 
 Three validation stages:
@@ -519,6 +521,7 @@ specsync watch
 | `--create-issues` | Create GitHub issues for specs with validation errors (on `check`). |
 | `--dry-run` | Preview supported write operations without changing files. Availability is shown in each command's help. |
 | `--stale N` | Flag specs N+ commits behind their source files (on `check`). |
+| `--spec NAME` | Repeatable module filter on `check`. Same matching as the positional SPEC argument. `change check` records this form as `specsync check --spec <name>`. |
 | `--exclude-status <s>` | Exclude specs with the given status from processing. Repeatable. |
 | `--only-status <s>` | Only process specs with the given status. Repeatable. |
 | `--mermaid` | Output dependency graph as Mermaid diagram (on `deps`). |

@@ -498,6 +498,69 @@ Example output:
 }
 
 #[test]
+fn fix_ignores_fenced_exported_heading_before_the_table() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function a() {}\nexport function b() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = spec_with_public_api(
+        r#"
+```markdown
+### Exported Functions
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `sample` | | | quoted, not the contract |
+```
+
+### Exported Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `a` | | | Documented already |
+"#,
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), &spec).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    let real_heading = updated
+        .rfind("### Exported Functions")
+        .expect("real heading remains");
+    let row_pos = updated.find("| `b` |").expect("row for `b` inserted");
+    let fence_pos = updated.find("```markdown").unwrap();
+    assert!(
+        row_pos > real_heading,
+        "row for `b` must land in the real table after the real heading:\n{updated}"
+    );
+    assert!(
+        row_pos > fence_pos,
+        "row for `b` must not target the fenced heading:\n{updated}"
+    );
+    assert!(
+        updated.contains("| `sample` |"),
+        "fenced sample row must be preserved:\n{updated}"
+    );
+    assert_eq!(
+        updated.matches("| `b` |").count(),
+        1,
+        "exactly one inserted row:\n{updated}"
+    );
+}
+
+#[test]
 fn fix_takes_column_count_from_the_real_table_not_a_preceding_code_sample() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

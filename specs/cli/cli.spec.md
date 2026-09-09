@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 25
+version: 26
 status: stable
 files:
   - src/main.rs
@@ -384,3 +384,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-08-27 | v23 / #723: `CoverageReport` also carries manifest discovery that was degraded rather than allowed to veto an explicitly configured `source_dirs` |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |

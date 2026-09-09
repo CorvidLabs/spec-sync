@@ -1,10 +1,11 @@
 ---
 module: change
-version: 122
+version: 123
 status: active
 files:
   - src/change.rs
   - src/change_tests.rs
+  - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []
 depends_on:
@@ -482,3 +483,4 @@ Acceptance Criteria
 | 2026-09-07 | let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived: Let a module own paths beyond its spec files so a later change can supersede the exact-only inputs of an archived bootstrap change |
 | 2026-09-07 | make-bounded-git-timeout-cleanup-tests-independent-of-child-startup-scheduling: Make bounded Git timeout cleanup tests independent of child startup scheduling |
 | 2026-09-08 | complete-specsync-6-promotion-and-public-release-contracts: Clarify scoped reviewer claims and the separate authentication policy boundary |
+| 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |

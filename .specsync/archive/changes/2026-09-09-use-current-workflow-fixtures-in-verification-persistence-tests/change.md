@@ -1,6 +1,6 @@
 ---
 id: use-current-workflow-fixtures-in-verification-persistence-tests
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e9c1cf2d41289d84db4214fe26b42cf2f3ea59ff
 ---

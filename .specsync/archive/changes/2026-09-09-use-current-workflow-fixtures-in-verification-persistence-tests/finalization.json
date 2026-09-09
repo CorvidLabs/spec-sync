@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "use-current-workflow-fixtures-in-verification-persistence-tests",
+  "implementation_commit": "05105e8193a701f8b7bc6af57c10d7059c9cc261",
+  "implementation_tree": "caf8cdf9723e12710f9d4c33c93ba365dbc0b680",
+  "contract_digest": "b447b7c24c599a7c9859f9a97920ec6fe41beddf2a1c8bd50905fd4b13e78193",
+  "workspace_digest": "bd5b19a4219fe84c0de9de8514d37e1634c5c402b671b89a1d3557d0785f0042",
+  "closing_digest": "83d68ac7ff00894d9a5bbc1c36f0e397cdfc9cd74ffc6e2a6c3fc4931aa8f6ac",
+  "review_digest": "13fff619fff480643926ff8dcc9ca01cec775bba7db52a3aebeef0f01ddf10a0",
+  "finalization_digest": "4c5c945912e47739e72428f582c8f78f64a66a22de3fe9e52bc782aa680df06d",
+  "timestamp": 1788983118
+}

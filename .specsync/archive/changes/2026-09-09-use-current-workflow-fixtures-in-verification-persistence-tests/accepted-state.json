@@ -7,11 +7,11 @@
   "title": "Use current-workflow fixtures in verification persistence tests",
   "description": "use current-workflow fixtures in verification persistence tests",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "e9c1cf2d41289d84db4214fe26b42cf2f3ea59ff",
   "created_at": 1788982943,
-  "updated_at": 1788983096,
+  "updated_at": 1788983118,
   "affected_specs": [
     "change"
   ],

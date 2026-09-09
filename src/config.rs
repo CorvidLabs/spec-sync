@@ -2584,7 +2584,7 @@ mod tests {
 specs_dir = "specs"
 source_dirs = ["src", "lib"]
 schema_dir = "db/schema"
-schema_pattern = "CREATE TABLE (\w+)"
+schema_pattern = 'CREATE TABLE (\w+)'
 exclude_dirs = ["__tests__"]
 exclude_patterns = ["**/*.test.ts"]
 source_extensions = [".ts", ".rs"]
@@ -2611,6 +2611,10 @@ verify_issues = false
         assert_eq!(config.specs_dir, "specs");
         assert_eq!(config.source_dirs, vec!["src", "lib"]);
         assert_eq!(config.schema_dir.as_deref(), Some("db/schema"));
+        assert_eq!(
+            config.schema_pattern.as_deref(),
+            Some(r"CREATE TABLE (\w+)")
+        );
         assert_eq!(config.exclude_dirs, vec!["__tests__"]);
         assert_eq!(config.exclude_patterns, vec!["**/*.test.ts"]);
         assert_eq!(config.source_extensions, vec![".ts", ".rs"]);
@@ -2633,6 +2637,27 @@ verify_issues = false
         assert_eq!(gh.repo.as_deref(), Some("CorvidLabs/spec-sync"));
         assert_eq!(gh.drift_labels, vec!["spec-drift", "needs-update"]);
         assert!(!gh.verify_issues);
+    }
+
+    #[test]
+    fn test_toml_invalid_schema_pattern_escape_sets_load_error() {
+        // A regex in a TOML basic string cannot use `\\w`; that escape is illegal
+        // and must set load_error rather than process::exit via load_config.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "schema_pattern = \"CREATE TABLE (\\w+)\"\n",
+        )
+        .unwrap();
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config
+                .load_error
+                .as_deref()
+                .is_some_and(|error| error.contains("could not be loaded")),
+            "illegal TOML escape in schema_pattern must set load_error, got {:?}",
+            config.load_error
+        );
     }
 
     #[test]

@@ -793,7 +793,7 @@ pub(crate) fn blank_fenced_code(body: &str) -> String {
             (run >= 3).then_some((c, run))
         });
         let blank_line = |out: &mut String| {
-            out.extend(std::iter::repeat(' ').take(content.len()));
+            out.extend(std::iter::repeat_n(' ', content.len()));
             if had_newline {
                 out.push('\n');
             }

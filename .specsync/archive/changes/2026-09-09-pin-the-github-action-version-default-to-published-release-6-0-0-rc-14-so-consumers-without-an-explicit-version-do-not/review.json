@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "pin-the-github-action-version-default-to-published-release-6-0-0-rc-14-so-consumers-without-an-explicit-version-do-not",
+  "reviewer": "corvid-agent",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "5b275087eea37094b7495893d034415f5ba650ee",
+  "contract_digest": "90fdde3ff86131629a79dabd32180e7bee5b0232f640deecee9ac26c62b5894f",
+  "execution_digest": "01fb4004aba8fc4a315bf01c72f9219b9cc0fb196f86d9378095f6b473219591",
+  "workspace_digest": "1d4101dc15902ded388cba710ef28931999a6a07f8d73bf524bff80c188353b9",
+  "timestamp": 1788973290
+}

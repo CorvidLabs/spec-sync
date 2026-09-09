@@ -76,6 +76,8 @@ spec: github.spec.md
 | Final publication | Final tag and artifacts use the already-qualified candidate SHA | Require authorization before promotion and independent final-tag/checkout identity checks before upload |
 | Lifecycle metadata rides with the product commit | No separate archive tip is required before merge | Require `cargo run -- change audit --strict` to pass on the pull request as a whole |
 
+| Action omitted-input default during 6.0 candidate window | Default downloads a published Release with assets (`6.0.0-rc.14`); unpublished `6.0.0` and asset-less `rc.15`..`rc.17` are not defaults | Read `action.yml` default and site inputs-table default; run `python3 -S .github/scripts/validate-release-version.py`; confirm `gh release view v6.0.0-rc.14` has assets and `v6.0.0` is missing |
+
 ## Reviewer Checklist
 
 - Run the narrow source command above before the full suite when changing `src/github.rs`.

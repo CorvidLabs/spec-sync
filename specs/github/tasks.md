@@ -70,3 +70,5 @@ Per-module role sign-offs were not collected. Release approval is governed by di
   with real protection rules — an auto-created environment has none.
 - [x] Reuse authenticated required checks across bounded review/archive metadata descendants without
   crossing code edges or allowing cancelled republications to poison exact-SHA success (CHG-0077)
+
+- [x] Pin Action/`github-action.md` default to published `6.0.0-rc.14` and teach `validate-release-version.py` the candidate-window exception (#628)

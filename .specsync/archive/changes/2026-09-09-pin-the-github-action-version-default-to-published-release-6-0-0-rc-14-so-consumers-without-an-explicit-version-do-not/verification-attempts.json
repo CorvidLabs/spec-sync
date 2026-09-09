@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1788973177,
+      "commit": "d0da6075f8f383c474915dd8d2b97dfd9e8b776f",
+      "contract_digest": "90fdde3ff86131629a79dabd32180e7bee5b0232f640deecee9ac26c62b5894f",
+      "execution_digest": "01fb4004aba8fc4a315bf01c72f9219b9cc0fb196f86d9378095f6b473219591",
+      "workspace_digest": "dc98c91c8fd992b605435aeadf19fea4e7617375a6135de8fa5932e5b3e960ed",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-002"
+      ]
+    },
+    {
+      "timestamp": 1788973215,
+      "commit": "e1866cc8577df06c3e417134b0fb5d493d60e2ee",
+      "contract_digest": "90fdde3ff86131629a79dabd32180e7bee5b0232f640deecee9ac26c62b5894f",
+      "execution_digest": "01fb4004aba8fc4a315bf01c72f9219b9cc0fb196f86d9378095f6b473219591",
+      "workspace_digest": "f8b53a57e037b6ceaa412dc69a00bdbcc7c30a4679b31da009f25b0a4e3a0986",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-002"
+      ]
+    },
+    {
+      "timestamp": 1788973220,
+      "commit": "cb0a0ab812f8240e1c4307eb63193a3000ab4a4c",
+      "contract_digest": "90fdde3ff86131629a79dabd32180e7bee5b0232f640deecee9ac26c62b5894f",
+      "execution_digest": "01fb4004aba8fc4a315bf01c72f9219b9cc0fb196f86d9378095f6b473219591",
+      "workspace_digest": "f8b53a57e037b6ceaa412dc69a00bdbcc7c30a4679b31da009f25b0a4e3a0986",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-002"
+      ]
+    },
+    {
+      "timestamp": 1788973273,
+      "commit": "4d04b33fbaa7ca0e97fa47e16a8f34fa6af6d802",
+      "contract_digest": "90fdde3ff86131629a79dabd32180e7bee5b0232f640deecee9ac26c62b5894f",
+      "execution_digest": "01fb4004aba8fc4a315bf01c72f9219b9cc0fb196f86d9378095f6b473219591",
+      "workspace_digest": "1d4101dc15902ded388cba710ef28931999a6a07f8d73bf524bff80c188353b9",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-002"
+      ]
+    },
+    {
+      "timestamp": 1788973278,
+      "commit": "f26c04c92b015a9166c1ad6f4ff9a5fa86118c52",
+      "contract_digest": "90fdde3ff86131629a79dabd32180e7bee5b0232f640deecee9ac26c62b5894f",
+      "execution_digest": "01fb4004aba8fc4a315bf01c72f9219b9cc0fb196f86d9378095f6b473219591",
+      "workspace_digest": "1d4101dc15902ded388cba710ef28931999a6a07f8d73bf524bff80c188353b9",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-002"
+      ]
+    },
+    {
+      "timestamp": 1788973278,
+      "commit": "5b275087eea37094b7495893d034415f5ba650ee",
+      "contract_digest": "90fdde3ff86131629a79dabd32180e7bee5b0232f640deecee9ac26c62b5894f",
+      "execution_digest": "01fb4004aba8fc4a315bf01c72f9219b9cc0fb196f86d9378095f6b473219591",
+      "workspace_digest": "1d4101dc15902ded388cba710ef28931999a6a07f8d73bf524bff80c188353b9",
+      "acceptance_input_digest": "7f209d6c6fa1f25751faac8bd66b249daf86456c9e0818a8c59e75a3a6bf49de",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".github/scripts/validate-release-version.py",
+            "kind": "file",
+            "mode": 33261,
+            "payload_digest": "b9518d0605a985fcb23176d768b4721d56be01088587bcc9ffb0acc83f81fdd5",
+            "entry_digest": "7ad40af072f3663ad7a693db6e2ae33d04aff1ff8ed434d5d815f6ad0c8914d4",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "action.yml",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "cf8ebc029472434f9b1a9324f33a3e0b9c7c5986721f3c51cecd260ec0da9187",
+            "entry_digest": "beb6c1994b973de722908a5ff7d3d5652c0d1f7b96981bf26cfb14c15ec0ca27",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/integrations/github-action.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6e8f638664d5750d90399e34d2fa7f938187e878f365f32462fe4fa7d8ed2784",
+            "entry_digest": "51e57e01bcecbad5439b7b8c913173c5e3b48680829435b6e12f5cb97c80df29",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/github/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a21e4dba2d0bd7602f0c1aaa90aea429f6879d06d0ac6d5c730e1b8dbf1b286e",
+            "entry_digest": "17a1f348a9411bde93283564551ecd12b4d56e4b6aa8260d1e3bea508b26a09c",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/github.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f4e0ee22c4db51839fa4bdf0c12a65db922b96444b8b38837fac0e1536e3fe55",
+            "entry_digest": "c7f6be0782ce99e72d5d4bff33059b7747b8567400997442899b13140992369f",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "11c369b863546a4cc3cdc2dad02e6fd75b441fbc09c609db88cd70049966cdea",
+            "entry_digest": "81a211ae0f2bc79dd4c986ad8fe1e419093700abec92a1e0e99afc1ff2fc717c",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3307c4e3c89aac57862b26fd4aceab85fdc03fc14622f06fe03e417525442720",
+            "entry_digest": "023681871042afede7135dd6a3f61311992ea4deee8076628a96010b191fda9b",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7d59b1600f0f37079b3942463ee6fca3d8c5566678db62c5852affb9dd88dd21",
+            "entry_digest": "eb165d939708b1d2c56791153cfbb45281df51b70cd97092e4e0b6eb28eedebf",
+            "owners": [
+              "github"
+            ]
+          }
+        ]
+      },
+      "semantic_succession": {
+        "schema_version": 1,
+        "tuples": [
+          {
+            "predecessor_id": "CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate",
+            "path": "specs/github/context.md",
+            "module": "github",
+            "predecessor_entry_digest": "c59a00b3fe3ae106e223fed30fa75fdcb85d24d223ea89199bdbdcdf0f4885e1",
+            "successor_entry_digest": "17a1f348a9411bde93283564551ecd12b4d56e4b6aa8260d1e3bea508b26a09c"
+          },
+          {
+            "predecessor_id": "CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate",
+            "path": "specs/github/github.spec.md",
+            "module": "github",
+            "predecessor_entry_digest": "84fffff3a1fd5f3a776c953840fb96d9a5ad28c6ab55a614f0c8ed6bd70ff3fb",
+            "successor_entry_digest": "c7f6be0782ce99e72d5d4bff33059b7747b8567400997442899b13140992369f"
+          },
+          {
+            "predecessor_id": "CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate",
+            "path": "specs/github/requirements.md",
+            "module": "github",
+            "predecessor_entry_digest": "d1e7f858951adea43ba6da0ba56bffac8f2b616e828989c634191948aa96744c",
+            "successor_entry_digest": "81a211ae0f2bc79dd4c986ad8fe1e419093700abec92a1e0e99afc1ff2fc717c"
+          },
+          {
+            "predecessor_id": "CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate",
+            "path": "specs/github/tasks.md",
+            "module": "github",
+            "predecessor_entry_digest": "b84a9d2d63dc6856a83dac7a1ed591d752205327dd5ba3df39b1044f2163d59c",
+            "successor_entry_digest": "023681871042afede7135dd6a3f61311992ea4deee8076628a96010b191fda9b"
+          },
+          {
+            "predecessor_id": "CHG-0082-let-documentation-only-pull-requests-reach-the-required-ci-gate",
+            "path": "specs/github/testing.md",
+            "module": "github",
+            "predecessor_entry_digest": "e0b6661374ea1ce94a12f221eb6951f1b1bfa55538657b97a301497be26b6dbe",
+            "successor_entry_digest": "eb165d939708b1d2c56791153cfbb45281df51b70cd97092e4e0b6eb28eedebf"
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-002"
+      ]
+    }
+  ]
+}

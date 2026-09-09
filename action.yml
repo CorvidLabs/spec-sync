@@ -6,9 +6,9 @@ branding:
 
 inputs:
   version:
-    description: 'SpecSync release to download (e.g. "6.0.0"). Pin an exact version; "latest" resolves the newest GitHub release and is not recommended for CI. Linux and macOS runners only'
+    description: 'SpecSync release to download (e.g. "6.0.0-rc.14"). Pin an exact published release with assets; "latest" resolves the newest GitHub release and is not recommended for CI. Linux and macOS runners only. Default is the latest published 6.0 release candidate with assets while stable v6.0.0 is pending'
     required: false
-    default: '6.0.0'
+    default: '6.0.0-rc.14'
   download-base-url:
     description: 'Optional trusted release mirror URL (primarily for enterprise mirrors and release validation)'
     required: false

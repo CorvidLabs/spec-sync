@@ -109,10 +109,10 @@ fn lock_entry_from_tool(tool: &Value) -> Value {
     );
     let mut entry = Map::new();
     entry.insert("name".into(), Value::String(name));
-    if let Some(title) = title {
-        if !title.is_null() {
-            entry.insert("title".into(), title);
-        }
+    if let Some(title) = title
+        && !title.is_null()
+    {
+        entry.insert("title".into(), title);
     }
     entry.insert("description".into(), Value::String(description));
     entry.insert("inputSchema".into(), input_schema);
@@ -129,10 +129,10 @@ fn tool_contract_sha256(
 ) -> String {
     let mut controlled = Map::new();
     controlled.insert("name".into(), Value::String(name.to_string()));
-    if let Some(title) = title {
-        if !title.is_null() {
-            controlled.insert("title".into(), title.clone());
-        }
+    if let Some(title) = title
+        && !title.is_null()
+    {
+        controlled.insert("title".into(), title.clone());
     }
     controlled.insert("description".into(), Value::String(description.to_string()));
     controlled.insert("inputSchema".into(), input_schema.clone());

@@ -76,6 +76,25 @@
         "REQ-cli-args-016",
         "REQ-cmd-check-015"
       ]
+    },
+    {
+      "timestamp": 1788932731,
+      "commit": "11cbd718c1d9482a07f0c284a7a3096817143889",
+      "contract_digest": "b51a2fe223f749ba46067c34ff09a0c6a4a177a7c690faaacaf1a224df11711a",
+      "execution_digest": "3cf0f8fc073224e5506c7dccfdd81568c1e01e92367abaa6116df4aad06a924b",
+      "workspace_digest": "caaefb35a449eb2559af955c5d1f565195065284dfb359ae1ec23f12547d97cf",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cli_args --spec cmd_check",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-args-016",
+        "REQ-cmd-check-015"
+      ]
     }
   ]
 }

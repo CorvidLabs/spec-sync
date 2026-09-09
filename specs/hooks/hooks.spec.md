@@ -1,6 +1,6 @@
 ---
 module: hooks
-version: 6
+version: 7
 status: stable
 files:
   - src/hooks.rs
@@ -51,9 +51,10 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 4. Pre-commit hook is made executable (mode 0o755) on Unix
 5. Uninstalling Claude Code hook settings is refused — must be done manually (too risky to auto-edit)
 6. Empty targets list means "all targets"
-7. Pre-commit hook resolution honors Git worktrees, submodules, and `core.hooksPath`; installation inserts its strict blocking block before a trailing `exit 0`
+7. Pre-commit hook resolution honors Git worktrees, submodules, and `core.hooksPath`; installation inserts its blocking block (running `specsync check`, honoring configured `enforcement`) before a trailing `exit 0`
 8. `cmd_install` exits with code 1 if any hook installation fails
 9. Uninstall removes only the exact current-project block and preserves user and other-project content
+10. The generated pre-commit hook runs `specsync check` without `--strict`, so first-run scaffold warnings do not block the first commit
 
 ## Behavioral Examples
 
@@ -124,3 +125,4 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 | 2026-07-31 | CHG-0069-scoped-change-check-change-audit-and-agent-pack-for-the-two-verb-lifecycle: Scoped change check, change audit, and agent pack for the two-verb lifecycle |
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
+| 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |

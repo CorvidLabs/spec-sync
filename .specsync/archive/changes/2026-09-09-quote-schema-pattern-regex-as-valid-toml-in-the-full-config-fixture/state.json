@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "quote-schema-pattern-regex-as-valid-toml-in-the-full-config-fixture",
+  "slug": "quote-schema-pattern-regex-as-valid-toml-in-the-full-config-fixture",
+  "title": "Quote schema_pattern regex as valid TOML in the full-config fixture",
+  "description": "quote schema_pattern regex as valid TOML in the full-config fixture",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "a9169aacb0d8807c85dd5e752ebe32453d9c9b8b",
+  "created_at": 1788984169,
+  "updated_at": 1788984778,
+  "affected_specs": [
+    "config"
+  ],
+  "affected_paths": [
+    "src/config.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Specs already require unloadable TOML to fail closed. test_toml_full_config wrote schema_pattern with an illegal basic-string escape that the line scanner accepted and toml::from_str rejects; load_config then process::exit(1) killed the unit-test harness. Quote it as a literal string so the happy-path fixture loads.",
+  "acceptance_criteria": [
+    "cargo test --bin specsync completes without the harness exiting abnormally; test_toml_full_config loads and asserts schema_pattern is CREATE TABLE (\\w+); a double-quoted illegal TOML escape in schema_pattern sets load_error via load_config_allowing_unloadable"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

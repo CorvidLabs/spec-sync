@@ -22,24 +22,50 @@ Existing 5.x consumers, in this order:
 1. **Pin the 6.0.0 binary everywhere before resuming lifecycle work.** `cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.0.0 --locked specsync` (or the `specsync-linux-*` / `specsync-macos-*` release asset), then confirm `specsync --version` prints `specsync 6.0.0` on every developer machine, agent, hook, and CI runner. Linux and macOS only: 6.0 neither builds nor publishes a Windows binary (#735). Windows users run SpecSync under WSL or build from source.
 2. **Update the GitHub Action to two explicit pins:** `uses: CorvidLabs/spec-sync@v6.0.0` with `version: '6.0.0'`. The `uses` ref pins the action code and `version` pins the binary it downloads. Drop any floating `@v5` ref or `version: latest`; pin the exact release rather than a floating major tag so CI runs the action code and binary you validated. The action now refuses a Windows runner.
 3. **`specsync check` gates by default.** The default `enforcement` moved from `warn` to `strict`, so a bare `check` exits 1 on any validation error (warnings still pass unless `--strict` is given). Repositories with pre-existing spec errors start failing on the 6.0 binary: fix the specs, or keep the 5.x non-blocking behaviour with `enforcement = "warn"` in `.specsync/config.toml` or `--enforcement warn`.
-4. **Finish, archive, or abandon every active workflow-v1 change and merge those PRs *before* running `specsync change adopt`** (#674). The workflow-v2 baseline (`.specsync/workflow-v2-baseline.json`) is written once — by `change adopt`, or by the first `change new` that mints a workflow-v2 change, whichever comes first — with a cutoff at the merge-base of your checkout and the remote default branch; the baseline is immutable and the cutoff never moves forward. A workflow-v1 change that merges after that cutoff can never be adopted — 6.0 recognises only v1 changes already present in the trusted history at the cutoff — and would have to be recreated as a workflow-v2 change. `adopt` refuses only when a v1 change in the *current* tree is missing from the cutoff history; it gives no warning about in-flight v1 changes on other branches. Run it from an up-to-date checkout of the default branch on which `specsync change list` shows no active changes.
-5. **Run `specsync change adopt`.** On a policy that is already enabled it changes nothing in `sdd.json`, but it records the workflow-v2 baseline (if a `change new` has not already done so) and writes `.specsync/adoption-report.json`. From then on every new change uses the single 6.0 workflow (`approve` → `check --commit` → `review` → `ship`/`finalize` on the same PR) and is identified by a slug derived from its description, never a `CHG-NNNN` ordinal; 5.x `verify` / `accept` remain only as recovery for existing workflow-v1 records. Existing `CHG-` records stay readable as history, and `.specsync/change-sequence.json` is no longer allocated from.
+4. **Finish, archive, or abandon every active workflow-v1 change and merge those PRs *before* running `specsync change adopt`** (#674). Workflow-v1 is **merge-then-archive**: `verify` → `accept` → merge the PR → `archive`. The workflow-v2 baseline (`.specsync/workflow-v2-baseline.json`) is written once — by `change adopt`, or by the first `change new` that mints a workflow-v2 change, whichever comes first — with a cutoff at the merge-base of your checkout and the remote default branch; the baseline is immutable and the cutoff never moves forward. A workflow-v1 change that merges after that cutoff can never be adopted — 6.0 recognises only v1 changes already present in the trusted history at the cutoff — and would have to be recreated as a workflow-v2 change. `adopt` refuses only when a v1 change in the *current* tree is missing from the cutoff history; it is **silent** on a committed still-active v1 that is already in that cutoff (it does not warn, archive, or migrate it). Run it from an up-to-date checkout of the default branch on which `specsync change list` shows no active changes.
+
+   Literal close-out for each still-active workflow-v1 change (`<id>` from `specsync change list`):
+
+   ```bash
+   specsync change status <id>          # next_action names verify → accept → archive
+   specsync change verify <id>
+   specsync change accept <id>
+   # merge the PR on GitHub (workflow-v1 is merge-then-archive)
+   specsync change archive <id>
+   ```
+
+   `change status` on a v1 `Verifying` record names that sequence on its `Handoff:` line. Its `Next:`
+   line still names the workflow-v2 verbs (`change check --commit`, `change ship-status`, `change ship`,
+   "finalize"), which do not close a workflow-v1 change. Follow the `Handoff:` line, not `Next:`.
+5. **Run `specsync change adopt`.** On a policy that is already enabled it changes nothing in `sdd.json`, but it records the workflow-v2 baseline (if a `change new` has not already done so) and writes `.specsync/adoption-report.json`. **Commit both files** (they are the cutoff you will be judged against):
+
+   ```bash
+   specsync change adopt
+   git add .specsync/workflow-v2-baseline.json .specsync/adoption-report.json
+   git commit -m "Record the SpecSync 6.0 workflow-v2 baseline"
+   ```
+
+   From then on every new change uses the single 6.0 workflow (`approve` → `check --commit` → `review` → `ship`/`finalize` on the same PR) and is identified by a slug derived from its description, never a `CHG-NNNN` ordinal; 5.x `verify` / `accept` remain only as recovery for existing workflow-v1 records. Existing `CHG-` records stay readable as history, and `.specsync/change-sequence.json` is no longer allocated from.
 6. **`specsync check` no longer walks SDD.** It does not inspect active changes, workspaces, or archives, even when the policy is enabled. Keep `specsync change audit` in CI if that gate is still wanted; it exits 1 on any active-workspace or living-spec error. The `CorvidLabs/spec-sync` GitHub Action runs `specsync check` (plus `lifecycle enforce --all` when `lifecycle-enforce` is set) and does not run the audit, so add it as its own step with a full-depth checkout. (The global `--strict` flag parses on `change audit` but has no effect there.)
-7. **`change check` no longer executes `sdd.json` `verification_commands`.** It compares this change's specs to code in-process. Put `cargo test` / `swift test` / equivalent in CI.
+7. **Neither `change check` nor `change verify` executes `sdd.json` `verification_commands`.** `change check` (workflow-v2) compares this change's specs to code in-process. `change verify` is the workflow-v1 recovery verb and the same in-process comparison — it does not spawn `cargo test` / `swift test` / the configured command list. Put those in CI.
 8. **Fresh `init` writes SDD off** (`enabled: false`, `require_change_for_meaningful_files: false`, empty `verification_commands`). `specsync change adopt` is the on-switch: it writes an enabled policy when none exists, and on an existing file it flips **only** `enabled`. Path coverage stays where the author left it — so `init` then `adopt` gives you `enabled: true` with `require_change_for_meaningful_files: false`, which is **not** the 5.0 default. Set `require_change_for_meaningful_files: true` yourself if you want `change audit` (and archive) to require an active change for every meaningful-path edit. Hand-editing the policy changes its digest, so the bootstrap exemption `init` recorded for `.specsync/sdd.json` no longer covers the file and that edit needs an active change of its own. `adopt` fails closed on a policy it cannot parse and is a no-op on one already enabled. `enabled` governs `change audit` and archive-time path coverage; the `change new/approve/check/review/ship` verbs run either way.
 9. **Lessons are no longer a `next_action` merge gate.** After `finalize` / `ship`, the archive still writes `lesson-bundle.md`; folding it into `context.md` is optional.
 
 ```bash
 # existing 5.x repo: binary upgrade does not disable SDD
 specsync --version               # 6.0.0 on every writer before touching a change
-specsync change list             # no active changes, then:
+specsync change list             # close every active v1 change first (verify → accept → merge → archive)
 specsync change adopt            # records the workflow-v2 baseline; slug IDs from here on
+git add .specsync/workflow-v2-baseline.json .specsync/adoption-report.json
+git commit -m "Record the SpecSync 6.0 workflow-v2 baseline"
 specsync change audit            # keep this in CI if you still want the lifecycle gate
-# cargo test / equivalent belongs in CI, not in change check
+# cargo test / equivalent belongs in CI, not in change check or change verify
 
 # new clone / fresh init
 specsync init                    # SDD off
 specsync change adopt            # on-switch; flips enabled only
+git add .specsync/workflow-v2-baseline.json .specsync/adoption-report.json
+git commit -m "Record the SpecSync 6.0 workflow-v2 baseline"
 ```
 
 Pin the GitHub Action explicitly: `uses: CorvidLabs/spec-sync@v6.0.0` with `version: '6.0.0'` (the form the README and site examples use). Pre-releases were `@v6.0.0-rc.N`; a candidate is never reachable through a floating major ref, and the exact tag is the form to keep after release too. Do not treat a 5.0 `adopt` + `check --strict` sequence as an SDD gate on 6.0: `check` will not consult the change workflow.

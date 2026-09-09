@@ -1036,6 +1036,100 @@ fn malformed_json_config_refuses_rules_rehash_compact_and_view() {
     }
 }
 
+#[test]
+fn malformed_toml_config_refuses_rules_rehash_compact_and_view() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/config.toml"), "not = [ valid toml {{{").unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn greet() {}\n").unwrap();
+
+    let cases: &[&[&str]] = &[
+        &["rules"],
+        &["rehash"],
+        &["compact"],
+        &["deps"],
+        &["archive-tasks"],
+        &["view", "--role", "dev"],
+    ];
+    for args in cases {
+        specsync()
+            .args(*args)
+            .arg("--root")
+            .arg(root)
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(predicate::str::contains("could not be loaded"));
+    }
+}
+
+#[test]
+fn empty_toml_config_refuses_rules() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/config.toml"), "").unwrap();
+
+    specsync()
+        .args(["rules", "--root"])
+        .arg(root)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains("could not be loaded"));
+}
+
+#[test]
+fn directory_as_toml_config_refuses_rules() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync/config.toml")).unwrap();
+
+    specsync()
+        .args(["rules", "--root"])
+        .arg(root)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains("could not be loaded"));
+}
+
+#[test]
+fn invalid_enforcement_enum_refuses_rules() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "enforcement = \"nope\"\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["rules", "--root"])
+        .arg(root)
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(predicate::str::contains("could not be loaded"));
+}
+
+#[test]
+fn absent_config_still_runs_with_defaults() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn greet() {}\n").unwrap();
+
+    specsync()
+        .args(["rules", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+}
+
 /// `scaffold` gets the same single-source-file fallback as `new`.
 #[test]
 fn scaffold_auto_detects_single_source_file() {

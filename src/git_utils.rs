@@ -69,7 +69,7 @@ pub fn with_discovery_ceiling<R>(ceiling: &Path, f: impl FnOnce() -> R) -> R {
 /// checkout) must still discover the parent work tree. `env_clear` already
 /// drops any inherited ceiling. Snapshot isolation uses
 /// [`with_discovery_ceiling`].
-fn git_cmd(root: &Path) -> Command {
+pub(crate) fn git_cmd(root: &Path) -> Command {
     let mut command = Command::new("git");
     command.env_clear();
     for key in GIT_INHERITED_ENV {
@@ -499,6 +499,34 @@ mod tests {
         }
         assert!(
             GIT_INHERITED_ENV.contains(&"PATH"),
+            "git must still be able to resolve from PATH"
+        );
+    }
+
+    #[test]
+    fn git_cmd_does_not_forward_sentinel_secrets() {
+        let cmd = git_cmd(Path::new("."));
+        let keys: Vec<String> = cmd
+            .get_envs()
+            .filter_map(|(key, value)| value.map(|_| key.to_string_lossy().into_owned()))
+            .collect();
+        for denied in [
+            "GITHUB_TOKEN",
+            "AWS_SECRET_ACCESS_KEY",
+            "SPECSYNC_TEST_SECRET",
+            "GH_TOKEN",
+            "GIT_DIR",
+            "GIT_ASKPASS",
+            "GIT_INDEX_FILE",
+            "SSH_AUTH_SOCK",
+        ] {
+            assert!(
+                !keys.iter().any(|k| k == denied),
+                "{denied} must not be forwarded to git children; env was {keys:?}"
+            );
+        }
+        assert!(
+            keys.iter().any(|k| k == "PATH"),
             "git must still be able to resolve from PATH"
         );
     }

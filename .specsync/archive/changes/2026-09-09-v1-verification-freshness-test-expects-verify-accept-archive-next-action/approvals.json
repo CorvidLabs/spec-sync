@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788985646,
+      "digest": "16c98e130824e827f2ec04b9afa6daa163442798843a9fb1669e7c5c6b178833",
+      "note": "owner pre-authorization per docs/6-0-overnight-brief.md; human inspection at PR merge",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "v1-verification-freshness-test-expects-verify-accept-archive-next-action",
+        "title": "V1 verification freshness test expects verify accept archive next_action",
+        "description": "v1 verification freshness test expects verify accept archive next_action",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The v1 Verifying next_action contract already names verify then accept then archive. This integration test used a version-1 sdd.json and change verify, then asserted v2 review/check strings. Update expectations only.",
+        "acceptance_criteria": [
+          "verification_freshness_status_and_check_are_environment_independent passes; next_action is the v1 verify/accept/archive string in local, ci, and github environments both before and after the governed input moves"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788985734,
+      "digest": "16ae8a099b1b32247f5112331710e88f485a69b44fa2c536986a7d2430c57c1f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

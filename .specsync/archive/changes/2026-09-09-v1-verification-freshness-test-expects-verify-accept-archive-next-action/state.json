@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "v1-verification-freshness-test-expects-verify-accept-archive-next-action",
+  "slug": "v1-verification-freshness-test-expects-verify-accept-archive-next-action",
+  "title": "V1 verification freshness test expects verify accept archive next_action",
+  "description": "v1 verification freshness test expects verify accept archive next_action",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "418fa117e78ad1f65f462f3fc96ef0491d0136d2",
+  "created_at": 1788985600,
+  "updated_at": 1788985852,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The v1 Verifying next_action contract already names verify then accept then archive. This integration test used a version-1 sdd.json and change verify, then asserted v2 review/check strings. Update expectations only.",
+  "acceptance_criteria": [
+    "verification_freshness_status_and_check_are_environment_independent passes; next_action is the v1 verify/accept/archive string in local, ci, and github environments both before and after the governed input moves"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

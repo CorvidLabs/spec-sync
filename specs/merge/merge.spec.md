@@ -1,6 +1,6 @@
 ---
 module: merge
-version: 6
+version: 7
 status: stable
 files:
   - src/merge.rs
@@ -70,7 +70,8 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 15. Uniform CRLF/LF form and final-newline presence are preserved
 16. `all_files: false` with no answer from git yields a single `Unknown` result naming the missing precondition and exits non-zero; an unperformed scan is never reported as "no conflicts found"
 17. `unmerged_paths` returns `None` — not an empty set — whenever git could not answer, so no caller can read an unasked question as an all-clear
-18. `conflict_hunks` and `document_conflict_hunks` return only complete opener/separator/closer triples, and `document_conflict_hunks` ignores fenced code blocks, so marker-shaped prose (a setext `<h1>` underline, a documented example) is never reported as a conflict
+18. `unmerged_paths` spawns git through `crate::git_utils::git_cmd`, so host secrets and git-override variables are not forwarded
+19. `conflict_hunks` and `document_conflict_hunks` return only complete opener/separator/closer triples, and `document_conflict_hunks` ignores fenced code blocks, so marker-shaped prose (a setext `<h1>` underline, a documented example) is never reported as a conflict
 
 ## Behavioral Examples
 
@@ -161,3 +162,4 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-27 | CHG-0066-make-issue-427-spec-merge-resolution-lossless-and-truthful-by-parsing-diff3-base: Make issue 427 spec merge resolution lossless and truthful by parsing diff3 bases, preserving both side labels, selecting the maximum numeric version, unioning list fields, leaving conflicting table rows and scalar fields unresolved, and preserving all-or-nothing writes |
 | 2026-08-14 | CHG-0124-a-source-file-or-spec-body-carrying-an-unresolved-merge-conflict-must-be-refused: A source file or spec body carrying an unresolved merge conflict must be refused, because extracting declarations from both sides of a hunk describes source that does not exist |
+| 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |

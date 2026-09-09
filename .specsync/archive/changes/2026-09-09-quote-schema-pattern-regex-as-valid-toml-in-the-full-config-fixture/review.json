@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "quote-schema-pattern-regex-as-valid-toml-in-the-full-config-fixture",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "b23a4b20862de6fd0af10e9f91ef3e44a8408827",
+  "contract_digest": "d4a6b1f96bda93e5ca66d32d78edccd7a12c6c34e66ce4ebef3f98fad6a5cc46",
+  "execution_digest": "67d934010bfd2efa31bce502300403abcacfdac5c8514de28e0c791e317dee91",
+  "workspace_digest": "07c16ddf4ccef2e691efd15bfbe8160991a778690abf1509857295d523aa5aba",
+  "timestamp": 1788984651
+}

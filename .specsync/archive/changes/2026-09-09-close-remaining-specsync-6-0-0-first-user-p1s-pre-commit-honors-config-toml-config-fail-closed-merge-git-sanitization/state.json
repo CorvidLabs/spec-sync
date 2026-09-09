@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization",
+  "slug": "close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization",
+  "title": "Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs",
+  "description": "Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "7df304a20edd77a5cc32396a1239b08577605077",
+  "created_at": 1788980970,
+  "updated_at": 1788982522,
+  "affected_specs": [
+    "hooks",
+    "config",
+    "merge",
+    "git_utils",
+    "change"
+  ],
+  "affected_paths": [
+    "src/hooks.rs",
+    "src/config.rs",
+    "src/merge.rs",
+    "src/git_utils.rs",
+    "src/change.rs",
+    "src/change_tests.rs",
+    "tests/integration/config.rs",
+    "tests/integration/quickstart.rs",
+    "MIGRATION.md",
+    "docs/6-0-confidence-report.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "init then add-spec then check then hooks install then git commit succeeds without --no-verify; malformed TOML (garbage, empty file, directory-as-config, invalid enforcement enum) makes rules/rehash/compact/deps/archive-tasks/view exit 1 with could not be loaded, same as malformed JSON; no-config-file still uses defaults; unmerged_paths spawns git through git_cmd so GITHUB_TOKEN/AWS_SECRET_ACCESS_KEY/SPECSYNC_TEST_SECRET are absent from the child; v1 Verifying next_action names verify then accept then archive; uncovered-path remediation uses --kind bug-fix; MIGRATION.md has a copy-pasteable v1 close-out with merge-then-archive, commit of workflow-v2-baseline.json and adoption-report.json, names both change check and that verify no longer runs verification_commands, and states adopt is silent on committed still-active v1; confidence-report rows for #653 and MCP sanitization match the tree"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

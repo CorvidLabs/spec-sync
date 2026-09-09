@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "v1-verification-freshness-test-expects-verify-accept-archive-next-action",
+  "implementation_commit": "edf45f036c73a7afeec3fb2e25cb9185d1a2fe25",
+  "implementation_tree": "77ba6c5c5f81aef5eaf4079862428397f8eea34f",
+  "contract_digest": "16c98e130824e827f2ec04b9afa6daa163442798843a9fb1669e7c5c6b178833",
+  "workspace_digest": "0d42477d24a56a01d0264f1e95ab4acdbea504b3e8aa22a4055cf7cd5fbe05ae",
+  "closing_digest": "16ae8a099b1b32247f5112331710e88f485a69b44fa2c536986a7d2430c57c1f",
+  "review_digest": "5113307cc39ac5b9763ce2e0a2185366360f8253fba72714c0be0c549c689dd0",
+  "finalization_digest": "2ece5db7fd98a87f4023ae1c8ee60b8bc07f5ba7049f7eb364d3aafa9b2c2ee4",
+  "timestamp": 1788985734
+}

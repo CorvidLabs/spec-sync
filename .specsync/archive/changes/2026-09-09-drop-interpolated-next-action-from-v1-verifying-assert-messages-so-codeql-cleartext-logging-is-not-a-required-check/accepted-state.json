@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "drop-interpolated-next-action-from-v1-verifying-assert-messages-so-codeql-cleartext-logging-is-not-a-required-check",
+  "slug": "drop-interpolated-next-action-from-v1-verifying-assert-messages-so-codeql-cleartext-logging-is-not-a-required-check",
+  "title": "Drop interpolated next_action from v1 verifying assert messages so CodeQL cleartext-logging is not a required-check failure",
+  "description": "drop interpolated next_action from v1 verifying assert messages so CodeQL cleartext-logging is not a required-check failure",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "0bdfffc065f1cd624fe272073642eb1898f8b595",
+  "created_at": 1788987607,
+  "updated_at": 1788988589,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change_tests.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "workflow_v1_verifying_next_action_names_verify_accept_archive keeps its substring assertions but its panic messages do not interpolate next_action; cargo test that test passes; CodeQL rust/cleartext-logging alerts 72 and 73 close"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

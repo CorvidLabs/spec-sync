@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "drop-interpolated-next-action-from-v1-verifying-assert-messages-so-codeql-cleartext-logging-is-not-a-required-check",
+  "implementation_commit": "b76a2f87e5387e2402840e9b41251ff41f1f793f",
+  "implementation_tree": "5d8b546a10442c193ee01a1057725c3068068ee1",
+  "contract_digest": "de9ee52e3ace52a1e8cde3b4259ced9f1c092d237b1d36739720e0fd5c32c28a",
+  "workspace_digest": "f19079d2b3acfec155b5297787b3d76343fc1096e9c87047902dfdeb0064304a",
+  "closing_digest": "2554c68070e4f55ef3e898fea3bd3bfaf6ba04216b0bcf9b875e249e6f926b31",
+  "review_digest": "a1c9c89aa78c9511436363da81994e9816948e80eaf70bf2784ab3872e1fcc0a",
+  "finalization_digest": "d80ed32d1ac2f01db841d3901edf5d5f31205c22665b31f0d6f9f8450df98187",
+  "timestamp": 1788988589
+}

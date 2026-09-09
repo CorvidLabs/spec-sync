@@ -1,0 +1,64 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788981234,
+      "digest": "528040c9d6bd447889b8710b522a998f34cb593955e2c1fccabc6f436ec511e1",
+      "note": "owner pre-authorization per docs/6-0-overnight-brief.md; human inspection at PR merge",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization",
+        "title": "Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs",
+        "description": "Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "config",
+          "git_utils",
+          "hooks",
+          "merge"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "MIGRATION.md",
+          "docs/6-0-confidence-report.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/config.rs",
+          "src/git_utils.rs",
+          "src/hooks.rs",
+          "src/merge.rs",
+          "tests/integration/config.rs",
+          "tests/integration/quickstart.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "init then add-spec then check then hooks install then git commit succeeds without --no-verify; malformed TOML (garbage, empty file, directory-as-config, invalid enforcement enum) makes rules/rehash/compact/deps/archive-tasks/view exit 1 with could not be loaded, same as malformed JSON; no-config-file still uses defaults; unmerged_paths spawns git through git_cmd so GITHUB_TOKEN/AWS_SECRET_ACCESS_KEY/SPECSYNC_TEST_SECRET are absent from the child; v1 Verifying next_action names verify then accept then archive; uncovered-path remediation uses --kind bug-fix; MIGRATION.md has a copy-pasteable v1 close-out with merge-then-archive, commit of workflow-v2-baseline.json and adoption-report.json, names both change check and that verify no longer runs verification_commands, and states adopt is silent on committed still-active v1; confidence-report rows for #653 and MCP sanitization match the tree"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "814f2ece55ddfb5d615a5df3c21964ed1d02efee2021610217c1860b4931d481",
+        "config": "8854fed7e97a316e31dfaa1e3df959143dad3d9ec6bf4894158eef3681e279d8",
+        "git_utils": "9debf56ed6fbe3fde0ab4b4157646fa388481bf39a6fc9c578894ceebd356903",
+        "hooks": "06aa5da692ee250fa88858b6c7617766483fd20543b2623beae98deb86943158",
+        "merge": "19010bdad5a15a3ecd54246fb9d716a3e5bcfe4dce86cd57077950c1bfd545d6"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788982253,
+      "digest": "c4c26f80a16a59dfcbebaeb48031771b8c483ec24826d79abba595d593f700ea",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

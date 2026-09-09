@@ -381,6 +381,9 @@ pub(crate) fn parse_config_content_checked_with_source_dirs(
     detected_source_dirs: Option<Vec<String>>,
 ) -> Result<SpecSyncConfig, String> {
     let content = content.trim_start_matches('\u{feff}');
+    if content.trim().is_empty() {
+        return Err("config file is empty".to_string());
+    }
     let is_toml = config_path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -388,7 +391,11 @@ pub(crate) fn parse_config_content_checked_with_source_dirs(
     let mut config = if is_toml {
         let table = toml::from_str::<toml::Table>(content).map_err(|error| error.to_string())?;
         validate_toml_config_types(&table)?;
-        parse_toml_config_with_source_dirs(content, root, detected_source_dirs.as_deref())
+        if let Some(dirs) = detected_source_dirs.as_deref() {
+            parse_toml_config_with_source_dirs(content, root, Some(dirs))
+        } else {
+            parse_toml_config(content, root)
+        }
     } else {
         let value = serde_json::from_str::<serde_json::Value>(content)
             .map_err(|error| error.to_string())?;
@@ -430,6 +437,16 @@ fn validate_toml_config_types(table: &toml::Table) -> Result<(), String> {
         "enforcement",
     ] {
         validate_toml_field(table, key, "a string", toml::Value::is_str)?;
+    }
+    if let Some(enforcement) = table.get("enforcement").and_then(toml::Value::as_str)
+        && !matches!(
+            enforcement,
+            "strict" | "warn" | "enforce-new" | "enforce_new"
+        )
+    {
+        return Err(format!(
+            "unknown enforcement \"{enforcement}\" (expected \"warn\", \"enforce-new\", or \"strict\")"
+        ));
     }
     for key in [
         "source_dirs",
@@ -1244,7 +1261,22 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
-    parse_toml_config(&content, root)
+    match parse_config_content_checked(config_path, &content, root) {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!(
+                "Warning: failed to parse {}: {error}",
+                config_path.display()
+            );
+            SpecSyncConfig {
+                load_error: Some(format!(
+                    "config file {} exists but could not be loaded; built-in defaults are in use",
+                    config_path.display()
+                )),
+                ..SpecSyncConfig::default()
+            }
+        }
+    }
 }
 
 fn parse_toml_config(content: &str, root: &Path) -> SpecSyncConfig {
@@ -2075,32 +2107,44 @@ mod tests {
 
     #[test]
     fn test_load_config_toml_unterminated_array_bounds_damage() {
-        // A malformed (unterminated) multi-line array must NOT swallow the
-        // following keys — only its own key is affected.
+        // Invalid TOML (unterminated multi-line array) must fail closed, not
+        // silently apply a partial parse of the keys after the damage.
         let tmp = TempDir::new().unwrap();
         fs::write(
             tmp.path().join(".specsync.toml"),
             "source_dirs = [\n  \"src\",\n  \"lib\"\nspecs_dir = \"myspecs\"\nexclude_dirs = [\"target\"]\n",
         )
         .unwrap();
-        let config = load_config(tmp.path());
-        // The key AFTER the unterminated array still parses correctly.
-        assert_eq!(config.specs_dir, "myspecs");
-        assert_eq!(config.exclude_dirs, vec!["target"]);
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config
+                .load_error
+                .as_deref()
+                .is_some_and(|error| { error.contains("could not be loaded") }),
+            "unterminated TOML array must set load_error, got {:?}",
+            config.load_error
+        );
     }
 
     #[test]
     fn test_load_config_toml_unterminated_array_before_section_preserved() {
-        // A malformed unterminated array followed by a `[section]` header must not
-        // absorb the header — the section's keys must still parse.
+        // Invalid TOML (unterminated array then a section header) must fail closed
+        // rather than absorbing the header into the array and applying defaults.
         let tmp = TempDir::new().unwrap();
         fs::write(
             tmp.path().join(".specsync.toml"),
             "source_dirs = [\n  \"src\"\n[lifecycle]\nallowed_statuses = [\"draft\", \"active\"]\n",
         )
         .unwrap();
-        let config = load_config(tmp.path());
-        assert_eq!(config.lifecycle.allowed_statuses, vec!["draft", "active"]);
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config
+                .load_error
+                .as_deref()
+                .is_some_and(|error| { error.contains("could not be loaded") }),
+            "unterminated TOML array before a section must set load_error, got {:?}",
+            config.load_error
+        );
     }
 
     #[test]
@@ -2357,6 +2401,78 @@ mod tests {
     }
 
     #[test]
+    fn test_load_config_malformed_toml_sets_load_error() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "not = [ valid toml {{{",
+        )
+        .unwrap();
+
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config.load_error.as_deref().is_some_and(|error| {
+                error.contains("could not be loaded") && error.contains("config.toml")
+            }),
+            "malformed TOML must set load_error, got {:?}",
+            config.load_error
+        );
+        assert_eq!(config.specs_dir, "specs");
+    }
+
+    #[test]
+    fn test_load_config_empty_toml_sets_load_error() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(tmp.path().join(".specsync/config.toml"), "   \n").unwrap();
+
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config.load_error.as_deref().is_some_and(|error| {
+                error.contains("could not be loaded") && error.contains("config.toml")
+            }),
+            "empty TOML must set load_error, got {:?}",
+            config.load_error
+        );
+    }
+
+    #[test]
+    fn test_load_config_directory_as_toml_sets_load_error() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync/config.toml")).unwrap();
+
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config.load_error.as_deref().is_some_and(|error| {
+                error.contains("could not be loaded") && error.contains("config.toml")
+            }),
+            "directory standing in for config.toml must set load_error, got {:?}",
+            config.load_error
+        );
+    }
+
+    #[test]
+    fn test_load_config_invalid_enforcement_enum_sets_load_error() {
+        let tmp = TempDir::new().unwrap();
+        fs::create_dir_all(tmp.path().join(".specsync")).unwrap();
+        fs::write(
+            tmp.path().join(".specsync/config.toml"),
+            "enforcement = \"nope\"\n",
+        )
+        .unwrap();
+
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config.load_error.as_deref().is_some_and(|error| {
+                error.contains("could not be loaded") && error.contains("config.toml")
+            }),
+            "invalid enforcement enum must set load_error, got {:?}",
+            config.load_error
+        );
+    }
+
+    #[test]
     fn json_github_repo_wrong_types_fail_closed_without_discarding_valid_config() {
         for invalid_repo in [
             serde_json::json!(42),
@@ -2468,7 +2584,7 @@ mod tests {
 specs_dir = "specs"
 source_dirs = ["src", "lib"]
 schema_dir = "db/schema"
-schema_pattern = "CREATE TABLE (\w+)"
+schema_pattern = 'CREATE TABLE (\w+)'
 exclude_dirs = ["__tests__"]
 exclude_patterns = ["**/*.test.ts"]
 source_extensions = [".ts", ".rs"]
@@ -2495,6 +2611,10 @@ verify_issues = false
         assert_eq!(config.specs_dir, "specs");
         assert_eq!(config.source_dirs, vec!["src", "lib"]);
         assert_eq!(config.schema_dir.as_deref(), Some("db/schema"));
+        assert_eq!(
+            config.schema_pattern.as_deref(),
+            Some(r"CREATE TABLE (\w+)")
+        );
         assert_eq!(config.exclude_dirs, vec!["__tests__"]);
         assert_eq!(config.exclude_patterns, vec!["**/*.test.ts"]);
         assert_eq!(config.source_extensions, vec![".ts", ".rs"]);
@@ -2517,6 +2637,27 @@ verify_issues = false
         assert_eq!(gh.repo.as_deref(), Some("CorvidLabs/spec-sync"));
         assert_eq!(gh.drift_labels, vec!["spec-drift", "needs-update"]);
         assert!(!gh.verify_issues);
+    }
+
+    #[test]
+    fn test_toml_invalid_schema_pattern_escape_sets_load_error() {
+        // A regex in a TOML basic string cannot use `\\w`; that escape is illegal
+        // and must set load_error rather than process::exit via load_config.
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".specsync.toml"),
+            "schema_pattern = \"CREATE TABLE (\\w+)\"\n",
+        )
+        .unwrap();
+        let config = load_config_allowing_unloadable(tmp.path());
+        assert!(
+            config
+                .load_error
+                .as_deref()
+                .is_some_and(|error| error.contains("could not be loaded")),
+            "illegal TOML escape in schema_pattern must set load_error, got {:?}",
+            config.load_error
+        );
     }
 
     #[test]

@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1788984646,
+      "commit": "a9169aacb0d8807c85dd5e752ebe32453d9c9b8b",
+      "contract_digest": "d4a6b1f96bda93e5ca66d32d78edccd7a12c6c34e66ce4ebef3f98fad6a5cc46",
+      "execution_digest": "67d934010bfd2efa31bce502300403abcacfdac5c8514de28e0c791e317dee91",
+      "workspace_digest": "07c16ddf4ccef2e691efd15bfbe8160991a778690abf1509857295d523aa5aba",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec config",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1788984647,
+      "commit": "0e0d387ce7f1df306023597117b3798f1211b215",
+      "contract_digest": "d4a6b1f96bda93e5ca66d32d78edccd7a12c6c34e66ce4ebef3f98fad6a5cc46",
+      "execution_digest": "67d934010bfd2efa31bce502300403abcacfdac5c8514de28e0c791e317dee91",
+      "workspace_digest": "07c16ddf4ccef2e691efd15bfbe8160991a778690abf1509857295d523aa5aba",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec config",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1788984647,
+      "commit": "b23a4b20862de6fd0af10e9f91ef3e44a8408827",
+      "contract_digest": "d4a6b1f96bda93e5ca66d32d78edccd7a12c6c34e66ce4ebef3f98fad6a5cc46",
+      "execution_digest": "67d934010bfd2efa31bce502300403abcacfdac5c8514de28e0c791e317dee91",
+      "workspace_digest": "07c16ddf4ccef2e691efd15bfbe8160991a778690abf1509857295d523aa5aba",
+      "acceptance_input_digest": "5e89c53170f3fb5d3a3b7c8cd6167181bcb907889a3b21649a467a2eb008c5ea",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/config/config.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ccc013e5564b7b402e57dbf2e8e4e4a8d161e44e18844d42fc8b945e0de101c0",
+            "entry_digest": "96da5f4be7713fcfeb5ba5b5557c05f99b56b0d1fed3b976e5038b82ce83eec7",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "86e8fcf5ad34f8ac91713fb8eb6b1d4231f8cf6c203155fb7e0ceafc63363dff",
+            "entry_digest": "35338f90b476299c8d2c4341c9d6d2317a9691fa1834aa1ccaf12c5ed01a6bbf",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "997f67ff624833c16b8d76112de4fb79658c481b335762b4d484fa0a1672ee32",
+            "entry_digest": "41695a615b23fa25235df03aa8aa8a0ba65a2b280b78b24f85c73a4c509a19c9",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c7daf38c32a62a60d24fd2233a1aae99b5b2a83a66c686e9bf4e63ff70246b8a",
+            "entry_digest": "4b656aba279d73e40223feb64ae05493ab887c9e351e7ec59855b926a6c2e03e",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2ca429fbabaf1dd990fd9f226661fa9595493995a5a91c1a103e9aa81ad17ad5",
+            "entry_digest": "0a56ab7b8f36e6c7069ace90fcc9808d2240e68b5844970df613d9e56159884c",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "src/config.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "cf84bc5e2658cb0c021305f50c4639c04082624e2ba6f060953ef9500b5c30c9",
+            "entry_digest": "99dd0cbc0bb9fe002d186e3f24bb5b64d6586c1a4841c889affd366ed0b2d51c",
+            "owners": [
+              "config"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec config",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

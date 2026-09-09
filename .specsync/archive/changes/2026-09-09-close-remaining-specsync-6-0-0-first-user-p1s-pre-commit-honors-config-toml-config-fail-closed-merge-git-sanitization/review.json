@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "5c3bbbce6473994dc8ad50d0feacb34b2555b959",
+  "contract_digest": "528040c9d6bd447889b8710b522a998f34cb593955e2c1fccabc6f436ec511e1",
+  "execution_digest": "754d7abdd571160ed5d8514f3d7fb08b9b13a6728afa806d7f14ad971bbea398",
+  "workspace_digest": "7a731f3f086b9f37704b2718bd4440aabc4f2d577bade316e5a2fbb4b25849e8",
+  "timestamp": 1788982243
+}

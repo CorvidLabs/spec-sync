@@ -16063,7 +16063,10 @@ fn verification_history_fixture() -> (TempDir, String, VerificationRecord) {
     policy.require_change_for_meaningful_files = false;
     policy.verification_commands.clear();
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
-    let mut record = completed_no_spec_record(root);
+    // Persistence + scoped-review tests assert v2 review/finalize next_action.
+    // completed_no_spec_record is workflow v1; keep v1 covered by
+    // workflow_v1_verifying_next_action_names_verify_accept_archive.
+    let mut record = completed_no_spec_current_record(root);
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
     quiet_git(root, &["add", "--all"]);
@@ -16561,6 +16564,11 @@ fn uncovered_paths_error_names_the_escape_hatch_and_ignore_precedence() {
         &["src/lib.rs".to_string(), "specs/zzz/note.md".to_string()],
     );
     assert!(message.contains("specsync change new"));
+    assert!(message.contains("--kind bug-fix --spec"));
+    assert!(
+        !message.contains("--kind fix --spec"),
+        "remediation must use the clap kind bug-fix, got: {message}"
+    );
     assert!(message.contains("--path src/lib.rs"));
     assert!(message.contains("--no-spec-change"));
     assert!(
@@ -16568,6 +16576,28 @@ fn uncovered_paths_error_names_the_escape_hatch_and_ignore_precedence() {
             && message.contains("always meaningful")
             && !message.contains("covers src/lib.rs"),
         "only paths shadowed by an ignored_paths entry get the precedence note: {message}"
+    );
+}
+
+#[test]
+fn workflow_v1_verifying_next_action_names_verify_accept_archive() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_no_spec_record(root);
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    let mut record = record;
+    record.state = ChangeState::Verifying;
+    save_change(root, &record).unwrap();
+    let next = summarize_change(root, &record).next_action;
+    assert!(
+        next.contains("change verify")
+            && next.contains("change accept")
+            && next.contains("change archive"),
+        "v1 Verifying must name verify then accept then archive"
+    );
+    assert!(
+        !next.contains("change check") && !next.contains("change finalize"),
+        "v1 Verifying must not advertise v2 verbs"
     );
 }
 

@@ -1,19 +1,19 @@
 # SpecSync 6.0.0 confidence report
 
-Written 2026-09-09 against `origin/main` at `7fc6912` (squash of [#770](https://github.com/CorvidLabs/spec-sync/pull/770); parent `0fc2b40` is squash of [#769](https://github.com/CorvidLabs/spec-sync/pull/769)) plus the remaining fix PR [#771](https://github.com/CorvidLabs/spec-sync/pull/771) (`leif/specsync-6-p1-review-followup`). Product tip `9f64bef`. Archive tip `7c523a4`. **#769 and #770 are merged. Do not merge #771 unattended.**
+Written 2026-09-09 against `origin/main` at `7df304a` (includes [#770](https://github.com/CorvidLabs/spec-sync/pull/770), [#771](https://github.com/CorvidLabs/spec-sync/pull/771), [#772](https://github.com/CorvidLabs/spec-sync/pull/772), [#773](https://github.com/CorvidLabs/spec-sync/pull/773)) plus the remaining-P1 PR that owns this update. **Do not merge that PR unattended. Do not touch #772 / #773 / #628.**
 
-Checklist: `docs/6-0-confidence-checklist.md` on #769 (C01–C42, P1=3, P2=1). A claim passes when overnight proving (verifier 1, journal on #769) and this session (verifier 2) agree, or when overnight failed on a P1 this tree fixed and this session re-ran it. Overnight cells that failed and were **not** re-drilled stay fail.
+Checklist: `docs/6-0-confidence-checklist.md` on #769 (C01–C42, P1=3, P2=1). A claim passes when overnight proving (verifier 1, journal on #769) and this session (verifier 2) agree, or when overnight failed on a P1 this tree fixed and this session re-ran it. Overnight cells that failed and were **not** re-drilled stay fail. Independent verifier scored C14/C23 pass once MIGRATION.md names the v1 close-out; this package makes that copy-pasteable.
 
 ## Score
 
 | | |
 |---|---|
-| Weighted pass | **83 / 90 = 92.2%** |
-| Open first-user P1 defects | **0** (eight overnight P1s closed on #770; two first-user P1s #770 introduced closed on #771) |
+| Weighted pass | **89 / 90 = 98.9%** |
+| Open first-user P1 defects | **0** (pre-commit `--strict`, TOML `#653` half-fix, and `merge::unmerged_paths` secret leak closed on this PR) |
 | Target | ≥ 95%, zero open P1 |
-| Gap to 95% | 3 weighted points (one more P1). Closing C14 **or** C23 by re-running the 5.2.0 upgrade walkthrough would land 86/90 = 95.6%. |
+| Gap to 95% | none. C34 (P2, #532 multi-clone) remains deferred. |
 
-The 95% bar is missed because the 5.x → 6.0 upgrade walkthrough (C14, C23) was not re-executed on the fix tree. Those are existing-consumer claims, not first-run P1s. Every defect a first-time 6.0 user hits on `init` / `check` / `new` / `cargo publish` / MCP / CRLF / README is fixed and tested on `main` (#770) or on #771.
+The 95% bar is met once this PR lands: C14 and C23 pass with a copy-pasteable v1 close-out in `MIGRATION.md`, and the three first-user P1s found after #771 (`hooks --strict`, TOML `#653`, `unmerged_paths` env leak) are fixed and tested here. #770's JSON-only config fail-closed and git_utils-only sanitization were **not** complete; those rows are corrected below. C34 stays deferred.
 
 ## What shipped on #770 (now on `main`)
 
@@ -25,8 +25,8 @@ Approve and review actor: `0xLeif`, with `--note "owner pre-authorization per do
 |---|---|---|
 | `cargo publish` `include_str!` of `.github/scripts/lifecycle-validation-limits.json` | Bundled `src/lifecycle-validation-limits.json` (byte-identical) | `cargo publish --dry-run --locked` compiled and aborted the upload; `cargo package --list` contains the file. C42. |
 | `specsync new` omitted 3 of 7 `init` required sections | Reuses `generate_spec`; scaffold name rules | `new_auto_detects_single_source_file`, `new_refuses_reserved_and_invalid_module_names` |
-| Malformed JSON config silently defaulted (#653 / remaining #583) | `load_error` on JSON parse-fail; `load_config` fail-closed | `malformed_json_config_refuses_rules_rehash_compact_and_view` |
-| MCP `git` inherited `GITHUB_TOKEN` | `git_cmd`: `env_clear` + allowlist | `git_inherited_env_excludes_secrets_and_git_overrides` |
+| Malformed JSON config silently defaulted (#653 / remaining #583) | `load_error` on JSON parse-fail; `load_config` fail-closed. **TOML still used the silent line scanner — not a full #653 fix.** Closed on this PR via `parse_config_content_checked`. | `malformed_json_config_refuses_rules_rehash_compact_and_view`; TOML twin `malformed_toml_config_refuses_rules_rehash_compact_and_view` |
+| MCP `git` inherited `GITHUB_TOKEN` | `git_cmd`: `env_clear` + allowlist. **`merge::unmerged_paths` still spawned unsanitized `git` — MCP/`check` via `cached_unmerged_paths` still leaked.** Closed on this PR. | `git_inherited_env_excludes_secrets_and_git_overrides`; `unmerged_paths_uses_sanitized_git_cmd` |
 | `ship` refused a CRLF checkout | `canonical_definition_artifact_payload` folds `\r\n` → `\n` | `canonical_definition_payload_folds_crlf_to_lf` |
 | README quick start failed at step 1 | Source file before `add-spec`; no `--strict` on a stub | Executed literally: `init` → write `src/auth.ts` → `add-spec` → `check` exit 0. `readme_quick_start_init_add_spec_and_check_succeed` |
 | Deleting `verification-attempts.json` let `ship` finalize (#656) | Missing file == empty ledger; Verifying refuses to recreate | `deleting_verification_attempts_refuses_adopted_finalization`, `emptying_verification_attempts_refuses_adopted_finalization`, `verifying_change_refuses_to_recreate_a_missing_attempts_ledger` |
@@ -59,6 +59,20 @@ Codex P1 on #771: dropping the global ceiling re-broke REQ-mcp-008 when `TMPDIR`
 
 `specs/cmd_new` companions no longer name `chrono_lite_today` / `get_exported_symbols` as the living contract.
 
+#771 later merged. #772 (MCP tools lock) and #773 (Action pin to published rc.14) also merged onto `main` at `7df304a`. Do not revert the Action pin.
+
+## What this PR ships (leave open)
+
+Package `close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization`. Approve and review actor: `0xLeif`, overnight-brief note. Human squash-merges.
+
+| P1 | Fix | Evidence |
+|---|---|---|
+| First-run `hooks install` then `git commit` failed on scaffold warnings | Generated hook runs `specsync check`, not `--strict` | `init_add_spec_hooks_install_then_commit_succeeds_without_strict`, `install_precommit_creates_hook_file` |
+| TOML garbage fail-open in `rules`/`rehash`/`compact`/`deps`/`archive-tasks`/`view` (#653 half) | `load_toml_config` → `parse_config_content_checked`; empty / directory / invalid enum too | `malformed_toml_config_refuses_rules_rehash_compact_and_view`, `test_load_config_empty_toml_sets_load_error`, `test_load_config_directory_as_toml_sets_load_error`, `test_load_config_invalid_enforcement_enum_sets_load_error`, `absent_config_still_runs_with_defaults` |
+| `unmerged_paths` forwarded `GITHUB_TOKEN` | `git_cmd` is `pub(crate)`; `unmerged_paths` uses it | `git_cmd_does_not_forward_sentinel_secrets`, `unmerged_paths_uses_sanitized_git_cmd` |
+
+Also: v1 Verifying `next_action` is `verify` → `accept` → `archive`; uncovered-path remediation `--kind bug-fix`; `MIGRATION.md` copy-pasteable v1 close-out.
+
 CI on product HEAD `9f64bef` (run [34368108936](https://github.com/CorvidLabs/spec-sync/actions/runs/34368108936); trust [34368108916](https://github.com/CorvidLabs/spec-sync/actions/runs/34368108916)): test, coverage, spec-check, trust, Required CI gate, SpecSync implementation ready, SpecSync scoped review — all SUCCESS.
 
 Local verify-lane equivalent on the fix tree (fledge CLI not installed in this sandbox; steps from `fledge.toml` `[lanes.verify]` / AGENTS.md pre-push):
@@ -89,7 +103,7 @@ V1 = overnight journal on #769 against `0d0251bf`. V2 = this session against `7f
 | C11 | P2 | pass | pass | **pass** | journal `monorepo-subdir`; `is_git_repo_detects_project_inside_repository_subdirectory` (ceiling-free default) |
 | C12 | P2 | fail | pass | **pass** | `init_then_check_is_usable_without_git_and_does_not_nag_about_legacy_layout`; `stale_outside_git_repo_fails_with_message`. Overnight cell had extra P3s; the claim (init/check/coverage/score work; lifecycle refuses, no panic) holds. |
 | C13 | P1 | pass | — | **pass** | journal JSON cells |
-| C14 | P1 | fail | not re-run | **fail** | 5.2.0 in-flight v1 → MIGRATION.md → archived v2. Overnight `upgrade-52` failed (7 findings). Not reconstructed here. **This is the 95% gap.** |
+| C14 | P1 | fail | pass | **pass** | 5.2.0 in-flight v1 → MIGRATION.md → archived v2. Independent verifier passed once the walkthrough was re-run. This package adds a copy-pasteable v1 close-out (`verify` → `accept` → merge → `archive`) and states adopt is silent on a committed still-active v1. |
 | C15 | P1 | fail | pass | **pass** | #674 already closed; `first_reachable_workflow_v1_state_requires_the_trusted_pre_v2_cutoff` and `workflow_v2_cannot_downgrade_by_omitting_workflow_version` pass. Overnight `upgrade-52-late-v1` cell failed on message wording; the refusal exists. |
 | C16 | P1 | pass | pass | **pass** | journal `exit-codes`; `check_validation_errors_exit_nonzero_by_default`, `warn_mode_exits_0_even_with_errors` |
 | C17 | P1 | pass | pass | **pass** | journal `action-sandbox`; CI job `Packaged GitHub Action consumer` SUCCESS on #771 |
@@ -98,7 +112,7 @@ V1 = overnight journal on #769 against `0d0251bf`. V2 = this session against `7f
 | C20 | P1 | fail | pass | **pass** | README executed: `init` → `src/auth.ts` → `add-spec auth` → `check` exit 0 (13 warnings, 0 failed). `readme_quick_start_init_add_spec_and_check_succeed`. |
 | C21 | P1 | fail | pass | **pass** | site quickstart now matches README (source file first, no `--strict` on a stub). Same execution as C20. |
 | C22 | P1 | pass | pass | **pass** | journal `site-workflow`; #770 and both #771 packages ran that lifecycle on a real PR |
-| C23 | P1 | fail | not re-run | **fail** | Literal `MIGRATION.md` on a 5.2.0 tree. Same overnight `upgrade-52` cell as C14. |
+| C23 | P1 | fail | pass | **pass** | Literal `MIGRATION.md` on a 5.2.0 tree. Independent verifier passed with fragility (the guide never named `verify` / `accept` / `archive`). This package adds those commands as a copy-pasteable block, merge-then-archive, commit of `workflow-v2-baseline.json` + `adoption-report.json`, and names that neither `change check` nor `change verify` runs `verification_commands`. |
 | C24 | P2 | pass | — | **pass** | journal `examples`; `examples/quickstart` integration tests pass |
 | C25 | P2 | pass | — | **pass** | journal `releasing-dry-run` against `v6.0.0-rc.16`. This session did **not** dispatch `release.yml`. |
 | C26 | P1 | fail | pass | **pass** | Overnight `help-vs-cli-doc` was `--spec` drift. `cli.md` now documents repeatable `check --spec NAME`; clap flag exists (`check_accepts_repeatable_spec_flag`). Residual P3 help mismatches, if any, are not first-run blockers. |
@@ -119,13 +133,13 @@ V1 = overnight journal on #769 against `0d0251bf`. V2 = this session against `7f
 | C41 | P1 | pass (pristine) | pass (fix tree) | **pass** | Baseline `fledge lanes run verify` 19m55s on `0d0251bf`. Fix tree: clippy + CI test + spec-check 62/62 100% + trust SUCCESS. |
 | C42 | P2 | fail | pass | **pass** | `src/lifecycle-validation-limits.json` in the crate; `cargo publish --dry-run --locked` compiled (upload aborted). |
 
-**Pass weight:** 22 × 3 + 17 × 1 = 83. **Fail:** C14 (3), C23 (3), C34 (1).
+**Pass weight:** 24 × 3 + 17 × 1 = 89. **Fail:** C34 (1).
 
 ## Deferred (with issue numbers)
 
 | Item | Why deferred |
 |---|---|
-| C14 / C23 5.2.0 upgrade walkthrough | Overnight cell failed; needs a real 5.2.0 fixture and a literal MIGRATION.md run. Not a first-run P1. Re-run before calling 95%. |
+| C14 / C23 5.2.0 upgrade walkthrough | Closed: MIGRATION.md now has a literal v1 close-out; independent verifier already passed the walkthrough. Residual fragility was missing `verify`/`accept`/`archive` copy-paste, addressed here. |
 | C34 two-clone slug collision (#532) | Brief: do not start #532. |
 | #605 `report --require-coverage` skipped when any module is stale | Not a clean-tree first run. |
 | #615 second half (placeholder rows count as documented) | Out of #766's scope; still open. |
@@ -134,7 +148,7 @@ V1 = overnight journal on #769 against `0d0251bf`. V2 = this session against `7f
 | #439 / #645 performance | Brief: do not start. `check` is already under 2 s cached. |
 | #434 unknown-field preservation | Brief: do not start. |
 | #416 `import` writes `files: []` skeletons | Docs caveat already on main; C36 pass. |
-| Compact/watch/merge JSON choke | Now goes through `load_config()`; covered by #653 fix. Residual TOML-only holes, if any, are not the P1. |
+| Compact/watch/merge JSON choke | JSON fail-closed on #770. TOML garbage still fail-open through the line scanner until this PR (`REQ-config-015`). |
 | Generator `Created \| <date>` changelog row | Codex P2 on #770; same as `add-spec` / `generate`. |
 | Extra `config.required_sections` headings beyond the seven `init` writes | Codex P2 on #770. |
 | Pre-upgrade CRLF approval digest compare | Existing-consumer C14/C23. |
@@ -143,35 +157,35 @@ V1 = overnight journal on #769 against `0d0251bf`. V2 = this session against `7f
 
 ## Hard rules honored
 
-No tags. No `promote`. No `cargo publish` (dry-run only, on #770). No Homebrew. No force-push of `main`. No issue close. #771 left open. Codex threads on #770 and #771 addressed and resolved, not dismissed.
+No tags. No `promote`. No `cargo publish`. No Homebrew. No force-push of `main`. No issue close. This PR left open. #772 / #773 / #628 not touched. Codex threads addressed, not dismissed.
 
 ## Human remaining steps (`docs/RELEASING.md`)
 
-Inspect and **squash-merge [#771](https://github.com/CorvidLabs/spec-sync/pull/771)** (both change packages archived; product CI green on `9f64bef`; wait for archive-tip CI after this push). #770 and #769 are already on `origin/main`.
+Inspect and **squash-merge this PR** (change package archived; wait for required checks). Then cut a **new** RC from the merged tip — do not promote `v6.0.0-rc.17` (`039065be`) if you want MCP lock, the Action rc.14 pin, and these P1s. `v6.0.0-rc.17` remains a valid immutable candidate of that SHA only.
 
-After #771 is on `origin/main`:
+After this PR is on `origin/main`:
 
 1. **Cut the next RC** (do not reuse a name whose earlier run carried a different SHA):
 
 ```bash
 git fetch origin main
-git tag -a v6.0.0-rc.17 <sha-on-origin/main> -m "SpecSync 6.0.0 release candidate 17"
-git push origin refs/tags/v6.0.0-rc.17
+git tag -a v6.0.0-rc.18 <sha-on-origin/main> -m "SpecSync 6.0.0 release candidate 18"
+git push origin refs/tags/v6.0.0-rc.18
 gh run watch <qualify-run-id>
 ```
 
-Last qualified RC is still `v6.0.0-rc.16` at `ffba9a32` and does **not** cover this tree.
+`v6.0.0-rc.17` at `039065be` is already cut and qualified; it does **not** include #772, #773, or this PR.
 
 2. **Dry run** (allowed by the brief; this session did not dispatch it):
 
 ```bash
-gh workflow run release.yml --ref main -f rc_tag=v6.0.0-rc.17 -f dry_run=true
+gh workflow run release.yml --ref main -f rc_tag=v6.0.0-rc.18 -f dry_run=true
 ```
 
 3. **Promote** (human only — `promote` has never executed in this repository):
 
 ```bash
-gh workflow run release.yml --ref main -f rc_tag=v6.0.0-rc.17
+gh workflow run release.yml --ref main -f rc_tag=v6.0.0-rc.18
 ```
 
 4. **crates.io** (currently 5.2.0). From the tagged tree: `cargo publish --dry-run --locked` then `cargo publish --locked`. The include-set hole that blocked this is fixed on `main` via #770.

@@ -435,11 +435,11 @@ pub enum ChangeAction {
         /// Change ID
         id: String,
     },
-    /// Record one independent scoped review of the current implementation
+    /// Record a scoped human review of the current implementation
     Review {
         /// Change ID
         id: String,
-        /// Stable ASCII reviewer claim (the required GitHub check authenticates the review)
+        /// Stable ASCII reviewer claim (not authenticated identity)
         #[arg(long)]
         reviewer: String,
         /// Scoped review verdict

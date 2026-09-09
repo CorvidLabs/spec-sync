@@ -663,7 +663,8 @@ Agent-authored changes SHALL receive one scoped review of implementation evidenc
 Acceptance Criteria
 
 - Review input contains only the change package, implementation diff, canonical semantic delta, and targeted evidence.
-- The result binds the implementation parent commit, those input digests, an explicit pass/block verdict, a stable reviewer claim, and the exact required GitHub Actions check whose authenticated result is proven again by finalization.
+- The result binds the implementation parent commit, those input digests, an explicit pass/block verdict, a stable reviewer claim, and the stored provenance-provider declaration. Local validation checks that declaration and content freshness; it does not authenticate reviewer identity or fetch a live GitHub check verdict.
+- Authenticated identity or provenance enforcement requires separately configured hosted checks and policy verification. A reviewer label or stored provider declaration alone is not that enforcement.
 - The reviewer claim MAY equal the definition approver (comparison is still case-insensitive for identity, not for refusal).
 - Every review attempt is append-only; `review.json` is only the latest projection and cannot erase a prior blocking result.
 - Native review recording and finalization run the same every-parent verification-freshness validator as project checking.

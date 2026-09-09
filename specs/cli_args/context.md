@@ -26,7 +26,8 @@ Stable deterministic grammar for the core and agent-native integrations. Help te
 `Mcp` carries one `allow_write` boolean; dispatch passes it directly to the stdio server without changing global `--root` behavior.
 
 The newcomer review command stays plain: `change review <id> --reviewer <identity>` records a
-passing result by default, while `--verdict block` lets an independent reviewer persist a blocking
-conclusion that finalization must reject. The identity is a bounded ASCII claim; authenticated
-independence comes from the required GitHub Actions check, and every pass/block remains in
-append-only history.
+passing result by default, while `--verdict block` lets a scoped human reviewer persist a blocking
+conclusion that finalization must reject. The identity is a bounded ASCII claim. Local recording
+and finalization do not authenticate a person or fetch an authenticated GitHub verdict; repositories
+requiring that enforcement must configure hosted checks and provenance policy separately. Every
+pass/block remains in append-only history.

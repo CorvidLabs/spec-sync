@@ -60,7 +60,7 @@ requirements.md  why the behavior exists and how success is judged
 auth.spec.md      the module/API contract checked against code
 context.md        decisions, constraints, and files the next agent needs
 testing.md        requirement-to-test evidence
-CHG-*/            approved deltas, verification, and the delivery audit trail
+<change-id>/      approved deltas, verification, and the delivery audit trail
 ```
 
 Add the missing contract row—or make the export private—then rerun the check. CI turns green while the requirement, context, evidence, and exact contract change remain reviewable in Git.
@@ -86,28 +86,43 @@ It also provides a verified spec-driven development lifecycle, coverage gates, q
 
 SpecSync's core is deterministic and local. It does not require a hosted SpecSync service, Corvid AI account, provider key, or embedded model. Claude, Cursor, Codex, Gemini, and other coding agents use the same CLI and lifecycle through their own permissions.
 
+A successful structural check does not prove arbitrary natural-language behavior or execute product tests. Reviewers and product tests establish those behaviors; keep those checks in CI.
+
 ## Verified change workflow
 
 SpecSync 6.0 keeps one change package and one user-facing path from scope to merge:
 
 ```bash
 specsync change new "Add passkeys" --spec auth --path src/auth.rs --json
-specsync change answer CHG-0001-add-passkeys acceptance_criteria \
+specsync change answer add-passkeys acceptance_criteria \
   "A registered passkey authenticates the user" --json
-specsync change approve CHG-0001-add-passkeys
+# answer the remaining interview questions and complete the selected artifacts/deltas
+specsync change approve add-passkeys --actor "Ada"
 
-# implement the approved contract or semantic delta
-specsync change check CHG-0001-add-passkeys
-# open/update the PR; ordinary review + SpecSync scoped review run once
-specsync change finalize CHG-0001-add-passkeys
-# commit the metadata/archive-only result; GitHub performs the merge
+# implement the approved contract and run product tests
+specsync change check add-passkeys --commit
+# push after local gates; wait for required CI and complete human implementation review
+specsync change review add-passkeys --reviewer "Ada"
+specsync change finalize add-passkeys
+# no commit between review and finalize; commit/push the archive, wait for CI, then merge
 ```
 
-The one scope approval is human, portable, and digest-bound. Verification is targeted to affected components; explicit `--strict`, policy, and release/security classification add validators without changing the workflow. Finalization atomically updates canonical specs and archives the package in the same PR. Dirty edits invalidate evidence instead of silently changing the reviewed result.
+The scope approval binds human-approved content. The reviewer may be that same person.
+Actor/reviewer labels and stored provider declarations are claims, not authenticated identity;
+configure hosted checks and signed provenance policy separately when authentication is required.
+`change check` materializes approved deltas and records scoped structural verification; it does
+not execute project tests. `finalize` archives the package on the same PR. Merge only after
+all active changes on the PR are archived. Use `change status` for eligible recovery, including
+workflow-v2 `reopen` when accepted or archived evidence becomes stale.
 
 [Read the workflow guide](site/src/content/docs/workflow.md) or run the [complete lifecycle example](examples/sdd-lifecycle/).
 
 ## Install
+
+The stable 6.0 examples below apply after publication to the corresponding channel. During
+the candidate period, select an explicit RC source tag or a published prerelease with binary
+assets, and check `specsync --version`; Cargo, Homebrew, and GitHub Releases are separate
+publication steps. Pin all lifecycle writers and CI to the selected 6.x version.
 
 ### Cargo
 
@@ -153,7 +168,7 @@ under WSL, or build it from source with `cargo install specsync`.
 ## Quick start
 
 ```bash
-# Initialize configuration and the verified lifecycle
+# Initialize configuration with the change workflow off
 specsync init
 
 # Scaffold a module contract and companion files
@@ -193,7 +208,7 @@ specs/auth/
 | `tasks.md` | Work still to do; requirements are not checkboxes |
 | `context.md` | Decisions, constraints, key files, and handoff state |
 | `testing.md` | Requirement traceability, automated coverage, manual QA, and adversarial cases |
-| `.specsync/changes/CHG-*` | Proposed deltas, approvals, verification, and closing evidence |
+| `.specsync/changes/<change-id>/` | Proposed deltas, approvals, verification, and closing evidence |
 
 [Read the complete spec format](site/src/content/docs/spec-format.md), [companion-file reference](site/src/content/docs/companion-files.md), and [workflow conventions](site/src/content/docs/workflow.md).
 

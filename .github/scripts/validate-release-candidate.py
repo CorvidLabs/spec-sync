@@ -954,8 +954,8 @@ def evidence_directory_result(
         if extra:
             details.append(f"unexpected {', '.join(extra)}")
         raise ValidationError(
-            "evidence directory must contain exactly ubuntu.json, macos.json, and "
-            f"windows.json ({'; '.join(details)})"
+            "evidence directory must contain exactly "
+            f"{', '.join(expected_names)} ({'; '.join(details)})"
         )
     evidence_paths = [evidence_dir / name for name in expected_names]
     for evidence_path in evidence_paths:
@@ -1105,7 +1105,7 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
 
     evidence = commands.add_parser(
         "evidence",
-        help="validate exactly ubuntu/macos/windows evidence for one RC tag and SHA",
+        help=f"validate exactly {'/'.join(REQUIRED_PLATFORMS)} evidence for one RC tag and SHA",
     )
     evidence.add_argument("--rc-tag", required=True)
     evidence.add_argument("--candidate-sha", required=True)

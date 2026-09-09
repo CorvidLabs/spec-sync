@@ -1151,6 +1151,41 @@ class WorkflowSourceContractTests(unittest.TestCase):
         self.assertEqual(qualify_job.count(invocation), 1)
         self.assertEqual(release.count(invocation), 1)
 
+    def assert_workflow_evidence_guard_matches_required_platforms(self, job: str) -> None:
+        release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        start = release.index(f"\n  {job}:\n") + 1
+        next_job = re.search(r"(?m)^  [a-z][a-z0-9_-]*:$", release[start + 1 :])
+        end = start + 1 + next_job.start() if next_job else len(release)
+        guards = re.findall(
+            r'(?ms)^          if \[\[ "\$\{#evidence_files\[@\]\}" .*?^          fi$',
+            release[start:end],
+        )
+        self.assertEqual(len(guards), 1, f"{job} must retain its evidence cardinality guard")
+        required_count = len(VALIDATOR_MODULE.REQUIRED_PLATFORMS)
+        for count in range(required_count + 3):
+            with self.subTest(job=job, evidence_count=count):
+                receipts = " ".join(f"receipt-{index}.json" for index in range(count))
+                script = f"evidence_files=({receipts})\n{guards[0]}\nprintf accepted"
+                result = subprocess.run(
+                    ["bash", "-c", script],
+                    text=True,
+                    capture_output=True,
+                    timeout=5,
+                )
+                expected_exit = 0 if count == required_count else 1
+                self.assertEqual(result.returncode, expected_exit, result.stdout + result.stderr)
+                if expected_exit == 0:
+                    self.assertEqual(result.stdout, "accepted")
+                else:
+                    self.assertIn("::error::", result.stdout)
+                    self.assertNotIn("accepted", result.stdout)
+
+    def test_authorization_uses_required_platform_evidence_count(self) -> None:
+        self.assert_workflow_evidence_guard_matches_required_platforms("authorize-release")
+
+    def test_publication_uses_required_platform_evidence_count(self) -> None:
+        self.assert_workflow_evidence_guard_matches_required_platforms("release")
+
     def test_release_entrypoint_is_rc_only_and_never_cancels_in_progress(self) -> None:
         release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
         trigger_start = release.index("\non:\n")

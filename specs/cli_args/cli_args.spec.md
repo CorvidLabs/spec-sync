@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 21
+version: 22
 status: stable
 files:
   - src/cli.rs
@@ -43,6 +43,7 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 5. `change finalize` prepares the current PR and has no merge/provider arguments.
 6. Global `--strict` adds validators to the same change workflow rather than selecting another state machine.
 7. `change review` accepts a stable ASCII reviewer claim, defaults to a passing verdict, and accepts explicit `--verdict pass|block`.
+8. Help does not present a reviewer claim as authenticated identity; separate hosted policy enforces authenticated provenance when configured.
 
 ## Behavioral Examples
 
@@ -142,3 +143,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-08-07 | CHG-0092-complete-buttery-ship-status-tip-class-and-ship-preflight-for-agents: Complete buttery ship status tip class and ship preflight for agents |
 | 2026-08-08 | CHG-0100-ship-push-wait-archive-tip-orchestration-for-buttery-multi-tip-ship: Ship --push --wait archive tip orchestration for buttery multi-tip ship |
 | 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |
+| 2026-09-08 | complete-specsync-6-promotion-and-public-release-contracts: Clarify scoped reviewer claims and the separate authentication policy boundary |

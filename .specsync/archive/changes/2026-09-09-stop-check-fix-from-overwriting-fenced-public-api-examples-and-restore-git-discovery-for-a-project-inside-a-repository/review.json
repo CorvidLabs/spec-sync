@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6795224b84534d96087c6fb9bed2fb27d3f0b196",
+  "contract_digest": "f0ab7c405ed179f54f38c76d8d44f084a0083d29e690cc2d7101fb5ac6593912",
+  "execution_digest": "a2f1e9f9c847c149fa6d0e57d4aabd096bd6b3b7c015c4df2810c3e3e3885c3e",
+  "workspace_digest": "5b4a8c62fe76edf765c6e285c65e69c916fdb28b61b9c94fc03e482c6476428f",
+  "timestamp": 1788965269
+}

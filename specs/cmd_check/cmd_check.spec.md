@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 32
+version: 33
 status: stable
 files:
   - src/commands/check.rs
@@ -55,31 +55,37 @@ optional drift issues. SDD / change / archive history is not part of this comman
 
 ## Behavioral Examples
 
-### Scenario: Incremental check with cache
+#### Scenario: Incremental check with cache
 
 - **Given** 25 specs, 3 have changed since last check
 - **When** `cmd_check` runs without `--force`
 - **Then** only 3 specs are re-validated; 22 are skipped via hash cache and any stored findings are replayed
 
-### Scenario: Warm cache still reports the previous warning
+#### Scenario: Warm cache still reports the previous warning
 
 - **Given** a spec whose first `check` reported an undocumented export, and whose files have not changed
 - **When** `cmd_check` runs again without `--force`
 - **Then** the same warning identity is present in text and JSON, and JSON `specs_checked` is not 0
 
-### Scenario: Auto-fix undocumented exports
+#### Scenario: Auto-fix undocumented exports
 
 - **Given** spec is missing export `pub fn new_function()`
 - **When** `cmd_check` runs with `--fix`
 - **Then** the export is appended to the matching Public API table (functions to the functions table, types to the types table) with a generated description prompt and the file is rewritten
 
-### Scenario: Auto-fix extends an existing table instead of trailing prose
+#### Scenario: Auto-fix extends an existing table instead of trailing prose
 
 - **Given** a `## Public API` section whose table (under a `### Heading`, a `**Bold**` label, or no label) is followed by prose such as an "Acceptance Criteria" paragraph
 - **When** `cmd_check` runs with `--fix` for an undocumented export
 - **Then** the new row is inserted directly after the last row of that table, the prose is preserved after it, pipe-shaped lines inside fenced or indented code examples are never treated as table rows, and a subsequent `check --strict` passes; only a section with no table at all receives rows at its end
 
-### Scenario: JSON output format
+#### Scenario: Auto-fix preserves fenced examples while renaming headers
+
+- **Given** a `## Public API` section that contains a fenced markdown example and a near-miss or bare `###` heading
+- **When** `cmd_check` runs with `--fix`
+- **Then** the heading is normalized and the fenced example body is preserved verbatim
+
+#### Scenario: JSON output format
 
 - **Given** `--format json` is set
 - **When** validation completes with errors and warnings
@@ -156,3 +162,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-30 | make-check-the-product-and-stop-change-check-from-spawning-project-tests: Make check the product and stop change check from spawning project tests |
 | 2026-09-09 | insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help: Insert check --fix export rows into the existing Public API table and state the strict enforcement default in CLI help |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-09-09 | stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository: Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory |

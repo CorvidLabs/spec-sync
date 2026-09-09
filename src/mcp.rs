@@ -748,10 +748,29 @@ impl ProjectSnapshot {
     }
 
     fn create_from_directory(source: &Dir) -> Result<Self, String> {
-        let directory = tempfile::Builder::new()
-            .prefix("specsync-mcp-")
-            .tempdir()
-            .map_err(|error| format!("Cannot create bounded MCP project snapshot: {error}"))?;
+        Self::create_from_directory_in(source, None)
+    }
+
+    #[cfg(test)]
+    fn create_in(root: &Path, temp_parent: &Path) -> Result<Self, String> {
+        let source = Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
+            format!(
+                "Cannot open MCP server root capability {}: {error}",
+                root.display()
+            )
+        })?;
+        Self::create_from_directory_in(&source, Some(temp_parent))
+    }
+
+    fn create_from_directory_in(source: &Dir, temp_parent: Option<&Path>) -> Result<Self, String> {
+        let mut builder = tempfile::Builder::new();
+        builder.prefix("specsync-mcp-");
+        let directory = if let Some(parent) = temp_parent {
+            builder.tempdir_in(parent)
+        } else {
+            builder.tempdir()
+        }
+        .map_err(|error| format!("Cannot create bounded MCP project snapshot: {error}"))?;
         let destination = Dir::open_ambient_dir(directory.path(), ambient_authority())
             .map_err(|error| format!("Cannot open MCP snapshot capability: {error}"))?;
         let mut budget = SnapshotBudget::default();
@@ -809,6 +828,19 @@ impl ProjectSnapshot {
 
     fn git_freshness_available(&self) -> bool {
         self.git_freshness_available
+    }
+}
+
+/// Pin git discovery to `parent(snapshot)` for the duration of `f`.
+///
+/// Snapshots copy the project without `.git`. If the tempfile sits inside a
+/// host worktree (`TMPDIR` pointing at the repo), default walk-up would find
+/// that host. Empirically ceiling=`parent(snapshot)` stops the walk; ceiling
+/// equal to the snapshot path itself does not. CLI callers never enter here.
+fn with_isolated_snapshot_git<T>(snapshot: &ProjectSnapshot, f: impl FnOnce() -> T) -> T {
+    match snapshot.root().parent() {
+        Some(ceiling) => crate::git_utils::with_discovery_ceiling(ceiling, f),
+        None => f(),
     }
 }
 
@@ -2568,18 +2600,19 @@ fn handle_tools_call_with_directory(
         Ok(snapshot) => snapshot,
         Err(message) => return tool_error(id, message),
     };
-    let operation_root = snapshot.root();
-
-    let result = match tool_name {
-        "specsync_check" => tool_check(operation_root, &arguments),
-        "specsync_coverage" => tool_coverage(operation_root),
-        "specsync_generate" => tool_generate(operation_root, server_directory, &arguments),
-        "specsync_list_specs" => tool_list_specs(operation_root),
-        "specsync_init" => tool_init(operation_root, server_directory),
-        "specsync_score" => tool_score(operation_root, snapshot.git_freshness_available()),
-        "specsync_issues" => tool_issues(operation_root),
-        _ => unreachable!("known tool was validated before dispatch"),
-    };
+    let result = with_isolated_snapshot_git(&snapshot, || {
+        let operation_root = snapshot.root();
+        match tool_name {
+            "specsync_check" => tool_check(operation_root, &arguments),
+            "specsync_coverage" => tool_coverage(operation_root),
+            "specsync_generate" => tool_generate(operation_root, server_directory, &arguments),
+            "specsync_list_specs" => tool_list_specs(operation_root),
+            "specsync_init" => tool_init(operation_root, server_directory),
+            "specsync_score" => tool_score(operation_root, snapshot.git_freshness_available()),
+            "specsync_issues" => tool_issues(operation_root),
+            _ => unreachable!("known tool was validated before dispatch"),
+        }
+    });
 
     match result {
         Ok(content) => {
@@ -3026,20 +3059,22 @@ fn handle_resources_read_with_directory(
             });
         }
     };
-    let operation_root = snapshot.root();
-    let result = match uri {
-        "specsync:///specs" => {
-            resource_specs_list(operation_root, snapshot.git_freshness_available())
+    let result = with_isolated_snapshot_git(&snapshot, || {
+        let operation_root = snapshot.root();
+        match uri {
+            "specsync:///specs" => {
+                resource_specs_list(operation_root, snapshot.git_freshness_available())
+            }
+            "specsync:///graph" => resource_graph(operation_root),
+            "specsync:///config" => resource_config(operation_root),
+            "specsync:///coverage" => resource_coverage(operation_root),
+            _ if uri.starts_with("specsync:///specs/") => {
+                let module = &uri["specsync:///specs/".len()..];
+                resource_spec_by_module(operation_root, module)
+            }
+            _ => Err(format!("Unknown resource URI: {uri}")),
         }
-        "specsync:///graph" => resource_graph(operation_root),
-        "specsync:///config" => resource_config(operation_root),
-        "specsync:///coverage" => resource_coverage(operation_root),
-        _ if uri.starts_with("specsync:///specs/") => {
-            let module = &uri["specsync:///specs/".len()..];
-            resource_spec_by_module(operation_root, module)
-        }
-        _ => Err(format!("Unknown resource URI: {uri}")),
-    };
+    });
 
     match result {
         Ok((content, mime_type)) => {
@@ -5896,6 +5931,28 @@ mod tests {
         std::fs::create_dir_all(&spec_dir).unwrap();
         std::fs::write(spec_dir.join(format!("{spec_name}.spec.md")), spec_content).unwrap();
         tmp
+    }
+
+    fn git_in(root: &Path, args: &[&str]) {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .expect("git command should run");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn init_git_repo(root: &Path) {
+        git_in(root, &["init"]);
+        git_in(root, &["config", "user.email", "test@test.com"]);
+        git_in(root, &["config", "user.name", "Test"]);
+        git_in(root, &["config", "commit.gpgsign", "false"]);
+        git_in(root, &["add", "-A"]);
+        git_in(root, &["commit", "-m", "init"]);
     }
 
     #[test]
@@ -8853,6 +8910,61 @@ project(':override').projectDir = file('vendor/custom')
         let output = tool_score(snapshot.root(), snapshot.git_freshness_available()).unwrap();
         assert_eq!(output["git_freshness_available"], false);
         assert_eq!(output["specs"][0]["git_freshness_available"], false);
+    }
+
+    #[test]
+    fn mcp_snapshot_inside_host_worktree_does_not_discover_host_git_or_double_penalize() {
+        let spec_content = "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Purpose\nAuthentication behavior.\n\n# Requirements\n- Authenticate users.\n\n# Public API\n| Name | Kind | Description |\n| --- | --- | --- |\n| `login` | Function | Authenticates a user. |\n\n# Invariants\n- Credentials are validated.\n\n# Behavioral Examples\nCalling `login` validates credentials.\n\n# Error Cases\nInvalid credentials return an error.\n\n# Dependencies\nNone.\n\n# Change Log\n- 1.0.0: Initial specification.\n";
+        let host = TempDir::new().unwrap();
+        let project = host.path().join("project");
+        fs::create_dir_all(project.join("src")).unwrap();
+        fs::create_dir_all(project.join("specs/auth")).unwrap();
+        let config = json!({
+            "specsDir": "specs",
+            "sourceDirs": ["src"],
+            "requiredSections": ["Purpose", "Public API"]
+        });
+        fs::write(
+            project.join("specsync.json"),
+            serde_json::to_string_pretty(&config).unwrap(),
+        )
+        .unwrap();
+        fs::write(project.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
+        fs::write(project.join("specs/auth/auth.spec.md"), spec_content).unwrap();
+        init_git_repo(host.path());
+
+        let temp_parent = host.path().join("tmp");
+        fs::create_dir_all(&temp_parent).unwrap();
+        let snapshot = ProjectSnapshot::create_in(&project, &temp_parent).unwrap();
+        assert!(
+            crate::git_utils::is_git_repo(snapshot.root()),
+            "without isolation, a snapshot whose tempfile sits in the host worktree discovers that work tree"
+        );
+        assert!(!snapshot.git_freshness_available());
+
+        let config = load_config(snapshot.root());
+        let spec_path = snapshot.root().join("specs/auth/auth.spec.md");
+        let (baseline, confined, output) = with_isolated_snapshot_git(&snapshot, || {
+            let baseline = scoring::score_spec(&spec_path, snapshot.root(), &config);
+            let confined = score_spec_for_mcp(&spec_path, snapshot.root(), &config, false);
+            let output = tool_score(snapshot.root(), snapshot.git_freshness_available()).unwrap();
+            (baseline, confined, output)
+        });
+
+        assert_eq!(baseline.git_freshness, scoring::GitFreshness::Withheld);
+        assert_eq!(
+            confined.total, baseline.total,
+            "host walk-up must not award git freshness that the confined path then deducts again"
+        );
+        assert_eq!(confined.freshness_score, baseline.freshness_score);
+        assert_eq!(output["git_freshness_available"], false);
+        assert_eq!(output["specs"][0]["git_freshness_available"], false);
+        assert!(
+            confined
+                .suggestions
+                .iter()
+                .any(|suggestion| suggestion.contains("Git history is intentionally unavailable"))
+        );
     }
 
     #[test]

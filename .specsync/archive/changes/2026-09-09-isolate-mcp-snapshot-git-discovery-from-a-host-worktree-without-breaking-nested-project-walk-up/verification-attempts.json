@@ -1,0 +1,211 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1788966380,
+      "commit": "1f4f127f4741276a2e983b845be2d08a6a2641b4",
+      "contract_digest": "ab045a5066dc6490b2d4433e7c6b9f064dce9f49289e03910cd63b2e00d23c99",
+      "execution_digest": "c863292fb5905facde7171a0a68604f575a8e0576a624e7779ae9665c1c5645a",
+      "workspace_digest": "7768fb9be90586b2c62e3fa5c1c736d0a91b789ae3ccd184438453b5de170c17",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec git_utils --spec mcp",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-git-utils-005",
+        "REQ-git-utils-006",
+        "REQ-mcp-008"
+      ]
+    },
+    {
+      "timestamp": 1788966383,
+      "commit": "55be444315d13271071f32c35951b331b8243b1d",
+      "contract_digest": "ab045a5066dc6490b2d4433e7c6b9f064dce9f49289e03910cd63b2e00d23c99",
+      "execution_digest": "c863292fb5905facde7171a0a68604f575a8e0576a624e7779ae9665c1c5645a",
+      "workspace_digest": "7768fb9be90586b2c62e3fa5c1c736d0a91b789ae3ccd184438453b5de170c17",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec git_utils --spec mcp",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-git-utils-005",
+        "REQ-git-utils-006",
+        "REQ-mcp-008"
+      ]
+    },
+    {
+      "timestamp": 1788966383,
+      "commit": "9f64befece961b9412367b050e5bd5263ad3e10d",
+      "contract_digest": "ab045a5066dc6490b2d4433e7c6b9f064dce9f49289e03910cd63b2e00d23c99",
+      "execution_digest": "c863292fb5905facde7171a0a68604f575a8e0576a624e7779ae9665c1c5645a",
+      "workspace_digest": "7768fb9be90586b2c62e3fa5c1c736d0a91b789ae3ccd184438453b5de170c17",
+      "acceptance_input_digest": "a1b9846b315527b925c071f92b1c217b94906177c18ab3b276153f13971ca78a",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0372bc6109537523e615c5c6e5b35ec52da517a5598038b1dbefaeb6919fae84",
+            "entry_digest": "eb22f6d2d4a15a2157e06a066871750695e291c5a6a4ffa5e776d73549a21f18",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/mcp-security.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ca1e08d4cca70e72d8827a4363d4b8e75d43e90c02e5bdd32fd264176ebbedda",
+            "entry_digest": "0402c3b95324d8546c7f5e7fa7d187d3c1a7f5376df8ebe6af9abad74f0e8c08",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/git_utils/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3d23c5d6f50f66a3278715f83da9b12095e5c01c5374bf6f9c7e97ba8eb732d6",
+            "entry_digest": "88a0bc3945d29f90a29dca7312af9577e6c64d83e76f871e7f320bc2e926d44d",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/git_utils.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "36e37fd8458b7b304061c7408056e05eff5df7b64823c2edab66e4e138461294",
+            "entry_digest": "ee503eb65ac71b0bc6d9a915625a377f41a547030ed02bb41eb72e87830932e7",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2368b620a2348c2bb372eba4d13768e963f25f82b1cacd9abb9f0c7d85ac0e2c",
+            "entry_digest": "647b9323d38926112f485c6db43b50306b90cf285227059fb2edf3aa5dfc5e2f",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b3370fc085f4d1e795079622404c8afc1abd78517689f94a36084382d25323a8",
+            "entry_digest": "f4ed5633928d3f85bd01f5ff8e957ff3948fb858885a052afec80c2818e2ce0e",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/git_utils/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b9f492d600c6a0f6cd1e28318e7fe665742f10001bd197e334de995954573813",
+            "entry_digest": "1cea05005279e5f3b601d141fb6fe148e8fe55087a4bf8fc9af9d81fe200895a",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "specs/mcp/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5af9635a0d76c99050d6e70a5bc94e788dabc0cec3fc061ea90a5c195dfd545f",
+            "entry_digest": "03f4e4b52df90d8273e1342c318e9cdaaf8da62c8b01ff7a428dd49735cee2ad",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/mcp.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "82fe85579f9bd91865c5e4b32c7dedd39738cddc73b46c2628f54075892c6785",
+            "entry_digest": "64a15c20faa3eb0010a5c3884d7183806b7d7fc67edba3254c5c99b94d53da1f",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "abbd62bb81b6e71fb8599e2c029c126941e5035810b1ebf739b4407935afe167",
+            "entry_digest": "a82a32b1999ee6ac1398975b678caceb442e16e5ec5251543db1dcaf710d070d",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c80977809295aa0c6fc05f9b24d209cdaaa40ab1213e441917477d11ef004030",
+            "entry_digest": "beec2853eaafec8fb73b6f159e9b7f0dcaddfdff2c804b9af6bd3ad1c4da343c",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f68cd71ea04cb5f0fa326a17382003d42b67b26d6858fe53e2b6c6a26ca813de",
+            "entry_digest": "403b83848d78ca031b95ce566be7e9f89ce040d3309ec6ca43ea113301579796",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "src/git_utils.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bdd30ed88e933350c4604ef3aaf6779462d1759fe84aca2f92e79269a31ceb7d",
+            "entry_digest": "8be8534bb9c9e70ebf08fae88acefd7807576d8268fc0a627cfcfd29fae43753",
+            "owners": [
+              "git_utils"
+            ]
+          },
+          {
+            "path": "src/mcp.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ae4ad900e0dc9b2f3f724ece2be56159685c81ec9bcbb78e5d32e708fe5ea1ef",
+            "entry_digest": "2ddd5c33bac02ec5f5b61273b55691ce1916ac258f62c4c264b7ee5ecf916022",
+            "owners": [
+              "mcp"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec git_utils --spec mcp",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-git-utils-005",
+        "REQ-git-utils-006",
+        "REQ-mcp-008"
+      ]
+    }
+  ]
+}

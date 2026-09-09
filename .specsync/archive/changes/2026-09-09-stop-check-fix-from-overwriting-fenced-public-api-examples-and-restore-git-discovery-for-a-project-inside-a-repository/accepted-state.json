@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository",
+  "slug": "stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository",
+  "title": "Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory",
+  "description": "stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "cd812fd2d0b70365f93555841c665849d0a48265",
+  "created_at": 1788964162,
+  "updated_at": 1788965279,
+  "affected_specs": [
+    "cmd_check",
+    "git_utils",
+    "cmd_new"
+  ],
+  "affected_paths": [
+    "src/commands/check.rs",
+    "src/git_utils.rs",
+    "tests/integration/fix.rs",
+    "site/src/content/docs/mcp-security.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "check --fix with a near-miss Public API heading plus a fenced example preserves the fenced body verbatim; is_git_repo is true for a project subdirectory of a git repository; git children still env_clear and drop GITHUB_TOKEN/GIT_DIR; cmd_new spec describes generate_spec/validate_scaffold_module_name rather than chrono_lite_today."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

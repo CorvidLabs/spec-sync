@@ -17,7 +17,7 @@ spec: cmd_new.spec.md
 - [x] `--full` companion generation via `generator::generate_companion_files_for_spec`, with conditional `design.md`
 - [x] Refuse to overwrite an existing spec (exit 1)
 - [x] Replace unfinished-marker Public API rows with review prompts
-- [x] In-module `chrono_lite_today()` date helper (no chrono dependency)
+- [x] Change Log dates via the shared generator (no in-module `chrono_lite_today` helper)
 
 ## Gaps
 

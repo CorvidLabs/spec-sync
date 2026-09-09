@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository",
+  "implementation_commit": "6795224b84534d96087c6fb9bed2fb27d3f0b196",
+  "implementation_tree": "883fa4fddefd3e899f3158703ccfb2e737d3d577",
+  "contract_digest": "f0ab7c405ed179f54f38c76d8d44f084a0083d29e690cc2d7101fb5ac6593912",
+  "workspace_digest": "5b4a8c62fe76edf765c6e285c65e69c916fdb28b61b9c94fc03e482c6476428f",
+  "closing_digest": "2a58c1d77dd69d7ae52e26f2a5b3d3ffacd1d2fbdb8512e8151174b6bb02c5cc",
+  "review_digest": "f403f2a6c733e40cc11c0d7e5503056a4174b40c950833f02441d7efd4bfcf55",
+  "finalization_digest": "b6b3a99ffe961edbce8861336a77a9c494afe0040e06a8e057c20ca87d8c8dd2",
+  "timestamp": 1788965279
+}

@@ -1,23 +1,16 @@
----
-module: git_utils
-version: 10
-status: stable
-files:
-  - src/git_utils.rs
-db_tables: []
-tracks: []
-depends_on: []
----
+## MODIFIED
 
-# Git Utils
+### REQUIREMENT REQ-git-utils-005
 
-## Purpose
+Every production `git` child spawned from `git_utils` SHALL start with a cleared environment, inherit only an allowlist of PATH/locale/home/temp variables, and set `GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0`. The default path SHALL NOT set `GIT_CEILING_DIRECTORIES`, so a project whose root is a subdirectory of a git repository is still detected as inside that work tree. Host `GIT_CEILING_DIRECTORIES` SHALL NOT be inherited.
 
-Shared git utility functions for querying repository history. Provides the staleness baseline for a spec, commit distance counting, and git repository detection. Used by the `stale`, `report`, `check`, `lifecycle`, and `scoring` modules to determine spec freshness relative to source file changes. Callers resolve a spec's baseline once via `spec_baseline`, then count divergence per source file via `git_commits_since` to avoid redundant `git log` invocations.
+Acceptance Criteria
+- `GITHUB_TOKEN`, `GH_TOKEN`, `GIT_DIR`, `GIT_ASKPASS`, `GIT_INDEX_FILE`, `SSH_AUTH_SOCK`, and `GIT_CEILING_DIRECTORIES` are not on the allowlist.
+- `is_git_repo` is true for a directory that has no `.git` of its own but sits inside a real repository (nested-project / monorepo-subdir).
+- A real repository root is still detected.
+- A directory that is not inside any git work tree remains `false`.
 
-`spec_baseline` is the module's choke point. It replaced an `Option<String>` commit lookup that collapsed two unrelated absences into one `None`: "history exists, this spec simply is not in it" (drift is genuinely zero) and "there is no history at all" (drift is UNKNOWN). Four of the five callers read that `None` as the former and reported every spec current on a tree with no `.git`. The returned enum makes the distinction unspellable-away: every caller, including the next one written, is forced through an exhaustive `match` the compiler checks.
-
-## Public API
+### SPEC SECTION Public API
 
 **Exported Functions**
 
@@ -47,7 +40,7 @@ Shared git utility functions for querying repository history. Provides the stale
 | `UnmeasurableSpec` | struct | A spec whose staleness could not be measured at all: path, module name, and each unmeasurable file with its reason. Distinct from a fresh spec — a fresh spec was compared and found current, this one had nothing to compare, and counting it fresh spends it against the up-to-date total on evidence never gathered |
 | `StaleInfo` | struct | Staleness summary for a single spec: path, module name, max commits behind, per-file details, and any cited files that no longer exist — a spec is stale on a deletion alone, whatever the threshold, and every renderer needs the cause or a row reads `0 commits behind` with nothing to act on |
 
-## Invariants
+### SPEC SECTION Invariants
 
 1. All git commands execute with `current_dir(root)` to ensure correct repository context
 2. Functions return safe defaults (None, 0, false) when git is unavailable or commands fail — except that "no history" is never one of those defaults: `spec_baseline` reports it as `Missing`, never as an absent commit
@@ -56,7 +49,7 @@ Shared git utility functions for querying repository history. Provides the stale
 5. There is no public way to obtain a spec's commit hash without also learning whether the tree has any history: the raw lookup is private, and `SpecBaseline::Commit` is the only value that yields a hash
 6. Default `git_cmd` does not set `GIT_CEILING_DIRECTORIES`. `with_discovery_ceiling` is the only way a git child from this module receives a ceiling, and only for the duration of the closure on that thread
 
-## Behavioral Examples
+### SPEC SECTION Behavioral Examples
 
 #### Scenario: Spec not tracked by git, in a repository that has commits
 
@@ -88,31 +81,13 @@ Shared git utility functions for querying repository history. Provides the stale
 - **When** `with_discovery_ceiling` is called with ceiling `repo/tmp` and `is_git_repo` is called on `repo/tmp/snap` inside the closure
 - **Then** returns false. After the closure returns, `is_git_repo` on `repo/packages/foo` is true again
 
-## Error Cases
+## ADDED
 
-| Condition | Behavior |
-|-----------|----------|
-| Not a git repository | `is_git_repo` returns false; `missing_history` returns `Some(NotARepository)`; `spec_baseline` returns `Missing` |
-| Repository with an unborn `HEAD` | `has_commits` returns false; `missing_history` returns `Some(NoCommits)`; `spec_baseline` returns `Missing` |
-| Git not installed | Treated as "not a git repository": `spec_baseline` returns `Missing`, so callers refuse rather than report zero drift |
-| File doesn't exist in git history | `spec_baseline` returns `Untracked`; `git_commits_since` returns 0 |
+### REQUIREMENT REQ-git-utils-006
 
-## Dependencies
+`with_discovery_ceiling` SHALL make git children spawned on the calling thread set `GIT_CEILING_DIRECTORIES` to the supplied absolute path after `env_clear`, and SHALL restore the previous slot when the closure returns or unwinds. The default `git_cmd` path SHALL remain ceiling-free.
 
-None (only uses `std::process::Command` for git CLI calls).
-
-## Change Log
-
-| Date | Change |
-|------|--------|
-| 2026-04-10 | Initial — extracted from cmd_report for shared use by stale, report, and scoring |
-| 2026-06-07 | Replaced `git_commits_between` with `git_commits_since`, which takes a precomputed spec commit hash so callers resolve it once per spec instead of once per source file (eliminates N+1 `git log` calls) |
-| 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
-| 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
-| 2026-08-13 | CHG-0113-staleness-detection-must-refuse-a-repository-with-no-commits-instead-of-reportin: Staleness detection must refuse a repository with no commits instead of reporting every spec current |
-| 2026-08-14 | #572: Made `git_last_commit_hash` private and replaced it with `spec_baseline -> SpecBaseline`, plus `missing_history -> Option<MissingHistory>`. The old `Option<String>` conflated "spec not in history" with "no history", and four of five callers read the second as the first |
-| 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |
-| 2026-08-18 | CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness: A staleness answer must not read an unreadable source as freshness |
-| 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
-| 2026-09-09 | stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository: Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory |
-| 2026-09-09 | isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up: Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up |
+Acceptance Criteria
+- Inside the closure, `is_git_repo` is false for a directory whose only git metadata is a parent work tree above the ceiling.
+- After the closure, nested-project walk-up works again on the same thread.
+- `GIT_CEILING_DIRECTORIES` is not on the inherit allowlist, so a host-process ceiling cannot leak into default `git_cmd`.

@@ -69,10 +69,20 @@ Acceptance Criteria
 
 ### REQ-git-utils-005
 
-Every production `git` child spawned from `git_utils` SHALL start with a cleared environment, inherit only an allowlist of PATH/locale/home/temp variables, set `GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0`, and pin `GIT_CEILING_DIRECTORIES` to the parent of the canonical project root.
+Every production `git` child spawned from `git_utils` SHALL start with a cleared environment, inherit only an allowlist of PATH/locale/home/temp variables, and set `GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0`. The default path SHALL NOT set `GIT_CEILING_DIRECTORIES`, so a project whose root is a subdirectory of a git repository is still detected as inside that work tree. Host `GIT_CEILING_DIRECTORIES` SHALL NOT be inherited.
 
 Acceptance Criteria
-- `GITHUB_TOKEN`, `GH_TOKEN`, `GIT_DIR`, `GIT_ASKPASS`, `GIT_INDEX_FILE`, and `SSH_AUTH_SOCK` are not on the allowlist.
-- A directory that is not itself a repository, sitting inside a host worktree, is not reported as a git repo (walk-up is ceiling-stopped).
+- `GITHUB_TOKEN`, `GH_TOKEN`, `GIT_DIR`, `GIT_ASKPASS`, `GIT_INDEX_FILE`, `SSH_AUTH_SOCK`, and `GIT_CEILING_DIRECTORIES` are not on the allowlist.
+- `is_git_repo` is true for a directory that has no `.git` of its own but sits inside a real repository (nested-project / monorepo-subdir).
 - A real repository root is still detected.
+- A directory that is not inside any git work tree remains `false`.
+
+### REQ-git-utils-006
+
+`with_discovery_ceiling` SHALL make git children spawned on the calling thread set `GIT_CEILING_DIRECTORIES` to the supplied absolute path after `env_clear`, and SHALL restore the previous slot when the closure returns or unwinds. The default `git_cmd` path SHALL remain ceiling-free.
+
+Acceptance Criteria
+- Inside the closure, `is_git_repo` is false for a directory whose only git metadata is a parent work tree above the ceiling.
+- After the closure, nested-project walk-up works again on the same thread.
+- `GIT_CEILING_DIRECTORIES` is not on the inherit allowlist, so a host-process ceiling cannot leak into default `git_cmd`.
 

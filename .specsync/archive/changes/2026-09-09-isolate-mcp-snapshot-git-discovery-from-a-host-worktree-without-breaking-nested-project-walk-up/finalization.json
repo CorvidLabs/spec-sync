@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up",
+  "implementation_commit": "9f64befece961b9412367b050e5bd5263ad3e10d",
+  "implementation_tree": "d54cc45438f0a9273bc8ac24396ce581b6fc21fa",
+  "contract_digest": "ab045a5066dc6490b2d4433e7c6b9f064dce9f49289e03910cd63b2e00d23c99",
+  "workspace_digest": "7768fb9be90586b2c62e3fa5c1c736d0a91b789ae3ccd184438453b5de170c17",
+  "closing_digest": "1a9ecd69816514d78b0d11bb70c80858bb1ca8c0876d0a62a9680bcd691402cb",
+  "review_digest": "8e187e84d5c90b5c4398a6f56a17a707a8a6113737681e2871a2db412698ccb0",
+  "finalization_digest": "2300de3b7580bf7a759a9476b050569e3bf95471dc3fc20a0b6a7bf04d71e34b",
+  "timestamp": 1788967178
+}

@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 29
+version: 30
 status: stable
 files:
   - src/mcp.rs
@@ -53,7 +53,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     quarantined staged identity, and the batch shares one retained root capability across outputs.
     Empty parents created by failed batches may remain, and same-user mutation of private
     transaction names is outside the MCP caller/path confinement threat boundary.
-14. Snapshot scoring reports Git freshness unavailable and withholds freshness credit.
+14. Snapshot scoring reports Git freshness unavailable and withholds freshness credit. Dispatch pins `GIT_CEILING_DIRECTORIES` to the snapshot parent so a tempfile inside a host worktree cannot discover host history or double-penalize freshness.
 15. Manifest-derived inputs remain visible across fixed ignores, including TOML Cargo workspaces and
     comment/escape-aware Gradle settings, and snapshots copy exact bytes charged to the operation
     budget.
@@ -228,6 +228,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | parser | `parse_frontmatter`, `parse_checked_issue_references` |
 | types | `SpecSyncConfig` |
 | deps | `build_dep_graph`, `validate_deps`, `topological_sort` |
+| git_utils | `with_discovery_ceiling` so snapshot git probes cannot walk up into a host worktree |
 
 ### Consumed By
 
@@ -271,3 +272,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-08-14 | CHG-0125-every-output-format-must-report-the-same-set-of-findings-so-a-machine-readable: Every output format must report the same set of findings, so a machine-readable consumer cannot see fewer problems than a human reading the text |
 | 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-09-09 | isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up: Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up |

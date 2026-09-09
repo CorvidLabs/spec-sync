@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::cell::RefCell;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Host environment keys a git child is allowed to inherit.
@@ -23,6 +24,38 @@ const GIT_INHERITED_ENV: &[&str] = &[
     "COMSPEC",
 ];
 
+thread_local! {
+    static DISCOVERY_CEILING: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
+
+/// Run `f` so git children spawned on this thread set `GIT_CEILING_DIRECTORIES`
+/// to `ceiling` after `env_clear`. Restores the previous slot on return or unwind.
+///
+/// Default `git_cmd` does not pin a ceiling, so a nested project still discovers
+/// its parent work tree. MCP snapshot dispatch is the caller that needs isolation:
+/// empirically (Git 2.39.5) ceiling=`parent(snapshot)` stops walk-up into a host
+/// worktree, while ceiling=`snapshot` itself still walks up.
+pub fn with_discovery_ceiling<R>(ceiling: &Path, f: impl FnOnce() -> R) -> R {
+    struct Guard(Option<PathBuf>);
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            DISCOVERY_CEILING.with(|slot| {
+                *slot.borrow_mut() = self.0.take();
+            });
+        }
+    }
+    let absolute = if ceiling.is_absolute() {
+        ceiling.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map(|cwd| cwd.join(ceiling))
+            .unwrap_or_else(|_| ceiling.to_path_buf())
+    };
+    let previous = DISCOVERY_CEILING.with(|slot| slot.replace(Some(absolute)));
+    let _guard = Guard(previous);
+    f()
+}
+
 /// Spawn `git` without inheriting host secrets or repo-override variables.
 ///
 /// The MCP server (and every other caller of this module) used to PATH-resolve
@@ -30,9 +63,12 @@ const GIT_INHERITED_ENV: &[&str] = &[
 /// that needed `GITHUB_TOKEN` for issue verification forwarded that token — and
 /// `GIT_DIR` / `GIT_ASKPASS` — to whatever `git` was first on `PATH`.
 ///
-/// Keep a small allowlist so git can actually run (PATH, locale, temp, home)
-/// and pin `GIT_CEILING_DIRECTORIES` to `root`'s parent so a snapshot sitting
-/// inside a host worktree cannot walk up into it.
+/// Keep a small allowlist so git can actually run (PATH, locale, temp, home).
+/// Do not set `GIT_CEILING_DIRECTORIES` on the default path: a project whose
+/// root is a subdirectory of a git repository (monorepo package, nested
+/// checkout) must still discover the parent work tree. `env_clear` already
+/// drops any inherited ceiling. Snapshot isolation uses
+/// [`with_discovery_ceiling`].
 fn git_cmd(root: &Path) -> Command {
     let mut command = Command::new("git");
     command.env_clear();
@@ -41,17 +77,14 @@ fn git_cmd(root: &Path) -> Command {
             command.env(key, value);
         }
     }
+    DISCOVERY_CEILING.with(|slot| {
+        if let Some(ceiling) = slot.borrow().as_ref() {
+            command.env("GIT_CEILING_DIRECTORIES", ceiling);
+        }
+    });
     command.env("GIT_TERMINAL_PROMPT", "0");
     command.env("GIT_OPTIONAL_LOCKS", "0");
     command.env("LC_ALL", "C");
-    let absolute = root.canonicalize().unwrap_or_else(|_| {
-        std::env::current_dir()
-            .unwrap_or_else(|_| Path::new(".").to_path_buf())
-            .join(root)
-    });
-    if let Some(parent) = absolute.parent() {
-        command.env("GIT_CEILING_DIRECTORIES", parent);
-    }
     command.current_dir(root);
     command
 }
@@ -457,6 +490,7 @@ mod tests {
             "GIT_AUTHOR_EMAIL",
             "GIT_INDEX_FILE",
             "SSH_AUTH_SOCK",
+            "GIT_CEILING_DIRECTORIES",
         ] {
             assert!(
                 !GIT_INHERITED_ENV.contains(&denied),
@@ -470,16 +504,55 @@ mod tests {
     }
 
     #[test]
-    fn git_ceiling_stops_walk_into_a_host_worktree() {
+    fn is_git_repo_detects_project_inside_repository_subdirectory() {
         let host = init_repo();
         commit_file(host.path(), "src/auth.rs", "fn login() {}", "add source");
-        let snapshot = host.path().join("mcp-snapshot");
-        fs::create_dir(&snapshot).unwrap();
-        fs::write(snapshot.join("README"), "snap\n").unwrap();
+        let nested = host.path().join("packages/foo");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(nested.join("README"), "pkg\n").unwrap();
         assert!(
-            !is_git_repo(&snapshot),
-            "a snapshot sitting inside a host worktree must not inherit that repo via git walk-up"
+            is_git_repo(&nested),
+            "a specsync project whose root is a subdirectory of the repository must still see that work tree"
         );
         assert!(is_git_repo(host.path()));
+        let plain = TempDir::new().unwrap();
+        assert!(!is_git_repo(plain.path()));
+    }
+
+    #[test]
+    fn discovery_ceiling_isolates_a_subdirectory_from_host_walk_up() {
+        let host = init_repo();
+        commit_file(host.path(), "src/auth.rs", "fn login() {}", "add source");
+        let snap = host.path().join("tmp/snap");
+        fs::create_dir_all(&snap).unwrap();
+        assert!(
+            is_git_repo(&snap),
+            "without a ceiling, a tempfile inside the host worktree discovers that work tree"
+        );
+        let isolated = with_discovery_ceiling(&host.path().join("tmp"), || is_git_repo(&snap));
+        assert!(
+            !isolated,
+            "ceiling=parent(snapshot) must stop walk-up into the host"
+        );
+        let nested = host.path().join("packages/foo");
+        fs::create_dir_all(&nested).unwrap();
+        assert!(
+            is_git_repo(&nested),
+            "nested-project walk-up must still work outside the closure"
+        );
+    }
+
+    #[test]
+    fn discovery_ceiling_does_not_leak_after_the_closure() {
+        let host = init_repo();
+        commit_file(host.path(), "src/auth.rs", "fn login() {}", "add source");
+        let snap = host.path().join("tmp/snap");
+        fs::create_dir_all(&snap).unwrap();
+        let isolated = with_discovery_ceiling(&host.path().join("tmp"), || is_git_repo(&snap));
+        assert!(!isolated);
+        assert!(
+            is_git_repo(&snap),
+            "after the closure, default git_cmd is ceiling-free again"
+        );
     }
 }

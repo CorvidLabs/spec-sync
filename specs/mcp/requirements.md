@@ -204,10 +204,11 @@ Acceptance Criteria
 
 ### REQ-mcp-008
 
-MCP scoring and any other MCP path that probes git history SHALL spawn `git` through `git_utils`, inheriting the sanitized child environment rather than the parent process environment.
+MCP scoring and any other MCP path that probes git history SHALL spawn `git` through `git_utils`, inheriting the sanitized child environment rather than the parent process environment. Tool and resource dispatch on a snapshot SHALL pin `GIT_CEILING_DIRECTORIES` to the snapshot parent via `git_utils::with_discovery_ceiling` for the duration of those probes. CLI `git_cmd` callers SHALL NOT pin a ceiling.
 
 Acceptance Criteria
 - A read-only `specsync mcp` process that holds `GITHUB_TOKEN` for issue verification does not forward that token to `git`.
 - An MCP snapshot sitting inside a host worktree cannot walk up into that worktree via `GIT_DIR` walk-up.
+- Snapshot scoring reports `git_freshness_available` false and withholds git freshness once — it does not double-penalize when the tempfile happens to sit inside a host worktree.
 - Test fixtures constructing `GenerationOutcome` populate `skipped_no_files`.
 

@@ -46,7 +46,7 @@ URL), the `trust.yml` pin and mirror, exact-head checkouts in `spec-check`/`trus
   explicit `version:`:
 
 ```bash
-for r in corvid-account podo-web podo-android; do
+for r in corvid-account podo-web podo-android raven; do
   gh api "search/code?q=repo:CorvidLabs/$r+spec-sync+path:.github/workflows" --jq '.items[].path' |
   while read -r p; do
     gh api "repos/CorvidLabs/$r/contents/$p" --jq .content | base64 -d | grep -n -A4 'spec-sync@'
@@ -54,7 +54,8 @@ for r in corvid-account podo-web podo-android; do
 done
 ```
 
-As of this document all three carry `version: "6.0.0-rc.12"`; `raven` pins `4.5.0`.
+As of this document all four known consumers (corvid-account, podo-web, podo-android, raven) carry
+`version: "6.0.0-rc.12"`; none floats `latest`.
 
 ## 2. Cut the candidate
 

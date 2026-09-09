@@ -131,7 +131,7 @@ Use `specsync lifecycle`, `specsync stale`, and `specsync score` to inspect thes
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "enabled": true,
   "require_change_for_meaningful_files": true,
   "meaningful_paths": ["src/", "tests/", "site/", ".github/", "Cargo.toml"],

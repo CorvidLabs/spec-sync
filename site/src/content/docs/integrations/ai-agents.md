@@ -88,8 +88,8 @@ specsync check --strict --require-coverage 100 # deterministic release gate
 ```
 
 For contract-changing delivery, start with `specsync change new`, complete the selected artifacts
-and semantic deltas, obtain the one scope approval, implement, run `change check`, request the
-independent scoped PR review, and run `change finalize`. Agents and humans use the same workflow;
+and semantic deltas, obtain the one scope approval, implement, run `change check --commit`, request
+the independent scoped PR review, record it with `change review`, and run `change finalize`. Agents and humans use the same workflow;
 GitHub owns merge protections.
 
 ## Why It Works for Agents
@@ -108,10 +108,18 @@ GitHub owns merge protections.
 
 ```json
 {
+  "errors": ["specs/auth/auth.spec.md: Spec documents 'oldFunction' but no matching export found in source"],
+  "manifest_notices": [],
+  "notices": [],
   "passed": false,
-  "errors": ["auth.spec.md: phantom export `oldFunction` not found in source"],
-  "warnings": ["auth.spec.md: undocumented export `newHelper`"],
-  "specs_checked": 12
+  "skipped_links": [],
+  "specs_checked": 12,
+  "stale": [],
+  "suppressed_warnings": [],
+  "warnings": [
+    "specs/auth/auth.spec.md: 1/2 exports documented",
+    "specs/auth/auth.spec.md: Undocumented export 'newHelper' from src/auth.ts"
+  ]
 }
 ```
 

@@ -137,7 +137,7 @@ specsync hooks uninstall                   # remove installed hooks
 specsync hooks status                      # check what's installed
 ```
 
-Supports Claude Code (`CLAUDE.md`), Cursor (`.cursor/rules`), GitHub Copilot (`.github/copilot-instructions.md`), and pre-commit hooks.
+Supports Claude Code (`CLAUDE.md`), Cursor (`.cursorrules`), GitHub Copilot (`.github/copilot-instructions.md`), `AGENTS.md`, and pre-commit hooks.
 
 ### `agents`
 
@@ -294,10 +294,17 @@ Import specs from external sources — GitHub Issues, Jira, or local directories
 ```bash
 specsync import github 123                 # import from GitHub issue #123
 specsync import github --all-issues        # import all open issues as specs
-specsync import github --label spec        # import issues with specific label
+specsync import github --all-issues --label spec  # import open issues with a specific label
 specsync import jira PROJ-123              # import from Jira ticket
 specsync import --from-dir ./docs/specs    # import from local directory
 ```
+
+Every import source writes a `status: draft` skeleton: `files: []`, empty Public API tables, and
+placeholder sections. That skeleton does not pass `specsync check` on its own — the frontmatter
+fails with `files (must be a non-empty list)` and the module counts as 0% covered — until you add
+the `files:` mapping and complete the sections. When the source is code rather than prose, use
+`specsync scaffold` or `specsync new` instead; they detect source files for you
+([#416](https://github.com/CorvidLabs/spec-sync/issues/416)).
 
 ### `wizard`
 
@@ -481,10 +488,11 @@ specsync diff --base v1.0.0 --json     # machine-readable output
 
 ### `init`
 
-Create a default `.specsync/config.toml` in the current directory.
+Create a default `.specsync/config.toml` in the current directory, plus `.specsync/sdd.json` with the change workflow off (`enabled: false`) and the change/archive directories. It starts no interview; enable the workflow later with `specsync change adopt`.
 
 ```bash
 specsync init
+specsync init --repair                     # restore missing .specsync support files without touching config
 ```
 
 ### `watch`
@@ -535,10 +543,18 @@ specsync watch
 
 ```json
 {
+  "errors": ["specs/auth/auth.spec.md: Spec documents 'oldFunction' but no matching export found in source"],
+  "manifest_notices": [],
+  "notices": [],
   "passed": false,
-  "errors": ["auth.spec.md: phantom export `oldFunction` not found in source"],
-  "warnings": ["auth.spec.md: undocumented export `newHelper`"],
-  "specs_checked": 12
+  "skipped_links": [],
+  "specs_checked": 12,
+  "stale": [],
+  "suppressed_warnings": [],
+  "warnings": [
+    "specs/auth/auth.spec.md: 1/2 exports documented",
+    "specs/auth/auth.spec.md: Undocumented export 'newHelper' from src/auth.ts"
+  ]
 }
 ```
 

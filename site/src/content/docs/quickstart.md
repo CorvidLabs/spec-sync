@@ -86,16 +86,18 @@ Answer the returned questions, complete its adaptively selected artifacts, and a
 Continue through the single workflow after the definition is complete:
 
 ```bash
-specsync change approve CHG-...   # one explicit human scope approval
+specsync change approve <id>            # one explicit human scope approval
 # implement the approved contract and keep module specs synchronized
-specsync change check CHG-...     # scoped verify: apply deltas + spec↔code sync for this change
-specsync change audit             # active workspaces + living specs (archives are history)
-# open/update the PR; ordinary review + SpecSync scoped review run once
-specsync change finalize CHG-...  # create the same-PR metadata/archive-only commit
+specsync change check <id> --commit     # scoped verify: apply deltas + spec↔code sync for this change
+specsync change audit                   # active workspaces + living specs (archives are history)
+# open/update the PR; after ordinary PR review, record the scoped review
+specsync change review <id> --reviewer "Ada"
+specsync change finalize <id>           # same-PR archive; commit and push the result
 # GitHub merge protections perform the merge
 ```
 
-`specsync change status CHG-...` always prints exactly one next action. Explicit `--strict`,
+`<id>` is the slug `change new` returned (for the example above, `document-and-verify-the-existing-authentication-module`).
+`specsync change status <id>` always prints exactly one next action. Explicit `--strict`,
 project policy, and release/security classification add validators to this same path; they do not
 create another lifecycle or approval. See the [Workflow Guide](workflow.md) for requirements,
 semantic deltas, approval digests, targeted evidence, scoped review, and same-PR finalization.
@@ -172,13 +174,25 @@ specsync check
 You'll see output like:
 
 ```
-✓ specs/auth/auth.spec.md
-✗ specs/database/database.spec.md
-  ERROR: Spec references `createUser` but export not found in src/database.ts
-  WARNING: `deleteUser` exported from code but not documented in spec
+specs/auth/auth.spec.md
+  ✓ Frontmatter valid
+  ✓ All source files exist
+  ✓ All required sections present
+  ✓ 2/2 exports documented
+  ✓ All dependency specs exist
 
-1 passed, 1 failed (2 errors, 1 warning)
-File coverage: 85.7% (6/7 files)
+specs/database/database.spec.md
+  ✓ Frontmatter valid
+  ✓ All source files exist
+  ✓ All required sections present
+  ⚠ 1/2 exports documented
+  ✗ Spec documents 'createUser' but no matching export found in source
+  ⚠ Undocumented export 'deleteUser' from src/database.ts
+  ✓ All dependency specs exist
+
+2 specs checked: 1 passed, 2 warning(s), 1 failed
+File coverage: 6/7 (85%)
+LOC coverage:  4200/5308 (79%)
 ```
 
 **Errors** mean the spec claims something exists that doesn't. **Warnings** mean the code has something the spec doesn't mention yet.

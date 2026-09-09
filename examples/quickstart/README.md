@@ -17,6 +17,7 @@ quickstart/
 ├── Cargo.toml                      # minimal Rust crate
 ├── .specsync/
 │   ├── config.toml                 # SpecSync project config
+│   ├── hashes.json                 # hash cache (normally gitignored; committed here)
 │   └── registry.toml               # spec name → file mapping
 ├── specs/
 │   └── greeter/
@@ -31,8 +32,11 @@ From the repo root:
 
 ```bash
 cd examples/quickstart
-specsync check
+specsync check --force
 ```
+
+(`--force` skips the committed hash cache; a plain `specsync check` on an untouched
+clone reports the spec as unchanged and validates nothing. CI passes `--force` too.)
 
 Expected output:
 

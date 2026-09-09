@@ -3,9 +3,10 @@ name: RC assets
 # Build and attach binaries to an existing pre-release.
 #
 # WHY THIS EXISTS, SEPARATELY FROM release.yml
-# `release.yml` is the gated lane for FINAL releases. It qualifies a candidate against
-# three tag rulesets, a protected `release` environment, and a GitHub App identity, and
-# it should keep doing all of that — a final tag is a promise to every consumer.
+# `release.yml` is the gated lane for FINAL releases. It qualifies a candidate on the
+# required platforms against the two immutable tag rulesets and then mints the final tag
+# (see its own comments for what is and is not enforced), and it should keep doing all of
+# that — a final tag is a promise to every consumer.
 #
 # A release candidate is a different thing. Its whole job is to be installed by people
 # who have agreed to test it, and gating it behind release-grade provenance means it

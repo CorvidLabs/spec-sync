@@ -18,7 +18,7 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync scaffold <name>` | Full scaffold: spec + companions + registry entry + source detection |
 | `specsync add-spec <name>` | Scaffold a spec with companion files (tasks.md, context.md) |
 | `specsync hooks install` | Install git pre-commit hooks and IDE agent snippets |
-| `specsync agents install` | Install skills plus `/specsync:create-spec`, `create-change`, `check`, and `audit` (Claude/Cursor/Gemini) |
+| `specsync agents install` | Install skills plus `/specsync:create-spec`, `create-change`, `check`, and `audit` (Claude Code/Cursor/Codex/Gemini CLI) |
 | `specsync resolve --remote` | Resolve cross-project spec references |
 | `specsync diff --base <ref>` | Show export changes since a git ref (useful for CI/PR reviews) |
 | `specsync report` | Per-module coverage report with stale/incomplete detection |
@@ -165,7 +165,7 @@ Each `*.spec.md` needs YAML frontmatter (`module`, `version`, `status`, `files`)
 
 ## MCP Integration
 
-For richer integration, run `specsync mcp` to start the MCP server. This exposes `specsync_check`, `specsync_generate`, `specsync_coverage`, and `specsync_score` as callable tools.
+For richer integration, run `specsync mcp` to start the MCP server. This exposes `specsync_check`, `specsync_generate`, `specsync_coverage`, `specsync_score`, `specsync_init`, `specsync_issues`, and `specsync_list_specs` as callable tools.
 
 ## CI vs Trust (approximately 95% confidence, no duplicate suites)
 
@@ -179,8 +179,9 @@ See **[docs/ci-confidence.md](docs/ci-confidence.md)**.
 | Trust GitHub lifecycle | `trust-lifecycle` (types only — CI already tested) |
 
 Do **not** reintroduce `cargo test` into the Trust GitHub lifecycle lane.
-The current protected workflow still runs macOS, Windows, and expensive coverage on each product PR;
-moving those to Tier B requires a separately pinned required-workflow update.
+CI runs the product lane (tests, clippy, coverage) on Ubuntu only. macOS runs in the immutable
+release-candidate lane (`.github/workflows/release.yml`, Tier B); Windows is neither built nor
+published as of 6.0 (#735).
 
 <!-- CorvidLabs trust toolchain: BEGIN (managed, do not edit inside) -->
 ## CorvidLabs trust toolchain

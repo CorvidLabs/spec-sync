@@ -88,8 +88,9 @@ steps = [
 description = "Trust GitHub lifecycle — no duplicate cargo test (CI is authority)"
 steps = ["check-types"]
 
-# The release workflow runs this exact lane on Ubuntu, macOS, and Windows for
-# one immutable RC tag. Keep platform qualification here so local reproduction
+# The release workflow runs this exact lane on Ubuntu and macOS (the
+# `REQUIRED_PLATFORMS` set; Windows is not built or qualified in 6.0) for one
+# immutable RC tag. Keep platform qualification here so local reproduction
 # and every hosted runner share one command surface.
 [lanes.release-candidate]
 description = "Immutable release-candidate qualification (tests + release build)"

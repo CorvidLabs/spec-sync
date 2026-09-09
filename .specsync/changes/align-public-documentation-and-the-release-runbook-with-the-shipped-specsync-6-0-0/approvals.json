@@ -1,0 +1,101 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788929756,
+      "digest": "e6dae0dea7a76467cebcaa4f15f0ec980183a901337e6d5acf04de32a047b537",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "align-public-documentation-and-the-release-runbook-with-the-shipped-specsync-6-0-0",
+        "title": "Align public documentation and the release runbook with the shipped SpecSync 6.0.0",
+        "description": "Align public documentation and the release runbook with the shipped SpecSync 6.0.0",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "CONTRIBUTING.md",
+          "MIGRATION.md",
+          "README.md",
+          "SCOPE.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "docs/RELEASING.md",
+          "docs/ci-confidence.md",
+          "examples/quickstart/README.md",
+          "examples/sdd-concurrent-changes/README.md",
+          "examples/sdd-five-epics/README.md",
+          "examples/sdd-lifecycle/README.md",
+          "fledge.toml",
+          "site/src/content/docs/",
+          "vscode-extension/README.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Documentation, runbook, Action metadata text, and lane comments only; no canonical spec contract, command grammar, or runtime behaviour changes",
+        "acceptance_criteria": [
+          "README, site docs, MIGRATION, ADOPTING, SECURITY, CONTRIBUTING, SCOPE, AGENTS, action metadata text, example READMEs and ci-confidence describe the shipped 6.0.0 binary and workflow with no candidate-window wording, retired CHG identities, rejected flags, or Windows support claims; the import caveat (#416) and the pre-adopt v1 guidance (#674) are present; docs/RELEASING.md gives a maintainer the exact qualify, promote, crates.io and Homebrew sequence; site lint, tests and build pass; release-version and runtime-pin validators pass; the example scripts still pass with the 6.0 binary"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788929947,
+      "digest": "e79afbc73a9eeefc32b2fb9f017a5ff53d5235c2e8b0713cf459bd68e3f651c7",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "align-public-documentation-and-the-release-runbook-with-the-shipped-specsync-6-0-0",
+        "title": "Align public documentation and the release runbook with the shipped SpecSync 6.0.0",
+        "description": "Align public documentation and the release runbook with the shipped SpecSync 6.0.0",
+        "kind": "documentation",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/rc-assets.yml",
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "CONTRIBUTING.md",
+          "MIGRATION.md",
+          "README.md",
+          "SCOPE.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "docs/RELEASING.md",
+          "docs/ci-confidence.md",
+          "examples/quickstart/README.md",
+          "examples/sdd-concurrent-changes/README.md",
+          "examples/sdd-five-epics/README.md",
+          "examples/sdd-lifecycle/README.md",
+          "fledge.toml",
+          "site/src/content/docs/",
+          "vscode-extension/README.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Documentation, runbook, Action metadata text, and lane comments only; no canonical spec contract, command grammar, or runtime behaviour changes",
+        "acceptance_criteria": [
+          "README, site docs, MIGRATION, ADOPTING, SECURITY, CONTRIBUTING, SCOPE, AGENTS, action metadata text, example READMEs and ci-confidence describe the shipped 6.0.0 binary and workflow with no candidate-window wording, retired CHG identities, rejected flags, or Windows support claims; the import caveat (#416) and the pre-adopt v1 guidance (#674) are present; docs/RELEASING.md gives a maintainer the exact qualify, promote, crates.io and Homebrew sequence; site lint, tests and build pass; release-version and runtime-pin validators pass; the example scripts still pass with the 6.0 binary"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

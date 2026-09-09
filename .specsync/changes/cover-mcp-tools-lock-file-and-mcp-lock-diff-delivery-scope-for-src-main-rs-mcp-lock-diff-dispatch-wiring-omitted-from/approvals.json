@@ -1,0 +1,37 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788966224,
+      "digest": "9e51e44d594da285fe558646e540c01619b404299e08d17e05a726794e197be5",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cover-mcp-tools-lock-file-and-mcp-lock-diff-delivery-scope-for-src-main-rs-mcp-lock-diff-dispatch-wiring-omitted-from",
+        "title": "Cover mcp-tools-lock-file-and-mcp-lock-diff delivery scope for src/main.rs MCP lock/diff dispatch wiring omitted from the parent change affected_paths",
+        "description": "Cover mcp-tools-lock-file-and-mcp-lock-diff delivery scope for src/main.rs MCP lock/diff dispatch wiring omitted from the parent change affected_paths",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cli"
+        ],
+        "affected_paths": [
+          "src/main.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Bookkeeping delivery-scope coverage: MCP lock/diff CLI dispatch in src/main.rs landed under accepted mcp-tools-lock-file-and-mcp-lock-diff but was not declared in its affected_paths; this change only declares ownership so delivery-diff coverage is complete",
+        "acceptance_criteria": [
+          "src/main.rs is covered by an active change in delivery-diff coverage; specsync change audit --strict reports no uncovered meaningful changed paths for this path; no canonical spec content changes"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

@@ -131,3 +131,23 @@ P1 findings:
 
 Fix wave 3 launched: `new` required sections + name rules, config fail-open choke point (#653/#583), MCP child-process environment sanitization, scaffold path containment.
 
+
+### Fix waves in flight — where to resume
+
+Twelve fixes are being written in isolated git worktrees under
+`/Users/leif/Development/_CorvidLabs/spec-sync/.claude/worktrees/`, each branched from
+`origin/main` at `0d0251bf`, each left uncommitted for the orchestrator to collect:
+
+| Run | Fixes |
+|---|---|
+| `wf_199b7ff5-f5c-{1..4}` | attempts-ledger tamper (#656); fence-blind symbol reader + #768.3; emitted `check --spec` command that does not parse; cli.md drift |
+| `wf_b264e6fd-465-{1..4}` | `cargo publish` include set (P1 blocker); CRLF finalize (P1); README + site quickstart first-run (P1); `generate` silent no-op |
+| `wf_65e75083-0c1-{1..4}` | `new` required sections + name rules (P1); config fail-open choke point (#653/#583, P1); MCP child-environment sanitization (P1 security); scaffold path containment |
+
+To resume: for each worktree, `git -C <path> diff` and apply onto a branch off current `main`,
+then build one change package covering every touched path (`--spec change --spec cmd_check
+--spec cmd_init --spec cli_args ...` per the specs that own those files), approve, `check --commit`,
+review, ship, and open the fix PR. Re-run `fledge lanes run verify` on the assembled tree before
+scoring the checklist; the baseline pass recorded above was on the pristine tree.
+
+Do not merge the fix PR unattended: the brief requires the human to inspect and merge.

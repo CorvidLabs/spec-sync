@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "pin-the-github-action-version-default-to-published-release-6-0-0-rc-14-so-consumers-without-an-explicit-version-do-not",
+  "implementation_commit": "5b275087eea37094b7495893d034415f5ba650ee",
+  "implementation_tree": "f4c053e297f2d68d9006caf0ff22457705771522",
+  "contract_digest": "90fdde3ff86131629a79dabd32180e7bee5b0232f640deecee9ac26c62b5894f",
+  "workspace_digest": "1d4101dc15902ded388cba710ef28931999a6a07f8d73bf524bff80c188353b9",
+  "closing_digest": "37ca0909d86118ab0ccec333b991fc128b6d5d1b82d428b9b11a5eb041386ecc",
+  "review_digest": "a4d1a2fea52d84103981235e1fc53efff0d07a12c04e092d8e5b3781ce6e9a83",
+  "finalization_digest": "257b02eba42c41dea35a313cb39bf12c0dca5f515e0e026dfbad00b2f15c9e2e",
+  "timestamp": 1788973315
+}

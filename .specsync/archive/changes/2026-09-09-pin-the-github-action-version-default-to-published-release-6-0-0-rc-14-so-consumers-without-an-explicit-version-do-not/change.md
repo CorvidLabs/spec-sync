@@ -1,6 +1,6 @@
 ---
 id: pin-the-github-action-version-default-to-published-release-6-0-0-rc-14-so-consumers-without-an-explicit-version-do-not
-state: implementing
+state: archived
 type: bug_fix
 base_commit: d0da6075f8f383c474915dd8d2b97dfd9e8b776f
 ---

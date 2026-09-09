@@ -7,11 +7,11 @@
   "title": "Pin the GitHub Action version default to published release 6.0.0-rc.14 so consumers without an explicit version do not 404 on missing v6.0.0 (#628)",
   "description": "Pin the GitHub Action version default to published release 6.0.0-rc.14 so consumers without an explicit version do not 404 on missing v6.0.0 (#628)",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "d0da6075f8f383c474915dd8d2b97dfd9e8b776f",
   "created_at": 1788973030,
-  "updated_at": 1788973279,
+  "updated_at": 1788973315,
   "affected_specs": [
     "github"
   ],

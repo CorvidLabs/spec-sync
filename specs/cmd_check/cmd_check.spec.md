@@ -77,7 +77,7 @@ optional drift issues. SDD / change / archive history is not part of this comman
 
 - **Given** a `## Public API` section whose table (under a `### Heading`, a `**Bold**` label, or no label) is followed by prose such as an "Acceptance Criteria" paragraph
 - **When** `cmd_check` runs with `--fix` for an undocumented export
-- **Then** the new row is inserted directly after the last row of that table, the prose is preserved after it, and a subsequent `check --strict` passes; only a section with no table at all receives rows at its end
+- **Then** the new row is inserted directly after the last row of that table, the prose is preserved after it, pipe-shaped lines inside fenced or indented code examples are never treated as table rows, and a subsequent `check --strict` passes; only a section with no table at all receives rows at its end
 
 ### Scenario: JSON output format
 

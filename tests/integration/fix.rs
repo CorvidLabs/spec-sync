@@ -442,6 +442,62 @@ fn assert_rows_contiguous(updated: &str, row_marker: &str) {
 }
 
 #[test]
+fn fix_ignores_pipe_lines_inside_fenced_examples_after_the_table() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function a() {}\nexport function b() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = spec_with_public_api(
+        r#"
+**Functions**
+
+| Name | Kind | Description |
+|------|------|-------------|
+| `a` | fn | Documented already |
+
+Example output:
+
+```text
+| id | status |
+| 1  | ok     |
+```
+
+    | indented | sample |
+"#,
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), &spec).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    let row_pos = updated.find("| `b` |").expect("row for `b` inserted");
+    let fence_pos = updated.find("```text").unwrap();
+    assert!(
+        row_pos < fence_pos,
+        "row for `b` must extend the real table, not the fenced example:\n{updated}"
+    );
+    assert!(
+        updated.contains(
+            "```text\n| id | status |\n| 1  | ok     |\n```\n\n    | indented | sample |\n"
+        ),
+        "code examples must be preserved verbatim:\n{updated}"
+    );
+    assert_rows_contiguous(&updated, "| `b` |");
+}
+
+#[test]
 fn fix_inserts_row_into_table_under_bold_label_before_trailing_prose() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

@@ -1079,12 +1079,38 @@ fn table_column_count(section: &str) -> Option<usize> {
 /// Appending at the end of the section or subsection instead put the rows
 /// after any trailing prose (e.g. an "Acceptance Criteria" paragraph), where
 /// they are orphaned pipe-delimited text outside every table (#615).
+///
+/// Fenced (```` ``` ````/`~~~`) and indented (four-space) code examples are
+/// skipped so a pipe-shaped line inside a sample is never mistaken for the
+/// table's last row; only table rows outside code count.
 fn table_rows_end(block: &str) -> Option<usize> {
     let mut end = None;
     let mut offset = 0;
+    let mut fence: Option<&str> = None;
     for line in block.split_inclusive('\n') {
         offset += line.len();
-        if is_table_row(line) {
+        let trimmed = line.trim_start();
+        let marker = if trimmed.starts_with("```") {
+            Some("```")
+        } else if trimmed.starts_with("~~~") {
+            Some("~~~")
+        } else {
+            None
+        };
+        match (fence, marker) {
+            (Some(open), Some(seen)) if open == seen => {
+                fence = None;
+                continue;
+            }
+            (Some(_), _) => continue,
+            (None, Some(seen)) => {
+                fence = Some(seen);
+                continue;
+            }
+            (None, None) => {}
+        }
+        let indented_code = line.starts_with("    ") || line.starts_with('\t');
+        if !indented_code && is_table_row(line) {
             end = Some(offset);
         }
     }

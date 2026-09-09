@@ -750,10 +750,16 @@ jobs:
       # cache poisoned by any other route would be linked into the released artifacts,
       # and cargo would happily reuse prebuilt objects out of it.
       #
-      # Flagged by CodeQL as actions/cache-poisoning/poisonable-step (alert #68).
-      # The two sibling alerts on this workflow were dismissed as already mitigated —
-      # `validate` and `authorize-release` have no caching step at all. This one was not,
-      # because it was real.
+      # Flagged by CodeQL as actions/cache-poisoning/poisonable-step (alert #68) while the
+      # restore step still existed; that was real, and removing the cache is the fix. The
+      # alert still fires on the `cargo build` line because the rule sees privileged
+      # execution of a `workflow_dispatch`-selected checkout and does not model whether a
+      # cache step exists. It is dismissed on the same grounds as its two siblings
+      # (#63, #65): this job has no caching step to poison, `validate` has already proved
+      # `candidate_sha` is an ancestor of `origin/main` (so the code that runs here is
+      # code already merged to the default branch, not third-party input), and dispatch
+      # is limited to actors who can run this workflow from `main`. Re-open the alert if
+      # a caching step is ever added to this job.
       #
       # The cost is a cold build on a lane that runs a handful of times per release.
       # The old comment already conceded that trade for the save half; it applies at

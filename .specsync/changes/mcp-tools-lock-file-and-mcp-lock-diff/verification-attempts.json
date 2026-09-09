@@ -57,6 +57,25 @@
         "REQ-cli-args-018",
         "REQ-mcp-009"
       ]
+    },
+    {
+      "timestamp": 1788966240,
+      "commit": "737d9e2f7ece0169edc129560b1a0db3ae7ac3a4",
+      "contract_digest": "9184e72c238b2df016414f77b0b27448caeebc901e3b9921611f0c6d62826510",
+      "execution_digest": "522e0b2654c2d5d384236cef9c83ef69ee416e809873815f7da19b67bf4bb9be",
+      "workspace_digest": "956aab5f9fca63bc9edd0f4cb27a977110200fcee131539432d5f692216ab548",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cli_args --spec mcp",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-args-018",
+        "REQ-mcp-009"
+      ]
     }
   ]
 }

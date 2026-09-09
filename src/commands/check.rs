@@ -1062,59 +1062,67 @@ fn is_table_row(line: &str) -> bool {
 
 /// Column count of the first markdown table row found in `section`, if any.
 fn table_column_count(section: &str) -> Option<usize> {
-    section.lines().find_map(|line| {
-        let trimmed = line.trim();
-        if is_table_row(trimmed) {
-            Some(trimmed[1..trimmed.len() - 1].split('|').count())
-        } else {
-            None
+    table_rows_outside_code(section)
+        .first()
+        .map(|(_, row)| row[1..row.len() - 1].split('|').count())
+}
+
+/// Markdown table rows in `block` that are not inside fenced or indented code,
+/// as (byte offset just past the row's line, trimmed row text).
+///
+/// Fences follow CommonMark: an opening run of three or more backticks or
+/// tildes is closed only by a run of the same character at least as long,
+/// so a ```` ```` ```` sample that itself contains a ``` block stays one
+/// example. Four-space or tab indented lines are code too. `--fix` derives
+/// both the column template and the insertion point from these rows, so a
+/// pipe-shaped line inside an example can neither set the width nor become
+/// the "last row" of the table.
+fn table_rows_outside_code(block: &str) -> Vec<(usize, &str)> {
+    let mut rows = Vec::new();
+    let mut offset = 0;
+    let mut fence: Option<(char, usize)> = None;
+    for line in block.split_inclusive('\n') {
+        offset += line.len();
+        let trimmed = line.trim_start();
+        let marker = ['`', '~'].into_iter().find_map(|c| {
+            let run = trimmed.chars().take_while(|ch| *ch == c).count();
+            (run >= 3).then_some((c, run))
+        });
+        match (fence, marker) {
+            (Some((open_char, open_len)), Some((c, len)))
+                if c == open_char && len >= open_len && trimmed[len..].trim().is_empty() =>
+            {
+                fence = None;
+                continue;
+            }
+            (Some(_), _) => continue,
+            (None, Some(open)) => {
+                fence = Some(open);
+                continue;
+            }
+            (None, None) => {}
         }
-    })
+        if line.starts_with("    ") || line.starts_with('\t') {
+            continue;
+        }
+        let row = line.trim();
+        if is_table_row(row) {
+            rows.push((offset, row));
+        }
+    }
+    rows
 }
 
 /// Byte offset (relative to `block`) of the start of the line following the
-/// last markdown table row in `block`, if `block` contains a table at all.
+/// last markdown table row in `block` outside code examples, if `block`
+/// contains a table at all.
 ///
 /// `--fix` inserts new export rows here so they extend the existing table.
 /// Appending at the end of the section or subsection instead put the rows
 /// after any trailing prose (e.g. an "Acceptance Criteria" paragraph), where
 /// they are orphaned pipe-delimited text outside every table (#615).
-///
-/// Fenced (```` ``` ````/`~~~`) and indented (four-space) code examples are
-/// skipped so a pipe-shaped line inside a sample is never mistaken for the
-/// table's last row; only table rows outside code count.
 fn table_rows_end(block: &str) -> Option<usize> {
-    let mut end = None;
-    let mut offset = 0;
-    let mut fence: Option<&str> = None;
-    for line in block.split_inclusive('\n') {
-        offset += line.len();
-        let trimmed = line.trim_start();
-        let marker = if trimmed.starts_with("```") {
-            Some("```")
-        } else if trimmed.starts_with("~~~") {
-            Some("~~~")
-        } else {
-            None
-        };
-        match (fence, marker) {
-            (Some(open), Some(seen)) if open == seen => {
-                fence = None;
-                continue;
-            }
-            (Some(_), _) => continue,
-            (None, Some(seen)) => {
-                fence = Some(seen);
-                continue;
-            }
-            (None, None) => {}
-        }
-        let indented_code = line.starts_with("    ") || line.starts_with('\t');
-        if !indented_code && is_table_row(line) {
-            end = Some(offset);
-        }
-    }
-    end
+    table_rows_outside_code(block).last().map(|(end, _)| *end)
 }
 
 /// Normalize near-miss export headers within ## Public API.

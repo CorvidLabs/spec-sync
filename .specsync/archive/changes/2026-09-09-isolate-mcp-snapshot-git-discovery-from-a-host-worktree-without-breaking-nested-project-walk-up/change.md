@@ -1,6 +1,6 @@
 ---
 id: isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 1f4f127f4741276a2e983b845be2d08a6a2641b4
 ---

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up",
+  "slug": "isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up",
+  "title": "Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up",
+  "description": "isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "1f4f127f4741276a2e983b845be2d08a6a2641b4",
+  "created_at": 1788965909,
+  "updated_at": 1788967178,
+  "affected_specs": [
+    "git_utils",
+    "mcp"
+  ],
+  "affected_paths": [
+    "src/git_utils.rs",
+    "src/mcp.rs",
+    "site/src/content/docs/mcp-security.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "MCP specsync_score on a snapshot whose tempfile sits inside a host git worktree reports git_freshness_available false, withholds git freshness once (no double penalty), and does not treat the host history as measurable; is_git_repo remains true for a nested project subdirectory when no snapshot isolation is in effect; git children still env_clear and drop GITHUB_TOKEN/GIT_DIR/GIT_CEILING_DIRECTORIES from the host environment."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

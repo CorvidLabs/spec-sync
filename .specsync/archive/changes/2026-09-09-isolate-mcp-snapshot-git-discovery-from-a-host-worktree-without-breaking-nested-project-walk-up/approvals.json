@@ -77,6 +77,13 @@
         "git_utils": "ae2dc0bd5944b2e9438ebcfbdcb0c7188e8933c7a8c008cb7dffaa559d08038d",
         "mcp": "8b611f84c63b121ff8ab6772a4a6765b98466d6edb0bcec955aa0df4526f3b7e"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788967178,
+      "digest": "1a9ecd69816514d78b0d11bb70c80858bb1ca8c0876d0a62a9680bcd691402cb",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

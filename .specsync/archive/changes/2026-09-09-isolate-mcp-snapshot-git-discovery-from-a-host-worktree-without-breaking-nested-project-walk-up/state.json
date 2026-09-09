@@ -7,11 +7,11 @@
   "title": "Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up",
   "description": "isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "1f4f127f4741276a2e983b845be2d08a6a2641b4",
   "created_at": 1788965909,
-  "updated_at": 1788966384,
+  "updated_at": 1788967299,
   "affected_specs": [
     "git_utils",
     "mcp"

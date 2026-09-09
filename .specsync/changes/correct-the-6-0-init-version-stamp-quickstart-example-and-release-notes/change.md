@@ -1,6 +1,6 @@
 ---
 id: correct-the-6-0-init-version-stamp-quickstart-example-and-release-notes
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: d0fb1621577ee3fc7f7d1a4e39f55ebaa6ded7fe
 ---
@@ -13,7 +13,7 @@ Correct the 6.0 init version stamp, quickstart example, and release notes
 
 ## Affected Canonical Specs
 
-- None
+- `change`
 
 ## Acceptance Criteria
 

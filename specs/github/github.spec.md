@@ -1,6 +1,6 @@
 ---
 module: github
-version: 28
+version: 29
 status: stable
 files:
   - src/github.rs
@@ -18,8 +18,10 @@ Links spec files to GitHub issues for traceability. Validates `implements` and `
 fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues
 when specs fall out of sync. Also defines the maintained composite GitHub Action distribution
 contract: immutable exact-version refs and a verified floating major compatibility ref whose
-default binary follows the promoted stable release. Hosted JavaScript verification uses one exact
-supported Bun runtime across site deployment, site CI, and VS Code extension CI.
+downloadable default resolves to a published Release with assets — a qualified release candidate
+while stable publication is pending, then the promoted stable release. Hosted JavaScript
+verification uses one exact supported Bun runtime across site deployment, site CI, and VS Code
+extension CI.
 
 ## Public API
 
@@ -216,3 +218,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-08-25 | remove-the-release-github-app-from-promotion-create-the-final-tag-with-the-workflow-s-own-github-token-and-state-who: Remove the release GitHub App from promotion: create the final tag with the workflow's own GITHUB_TOKEN and state who can now mint a release tag |
 | 2026-08-26 | bypass-actors-are-unobservable-to-a-workflow-token-so-absence-must-read-as-unverified-rather-than-empty: Bypass actors are unobservable to a workflow token, so absence must read as unverified rather than empty |
 | 2026-08-27 | drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows: Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee |
+| 2026-09-09 | pin-the-github-action-version-default-to-published-release-6-0-0-rc-14-so-consumers-without-an-explicit-version-do-not: Pin the GitHub Action version default to published release 6.0.0-rc.14 so consumers without an explicit version do not 404 on missing v6.0.0 (#628) |

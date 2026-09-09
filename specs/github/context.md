@@ -164,3 +164,5 @@ describe were deleted by PR #499 along with the rest of the CI lifecycle copy, s
 now …" clauses point at files that no longer exist. What survives is native: `src/change.rs`
 rejects the unsupported `non-file` archive-entry spelling and out-of-range lifecycle timestamps,
 and accepts a zero-entry acceptance manifest.
+
+During the 6.0 candidate window the Action omitted-input default is pinned to published release `6.0.0-rc.14` (assets present); tags `rc.15`..`rc.17` have no Release assets and must not be the default (#628).

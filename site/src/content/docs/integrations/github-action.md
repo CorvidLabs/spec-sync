@@ -24,7 +24,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 
 | Input | Default | Description |
 |:------|:--------|:------------|
-| `version` | `6.0.0` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you |
+| `version` | `6.0.0-rc.14` | Release version to download (default is the latest published 6.0 RC with assets while stable v6.0.0 is pending). Pin an exact release for gates; `latest` follows the newest release and can change underneath you |
 | `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |

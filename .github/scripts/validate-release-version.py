@@ -8,6 +8,12 @@ import subprocess
 import sys
 
 
+# While Cargo.toml already reads 6.0.0 but the stable GitHub Release has not been
+# published, the Action omitted-input default must download a Release that has assets.
+# Bump this when a newer RC with assets is published; set equal to the package version
+# once v6.0.0 ships.
+PUBLISHED_ACTION_DEFAULT = "6.0.0-rc.14"
+
 YAML_FILES = (
     "action.yml",
     ".github/workflows/ci.yml",
@@ -312,8 +318,15 @@ def main() -> int:
     inputs = mapping_block(action_lines, "inputs", 0)
     version_input = mapping_block(inputs or [], "version", 2)
     action_version = mapping_scalar(version_input or [], "default", 4)
-    if action_version != version:
-        errors.append(f"action.yml default must be {version}, found {action_version}")
+    expected_action_default = (
+        PUBLISHED_ACTION_DEFAULT
+        if version == "6.0.0" and PUBLISHED_ACTION_DEFAULT != version
+        else version
+    )
+    if action_version != expected_action_default:
+        errors.append(
+            f"action.yml default must be {expected_action_default}, found {action_version}"
+        )
 
     ci_steps = workflow_uses_steps(".github/workflows/ci.yml", errors)
     consumer = find_uses_step(
@@ -408,9 +421,16 @@ def main() -> int:
         encoding="utf-8"
     )
     docs_default = re.search(r"^\| `version` \| `([^`]+)` \|", action_docs, re.MULTILINE)
-    if docs_default is None or docs_default.group(1) != version:
+    expected_docs_default = (
+        PUBLISHED_ACTION_DEFAULT
+        if version == "6.0.0" and PUBLISHED_ACTION_DEFAULT != version
+        else version
+    )
+    if docs_default is None or docs_default.group(1) != expected_docs_default:
         found = docs_default.group(1) if docs_default else None
-        errors.append(f"Action docs default must be {version}, found {found!r}")
+        errors.append(
+            f"Action docs default must be {expected_docs_default}, found {found!r}"
+        )
 
     stale_site_refs = [
         f"{step['path']} YAML block {step['block']}: @{step['ref']}"

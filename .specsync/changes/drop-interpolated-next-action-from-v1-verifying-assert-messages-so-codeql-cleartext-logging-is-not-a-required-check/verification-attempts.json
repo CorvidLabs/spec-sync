@@ -18,6 +18,24 @@
       "requirement_ids": [
         "REQ-change-100"
       ]
+    },
+    {
+      "timestamp": 1788987868,
+      "commit": "c2596a7951c40944ff6e757646903f50147f3937",
+      "contract_digest": "de9ee52e3ace52a1e8cde3b4259ced9f1c092d237b1d36739720e0fd5c32c28a",
+      "execution_digest": "1aaeea46e78fa6df216a9601995a1dcbc00b230248dc58d5dc9ba43b1d1f667f",
+      "workspace_digest": "f19079d2b3acfec155b5297787b3d76343fc1096e9c87047902dfdeb0064304a",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-100"
+      ]
     }
   ]
 }

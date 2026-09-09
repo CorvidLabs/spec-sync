@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "dbcd64156437c32ca22e0fbc2bb973c6f0283fdf",
+      "contract_digest": "e756cbadf80685ff9dea5fe1775a440d01f5cc22114cec0a98c5856871fbf2fb",
+      "execution_digest": "6d6bac8264163bc1932108bd9482aab756e55a71686b215e698484eba516fa94",
+      "workspace_digest": "25b7584e4d52c2ce63c9a294739cea046100b9e2c88fe8ad6165a17f838b44c9",
+      "timestamp": 1788963345
+    }
+  ]
+}

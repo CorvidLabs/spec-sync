@@ -157,6 +157,13 @@
         "mcp": "ef3dc544677981a923652365cd933681536d5103e2c4d367b8a09a2647a3907f",
         "parser": "fa9e2da967ef652c148d349c55cce85b136e46a44abad8f03a1b53e8dd3f8bf7"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1788963375,
+      "digest": "c0cd6c67dc807432f5a857eae7b403f53420bc36fda1882f8d30400a20b90930",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

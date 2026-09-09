@@ -1,6 +1,6 @@
 ---
 id: close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 0d0251bf62b30696a710a2a421becac02405539b
 ---

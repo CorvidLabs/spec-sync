@@ -299,7 +299,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
         };
     for environment in ["local", "ci", "github"] {
         assert_surfaces(
-            "run `specsync change review harden-verification-freshness --reviewer <human>` after the PR's scoped review passes",
+            "run `specsync change verify harden-verification-freshness`, then `specsync change accept harden-verification-freshness`, then `specsync change archive harden-verification-freshness`",
             Some(true),
             environment,
         );
@@ -313,7 +313,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
     git(&["commit", "-m", "change governed input"]);
     for environment in ["local", "ci", "github"] {
         assert_surfaces(
-            "run `specsync change check harden-verification-freshness`",
+            "run `specsync change verify harden-verification-freshness`, then `specsync change accept harden-verification-freshness`, then `specsync change archive harden-verification-freshness`",
             None,
             environment,
         );
@@ -324,7 +324,7 @@ fn verification_freshness_status_and_check_are_environment_independent() {
         .success();
     for environment in ["local", "ci", "github"] {
         assert_surfaces(
-            "run `specsync change review harden-verification-freshness --reviewer <human>` after the PR's scoped review passes",
+            "run `specsync change verify harden-verification-freshness`, then `specsync change accept harden-verification-freshness`, then `specsync change archive harden-verification-freshness`",
             None,
             environment,
         );

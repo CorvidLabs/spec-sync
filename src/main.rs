@@ -196,10 +196,11 @@ fn run() {
             }
         }
         Command::Mcp {
-            action: Some(McpAction::Lock {
-                write,
-                allow_write: lock_allow_write,
-            }),
+            action:
+                Some(McpAction::Lock {
+                    write,
+                    allow_write: lock_allow_write,
+                }),
             ..
         } => {
             let result = if write {
@@ -213,9 +214,10 @@ fn run() {
             }
         }
         Command::Mcp {
-            action: Some(McpAction::Diff {
-                allow_write: diff_allow_write,
-            }),
+            action:
+                Some(McpAction::Diff {
+                    allow_write: diff_allow_write,
+                }),
             ..
         } => {
             if let Err(message) = mcp_tools_lock::cmd_diff(&root, diff_allow_write) {

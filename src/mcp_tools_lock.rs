@@ -48,8 +48,8 @@ pub fn cmd_lock_write(root: &Path, allow_write: bool) -> Result<(), String> {
     }
     let text = serde_json::to_string_pretty(&lock)
         .map_err(|e| format!("Failed to serialize MCP tools lock: {e}"))?;
-    let mut file = fs::File::create(&path)
-        .map_err(|e| format!("Cannot write {}: {e}", path.display()))?;
+    let mut file =
+        fs::File::create(&path).map_err(|e| format!("Cannot write {}: {e}", path.display()))?;
     file.write_all(text.as_bytes())
         .map_err(|e| format!("Cannot write {}: {e}", path.display()))?;
     file.write_all(b"\n")
@@ -69,8 +69,8 @@ pub fn cmd_diff(root: &Path, allow_write: bool) -> Result<(), String> {
             path.display()
         ));
     }
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
+    let content =
+        fs::read_to_string(&path).map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
     let locked: Value = serde_json::from_str(&content).map_err(|e| {
         format!(
             "Invalid MCP tools lock JSON at {}: {e}\n\
@@ -101,7 +101,12 @@ fn lock_entry_from_tool(tool: &Value) -> Value {
         .cloned()
         .unwrap_or_else(|| json!({}));
     let title = tool.get("title").cloned();
-    let sha = tool_contract_sha256(name.as_str(), title.as_ref(), description.as_str(), &input_schema);
+    let sha = tool_contract_sha256(
+        name.as_str(),
+        title.as_ref(),
+        description.as_str(),
+        &input_schema,
+    );
     let mut entry = Map::new();
     entry.insert("name".into(), Value::String(name));
     if let Some(title) = title {
@@ -167,8 +172,7 @@ fn write_canonical(value: &Value, out: &mut String) {
             out.push(']');
         }
         Value::Object(map) => {
-            let keys: BTreeMap<&str, &Value> =
-                map.iter().map(|(k, v)| (k.as_str(), v)).collect();
+            let keys: BTreeMap<&str, &Value> = map.iter().map(|(k, v)| (k.as_str(), v)).collect();
             out.push('{');
             for (i, (k, v)) in keys.iter().enumerate() {
                 if i > 0 {
@@ -191,10 +195,7 @@ fn diff_live_against_lock(locked: &Value, allow_write: bool) -> Result<(), Strin
         .get("tool_count")
         .and_then(Value::as_u64)
         .unwrap_or(0) as usize;
-    let live_count = live
-        .get("tool_count")
-        .and_then(Value::as_u64)
-        .unwrap_or(0) as usize;
+    let live_count = live.get("tool_count").and_then(Value::as_u64).unwrap_or(0) as usize;
     if locked_count != live_count {
         problems.push(format!(
             "tool_count mismatch: lock={locked_count} live={live_count}"
@@ -211,7 +212,9 @@ fn diff_live_against_lock(locked: &Value, allow_write: bool) -> Result<(), Strin
         problems.push(format!("tool added (not in lock): {name}"));
     }
     for name in locked_names.difference(&live_names) {
-        problems.push(format!("tool removed or renamed (in lock, not live): {name}"));
+        problems.push(format!(
+            "tool removed or renamed (in lock, not live): {name}"
+        ));
     }
     for name in locked_names.intersection(&live_names) {
         let locked_sha = locked_tools[name]
@@ -230,9 +233,7 @@ fn diff_live_against_lock(locked: &Value, allow_write: bool) -> Result<(), Strin
     }
 
     if problems.is_empty() {
-        println!(
-            "MCP tools lock matches live catalog ({live_count} tools)."
-        );
+        println!("MCP tools lock matches live catalog ({live_count} tools).");
         Ok(())
     } else {
         let mut msg = String::from("MCP tools lock drift detected:\n");
@@ -303,8 +304,7 @@ mod tests {
         let dir = tempdir().unwrap();
         cmd_lock_write(dir.path(), false).unwrap();
         let path = lock_path(dir.path());
-        let mut lock: Value =
-            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        let mut lock: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
         let tools = lock.get_mut("tools").unwrap().as_array_mut().unwrap();
         let desc = tools[0].get_mut("description").unwrap();
         *desc = json!("intentionally drifted description");
@@ -331,7 +331,11 @@ mod tests {
                 .unwrap()
                 .insert("extra".into(), json!(true));
             // Recompute sha so the lock claims a different schema contract.
-            let name = tool.get("name").and_then(Value::as_str).unwrap().to_string();
+            let name = tool
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap()
+                .to_string();
             let description = tool
                 .get("description")
                 .and_then(Value::as_str)
@@ -384,10 +388,7 @@ mod tests {
             .iter()
             .map(|t| t["name"].as_str().unwrap())
             .collect();
-        let def_names: Vec<_> = defs
-            .iter()
-            .map(|t| t["name"].as_str().unwrap())
-            .collect();
+        let def_names: Vec<_> = defs.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert_eq!(lock_names, def_names);
     }
 }

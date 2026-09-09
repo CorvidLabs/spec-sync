@@ -123,7 +123,7 @@ pub enum Command {
     Watch,
     /// Run as an MCP (Model Context Protocol) server, or manage the tools lock
     Mcp {
-        /// Expose mutating MCP tools when running the server (ignored for lock/diff)
+        /// Expose mutating MCP tools, confined to the configured project root (ignored for lock/diff)
         #[arg(long)]
         allow_write: bool,
         #[command(subcommand)]

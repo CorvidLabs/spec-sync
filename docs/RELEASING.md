@@ -54,7 +54,8 @@ for r in corvid-account podo-web podo-android; do
 done
 ```
 
-As of this document all three carry `version: "6.0.0-rc.12"`; `raven` pins `4.5.0`.
+As of this document all four known consumers (corvid-account, podo-web, podo-android, raven) carry
+`version: "6.0.0-rc.12"`; none floats `latest`.
 
 ## 2. Cut the candidate
 

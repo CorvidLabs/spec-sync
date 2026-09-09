@@ -14,5 +14,5 @@ artifact: tasks
       `[Unreleased] › Fixed`.
 - [x] Replace retired `CHG-NNNN` identities in `site/src/content/docs/deltas.md` and the README
       tree diagram; fix `quickstart.md`'s claim that `init` installs agents.
-- [ ] Human: approve the definition (`change approve <id> --actor <name>`), run
-      `change check <id> --commit`, record review, and `ship` before merge.
+- [x] Definition approved by 0xLeif on PR #764; `change check --commit`, scoped review, and
+      `ship` run as the delivery lifecycle on the same PR before merge.

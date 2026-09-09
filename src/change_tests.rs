@@ -16593,11 +16593,11 @@ fn workflow_v1_verifying_next_action_names_verify_accept_archive() {
         next.contains("change verify")
             && next.contains("change accept")
             && next.contains("change archive"),
-        "v1 Verifying must name verify → accept → archive, got: {next}"
+        "v1 Verifying must name verify then accept then archive"
     );
     assert!(
         !next.contains("change check") && !next.contains("change finalize"),
-        "v1 Verifying must not advertise v2 verbs, got: {next}"
+        "v1 Verifying must not advertise v2 verbs"
     );
 }
 

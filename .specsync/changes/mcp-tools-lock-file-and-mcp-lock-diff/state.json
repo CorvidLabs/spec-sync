@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "mcp-tools-lock-file-and-mcp-lock-diff",
+  "slug": "mcp-tools-lock-file-and-mcp-lock-diff",
+  "title": "MCP tools lock file and mcp lock/diff",
+  "description": "MCP tools lock file and mcp lock/diff",
+  "kind": "feature",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "7fc6912d2e0afd12f4e97a1a70c77f961aba8a10",
+  "created_at": 1788965577,
+  "updated_at": 1788965708,
+  "affected_specs": [
+    "mcp",
+    "cli_args"
+  ],
+  "affected_paths": [
+    "src/mcp.rs",
+    "src/mcp_tools_lock.rs",
+    "src/cli.rs",
+    ".specsync/mcp-tools.lock.json",
+    "specs/mcp/mcp.spec.md",
+    "specs/cli_args/cli_args.spec.md",
+    "CHANGELOG.md",
+    "site/src/content/docs/cli.md",
+    "site/src/content/docs/workflow.md",
+    "site/src/content/docs/integrations/ai-agents.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "specsync mcp lock prints lock JSON; mcp lock --write writes .specsync/mcp-tools.lock.json; mcp diff exits 0 on match and non-zero on add/remove/rename/sha256/tool_count/missing-lock drift with remedy; unit tests cover match, description/schema drift, missing lock; dogfood lock committed; specs/docs/CHANGELOG updated"
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

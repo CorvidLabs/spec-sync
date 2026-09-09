@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 24
+version: 26
 status: stable
 files:
   - src/cli.rs
@@ -33,6 +33,7 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | `AgentsAction` | Sub-subcommand for `Agents`: Install, Uninstall, Status — each with boolean flags for target selection (claude, cursor, codex, gemini) |
 | `LifecycleAction` | Sub-subcommand for `Lifecycle`: Promote, Demote, Set, Status, History, Guard, AutoPromote, Enforce — manages spec lifecycle transitions |
 | `ChangeAction` | Sub-subcommand for `Change`: New, Answer, Depend, Supersede, List, Show, Status, Approve, Check, Review with explicit pass/block verdict, Finalize, plus compatible historical repair/transition commands |
+| `McpAction` | Optional sub-subcommand for `Mcp`: `Lock { write, allow_write }` and `Diff { allow_write }`; omitting the subcommand runs the MCP server |
 
 ## Invariants
 
@@ -75,7 +76,13 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 
 - **Given** user runs `specsync mcp --allow-write`
 - **When** Clap parses arguments
-- **Then** `Command::Mcp { allow_write: true }` is dispatched; omitting the flag yields `false`
+- **Then** `Command::Mcp { allow_write: true, action: None }` is dispatched; omitting the flag yields `allow_write: false`
+
+### Scenario: MCP lock and diff subcommands
+
+- **Given** user runs `specsync mcp lock --write` or `specsync mcp diff`
+- **When** Clap parses arguments
+- **Then** `Command::Mcp { action: Some(McpAction::Lock { write: true, .. }) }` or `McpAction::Diff { .. }` is dispatched
 
 ### Scenario: Single change workflow
 
@@ -146,3 +153,5 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-09-08 | complete-specsync-6-promotion-and-public-release-contracts: Clarify scoped reviewer claims and the separate authentication policy boundary |
 | 2026-09-09 | insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help: Insert check --fix export rows into the existing Public API table and state the strict enforcement default in CLI help |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-09-09 | feat-mcp-tools-lock: Add optional `McpAction` lock/diff grammar under `specsync mcp` |
+| 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |

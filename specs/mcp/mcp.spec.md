@@ -4,6 +4,7 @@ version: 30
 status: stable
 files:
   - src/mcp.rs
+  - src/mcp_tools_lock.rs
 db_tables: []
 tracks: [30]
 depends_on:
@@ -26,6 +27,11 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `run_mcp_server` | `root: &Path, allow_write: bool` | `Result<(), String>` | Run the confined MCP server; mutating tools are exposed only when writes are explicitly enabled and root resolution failures are reported |
+| `mcp_tool_definitions` | `allow_write: bool` | `Vec<Value>` | Single catalog of MCP tool definitions registered for `tools/list`; lock/diff reuse this list |
+| `cmd_lock_print` | `allow_write: bool` | `Result<(), String>` | Print `.specsync/mcp-tools.lock.json` content from the live catalog (read-only; no write) |
+| `cmd_lock_write` | `root: &Path, allow_write: bool` | `Result<(), String>` | Explicitly write `.specsync/mcp-tools.lock.json` under root |
+| `cmd_diff` | `root: &Path, allow_write: bool` | `Result<(), String>` | Fail-closed compare of live catalog vs committed lock; Ok on match, Err on drift/missing |
+| `LOCK_RELATIVE_PATH` | (const `&str`) | `.specsync/mcp-tools.lock.json` | Committed MCP tools lock path relative to the project root |
 
 ## Invariants
 
@@ -114,6 +120,11 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
     bounding live directory handles by depth while preserving replacement detection.
 34. Object-form Node workspaces require `packages`, and recognized nested package manifests are
     bounded and strictly parsed before tools/resources can report success.
+35. MCP tools lock SoT is `.specsync/mcp-tools.lock.json`. Canonical tool sha256 is SHA-256 of
+    UTF-8 JSON with sorted keys and separators `(',', ':')` over `{name, title?, description,
+    inputSchema}`; `title` is omitted when null/absent. `mcp lock` prints; `mcp lock --write`
+    persists; `mcp diff` fails closed on add/remove/rename, sha256 mismatch, tool_count mismatch,
+    or missing lock — never silent rewrite.
 
 ## Behavioral Examples
 
@@ -176,6 +187,19 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 - **Then** the operation fails inconclusively without blocking, parsing replacement bytes, or
   returning a partial tool/resource result
 
+
+### Scenario: MCP tools lock match
+
+- **Given** `.specsync/mcp-tools.lock.json` was produced by `specsync mcp lock --write` from the current catalog
+- **When** the operator runs `specsync mcp diff`
+- **Then** the command exits 0 and reports that the lock matches
+
+### Scenario: MCP tools lock drift or missing
+
+- **Given** the lock is missing, or a tool description/schema/name set differs from the live catalog
+- **When** the operator runs `specsync mcp diff`
+- **Then** the command exits non-zero with a clear remedy to run `specsync mcp lock --write`
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -234,7 +258,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 
 | Module | What is used |
 |--------|-------------|
-| main | `run_mcp_server` (via `mcp` subcommand) |
+| main | `run_mcp_server`, `cmd_lock_print` / `cmd_lock_write` / `cmd_diff` (via `mcp` / `mcp lock` / `mcp diff`) |
 
 ## Change Log
 
@@ -273,3 +297,5 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-08-17 | CHG-0141-a-directory-named-in-files-must-score-zero-not-eighty: A directory named in files: must score zero, not eighty |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-09-09 | isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up: Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up |
+| 2026-09-09 | feat-mcp-tools-lock: Add `.specsync/mcp-tools.lock.json` SoT with `mcp lock` / `mcp lock --write` / `mcp diff` fail-closed drift detection over the shared tool catalog |
+| 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |

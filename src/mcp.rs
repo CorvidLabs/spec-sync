@@ -2412,7 +2412,9 @@ fn handle_initialize_request(id: Option<Value>, params: Option<&Value>) -> Value
     handle_initialize(id)
 }
 
-fn handle_tools_list(id: Option<Value>, allow_write: bool) -> Value {
+/// Same tool-definition list the MCP server registers for `tools/list`.
+/// One catalog — lock/diff must call this rather than duplicating schemas.
+pub fn mcp_tool_definitions(allow_write: bool) -> Vec<Value> {
     let root_property = json!({
         "type": "string",
         "description": "Existing project directory at or below the server root"
@@ -2466,10 +2468,14 @@ fn handle_tools_list(id: Option<Value>, allow_write: bool) -> Value {
         ));
     }
 
+    tools
+}
+
+fn handle_tools_list(id: Option<Value>, allow_write: bool) -> Value {
     json!({
         "jsonrpc": "2.0",
         "id": id,
-        "result": { "tools": tools }
+        "result": { "tools": mcp_tool_definitions(allow_write) }
     })
 }
 

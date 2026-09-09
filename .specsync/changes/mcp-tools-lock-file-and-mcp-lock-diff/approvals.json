@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "corvid-agent",
+      "timestamp": 1788965669,
+      "digest": "9184e72c238b2df016414f77b0b27448caeebc901e3b9921611f0c6d62826510",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "mcp-tools-lock-file-and-mcp-lock-diff",
+        "title": "MCP tools lock file and mcp lock/diff",
+        "description": "MCP tools lock file and mcp lock/diff",
+        "kind": "feature",
+        "affected_specs": [
+          "cli_args",
+          "mcp"
+        ],
+        "affected_paths": [
+          ".specsync/mcp-tools.lock.json",
+          "CHANGELOG.md",
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/integrations/ai-agents.md",
+          "site/src/content/docs/workflow.md",
+          "specs/cli_args/cli_args.spec.md",
+          "specs/mcp/mcp.spec.md",
+          "src/cli.rs",
+          "src/mcp.rs",
+          "src/mcp_tools_lock.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "specsync mcp lock prints lock JSON; mcp lock --write writes .specsync/mcp-tools.lock.json; mcp diff exits 0 on match and non-zero on add/remove/rename/sha256/tool_count/missing-lock drift with remedy; unit tests cover match, description/schema drift, missing lock; dogfood lock committed; specs/docs/CHANGELOG updated"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli_args": "42bce4d584402016a7c218766fd23bbf6b8ba7392485cd61357bb1c4cd450110",
+        "mcp": "ad7db329597d72dfa096cd8f1dbb7bd8b313f0a067a3b65a91e27cd9a453a4de"
+      }
+    }
+  ],
+  "reopenings": []
+}

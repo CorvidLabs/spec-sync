@@ -481,6 +481,8 @@ SpecSync is designed for AI-assisted development. Three integration modes:
 ```bash
 specsync mcp                 # read-only tools
 specsync mcp --allow-write   # opt in to root-confined init/generate tools
+specsync mcp lock --write    # commit MCP tool-contract lock
+specsync mcp diff            # fail-closed lock drift check (CI)
 ```
 
 The default server exposes validation, coverage, listing, scoring, and issue-verification tools.

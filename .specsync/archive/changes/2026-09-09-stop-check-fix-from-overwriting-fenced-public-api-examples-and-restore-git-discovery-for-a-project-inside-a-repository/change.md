@@ -1,6 +1,6 @@
 ---
 id: stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository
-state: implementing
+state: archived
 type: bug_fix
 base_commit: cd812fd2d0b70365f93555841c665849d0a48265
 ---

@@ -7,11 +7,11 @@
   "title": "Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory",
   "description": "stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "cd812fd2d0b70365f93555841c665849d0a48265",
   "created_at": 1788964162,
-  "updated_at": 1788964638,
+  "updated_at": 1788965391,
   "affected_specs": [
     "cmd_check",
     "git_utils",

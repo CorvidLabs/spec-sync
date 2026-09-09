@@ -1,6 +1,6 @@
 ---
 module: git_utils
-version: 8
+version: 9
 status: stable
 files:
   - src/git_utils.rs
@@ -56,23 +56,29 @@ Shared git utility functions for querying repository history. Provides the stale
 
 ## Behavioral Examples
 
-### Scenario: Spec not tracked by git, in a repository that has commits
+#### Scenario: Spec not tracked by git, in a repository that has commits
 
 - **Given** a repository with at least one commit and a spec that has never been committed
 - **When** `spec_baseline` is called
 - **Then** returns `SpecBaseline::Untracked` — there is nothing for the spec to be behind
 
-### Scenario: No git history at all
+#### Scenario: No git history at all
 
 - **Given** a directory that is not a git repository, or a repository with an unborn `HEAD`
 - **When** `spec_baseline` is called
 - **Then** returns `SpecBaseline::Missing(NotARepository)` or `SpecBaseline::Missing(NoCommits)` — the distance is unknown, not zero
 
-### Scenario: Source file changed after spec
+#### Scenario: Source file changed after spec
 
 - **Given** a spec last committed at commit A, and a source file with 3 commits after A
 - **When** `git_commits_since` is called with commit A's hash
 - **Then** returns `3`
+
+#### Scenario: Project root is a subdirectory of the repository
+
+- **Given** a git repository at `repo/` and a specsync project root at `repo/packages/foo` with no `.git` of its own
+- **When** `is_git_repo` is called with `repo/packages/foo`
+- **Then** returns true, so staleness, reports, and deletion detection still see the parent work tree
 
 ## Error Cases
 
@@ -100,3 +106,4 @@ None (only uses `std::process::Command` for git CLI calls).
 | 2026-08-14 | CHG-0123-staleness-that-cannot-be-measured-must-be-refused-not-reported-as-zero-drift-i: Staleness that cannot be measured must be refused, not reported as zero drift, in every reader: report, check --stale, the lifecycle no_stale guard, and the score freshness dimension |
 | 2026-08-18 | CHG-0144-a-staleness-answer-must-not-read-an-unreadable-source-as-freshness: A staleness answer must not read an unreadable source as freshness |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-09-09 | stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository: Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory |

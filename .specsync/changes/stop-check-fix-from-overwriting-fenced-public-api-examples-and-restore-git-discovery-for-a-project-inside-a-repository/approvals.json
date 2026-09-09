@@ -1,0 +1,89 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788964332,
+      "digest": "f0ab7c405ed179f54f38c76d8d44f084a0083d29e690cc2d7101fb5ac6593912",
+      "note": "owner pre-authorization per docs/6-0-overnight-brief.md; human inspection at PR merge",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository",
+        "title": "Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory",
+        "description": "stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check",
+          "cmd_new",
+          "git_utils"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/mcp-security.md",
+          "src/commands/check.rs",
+          "src/git_utils.rs",
+          "tests/integration/fix.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "check --fix with a near-miss Public API heading plus a fenced example preserves the fenced body verbatim; is_git_repo is true for a project subdirectory of a git repository; git children still env_clear and drop GITHUB_TOKEN/GIT_DIR; cmd_new spec describes generate_spec/validate_scaffold_module_name rather than chrono_lite_today."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_check": "a8cece99cddedf626befb8e0f994b3096a2a0cdfd0be2a1473b6189ca8b8c958",
+        "cmd_new": "084d458b8f6b87bae96adbf2e9ed5e54ba4bbc682ec94bc93bffade38c2e6529",
+        "git_utils": "c3b863f1ed1ce6023f229169065606e4f0c4aae285dce03fcb6ba7df50aeea08"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1788964535,
+      "digest": "f0ab7c405ed179f54f38c76d8d44f084a0083d29e690cc2d7101fb5ac6593912",
+      "note": "owner pre-authorization per docs/6-0-overnight-brief.md; human inspection at PR merge",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository",
+        "title": "Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory",
+        "description": "stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check",
+          "cmd_new",
+          "git_utils"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/mcp-security.md",
+          "src/commands/check.rs",
+          "src/git_utils.rs",
+          "tests/integration/fix.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "check --fix with a near-miss Public API heading plus a fenced example preserves the fenced body verbatim; is_git_repo is true for a project subdirectory of a git repository; git children still env_clear and drop GITHUB_TOKEN/GIT_DIR; cmd_new spec describes generate_spec/validate_scaffold_module_name rather than chrono_lite_today."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_check": "a8cece99cddedf626befb8e0f994b3096a2a0cdfd0be2a1473b6189ca8b8c958",
+        "cmd_new": "084d458b8f6b87bae96adbf2e9ed5e54ba4bbc682ec94bc93bffade38c2e6529",
+        "git_utils": "c3b863f1ed1ce6023f229169065606e4f0c4aae285dce03fcb6ba7df50aeea08"
+      }
+    }
+  ],
+  "reopenings": []
+}

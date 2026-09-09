@@ -1,6 +1,6 @@
 ---
 module: cmd_new
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/new.rs
@@ -29,10 +29,11 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 ## Invariants
 
 1. Auto-detects source files by scanning source dirs for module name matches; when nothing matches and the project has exactly one non-test source file (e.g. only `src/lib.rs`), that file is used as the module's source
-2. Extracts exports to pre-populate Public API tables
+2. Extracts exports to pre-populate Public API tables via `generator::generate_spec`
 3. `--full` generates companion files (tasks.md, context.md, requirements.md, testing.md) via `generator::generate_companion_files_for_spec()`; design.md is included only when `companions.design` is enabled in config
-4. Includes custom `chrono_lite_today()` for dates without chrono dependency
+4. Emits the same seven-section skeleton as `add-spec` / `generate`; Change Log dates come from the shared generator, not a private `chrono_lite_today()` helper
 5. Will not overwrite existing spec
+6. Module names are refused under the same rules as `scaffold` (`validate_scaffold_module_name` plus case-collision)
 
 ## Behavioral Examples
 
@@ -55,19 +56,21 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 | Spec already exists | Exits 1 |
 | No source files found | Creates spec with empty `files:` and prints a ⚠ explaining that the `files:` list must be filled in before `check` passes |
 | Dir creation fails | Exits 1 |
-| Invalid module name (path separator, `.`/`..`, absolute/drive-relative, control chars) | Refused via `validate_module_name` before any write; prints `invalid module name …` and exits 1 (no path traversal) |
+| Invalid module name (path separator, `.`/`..`, absolute/drive-relative, control chars, reserved names, leading dashes, spaces) | Refused via `validate_scaffold_module_name` before any write; prints `invalid module name …` and exits 1 (no path traversal) |
+| Case-fold collision with an existing spec directory | Refused via `check_case_collision` before any write |
 
 ## Dependencies
 
-### Consumes
+#### Consumes
 
 | Module | What is used |
 |--------|-------------|
 | config | `load_config` |
-| exports | `get_exported_symbols`, `has_extension` |
-| generator | `generate_companion_files` |
+| exports | `has_configured_extension`, `is_test_file` |
+| generator | `generate_spec`, `collect_exports_for_files`, `generate_companion_files_for_spec`, `find_single_source_fallback` |
+| commands | `validate_scaffold_module_name`, `check_case_collision` |
 
-### Consumed By
+#### Consumed By
 
 | Module | What is used |
 |--------|-------------|
@@ -85,3 +88,4 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 | 2026-07-14 | CHG-0038-harden-commonjs-export-extraction-and-exclude-module-javascript-tests-from-gener: Harden CommonJS export extraction and exclude module JavaScript tests from generated specs |
 | 2026-08-15 | CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve: Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-09-09 | stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository: Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory |

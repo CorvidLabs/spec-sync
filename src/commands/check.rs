@@ -1145,7 +1145,11 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
         .map(|p| api_start + 1 + p)
         .unwrap_or(content.len());
 
-    let api_section = crate::parser::blank_fenced_code(&content[api_start..api_end]);
+    let original_section = content[api_start..api_end].to_string();
+    // Scan a fence-blanked copy so quoted `###` headings are not renamed.
+    // Keep the original as the replacement buffer: writing the blanked copy
+    // back would space-wipe every fenced example in the section.
+    let api_section = crate::parser::blank_fenced_code(&original_section);
     let mut modified = false;
 
     // Canonical export subsection names. Levenshtein distance ≤ 2 triggers a rename.
@@ -1160,7 +1164,7 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
         "Exported Enums",
     ];
 
-    let mut new_section = api_section.clone();
+    let mut replacements: Vec<(usize, usize, String)> = Vec::new();
     for cap in re.captures_iter(&api_section) {
         let header_text = cap.get(2).unwrap().as_str();
         let lower = header_text.to_ascii_lowercase();
@@ -1171,24 +1175,14 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
         }
 
         // Find closest canonical by edit distance; fix if within 2 edits
-        if let Some((&canonical, _)) = canonicals
+        let new_header = if let Some((&canonical, _)) = canonicals
             .iter()
             .map(|c| (c, levenshtein(&lower, &c.to_ascii_lowercase())))
             .min_by_key(|(_, d)| *d)
             .filter(|(_, d)| *d > 0 && *d <= 2)
         {
-            let old = format!("### {header_text}");
-            let new = format!("### {canonical}");
-            new_section = new_section.replacen(&old, &new, 1);
-            modified = true;
-            continue;
-        }
-
-        // Bare API-kind headings ("### Functions", "### Methods", "### Types", …)
-        // describe export tables but fail is_export_header, so their rows are
-        // informational-only and --fix would append a duplicate export table
-        // for the same symbols. Promote them to "### Exported <Kind>".
-        let bare_kinds: &[&str] = &[
+            Some(format!("### {canonical}"))
+        } else if [
             "functions",
             "methods",
             "types",
@@ -1201,16 +1195,29 @@ fn fix_near_miss_headers(content: &mut String) -> bool {
             "structs",
             "traits",
             "protocols",
-        ];
-        if bare_kinds.contains(&lower.trim()) {
-            let old = format!("### {header_text}");
-            let new = format!("### Exported {}", header_text.trim());
-            new_section = new_section.replacen(&old, &new, 1);
+        ]
+        .contains(&lower.trim())
+        {
+            // Bare API-kind headings ("### Functions", "### Methods", …)
+            // describe export tables but fail is_export_header, so their rows
+            // are informational-only and --fix would append a duplicate export
+            // table for the same symbols. Promote them to "### Exported <Kind>".
+            Some(format!("### Exported {}", header_text.trim()))
+        } else {
+            None
+        };
+        if let Some(new) = new_header {
+            let whole = cap.get(0).unwrap();
+            replacements.push((whole.start(), whole.end(), new));
             modified = true;
         }
     }
 
     if modified {
+        let mut new_section = original_section;
+        for (start, end, new) in replacements.into_iter().rev() {
+            new_section.replace_range(start..end, &new);
+        }
         content.replace_range(api_start..api_end, &new_section);
     }
 

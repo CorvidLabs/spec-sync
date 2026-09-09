@@ -561,6 +561,68 @@ fn fix_ignores_fenced_exported_heading_before_the_table() {
 }
 
 #[test]
+fn fix_preserves_fenced_example_when_renaming_a_near_miss_header() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function a() {}\nexport function b() {}\n",
+    )
+    .unwrap();
+
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = spec_with_public_api(
+        r#"
+```markdown
+### Exported Functions
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `sample` | | | quoted, not the contract |
+console.log("keep this fenced body");
+```
+
+### Exporteed Functions
+
+| Function | Parameters | Returns | Description |
+|----------|-----------|---------|-------------|
+| `a` | | | Documented already |
+"#,
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), &spec).unwrap();
+
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(
+        updated.contains("console.log(\"keep this fenced body\");"),
+        "fenced example body must survive header rename:\n{updated}"
+    );
+    assert!(
+        updated.contains("| `sample` |"),
+        "fenced sample row must be preserved:\n{updated}"
+    );
+    assert!(
+        updated.contains("### Exported Functions"),
+        "near-miss heading must be renamed:\n{updated}"
+    );
+    assert!(
+        !updated.contains("### Exporteed Functions"),
+        "typo heading must not remain:\n{updated}"
+    );
+    assert!(
+        updated.contains("| `b` |"),
+        "undocumented export must still be inserted:\n{updated}"
+    );
+}
+
+#[test]
 fn fix_takes_column_count_from_the_real_table_not_a_preceding_code_sample() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

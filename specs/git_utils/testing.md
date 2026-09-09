@@ -20,6 +20,8 @@ spec: git_utils.spec.md
 | `commits_since_counts_source_changes_after_spec` | Counts exactly 3 source commits after the spec; an untouched file reports `0` |
 | `commits_since_returns_zero_for_invalid_commit` | A bogus commit ref degrades to `0` (no panic) |
 | `is_git_repo_detects_repo_and_non_repo` | `true` inside an initialized repo, `false` in a plain temp dir |
+| `git_inherited_env_excludes_secrets_and_git_overrides` | Secrets and git overrides are absent from the child allowlist |
+| `is_git_repo_detects_project_inside_repository_subdirectory` | `true` for a directory with no `.git` of its own that sits inside a real repository |
 
 ## Behavioral Verification
 

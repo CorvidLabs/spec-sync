@@ -30,9 +30,10 @@ const GIT_INHERITED_ENV: &[&str] = &[
 /// that needed `GITHUB_TOKEN` for issue verification forwarded that token — and
 /// `GIT_DIR` / `GIT_ASKPASS` — to whatever `git` was first on `PATH`.
 ///
-/// Keep a small allowlist so git can actually run (PATH, locale, temp, home)
-/// and pin `GIT_CEILING_DIRECTORIES` to `root`'s parent so a snapshot sitting
-/// inside a host worktree cannot walk up into it.
+/// Keep a small allowlist so git can actually run (PATH, locale, temp, home).
+/// Do not set `GIT_CEILING_DIRECTORIES`: a project whose root is a subdirectory
+/// of a git repository (monorepo package, nested checkout) must still discover
+/// the parent work tree. `env_clear` already drops any inherited ceiling.
 fn git_cmd(root: &Path) -> Command {
     let mut command = Command::new("git");
     command.env_clear();
@@ -44,14 +45,6 @@ fn git_cmd(root: &Path) -> Command {
     command.env("GIT_TERMINAL_PROMPT", "0");
     command.env("GIT_OPTIONAL_LOCKS", "0");
     command.env("LC_ALL", "C");
-    let absolute = root.canonicalize().unwrap_or_else(|_| {
-        std::env::current_dir()
-            .unwrap_or_else(|_| Path::new(".").to_path_buf())
-            .join(root)
-    });
-    if let Some(parent) = absolute.parent() {
-        command.env("GIT_CEILING_DIRECTORIES", parent);
-    }
     command.current_dir(root);
     command
 }
@@ -470,16 +463,18 @@ mod tests {
     }
 
     #[test]
-    fn git_ceiling_stops_walk_into_a_host_worktree() {
+    fn is_git_repo_detects_project_inside_repository_subdirectory() {
         let host = init_repo();
         commit_file(host.path(), "src/auth.rs", "fn login() {}", "add source");
-        let snapshot = host.path().join("mcp-snapshot");
-        fs::create_dir(&snapshot).unwrap();
-        fs::write(snapshot.join("README"), "snap\n").unwrap();
+        let nested = host.path().join("packages/foo");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(nested.join("README"), "pkg\n").unwrap();
         assert!(
-            !is_git_repo(&snapshot),
-            "a snapshot sitting inside a host worktree must not inherit that repo via git walk-up"
+            is_git_repo(&nested),
+            "a specsync project whose root is a subdirectory of the repository must still see that work tree"
         );
         assert!(is_git_repo(host.path()));
+        let plain = TempDir::new().unwrap();
+        assert!(!is_git_repo(plain.path()));
     }
 }

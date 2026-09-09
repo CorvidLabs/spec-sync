@@ -197,10 +197,10 @@ Acceptance Criteria
 
 ### REQ-cmd-check-016
 
-`check --fix` SHALL ignore fenced Markdown when locating `###` export subsections and near-miss headings. A fenced `### Exported Functions` is quoted text, not an insertion target.
+`check --fix` SHALL ignore fenced Markdown when locating `###` export subsections and near-miss headings. A fenced `### Exported Functions` is quoted text, not an insertion target. Near-miss and bare-kind header rewrites SHALL scan a fence-blanked copy and SHALL write the original section, so a fenced example body is never replaced with spaces.
 
 Acceptance Criteria
 - A Public API section whose first `### Exported Functions` is inside a fence, followed by a real heading and table, receives new rows in the real table.
-- The fenced sample is preserved verbatim.
-- Near-miss header rewrites also run on fence-blanked text so a fenced `### Exported Functons` is not renamed.
+- The fenced sample is preserved verbatim, including when `--fix` also renames a near-miss or bare `###` heading in the same section.
+- A fenced `### Exported Functons` is not renamed.
 

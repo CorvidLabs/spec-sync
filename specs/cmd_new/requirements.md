@@ -41,6 +41,7 @@ Acceptance Criteria
 - A spec created by `new` contains Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, and Change Log.
 - Public API rows are pre-populated from detected exports via `generator::generate_spec`.
 - The private `chrono_lite_today` helper is gone; the Change Log date comes from the shared generator.
+- The canonical spec body describes `generate_spec`, `validate_scaffold_module_name`, `check_case_collision`, `collect_exports_for_files`, and `generate_companion_files_for_spec` — not `chrono_lite_today`, `validate_module_name`, `get_exported_symbols`, `has_extension`, or `generate_companion_files`.
 
 ### REQ-cmd-new-002
 

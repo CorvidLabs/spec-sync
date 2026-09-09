@@ -69,10 +69,11 @@ Acceptance Criteria
 
 ### REQ-git-utils-005
 
-Every production `git` child spawned from `git_utils` SHALL start with a cleared environment, inherit only an allowlist of PATH/locale/home/temp variables, set `GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0`, and pin `GIT_CEILING_DIRECTORIES` to the parent of the canonical project root.
+Every production `git` child spawned from `git_utils` SHALL start with a cleared environment, inherit only an allowlist of PATH/locale/home/temp variables, and set `GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0`. It SHALL NOT set `GIT_CEILING_DIRECTORIES`, so a project whose root is a subdirectory of a git repository is still detected as inside that work tree.
 
 Acceptance Criteria
 - `GITHUB_TOKEN`, `GH_TOKEN`, `GIT_DIR`, `GIT_ASKPASS`, `GIT_INDEX_FILE`, and `SSH_AUTH_SOCK` are not on the allowlist.
-- A directory that is not itself a repository, sitting inside a host worktree, is not reported as a git repo (walk-up is ceiling-stopped).
+- `is_git_repo` is true for a directory that has no `.git` of its own but sits inside a real repository (nested-project / monorepo-subdir).
 - A real repository root is still detected.
+- A directory that is not inside any git work tree remains `false`.
 

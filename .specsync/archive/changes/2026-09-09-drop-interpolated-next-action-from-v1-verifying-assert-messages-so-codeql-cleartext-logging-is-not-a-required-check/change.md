@@ -1,6 +1,6 @@
 ---
 id: drop-interpolated-next-action-from-v1-verifying-assert-messages-so-codeql-cleartext-logging-is-not-a-required-check
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 0bdfffc065f1cd624fe272073642eb1898f8b595
 ---

@@ -7,11 +7,11 @@
   "title": "Drop interpolated next_action from v1 verifying assert messages so CodeQL cleartext-logging is not a required-check failure",
   "description": "drop interpolated next_action from v1 verifying assert messages so CodeQL cleartext-logging is not a required-check failure",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "0bdfffc065f1cd624fe272073642eb1898f8b595",
   "created_at": 1788987607,
-  "updated_at": 1788987868,
+  "updated_at": 1788988589,
   "affected_specs": [
     "change"
   ],

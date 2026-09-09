@@ -7263,6 +7263,13 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
                     ],
                 )
             }
+            ChangeState::Verifying if signals.workflow_version < 2 => (
+                HandoffReadiness::Conditional,
+                "a workflow-v1 change still closes through verify then accept then archive",
+                vec![format!(
+                    "run `specsync change verify {id}`, then `specsync change accept {id}`, then `specsync change archive {id}`"
+                )],
+            ),
             ChangeState::Verifying if !signals.verification_current => (
                 HandoffReadiness::Conditional,
                 "the tree moved after the last check, so a fresh session would resume from evidence that no longer matches",
@@ -7499,6 +7506,12 @@ fn summarize_change_with_effective(
             }
             ChangeState::Verifying if !approval_valid => {
                 format!("run `specsync change approve {} --actor <name>`", record.id)
+            }
+            ChangeState::Verifying if record.workflow_version < 2 => {
+                format!(
+                    "run `specsync change verify {0}`, then `specsync change accept {0}`, then `specsync change archive {0}`",
+                    record.id
+                )
             }
             ChangeState::Verifying if !verification_current => {
                 format!("run `specsync change check {}`", record.id)
@@ -17517,7 +17530,7 @@ fn uncovered_paths_error(policy: &SddPolicy, paths: &[String]) -> String {
     }
     let remaining = paths.len().saturating_sub(UNCOVERED_PATH_FLAG_LIMIT);
     message.push_str(&format!(
-        "\n  cover them: specsync change new \"<summary>\" --kind fix --spec <module>{path_flags}"
+        "\n  cover them: specsync change new \"<summary>\" --kind bug-fix --spec <module>{path_flags}"
     ));
     if remaining > 0 {
         message.push_str(&format!(

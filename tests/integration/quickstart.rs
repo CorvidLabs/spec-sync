@@ -123,3 +123,83 @@ fn readme_quick_start_init_add_spec_and_check_succeed() {
         .assert()
         .success();
 }
+
+#[test]
+fn init_add_spec_hooks_install_then_commit_succeeds_without_strict() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    let specsync_bin = assert_cmd::cargo::cargo_bin("specsync");
+    let bin_dir = specsync_bin.parent().unwrap();
+
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        output
+    };
+
+    git(&["init", "--quiet"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    git(&["config", "commit.gpgsign", "false"]);
+
+    specsync()
+        .args(["init", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/auth.ts"),
+        "export function login(): boolean {\n  return true;\n}\n",
+    )
+    .unwrap();
+
+    specsync()
+        .args(["add-spec", "auth", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+
+    specsync()
+        .arg("check")
+        .arg("--root")
+        .arg(root)
+        .assert()
+        .success();
+
+    specsync()
+        .args(["hooks", "install", "--precommit", "--root"])
+        .arg(root)
+        .assert()
+        .success();
+
+    let hook = fs::read_to_string(root.join(".git/hooks/pre-commit")).unwrap();
+    assert!(
+        !hook.contains("check --strict"),
+        "generated hook must not hardcode --strict:\n{hook}"
+    );
+
+    git(&["add", "-A"]);
+    let path = format!("{}:{}", bin_dir.display(), std::env::var("PATH").unwrap());
+    let commit = std::process::Command::new("git")
+        .args(["commit", "-m", "first commit"])
+        .current_dir(root)
+        .env("PATH", path)
+        .output()
+        .unwrap();
+    assert!(
+        commit.status.success(),
+        "first-run commit must succeed without --no-verify; stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&commit.stdout),
+        String::from_utf8_lossy(&commit.stderr)
+    );
+}

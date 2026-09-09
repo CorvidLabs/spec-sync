@@ -1,6 +1,6 @@
 ---
 module: change
-version: 123
+version: 124
 status: active
 files:
   - src/change.rs
@@ -484,3 +484,4 @@ Acceptance Criteria
 | 2026-09-07 | make-bounded-git-timeout-cleanup-tests-independent-of-child-startup-scheduling: Make bounded Git timeout cleanup tests independent of child startup scheduling |
 | 2026-09-08 | complete-specsync-6-promotion-and-public-release-contracts: Clarify scoped reviewer claims and the separate authentication policy boundary |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |

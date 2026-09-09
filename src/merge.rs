@@ -2,9 +2,9 @@ use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
-use std::process;
 use std::sync::{LazyLock, Mutex};
 
+use crate::git_utils::git_cmd;
 use crate::parser::{parse_checked_issue_references, parse_frontmatter};
 use crate::validator::find_spec_files;
 
@@ -255,9 +255,8 @@ fn fence_marker(trimmed: &str) -> Option<String> {
 /// collapses the two reports an all-clear it never verified, which is the same
 /// fail-open that made a conflicted tree pass `check`.
 pub fn unmerged_paths(root: &Path) -> Option<HashSet<String>> {
-    let output = match process::Command::new("git")
+    let output = match git_cmd(root)
         .args(["diff", "--name-only", "--diff-filter=U"])
-        .current_dir(root)
         .output()
     {
         Ok(output) => output,
@@ -1313,6 +1312,25 @@ mod tests {
     fn unmerged_paths_is_unknown_outside_a_git_repository() {
         let directory = tempfile::tempdir().unwrap();
         assert_eq!(unmerged_paths(directory.path()), None);
+    }
+
+    #[test]
+    fn unmerged_paths_uses_sanitized_git_cmd() {
+        let cmd = crate::git_utils::git_cmd(std::path::Path::new("."));
+        let keys: Vec<String> = cmd
+            .get_envs()
+            .filter_map(|(key, value)| value.map(|_| key.to_string_lossy().into_owned()))
+            .collect();
+        for denied in [
+            "GITHUB_TOKEN",
+            "AWS_SECRET_ACCESS_KEY",
+            "SPECSYNC_TEST_SECRET",
+        ] {
+            assert!(
+                !keys.iter().any(|k| k == denied),
+                "{denied} must be absent from the git child unmerged_paths spawns; env was {keys:?}"
+            );
+        }
     }
 
     #[test]

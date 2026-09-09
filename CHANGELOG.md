@@ -90,6 +90,14 @@ Release candidate: stable publication is pending. Add the release date only when
 
 ### Fixed
 
+- **Generated pre-commit hook honors config `enforcement`.** It ran `specsync check --strict`, so a first-run `init` → `add-spec` → `hooks install` → `git commit` failed on scaffold warnings. The hook now runs `specsync check` (strict on errors, warnings pass unless `--strict` or config says otherwise).
+
+- **A malformed TOML config refuses the same verbs as malformed JSON** (#653). `load_toml_config` parses through `parse_config_content_checked`. Empty files, a directory standing in for the config path, and an unknown `enforcement` enum also set `load_error`. `rules` / `rehash` / `compact` / `deps` / `archive-tasks` / `view` exit 1; no-config-file still uses defaults.
+
+- **`merge::unmerged_paths` no longer forwards host secrets to git.** It spawned `Command::new("git")` with the full parent environment, so `check` / MCP via `cached_unmerged_paths` leaked `GITHUB_TOKEN`. It now uses `git_cmd` (crate-visible).
+
+- **Workflow-v1 `Verifying` `next_action` names `verify` → `accept` → `archive`**, not the 6.0 `check` / `review` / `finalize` verbs. Uncovered-path remediation uses `--kind bug-fix`. `MIGRATION.md` has a copy-pasteable v1 close-out (merge-then-archive), commits the workflow-v2 baseline after `adopt`, and names that neither `change check` nor `change verify` runs `verification_commands`.
+
 - **`cargo publish` for 6.0.0 compiles.** `src/change.rs` embedded
   `.github/scripts/lifecycle-validation-limits.json` via `include_str!`, which is outside
   Cargo.toml's `include` set (`/src/**`). The limits file is now bundled at

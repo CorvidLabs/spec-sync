@@ -1,6 +1,6 @@
 ---
 module: config
-version: 26
+version: 27
 status: stable
 files:
   - src/config.rs
@@ -56,7 +56,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 4. 46 common build/cache directories are always excluded from source detection.
 5. `detect_source_dirs` falls back to `["src"]` if no source files are found.
 6. Root-level source files produce `["."]` as source dirs.
-7. TOML parsing is zero-dependency and uses line-by-line string parsing.
+7. `load_toml_config` parses through `parse_config_content_checked` (real `toml::from_str` plus typed field validation, including a known `enforcement` enum). The compatibility line scanner (`parse_toml_config`) runs only after that choke point succeeds.
 8. Basic and literal TOML strings preserve punctuation as content according to their string kind.
 9. Present-but-unreadable config and local override files warn before built-in defaults are used; absent files apply defaults silently.
 10. Retired AI key names are ignored with value-safe migration guidance and are never retained, serialized, printed, or executed.
@@ -71,6 +71,9 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
     source lists without pre-traversal, and preserves malformed legacy config warning fallback.
 16. Nested configuration parents are reverified through the retained project root around the
     bounded read; a detached parent cannot become mixed-generation configuration authority.
+17. A present TOML or JSON config that is empty, unreadable, syntactically invalid, a directory,
+    or carries an unknown `enforcement` value sets `load_error` so `load_config` refuses rather
+    than substituting built-in defaults.
 
 ## Behavioral Examples
 
@@ -168,6 +171,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-09-07 | let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived: Let a module own paths beyond its spec files so a later change can supersede the exact-only inputs of an archived bootstrap change |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
 
 ## Config File Structure
 

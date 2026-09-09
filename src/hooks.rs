@@ -158,15 +158,16 @@ const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 # Installed by: specsync hooks install --precommit
 # Remove by deleting this file or running: specsync hooks uninstall --precommit
 #
-# Enforcement is controlled by the `enforcement` field in specsync.json:
-#   "warn"         — report violations but never block commits (default)
+# Enforcement is controlled by the `enforcement` field in .specsync/config.toml:
+#   "warn"         — report violations but never block commits
 #   "enforce-new"  — block commits if files without specs exist
-#   "strict"       — block commits on any validation error
-# Override with --enforcement <mode> below if needed.
+#   "strict"       — block commits on any validation error (default)
+# The separate --strict flag also fails warnings; this hook does not pass it,
+# so a first-run scaffold that only has warnings can still be committed.
 
 if command -v specsync >/dev/null 2>&1; then
     echo "specsync: checking specs..."
-    if ! specsync check --strict; then
+    if ! specsync check; then
         echo ""
         echo "specsync: specs have errors — fix them before committing."
         echo "  Run 'specsync check' to see details."
@@ -273,9 +274,9 @@ fn pre_commit_block(root: &Path) -> Result<String, String> {
         .collect::<Vec<_>>()
         .join("\n")
         .replace(
-            "specsync check --strict",
+            "specsync check",
             &format!(
-                "specsync --root {} check --strict",
+                "specsync --root {} check",
                 shell_single_quote(&project_root)
             ),
         );
@@ -1254,7 +1255,14 @@ mod tests {
         assert!(path.exists());
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("spec-sync pre-commit hook"));
-        assert!(content.contains("check --strict"));
+        assert!(
+            content.contains("specsync check") || content.contains(" check"),
+            "generated hook must run specsync check: {content}"
+        );
+        assert!(
+            !content.contains("check --strict"),
+            "generated hook must not hardcode --strict: {content}"
+        );
     }
 
     #[test]
@@ -1416,7 +1424,14 @@ mod tests {
         let managed = content.find(PRE_COMMIT_BEGIN_PREFIX).unwrap();
         let exit = content.rfind("exit 0").unwrap();
         assert!(managed < exit);
-        assert!(content.contains("check --strict"));
+        assert!(
+            content.contains(" check"),
+            "generated hook must run specsync check: {content}"
+        );
+        assert!(
+            !content.contains("check --strict"),
+            "generated hook must not hardcode --strict: {content}"
+        );
     }
 
     #[test]

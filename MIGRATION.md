@@ -34,7 +34,9 @@ Existing 5.x consumers, in this order:
    specsync change archive <id>
    ```
 
-   `change status` on a v1 `Verifying` record names that sequence; it does not name the 6.0 `check` / `review` / `finalize` verbs.
+   `change status` on a v1 `Verifying` record names that sequence on its `Handoff:` line. Its `Next:`
+   line still names the workflow-v2 verbs (`change check --commit`, `change ship-status`, `change ship`,
+   "finalize"), which do not close a workflow-v1 change. Follow the `Handoff:` line, not `Next:`.
 5. **Run `specsync change adopt`.** On a policy that is already enabled it changes nothing in `sdd.json`, but it records the workflow-v2 baseline (if a `change new` has not already done so) and writes `.specsync/adoption-report.json`. **Commit both files** (they are the cutoff you will be judged against):
 
    ```bash

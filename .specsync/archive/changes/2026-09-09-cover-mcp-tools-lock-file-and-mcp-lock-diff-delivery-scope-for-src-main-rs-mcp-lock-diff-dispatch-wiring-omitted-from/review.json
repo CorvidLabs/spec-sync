@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-mcp-tools-lock-file-and-mcp-lock-diff-delivery-scope-for-src-main-rs-mcp-lock-diff-dispatch-wiring-omitted-from",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "d1463f28d16bb2bc6cc4b05adfd19189e513be64",
+  "contract_digest": "9e51e44d594da285fe558646e540c01619b404299e08d17e05a726794e197be5",
+  "execution_digest": "f78b1aed4f8b7cbcb49bf7baaa4cbf424df6ad9a6c2b39563c572655cf80ebf2",
+  "workspace_digest": "ced97220e2eda8b43ede6f415eaac6b9149bf86dfa60489fc541ba169d3fade0",
+  "timestamp": 1788968298
+}

@@ -1,6 +1,6 @@
 ---
 id: cover-mcp-tools-lock-file-and-mcp-lock-diff-delivery-scope-for-src-main-rs-mcp-lock-diff-dispatch-wiring-omitted-from
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 9d20c4c6f3f51534732cdf798315999bf3374126
 ---

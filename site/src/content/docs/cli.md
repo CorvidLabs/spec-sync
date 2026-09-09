@@ -73,6 +73,9 @@ Start SpecSync as an MCP (Model Context Protocol) server over stdio. Enables AI 
 ```bash
 specsync mcp                            # read-only MCP server (stdio JSON-RPC)
 specsync mcp --allow-write              # additionally expose root-confined init/generate tools
+specsync mcp lock                       # print MCP tools lock JSON from live catalog
+specsync mcp lock --write               # write `.specsync/mcp-tools.lock.json` (explicit only)
+specsync mcp diff                       # fail-closed compare live catalog vs committed lock
 ```
 
 By default, the server exposes five read tools: `specsync_check`, `specsync_coverage`,

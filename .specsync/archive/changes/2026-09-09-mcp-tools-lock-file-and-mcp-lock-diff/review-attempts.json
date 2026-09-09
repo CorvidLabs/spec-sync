@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "mcp-tools-lock-file-and-mcp-lock-diff",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "e61d7e1a9d716a530a0512686d44829e16de8f2b",
+      "contract_digest": "9184e72c238b2df016414f77b0b27448caeebc901e3b9921611f0c6d62826510",
+      "execution_digest": "522e0b2654c2d5d384236cef9c83ef69ee416e809873815f7da19b67bf4bb9be",
+      "workspace_digest": "ced97220e2eda8b43ede6f415eaac6b9149bf86dfa60489fc541ba169d3fade0",
+      "timestamp": 1788968170
+    }
+  ]
+}

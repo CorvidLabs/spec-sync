@@ -1,0 +1,87 @@
+{
+  "generated_by": "specsync 6.0.0",
+  "server": "specsync mcp",
+  "tool_count": 5,
+  "tools": [
+    {
+      "description": "Validate all spec files against source code. Returns errors, warnings, and pass/fail status for each spec.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "root": {
+            "description": "Existing project directory at or below the server root",
+            "type": "string"
+          },
+          "strict": {
+            "description": "Treat warnings as errors (default: false)",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "specsync_check",
+      "sha256": "e9e2be87abfde7a09a72f9bb616ea04421b10bfe21a135ffce7cd78659dc213f"
+    },
+    {
+      "description": "Get file and LOC coverage metrics. Shows which source files and modules have specs and which don't.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "root": {
+            "description": "Existing project directory at or below the server root",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "specsync_coverage",
+      "sha256": "8d0413e210d4837b6735314f0999e9a4b4acb360eec86f58d991193861e910e7"
+    },
+    {
+      "description": "List all spec files found in the project with their module names and status.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "root": {
+            "description": "Existing project directory at or below the server root",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "specsync_list_specs",
+      "sha256": "15c955739c02825a0b6719691f22047fdf14d98082ac8a9ac2893c1b5987f1de"
+    },
+    {
+      "description": "Score spec quality (0-100) with letter grades, breakdown by category, and improvement suggestions.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "root": {
+            "description": "Existing project directory at or below the server root",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "specsync_score",
+      "sha256": "d4423c0c4c98cad23181076515595a94f9b0bf37f46bf35b8eb6bc27b6a08edc"
+    },
+    {
+      "description": "Verify GitHub issue references in spec frontmatter. Checks that linked issues exist and reports their status (open/closed).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "root": {
+            "description": "Existing project directory at or below the server root",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "specsync_issues",
+      "sha256": "cf34c8a7dc7d0bad63acad84bc5d57509e23e58a82dd7432303924932dbeb4e7"
+    }
+  ],
+  "version": 1
+}

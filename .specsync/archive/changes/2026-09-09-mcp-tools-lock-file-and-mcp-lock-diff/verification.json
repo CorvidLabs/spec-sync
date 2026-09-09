@@ -1,0 +1,205 @@
+{
+  "timestamp": 1788967546,
+  "commit": "e61d7e1a9d716a530a0512686d44829e16de8f2b",
+  "contract_digest": "9184e72c238b2df016414f77b0b27448caeebc901e3b9921611f0c6d62826510",
+  "execution_digest": "522e0b2654c2d5d384236cef9c83ef69ee416e809873815f7da19b67bf4bb9be",
+  "workspace_digest": "ced97220e2eda8b43ede6f415eaac6b9149bf86dfa60489fc541ba169d3fade0",
+  "acceptance_input_digest": "f8715d7069c579ca46c8a82b88fabe17d85371c7567d55c0c2c470d100474f71",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".specsync/mcp-tools.lock.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "db0bba938d5f152ea5c91c04323970b9363ebe6cd404a4c8631a7dd25e29f65c",
+        "entry_digest": "91d4e4f4ddfe1c8bd3d0ddeafccd6479536b93b1895a611cecbbb1bce5020d87",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "CHANGELOG.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a8c429fcf5622bc4229d497534310b6b9e940c96498cf510cfac80992b45124a",
+        "entry_digest": "d89b020b62acace9345b4bf5fc01aa13cc880efedb45ee316310d085b28c680d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/cli.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9a21e1d3c319d89a05f27c796e779307cef9f8a550f29df2ebd7e150b688b9a1",
+        "entry_digest": "8d0577111e84acefd8e5f2470800d534e8ec64b66ead5ef8abb2c0ff38df0442",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/ai-agents.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ec2336c0a62e9823accf7f730f9b1cec85b20589a17d702380c044e1c946a6b4",
+        "entry_digest": "58f21e9f68a1a18f03543f79f32c8d557183b7e5fc93ea52c7132f18845da9cb",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/workflow.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b4bc5f977242a7ca18191038d003861bcfd058107d921fe80b50337fcf62f8f7",
+        "entry_digest": "441bafaeceee59a655058c1551a0261ef0a7bf8be979fae4324c8e7e14dd9d58",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/cli_args/cli_args.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "69e68e4bb34984ed469281166c1003d6e1160f8daa5a4a7ac538b2ee4661b69a",
+        "entry_digest": "0725b7bad9882a300fb60de57669df556e6b998fdae99d67d36cabcf4f7a00ab",
+        "owners": [
+          "cli_args"
+        ]
+      },
+      {
+        "path": "specs/cli_args/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "694d491f80bafea2981284869cd1e403caedf768d6b568b200b0009c89741bc0",
+        "entry_digest": "b2bc8b849b4ad8e61616cd6a0f520a298355eaaae1bf3f59283165f73468225d",
+        "owners": [
+          "cli_args"
+        ]
+      },
+      {
+        "path": "specs/cli_args/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "be67a6406629d834a745c90c6d02ee9386c4559e11d3803d4dead8543a22a083",
+        "entry_digest": "c63fc6d87596e5c43b329a2d62e4a93e6181f3f9cd18070775db73fd9a811bdc",
+        "owners": [
+          "cli_args"
+        ]
+      },
+      {
+        "path": "specs/cli_args/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a4e9f7d335403ecad8a970c421e211d312d53273832acc0c15ceded9af19d629",
+        "entry_digest": "791c33d3ea6fc7290289664bb84fea64e46e0a2336f7ec18fc44186343b815d9",
+        "owners": [
+          "cli_args"
+        ]
+      },
+      {
+        "path": "specs/cli_args/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "593bc2da5024bc4a7a8439a720165c37f72493426507aabb8d90924eb3adf19e",
+        "entry_digest": "ff5e81a9ef69b088bc29c5b3f0a93ba771d35cff2664af7dc2c9f88a0ce5a8e1",
+        "owners": [
+          "cli_args"
+        ]
+      },
+      {
+        "path": "specs/mcp/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5af9635a0d76c99050d6e70a5bc94e788dabc0cec3fc061ea90a5c195dfd545f",
+        "entry_digest": "03f4e4b52df90d8273e1342c318e9cdaaf8da62c8b01ff7a428dd49735cee2ad",
+        "owners": [
+          "mcp"
+        ]
+      },
+      {
+        "path": "specs/mcp/mcp.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "187ef2a72fe0f934f5e54c193314faaef103d02e62a0483f573ace0a7976e32e",
+        "entry_digest": "c316adde9669c2badfeefe1a6fad64e71876a5e59bedf36dce846f59b9b5a92d",
+        "owners": [
+          "mcp"
+        ]
+      },
+      {
+        "path": "specs/mcp/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3515aab1d9a25f3feae3d3214a7c89bb6ccff57c8e4a039f22bb71bbf670d9e3",
+        "entry_digest": "ed07586cb9d55dc59117253e8eab0f4179d597ab7643bb288a7997ec74a391fb",
+        "owners": [
+          "mcp"
+        ]
+      },
+      {
+        "path": "specs/mcp/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c80977809295aa0c6fc05f9b24d209cdaaa40ab1213e441917477d11ef004030",
+        "entry_digest": "beec2853eaafec8fb73b6f159e9b7f0dcaddfdff2c804b9af6bd3ad1c4da343c",
+        "owners": [
+          "mcp"
+        ]
+      },
+      {
+        "path": "specs/mcp/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f68cd71ea04cb5f0fa326a17382003d42b67b26d6858fe53e2b6c6a26ca813de",
+        "entry_digest": "403b83848d78ca031b95ce566be7e9f89ce040d3309ec6ca43ea113301579796",
+        "owners": [
+          "mcp"
+        ]
+      },
+      {
+        "path": "src/cli.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2339ae8fc9e79758bb792969025a879bcd7cbe0f4d126c4c5d94129d34549c47",
+        "entry_digest": "f53c351edf6988b14ab2ad207c523f790478c0ab83a0706d028d51c531e21377",
+        "owners": [
+          "cli_args"
+        ]
+      },
+      {
+        "path": "src/mcp.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a129f1477c0e4233a04fe0a6cf42e699ab5458fb7e338aa3046a2897b887b2dd",
+        "entry_digest": "e556ee0b2240e3d4507a7b537f8364712e27c540d509624a7a4113fd601f4e3a",
+        "owners": [
+          "mcp"
+        ]
+      },
+      {
+        "path": "src/mcp_tools_lock.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "56e63ba20e9e693e4f65604023d73c1ac393cf503777625dbbd05a214bede6ae",
+        "entry_digest": "5fae977d8fc5bfdb939bf0f469eb103a8b6a13d65a0634a2af351474286a3357",
+        "owners": [
+          "mcp"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec cli_args --spec mcp",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-cli-args-018",
+    "REQ-mcp-009"
+  ]
+}

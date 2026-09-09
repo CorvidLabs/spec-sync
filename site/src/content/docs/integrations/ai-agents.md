@@ -141,6 +141,7 @@ Errors identify stale contracts; warnings identify undocumented code. `--strict`
 | Native agent workflow | `specsync agents install` | Project skills and supported slash commands |
 | MCP integration | `specsync mcp` | Read-only structured local tool access |
 | MCP mutation | `specsync mcp --allow-write` | Explicit init/generate capability at the configured root |
+| MCP tools lock | `specsync mcp lock --write` / `mcp diff` | Commit and fail-closed-diff the tool contract fingerprint |
 | PR review | `specsync check --json` | Feed deterministic drift to a coding agent |
 | Coverage gate | `specsync check --strict --require-coverage 100` | Enforce complete release coverage |
 | Quality gate | `specsync score --json` | Improve low-quality contracts |

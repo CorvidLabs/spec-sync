@@ -121,11 +121,13 @@ pub enum Command {
     },
     /// Watch spec and source files, re-running check on changes
     Watch,
-    /// Run as an MCP (Model Context Protocol) server over stdio
+    /// Run as an MCP (Model Context Protocol) server, or manage the tools lock
     Mcp {
-        /// Expose mutating MCP tools, confined to the configured project root
+        /// Expose mutating MCP tools, confined to the configured project root (ignored for lock/diff)
         #[arg(long)]
         allow_write: bool,
+        #[command(subcommand)]
+        action: Option<McpAction>,
     },
     /// Scaffold a new spec with required companion files and optional design.md
     AddSpec {
@@ -617,6 +619,25 @@ pub enum LifecycleAction {
         /// Run all enforcement checks (equivalent to --require-status --max-age --allowed)
         #[arg(long)]
         all: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum McpAction {
+    /// Build MCP tools lock from the live tool catalog (print JSON; use --write to persist)
+    Lock {
+        /// Write `.specsync/mcp-tools.lock.json` (never silent; required for persistence)
+        #[arg(long)]
+        write: bool,
+        /// Include write-mode tools in the catalog (same surface as `mcp --allow-write`)
+        #[arg(long)]
+        allow_write: bool,
+    },
+    /// Compare live MCP tool catalog against the committed lock (fail-closed)
+    Diff {
+        /// Compare against the write-mode catalog
+        #[arg(long)]
+        allow_write: bool,
     },
 }
 

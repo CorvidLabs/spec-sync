@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "mcp-tools-lock-file-and-mcp-lock-diff",
+  "implementation_commit": "e61d7e1a9d716a530a0512686d44829e16de8f2b",
+  "implementation_tree": "9fe0534b9f180ae77688cabcfdea8069520ed445",
+  "contract_digest": "9184e72c238b2df016414f77b0b27448caeebc901e3b9921611f0c6d62826510",
+  "workspace_digest": "ced97220e2eda8b43ede6f415eaac6b9149bf86dfa60489fc541ba169d3fade0",
+  "closing_digest": "19bfc3d8fcffd15588b74c673a108f16b26c3d2f8c0772418b90d6400e1d7d20",
+  "review_digest": "d16270f7a4c778e745aa414a72110cbf39549c5e33b281355e2f9f4ddfed6e28",
+  "finalization_digest": "bdcf7155d428805866dee87ab4693043027da59c6b19782e367bcdc11a6f78a6",
+  "timestamp": 1788968189
+}

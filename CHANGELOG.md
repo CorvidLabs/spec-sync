@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MCP tools lock + fail-closed drift check.** Consumers can pin the MCP tool
+  contract (name / optional title / description / inputSchema) in
+  `.specsync/mcp-tools.lock.json`. `specsync mcp lock` prints the lock from the
+  live catalog; `specsync mcp lock --write` persists it explicitly (never a
+  silent rewrite); `specsync mcp diff` exits non-zero on add/remove/rename,
+  sha256 mismatch, tool_count mismatch, or a missing lock, with a clear remedy.
+  Canonical sha256 is SHA-256 over UTF-8 JSON with sorted keys and separators
+  `(',', ':')`; `title` is omitted when null/absent. Lock/diff reuse the same
+  `mcp_tool_definitions` catalog the MCP server registers for `tools/list`.
+  SpecSync dogfoods its own read-only five-tool lock in-repo.
+
 ## [6.0.0]
 
 Release candidate: stable publication is pending. Add the release date only when the stable tag is published.

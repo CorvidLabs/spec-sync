@@ -18,6 +18,7 @@ mod ignore;
 mod importer;
 mod manifest;
 mod mcp;
+mod mcp_tools_lock;
 mod merge;
 mod output;
 mod parser;
@@ -34,7 +35,7 @@ use clap::Parser;
 use colored::Colorize;
 use std::process;
 
-use cli::{Cli, Command, LifecycleAction};
+use cli::{Cli, Command, LifecycleAction, McpAction};
 
 const VERIFICATION_CONTEXT_ENV: &str = "SPECSYNC_VERIFICATION_CONTEXT";
 
@@ -185,10 +186,43 @@ fn run() {
             &cli.only_status,
         ),
         Command::Watch => watch::run_watch(&root, cli.strict, cli.require_coverage, format),
-        Command::Mcp { allow_write } => {
+        Command::Mcp {
+            allow_write,
+            action: None,
+        } => {
             if let Err(message) = mcp::run_mcp_server(&root, allow_write) {
                 eprintln!("{} {message}", "error:".red().bold());
                 process::exit(2);
+            }
+        }
+        Command::Mcp {
+            action:
+                Some(McpAction::Lock {
+                    write,
+                    allow_write: lock_allow_write,
+                }),
+            ..
+        } => {
+            let result = if write {
+                mcp_tools_lock::cmd_lock_write(&root, lock_allow_write)
+            } else {
+                mcp_tools_lock::cmd_lock_print(lock_allow_write)
+            };
+            if let Err(message) = result {
+                eprintln!("{} {message}", "error:".red().bold());
+                process::exit(2);
+            }
+        }
+        Command::Mcp {
+            action:
+                Some(McpAction::Diff {
+                    allow_write: diff_allow_write,
+                }),
+            ..
+        } => {
+            if let Err(message) = mcp_tools_lock::cmd_diff(&root, diff_allow_write) {
+                eprintln!("{} {message}", "error:".red().bold());
+                process::exit(1);
             }
         }
         Command::AddSpec { name } => commands::scaffold::cmd_add_spec(&root, &name),

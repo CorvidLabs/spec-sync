@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1788985702,
+      "commit": "418fa117e78ad1f65f462f3fc96ef0491d0136d2",
+      "contract_digest": "16c98e130824e827f2ec04b9afa6daa163442798843a9fb1669e7c5c6b178833",
+      "execution_digest": "20aa5fa15cfb1aca170e0b400143c41e987fc849ed0abb78969610045ea6464d",
+      "workspace_digest": "0d42477d24a56a01d0264f1e95ab4acdbea504b3e8aa22a4055cf7cd5fbe05ae",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1788985704,
+      "commit": "cf281ff72115820fcca3c55b6b0949cea45d4763",
+      "contract_digest": "16c98e130824e827f2ec04b9afa6daa163442798843a9fb1669e7c5c6b178833",
+      "execution_digest": "20aa5fa15cfb1aca170e0b400143c41e987fc849ed0abb78969610045ea6464d",
+      "workspace_digest": "0d42477d24a56a01d0264f1e95ab4acdbea504b3e8aa22a4055cf7cd5fbe05ae",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1788985704,
+      "commit": "edf45f036c73a7afeec3fb2e25cb9185d1a2fe25",
+      "contract_digest": "16c98e130824e827f2ec04b9afa6daa163442798843a9fb1669e7c5c6b178833",
+      "execution_digest": "20aa5fa15cfb1aca170e0b400143c41e987fc849ed0abb78969610045ea6464d",
+      "workspace_digest": "0d42477d24a56a01d0264f1e95ab4acdbea504b3e8aa22a4055cf7cd5fbe05ae",
+      "acceptance_input_digest": "d544bd37117c9676757a2802a139ae05971f1ac205fbcc82a8dffd8c73f21dde",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/change/change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "00b57932549594e79fc4ddd6bd8b11410febc81848af4f1476e9eb5f62993cec",
+            "entry_digest": "8812c77e516089c3dc371d3da2d00824aeb1d7a2946f2a42749f4d462fe9ea1c",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "91cdefe44cdf1155b06ac0fd0fa6dcd736df5b626f8a81f44f0f6ecdb76b1ea7",
+            "entry_digest": "c8ca6448940af5aedc8c99a8f93261e93d02df847a0fa3f59caeda3bb7159a8e",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f66d023e83e6f37a7ca6ff31ced3c4c58dcbdf27dbaba5d1af6b8d53fdc64bd7",
+            "entry_digest": "ec95cdf85d8dfd9d5e24007b4c87d4392a2f85ec6d079951f2474aab5361a3a1",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d033dbe6fec6c3c371dbb86f1a3b058aac23ec1c7886d405820a961539cc11f7",
+            "entry_digest": "007da9852de5166b7f82bf5ab023af406e4ce90b25436807f7b0596f58319607",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "33b4448c11cfbf2d8fd4badc716d8477ada6f4f86bda0b9f2c53e8bba3b673de",
+            "entry_digest": "f7378f8c05cfb8bbbe4af6631146d5af6b8e40dcdeb0a9c8bec6f9b11519c442",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "tests/integration/change.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b250179b57ccb518959b238c8f99330fcac2bbf79b756b5f1f4e4a04bc48c60c",
+            "entry_digest": "e971fb4030c57352632dcb27c84d59b15a0c6f02afb64bda3d7b2cd96ad86150",
+            "owners": [
+              "@exact:test"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

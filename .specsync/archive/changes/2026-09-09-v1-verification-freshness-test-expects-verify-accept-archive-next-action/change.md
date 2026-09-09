@@ -1,6 +1,6 @@
 ---
 id: v1-verification-freshness-test-expects-verify-accept-archive-next-action
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 418fa117e78ad1f65f462f3fc96ef0491d0136d2
 ---

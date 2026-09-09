@@ -7,11 +7,11 @@
   "title": "V1 verification freshness test expects verify accept archive next_action",
   "description": "v1 verification freshness test expects verify accept archive next_action",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "418fa117e78ad1f65f462f3fc96ef0491d0136d2",
   "created_at": 1788985600,
-  "updated_at": 1788985705,
+  "updated_at": 1788985852,
   "affected_specs": [
     "change"
   ],

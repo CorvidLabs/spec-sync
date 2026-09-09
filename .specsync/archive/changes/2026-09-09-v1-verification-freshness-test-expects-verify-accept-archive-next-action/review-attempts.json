@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "v1-verification-freshness-test-expects-verify-accept-archive-next-action",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "edf45f036c73a7afeec3fb2e25cb9185d1a2fe25",
+      "contract_digest": "16c98e130824e827f2ec04b9afa6daa163442798843a9fb1669e7c5c6b178833",
+      "execution_digest": "20aa5fa15cfb1aca170e0b400143c41e987fc849ed0abb78969610045ea6464d",
+      "workspace_digest": "0d42477d24a56a01d0264f1e95ab4acdbea504b3e8aa22a4055cf7cd5fbe05ae",
+      "timestamp": 1788985727
+    }
+  ]
+}

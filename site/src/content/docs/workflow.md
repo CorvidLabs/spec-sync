@@ -50,7 +50,7 @@ numeric identities only. It no longer allocates new change numbers and must not 
 Complete selected artifacts and semantic deltas, then obtain explicit human approval:
 
 ```bash
-specsync change approve add-passkeys
+specsync change approve add-passkeys --actor "Ada"
 ```
 
 Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Only a change to the approved stable intent, contract, acceptance criteria, or affected scope requires renewed human approval. Implementation details, tests, evidence, canonical delta materialization, and lifecycle metadata preserve that approval while automated verification and the scoped human review are refreshed.
@@ -456,7 +456,7 @@ See [Cross-Project References](cross-project-refs.md) for the full setup.
   run: specsync check --strict --require-coverage 80
 ```
 
-See [GitHub Action](integrations/github-action.md) for the official action with caching and PR comments.
+See [GitHub Action](integrations/github-action.md) for the official action with checksummed download and optional PR comments.
 
 ### Pre-commit hook
 

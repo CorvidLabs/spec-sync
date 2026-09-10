@@ -77,7 +77,7 @@ compatible 6.x channel. Do not invent that tag.
 
 ## PR Comments
 
-Post spec drift results directly on pull requests. SpecSync runs `diff --format markdown` and posts (or updates) a comment showing added/removed exports.
+Post spec drift results directly on pull requests. SpecSync runs `specsync comment` and posts (or updates) a check-summary comment.
 
 ```yaml
 name: Spec Check
@@ -103,7 +103,7 @@ jobs:
 
 **How it works:**
 - Runs `specsync check --force` (always validates all specs — the hash cache is not committed to git)
-- If `comment: 'true'`, also runs `specsync diff --format markdown`
+- If `comment: 'true'`, also runs `specsync comment`
 - Posts the markdown output as a PR comment (or updates an existing SpecSync comment)
 - Requires `pull-requests: write` permission and the `pull_request` event trigger
 

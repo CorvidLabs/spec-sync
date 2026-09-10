@@ -1,0 +1,1144 @@
+{
+  "timestamp": 1789011479,
+  "commit": "3d3a9cc1e9de700efd3f9f3d908b8e540e5c54da",
+  "contract_digest": "3385783476e7c4c3e8a279a573eaacbe6869f7d0e369df2bf22d2713afe571d1",
+  "execution_digest": "24ef188b97a2c1ed91368991003fa50e99cc23b819819b5b546fa9040900f325",
+  "workspace_digest": "1fcc06fdb1f67153bc927ea39014d44d9914b00473c8736280c7cd3f0963773f",
+  "acceptance_input_digest": "4786f26a8e7e161f320a080ddc160f90a750a3c089b0dff2ddb9d937ebbdf09c",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "docs/.gitignore",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "866be0f40b5fee8c67218f9181ea7bb0a70529659a789801806cc5811524abdf",
+        "entry_digest": "2b8dd15cbb8e5a5df80ebb7ed56e1a566fca82da0651d0c6fcf044fb79480f89",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/6-0-confidence-checklist.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ff1181616a53b19b3944673558a7ed2d433441253a9fac6cac8f42dd08cdc881",
+        "entry_digest": "439255ae26245cd1890243273fdbd67ec8d4c51ffe8845d3908a6466302b1406",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/6-0-confidence-report.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "cca42ae6b565a29f50b2fd580a05293f85fa4ac3fd8e989e371edeb26fca298e",
+        "entry_digest": "19eeaf1ca1d3a3765f1a4009b076c5e44ee0d08e8cd19daaec20708c4eb67731",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/6-0-findings.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "cf063cebbee977c39a249285745e9d9a5b9d7b5bcfa07f05b55d865eb210731f",
+        "entry_digest": "0abea5aedb3cb951582632ae3378c4789aa4f3ad2531cb96a7ad74ed0c2de793",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/6-0-overnight-brief.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "62af541f80b3041278394019965ec2ca621eaae47b2b5e00796687d23d6c4bc9",
+        "entry_digest": "68087d804b6f81835e74b8dd8228eb9535907fc4202863d7a05abb5e03c69dbd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/6-0-overnight-journal.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2f79f7af849e72a87134b89bff036e26abdb239035835c7316c29a6661bdc125",
+        "entry_digest": "344cef0c6a4e0073c4708493e7a64bf37f0a3b47ff9ee2c7ce50a3ff7a3279bd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/6-0-overnight-prompt.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "58b3e266607efc32091c4f09ee5114ec903c8dd5d1a873457b3a3bdf9eb53748",
+        "entry_digest": "de547b1276025190d9b1dc8a961fcc34115b530236e1a654b782991d4340f7b7",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/6-0-release-review.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "92d8a769010345dfba71ecb2489203fc0f03d02403b9b9d51ac06e5a7b0b2005",
+        "entry_digest": "23db6efcd4d658a36392768f93e525b7e199f3be2c36cd102fae56f36b41e6c8",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/6-0-tolerance-decisions.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c05f0459b00a8d664c9e5f46ffe4e37bebf6656280f660c3e805d8bd035deeab",
+        "entry_digest": "06bcb1f79f70e54a172b55c7987afde975dc8a41bc71faab14d3a90d7a6465f5",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/6-0-verification-444f7b91.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0c134faf6c688f42da5c976537268e244a52084bab371d6b0767696af7b3aef6",
+        "entry_digest": "3cb4b01829bc8eda3e579b827c207da626eb220b4d929897214e8e7cb6a076cd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/ADOPTING.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1020325117130d6963cd2ed364d08d1b65d9b088c5674668f96e530fb00b3d23",
+        "entry_digest": "fcc1a73686fa8fa3cfe2ab9cc10535b7d72bd27786e9c99bd05496d720458a03",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/GOAL-6-fixes.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5304ea71f5672a66ee3954d001ba4945d655b57ad63060919256706c28d2f590",
+        "entry_digest": "e452e779750ba35510a4352d0c60102b2496899e4077a17a1c4e3bd40b251cee",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/GOAL-6-taggable.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7741f2e867c7e0ce9015f36c5a9ee67cb24d3bb17d000318bc337ad5a4049d36",
+        "entry_digest": "b675f0feb719bcce4dfec00ca00005e70c36770aa57b78795b8f8cd286f92069",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/RELEASING.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b07ff8d9ccbd46a7efe7fbf3abdde0a4ec047f90ccf4be9e0fa0324c2600c544",
+        "entry_digest": "ec55a9ce5a7231d03861e68e856b249bb55cf5e9a66d6f65dcfb571fa7d26c5b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/SESSION-SUMMARY-6-0.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "43b352c0bd8fa5a50d165198bad4218cf6d945f9b1434ac12ece826106b1e04d",
+        "entry_digest": "9784784d84ca7335ce760c10763dea6b8a5de507e558a694ccbcdfc502946b1f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/ci-confidence.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4f1aa8ad30d1816127834ca474ea63112c45d1130a7aa70cab5c84e317cf1f6d",
+        "entry_digest": "10a5c35e58e4fc4586ad0fc63e6016582ae318f54dc393390be9e440a9eba5ea",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/superpowers/plans/2026-05-17-fledge-base-plan.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a862d7f785cda87887265ba0dcde24cf7deb7a800775a31b148d8f802159a589",
+        "entry_digest": "05e42c65bb2448dc1960f1f6f7a0dcf498e24f0b6c1fcaf7970e6eb173d76622",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/superpowers/plans/2026-05-17-spec-sync-marketing-site.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d340eadc259d67a42983ade2840e0c55d5766bbd75a71dfb19cd65561d281d95",
+        "entry_digest": "5c25d0c1932fa4b2d89f3020545389ad36b098fe4d2f8cd7a9f24092e9310f70",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/superpowers/specs/2026-05-17-spec-sync-marketing-site-design.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6b1066ae5067aac7b04fdfe154c16ada1ce222fd163759290b79b9a3f4d44720",
+        "entry_digest": "9d23fa77cef5ba6b75e7b801e49b1dac0cc3c27d0eaf352dd454772c60a3ad80",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/.gitignore",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c8b0133c45aac37aef1e94934bc5c31791cdbd29f1222ae5edb2f31f7fee37c8",
+        "entry_digest": "f8745d7594799f0728adbcc762b276743cc28100a6c63903902197979e3984b1",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/README.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ca5b71b9f51bdac00f64a1b213492e0678caba4b115db0ad23c3829f8453c1ad",
+        "entry_digest": "42432b093dc9e0eba2e25943549dc79b5e4854eb3c611a84d6669ba119d8a6b1",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/astro.config.mjs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3f032bf55a4684d9b310d18a63b1b5b3bd2185e35a8bc367ab6855b992c35559",
+        "entry_digest": "640fb1bb3839a127caab378996fc05a137e4683f1788f92a5a26f317c30e09b1",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/bun.lock",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "dcf0fb302dc79d557b7850b6b6ba325c7821919495e19af3b67dc61179fb548d",
+        "entry_digest": "d9e9c747ce4b1686b3f54af6ae359ce7468a3c0e98a3917205a70f506abab473",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/package.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4abdf9692b5ed05d6ebbfbc1a47aff3dc19170256d9d0ed1d4e16d637946cefc",
+        "entry_digest": "ad4b7ef49f4340689bf54b8351795d5b893b0cd3217a82450de30088c28a996c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/prettier.config.mjs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f4c3bb0deeaf6e1700148a1784a000437484b7fb0f0390029be38ea21a81fefe",
+        "entry_digest": "91e09ffdfa4ac7ea4f4c6f598864e2f445ec9468dfa6f3d33c3e1182149cfb11",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/public/favicon.svg",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "cf895c1f7607a81d6fd08e297ae0da15bb26a7471c139844981e6ea938166c35",
+        "entry_digest": "f3548af7f3637690ec90391de3497f0aa2e0f80ccc3ca641a63062dffa01218a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/public/og-default.png",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2b1da20a14b97d8f01f0a809d9f7d53eeefc59df6312eaa5a0c8b5c1228d1d7f",
+        "entry_digest": "61f5e7e103bca12aa8499648c8f76a2c1ddbefef0a2d4f8596703d60322041d9",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/public/robots.txt",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ad1a5a3b7799cc1bd42b4146a93fa314141a8f06dc71fca8a1f0e8f2ada0f5b1",
+        "entry_digest": "28ed403bb3142bfb91d7c7b7b624d258b0b13134ca74ec026d7ef51fde70013e",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/scripts/generate-doc-redirects.test.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ad25da18fec921ab1beb16fb74a451068708322c1ba23e94a81992905aa29de5",
+        "entry_digest": "c79d67f46ecb7804d5041e0e49af957a28bab956a9768bc1f8b831db4bacc3cd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/scripts/generate-doc-redirects.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "319b7a54feb1785d70ee6112fe8208431225ee56af2cbcabfc1297f24c29a634",
+        "entry_digest": "c4bb99b806e1b8ceb24c1fd9d06da49523fcf99af9bcb138b891b8f80c641f44",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/scripts/validate-languages.test.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a5d033a6fea9dab11ff8d7738e261833fe5ba66aac061df5e56d13e25a8d2364",
+        "entry_digest": "8947fd329f8dcacd89ee0fb43cc1064e42d63dd8664715f03b1e937d31813c6d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/scripts/validate-languages.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c73b779a57eb8cb59257387d63d7082a5462d610afee4fe45e762d2644d5d479",
+        "entry_digest": "ec65bae7d2e0b10ad48a9f2bfc2fcbe2ab139428b9c42ad2499fd11340b1ee8d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/Badge.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7a0ddd1a56a30aecad5fb236513cc5073e903d4f56e406e9f56c78b69923dfdb",
+        "entry_digest": "3488e6e59980f34b1093c413890b4bba80ab59680cfac42351abe07bbe353439",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/BigPillar.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a8b2bde8fb15295bbeb977396d9be03a5d874989a911508ed683bcebb5cc6370",
+        "entry_digest": "9b9c31c06f3af0fa043961c78c5b8b17966f631f4b2674abe75596144e3f3d25",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/Button.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7527fa564fb7f6fd7fe1f7af2e54ab6abeeef1b25a9f16dad354bd4a4df0f1cd",
+        "entry_digest": "21860d9629f015bbc9a364d1956f86f3e0761a3375961d1eca85329dca6cfc09",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/Callout.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2a42c751bd2bc571f22a48cf4b0864f317a1ddeaf5803348e8ea7b2736871bd0",
+        "entry_digest": "da9061cfa25f4ba28ea437757feabe91908747bc66fa3d7334941816c9603d7d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/CategoryTag.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "27c147568f0cddaf3e4ef3aa172fd091a8e8c748e19dad17a6df7b2999075c88",
+        "entry_digest": "8bf97d04d0e89f656610d5021b22679a39b81bedd7c653489257b1a4ff788a98",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/Footer.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b6c3f37e25234a93b7401b089d1d5f8bd676d3a5ff412980bc200868f8ef0578",
+        "entry_digest": "1260dc85185790d3726cf22e0bf66d32d97ea9fecdb0a5d76239b2dec44d5f6b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/Header.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "351759e28dd62ed68251c9590ef212445ed9384745d599a30205d31fbcb05780",
+        "entry_digest": "bbadf87fb6dfc0cb0dd89cf8378e7f15c2fd28da82eb5d5941bd14df2e3be94f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/LanguageCard.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d869782760c0f9707142d66d45f7b779d293cbe913d831e30d99e12bca4e9194",
+        "entry_digest": "739c22cdb7a35575db501c343e34e10c5d6815da93cbb7a01ef8d72d3cbfa52b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/Pillar.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "06c6cc4c99f709b0839ef3fd77a31818aa60810bff35f695307d6c7e0ac842b0",
+        "entry_digest": "149a72113d562d0e6a0da268067083dbc3de01a521e6a0d5b82db10e5aa8d6f0",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/PostCard.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "dd03c7ea5076ccb93f9fd840f4613ba341d012b371a23f79d48999b1d55c1d39",
+        "entry_digest": "7317e01846d582bb9a83c4b3e4ff5c1bb74dc6f3ca4bec1c0c2fb55fe8641f92",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/RedirectPage.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2cb992fca5dc55083cc54f4a85d414e5ea3b3c11b6e46b990e89df33d1c68642",
+        "entry_digest": "90f3dc0aa9d76b2f1dbcb184b8f16eb439e0813bfbeaa8869d9a1f575fff5745",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/Sidebar.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "147aa969daa9507ebdd42941cb383ff06ddd129f70fc69bbf657579b1236b063",
+        "entry_digest": "79a3c8e9686aabea898cf55289c5642f63ec65d8869c701861cf21e3c0b143fd",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/SpecCodeDiff.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "be49514e3c95950bc2ec93ea0102412a3286f7884769863f3e5de1f8eca23c5a",
+        "entry_digest": "db9cc58f4c2b2389ce97c2aa75d032d13e74c2cb75eaf208d27d1b562956dfd8",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/components/Terminal.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fe967ea20a29de7bbe893731203c4ef0b06c262fa14e9afa81da6c1aa6075d24",
+        "entry_digest": "69970e1cfdf651dd056b10fe4652351b1e6b792dde6e7aa73e039123733480ad",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/blog/v4-3-2-release.mdx",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2d49b04b5406b7b3f9448100fd0e724e80a098c7f80db36fe574775939954a3f",
+        "entry_digest": "093060a8c482529a2ad1c1b52b93425bb5464cad3ed5737ccf04dc834677b046",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/blog/welcome.mdx",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4117ed5dfb4dcef9ba3efac7166659b07810705c7fe1dd6ce8296828eabc9a90",
+        "entry_digest": "56724c607bd6da2163adc412372264b32fb1b64568be62e6e35771761b528aff",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/config.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "314f829be1f4d8562225d956f61a9f348488717f84b11bcd708ebeb9f15b57e8",
+        "entry_digest": "d30eb543453bc4078898f44e55f04f3e0d697d14dc4f91ed58935895f6ab0231",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/architecture.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "85d1b18a203137b5c71c7a1fd0c40970974a5c73179d0568730569d5e29f10ef",
+        "entry_digest": "b1cfc2a35dbd0bfd08e413f204febbf568e8f99ca1b08e1497483dcb26d9727d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/cli.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9a21e1d3c319d89a05f27c796e779307cef9f8a550f29df2ebd7e150b688b9a1",
+        "entry_digest": "8d0577111e84acefd8e5f2470800d534e8ec64b66ead5ef8abb2c0ff38df0442",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/companion-files.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "41d6f031f76bce9e24c21cc90c1f95023b123986b159e4c86c60774b1d832f54",
+        "entry_digest": "f3f8aac9d2142b58c4aee78c874c77a375abae485c685bee097910820714365f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/adversarial-proof.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a1f895e0f66e1ee553132a260c00fd901202c4ae0011bc87aad812ead80b808a",
+        "entry_digest": "bc1e62f3e998a4e72406963ba82a30489fe9835973f95160b5f565ded62bae68",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/bmad.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2610899ac26a07cd5ecf08e72caf4ac4b57979f4dc7f0e09ef8ff5e4bcbdfc30",
+        "entry_digest": "e64badcbc9dfb8a3520773aff451dc000c21bc5082350e926ea2ba12da47e198",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/openspec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6efe3eae37e10670f634d317b5157079c832d6fd5bb57791c28768c305b715d6",
+        "entry_digest": "89740c23a88fa96c87c53157d1b6aaad43cb2d73afdae7acfeb7fa87baf66379",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/spec-kit.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e3b89a5e8f417453699723e08e358ddd1390326a0b98d59219b8c97384b24294",
+        "entry_digest": "add65b61f6d93262e9755750d4461a55e43c18846cf055909620017aa13cb5b2",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/comparisons/using-together.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f0f6d00c95d83e8f6e8dc28ccc9d713cb17418ed81263b250ec3f914a2e682c6",
+        "entry_digest": "97a82d073d7c228b36474c8767bce71b290ee698d3e7220d7586c812fc7f3ac4",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/configuration.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c1fd5be96bb3b9e77df56e28b47965c99b38bb82ca22371e4f8173bcd6f2fd8e",
+        "entry_digest": "aa1bd8162f9acc1217dcd283be512457050f9fe122a5dc3fea673e835bda74aa",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/cross-project-refs.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4b31f455d9181531cd3693b03cd72c4b453a90da54b2196b59c25a15a4ee63d1",
+        "entry_digest": "c9d79f9e7e0294d64999fefd00c40ff5cc42a4978dfbc5e667436ad11cb75d91",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/deltas.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f9cab134a717db537bb2235837dbf8c5965092da627f545f93f44a3870a69ae7",
+        "entry_digest": "fb63588ccc4f89b45455a29af626e351292cf87529aca026b3032b78482535aa",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/github-import-security.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "30536f514b098b2b969567cfa74064718def2f98a3f58e8c21d5366a91a31375",
+        "entry_digest": "ee979717c9b6fb52181cac74d225526f7090f6c329b863d5de63255baeeda614",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/index.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "dd35c101b41a94eb63f0ec4c86a81e6cee0c8cbcc1d7e4c9739fdf1accec61c5",
+        "entry_digest": "5e70b1d65b00d0535ff4fb3e7c8ab7892e2b71827943a79866cdb7460021530d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/ai-agents.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ec2336c0a62e9823accf7f730f9b1cec85b20589a17d702380c044e1c946a6b4",
+        "entry_digest": "58f21e9f68a1a18f03543f79f32c8d557183b7e5fc93ea52c7132f18845da9cb",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/github-action.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b7e0c473b1cd1302cf64adc3362b74a52ab668009434a0f095da1779da9d086e",
+        "entry_digest": "263f8fdcd268ac06f319b0256769d71d7c325d9ce009ec8d6ef20ec29ab74fd9",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/vscode-extension.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ff74bb328a7472f5358fff27b3c9941576eb9f7c5797d1b30c31a83d734ff1b7",
+        "entry_digest": "22260ed7f39fe8df94a2312846c4e0d889b5b74e650e7430d956d4d57b75541c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/mcp-security.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ca1e08d4cca70e72d8827a4363d4b8e75d43e90c02e5bdd32fd264176ebbedda",
+        "entry_digest": "0402c3b95324d8546c7f5e7fa7d187d3c1a7f5376df8ebe6af9abad74f0e8c08",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/quickstart.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "82a286db985e1b74d01ad49e3e482a5fa3aa722645509b47f2c558ec21fc7679",
+        "entry_digest": "c538d172590aa4d708cbf86469ff2d4a96e63515d07bcdee9110ad1c3b18c257",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/spec-format.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "12becbbf24636d751fea636e8e4c792b129f12fa5004f6be1ab61a4fe5067c45",
+        "entry_digest": "02d1d86dfb3844d7d3203e3e43f8a113e0e57b210ac16e078328393b1e49e5c3",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/why-specsync.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3137cd40be62d30c678b216ca686718c86142551ed53411f16e0de7c5779a765",
+        "entry_digest": "94a8cbe3a44fba8a7253868255e99d329babba7b8e658cde3bc5336c467fcdc8",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/workflow.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "dd8e3910357e05b7303246a4d4417da72797b41b252bc43422d31d431262d060",
+        "entry_digest": "9bde40ebb1a9d87d718cdb21e9c7170a14519a1c011258af07d6c6795cbd963d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/examples/ci-gate.mdx",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "055e58547f60c3ae049952af444aef70ef986726013dacc83f50ef2f438c6ffc",
+        "entry_digest": "e6b05d5f2a27919736b7ea2ed6151e69c2bfc9dfd4a8723c948b2180c283036a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/examples/polyglot.mdx",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0db65e8b759b55be152f50d5b3f9a3c741349479cc037c74b67a6ae8359d0954",
+        "entry_digest": "b1800cd7b5f215dd9b2a7b97c6fbd5ac6f7ab6b188f5294fecb1f046a04dbb91",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/examples/rust-workspace.mdx",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a46ef2dd62560b210a5b8f8ba5c03aeb645927d04c576ff4bb84596381ae1558",
+        "entry_digest": "b733c23080f4ca04e5e5a01623d31b5d568c7827d8f52210aa94f7b40798f23e",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9a57e01694feaa7ca635c2283c3c4d9749cbd04b9f456114e242dd57aa8c3c5e",
+        "entry_digest": "75d9a20756ea0126ec6a255fc8827b7e92f92571afc21900ac6e0144fbd8addf",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/csharp.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9d472e645eff9cb5a8f7763e66019a071cfad9c672d4a7d7b8f807697338fa9d",
+        "entry_digest": "e6c77643707468b2091a7b0c920f3be4687e13227301613de758d4be7976ce18",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/dart.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "792acdfbbe97ddadaca967b9b10569753a6a3f4674bda4411750aa204e0bda7f",
+        "entry_digest": "bb11cc11de274edbd28208f4241398cd0ea2efc1dfc5571365e2e22e6f01c66b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/go.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2639dcfe13a69e39a734aef7daf31868ee687c1f3eadb67d33b6763ac268eff0",
+        "entry_digest": "61ed44bb651a203a1875febe819d8f89ef5e3ef46433c5a8c44feaa1f2c675ed",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/java.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0f0df81492ae503b75126e12b59077089454f31e398aa1a3c0c7fb3065047a1c",
+        "entry_digest": "e01a2a88dae66781f2497320232bcb0eb18497fd66ad23bb916e0b7bf34f7b3f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/kotlin.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f67c6a2da277de2dff4a75c8d4c014b03ddbd0893996c21eb0ab722dddf527c2",
+        "entry_digest": "49a8cbd99b358fcff00512b16059b1d50873e6f80a5c92e24122b259614e0132",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/php.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e493e5f820ef2d8c47131e59232e2051f6b8e629c336ba0e45df789e6210b487",
+        "entry_digest": "913ef0e93fc580f0735cda78fbd3ec184ea8091fbfb4f2877741e27f7962efb6",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/python.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "62e2d9d858f5dc3cb076eaae59356719bf2469faf5d6ac6b39b33cca05166417",
+        "entry_digest": "ae250884756535d908276bce274c431f11d1f3490daac70caa8419f8f36a9c95",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/ruby.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "baed26533aa023d493ba433c0341f2bcc5028fb964c31ffc59e6395a138e958b",
+        "entry_digest": "9be307fd8478f0a14897a69590e222b3ace77db398c0ff5726f052907762111c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/rust.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "935b5e42d23ffbec5825804ab675c9ed0b446f3a48c54092c016ade506f9dab7",
+        "entry_digest": "597285f7ac5a8d5b83590c0a0c30c0f9b247c0e44c7d37dd73a150f3d4a66449",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/swift.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9548706cb8c9988eb19cb4a5f7e9157df384570f306558c96d71c2ce0502d3e9",
+        "entry_digest": "ac3bb82346b8f4e958c83752cb2db4813dae20f1e186ede80c91a23591854d8b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/typescript.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "cf3c62c453542a33b83d55a24d73aaa3bc7e7e55ca93da11f1237884a9a23fa7",
+        "entry_digest": "812b4f8a934330a050fe5697885febf5e644850b7a37a0e2a6cd8e5ccd6f7b7c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/data/languages/yaml.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6e78ef2704bedede5a3500b57e0e646c6af0580d71795ff4c5cd053bdddefaf0",
+        "entry_digest": "5838af93c352ce1a938b9f2c2a2b41d8e1c84f048d80eaefd52c254901d842bf",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/env.d.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5a498a2ff3c0abb338aff60209dfe32fb591fc5ad359182c5a14910f4c2fff8f",
+        "entry_digest": "266c2e7e5167a8effb0dc5ff7c1bc4c6e8790bf424f6c7428e76a36dd4203a44",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/layouts/ArticleLayout.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fc1b99e062e9c75983495628178caf7f3ce033259d5429e32d9ab66276f877a2",
+        "entry_digest": "a900e084cc48dd0a2c6dbceb86536427496c392bed7bda6eb90d26071f520e3c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/layouts/BaseLayout.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "80e5c49e1ac13dec548eaec710a4ce17a4a3ef3026dfc0d5e68526633453af63",
+        "entry_digest": "a78a03693064f81e9a888526b9fdd093be81f92dcb8d3bb2124ed8928f6206c2",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/layouts/DocsLayout.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3bc1d1adf454e26bf0f9d864984a5e105b8064c397ee482f9fe512e3abc17328",
+        "entry_digest": "5c953ece4a2edc25f0c4133e3b15ea6f9f92bc3e7ad998daa90f281280142dc0",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/lib/content.test.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f88df7d72bc8530f8d71ab1cf4657dc5acf38a27f843c6d2599484c3710e5af3",
+        "entry_digest": "152a039fdfe63587c1970df35c1d3812fad0d0da6aa8668b85950c7426f5d0a4",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/lib/content.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "285eb44391ec9cc5305c16c9b143e1f23df126b40c8fd64828c23208e481d7af",
+        "entry_digest": "569ebfe0f52e69bf678ed068d4c9b14785653f8f9f84c1e7f7cc5a032a4f4a86",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/lib/hub.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a096db9bebcb0200468aaa861d925f04044c4ce26d20130ed78d47cabcae4f97",
+        "entry_digest": "bff51549a0bbcdd6ac00f18b5c2a47e5085c48770e95fc6f0e3fa934956bb24e",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/lib/path.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "eb47308032473d553b01f441ba4c0d321f9107c817d145e625b2de4962222e48",
+        "entry_digest": "fa8028e6c933226066a9c6d2b4a419ae154b255f6ce87bf979e984791bbf1f82",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/404.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "de383021b2da1a65b6f51799b50bd7d15e30a41eb9576206daada60cc91db06e",
+        "entry_digest": "865144bb5a3edac0461528cffaa625d53fcab9f65483df622cf7c05dc023f3cf",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/blog/[...slug].astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "454703767345b48747d4dddac91e6a6eb25dc454d917ca945400302d197ccbff",
+        "entry_digest": "d484abc04549b631f38decfd65e11bdce7fc1d4b74aae0f6bafdb01a653d7869",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/blog/index.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "05f35a364960899798b1016f39d7aba89182520c92b5f44c2981aeaba95fe425",
+        "entry_digest": "018699ad12b3755910012132a7ae0c40cb693a6466451c63d1074aad0930579b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/docs/[...slug].astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f4a30be67d1d4669c0dfedf86850b48323f9a255a6495c52d4eaaf439e98fef8",
+        "entry_digest": "4ee1ab77a01225696561a4ad969fc6d0078b9a293eb4e11af45226dedfa90d40",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/docs/index.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0c1ce3895996ec6d49bc80308f917bd5e6ae59aaa7a39a8c6bd9fd4012780aa9",
+        "entry_digest": "d60d122a711b0c2051828566b52565a558b256108cfa362750cd5f042401e2af",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/examples/[...slug].astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ab8a0a45e060b5a41d8c9fbce9dc98e1391863e469520446e5820b10b706308c",
+        "entry_digest": "680751dc8af0c4d29500b31e97af4f5ba6134df0eb03dda8e804742b8fb54026",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/examples/index.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0c1ce3895996ec6d49bc80308f917bd5e6ae59aaa7a39a8c6bd9fd4012780aa9",
+        "entry_digest": "ef8496402b4b759c3aa135a782b6682578f2a0eeebcae12ed37c1aac8b262679",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/index.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "de383021b2da1a65b6f51799b50bd7d15e30a41eb9576206daada60cc91db06e",
+        "entry_digest": "d8c0d2aa83e5dbefa1a8f78592405961c0f4a9aa3542187b4312fbea1a5b76cf",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/languages/[slug].astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "68b90275f3e008cdc7fe84a3fed9d5c9d2dd96c01208d0898ea64eb2d58647db",
+        "entry_digest": "9d2afc03055740c8df8d9d3228a7c293ffb9861622cb7e456312348622ca47fb",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/languages/index.astro",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "05f35a364960899798b1016f39d7aba89182520c92b5f44c2981aeaba95fe425",
+        "entry_digest": "1e2e2b5c421490cb002baa9f59170277d51c79c2a0386afb7026b6e2d747c69b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/pages/rss.xml.ts",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0b4e23bab4bf042fe288f949b25dfb3df384a476e935926c8d30d900e82bfe03",
+        "entry_digest": "617812761c148bc24c96dc5ec9aae3cbf3c7f19885b009c36316ae3fc4d66964",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/styles/globals.css",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b2f780b4068237647213b25a7628e3b77299c3e30e982c195914104aa121b6e0",
+        "entry_digest": "98b97a3be0989790cad490fabd80629d549a1e427ca9e9008557e601331621b9",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/tsconfig.json",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b789e99d641a373f5618f7c9ca3eafab53a14c3781fb7f59c1715773cd2982be",
+        "entry_digest": "67a0b325881dc632facfde2b94753aa726bf754c866d8cb2e4ea05d819f15857",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/github/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2b670773b1adc50a6220ca0a19bfbb64e25e7fd899d03d6f4cbb68ab6350f5e6",
+        "entry_digest": "8f99d2dabbe039e79fcbbfca40c81a51b15e65e8aece9749ebc901d1c24672ae",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/github.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5ef65dac0816f228ef8531190bb12de504f1b32eb2afde01116eb1ea086dd8d1",
+        "entry_digest": "73bd72fd7ac116ccc9d03408a8c3cfd3b38738ec2a8319d41b09b11cdd2fba2e",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "dcf656d7e23cc63e369f4fbcd4719bb4e1a09a8fa0f58d4123350049030c9d10",
+        "entry_digest": "4df3a8ae052823155dcf435de502b92e46ecc551d8bf0eebeefd156f89b95779",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "dce2c7c9140c3d28f49ad16366ba083b6f65e37702a810f1a17fee7067f2bafa",
+        "entry_digest": "b9459bc5d2156c001e982c0fc1d85a564715ab7aca89f95e0e2b1f1040137ad5",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e4c99b849bc501f3050a56e6fc03aa5eb6dfe612d22ac8abc2639ba3521567db",
+        "entry_digest": "8976b1f929cbcdab1786a69e5cbbc4630aa7094360a38b448bf2fa9f5fe7aa41",
+        "owners": [
+          "github"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec cmd_change --spec github",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-github-007"
+  ]
+}

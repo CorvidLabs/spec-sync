@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "correct-remaining-specsync-6-0-docs-after-the-stable-ship",
+  "implementation_commit": "3d3a9cc1e9de700efd3f9f3d908b8e540e5c54da",
+  "implementation_tree": "39179b349e3ea8e3f117e4813fccc608943fd34f",
+  "contract_digest": "3385783476e7c4c3e8a279a573eaacbe6869f7d0e369df2bf22d2713afe571d1",
+  "workspace_digest": "1fcc06fdb1f67153bc927ea39014d44d9914b00473c8736280c7cd3f0963773f",
+  "closing_digest": "1a4ffca846653b33fb0fcd02a0595950a7df167a0ffa01326ebee0f27300e573",
+  "review_digest": "5d7d3781b089fd7161e451bb6e898894d10da2b5c4ac7ddddd070807fdf303b3",
+  "finalization_digest": "2a9aef7de0f8d213fc72433f1a8053ade72a86972cd736bb4f6798579266573f",
+  "timestamp": 1789012177
+}

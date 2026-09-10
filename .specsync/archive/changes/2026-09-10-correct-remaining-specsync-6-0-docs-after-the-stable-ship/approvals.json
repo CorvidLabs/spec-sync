@@ -1,0 +1,52 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif",
+      "timestamp": 1789010704,
+      "digest": "3385783476e7c4c3e8a279a573eaacbe6869f7d0e369df2bf22d2713afe571d1",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "correct-remaining-specsync-6-0-docs-after-the-stable-ship",
+        "title": "Correct remaining SpecSync 6.0 docs after the stable ship",
+        "description": "Correct remaining SpecSync 6.0 docs after the stable ship",
+        "kind": "documentation",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          "docs/",
+          "site/",
+          "specs/github/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "docs/RELEASING.md records that promote executed for v6.0.0 on 2026-09-09 and uses a next-release example instead of a second 6.0.0 promotion",
+          "docs/ci-confidence.md records that promote executed and does not claim the final tag is missing",
+          "github spec companions do not require Windows for 6.0 RC qualification",
+          "site CI-gate example dual-pins CorvidLabs/spec-sync@v6.0.0 with version 6.0.0 and uses real Action inputs",
+          "site polyglot example does not teach specsync check --explain for language detection or invented language_overrides"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "be08860051bc05a37eca26b3d80dd05d7a010242fda73b596b3273a814467ea0"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1789012177,
+      "digest": "1a4ffca846653b33fb0fcd02a0595950a7df167a0ffa01326ebee0f27300e573",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

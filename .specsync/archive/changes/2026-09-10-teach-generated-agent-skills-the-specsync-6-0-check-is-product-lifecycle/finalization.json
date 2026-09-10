@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "teach-generated-agent-skills-the-specsync-6-0-check-is-product-lifecycle",
+  "implementation_commit": "9fe7f7f8234b3c50032a9f3083454d369c392e08",
+  "implementation_tree": "669843c9694149800b7d1dfab74071694bca7db7",
+  "contract_digest": "5e65007df34cbbc0407a3c5243736c39047b102abbaba09e527bbff93862ade3",
+  "workspace_digest": "5191b50e51df56aafa54e52f0287482a09ca590c37fcb38bcc254b4a375bf444",
+  "closing_digest": "a208ba963ff4fb51b0f19eebb5e7d3f5142b5eef0835c910196697fca8338dec",
+  "review_digest": "3e8972ebb3f9fde162a98db33d51c7e6cdf0be072ee25ad1b755c664bbd93214",
+  "finalization_digest": "0cae39ef20a62b4e264eced972e980e9a192b701fe0a1052fab1e2970ba6a520",
+  "timestamp": 1789013455
+}

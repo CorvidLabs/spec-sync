@@ -29,6 +29,7 @@ spec: agents.spec.md
 - [x] Native create-change commands for Claude, Cursor, and Gemini
 - [x] Human approval safeguards and deterministic JSON interview guidance
 - [x] Keep checked-in create-spec commands byte-identical to installer templates and classify complete non-flag input
+- [x] Generated skills lead with check as the product and the 6.0 happy path (template version 5)
 
 ## Gaps
 

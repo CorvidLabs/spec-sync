@@ -14,18 +14,26 @@ use std::path::{Path, PathBuf};
 // identical to each other (Cursor/Copilot use a terser style) and unifying
 // them is out of scope here — this body is purely for the new SKILL.md files.
 
-const SKILL_BODY: &str = r#"## Companion files
+const SKILL_BODY: &str = r#"`specsync check` is the product. Bidirectional spec-to-code validation does not require an
+active change. SDD (`specsync change`) is opt-in: `specsync init` writes it off;
+`specsync change adopt` turns it on.
 
 ## Verified change lifecycle (6.0)
 
-For every meaningful source, test, public documentation, schema, or configuration change:
+Happy path verbs: `change new` -> `answer` -> `approve --actor` -> implement ->
+`check --commit` -> `review --reviewer` -> `ship`/`finalize`. `start` / `verify` /
+`accept` / `archive` are v1 recovery, not the happy path. Change ids are slugs, not
+`CHG-NNNN`.
+
+When SDD is adopted and the work is a meaningful source, test, public documentation,
+schema, or configuration change:
 
 1. Run `specsync change new "<intent>" --json` and conduct the returned interview with the user.
 2. Use `specsync change answer <id> <question-id> "<answer>" --json` until no questions remain.
 3. Complete the adaptively selected artifacts and semantic deltas. Requirements use stable
    `REQ-<module>-<number>` IDs, a normative SHALL statement, and acceptance criteria.
-4. Ask the user for the single scope approval, then run `specsync change approve <id>`.
-5. Implement code, canonical specs, and tests on the same branch. Run `specsync change check [<id>]`
+4. Ask the user for the single scope approval, then run `specsync change approve <id> --actor "<identity>"`.
+5. Implement code, canonical specs, and tests on the same branch. Run `specsync change check [<id>] --commit`
    for **scoped** verification of this change only (materialize deltas + spec↔code sync). Do **not**
    treat check as a full archive integrity walk. Use `specsync change audit` when you need project
    health over **active** workspaces and living specs. Archives are history.
@@ -33,15 +41,16 @@ For every meaningful source, test, public documentation, schema, or configuratio
    change package, implementation diff, canonical spec delta, and targeted evidence once, then
    record it with `specsync change review <id> --reviewer "<identity>"`. The reviewer MAY be the
    same person who approved the definition. Do not invent a second identity for solo work.
-7. Run `specsync change finalize <id>` to create the same-PR metadata/archive-only commit, then
-   merge through GitHub. SpecSync does not merge the pull request.
+7. Run `specsync change ship <id>` (or `finalize`) for the same-PR archive tip. Do not commit
+   between review and ship. Merge on GitHub. SpecSync does not merge the pull request.
 
 ## Lifecycle verbs
 
-- `specsync change check [id]` — verify **this** change (materialize + spec↔code sync). Default daily path.
-- `specsync change audit` — project health over **active** workspaces and living specs. Not archive history.
-- Archives are history; do not re-validate terminal evidence for every archived CHG on each check.
-- Slash commands: `/specsync:check`, `/specsync:audit` (Claude/Cursor/Gemini via `specsync agents install`).
+- `specsync check` - validate all specs against source. Default daily path. No change required.
+- `specsync change check [id]` - verify **this** change (materialize + spec↔code sync). Add `--commit` for ship-ready product-tip evidence.
+- `specsync change audit` - project health over **active** workspaces and living specs. Not archive history.
+- Archives are history; do not re-validate terminal evidence for every archived change on each check.
+- Slash commands after `specsync agents install`: Claude and Gemini use `/specsync:create-spec`, `/specsync:create-change`, `/specsync:check`, `/specsync:audit`. Cursor uses the flat names `/specsync-create-spec`, `/specsync-create-change`, `/specsync-check`, `/specsync-audit`.
 
 Never invent or self-grant the scope approval. If an approved definition
 changes, its digest becomes stale and must be approved again. `specsync change status` always
@@ -52,11 +61,11 @@ evidence, but new changes use this single workflow.
 
 Each canonical spec may have policy-selected companion files. Read and update the ones present; do not create empty companions only for ceremony:
 
-- **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
-- **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
-- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
-- **`testing.md`** — Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
-- **`design.md`** *(opt-in)* — Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
+- **`tasks.md`** - Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
+- **`requirements.md`** - Acceptance criteria and user stories. These are permanent invariants, not tasks: do not check them off. Update if requirements change.
+- **`context.md`** - Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
+- **`testing.md`** - Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
+- **`design.md`** *(opt-in)* - Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
 
 ## Before modifying any module
 
@@ -66,38 +75,47 @@ Each canonical spec may have policy-selected companion files. Read and update th
 
 ## After completing work
 
-1. Mark completed items in `tasks.md` — check off finished tasks, add new ones discovered
-2. Update `context.md` — record decisions made, update current status
+1. Mark completed items in `tasks.md`: check off finished tasks, add new ones discovered
+2. Update `context.md`: record decisions made, update current status
 3. If requirements changed, update `requirements.md` acceptance criteria
 4. If test coverage changed, update `testing.md` with new test files or edge cases
 5. If UI/layout changed, update `design.md` with revised layout, components, or tokens
 
 ## Before creating a PR
 
-Run `specsync check --strict` — all specs must pass with zero warnings.
+Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, push
+the product tip from `change check --commit` with the PR. Record `change review` and
+`change ship`/`finalize` only after that tip is on the PR and required checks have run. Do not
+record review or ship before the PR exists.
 
 ## When adding new modules
 
 Run `specsync scaffold <module-name>` to create a spec, companion files, a registry
-entry, and auto-detected source files — or `specsync new <module-name>` for a
+entry, and auto-detected source files, or `specsync new <module-name>` for a
 minimal spec-only draft. Complete the spec before writing code. The
 `/specsync:create-spec` command (or tool-equivalent) runs this for you, and
 accepts either a bare module name or a natural-language feature description
 (e.g. `/specsync:create-spec "I want a feature that lets users export their
-data as CSV"`) — pass a description and it will pick a module name and use
+data as CSV"`): pass a description and it will pick a module name and use
 the description to draft the spec's Purpose and Requirements.
 
 ## Key commands
 
-- `specsync check` — validate all specs against source code
-- `specsync check --json` — machine-readable validation output
-- `specsync change check [id]` — scoped verification for one SDD change
-- `specsync change audit` — active workspaces + living specs (not archive history)
-- `specsync coverage` — show which modules lack specs
-- `specsync score` — quality score for each spec (0-100)
-- `specsync scaffold <name>` — full scaffold: spec + companions + registry entry + source detection
-- `specsync new <name>` — quick-create a minimal spec (add `--full` for companions)
-- `specsync resolve --remote` — verify cross-project dependencies
+- `specsync check` - validate all specs against source code
+- `specsync check --json` - machine-readable validation output
+- `specsync change adopt` - turn on the opt-in verified change workflow
+- `specsync change new "<intent>"` / `change answer` - open a change and finish the interview
+- `specsync change approve <id> --actor "<identity>"` - record the single scope approval
+- `specsync change check [id]` - scoped verification for one SDD change (`--commit` for ship evidence)
+- `specsync change review <id> --reviewer "<identity>"` - record scoped implementation review
+- `specsync change ship <id>` / `change finalize` - same-PR archive tip; do not commit between review and ship
+- `specsync change status [id]` - one next action and a `Handoff:` line
+- `specsync change audit` - active workspaces + living specs (not archive history)
+- `specsync coverage` - show which modules lack specs
+- `specsync score` - quality score for each spec (0-100)
+- `specsync scaffold <name>` - full scaffold: spec + companions + registry entry + source detection
+- `specsync new <name>` - quick-create a minimal spec (add `--full` for companions)
+- `specsync resolve --remote` - verify cross-project dependencies
 "#;
 
 // ─── Create-spec command body (shared prose, per-tool argument syntax) ───────
@@ -181,31 +199,32 @@ const CREATE_SPEC_DESCRIPTION: &str = "Scaffold a new spec-sync module spec from
 const CREATE_CHANGE_DESCRIPTION: &str =
     "Create and guide a verified spec-sync SDD change through its deterministic interview";
 
-const CREATE_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change new "$ARGUMENTS" --json`.
-2. Read the returned `questions` array and interview the user one question at a time.
-3. Record each answer with `specsync change answer <id> <question-id> "<answer>" --json`.
-4. Continue until the question list is empty, then show the selected artifacts and next action.
-5. Do not approve, implement, verify, accept, or archive until the corresponding human gate or work stage is reached.
-6. After implementation, run scoped verification with `specsync change check <id>` (or `/specsync:check`). Use `specsync change audit` only for active-workspace project health — never expect check to rewalk archived terminal evidence."#;
+const CREATE_CHANGE_STEPS_MD: &str = r#"1. SDD is opt-in via `specsync change adopt`. If change commands fail because the workflow is off, adopt only when the user asked to turn SDD on.
+2. Run `specsync change new "$ARGUMENTS" --json`.
+3. Read the returned `questions` array and interview the user one question at a time.
+4. Record each answer with `specsync change answer <id> <question-id> "<answer>" --json`.
+5. Continue until the question list is empty, then show the selected artifacts and next action.
+6. Do not run `specsync change approve <id> --actor "<identity>"`, implement, `specsync change check <id> --commit`, `specsync change review <id> --reviewer "<identity>"`, or `specsync change ship`/`finalize` until that gate is reached. Do not use v1 `start`/`verify`/`accept`/`archive` as the happy path.
+7. After implementation, run `specsync change check <id> --commit` (or the installed check command with --commit when preparing ship evidence). Use `specsync change audit` only for active-workspace project health. Never expect check to rewalk archived terminal evidence."#;
 
 const CHECK_CHANGE_DESCRIPTION: &str =
     "Run scoped SpecSync change verification for one change (materialize deltas + spec↔code sync)";
 
-const CHECK_CHANGE_STEPS_MD: &str = r#"1. Prefer `specsync change check $ARGUMENTS` when an id or partial id is provided; otherwise run `specsync change check`.
-2. Expect **scoped** verification only — this change's materialization and in-process spec↔code sync. Do not run a full archive integrity walk.
-3. Stream/wait for exit. On success, follow the printed **Next:** action (review, PR, or finalize path).
+const CHECK_CHANGE_STEPS_MD: &str = r#"1. Prefer `specsync change check $ARGUMENTS` when an id or partial id is provided; otherwise run `specsync change check`. For ship-ready product-tip evidence, include `--commit`.
+2. Expect **scoped** verification only: this change's materialization and in-process spec↔code sync. Do not run a full archive integrity walk.
+3. Stream/wait for exit. On success, follow the printed **Next:** action (review, PR, or ship/finalize path).
 4. Do **not** run `specsync change audit` unless the user asked for project health over active workspaces and living specs."#;
 
 const AUDIT_CHANGE_DESCRIPTION: &str =
     "Audit active SpecSync change workspaces and living specs (not archive history)";
 
 const AUDIT_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change audit`.
-2. Report active-workspace and living-spec issues only. Archives are history — do not re-validate every archived CHG's terminal evidence.
+2. Report active-workspace and living-spec issues only. Archives are history: do not re-validate every archived change's terminal evidence.
 3. Use this for "is the SDD workspace healthy?" not "did my feature tests pass?" (that is `change check` / `/specsync:check`)."#;
 
-const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<module>/ synchronized with source code using spec-sync. Use this whenever creating, editing, or reviewing code in a module that has (or should have) a spec, or whenever the user mentions specs, spec-sync, companion files (tasks.md/requirements.md/context.md/testing.md/design.md), or asks to add/update a module's documentation.";
+const SKILL_TRIGGER_DESCRIPTION: &str = "Keep markdown module specs in specs/<module>/ synchronized with source code using specsync check (the product). Use this whenever creating, editing, or reviewing a spec or its source, or when the user mentions spec-sync, SDD, change adopt, companion files, or the 6.0 change lifecycle (approve, check --commit, review, ship).";
 const AGENT_ARTIFACT_MANIFEST_VERSION: u32 = 1;
-const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 4;
+const AGENT_ARTIFACT_TEMPLATE_VERSION: u32 = 5;
 const AGENT_ARTIFACT_MANIFEST_PATH: &str = ".specsync/agent-artifacts.json";
 
 // `.specsync/agent-artifacts.json` is committed and shared, and `load_agent_artifact_manifest`
@@ -1126,6 +1145,11 @@ mod tests {
         )
         .unwrap();
         assert!(change_command.contains("specsync change new"));
+        assert!(change_command.contains("specsync change adopt"));
+        assert!(change_command.contains("approve <id> --actor"));
+        assert!(change_command.contains("review <id> --reviewer"));
+        assert!(skill.contains("/specsync-create-change"));
+        assert!(skill.contains("record review or ship before the PR exists"));
         assert!(skill.contains("specsync change check"));
         assert!(skill.contains("specsync change audit"));
         assert!(skill.contains("Lifecycle verbs"));
@@ -1716,6 +1740,45 @@ mod tests {
             assert!(
                 !body.contains("have an independent reviewer"),
                 "{relative} must not require a second identity"
+            );
+        }
+    }
+
+    #[test]
+    fn tracked_skill_files_teach_check_is_the_product() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for relative in [
+            ".claude/skills/spec-sync/SKILL.md",
+            ".codex/skills/spec-sync/SKILL.md",
+            ".cursor/skills/spec-sync/SKILL.md",
+            ".gemini/skills/spec-sync/SKILL.md",
+        ] {
+            let path = root.join(relative);
+            let body = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            assert!(
+                body.contains("`specsync check` is the product"),
+                "{relative} must lead with check as the product"
+            );
+            assert!(
+                body.contains("specsync change adopt"),
+                "{relative} must name change adopt as the SDD on-switch"
+            );
+            assert!(
+                body.contains("approve --actor"),
+                "{relative} must teach approve --actor"
+            );
+            assert!(
+                body.contains("check --commit"),
+                "{relative} must teach check --commit"
+            );
+            assert!(
+                body.contains("review --reviewer"),
+                "{relative} must teach review --reviewer"
+            );
+            assert!(
+                body.contains("v1 recovery"),
+                "{relative} must label start/verify/accept/archive as v1 recovery"
             );
         }
     }

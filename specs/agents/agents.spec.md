@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 14
+version: 16
 status: stable
 files:
   - src/agents.rs
@@ -16,9 +16,10 @@ depends_on: []
 
 ## Purpose
 
-Installs native, tool-owned verified-SDD skills for Claude Code, Cursor, Codex, and Gemini CLI.
-Generated artifacts are tracked in `.specsync/agent-artifacts.json` so upgrades and uninstall can
-distinguish exact managed bytes from user customization.
+Installs native, tool-owned skills for Claude Code, Cursor, Codex, and Gemini CLI. Generated skill
+text teaches `specsync check` as the product and the opt-in 6.0 change lifecycle. Generated artifacts
+are tracked in `.specsync/agent-artifacts.json` so upgrades and uninstall can distinguish exact
+managed bytes from user customization.
 
 ## Public API
 
@@ -96,6 +97,12 @@ distinguish exact managed bytes from user customization.
 - **When** `install_agent(root, AgentTool::Claude)` is called
 - **Then** the file is overwritten with the current template content and `Ok(true)` is returned
 
+### Scenario: Generated skill teaches check as the product
+
+- **Given** the current `SKILL_BODY` template
+- **When** tracked Claude, Codex, Cursor, and Gemini `SKILL.md` files are read
+- **Then** each file says `specsync check` is the product, names `specsync change adopt` as the SDD on-switch, and labels v1 `start`/`verify`/`accept`/`archive` as recovery
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -123,6 +130,7 @@ distinguish exact managed bytes from user customization.
 
 | Date | Author | Change |
 |------|--------|--------|
+| 2026-09-10 | leif | v15: generated skills lead with check as the product; SDD opt-in via change adopt; 6.0 happy path (`approve --actor`, `check --commit`, `review --reviewer`, `ship`/`finalize`); template version 5 |
 | 2026-09-01 | leif | Generated SDD skill allows the definition approver to record scoped review (solo ship) |
 | 2026-08-30 | SpecSync | v12: generated `change check` skill describes spec↔code sync, not targeted tests |
 | 2026-07-10 | codex | v3: teach all four skills the verified SDD lifecycle and add create-change commands where supported |
@@ -140,3 +148,4 @@ distinguish exact managed bytes from user customization.
 | 2026-09-02 | SpecSync | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |
 | 2026-09-02 | SpecSync | allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second: Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer. |
 | 2026-09-02 | SpecSync | finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a: Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity |
+| 2026-09-10 | SpecSync | teach-generated-agent-skills-the-specsync-6-0-check-is-product-lifecycle: Teach generated agent skills the SpecSync 6.0 check-is-product lifecycle |

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "teach-generated-agent-skills-the-specsync-6-0-check-is-product-lifecycle",
+  "slug": "teach-generated-agent-skills-the-specsync-6-0-check-is-product-lifecycle",
+  "title": "Teach generated agent skills the SpecSync 6.0 check-is-product lifecycle",
+  "description": "Teach generated agent skills the SpecSync 6.0 check-is-product lifecycle",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "6f11e34ef65710dd8839bfaaa6e6bc9004d6a530",
+  "created_at": 1789009962,
+  "updated_at": 1789013455,
+  "affected_specs": [
+    "agents"
+  ],
+  "affected_paths": [
+    "src/agents.rs",
+    ".claude/skills/spec-sync/SKILL.md",
+    ".codex/skills/spec-sync/SKILL.md",
+    ".cursor/skills/spec-sync/SKILL.md",
+    ".gemini/skills/spec-sync/SKILL.md",
+    ".claude/commands/specsync/create-change.md",
+    ".claude/commands/specsync/check.md",
+    ".claude/commands/specsync/audit.md",
+    ".cursor/commands/specsync-create-change.md",
+    ".cursor/commands/specsync-check.md",
+    ".cursor/commands/specsync-audit.md",
+    ".gemini/commands/specsync/create-change.toml",
+    ".gemini/commands/specsync/check.toml",
+    ".gemini/commands/specsync/audit.toml"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Generated Claude/Cursor/Codex/Gemini SKILL.md files lead with specsync check as the product and SDD opt-in via change adopt.",
+    "Generated create-change/check/audit commands use 6.0 happy-path verbs: approve --actor, check --commit, review --reviewer, ship/finalize; v1 start/verify/accept/archive are labeled recovery only.",
+    "AGENT_ARTIFACT_TEMPLATE_VERSION is 5 so specsync agents install refreshes stale host skills.",
+    "cargo test agents:: passes.",
+    "specsync check --spec agents passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks",
+    "requirements"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

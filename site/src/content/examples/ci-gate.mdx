@@ -8,7 +8,7 @@ description: "Block merges when specs drift from code."
 order: 3
 ---
 
-Add the `specsync` GitHub Action to your workflow and any pull request that introduces spec drift will fail the check — before it merges.
+Add the `spec-sync` GitHub Action to your workflow and any pull request that introduces spec drift will fail the check before it merges.
 
 ## 1. Add the action
 
@@ -23,13 +23,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: CorvidLabs/spec-sync@v6.0.0
+        with:
+          version: '6.0.0'
+          strict: true
 ```
 
-The action installs `specsync`, runs `specsync check --strict`, and annotates any drift directly in the PR diff view.
+Pin both the Action ref (`uses: CorvidLabs/spec-sync@v6.0.0`) and the binary (`version: '6.0.0'`). The immutable `@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`. With `strict: true` the action installs `specsync` and runs `specsync check --force --strict`.
 
 ## 2. Pin the spec-sync version
 
-Pin the immutable release while validating 6.0.0 so an unintended upstream change cannot break a Friday-afternoon merge:
+Keep the dual pin while validating 6.0.0 so an unintended upstream change cannot break a Friday-afternoon merge:
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.0.0
@@ -37,34 +40,43 @@ Pin the immutable release while validating 6.0.0 so an unintended upstream chang
     version: '6.0.0'
 ```
 
-The Action follows the spec-sync release cadence — match the version you `cargo install` locally.
+The Action follows the spec-sync release cadence. Match the version you `cargo install` locally.
 
 ## 3. Tune the failure threshold
 
-By default, `--strict` fails on any warning. For teams onboarding spec-sync incrementally, you can start with errors-only:
+The Action `strict` input defaults to `false` (errors fail; warnings do not). For teams onboarding spec-sync incrementally, start there:
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.0.0
   with:
     version: '6.0.0'
-    strict: false        # warnings allowed; errors still fail
-    score_threshold: 60  # also fail if any spec scores below 60
+    strict: false
 ```
 
-Drop `strict: false` once your team is happy with the warning count, and tighten `score_threshold` as your spec quality improves.
-
-## 4. Surface drift as PR review comments
-
-Add `annotations: true` so drift errors render as inline GitHub PR review comments on the source line, not just in the Action log:
+There is no `score_threshold` Action input. Real inputs are `version`, `download-base-url`, `strict`, `require-coverage`, `root`, `args`, `lifecycle-enforce`, `comment`, and `token`. To fail when any spec scores below a floor, run `specsync score` after the Action has put `specsync` on PATH:
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.0.0
   with:
     version: '6.0.0'
-    annotations: true
+    strict: false
+- run: specsync score --min-score 60
 ```
 
-A PR that adds an undocumented export now shows the comment "undocumented export `delete_user` — add to `specs/api/users.spec.md` or run `specsync check --fix`" pointing at the relevant line. No need to dig through Action logs.
+Drop `strict: false` once your team is happy with the warning count, and raise `--min-score` as spec quality improves. Extra `specsync check` flags can go in `args` (whitespace-separated; no shell quoting).
+
+## 4. Surface drift as PR comments
+
+There is no `annotations` Action input. Set `comment: true` so the Action posts or updates a SpecSync pull-request comment:
+
+```yaml
+- uses: CorvidLabs/spec-sync@v6.0.0
+  with:
+    version: '6.0.0'
+    comment: true
+```
+
+The job needs `permissions: pull-requests: write` on a `pull_request` event. The comment body comes from `specsync comment`. A PR that adds an undocumented export then shows that finding on the PR instead of only in the Action log.
 
 ## 5. Bypass for emergency hotfixes
 
@@ -77,4 +89,4 @@ When you genuinely need to ship a fix without updating the spec (and you're not 
   if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-specsync') }}
 ```
 
-The label adds friction (you have to consciously apply it) without being a hard block. Track the labels — if `skip-specsync` shows up more than twice a month, the team probably wants a real workflow change, not an escape hatch.
+The label adds friction (you have to consciously apply it) without being a hard block. Track the labels: if `skip-specsync` shows up more than twice a month, the team probably wants a real workflow change, not an escape hatch.

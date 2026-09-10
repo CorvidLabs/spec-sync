@@ -86,8 +86,9 @@ spec: github.spec.md
   residual lifecycle prerequisite
 - `docs/ci-confidence.md` - CI/Trust ownership, confidence tiers, and protected Tier B follow-up
 - `.github/workflows/release.yml` and `.github/scripts/validate-release-candidate.py` - Resolve an
-  annotated RC marker, qualify its exact SHA through one Fledge lane on three platforms, and refuse
-  final tagging/publication when evidence identities diverge
+  annotated RC marker, qualify its exact SHA through one Fledge lane on Ubuntu and macOS, and refuse
+  final tagging/publication when evidence identities diverge. Windows is not a 6.0 qualification
+  target.
 - `specsync change audit --strict` in CI - SpecSync is the single authority on lifecycle coherence.
   CI does not reimplement lifecycle rules against commit topology
 
@@ -105,10 +106,10 @@ import can consume the payload.
 Live network paths remain integration-only. The 5.1.1 release
 candidate adds deterministic Action/runtime distribution checks, while
 external exact/floating ref smoke tests remain publication-time gates.
-The 5.2.0 release promotion follows REQ-github-004: Action default and consumer pins move to the exact version through the accepted release change, and the floating major ref advances only after exact-version artifacts pass Linux/macOS verification. As of 6.0 no Windows binary is published, so a Windows consumer is refused by the Action rather than smoke-tested; the release-candidate qualification lane still runs on Windows.
+The 5.2.0 release promotion follows REQ-github-004: Action default and consumer pins move to the exact version through the accepted release change, and the floating major ref advances only after exact-version artifacts pass Linux/macOS verification. As of 6.0 no Windows binary is published, so a Windows consumer is refused by the Action rather than smoke-tested; the release-candidate qualification lane does not run on Windows.
 
-CHG-0075 moves routine integration authority to Ubuntu and reserves macOS/Windows spend for one
-immutable release candidate. The RC tag—not the movable staging branch—is the release identity.
+CHG-0075 moves routine integration authority to Ubuntu and reserves macOS spend for one
+immutable release candidate. The RC tag - not the movable staging branch - is the release identity.
 Qualification records tag, SHA, platform, lane, and outcome; promotion re-resolves the marker and
 accepts only an official successful release-workflow check for the same unchanged SHA. Release
 archive provenance must match the actual post-merge `pull_request` workflow event. Matching release

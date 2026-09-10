@@ -51,10 +51,11 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Bind v2 finalization to execution/review verdict evidence and preserve v1/fork-safe CI routes
 - [x] Authenticate review check provenance and append-only attempts, share CI limits, and preserve
   exact archive-tree binding across squash/rebase integration
-- [x] Finish binding Ubuntu/macOS/Windows release qualification and publication to one immutable
-  annotated RC tag while making Ubuntu the ordinary-PR integration authority (CHG-0075). The two
-  immutability rulesets are provisioned and live-proven: `SpecSync immutable RC tags` (21432132)
-  and `SpecSync immutable final tags` (21432148), both active with no bypass actor.
+- [x] Finish binding Ubuntu/macOS release qualification and publication to one immutable
+  annotated RC tag while making Ubuntu the ordinary-PR integration authority (CHG-0075). Windows
+  is not a 6.0 qualification target (#735). The two immutability rulesets are provisioned and
+  live-proven: `SpecSync immutable RC tags` (21432132) and `SpecSync immutable final tags`
+  (21432148), both active with no bypass actor.
 - [x] Decide the fate of App-only final-tag creation: **no GitHub App.** The `SpecSync final tag
   creation` ruleset, the release App, and the protected `release` environment are not being
   provisioned, so the App plumbing was retired instead of left failing closed. `promote` now

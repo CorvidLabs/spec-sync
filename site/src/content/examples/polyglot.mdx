@@ -8,7 +8,7 @@ description: "One spec format, three languages, one CI gate."
 order: 2
 ---
 
-A monorepo with a TypeScript frontend, a Python ML service, and a Rust binary can share a single spec format. `spec-sync` detects each language automatically and applies the right validation rules per crate or package.
+A monorepo with a TypeScript frontend, a Python ML service, and a Rust binary can share a single spec format. `specsync` detects each language automatically and applies the right validation rules per crate or package.
 
 ## 1. Check the whole repo at once
 
@@ -16,38 +16,28 @@ A monorepo with a TypeScript frontend, a Python ML service, and a Rust binary ca
 specsync check
 ```
 
-`spec-sync` walks the repo, detects TypeScript (via `tsconfig.json`), Python (via `pyproject.toml`), and Rust (via `Cargo.toml`) automatically. All three are validated in a single pass.
+`specsync` walks the repo, discovers source trees from language manifests, and validates every mapped spec in a single pass.
 
-## 2. Inspect the per-language detection
+## 2. How language detection works
 
-Add `--explain` to see which language each spec was checked against:
+`--explain` is not a language-detection flag. `specsync score --explain` prints a quality-score breakdown. `specsync check --explain` (when used) prints the same score breakdown; it does not report which language a spec was checked against.
 
-```bash
-specsync check --explain
-```
+There is no `[[language_overrides]]` table in `.specsync/config.toml`. Manifest discovery and file extensions select the language:
 
-```
-specs/web/api.spec.md          → typescript (apps/web/src/api.ts)
-specs/ml/predict.spec.md       → python     (services/ml/predict.py)
-specs/server/handlers.spec.md  → rust       (crates/server/src/handlers.rs)
-```
+- Rust: `Cargo.toml`, then `.rs` files
+- Python: `pyproject.toml`, then `.py` files
+- TypeScript/JavaScript: `package.json`, then `.ts` / `.tsx` / `.js` / `.jsx` files
 
-If detection picks the wrong language for a directory you can pin it in `.specsync/config.toml`:
-
-```toml
-[[language_overrides]]
-path = "experiments/notebook-export/**/*.ts"
-language = "typescript"
-```
+If a tree is not discovered, set `source_dirs` in `.specsync/config.toml` or list the files in the spec `files:` frontmatter.
 
 ## 3. Add a polyglot ignore for shared types
 
-A shared `types/` directory that's imported by all three services doesn't need a spec — exclude it:
+A shared `types/` directory that's imported by all three services doesn't need a spec. Exclude it with the real config keys:
 
 ```toml
 # .specsync/config.toml
-[ignore]
-paths = ["types/**", "**/*.test.*"]
+exclude_dirs = ["types"]
+exclude_patterns = ["**/*.test.*"]
 ```
 
 ## 4. Define cross-language references
@@ -92,11 +82,11 @@ jobs:
           strict: true
 ```
 
-The Action runs `specsync check --strict` against every PR. Drift in any of the three languages blocks the merge.
+Pin both the Action ref and the binary version. The `@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`. The Action runs `specsync check --force --strict` against every PR. Drift in any of the three languages blocks the merge.
 
 ## 7. Add the VS Code extension
 
-Install [spec-sync for VS Code](https://github.com/CorvidLabs/spec-sync/tree/main/vscode-extension) on every developer machine. Spec drift surfaces inline in the editor — no `cargo install`, no terminal, no excuse.
+Install [spec-sync for VS Code](https://github.com/CorvidLabs/spec-sync/tree/main/vscode-extension) on every developer machine. Spec drift surfaces inline in the editor: no `cargo install`, no terminal, no excuse.
 
 ```
 # in any of the spec files, undocumented exports appear with a yellow squiggle

@@ -138,13 +138,13 @@ release lane is the one workflow whose most important job runs exactly once.
 |-----|--------|
 | `resolve` | **Executed.** `workflow_dispatch` with `dry_run=true` against `v6.0.0-rc.7` — the first dispatch in this repository's history. |
 | `validate` | **Executed**, same run. Both rulesets read and accepted. |
-| `qualify` | **Executed successfully on RC16**, Ubuntu and macOS at `ffba9a32b664a7b3308350c162f0ac808f24efe3` in [run 34172484287](https://github.com/CorvidLabs/spec-sync/actions/runs/34172484287). That evidence applies only to RC16; a changed release tree requires a fresh candidate. Windows remains unqualified and unpublished. |
-| `promote` | **Never executed.** |
+| `qualify` | **Executed successfully on RC16**, Ubuntu and macOS at `ffba9a32b664a7b3308350c162f0ac808f24efe3` in [run 34172484287](https://github.com/CorvidLabs/spec-sync/actions/runs/34172484287). **Executed again on RC18** at `b9ff32310181b796cc617406ff9298c533ebeb15` in [run 34416717318](https://github.com/CorvidLabs/spec-sync/actions/runs/34416717318), the SHA later tagged `v6.0.0`. A changed release tree requires a fresh candidate. Windows remains unqualified and unpublished. |
+| `promote` | **Executed for `v6.0.0` on 2026-09-09.** [Run 34418860417](https://github.com/CorvidLabs/spec-sync/actions/runs/34418860417) created annotated `v6.0.0` at `b9ff3231` and published the GitHub Release. |
 
-`promote` cannot be rehearsed here. `final_tag` is derived from the candidate's own `Cargo.toml`
-version, so any promote run against a real candidate mints the real `vX.Y.Z` — there is no throwaway
-value to aim it at, and the immutability rulesets make whatever it creates permanent. The proof and
-the release are the same event.
+`promote` cannot be rehearsed against a throwaway tag. `final_tag` is derived from the candidate's
+own `Cargo.toml` version, so any promote run against a real candidate mints the real `vX.Y.Z` —
+there is no throwaway value to aim it at, and the immutability rulesets make whatever it creates
+permanent. The proof and the release are the same event. That event has now happened for `v6.0.0`.
 
 What *was* proven, ahead of time and separately:
 
@@ -157,10 +157,11 @@ What *was* proven, ahead of time and separately:
   unrestricted, so the immutability that protects a released tag cannot prevent it being minted.
   This was the failure that would have appeared for the first time at the moment of release.
 
-What remains unproven, stated rather than glossed: the credential helper supplies a credential only
-when the remote asks for one, and a local path remote never asks — so the rehearsal proves the
-helper's `git -c` syntax does not break the invocation, not that it authenticates. That, and
-`GITHUB_TOKEN`'s push against the live ruleset, first execute on the real release.
+The pre-ship residue that is now proven: `GITHUB_TOKEN`'s push against the live immutability
+rulesets succeeded for `v6.0.0`. The credential helper still supplies a credential only when the
+remote asks for one, and a local path remote never asks — so the earlier rehearsal still only
+proves the helper's `git -c` syntax does not break the invocation. Live authentication is the
+2026-09-09 promote run.
 
 **A promote failure is recoverable, which is why this residue is acceptable.** The step creates
 nothing on the failing paths, and the tag is pushed as the last action of the job; a failed run
@@ -174,18 +175,18 @@ A `dry_run=true` dispatch selects validation-only mode. It does not execute the 
 publication jobs, authenticate a real tag push, or publish packages. Exercise the actual evidence
 guards and read-only candidate validators separately, and retain their refusal controls.
 
-Before stable publication, qualify the final merged tree under a new immutable RC: RC16's evidence
-covers `ffba9a32` only, so the final merged `main` tree must be frozen as a new immutable RC (the
-next `-rc.N`) and qualified before `promote` runs — neither that run nor the final tag exists as
-of this writing. Inspect every required check and review thread, and verify signed provenance with the
-required policy. A soft Trust result alone is not a satisfied provenance policy. The count guards
-and exact platform validator must both agree on Ubuntu/macOS; missing, extra, duplicate, failed,
-or mixed-identity receipts remain invalid.
+`v6.0.0` exists. RC16's evidence covers `ffba9a32` only; the promoted tag is `b9ff3231`, qualified
+as `v6.0.0-rc.18`. A later patch must freeze its own merged `main` tree as a new immutable RC and
+qualify Ubuntu/macOS before `promote`. Inspect every required check and review thread, and verify
+signed provenance with the required policy. A soft Trust result alone is not a satisfied provenance
+policy. The count guards and exact platform validator must both agree on Ubuntu/macOS; missing,
+extra, duplicate, failed, or mixed-identity receipts remain invalid. Windows remains unqualified
+and unpublished.
 
-GitHub Releases, crates.io, and the Homebrew tap are separate publication channels. Confirm the
-6.0 package/version and binary identity on each advertised channel after deliberate publication;
-do not infer package availability from a source tag. The standalone site emits redirects to the
-CorvidLabs hub, so verify the hub actually serves the corrected pages after its deployment.
+GitHub Releases and crates.io serve 6.0.0. The Homebrew tap still serves 5.2.0; do not infer
+package availability on every advertised channel from a source tag. The standalone site emits
+redirects to the CorvidLabs hub, so verify the hub actually serves the corrected pages after its
+deployment.
 
 ## Trust lifecycle policy
 

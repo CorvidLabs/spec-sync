@@ -1,5 +1,10 @@
 # SpecSync 6.0.0 confidence report
 
+**Status 2026-09-10:** `promote` executed for `v6.0.0` on 2026-09-09
+([run 34418860417](https://github.com/CorvidLabs/spec-sync/actions/runs/34418860417)).
+The remaining-steps list below is the pre-ship record from this report's writing; do not treat it
+as the current operator runbook. See `docs/RELEASING.md`.
+
 Written 2026-09-09 against `origin/main` at `7df304a` (includes [#770](https://github.com/CorvidLabs/spec-sync/pull/770), [#771](https://github.com/CorvidLabs/spec-sync/pull/771), [#772](https://github.com/CorvidLabs/spec-sync/pull/772), [#773](https://github.com/CorvidLabs/spec-sync/pull/773)) plus the remaining-P1 PR that owns this update. **Do not merge that PR unattended. Do not touch #772 / #773 / #628.**
 
 Checklist: `docs/6-0-confidence-checklist.md` on #769 (C01–C42, P1=3, P2=1). A claim passes when overnight proving (verifier 1, journal on #769) and this session (verifier 2) agree, or when overnight failed on a P1 this tree fixed and this session re-ran it. Overnight cells that failed and were **not** re-drilled stay fail. Independent verifier scored C14/C23 pass once MIGRATION.md names the v1 close-out; this package makes that copy-pasteable.
@@ -182,7 +187,7 @@ gh run watch <qualify-run-id>
 gh workflow run release.yml --ref main -f rc_tag=v6.0.0-rc.18 -f dry_run=true
 ```
 
-3. **Promote** (human only — `promote` has never executed in this repository):
+3. **Promote** (human only at the time of writing; `promote` later executed for `v6.0.0` on 2026-09-09):
 
 ```bash
 gh workflow run release.yml --ref main -f rc_tag=v6.0.0-rc.18

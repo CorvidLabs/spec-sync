@@ -10,6 +10,20 @@ macOS (`REQUIRED_PLATFORMS` in `validate-release-candidate.py`). A later `workfl
 **promotes** that exact candidate: mints `vX.Y.Z`, builds five binaries, creates the GitHub
 release. crates.io and Homebrew are manual and come after.
 
+## 6.0.0 ship record (2026-09-09)
+
+`promote` **did execute** for `v6.0.0` on 2026-09-09.
+[Release run 34418860417](https://github.com/CorvidLabs/spec-sync/actions/runs/34418860417)
+created annotated `v6.0.0` at `b9ff32310181b796cc617406ff9298c533ebeb15` (qualified as
+`v6.0.0-rc.18`) and published the GitHub Release. crates.io serves 6.0.0. GitHub Latest is
+`v6.0.0`. Homebrew still serves **5.2.0**. There is no floating `v6` tag. The immutable
+`@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`; consumers must pass
+`version: '6.0.0'` until they consume a later Action tag.
+
+Do not cut another 6.0.0 candidate and do not re-dispatch `promote` for 6.0.0. The rest of this
+document is how to cut the **next** release. Examples use `6.0.1` / `v6.0.1-rc.1`; substitute
+the version in `Cargo.toml`.
+
 ## 1. Preconditions
 
 - `main` is green and the commit you intend to ship is on `origin/main`. `validate` refuses any
@@ -18,8 +32,8 @@ release. crates.io and Homebrew are manual and come after.
   directory and finalization leaves it in place, so check its contents, not its existence:
   `specsync change list` prints `No active SDD changes.`).
 - `Cargo.toml` `[package] version` and `Cargo.lock` carry the exact version the tag will name
-  (`6.0.0`). `validate` parses the RC tag `vX.Y.Z-rc.N` and requires its `X.Y.Z` component to equal
-  the Cargo version; a mismatch fails the run.
+  (for a patch, bump to `6.0.1` first). `validate` parses the RC tag `vX.Y.Z-rc.N` and requires
+  its `X.Y.Z` component to equal the Cargo version; a mismatch fails the run.
 - The three validators pass at the candidate commit:
 
 ```bash
@@ -42,8 +56,8 @@ URL), the `trust.yml` pin and mirror, exact-head checkouts in `spec-check`/`trus
   explicit `version:` input the wrapper uses that revision's embedded default, which is `latest`
   for the `@v4` / `@v4.5.0` wrappers and `6.0.0` for `@v6.0.0` and `@main`. Publishing a
   non-prerelease repoints `releases/latest`, so every consumer on an old wrapper without an
-  explicit `version:` moves with it. Before promoting, confirm each known consumer passes an
-  explicit `version:`:
+  explicit `version:` moves with it. Before promoting a new version, confirm each known consumer
+  passes an explicit `version:`:
 
 ```bash
 for r in corvid-account podo-web podo-android raven; do
@@ -67,8 +81,8 @@ carry a different head SHA (that name is then refused permanently: pick the next
 
 ```bash
 git fetch origin main
-git tag -a v6.0.0-rc.17 <sha-on-origin/main> -m "SpecSync 6.0.0 release candidate 17"
-git push origin refs/tags/v6.0.0-rc.17
+git tag -a v6.0.1-rc.1 <sha-on-origin/main> -m "SpecSync 6.0.1 release candidate 1"
+git push origin refs/tags/v6.0.1-rc.1
 ```
 
 The push matches `on.push.tags: v*.*.*-rc.*` and runs `release.yml` in `qualify` mode:
@@ -103,8 +117,8 @@ it, a mistyped or missing tag makes `gh release create` mint that tag from the d
 and the ruleset then makes the unqualified tag permanent.
 
 ```bash
-gh release create v6.0.0-rc.17 --verify-tag --prerelease --title "SpecSync 6.0.0-rc.17" --notes "Release candidate"
-gh workflow run rc-assets.yml --ref main -f tag=v6.0.0-rc.17
+gh release create v6.0.1-rc.1 --verify-tag --prerelease --title "SpecSync 6.0.1-rc.1" --notes "Release candidate"
+gh workflow run rc-assets.yml --ref main -f tag=v6.0.1-rc.1
 ```
 
 ## 3. Dry run
@@ -114,17 +128,18 @@ skips. No tag is created, nothing is published. Dispatch must come from `main`; 
 any other `workflow_ref` and any `dry_run` value that is not exactly `true`/`false`.
 
 ```bash
-gh workflow run release.yml --ref main -f rc_tag=v6.0.0-rc.17 -f dry_run=true
+gh workflow run release.yml --ref main -f rc_tag=v6.0.1-rc.1 -f dry_run=true
 ```
 
 ## 4. Promote
 
-**`promote` has never executed in this repository.** Its git mechanics were rehearsed against a
-local bare repo; `GITHUB_TOKEN` pushing against the live ruleset first happens on the real
-release. There is no throwaway target: `final_tag` comes from the candidate's `Cargo.toml`.
+**`promote` executed for `v6.0.0` on 2026-09-09** (see the ship record above). Git mechanics were
+rehearsed against a local bare repo before that run; `GITHUB_TOKEN` pushing against the live
+ruleset is now proven. There is still no throwaway target: `final_tag` comes from the candidate's
+`Cargo.toml`, so a promote dispatch for a real next candidate mints that version permanently.
 
 ```bash
-gh workflow run release.yml --ref main -f rc_tag=v6.0.0-rc.17
+gh workflow run release.yml --ref main -f rc_tag=v6.0.1-rc.1
 ```
 
 What runs, in order:
@@ -134,7 +149,7 @@ What runs, in order:
    `rc_tag`/SHA must be `success`; a successful `push` run of `release.yml` for that tag must
    exist; it downloads exactly two `rc-evidence-*` records from that run and runs the validator in
    `promote` mode (or `release` mode if `vX.Y.Z` already exists).
-3. `promote`: with `contents: write` on this job only, creates annotated `v6.0.0` at the
+3. `promote`: with `contents: write` on this job only, creates annotated `v6.0.1` at the
    candidate SHA and pushes it with `GITHUB_TOKEN`. No release App, no protected environment,
    no second approver: anyone who can dispatch `release.yml` from `main` can mint the tag.
 4. `build`: five targets, cold build, no cache: `specsync-linux-x86_64`,
@@ -142,7 +157,7 @@ What runs, in order:
    `specsync-macos-aarch64`, each as `<name>.tar.gz` + `<name>.tar.gz.sha256` (+ a
    `.provenance.json` kept only as a workflow artifact).
 5. `release`: revalidates artifact checksums and identity, re-runs the validator in `release`
-   mode against the final tag, refuses if a GitHub release for `v6.0.0` already exists, then
+   mode against the final tag, refuses if a GitHub release for `v6.0.1` already exists, then
    creates the release (`softprops/action-gh-release`, generated notes, `.tar.gz` and `.sha256`
    files only). It is **not** marked pre-release, so `releases/latest` moves to it.
 
@@ -163,8 +178,8 @@ Idempotent and refusal cases:
 Verify the release and its ten assets, and check one archive against its sidecar:
 
 ```bash
-gh release view v6.0.0 --json isPrerelease,assets --jq '.isPrerelease, (.assets[].name)'
-gh release download v6.0.0 -p 'specsync-macos-aarch64.tar.gz*' -D /tmp/specsync-6
+gh release view v6.0.1 --json isPrerelease,assets --jq '.isPrerelease, (.assets[].name)'
+gh release download v6.0.1 -p 'specsync-macos-aarch64.tar.gz*' -D /tmp/specsync-6
 (cd /tmp/specsync-6 && shasum -a 256 -c specsync-macos-aarch64.tar.gz.sha256)
 ```
 
@@ -173,7 +188,7 @@ limits the package to `src/`, `Cargo.toml`, `Cargo.lock`, `README.md`, `CHANGELO
 Publishing is permanent; a version can only be yanked.
 
 ```bash
-git checkout v6.0.0
+git checkout v6.0.1
 cargo publish --dry-run --locked
 cargo publish --locked
 ```
@@ -193,8 +208,9 @@ Changelog `## [6.0.0] - 2026-09-09` is dated. For the next patch, add `## [6.0.1
 on `main` before tagging.
 
 Floating major tag. `release.yml` creates only `vX.Y.Z`. There is **no** `v6` tag yet. Create or
-move it by hand only after the 6.0.0 release has passed its platform smoke tests (as `v1` and
-`v4` exist today). Consumers who pin `@v6.0.0` are unaffected.
+move it by hand only after the stable 6.0.0 release has passed its platform smoke tests (as `v1`
+and `v4` exist today). Consumers who pin `@v6.0.0` are unaffected. Do not invent a floating `v6`
+as part of cutting 6.0.1.
 
 ```bash
 git fetch origin --tags
@@ -202,7 +218,8 @@ git tag -f v6 v6.0.0
 git push --force origin refs/tags/v6
 ```
 
-Announce: link the release, say `releases/latest` now serves 6.0.0, point at `MIGRATION.md`.
+Announce: link the new release, say `releases/latest` now serves that version, point at
+`MIGRATION.md`.
 
 ## 6. Rollback, and what cannot be undone
 

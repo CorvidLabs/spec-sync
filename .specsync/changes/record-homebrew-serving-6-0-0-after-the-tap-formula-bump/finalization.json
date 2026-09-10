@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "record-homebrew-serving-6-0-0-after-the-tap-formula-bump",
+  "implementation_commit": "177a28e9f6af797250fa8906dfaafee1bdc51781",
+  "implementation_tree": "2db2b444721238e66adf10e392262683827b613c",
+  "contract_digest": "6ef4a1d5a212ee3c28fa768477751c6dbb97263055bc09253e28e7927154623f",
+  "workspace_digest": "0e868464ccaa08f876e77f1504dfaee88d3d91ccac0355a0d0b5cdf5bbb8cc3b",
+  "closing_digest": "2aa85fdcf6593d2da23084075abb34d863442489704c853b1d26280184b6a715",
+  "review_digest": "c6d462f4c529698547953d69db68c4eca297388c627b3c0a958ed6416ad11c63",
+  "finalization_digest": "9484a0b21464c17f1c409063ed45f58eeb869b8f90503f6493c5a5b7fe25fcd4",
+  "timestamp": 1789057675
+}

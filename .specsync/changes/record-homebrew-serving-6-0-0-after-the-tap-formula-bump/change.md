@@ -1,6 +1,6 @@
 ---
 id: record-homebrew-serving-6-0-0-after-the-tap-formula-bump
-state: implementing
+state: accepted
 type: documentation
 base_commit: 0188edba726e738190468a90bb17070a667996e0
 ---

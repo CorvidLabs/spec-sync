@@ -1,6 +1,6 @@
 ---
 module: github
-version: 31
+version: 32
 status: stable
 files:
   - src/github.rs
@@ -222,3 +222,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-09-09 | pin-the-github-action-version-default-to-published-release-6-0-0-rc-14-so-consumers-without-an-explicit-version-do-not: Pin the GitHub Action version default to published release 6.0.0-rc.14 so consumers without an explicit version do not 404 on missing v6.0.0 (#628) |
 | 2026-09-10 | document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release: Set the Action omitted-input default on main to shipped 6.0.0 and document that @v6.0.0 still embeds 6.0.0-rc.14 |
 | 2026-09-10 | rc-qualification-requires-ubuntu-and-macos-only-windows-is-not-a-6-0-target: RC qualification requires Ubuntu and macOS only; Windows is not a 6.0 target |
+| 2026-09-10 | correct-remaining-specsync-6-0-docs-after-the-stable-ship: Correct remaining SpecSync 6.0 docs after the stable ship |

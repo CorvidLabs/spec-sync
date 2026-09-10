@@ -106,7 +106,7 @@ Answer the returned questions, complete its adaptively selected artifacts, and a
 Continue through the single workflow after the definition is complete:
 
 ```bash
-specsync change approve <id>            # one explicit human scope approval
+specsync change approve <id> --actor "Ada"   # one explicit human scope approval
 # implement the approved contract and keep module specs synchronized
 specsync change check <id> --commit     # scoped verify: apply deltas + spec↔code sync for this change
 specsync change audit                   # active workspaces + living specs (archives are history)

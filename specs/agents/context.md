@@ -19,7 +19,12 @@ spec: agents.spec.md
 
 ## Current Status
 
-Updated for 5.0 SDD. All four tools receive the verified lifecycle skill; Claude, Cursor, and Gemini also receive four commands — create-spec, create-change, check, and audit (`command_paths()` returns all four). Installation remains content-aware and safe for shared command directories, with unit coverage for upgrade, idempotency, and uninstall behavior.
+Updated for shipped 6.0.0. Generated `SKILL_BODY` leads with `specsync check` as the product and
+SDD as opt-in via `specsync change adopt`. Happy path is `new` -> `answer` -> `approve --actor` ->
+implement -> `check --commit` -> `review --reviewer` -> `ship`/`finalize`. Template version 5.
+All four tools receive that skill; Claude, Cursor, and Gemini also receive four commands —
+create-spec, create-change, check, and audit. `hooks.rs` snippets remain a separate, shorter
+surface and are not unified with `SKILL_BODY` in this change.
 
 ## Notes
 

@@ -3,83 +3,83 @@
   "artifacts": {
     ".claude/commands/specsync/audit.md": {
       "tool": "claude",
-      "template_version": 4,
-      "digest": "6d8662ba5837b27234cf116b612a0262f1c68c5a8a46f1cd04d32347c02d86ed"
+      "template_version": 5,
+      "digest": "90f09855129f006a9a9e1413a175d1a85034c0e11cb22b293ae3dc8e664adbaa"
     },
     ".claude/commands/specsync/check.md": {
       "tool": "claude",
-      "template_version": 4,
-      "digest": "d702ffea18c2a51bb3ccc3c2228691df8190b4aeab728b949b938df377146536"
+      "template_version": 5,
+      "digest": "becd0e524cf267d999227ca241844805f75154ed7b1c600a6e4df38202d7bebe"
     },
     ".claude/commands/specsync/create-change.md": {
       "tool": "claude",
-      "template_version": 4,
-      "digest": "826e4f473728c8c6f680455b580a9937189370132b0299fccaf10a4a7390d2e3"
+      "template_version": 5,
+      "digest": "9f4e565e94f5ca3cbc513966eb08e42b2b8ba3b47ea0090b0aa7bd1dbadcd196"
     },
     ".claude/commands/specsync/create-spec.md": {
       "tool": "claude",
-      "template_version": 4,
+      "template_version": 5,
       "digest": "b1bff9be92176be0d8ad24d09fdf5ef2a9494f1c2b0f19b2161d739e55cca948"
     },
     ".claude/skills/spec-sync/SKILL.md": {
       "tool": "claude",
-      "template_version": 4,
-      "digest": "605bb5e15a39e406e00bf3276afe7bcef56bf55b16e8399cb23a7c9264fa7d05"
+      "template_version": 5,
+      "digest": "7e39b91afc09f87b16ed6d80f6d3c5a24a7c45042825819aea9b94ae255f6139"
     },
     ".codex/skills/spec-sync/SKILL.md": {
       "tool": "codex",
-      "template_version": 4,
-      "digest": "605bb5e15a39e406e00bf3276afe7bcef56bf55b16e8399cb23a7c9264fa7d05"
+      "template_version": 5,
+      "digest": "7e39b91afc09f87b16ed6d80f6d3c5a24a7c45042825819aea9b94ae255f6139"
     },
     ".cursor/commands/specsync-audit.md": {
       "tool": "cursor",
-      "template_version": 4,
-      "digest": "f985b018f264a57bdc2c116c40515cc7e39e773d24011b4c3b274739a0655b27"
+      "template_version": 5,
+      "digest": "c34e6379fa03b4d82b9fb6ab0261657c6f225967e00f186f97c650f6f9bc9157"
     },
     ".cursor/commands/specsync-check.md": {
       "tool": "cursor",
-      "template_version": 4,
-      "digest": "65d7ca5c8408f2b6035fa048313560cbb289bd16930cf13795ff252a09bbf3c6"
+      "template_version": 5,
+      "digest": "665cad000436c972f6bd61e73894e87eb3f68850e1da077869751a8c359b98a3"
     },
     ".cursor/commands/specsync-create-change.md": {
       "tool": "cursor",
-      "template_version": 4,
-      "digest": "058565cf4e6fb0920212f39f51eddee0b10fd2a1bf2c6a9fe0841a6b49540a2d"
+      "template_version": 5,
+      "digest": "8783460fba0e3e992639d4c604edbb832382c40d513e4002e4d5da18eba478f4"
     },
     ".cursor/commands/specsync-create-spec.md": {
       "tool": "cursor",
-      "template_version": 4,
+      "template_version": 5,
       "digest": "96a88bac62a30f969fe784a6e5f7c113849db5b25caa2d9fea920a7cffc44d93"
     },
     ".cursor/skills/spec-sync/SKILL.md": {
       "tool": "cursor",
-      "template_version": 4,
-      "digest": "605bb5e15a39e406e00bf3276afe7bcef56bf55b16e8399cb23a7c9264fa7d05"
+      "template_version": 5,
+      "digest": "7e39b91afc09f87b16ed6d80f6d3c5a24a7c45042825819aea9b94ae255f6139"
     },
     ".gemini/commands/specsync/audit.toml": {
       "tool": "gemini",
-      "template_version": 4,
-      "digest": "3ed5c3f6021094e467f2b62b5ff0662dbee17e5115227599ca5565b080bbd6ea"
+      "template_version": 5,
+      "digest": "b5977aa1489e8318e237102c06e8cc826ba2f7544097c0cf7c462c22d8dcaf65"
     },
     ".gemini/commands/specsync/check.toml": {
       "tool": "gemini",
-      "template_version": 4,
-      "digest": "0a1a97f92e65fbdb710f90d94cd3aa80fc61466245c4c4bcae081da709368fde"
+      "template_version": 5,
+      "digest": "e6feb1a376f518333fd00649b4f8a3896f043de22a9794758fc72ee90c339279"
     },
     ".gemini/commands/specsync/create-change.toml": {
       "tool": "gemini",
-      "template_version": 4,
-      "digest": "38e8c2b702c02c36eb782f909a9e1a3ca25ddeda4b2afafb46a92548f1399fd5"
+      "template_version": 5,
+      "digest": "ed918c331fd006cade55af4abe9d809a99c760ee10f764e9ef1407ece28942c4"
     },
     ".gemini/commands/specsync/create-spec.toml": {
       "tool": "gemini",
-      "template_version": 4,
+      "template_version": 5,
       "digest": "d61f2b1c01cd34c5865c94abc14589721c524c1c1f1a5fd556c624249dc1d1bf"
     },
     ".gemini/skills/spec-sync/SKILL.md": {
       "tool": "gemini",
-      "template_version": 4,
-      "digest": "605bb5e15a39e406e00bf3276afe7bcef56bf55b16e8399cb23a7c9264fa7d05"
+      "template_version": 5,
+      "digest": "7e39b91afc09f87b16ed6d80f6d3c5a24a7c45042825819aea9b94ae255f6139"
     }
   }
 }

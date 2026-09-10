@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1789010290,
+      "commit": "6f11e34ef65710dd8839bfaaa6e6bc9004d6a530",
+      "contract_digest": "5e65007df34cbbc0407a3c5243736c39047b102abbaba09e527bbff93862ade3",
+      "execution_digest": "8f2b64d4d0216f373b60ef01a5fc805e3a5f2082d6b9a6d0ae5187da3b264bfe",
+      "workspace_digest": "2e567b5de187a949deeb8318cc4c0487af06f8d535bb64bb0d158a629b664ad3",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-007"
+      ]
+    },
+    {
+      "timestamp": 1789010321,
+      "commit": "6f11e34ef65710dd8839bfaaa6e6bc9004d6a530",
+      "contract_digest": "5e65007df34cbbc0407a3c5243736c39047b102abbaba09e527bbff93862ade3",
+      "execution_digest": "8f2b64d4d0216f373b60ef01a5fc805e3a5f2082d6b9a6d0ae5187da3b264bfe",
+      "workspace_digest": "2e567b5de187a949deeb8318cc4c0487af06f8d535bb64bb0d158a629b664ad3",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-007"
+      ]
+    },
+    {
+      "timestamp": 1789010327,
+      "commit": "48b76de70c20b3189045f45d8cddabe199936db9",
+      "contract_digest": "5e65007df34cbbc0407a3c5243736c39047b102abbaba09e527bbff93862ade3",
+      "execution_digest": "8f2b64d4d0216f373b60ef01a5fc805e3a5f2082d6b9a6d0ae5187da3b264bfe",
+      "workspace_digest": "2e567b5de187a949deeb8318cc4c0487af06f8d535bb64bb0d158a629b664ad3",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-007"
+      ]
+    },
+    {
+      "timestamp": 1789010385,
+      "commit": "6f11e34ef65710dd8839bfaaa6e6bc9004d6a530",
+      "contract_digest": "5e65007df34cbbc0407a3c5243736c39047b102abbaba09e527bbff93862ade3",
+      "execution_digest": "8f2b64d4d0216f373b60ef01a5fc805e3a5f2082d6b9a6d0ae5187da3b264bfe",
+      "workspace_digest": "6c791b6ee49cd7f7e6ad40a4c8887d2a1b535ff31cc982e6b760da45560c2321",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-agents-007"
+      ]
+    }
+  ]
+}

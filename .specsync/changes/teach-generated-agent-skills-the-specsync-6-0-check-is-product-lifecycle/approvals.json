@@ -1,0 +1,56 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Leif",
+      "timestamp": 1789010250,
+      "digest": "5e65007df34cbbc0407a3c5243736c39047b102abbaba09e527bbff93862ade3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "teach-generated-agent-skills-the-specsync-6-0-check-is-product-lifecycle",
+        "title": "Teach generated agent skills the SpecSync 6.0 check-is-product lifecycle",
+        "description": "Teach generated agent skills the SpecSync 6.0 check-is-product lifecycle",
+        "kind": "documentation",
+        "affected_specs": [
+          "agents"
+        ],
+        "affected_paths": [
+          ".claude/commands/specsync/audit.md",
+          ".claude/commands/specsync/check.md",
+          ".claude/commands/specsync/create-change.md",
+          ".claude/skills/spec-sync/SKILL.md",
+          ".codex/skills/spec-sync/SKILL.md",
+          ".cursor/commands/specsync-audit.md",
+          ".cursor/commands/specsync-check.md",
+          ".cursor/commands/specsync-create-change.md",
+          ".cursor/skills/spec-sync/SKILL.md",
+          ".gemini/commands/specsync/audit.toml",
+          ".gemini/commands/specsync/check.toml",
+          ".gemini/commands/specsync/create-change.toml",
+          ".gemini/skills/spec-sync/SKILL.md",
+          "src/agents.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "AGENT_ARTIFACT_TEMPLATE_VERSION is 5 so specsync agents install refreshes stale host skills.",
+          "Generated Claude/Cursor/Codex/Gemini SKILL.md files lead with specsync check as the product and SDD opt-in via change adopt.",
+          "Generated create-change/check/audit commands use 6.0 happy-path verbs: approve --actor, check --commit, review --reviewer, ship/finalize; v1 start/verify/accept/archive are labeled recovery only.",
+          "cargo test agents:: passes.",
+          "specsync check --spec agents passes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "f11aaefdc462e47661f08dd82e90386b4004305747e7a78c5b306a87766b6455"
+      }
+    }
+  ],
+  "reopenings": []
+}

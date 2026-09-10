@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release",
+  "implementation_commit": "0d1fc8dc4514e4c30998aa153b12dccecf7ec781",
+  "implementation_tree": "239b71da9230d43dee0f68623b72d383df0fcf83",
+  "contract_digest": "1d49c83299156894fe5ed6d9c76c6a83f31bc06670ff60653f272bcca1db5291",
+  "workspace_digest": "c7cf168c2abc027fa69820795f92c89f7f1e3d759f7a02da72346fa16ae529f6",
+  "closing_digest": "02092d70397fa9f497dbb65eaefd3e673cf144fb3fe115426c73ccf0cfd2ec07",
+  "review_digest": "3523639917276f908bb5f8cfe48f13ce26de7892a0b6052d8110cc0a88eacb00",
+  "finalization_digest": "65da4acef15b85edc7b3f430a8d4f8701572a7c0ad00b63fd050d8c285c2cbcb",
+  "timestamp": 1789004486
+}

@@ -1,6 +1,6 @@
 ---
 id: document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release
-state: implementing
+state: archived
 type: documentation
 base_commit: b9ff32310181b796cc617406ff9298c533ebeb15
 ---

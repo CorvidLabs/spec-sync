@@ -1,0 +1,234 @@
+{
+  "timestamp": 1789002754,
+  "commit": "0d1fc8dc4514e4c30998aa153b12dccecf7ec781",
+  "contract_digest": "1d49c83299156894fe5ed6d9c76c6a83f31bc06670ff60653f272bcca1db5291",
+  "execution_digest": "dcb565397ecdaa0cbbd6ee2a1bd3292f939ebb60bcd294643d385afa536c4ff8",
+  "workspace_digest": "c7cf168c2abc027fa69820795f92c89f7f1e3d759f7a02da72346fa16ae529f6",
+  "acceptance_input_digest": "ebf393bb8bdba5811cb413e31a737f2c81b1eaf4b095e9b4512a10323addb276",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/scripts/validate-release-version.py",
+        "kind": "file",
+        "mode": 33261,
+        "payload_digest": "8d5945241735cf951bf82911f2c91706db532874962112eaca05280c3876c4ce",
+        "entry_digest": "2b3f19e4164b5912327798c5d7fa2a18b9d1228c551d736cc588c5ac781f0032",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "CHANGELOG.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0f74cb3036de3129173877f877218b53e2e58d639876ba80c4dab4f7b44ee1f7",
+        "entry_digest": "b7c86b816f9168927267f220ac9de8f406e0d4589c46987845fa73a43b23e08c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "MIGRATION.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b11fb92a771dfe65c99f1d2a563e6b5b95a0df1c678ae2ac406d88dbd3115bfb",
+        "entry_digest": "ce7def7c5497695af70988702f2b7ea6567cc5d661ff3d618419ef9307c33962",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "README.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "bb10015ce56b9206f1eecc9fbcaa8efd991261f30561c2ef24f0539d81b09899",
+        "entry_digest": "d4b38c9e11aab9ae886b512c30a668407c9c889d318ccfbe110fd056ce9b3161",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "SECURITY.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6b359ac7a08413bc87db50112851530f02767696b11188e9bb6dd82c0d110fc4",
+        "entry_digest": "bedb58a627dc0dc4c961ceebed1778867cc39217fb1cff0450a3c7d7d000aadc",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "action.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "54c2e03c18680e0bedb3aa0dc9dc1e1b0473b9d27f16fe902882d493ae118094",
+        "entry_digest": "242f3b831844ed6b3eb29cc17607e8927b4f6c9fef0f1039758d0869e4fc2a89",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/ADOPTING.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1020325117130d6963cd2ed364d08d1b65d9b088c5674668f96e530fb00b3d23",
+        "entry_digest": "fcc1a73686fa8fa3cfe2ab9cc10535b7d72bd27786e9c99bd05496d720458a03",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/RELEASING.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f5fec5e95a6252d62ed2f4531575245e3e8651bd7532fdddf5dcbf78da48a0d3",
+        "entry_digest": "172b26b535d02628ff5c036749a811b83eb2a73796d764eae054d19473a82c4b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/index.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "dd35c101b41a94eb63f0ec4c86a81e6cee0c8cbcc1d7e4c9739fdf1accec61c5",
+        "entry_digest": "5e70b1d65b00d0535ff4fb3e7c8ab7892e2b71827943a79866cdb7460021530d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/github-action.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fe3c633dde00d4512337793051bf47273c0492b554310e03cffc00b16790b11f",
+        "entry_digest": "02e8cb7a7ef280c3e86c770abd3fa2db4ff38a62a725442756accf234fe974b7",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/quickstart.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "214b79cf6b2ef55439d471ab3efd591273ad06ea7654fa20238c40b8793332f9",
+        "entry_digest": "583c8796234a64888942802d38c969b06f52cf530049344679d0213b3ca341ae",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/cmd_change/cmd_change.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d1e016f2e8a10aa9657d7dd4a4344eda15e992c1c9fb8a50c3a800011a52314e",
+        "entry_digest": "8611561aa41028bf0ce094ac3bc77e8eb0436cd4066d0616de8b5ab47850384e",
+        "owners": [
+          "cmd_change"
+        ]
+      },
+      {
+        "path": "specs/cmd_change/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f137f9800695d8dc40f27423b4f0bb677e520a0e4036f2766fcd67a240d8bc3d",
+        "entry_digest": "bc7dce6e66863f8ce8cac3139457b35f98acd43cbaf9fd3389c1a0f7cdb31040",
+        "owners": [
+          "cmd_change"
+        ]
+      },
+      {
+        "path": "specs/cmd_change/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1b16a73778a47e7aa222979cce9ec531fca58adec690b3eef1156e9092f467a6",
+        "entry_digest": "adfb3259579d01d737e33087f1576752246ae7c489c31492a7531f554fbc289b",
+        "owners": [
+          "cmd_change"
+        ]
+      },
+      {
+        "path": "specs/cmd_change/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8c62b33758eed686c66702610e1ef0f031009d140b79db0780c466e3b49af5a3",
+        "entry_digest": "bd3f603353d9ea7ed7f120512256ba2b6d9d62ecb1a0c40f9a785c312c18b74e",
+        "owners": [
+          "cmd_change"
+        ]
+      },
+      {
+        "path": "specs/cmd_change/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6a9ef29c66dc281ccfa10948e705725c67fc5104d8146375c9d6fa1699a1391d",
+        "entry_digest": "f5ca505c10ebf57d3a6f395909168bb10d3e5439fe0aed1d7a7b0d1d896e8171",
+        "owners": [
+          "cmd_change"
+        ]
+      },
+      {
+        "path": "specs/github/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "2d8ebb0a22f7046c170c22e2ed8b7c18a0dabf5ad42cc1ed7905fdc0d9646ea6",
+        "entry_digest": "0bf86d954ee6e807ed1168540e0b73edbd42e937838aaddcedffe209ff781738",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/github.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0542fdf09cea3fc19b7f4ad2949bf3e9838a5f845b215ea7775013c7a261898b",
+        "entry_digest": "9272d18cab083ecef6f781cae8be6d90df831920e625321857bcb0c98a62842d",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7c5e324181c5ba6a881a95b5f7b305e2e7e4b9e7b33cf7319ff034f01ad56729",
+        "entry_digest": "6007aabdedb277bbf6fb360f7f0f57929062980cb6f947275603d9ef528f59ba",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3307c4e3c89aac57862b26fd4aceab85fdc03fc14622f06fe03e417525442720",
+        "entry_digest": "023681871042afede7135dd6a3f61311992ea4deee8076628a96010b191fda9b",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "b33528c7a5a4f804e02b797f5c58b64f192d0b376e00147ecca5bb326a6156c1",
+        "entry_digest": "78db5c34a7d28b800f23aff4b18b2f45e1317738c607599284eff66e1ecff619",
+        "owners": [
+          "github"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec cmd_change --spec github",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-github-002"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "correct-remaining-specsync-6-0-docs-after-the-stable-ship",
+      "reviewer": "Leif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "3d3a9cc1e9de700efd3f9f3d908b8e540e5c54da",
+      "contract_digest": "3385783476e7c4c3e8a279a573eaacbe6869f7d0e369df2bf22d2713afe571d1",
+      "execution_digest": "24ef188b97a2c1ed91368991003fa50e99cc23b819819b5b546fa9040900f325",
+      "workspace_digest": "1fcc06fdb1f67153bc927ea39014d44d9914b00473c8736280c7cd3f0963773f",
+      "timestamp": 1789011656
+    }
+  ]
+}

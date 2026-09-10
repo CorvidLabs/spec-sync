@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "correct-remaining-specsync-6-0-docs-after-the-stable-ship",
+  "slug": "correct-remaining-specsync-6-0-docs-after-the-stable-ship",
+  "title": "Correct remaining SpecSync 6.0 docs after the stable ship",
+  "description": "Correct remaining SpecSync 6.0 docs after the stable ship",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "6f11e34ef65710dd8839bfaaa6e6bc9004d6a530",
+  "created_at": 1789010246,
+  "updated_at": 1789012177,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    "site/",
+    "docs/",
+    "specs/github/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "docs/RELEASING.md records that promote executed for v6.0.0 on 2026-09-09 and uses a next-release example instead of a second 6.0.0 promotion",
+    "docs/ci-confidence.md records that promote executed and does not claim the final tag is missing",
+    "site polyglot example does not teach specsync check --explain for language detection or invented language_overrides",
+    "site CI-gate example dual-pins CorvidLabs/spec-sync@v6.0.0 with version 6.0.0 and uses real Action inputs",
+    "github spec companions do not require Windows for 6.0 RC qualification"
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

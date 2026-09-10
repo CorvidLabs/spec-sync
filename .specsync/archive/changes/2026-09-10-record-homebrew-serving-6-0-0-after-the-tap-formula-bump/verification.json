@@ -1,0 +1,82 @@
+{
+  "timestamp": 1789055578,
+  "commit": "177a28e9f6af797250fa8906dfaafee1bdc51781",
+  "contract_digest": "6ef4a1d5a212ee3c28fa768477751c6dbb97263055bc09253e28e7927154623f",
+  "execution_digest": "00d6d68845af390b559ce9ecf055e90e29e631dad8698332c9608fdb1c5371f6",
+  "workspace_digest": "0e868464ccaa08f876e77f1504dfaee88d3d91ccac0355a0d0b5cdf5bbb8cc3b",
+  "acceptance_input_digest": "0f8e2b9d0d14f03fb2b26dd1a8b42205038d90dc3411e60894d267ae0a4bbca1",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "MIGRATION.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d77b1f7b89f49b0ef855628031c61b82308fb5a7a0af73c7e45ce1968913070a",
+        "entry_digest": "b9505106635b363eb9bb08e5cf1d431f548ed42509387bc4d458a9adcdd4ac7b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "README.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "04c092c5b6837544f07d244c8cace3af73959272075b53b95ccea0132c5a0606",
+        "entry_digest": "76e24e1d407ed4108c759eaac67865b896d9d4b35f35f56f2db2177b415e3267",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/ADOPTING.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ac8646e803b301b2ecf4795e36ce3ec8d800cddd4b9e4642f9f16b038936bc66",
+        "entry_digest": "9c8575f436c7964a38b02d3b10ef96f347208d2360f07c2a336acabe83d46a1a",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/RELEASING.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9239961168c2c22ce9e7bb84438f9ba2a0c23c11393571cb218ac9ea5617b1f1",
+        "entry_digest": "c5e69fb92353dbbd98cc64442c1e6d53960abf34c985b06ac3d9811c5f3e98de",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/ci-confidence.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "29f37de11772a8c5bf53dbb9c58c16a94e4fff86e926fcbc08667dc9fcb5d166",
+        "entry_digest": "0499980401e657088bb899133fad825ac4bc04cc4eb670911993167c54803da6",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/quickstart.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1567a5f5c6c4cc8ddf4aa706083e1cf55cec2bf6f30497b69b7505014eae8470",
+        "entry_digest": "c2ca62927606cf1ec8bbb09bc7733f547425f3975275aa7703a9295cded3e013",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec cmd_change",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

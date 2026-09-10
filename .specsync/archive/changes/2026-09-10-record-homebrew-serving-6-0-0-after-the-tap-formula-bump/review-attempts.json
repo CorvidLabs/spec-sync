@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "record-homebrew-serving-6-0-0-after-the-tap-formula-bump",
+      "reviewer": "corvid-agent",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "177a28e9f6af797250fa8906dfaafee1bdc51781",
+      "contract_digest": "6ef4a1d5a212ee3c28fa768477751c6dbb97263055bc09253e28e7927154623f",
+      "execution_digest": "00d6d68845af390b559ce9ecf055e90e29e631dad8698332c9608fdb1c5371f6",
+      "workspace_digest": "0e868464ccaa08f876e77f1504dfaee88d3d91ccac0355a0d0b5cdf5bbb8cc3b",
+      "timestamp": 1789057624
+    }
+  ]
+}

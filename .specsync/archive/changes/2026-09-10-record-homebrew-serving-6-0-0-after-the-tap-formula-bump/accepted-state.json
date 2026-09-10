@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "record-homebrew-serving-6-0-0-after-the-tap-formula-bump",
+  "slug": "record-homebrew-serving-6-0-0-after-the-tap-formula-bump",
+  "title": "Record Homebrew serving 6.0.0 after the tap formula bump",
+  "description": "Record Homebrew serving 6.0.0 after the tap formula bump",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "0188edba726e738190468a90bb17070a667996e0",
+  "created_at": 1789055471,
+  "updated_at": 1789057675,
+  "affected_specs": [],
+  "affected_paths": [
+    "README.md",
+    "MIGRATION.md",
+    "docs/ADOPTING.md",
+    "docs/RELEASING.md",
+    "docs/ci-confidence.md",
+    "site/src/content/docs/quickstart.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Documentation only. The Homebrew tap now serves 6.0.0, so the caveats saying it still serves 5.2.0 are stale. No module contract, public API, or behavior changes.",
+  "acceptance_criteria": [
+    "Every present-tense claim that the Homebrew tap serves SpecSync 5.2.0 is gone from README.md, MIGRATION.md, docs/ADOPTING.md, docs/RELEASING.md, docs/ci-confidence.md, and site/src/content/docs/quickstart.md. Those documents now say Homebrew serves 6.0.0, which matches CorvidLabs/homebrew-tap Formula/spec-sync.rb at version 6.0.0 on main. docs/RELEASING.md additionally records that Formula/corvid-trust.rb asserts its dependency versions in its test block, so the two formulae must be bumped in the same change. Historical records under docs/6-0-*, docs/GOAL-*, docs/superpowers, specs/, and CHANGELOG.md are left untouched."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

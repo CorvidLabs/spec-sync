@@ -43,7 +43,7 @@ schema, or configuration change:
 - `specsync change check [id]` - verify **this** change (materialize + spec↔code sync). Add `--commit` for ship-ready product-tip evidence.
 - `specsync change audit` - project health over **active** workspaces and living specs. Not archive history.
 - Archives are history; do not re-validate terminal evidence for every archived change on each check.
-- Slash commands: `/specsync:create-spec`, `/specsync:create-change`, `/specsync:check`, `/specsync:audit` (Claude/Cursor/Gemini via `specsync agents install`).
+- Slash commands after `specsync agents install`: Claude and Gemini use `/specsync:create-spec`, `/specsync:create-change`, `/specsync:check`, `/specsync:audit`. Cursor uses the flat names `/specsync-create-spec`, `/specsync-create-change`, `/specsync-check`, `/specsync-audit`.
 
 Never invent or self-grant the scope approval. If an approved definition
 changes, its digest becomes stale and must be approved again. `specsync change status` always
@@ -76,8 +76,10 @@ Each canonical spec may have policy-selected companion files. Read and update th
 
 ## Before creating a PR
 
-Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, also
-record `change review` then `change ship`/`finalize` on the same PR with no commit between them.
+Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, push
+the product tip from `change check --commit` with the PR. Record `change review` and
+`change ship`/`finalize` only after that tip is on the PR and required checks have run. Do not
+record review or ship before the PR exists.
 
 ## When adding new modules
 

@@ -50,7 +50,7 @@ schema, or configuration change:
 - `specsync change check [id]` - verify **this** change (materialize + spec↔code sync). Add `--commit` for ship-ready product-tip evidence.
 - `specsync change audit` - project health over **active** workspaces and living specs. Not archive history.
 - Archives are history; do not re-validate terminal evidence for every archived change on each check.
-- Slash commands: `/specsync:create-spec`, `/specsync:create-change`, `/specsync:check`, `/specsync:audit` (Claude/Cursor/Gemini via `specsync agents install`).
+- Slash commands after `specsync agents install`: Claude and Gemini use `/specsync:create-spec`, `/specsync:create-change`, `/specsync:check`, `/specsync:audit`. Cursor uses the flat names `/specsync-create-spec`, `/specsync-create-change`, `/specsync-check`, `/specsync-audit`.
 
 Never invent or self-grant the scope approval. If an approved definition
 changes, its digest becomes stale and must be approved again. `specsync change status` always
@@ -83,8 +83,10 @@ Each canonical spec may have policy-selected companion files. Read and update th
 
 ## Before creating a PR
 
-Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, also
-record `change review` then `change ship`/`finalize` on the same PR with no commit between them.
+Run `specsync check --strict`: all specs must pass with zero warnings. If SDD is adopted, push
+the product tip from `change check --commit` with the PR. Record `change review` and
+`change ship`/`finalize` only after that tip is on the PR and required checks have run. Do not
+record review or ship before the PR exists.
 
 ## When adding new modules
 
@@ -197,12 +199,13 @@ const CREATE_SPEC_DESCRIPTION: &str = "Scaffold a new spec-sync module spec from
 const CREATE_CHANGE_DESCRIPTION: &str =
     "Create and guide a verified spec-sync SDD change through its deterministic interview";
 
-const CREATE_CHANGE_STEPS_MD: &str = r#"1. Run `specsync change new "$ARGUMENTS" --json`.
-2. Read the returned `questions` array and interview the user one question at a time.
-3. Record each answer with `specsync change answer <id> <question-id> "<answer>" --json`.
-4. Continue until the question list is empty, then show the selected artifacts and next action.
-5. Do not approve, implement, check --commit, review, or ship/finalize until the corresponding human gate or work stage is reached. Do not use v1 `start`/`verify`/`accept`/`archive` as the happy path.
-6. After implementation, run `specsync change check <id> --commit` (or `/specsync:check` with --commit when preparing ship evidence). Use `specsync change audit` only for active-workspace project health. Never expect check to rewalk archived terminal evidence."#;
+const CREATE_CHANGE_STEPS_MD: &str = r#"1. SDD is opt-in via `specsync change adopt`. If change commands fail because the workflow is off, adopt only when the user asked to turn SDD on.
+2. Run `specsync change new "$ARGUMENTS" --json`.
+3. Read the returned `questions` array and interview the user one question at a time.
+4. Record each answer with `specsync change answer <id> <question-id> "<answer>" --json`.
+5. Continue until the question list is empty, then show the selected artifacts and next action.
+6. Do not run `specsync change approve <id> --actor "<identity>"`, implement, `specsync change check <id> --commit`, `specsync change review <id> --reviewer "<identity>"`, or `specsync change ship`/`finalize` until that gate is reached. Do not use v1 `start`/`verify`/`accept`/`archive` as the happy path.
+7. After implementation, run `specsync change check <id> --commit` (or the installed check command with --commit when preparing ship evidence). Use `specsync change audit` only for active-workspace project health. Never expect check to rewalk archived terminal evidence."#;
 
 const CHECK_CHANGE_DESCRIPTION: &str =
     "Run scoped SpecSync change verification for one change (materialize deltas + spec↔code sync)";
@@ -1142,6 +1145,11 @@ mod tests {
         )
         .unwrap();
         assert!(change_command.contains("specsync change new"));
+        assert!(change_command.contains("specsync change adopt"));
+        assert!(change_command.contains("approve <id> --actor"));
+        assert!(change_command.contains("review <id> --reviewer"));
+        assert!(skill.contains("/specsync-create-change"));
+        assert!(skill.contains("record review or ship before the PR exists"));
         assert!(skill.contains("specsync change check"));
         assert!(skill.contains("specsync change audit"));
         assert!(skill.contains("Lifecycle verbs"));

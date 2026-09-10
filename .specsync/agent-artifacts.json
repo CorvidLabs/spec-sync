@@ -14,7 +14,7 @@
     ".claude/commands/specsync/create-change.md": {
       "tool": "claude",
       "template_version": 5,
-      "digest": "9f4e565e94f5ca3cbc513966eb08e42b2b8ba3b47ea0090b0aa7bd1dbadcd196"
+      "digest": "292bb4c773ccbec62f5ff01000bf9a723664b3906e2b870882e4b528f6a618dd"
     },
     ".claude/commands/specsync/create-spec.md": {
       "tool": "claude",
@@ -24,12 +24,12 @@
     ".claude/skills/spec-sync/SKILL.md": {
       "tool": "claude",
       "template_version": 5,
-      "digest": "7e39b91afc09f87b16ed6d80f6d3c5a24a7c45042825819aea9b94ae255f6139"
+      "digest": "43c7263643b23c5f3518bce1c341070b38295576ffd7d477534ff0603887818a"
     },
     ".codex/skills/spec-sync/SKILL.md": {
       "tool": "codex",
       "template_version": 5,
-      "digest": "7e39b91afc09f87b16ed6d80f6d3c5a24a7c45042825819aea9b94ae255f6139"
+      "digest": "43c7263643b23c5f3518bce1c341070b38295576ffd7d477534ff0603887818a"
     },
     ".cursor/commands/specsync-audit.md": {
       "tool": "cursor",
@@ -44,7 +44,7 @@
     ".cursor/commands/specsync-create-change.md": {
       "tool": "cursor",
       "template_version": 5,
-      "digest": "8783460fba0e3e992639d4c604edbb832382c40d513e4002e4d5da18eba478f4"
+      "digest": "ed1e5d4ffef9b25f6547db85488cc7d2a5423cf2fc7b42104e1d75c6a07654a5"
     },
     ".cursor/commands/specsync-create-spec.md": {
       "tool": "cursor",
@@ -54,7 +54,7 @@
     ".cursor/skills/spec-sync/SKILL.md": {
       "tool": "cursor",
       "template_version": 5,
-      "digest": "7e39b91afc09f87b16ed6d80f6d3c5a24a7c45042825819aea9b94ae255f6139"
+      "digest": "43c7263643b23c5f3518bce1c341070b38295576ffd7d477534ff0603887818a"
     },
     ".gemini/commands/specsync/audit.toml": {
       "tool": "gemini",
@@ -69,7 +69,7 @@
     ".gemini/commands/specsync/create-change.toml": {
       "tool": "gemini",
       "template_version": 5,
-      "digest": "ed918c331fd006cade55af4abe9d809a99c760ee10f764e9ef1407ece28942c4"
+      "digest": "becc843a2d886f4607c5fc4ac0b9c117d44910bfaea6db0858370a239a168aa7"
     },
     ".gemini/commands/specsync/create-spec.toml": {
       "tool": "gemini",
@@ -79,7 +79,7 @@
     ".gemini/skills/spec-sync/SKILL.md": {
       "tool": "gemini",
       "template_version": 5,
-      "digest": "7e39b91afc09f87b16ed6d80f6d3c5a24a7c45042825819aea9b94ae255f6139"
+      "digest": "43c7263643b23c5f3518bce1c341070b38295576ffd7d477534ff0603887818a"
     }
   }
 }

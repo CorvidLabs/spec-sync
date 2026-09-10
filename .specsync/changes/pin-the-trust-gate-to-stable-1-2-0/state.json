@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "pin-the-trust-gate-to-stable-1-2-0",
+  "slug": "pin-the-trust-gate-to-stable-1-2-0",
+  "title": "Pin the Trust gate to stable 1.2.0",
+  "description": "Pin the Trust gate to stable 1.2.0",
+  "kind": "operations",
+  "state": "approved",
+  "base_commit": "15e53cab4ea1271f6c566f8372f4b584c94a07b8",
+  "created_at": 1789050112,
+  "updated_at": 1789050134,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/trust.yml"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "This changes only the pinned ref of the Trust action in CI. No canonical spec text changes because no module contract, public API, or behavior is affected.",
+  "acceptance_criteria": [
+    "The Trust gate step in .github/workflows/trust.yml resolves CorvidLabs/trust@fcc889f54d8b4892a81af463c5a0250e2be66fc5 (v1.2.0, the peeled stable release commit) instead of e0272543 (v1.2.0-rc.4). The runner-local file:// SpecSync mirror still works unchanged: Trust downloads specsync-linux-x86_64.tar.gz and its .sha256 from specsync-download-base-url, revalidates the checksum, and gates on the pull request's own freshly built binary rather than a published release. specsync-version stays 6.0.0. The hosted trust check passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

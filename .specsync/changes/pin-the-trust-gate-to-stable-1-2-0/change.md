@@ -1,6 +1,6 @@
 ---
 id: pin-the-trust-gate-to-stable-1-2-0
-state: approved
+state: implementing
 type: operations
 base_commit: 15e53cab4ea1271f6c566f8372f4b584c94a07b8
 ---

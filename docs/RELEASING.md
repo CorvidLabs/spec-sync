@@ -54,8 +54,10 @@ for r in corvid-account podo-web podo-android raven; do
 done
 ```
 
-As of this document all four known consumers (corvid-account, podo-web, podo-android, raven) carry
-`version: "6.0.0-rc.12"`; none floats `latest`.
+`v6.0.0` is published (2026-09-09). Known consumers that still pin `6.0.0-rc.12` or Trust
+`v1.2.0-rc.4` should move to Trust 1.2.0 / SpecSync `version: "6.0.0"`. None should float
+`latest`. The `@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`;
+consumers must pass `version: '6.0.0'` until they consume a later Action tag.
 
 ## 2. Cut the candidate
 
@@ -166,7 +168,7 @@ gh release download v6.0.0 -p 'specsync-macos-aarch64.tar.gz*' -D /tmp/specsync-
 (cd /tmp/specsync-6 && shasum -a 256 -c specsync-macos-aarch64.tar.gz.sha256)
 ```
 
-Publish to crates.io (currently serving 5.2.0) from the tagged tree. `Cargo.toml` `include`
+crates.io already serves 6.0.0. For a later patch, publish from the tagged tree. `Cargo.toml` `include`
 limits the package to `src/`, `Cargo.toml`, `Cargo.lock`, `README.md`, `CHANGELOG.md`, `LICENSE`.
 Publishing is permanent; a version can only be yanked.
 
@@ -176,8 +178,8 @@ cargo publish --dry-run --locked
 cargo publish --locked
 ```
 
-Bump the Homebrew tap (`github.com/CorvidLabs/homebrew-tap`, `Formula/spec-sync.rb`). The
-formula downloads `specsync-<os>-<arch>.tar.gz` from
+Homebrew tap (`github.com/CorvidLabs/homebrew-tap`, `Formula/spec-sync.rb`) still serves
+**5.2.0**. Bump it: the formula downloads `specsync-<os>-<arch>.tar.gz` from
 `releases/download/v#{version}/`, so the fields that change are `version "5.2.0"` -> `"6.0.0"`
 and the four `sha256` values (macOS arm/intel, Linux arm/intel), taken from the `.sha256`
 sidecars of `specsync-macos-aarch64`, `specsync-macos-x86_64`, `specsync-linux-aarch64`,
@@ -187,14 +189,12 @@ sidecars of `specsync-macos-aarch64`, `specsync-macos-x86_64`, `specsync-linux-a
 brew update && brew install CorvidLabs/tap/spec-sync && specsync --version
 ```
 
-Date the changelog. `## [6.0.0]` has no date during the candidate window; open a PR on `main`
-that changes it to `## [6.0.0] - YYYY-MM-DD`, removes the "stable publication is pending" line,
-and leaves the `[Unreleased]: .../compare/v6.0.0...HEAD` link and the `[6.0.0]:` release link
-in place. `validate-release-version.py` still passes because it matches the `## [6.0.0]` prefix.
+Changelog `## [6.0.0] - 2026-09-09` is dated. For the next patch, add `## [6.0.1]` (or similar)
+on `main` before tagging.
 
-Floating major tag. `release.yml` creates only `vX.Y.Z`; the floating `v6` ref that `SECURITY.md`
-and the README describe (as `v1` and `v4` exist today) is created or moved by hand, and only after
-the release has passed its platform smoke tests. Consumers who pin `@v6.0.0` are unaffected.
+Floating major tag. `release.yml` creates only `vX.Y.Z`. There is **no** `v6` tag yet. Create or
+move it by hand only after the 6.0.0 release has passed its platform smoke tests (as `v1` and
+`v4` exist today). Consumers who pin `@v6.0.0` are unaffected.
 
 ```bash
 git fetch origin --tags

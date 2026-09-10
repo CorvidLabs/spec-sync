@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release",
+  "slug": "document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release",
+  "title": "Document shipped SpecSync 6.0.0 and set the Action default to the stable release",
+  "description": "Document shipped SpecSync 6.0.0 and set the Action default to the stable release",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "b9ff32310181b796cc617406ff9298c533ebeb15",
+  "created_at": 1789002383,
+  "updated_at": 1789004486,
+  "affected_specs": [
+    "github",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "action.yml",
+    ".github/scripts/validate-release-version.py",
+    "site/src/content/docs/integrations/github-action.md",
+    "site/src/content/docs/index.md",
+    "site/src/content/docs/quickstart.md",
+    "README.md",
+    "MIGRATION.md",
+    "docs/ADOPTING.md",
+    "docs/RELEASING.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "specs/github/github.spec.md",
+    "specs/github/requirements.md",
+    "specs/github/context.md",
+    "specs/github/testing.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "User-facing docs (README, site github-action/index/quickstart, ADOPTING, MIGRATION, RELEASING, SECURITY, CHANGELOG 6.0.0 heading) describe shipped SpecSync 6.0.0: crates.io and GitHub Releases serve 6.0.0, Homebrew tap is still 5.2.0, no floating v6 tag exists, check is the product and SDD is opt-in, Trust 1.2.0 defaults specsync-version to 6.0.0. action.yml omitted-input default is 6.0.0 and github-action.md inputs table matches. validate-release-version.py PUBLISHED_ACTION_DEFAULT equals the package version. REQ-github-002 current default is the stable release. python3 -S .github/scripts/validate-release-version.py exits 0. specsync check --spec github --spec cmd_change is clean. The immutable v6.0.0 Action tag still embeds default 6.0.0-rc.14; docs tell consumers to always pass version: '6.0.0' when using that tag."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks",
+    "requirements",
+    "research",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

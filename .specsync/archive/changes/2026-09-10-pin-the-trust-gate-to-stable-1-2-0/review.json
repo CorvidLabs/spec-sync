@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "pin-the-trust-gate-to-stable-1-2-0",
+  "reviewer": "corvid-agent",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "7792f4e38bb030882c43dc0b98e7cae2f8e59805",
+  "contract_digest": "f690fadcefba09c42a85159786fa61d377b4a80ada44b5b15258542778478ca8",
+  "execution_digest": "376e00486e20d7c6e3f8a91ec8fbdc0a01a66e61eb745b0cbb8569b6a1f7a89b",
+  "workspace_digest": "35a51157c5b64d2d562723387ab0074a8fc5305b4f2419c331bdd550d7ca4e0f",
+  "timestamp": 1789052636
+}

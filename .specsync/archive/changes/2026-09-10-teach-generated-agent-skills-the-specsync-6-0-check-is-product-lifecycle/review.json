@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "teach-generated-agent-skills-the-specsync-6-0-check-is-product-lifecycle",
+  "reviewer": "corvid-agent",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "9fe7f7f8234b3c50032a9f3083454d369c392e08",
+  "contract_digest": "5e65007df34cbbc0407a3c5243736c39047b102abbaba09e527bbff93862ade3",
+  "execution_digest": "8f2b64d4d0216f373b60ef01a5fc805e3a5f2082d6b9a6d0ae5187da3b264bfe",
+  "workspace_digest": "5191b50e51df56aafa54e52f0287482a09ca590c37fcb38bcc254b4a375bf444",
+  "timestamp": 1789013448
+}

@@ -7,11 +7,11 @@
   "title": "Teach generated agent skills the SpecSync 6.0 check-is-product lifecycle",
   "description": "Teach generated agent skills the SpecSync 6.0 check-is-product lifecycle",
   "kind": "documentation",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "6f11e34ef65710dd8839bfaaa6e6bc9004d6a530",
   "created_at": 1789009962,
-  "updated_at": 1789013366,
+  "updated_at": 1789013455,
   "affected_specs": [
     "agents"
   ],

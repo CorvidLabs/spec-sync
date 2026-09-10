@@ -1,6 +1,6 @@
 ---
 id: teach-generated-agent-skills-the-specsync-6-0-check-is-product-lifecycle
-state: implementing
+state: archived
 type: documentation
 base_commit: 6f11e34ef65710dd8839bfaaa6e6bc9004d6a530
 ---

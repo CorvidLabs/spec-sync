@@ -8,11 +8,9 @@ import subprocess
 import sys
 
 
-# While Cargo.toml already reads 6.0.0 but the stable GitHub Release has not been
-# published, the Action omitted-input default must download a Release that has assets.
-# Bump this when a newer RC with assets is published; set equal to the package version
-# once v6.0.0 ships.
-PUBLISHED_ACTION_DEFAULT = "6.0.0-rc.14"
+# Omitted-input Action default on this tree. After v6.0.0 shipped this equals the
+# package version. The immutable @v6.0.0 Action tag still embeds 6.0.0-rc.14.
+PUBLISHED_ACTION_DEFAULT = "6.0.0"
 
 YAML_FILES = (
     "action.yml",

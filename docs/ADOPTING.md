@@ -3,8 +3,9 @@
 This page is written to be **pasted wholesale into an agent session** in the repository you
 want to adopt spec-sync in. It is also readable on its own.
 
-This guide describes the 6.0 workflow. Select an explicit release or candidate and verify the
-installed binary before adoption; historical recovery guidance is labeled separately.
+This guide describes the shipped 6.0.0 workflow. Install the stable binary and verify
+`specsync --version` prints `specsync 6.0.0` before adoption; historical recovery guidance is
+labeled separately.
 
 ---
 
@@ -17,14 +18,17 @@ change end to end so the loop is proven rather than assumed.
 
 ## Install
 
-Pin explicitly. After the stable release is published, install its source tag:
+Pin explicitly. Stable 6.0.0 is on crates.io and GitHub Releases:
 
+    cargo install specsync
+    specsync --version    # specsync 6.0.0
+
+    # or a GitHub Release asset / git tag:
     cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.0.0 --locked specsync
-    specsync --version
 
-To try a pre-release instead, replace `v6.0.0` with the explicitly selected `v6.0.0-rc.N`
-candidate tag. A source tag alone does not guarantee downloadable binary assets exist. Prebuilt
-binaries exist for Linux and macOS only; 6.0 publishes no Windows binary (#735).
+Homebrew (`CorvidLabs/tap/spec-sync`) still serves 5.2.0; do not use it for 6.0.0 until the
+tap formula is bumped. Prebuilt binaries exist for Linux and macOS only; 6.0 publishes no
+Windows binary (#735).
 
 Coordinate the upgrade of all lifecycle writers to the selected 6.x version, including developer machines, agents, hooks, and CI. Older 5.x writers may reject slug-based changes or discard newer record fields. The 6.x downgrade checks detect damaged or downgraded evidence; they do not make mixed-version writes safe. Check `specsync --version` in each execution environment before resuming active work.
 
@@ -115,12 +119,14 @@ on GitHub. **Merge only after every active change on the PR is archived.**
         lifecycle-enforce: 'true'
 
 Both pins are needed and they pin different things: the `uses` ref pins the action code, the
-`version` input pins the binary it downloads; prefer the exact tag over a floating major ref. For a
-prerelease, replace both pins with the selected published candidate. The action runs on Linux
-and macOS runners and refuses a Windows runner. When using a Trust wrapper, verify that its pinned revision
-supports the requested SpecSync version and binary source. This repository passes its validated
-candidate through an explicit version and runner-local mirror; an old wrapper may otherwise
-continue using 5.x. A soft provenance setting alone does not enforce release provenance.
+`version` input pins the binary it downloads. Always pass `version: '6.0.0'` with `@v6.0.0`:
+that tag's Action still defaults the download to `6.0.0-rc.14`. There is no floating `v6` tag
+yet. The action runs on Linux and macOS runners and refuses a Windows runner.
+
+When using Trust, pin **Trust 1.2.0** (`uses: CorvidLabs/trust@v1.2.0` or SHA `fcc889f`).
+Trust 1.2.0 defaults `specsync-version` to `6.0.0`; omit the input or set `"6.0.0"`. An older
+Trust wrapper (1.1.x, 1.2.0-rc.*) still defaults an RC or 5.x binary. A soft provenance
+setting alone does not enforce release provenance.
 
 The action runs `specsync check` (and `specsync lifecycle enforce --all` when
 `lifecycle-enforce` is set). It does not run the change-workflow audit. If you turned the workflow

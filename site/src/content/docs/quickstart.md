@@ -16,7 +16,7 @@ Choose your preferred method:
 # Via cargo (recommended)
 cargo install specsync
 
-# Via Homebrew
+# Via Homebrew (tap formula is still 5.2.0; use cargo or a GitHub Release for 6.0.0)
 brew install CorvidLabs/tap/spec-sync
 
 # Via GitHub releases (no Rust toolchain needed)

@@ -128,9 +128,10 @@ workflow-v2 `reopen` when accepted or archived evidence becomes stale.
 
 ## Install
 
-crates.io, Homebrew, and GitHub Releases are separate publication steps: each channel serves
-6.0.0 only after that publication has happened. Confirm what you received with
-`specsync --version`, and pin all lifecycle writers and CI to the same 6.x version.
+GitHub Releases and crates.io serve **6.0.0**. Homebrew (`CorvidLabs/tap/spec-sync`) still
+serves **5.2.0** until the tap formula is bumped; use cargo or a GitHub Release asset for 6.0.0.
+Confirm what you received with `specsync --version`, and pin all lifecycle writers and CI to
+the same 6.x version.
 
 ### Cargo
 
@@ -154,9 +155,9 @@ brew install CorvidLabs/tap/spec-sync
     require-coverage: '100'
 ```
 
-Prefer the immutable `@v6.0.0` Action and binary pins shown above for release gates. A floating
-`@v6` tag may follow compatible 6.x Action updates after each immutable release passes its platform
-smoke tests.
+Prefer the immutable `@v6.0.0` Action and binary pins shown above for release gates. Always
+pass `version: '6.0.0'`: the `@v6.0.0` Action tag still defaults the download to `6.0.0-rc.14`.
+There is no floating `@v6` tag yet.
 
 Minimal immutable configuration:
 

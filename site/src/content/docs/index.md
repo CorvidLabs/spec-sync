@@ -32,29 +32,26 @@ Specs reference functions that were renamed. Code exports things the spec doesn'
 ## Quick Start
 
 ```bash
-cargo install specsync          # or use the GitHub Action, or download a binary
-specsync init                   # create .specsync/config.toml (change workflow off)
-specsync change new "Add auth"  # start the deterministic SDD interview
-specsync change answer add-auth acceptance_criteria "Auth succeeds" --json
-specsync change approve add-auth # one human scope approval
-# implement code, specs, and tests
-specsync change check add-auth --commit  # scoped verify for this change (not archive history)
-specsync change audit           # active workspaces + living specs
-# open/update the PR; after ordinary PR review, record the scoped review
-specsync change review add-auth --reviewer "Ada"
-specsync change finalize add-auth # same-PR archive; commit and push the result
-# GitHub performs the merge
-specsync check                  # validate specs against code
+cargo install specsync          # crates.io 6.0.0; or GitHub Action / Release binary
+specsync --version              # specsync 6.0.0
+specsync init                   # .specsync/config.toml; change workflow off
+specsync add-spec auth          # scaffold a spec after you write a source file
+specsync check                  # the product: validate specs against code
+specsync check --strict         # warnings become errors
 specsync coverage               # see what's covered
 specsync generate               # scaffold specs for unspecced modules
-specsync agents install                     # install native coding-agent workflows
 specsync score                  # quality-score your specs (0–100)
-specsync add-spec auth          # scaffold a single spec with companion files
-specsync resolve --remote       # verify cross-project spec references
-specsync init-registry          # publish your modules for other projects
-specsync hooks install          # install agent instructions + git hooks
-specsync mcp                    # start MCP server for AI agents
-specsync watch                  # re-validate on file changes
+specsync agents install         # native coding-agent workflows
+specsync hooks install          # agent instructions + git hooks
+specsync mcp                    # MCP server for AI agents
+
+# Optional: verified change workflow (SDD). Off until:
+specsync change adopt
+specsync change new "Add auth" --spec auth --path src/auth.ts --json
+specsync change approve add-auth --actor "Ada"
+specsync change check add-auth --commit
+specsync change review add-auth --reviewer "Ada"
+specsync change finalize add-auth
 ```
 
 ---

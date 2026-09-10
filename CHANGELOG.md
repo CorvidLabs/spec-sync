@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Document shipped 6.0.0 and set the Action omitted-input default to the stable release.**
+  GitHub Releases and crates.io serve 6.0.0; Homebrew still serves 5.2.0; there is no floating
+  `v6` tag. `action.yml` on `main` defaults to `6.0.0`. The immutable `@v6.0.0` Action tag still
+  embeds `6.0.0-rc.14`, so every example tells consumers to pass `version: '6.0.0'`. Trust 1.2.0
+  defaults SpecSync to 6.0.0. CHANGELOG dates `## [6.0.0] - 2026-09-09`.
+
 ### Added
 
 - **MCP tools lock + fail-closed drift check.** Consumers can pin the MCP tool
@@ -20,9 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `mcp_tool_definitions` catalog the MCP server registers for `tools/list`.
   SpecSync dogfoods its own read-only five-tool lock in-repo.
 
-## [6.0.0]
-
-Release candidate: stable publication is pending. Add the release date only when the stable tag is published.
+## [6.0.0] - 2026-09-09
 
 ### Changed
 

@@ -165,4 +165,4 @@ now …" clauses point at files that no longer exist. What survives is native: `
 rejects the unsupported `non-file` archive-entry spelling and out-of-range lifecycle timestamps,
 and accepts a zero-entry acceptance manifest.
 
-During the 6.0 candidate window the Action omitted-input default is pinned to published release `6.0.0-rc.14` (assets present); tags `rc.15`..`rc.17` have no Release assets and must not be the default (#628).
+During the 6.0 candidate window the Action omitted-input default was pinned to published release `6.0.0-rc.14` (assets present); tags `rc.15`..`rc.17` had no Release assets and were not defaults (#628). After `v6.0.0` shipped, `main` defaults to `6.0.0`. The immutable `@v6.0.0` Action tag still embeds `6.0.0-rc.14` and is not rewritten.

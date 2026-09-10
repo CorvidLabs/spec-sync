@@ -24,7 +24,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 
 | Input | Default | Description |
 |:------|:--------|:------------|
-| `version` | `6.0.0-rc.14` | Release version to download (default is the latest published 6.0 RC with assets while stable v6.0.0 is pending). Pin an exact release for gates; `latest` follows the newest release and can change underneath you |
+| `version` | `6.0.0` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
 | `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
@@ -58,8 +58,7 @@ jobs:
 
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
-Use the immutable release ref until compatible-channel promotion is complete, and pin both the
-Action ref and its binary version:
+Pin both the Action ref and its binary version. There is no floating `v6` tag yet.
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.0.0
@@ -68,8 +67,11 @@ Action ref and its binary version:
     strict: 'true'
 ```
 
-After the exact-version Action passes supported Linux and macOS smoke tests, the floating
-`v6` ref is promoted as the compatible 6.x channel and may advance to newer verified 6.x releases.
+Always pass `version: '6.0.0'` with `@v6.0.0`. That tag's composite Action still embeds
+default `6.0.0-rc.14` (the last RC with assets when the tag was cut). Omitting `version`
+downloads the RC binary. `main` now defaults to `6.0.0`; a later Action tag will make omit
+safe. After Linux and macOS smoke tests, a floating `v6` ref may be promoted by hand as the
+compatible 6.x channel. Do not invent that tag.
 
 ---
 
@@ -94,6 +96,7 @@ jobs:
           fetch-depth: 0
       - uses: CorvidLabs/spec-sync@v6.0.0
         with:
+          version: '6.0.0'
           strict: 'true'
           comment: 'true'
 ```
@@ -109,6 +112,7 @@ jobs:
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.0.0
   with:
+    version: '6.0.0'
     comment: 'true'
     token: ${{ secrets.MY_PAT }}
 ```
@@ -130,6 +134,7 @@ jobs:
           fetch-depth: 0
       - uses: CorvidLabs/spec-sync@v6.0.0
         with:
+          version: '6.0.0'
           strict: 'true'
 ```
 
@@ -140,6 +145,7 @@ jobs:
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.0.0
   with:
+    version: '6.0.0'
     root: './packages/backend'
     strict: 'true'
 ```

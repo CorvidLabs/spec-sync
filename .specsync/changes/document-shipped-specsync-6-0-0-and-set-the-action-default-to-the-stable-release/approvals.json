@@ -1,0 +1,55 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1789002572,
+      "digest": "1d49c83299156894fe5ed6d9c76c6a83f31bc06670ff60653f272bcca1db5291",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release",
+        "title": "Document shipped SpecSync 6.0.0 and set the Action default to the stable release",
+        "description": "Document shipped SpecSync 6.0.0 and set the Action default to the stable release",
+        "kind": "documentation",
+        "affected_specs": [
+          "cmd_change",
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/validate-release-version.py",
+          "CHANGELOG.md",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "docs/RELEASING.md",
+          "site/src/content/docs/index.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "site/src/content/docs/quickstart.md",
+          "specs/github/context.md",
+          "specs/github/github.spec.md",
+          "specs/github/requirements.md",
+          "specs/github/testing.md"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "User-facing docs (README, site github-action/index/quickstart, ADOPTING, MIGRATION, RELEASING, SECURITY, CHANGELOG 6.0.0 heading) describe shipped SpecSync 6.0.0: crates.io and GitHub Releases serve 6.0.0, Homebrew tap is still 5.2.0, no floating v6 tag exists, check is the product and SDD is opt-in, Trust 1.2.0 defaults specsync-version to 6.0.0. action.yml omitted-input default is 6.0.0 and github-action.md inputs table matches. validate-release-version.py PUBLISHED_ACTION_DEFAULT equals the package version. REQ-github-002 current default is the stable release. python3 -S .github/scripts/validate-release-version.py exits 0. specsync check --spec github --spec cmd_change is clean. The immutable v6.0.0 Action tag still embeds default 6.0.0-rc.14; docs tell consumers to always pass version: '6.0.0' when using that tag."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "e9ea563438a487e3711d71d6980a4ace685b8d9607004855ca061ae1903a01d5",
+        "github": "6f84673f58215024df3abbc2b498b954f4f6e1a40701f76256d7a6d3ff1719a1"
+      }
+    }
+  ],
+  "reopenings": []
+}

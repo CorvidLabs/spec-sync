@@ -7,10 +7,11 @@
   "title": "Record Homebrew serving 6.0.0 after the tap formula bump",
   "description": "Record Homebrew serving 6.0.0 after the tap formula bump",
   "kind": "documentation",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "0188edba726e738190468a90bb17070a667996e0",
   "created_at": 1789055471,
-  "updated_at": 1789055552,
+  "updated_at": 1789055576,
   "affected_specs": [],
   "affected_paths": [
     "README.md",

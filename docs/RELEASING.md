@@ -16,14 +16,14 @@ release. crates.io and Homebrew are manual and come after.
 [Release run 34418860417](https://github.com/CorvidLabs/spec-sync/actions/runs/34418860417)
 created annotated `v6.0.0` at `b9ff32310181b796cc617406ff9298c533ebeb15` (qualified as
 `v6.0.0-rc.18`) and published the GitHub Release. crates.io serves 6.0.0. GitHub Latest is
-`v6.0.0`. Homebrew still serves **5.2.0**. There is no floating `v6` tag. The immutable
+`v6.0.0`. Homebrew serves **6.0.0**. There is no floating `v6` tag. The immutable
 `@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`; consumers must pass
 `version: '6.0.0'` until they consume a later Action tag.
 
 Do not cut another 6.0.0 candidate and do not re-dispatch `promote` for 6.0.0. Sections 1-4 and
 6 are how to cut the **next** release. Examples use `6.0.1` / `v6.0.1-rc.1`; substitute the
-version in `Cargo.toml`. Section 5's Homebrew bump to **6.0.0** is an immediate catch-up for the
-already-published stable, not a 6.0.1 step.
+version in `Cargo.toml`. Section 5's Homebrew bump to **6.0.0** has landed; the formula now
+tracks the published stable.
 
 ## 1. Preconditions
 
@@ -194,15 +194,19 @@ cargo publish --dry-run --locked
 cargo publish --locked
 ```
 
-Homebrew tap (`github.com/CorvidLabs/homebrew-tap`, `Formula/spec-sync.rb`) still serves
-**5.2.0**. That is an immediate 6.0.0 catch-up, independent of cutting 6.0.1. Bump the formula
-to the GitHub Release that already exists: `version "5.2.0"` -> `"6.0.0"` and the four `sha256`
+Homebrew tap (`github.com/CorvidLabs/homebrew-tap`, `Formula/spec-sync.rb`) serves **6.0.0**
+as of homebrew-tap#27. For the next release, bump the formula to the GitHub Release that already
+exists: `version` -> the new version and the four `sha256`
 values (macOS arm/intel, Linux arm/intel), taken from the `.sha256` sidecars of
 `specsync-macos-aarch64`, `specsync-macos-x86_64`, `specsync-linux-aarch64`,
 `specsync-linux-x86_64`. The formula downloads `specsync-<os>-<arch>.tar.gz` from
 `releases/download/v#{version}/`. The musl archive is not used. Open a PR on the tap, then
 `brew update && brew install CorvidLabs/tap/spec-sync && specsync --version`. After a later
 patch ships, bump the formula to that Cargo version, not back to 6.0.0.
+
+`Formula/corvid-trust.rb` asserts its dependency versions in its `test do` block, including
+`specsync --version`. Bumping `spec-sync` without updating that assertion breaks
+`brew test corvid-trust`, so move both formulae in the same change.
 
 Changelog `## [6.0.0] - 2026-09-09` is dated. For the next patch, add `## [6.0.1]` (or similar)
 on `main` before tagging.

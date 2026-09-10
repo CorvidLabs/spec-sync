@@ -183,8 +183,9 @@ policy. The count guards and exact platform validator must both agree on Ubuntu/
 extra, duplicate, failed, or mixed-identity receipts remain invalid. Windows remains unqualified
 and unpublished.
 
-GitHub Releases and crates.io serve 6.0.0. The Homebrew tap still serves 5.2.0; do not infer
-package availability on every advertised channel from a source tag. The standalone site emits
+GitHub Releases, crates.io, and the Homebrew tap all serve 6.0.0; the tap lagged at 5.2.0 for a
+window after the release, so do not infer package availability on every advertised channel from
+a source tag. The standalone site emits
 redirects to the CorvidLabs hub, so verify the hub actually serves the corrected pages after its
 deployment.
 

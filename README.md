@@ -128,8 +128,7 @@ workflow-v2 `reopen` when accepted or archived evidence becomes stale.
 
 ## Install
 
-GitHub Releases and crates.io serve **6.0.0**. Homebrew (`CorvidLabs/tap/spec-sync`) still
-serves **5.2.0** until the tap formula is bumped; use cargo or a GitHub Release asset for 6.0.0.
+GitHub Releases, crates.io, and Homebrew (`CorvidLabs/tap/spec-sync`) all serve **6.0.0**.
 Confirm what you received with `specsync --version`, and pin all lifecycle writers and CI to
 the same 6.x version.
 

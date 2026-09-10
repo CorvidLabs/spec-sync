@@ -26,9 +26,8 @@ Pin explicitly. Stable 6.0.0 is on crates.io and GitHub Releases:
     # or a GitHub Release asset / git tag:
     cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.0.0 --locked specsync
 
-Homebrew (`CorvidLabs/tap/spec-sync`) still serves 5.2.0; do not use it for 6.0.0 until the
-tap formula is bumped. Prebuilt binaries exist for Linux and macOS only; 6.0 publishes no
-Windows binary (#735).
+Homebrew (`CorvidLabs/tap/spec-sync`) serves 6.0.0. Prebuilt binaries exist for Linux and
+macOS only; 6.0 publishes no Windows binary (#735).
 
 Coordinate the upgrade of all lifecycle writers to the selected 6.x version, including developer machines, agents, hooks, and CI. Older 5.x writers may reject slug-based changes or discard newer record fields. The 6.x downgrade checks detect damaged or downgraded evidence; they do not make mixed-version writes safe. Check `specsync --version` in each execution environment before resuming active work.
 

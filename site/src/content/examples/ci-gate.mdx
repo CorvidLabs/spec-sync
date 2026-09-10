@@ -70,13 +70,21 @@ Drop `strict: false` once your team is happy with the warning count, and raise `
 There is no `annotations` Action input. Set `comment: true` so the Action posts or updates a SpecSync pull-request comment:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
-  with:
-    version: '6.0.0'
-    comment: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: CorvidLabs/spec-sync@v6.0.0
+        with:
+          version: '6.0.0'
+          comment: true
 ```
 
-The job needs `permissions: pull-requests: write` on a `pull_request` event. The comment body comes from `specsync comment`. A PR that adds an undocumented export then shows that finding on the PR instead of only in the Action log.
+A job-level `permissions` block zeros unspecified scopes, so `contents: read` has to sit next to `pull-requests: write` or `actions/checkout` fails on a private repo. The event must be `pull_request`. The comment body comes from `specsync comment`. A PR that adds an undocumented export then shows that finding on the PR instead of only in the Action log.
 
 ## 5. Bypass for emergency hotfixes
 

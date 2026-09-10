@@ -37,7 +37,7 @@ A shared `types/` directory that's imported by all three services doesn't need a
 ```toml
 # .specsync/config.toml
 exclude_dirs = ["types"]
-exclude_patterns = ["**/*.test.*"]
+exclude_patterns = ["**/*.test.ts", "**/*.test.py", "**/*.test.rs"]
 ```
 
 ## 4. Define cross-language references

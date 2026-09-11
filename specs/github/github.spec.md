@@ -1,6 +1,6 @@
 ---
 module: github
-version: 32
+version: 33
 status: stable
 files:
   - src/github.rs
@@ -18,9 +18,9 @@ Links spec files to GitHub issues for traceability. Validates `implements` and `
 fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues
 when specs fall out of sync. Also defines the maintained composite GitHub Action distribution
 contract: immutable exact-version refs and a verified floating major compatibility ref. After
-stable `v6.0.0` is published, the omitted-input default on `main` is `6.0.0`. The published
-`@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not rewritten. The floating `v6`
-ref is promoted only after Linux and macOS smoke tests and does not exist yet. Hosted JavaScript
+stable `v6.0.0` is published, the omitted-input default on `main` and on floating `@v6` is
+`6.0.0`. The published `@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not
+rewritten; `v6` must not be retargeted at that tag. Hosted JavaScript
 verification uses one exact supported Bun runtime across site deployment, site CI, and VS Code
 extension CI.
 
@@ -220,6 +220,7 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-08-26 | bypass-actors-are-unobservable-to-a-workflow-token-so-absence-must-read-as-unverified-rather-than-empty: Bypass actors are unobservable to a workflow token, so absence must read as unverified rather than empty |
 | 2026-08-27 | drop-the-windows-binary-from-the-6-0-release-matrix-and-stop-claiming-windows-support-while-keeping-every-windows: Drop the Windows binary from the 6.0 release matrix and stop claiming Windows support, while keeping every Windows-content correctness guarantee |
 | 2026-09-09 | pin-the-github-action-version-default-to-published-release-6-0-0-rc-14-so-consumers-without-an-explicit-version-do-not: Pin the GitHub Action version default to published release 6.0.0-rc.14 so consumers without an explicit version do not 404 on missing v6.0.0 (#628) |
+| 2026-09-10 | publish-the-floating-v6-action-ref-at-a-commit-whose-omitted-input-default-is-6-0-0: Publish floating v6 at a commit whose Action default is 6.0.0; do not point v6 at immutable v6.0.0 |
 | 2026-09-10 | document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release: Set the Action omitted-input default on main to shipped 6.0.0 and document that @v6.0.0 still embeds 6.0.0-rc.14 |
 | 2026-09-10 | rc-qualification-requires-ubuntu-and-macos-only-windows-is-not-a-6-0-target: RC qualification requires Ubuntu and macOS only; Windows is not a 6.0 target |
 | 2026-09-10 | correct-remaining-specsync-6-0-docs-after-the-stable-ship: Correct remaining SpecSync 6.0 docs after the stable ship |

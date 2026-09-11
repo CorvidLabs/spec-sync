@@ -102,7 +102,7 @@ Acceptance Criteria
 - After the stable Release is published, the composite Action's current default on `main` matches the promoted stable package version (`6.0.0`).
 - The immutable `v6.0.0` Action tag is not rewritten; its embedded default remains `6.0.0-rc.14`. Documentation tells consumers using that tag to pass `version: '6.0.0'`.
 - An immutable `v<major>.<minor>.<patch>` Action ref resolves to the integrated release commit.
-- The floating `v<major>` ref resolves to that same commit only after pinned consumers pass on Linux and macOS, the platforms SpecSync publishes binaries for as of 6.0. That ref does not exist yet.
+- The floating `v6` ref resolves to a commit whose composite Action omitted-input default is `6.0.0`. It SHALL NOT resolve to immutable tag `v6.0.0`, whose embedded default remains `6.0.0-rc.14`.
 - The Action refuses a Windows runner with a message naming the unsupported platform and WSL as the supported alternative, rather than requesting a release asset that is not published.
 - Documentation distinguishes immutable pinning from the floating compatibility ref, and the Action inputs docs default matches the downloadable default on `main`.
 - A failed exact-version asset or Action smoke test leaves the floating ref unchanged.

@@ -9,11 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Document shipped 6.0.0 and set the Action omitted-input default to the stable release.**
-  GitHub Releases and crates.io serve 6.0.0; Homebrew still serves 5.2.0; there is no floating
-  `v6` tag. `action.yml` on `main` defaults to `6.0.0`. The immutable `@v6.0.0` Action tag still
-  embeds `6.0.0-rc.14`, so every example tells consumers to pass `version: '6.0.0'`. Trust 1.2.0
-  defaults SpecSync to 6.0.0. CHANGELOG dates `## [6.0.0] - 2026-09-09`.
+- **Publish the floating `v6` Action tag.** `uses: CorvidLabs/spec-sync@v6` omitted-input
+  default is `6.0.0`. The tag points at a commit whose `action.yml` default is `6.0.0`, not at
+  immutable `v6.0.0` (that tag still embeds `6.0.0-rc.14`). YAML examples keep
+  `@v6.0.0` with `version: '6.0.0'`. Homebrew serves 6.0.0.
 
 ### Added
 

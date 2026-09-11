@@ -6,7 +6,7 @@ branding:
 
 inputs:
   version:
-    description: 'SpecSync release to download (e.g. "6.0.0"). Pin an exact published release with assets; "latest" resolves the newest GitHub release and is not recommended for CI. Linux and macOS runners only. Default is stable 6.0.0. The immutable @v6.0.0 Action tag still embeds default 6.0.0-rc.14, so always pass version: "6.0.0" when using that tag.'
+    description: 'SpecSync release to download (e.g. "6.0.0"). Pin an exact published release with assets; "latest" resolves the newest GitHub release and is not recommended for CI. Linux and macOS runners only. Default is stable 6.0.0. The floating @v6 tag uses this default. The immutable @v6.0.0 Action tag still embeds default 6.0.0-rc.14, so always pass version: "6.0.0" when using that tag.'
     required: false
     default: '6.0.0'
   download-base-url:

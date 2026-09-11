@@ -7,11 +7,11 @@
   "title": "Publish the floating v6 Action ref at a commit whose omitted-input default is 6.0.0",
   "description": "Publish the floating v6 Action ref at a commit whose omitted-input default is 6.0.0",
   "kind": "documentation",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "ba0df69360dadd20062bcb6d2ed9557ea8964ed5",
   "created_at": 1789085219,
-  "updated_at": 1789091740,
+  "updated_at": 1789091800,
   "affected_specs": [
     "github"
   ],

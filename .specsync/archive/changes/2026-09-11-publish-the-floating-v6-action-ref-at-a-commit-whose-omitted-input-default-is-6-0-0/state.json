@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "publish-the-floating-v6-action-ref-at-a-commit-whose-omitted-input-default-is-6-0-0",
+  "slug": "publish-the-floating-v6-action-ref-at-a-commit-whose-omitted-input-default-is-6-0-0",
+  "title": "Publish the floating v6 Action ref at a commit whose omitted-input default is 6.0.0",
+  "description": "Publish the floating v6 Action ref at a commit whose omitted-input default is 6.0.0",
+  "kind": "documentation",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "ba0df69360dadd20062bcb6d2ed9557ea8964ed5",
+  "created_at": 1789085219,
+  "updated_at": 1789092171,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    "action.yml",
+    "site/src/content/docs/integrations/github-action.md",
+    "README.md",
+    "SECURITY.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "GitHub ref refs/tags/v6 exists and is annotated.",
+    "git show v6:action.yml version default is 6.0.0.",
+    "v6 does not resolve to tag v6.0.0 (that tag still defaults to 6.0.0-rc.14).",
+    "README, SECURITY.md, ADOPTING.md, RELEASING.md, and github-action.md no longer say the floating v6 tag does not exist.",
+    "YAML Action examples remain uses @v6.0.0 with version 6.0.0.",
+    "specsync check --strict github passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "requirements"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "publish-the-floating-v6-action-ref-at-a-commit-whose-omitted-input-default-is-6-0-0",
+  "reviewer": "Leif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "e83a5cff88257357712818aa97da7016cc9455c9",
+  "contract_digest": "297bceb7d1016f89d3fbd8bbeaf742e43677809db9c93ebe42d75efd4b630c0f",
+  "execution_digest": "a80dc45f34099bf694876482ec1ad9b87f65cbb75d6f311408451f5eb134fc50",
+  "workspace_digest": "f2f217e3c60a2d88e427c6e7df4a5c6ac63ff4e68b5eabab9d4615afbeae7921",
+  "timestamp": 1789088739
+}

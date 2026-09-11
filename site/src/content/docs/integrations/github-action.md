@@ -58,7 +58,8 @@ jobs:
 
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
-Pin both the Action ref and its binary version. There is no floating `v6` tag yet.
+Pin both the Action ref and its binary version. The floating `@v6` tag is published; its
+omitted-input default is `6.0.0`. YAML examples keep the immutable `@v6.0.0` pin.
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.0.0
@@ -68,10 +69,9 @@ Pin both the Action ref and its binary version. There is no floating `v6` tag ye
 ```
 
 Always pass `version: '6.0.0'` with `@v6.0.0`. That tag's composite Action still embeds
-default `6.0.0-rc.14` (the last RC with assets when the tag was cut). Omitting `version`
-downloads the RC binary. `main` now defaults to `6.0.0`; a later Action tag will make omit
-safe. After Linux and macOS smoke tests, a floating `v6` ref may be promoted by hand as the
-compatible 6.x channel. Do not invent that tag.
+default `6.0.0-rc.14` (the last RC with assets when the tag was cut). Omitting `version` on
+that tag downloads the RC binary. `main` and the floating `@v6` tag default to `6.0.0`. Do
+not retarget `v6` at `v6.0.0`.
 
 ---
 

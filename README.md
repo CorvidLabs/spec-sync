@@ -155,8 +155,9 @@ brew install CorvidLabs/tap/spec-sync
 ```
 
 Prefer the immutable `@v6.0.0` Action and binary pins shown above for release gates. Always
-pass `version: '6.0.0'`: the `@v6.0.0` Action tag still defaults the download to `6.0.0-rc.14`.
-There is no floating `@v6` tag yet.
+pass `version: '6.0.0'` with that tag: `@v6.0.0` still defaults the download to `6.0.0-rc.14`.
+The floating `@v6` tag is published; its omitted-input default is `6.0.0`. YAML examples keep
+the immutable pin.
 
 Minimal immutable configuration:
 

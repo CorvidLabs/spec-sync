@@ -119,8 +119,9 @@ on GitHub. **Merge only after every active change on the PR is archived.**
 
 Both pins are needed and they pin different things: the `uses` ref pins the action code, the
 `version` input pins the binary it downloads. Always pass `version: '6.0.0'` with `@v6.0.0`:
-that tag's Action still defaults the download to `6.0.0-rc.14`. There is no floating `v6` tag
-yet. The action runs on Linux and macOS runners and refuses a Windows runner.
+that tag's Action still defaults the download to `6.0.0-rc.14`. The floating `@v6` tag is
+published and its omitted-input default is `6.0.0`. The action runs on Linux and macOS runners
+and refuses a Windows runner.
 
 When using Trust, pin **Trust 1.2.0** (`uses: CorvidLabs/trust@v1.2.0` or SHA `fcc889f`).
 Trust 1.2.0 defaults `specsync-version` to `6.0.0`; omit the input or set `"6.0.0"`. An older

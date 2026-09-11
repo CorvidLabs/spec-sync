@@ -16,9 +16,10 @@ release. crates.io and Homebrew are manual and come after.
 [Release run 34418860417](https://github.com/CorvidLabs/spec-sync/actions/runs/34418860417)
 created annotated `v6.0.0` at `b9ff32310181b796cc617406ff9298c533ebeb15` (qualified as
 `v6.0.0-rc.18`) and published the GitHub Release. crates.io serves 6.0.0. GitHub Latest is
-`v6.0.0`. Homebrew serves **6.0.0**. There is no floating `v6` tag. The immutable
-`@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`; consumers must pass
-`version: '6.0.0'` until they consume a later Action tag.
+`v6.0.0`. Homebrew serves **6.0.0**. The floating `v6` tag is published at a commit whose
+`action.yml` default is `6.0.0` (not at tag `v6.0.0`). The immutable `@v6.0.0` Action tag still
+defaults omitted `version` to `6.0.0-rc.14`; consumers using that tag must pass
+`version: '6.0.0'`. `uses: CorvidLabs/spec-sync@v6` with omitted `version` downloads `6.0.0`.
 
 Do not cut another 6.0.0 candidate and do not re-dispatch `promote` for 6.0.0. Sections 1-4 and
 6 are how to cut the **next** release. Examples use `6.0.1` / `v6.0.1-rc.1`; substitute the
@@ -211,14 +212,15 @@ patch ships, bump the formula to that Cargo version, not back to 6.0.0.
 Changelog `## [6.0.0] - 2026-09-09` is dated. For the next patch, add `## [6.0.1]` (or similar)
 on `main` before tagging.
 
-Floating major tag. `release.yml` creates only `vX.Y.Z`. There is **no** `v6` tag yet. Create or
-move it by hand only after the stable 6.0.0 release has passed its platform smoke tests (as `v1`
-and `v4` exist today). Consumers who pin `@v6.0.0` are unaffected. Do not invent a floating `v6`
-as part of cutting 6.0.1.
+Floating major tag. `release.yml` creates only `vX.Y.Z`. Annotated `v6` is published and points
+at a commit whose `action.yml` default is `6.0.0`. **Do not** retarget `v6` at `v6.0.0`: that
+immutable tag still embeds omitted-input default `6.0.0-rc.14`. After a later patch, move `v6`
+only to a commit whose Action default matches the new stable:
 
 ```bash
 git fetch origin --tags
-git tag -f v6 v6.0.0
+git tag -d v6
+git tag -a v6 <sha-with-action-default-matching-stable> -m "SpecSync 6 floating major"
 git push --force origin refs/tags/v6
 ```
 

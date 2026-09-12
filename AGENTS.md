@@ -73,7 +73,7 @@ Use `change ship-status <id>` any time you are unsure which tip stage you are on
 1. **Review + ship are one step** — recording review binds a workspace digest; committing before finalize stales the review. Ship with the tree still dirty after review.
 2. **Finalize one change at a time** — archiving writes under `.specsync/archive/`, which immediately stales every other active change. Sequential only.
 3. **Do not batch reviews** — review A then review B before committing invalidates A.
-4. **Never merge with active changes** — merge only after every change on the PR is archived. If you merge first, open a finalize follow-up on main (re-anchor with `check --commit`, review, ship).
+4. **Never merge with active changes** — merge only after every change on the PR is archived. If you merge first, run `change status <id>` on `main`, then `change audit`, and follow the exact state-specific recovery it reports. Do not assume every workflow-v2 record can start with `check --commit`: an `Accepted` record resumes through `change finalize` or `change ship`, while a `Verifying` record may need a fresh check before review and ship. If history is unavailable, re-record the review anchor before treating the change as current. Workflow-v1 recovery uses the explicit `verify` → `accept` → merge → archive sequence. A green audit does not replace the missing lifecycle steps.
 
 
 ## Before pushing (MANDATORY — keep it FAST)

@@ -35,7 +35,7 @@ Existing 5.x consumers, in this order:
    ```
 
    `change status` on a v1 `Verifying` record names that sequence on its `Handoff:` line. The v1
-   `Handoff:` line is authoritative: follow its explicit `verify` → `accept` → archive sequence.
+   `Handoff:` line is authoritative: follow its explicit `verify` → `accept` → merge → archive sequence.
    Its `Next:` line may still name the workflow-v2 verbs (`change check --commit`,
    `change ship-status`, `change ship`, "finalize") for compatibility, but those verbs do not
    close a workflow-v1 change. When recovering a record that was merged before finalization, run

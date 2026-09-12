@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "publish-the-floating-v6-action-ref-at-a-commit-whose-omitted-input-default-is-6-0-0",
+  "implementation_commit": "6920ff095227aa8c87ff0b3022d9aae9bf5b0d1d",
+  "implementation_tree": "4930b2dbfc491779b5e450b9cde3be1d3d7a8d1c",
+  "contract_digest": "297bceb7d1016f89d3fbd8bbeaf742e43677809db9c93ebe42d75efd4b630c0f",
+  "workspace_digest": "f2f217e3c60a2d88e427c6e7df4a5c6ac63ff4e68b5eabab9d4615afbeae7921",
+  "closing_digest": "3b39caea24052c9f9e751fe5a4110e89a6aa674ca58ed1f3185da6bdbd4e825b",
+  "review_digest": "962d5ec30d82169ebc2fff05624917f584b3a8828cf2df227989d520a1217f4d",
+  "finalization_digest": "05d4ab0328cce06c18bb3bbb0e76da374683fbe78cf9cd1d53c9e8965c6b1e61",
+  "timestamp": 1789091800
+}

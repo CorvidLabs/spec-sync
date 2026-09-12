@@ -1,6 +1,6 @@
 ---
 id: publish-the-floating-v6-action-ref-at-a-commit-whose-omitted-input-default-is-6-0-0
-state: implementing
+state: archived
 type: documentation
 base_commit: ba0df69360dadd20062bcb6d2ed9557ea8964ed5
 ---

@@ -34,9 +34,12 @@ Existing 5.x consumers, in this order:
    specsync change archive <id>
    ```
 
-   `change status` on a v1 `Verifying` record names that sequence on its `Handoff:` line. Its `Next:`
-   line still names the workflow-v2 verbs (`change check --commit`, `change ship-status`, `change ship`,
-   "finalize"), which do not close a workflow-v1 change. Follow the `Handoff:` line, not `Next:`.
+   `change status` on a v1 `Verifying` record names that sequence on its `Handoff:` line. The v1
+   `Handoff:` line is authoritative: follow its explicit `verify` → `accept` → archive sequence.
+   Its `Next:` line may still name the workflow-v2 verbs (`change check --commit`,
+   `change ship-status`, `change ship`, "finalize") for compatibility, but those verbs do not
+   close a workflow-v1 change. When recovering a record that was merged before finalization, run
+   `change status` first and follow the workflow-aware recovery it reports.
 5. **Run `specsync change adopt`.** On a policy that is already enabled it changes nothing in `sdd.json`, but it records the workflow-v2 baseline (if a `change new` has not already done so) and writes `.specsync/adoption-report.json`. **Commit both files** (they are the cutoff you will be judged against):
 
    ```bash

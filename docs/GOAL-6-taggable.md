@@ -6,6 +6,10 @@
 **Not done until:** the failure class below is empty on a real PR, twice in a row, without a human
 knowing a workaround.
 
+> Historical release note: this document records the v6.0 investigation and proposed designs; it
+> is not the current lifecycle contract. In particular, post-merge automatic re-recording was not
+> implemented in v6.0. Use `AGENTS.md`, `MIGRATION.md`, and the workflow guide for current recovery.
+
 ---
 
 ## The failure class we are eliminating
@@ -67,8 +71,11 @@ Finalize already adopts a changed **commit** (5343-5345). It never gets there be
    honest because it was genuinely tested. Costs a suite run at finalize, but replaces the manual
    second pass, so it is time-neutral and requires no author knowledge. **Recommended.**
 
-Design 2 is what "re-record at finalize" meant and is the one to build. It also composes with §2:
-if finalize is triggered post-merge, the re-record happens there automatically.
+Design 2 is what "re-record at finalize" meant and was the recommended design at the time. It is
+not part of the v6.0 implementation: finalization does not automatically re-record a merged
+change. If a change was merged before finalization, run `change status <id>` on `main` and follow
+the workflow-aware recovery it reports. Do not treat this design note as a current lifecycle
+guarantee.
 
 ### Implementation hazard — DEADLOCK. Read before writing code.
 

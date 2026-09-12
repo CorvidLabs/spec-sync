@@ -161,6 +161,12 @@ specsync change accept CHG-0001-add-passkeys --actor "Ada Reviewer"
 
 Eligible recovery includes stale accepted delivery inputs and supported historical cases where the old evidence cannot be reconstructed. The CLI checks the recorded history and reports eligibility; missing or arbitrary evidence is not permission to bypass validation. It moves the change back to `verifying`, embeds the prior verification and superseded closing approval in append-only audit history, and leaves strict CI red until a fresh verification succeeds. Reacceptance records a new closing approval without applying the already-canonical semantic delta a second time. Use global `--json` to receive the deterministic change and versioned audit objects.
 
+Keep two recovery states distinct. **Stale** means the recorded content or evidence no longer
+matches the governed inputs and needs fresh verification. **Unavailable** means the comparison
+history needed to establish freshness was never recorded or cannot be reconstructed. Restore the
+full trustworthy history before treating the change as current; unavailable history is neither a
+pass nor proof that the evidence is stale.
+
 Squash-integrated changes and changes partially superseded by later canonical work may also reopen when current Git history records their accepted state or later recorded canonical changes govern every affected contract surface. The unchanged definition, passed evidence, valid closing approval, an eligible recovery cause, explicit actor, and audit reason remain mandatory; copied or arbitrary off-history evidence is rejected.
 
 The reopened definition must remain identical to the contract that originally applied the canonical delta. If review requires new or changed requirements, deltas, or other definition artifacts, create a new change workspace; reacceptance fails closed instead of silently ignoring those edits.

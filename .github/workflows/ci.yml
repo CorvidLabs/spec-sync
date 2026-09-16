@@ -14,6 +14,7 @@ on:
       - 'tests/**'
       - 'specs/**'
       - '.specsync/**'
+      - 'hi/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -47,6 +48,7 @@ on:
       - 'tests/**'
       - 'specs/**'
       - '.specsync/**'
+      - 'hi/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -301,6 +303,20 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --check
+
+  hi-check:
+    name: Human intent check
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - name: Install hi
+        run: cargo install human-intent --version 0.3.3 --locked
+      - name: Check recorded intent
+        run: hi check
 
   audit:
     needs: [classify, lifecycle-gate]
@@ -575,7 +591,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: ${{ always() }}
-    needs: [classify, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
+    needs: [classify, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
     steps:
       - name: Require every selected gate
         env:

@@ -1,6 +1,6 @@
 ---
 id: add-a-hi-check-gate-to-ci
-state: draft
+state: implementing
 type: operations
 base_commit: 64abf58182ab222d2415d7ffcffabc9b0c8ed151
 ---

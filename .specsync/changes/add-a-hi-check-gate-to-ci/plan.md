@@ -5,10 +5,10 @@ artifact: plan
 
 # Plan
 
-One file changes: `.github/workflows/ci.yml`. Three edits, each load-bearing.
+Two files change: `.github/workflows/ci.yml` and `Cargo.lock`.
 
 1. **Add a `hi-check` job.** Mirrors the shape of the existing `audit` job: checkout,
-   `dtolnay/rust-toolchain@1.89.0`, `cargo install human-intent --version 0.4.0 --locked`,
+   `dtolnay/rust-toolchain@1.89.0`, `cargo install human-intent --version 0.5.0 --locked`,
    then `hi check`. Gated on `classify` with `if: needs.classify.outputs.full == 'true'`,
    so doc-only and archive-only runs skip it like every other full-run gate.
 
@@ -19,10 +19,14 @@ One file changes: `.github/workflows/ci.yml`. Three edits, each load-bearing.
    mergeable path must reach the gate. `INTENT.md` is already covered by the existing
    `*.md` entry.
 
-3. **Add `hi-check` to `implementation-gate.needs`.** Otherwise the job runs but cannot
-   block a merge, since the required check aggregates `implementation-gate` alone. A
-   `skipped` result counts as a pass there, so archive-only and review-only pull requests
-   are unaffected.
+3. **Add `hi-check` to `implementation-gate.needs` and to the corvid-pet job's `needs`
+   and `CHECK_*` table.** Otherwise the job runs but cannot block a merge, and a
+   structurally invalid intent file can still receive a passing scoped-review comment.
+   A `skipped` result counts as a pass on `implementation-gate`, so archive-only and
+   review-only pull requests are unaffected.
+
+4. **Bump rustls in `Cargo.lock` to >=0.23.45** (RUSTSEC-2026-0285). The advisory landed
+   after this branch opened; without the bump, `cargo audit` stays red on every full run.
 
 No source, schema or spec change. `specs/github/` already owns the workflow files, so this
 is declared `--no-spec-change`.

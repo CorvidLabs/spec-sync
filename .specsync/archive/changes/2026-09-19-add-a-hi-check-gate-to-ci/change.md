@@ -1,6 +1,6 @@
 ---
 id: add-a-hi-check-gate-to-ci
-state: verifying
+state: archived
 type: operations
 base_commit: 64abf58182ab222d2415d7ffcffabc9b0c8ed151
 ---

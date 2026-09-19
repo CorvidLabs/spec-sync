@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "add-a-hi-check-gate-to-ci",
+  "implementation_commit": "e10bf2a9e24e9e988e10c72a3701c5a4b578740a",
+  "implementation_tree": "2e055456fbafe2085dcecac1987a14ce74e141d5",
+  "contract_digest": "5bb281fca5bec4abb6827dc13801d09c16d628861b9bf65c9094781330123d53",
+  "workspace_digest": "dfa500a671c82fd523642bf39f26330ed985483aa543f4c082e2bf6151753362",
+  "closing_digest": "bcc097eff1c84346b1a2f84bf3d3d1b2816fb9d8d0309dbbc604bdd7d7c4a195",
+  "review_digest": "55fe7f6dd8b40c290e01c1cc325b4fb335ad925566fb6d3e064718382c2418aa",
+  "finalization_digest": "160e71a5cd186577429f5d020bfef03df4fc46bd90725a7e8dd4cf011f8db4b9",
+  "timestamp": 1789839098
+}

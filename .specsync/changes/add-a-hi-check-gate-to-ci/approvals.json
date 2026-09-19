@@ -1,0 +1,70 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1789601281,
+      "digest": "4af5407a56f5070d680d659b40cc0d794f91aa1385df8bcca1e7d2b942a77c6d",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "add-a-hi-check-gate-to-ci",
+        "title": "Add a hi check gate to CI",
+        "description": "Add a hi check gate to CI",
+        "kind": "operations",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The change adds a CI step that installs a pinned external binary and runs it; no canonical spec behaviour changes, and specs/github already owns the workflow files.",
+        "acceptance_criteria": [
+          "A full CI run executes hi check over hi/*.md and fails the job when a file is structurally broken (duplicate id, case with no parent, id colliding with a retired one, malformed id, undeclared family, stranded criterion). A pull request touching only hi/** triggers ci.yml and reaches the required gate rather than waiting forever on a status that is never reported. The hi-check job is a dependency of implementation-gate, so a structural break blocks merge. The installed binary is human-intent pinned to 0.4.0 with --locked."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1789831633,
+      "digest": "5bb281fca5bec4abb6827dc13801d09c16d628861b9bf65c9094781330123d53",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "add-a-hi-check-gate-to-ci",
+        "title": "Add a hi check gate to CI",
+        "description": "Add a hi check gate to CI",
+        "kind": "operations",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          "Cargo.lock"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The change adds a CI step that installs a pinned external binary and runs it, and bumps a transitive TLS crate in the lockfile so the existing audit job can pass. No canonical spec behaviour changes, and specs/github already owns the workflow files.",
+        "acceptance_criteria": [
+          "A full CI run executes hi check over hi/*.md and fails the job when a file is structurally broken (duplicate id, case with no parent, id colliding with a retired one, malformed id, undeclared family, stranded criterion). A pull request touching only hi/** triggers ci.yml and reaches the required gate rather than waiting forever on a status that is never reported. The hi-check job is a dependency of implementation-gate and of the corvid-pet scoped-review job, so a structural break blocks merge and cannot post a passing review. The installed binary is human-intent pinned to 0.5.0 with --locked. Cargo.lock pins rustls at >=0.23.45 so cargo audit is not red on RUSTSEC-2026-0285."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

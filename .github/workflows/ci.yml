@@ -14,6 +14,7 @@ on:
       - 'tests/**'
       - 'specs/**'
       - '.specsync/**'
+      - 'hi/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -47,6 +48,7 @@ on:
       - 'tests/**'
       - 'specs/**'
       - '.specsync/**'
+      - 'hi/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -301,6 +303,20 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --check
+
+  hi-check:
+    name: Human intent check
+    needs: classify
+    if: needs.classify.outputs.full == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - name: Install hi
+        run: cargo install human-intent --version 0.5.0 --locked
+      - name: Check recorded intent
+        run: hi check
 
   audit:
     needs: [classify, lifecycle-gate]
@@ -575,7 +591,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: ${{ always() }}
-    needs: [classify, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
+    needs: [classify, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
     steps:
       - name: Require every selected gate
         env:
@@ -617,7 +633,7 @@ jobs:
     # the reviewer a second time. Forks run the same read-only review without
     # attempting a comment or review write.
     if: ${{ always() && github.event_name == 'pull_request' && needs.classify.outputs.review_required == 'true' }}
-    needs: [classify, preflight, lifecycle-gate, test, fmt, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
+    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension]
     permissions:
       contents: read
       pull-requests: write
@@ -629,6 +645,7 @@ jobs:
         env:
           CHECK_TEST: "Tests (build, test, clippy)=${{ needs.test.result }}"
           CHECK_FMT: "Format Check=${{ needs.fmt.result }}"
+          CHECK_HI: "Human intent check=${{ needs.hi-check.result }}"
           CHECK_ACTION: "Validate action.yml=${{ needs.validate-action.result }}"
           CHECK_ACTION_CONSUMER: "Packaged Action Consumer=${{ needs.action-consumer.result }}"
           CHECK_SPEC: "Spec Validation=${{ needs.spec-check.result }}"

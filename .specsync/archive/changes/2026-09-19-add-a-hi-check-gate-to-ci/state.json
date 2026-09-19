@@ -7,11 +7,11 @@
   "title": "Add a hi check gate to CI",
   "description": "Add a hi check gate to CI",
   "kind": "operations",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "64abf58182ab222d2415d7ffcffabc9b0c8ed151",
   "created_at": 1789600922,
-  "updated_at": 1789839675,
+  "updated_at": 1789840695,
   "affected_specs": [
     "github"
   ],

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "add-a-hi-check-gate-to-ci",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "eaa314dc7db032276303eea1aa0ac084272f9608",
+  "contract_digest": "5bb281fca5bec4abb6827dc13801d09c16d628861b9bf65c9094781330123d53",
+  "execution_digest": "e6ff9e9b891ff8f8b9f1726b87028b4d4400282493a95f635bb55f8e5709c731",
+  "workspace_digest": "dfa500a671c82fd523642bf39f26330ed985483aa543f4c082e2bf6151753362",
+  "timestamp": 1789840125
+}

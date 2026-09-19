@@ -1,0 +1,92 @@
+{
+  "timestamp": 1789839673,
+  "commit": "eaa314dc7db032276303eea1aa0ac084272f9608",
+  "contract_digest": "5bb281fca5bec4abb6827dc13801d09c16d628861b9bf65c9094781330123d53",
+  "execution_digest": "e6ff9e9b891ff8f8b9f1726b87028b4d4400282493a95f635bb55f8e5709c731",
+  "workspace_digest": "dfa500a671c82fd523642bf39f26330ed985483aa543f4c082e2bf6151753362",
+  "acceptance_input_digest": "70d7b5889987d50c6aa9164f796ca061e7c8c1aa5f73fb803f1565b0ed373281",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0e2c7bc76450689718879c172a6cec24c0c5d4f108b03d5f3876a1ab82e0f3f4",
+        "entry_digest": "b59d92da2dcb4b0f70ccab2aabf5ab445f86e6e86b27dd0d630f94167edeb1c9",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Cargo.lock",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7edfbeae8a3744dd97e8cf416003a248501279bcc3513da915e03ef7c82e9883",
+        "entry_digest": "4664fa84599f2369343adb26b123cdaf5a9d56b48605aeae3abdc973876798ac",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/github/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e977b21fb1078a03285c824030fca254ceba910049381052876310e157c19ade",
+        "entry_digest": "b1e1631c653c9a52976a0bbc80676e6a2210e03bc306dbb7679f224fc753152c",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/github.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "90c643e551216d8c000b8a6a3f1e083a0abad123f21442ca8ccbc6d4d0ecf650",
+        "entry_digest": "28393d458d5232b18fc8fad93386dda0e410c3df7eed500588e59c428fa8832a",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d7cd1ac4e2d1cc938a988760dd62cd80c9233dd138c16f1ee3884f88020d41c4",
+        "entry_digest": "ff4af5772d0b6d06e48736e84552a3887e87c1e30db473a828b85028d86d645a",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4237dfaf97f01751967f39728ffb4e5849d580c1c01b35d7b755b051650aa161",
+        "entry_digest": "f936d9241175f55b05ea8cc31f7d72c1a3ad8873691245ff1816b98237d464de",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c35fa090ef29c15f1bdc75675c09508c48be3545ef523683dcc31ff3985752bf",
+        "entry_digest": "a9d07955c49b8247d45470b4aa4e30bfdde0fff5c96c858c1e974af51ab112af",
+        "owners": [
+          "github"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec github",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

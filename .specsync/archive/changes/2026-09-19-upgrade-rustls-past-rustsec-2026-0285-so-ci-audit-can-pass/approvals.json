@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1789831633,
+      "digest": "11ba397f408e079ef3e4a0d0dec6241033830c9444af0d19db57a16b3a779527",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "upgrade-rustls-past-rustsec-2026-0285-so-ci-audit-can-pass",
+        "title": "Upgrade rustls past RUSTSEC-2026-0285 so CI audit can pass",
+        "description": "Upgrade rustls past RUSTSEC-2026-0285 so CI audit can pass",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          "Cargo.lock"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Transitive rustls bump in Cargo.lock only; no canonical spec behaviour changes.",
+        "acceptance_criteria": [
+          "cargo audit exits 0 because Cargo.lock pins rustls at >=0.23.45, clearing RUSTSEC-2026-0285. No other lockfile or manifest change is required."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1789832795,
+      "digest": "cbcf588bb31624e404c01225c8fefadf95b3287901f1987b407fba00f63c65a7",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

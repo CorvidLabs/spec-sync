@@ -1,6 +1,6 @@
 ---
 id: upgrade-rustls-past-rustsec-2026-0285-so-ci-audit-can-pass
-state: implementing
+state: archived
 type: operations
 base_commit: 65c51fe76f7c2ca34ab94febfc7e55526c242f02
 ---

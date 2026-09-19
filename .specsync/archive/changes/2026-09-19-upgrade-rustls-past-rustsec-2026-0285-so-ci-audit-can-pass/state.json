@@ -7,11 +7,11 @@
   "title": "Upgrade rustls past RUSTSEC-2026-0285 so CI audit can pass",
   "description": "Upgrade rustls past RUSTSEC-2026-0285 so CI audit can pass",
   "kind": "operations",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "65c51fe76f7c2ca34ab94febfc7e55526c242f02",
   "created_at": 1789831577,
-  "updated_at": 1789831656,
+  "updated_at": 1789833202,
   "affected_specs": [],
   "affected_paths": [
     "Cargo.lock"

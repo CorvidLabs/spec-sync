@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "upgrade-rustls-past-rustsec-2026-0285-so-ci-audit-can-pass",
+  "implementation_commit": "84baa9d4dd9a461807d05f44ec525410995dbb83",
+  "implementation_tree": "b54aa21ab6a468afd5f98b37e67bd58aa66cb06b",
+  "contract_digest": "11ba397f408e079ef3e4a0d0dec6241033830c9444af0d19db57a16b3a779527",
+  "workspace_digest": "5c449a078dd3908f6f5f112b66a8f4d101e44b53f7834b5ba8d601e7bd81c66b",
+  "closing_digest": "cbcf588bb31624e404c01225c8fefadf95b3287901f1987b407fba00f63c65a7",
+  "review_digest": "0eb455d4a7f06650ed2b00014873e52a5d9e8161a123a8eecac96e27f56ce11c",
+  "finalization_digest": "be403233d0bd6f1765f2d4138981af823886270b0cf49efcf6d3671d68fb4269",
+  "timestamp": 1789832795
+}

@@ -13,11 +13,59 @@
 
 Rust · single binary · 33 languages · no SpecSync API key required
 
-[Quick start](#quick-start) · [Verified change workflow](#verified-change-workflow) · [Live documentation](https://corvidlabs.xyz/spec-sync/docs/) · [Examples](#executable-examples) · [Comparisons](#how-it-compares)
+[Install](#install) · [Quick start](#quick-start) · [Verified change workflow](#verified-change-workflow) · [Live documentation](https://corvidlabs.xyz/spec-sync/docs/) · [Examples](#executable-examples) · [Comparisons](#how-it-compares)
 
 </div>
 
 ---
+
+## Install
+
+GitHub Releases, crates.io, and Homebrew (`CorvidLabs/tap/spec-sync`) all serve **6.0.0**.
+Confirm what you received with `specsync --version`, and pin all lifecycle writers and CI to
+the same 6.x version.
+
+### Cargo
+
+```bash
+cargo install specsync
+```
+
+### Homebrew
+
+```bash
+brew install CorvidLabs/tap/spec-sync
+```
+
+### GitHub Action
+
+```yaml
+- uses: CorvidLabs/spec-sync@v6.0.0
+  with:
+    version: '6.0.0'
+    strict: 'true'
+    require-coverage: '100'
+```
+
+Prefer the immutable `@v6.0.0` Action and binary pins shown above for release gates. Always
+pass `version: '6.0.0'` with that tag: `@v6.0.0` still defaults the download to `6.0.0-rc.14`.
+The floating `@v6` tag is published; its omitted-input default is `6.0.0`. YAML examples keep
+the immutable pin.
+
+Minimal immutable configuration:
+
+```yaml
+- uses: CorvidLabs/spec-sync@v6.0.0
+  with:
+    version: '6.0.0'
+```
+
+### Pre-built binaries
+
+Download Linux or macOS binaries from [GitHub Releases](https://github.com/CorvidLabs/spec-sync/releases).
+
+Windows is not a supported target as of 6.0 — no Windows binary is published. Run SpecSync
+under WSL, or build it from source with `cargo install specsync`.
 
 ## A contract change in 60 seconds
 
@@ -125,54 +173,6 @@ all active changes on the PR are archived. Use `change status` for eligible reco
 workflow-v2 `reopen` when accepted or archived evidence becomes stale.
 
 [Read the workflow guide](site/src/content/docs/workflow.md) or run the [complete lifecycle example](examples/sdd-lifecycle/).
-
-## Install
-
-GitHub Releases, crates.io, and Homebrew (`CorvidLabs/tap/spec-sync`) all serve **6.0.0**.
-Confirm what you received with `specsync --version`, and pin all lifecycle writers and CI to
-the same 6.x version.
-
-### Cargo
-
-```bash
-cargo install specsync
-```
-
-### Homebrew
-
-```bash
-brew install CorvidLabs/tap/spec-sync
-```
-
-### GitHub Action
-
-```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
-  with:
-    version: '6.0.0'
-    strict: 'true'
-    require-coverage: '100'
-```
-
-Prefer the immutable `@v6.0.0` Action and binary pins shown above for release gates. Always
-pass `version: '6.0.0'` with that tag: `@v6.0.0` still defaults the download to `6.0.0-rc.14`.
-The floating `@v6` tag is published; its omitted-input default is `6.0.0`. YAML examples keep
-the immutable pin.
-
-Minimal immutable configuration:
-
-```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
-  with:
-    version: '6.0.0'
-```
-
-### Pre-built binaries
-
-Download Linux or macOS binaries from [GitHub Releases](https://github.com/CorvidLabs/spec-sync/releases).
-
-Windows is not a supported target as of 6.0 — no Windows binary is published. Run SpecSync
-under WSL, or build it from source with `cargo install specsync`.
 
 ## Quick start
 

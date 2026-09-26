@@ -1,6 +1,6 @@
 ---
 id: required-ci-gate-fails-when-the-lifecycle-gate-fails
-state: draft
+state: implementing
 type: bug_fix
 base_commit: cddc39e478dcc1f111940a3cfb02134bba9804cc
 ---

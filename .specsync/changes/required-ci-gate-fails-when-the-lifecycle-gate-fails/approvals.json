@@ -1,4 +1,42 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1790441012,
+      "digest": "baa6fc958f3c065adeafb9385c73380bedc2abdb580462737d18a48a55704d24",
+      "note": "Approved by Leif in the orc session, 2026-09-26: spec-sync #797",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "required-ci-gate-fails-when-the-lifecycle-gate-fails",
+        "title": "Required CI gate fails when the lifecycle gate fails",
+        "description": "Required CI gate fails when the lifecycle gate fails",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-required-ci-gate.py",
+          ".github/workflows/ci.yml",
+          "docs/HLD.md",
+          "fledge.toml"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Required CI gate fails whenever Lifecycle preflight or Lifecycle gate fails or is cancelled. implementation-gate (SpecSync implementation ready) needs classify, preflight, lifecycle-gate and every other job that can finish before it, and accepts skipped for a job only when that job's own if: condition, evaluated again over the classify outputs, deselected it; a selected job that was skipped because something it needs did not succeed fails the gate. Full, site-only, VS Code-only, specs/lifecycle-only, archive-only, legacy archive-only and review-only pull requests, pushes to main and workflow_dispatch runs stay green when every selected job succeeds. .github/scripts/test-required-ci-gate.py runs in the validate-action CI job and in the Fledge verify lane; it fails if preflight or lifecycle-gate is missing from implementation-gate.needs, if a job that gates on lifecycle-gate or can otherwise finish before the gate is missing, or if a gate row no longer matches its job's if:, and it simulates every classify path to show the required gate red when any one selected job fails or is cancelled and green otherwise, and reproduces #796 against the pre-fix gate."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "e1e69409edadb41bd7af8b1992f79007fa2138651348cb2d82b1c652b1490ec7"
+      }
+    }
+  ],
   "reopenings": []
 }

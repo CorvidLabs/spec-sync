@@ -280,3 +280,25 @@ Acceptance Criteria
 - Incomplete check-run status yields overall `pending` when no failure is present.
 - Auth tokens are redacted from surfaced REST error messages.
 
+### REQ-github-021
+
+The required CI gate SHALL fail whenever the lifecycle preflight, the lifecycle gate, or any job
+classify selected for the run fails, is cancelled, or is skipped because a job it needs did not
+succeed.
+
+Acceptance Criteria
+
+- `implementation-gate` (SpecSync implementation ready) needs `classify`, `preflight`,
+  `lifecycle-gate` and every other job that can finish before it, and `ci-gate` (Required CI gate)
+  passes only when `implementation-gate` succeeds.
+- A skipped job passes only when that job's own `if:` condition, evaluated again over the classify
+  outputs, deselected it.
+- Full, site-only, VS Code-only, specs/lifecycle-only, archive-only, legacy archive-only and
+  review-only pull requests, pushes to `main` and `workflow_dispatch` runs stay green when every
+  selected job succeeds.
+- `.github/scripts/test-required-ci-gate.py` fails when `preflight` or `lifecycle-gate` is missing
+  from the gate's `needs`, when a job that gates on `lifecycle-gate` or can otherwise finish before
+  the gate is missing, or when a gate row no longer matches its job's `if:`.
+- The same test runs the gate's own script over every classify path and requires the required gate
+  to be red when any one selected job fails or is cancelled.
+

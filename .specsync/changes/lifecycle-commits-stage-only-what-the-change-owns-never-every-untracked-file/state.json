@@ -7,10 +7,11 @@
   "title": "Lifecycle commits stage only what the change owns, never every untracked file",
   "description": "Lifecycle commits stage only what the change owns, never every untracked file",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "be3d90d8a67b31204623dd48c761e9c25770636f",
   "created_at": 1790399719,
-  "updated_at": 1790399730,
+  "updated_at": 1790402130,
   "affected_specs": [
     "cmd_change",
     "change"

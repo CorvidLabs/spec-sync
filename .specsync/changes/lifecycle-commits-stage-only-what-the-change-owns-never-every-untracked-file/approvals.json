@@ -1,4 +1,44 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "user:0xLeif",
+      "timestamp": 1790402114,
+      "digest": "5a998fa452db13dff8d35fe8edbb0266b9173d6baa04e50a2a60831ee7c461f5",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file",
+        "title": "Lifecycle commits stage only what the change owns, never every untracked file",
+        "description": "Lifecycle commits stage only what the change owns, never every untracked file",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "docs/ADOPTING.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check --commit and change ship --push never commit an untracked file outside the paths the change owns: an untracked file elsewhere in the tree stays untracked and is absent from every lifecycle commit, and each one left out is listed on standard error. Those commits still carry the change workspace, its archive package, the canonical spec and requirements files its deltas write, the sequence ledger, and every tracked edit, staged through explicit literal pathspecs rather than git add -A. The run_checked_commit doc comment states what is actually committed when the second verification fails, and that error names the materialize commit already made. Regression tests drive both commands over a tree holding an unrelated untracked file and fail if it is committed."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "c65380e2fed99c09858dd7827c0404024d01d92206b0ed91a342fdd7d1596481",
+        "cmd_change": "75ae96beedc815128d33c82fa26311e8d21529a34b6348256e9bd8debcf182a3"
+      }
+    }
+  ],
   "reopenings": []
 }

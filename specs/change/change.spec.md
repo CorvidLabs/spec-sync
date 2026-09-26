@@ -1,6 +1,6 @@
 ---
 module: change
-version: 125
+version: 126
 status: active
 files:
   - src/change.rs
@@ -488,3 +488,4 @@ Acceptance Criteria
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
 | 2026-09-09 | drop-interpolated-next-action-from-v1-verifying-assert-messages-so-codeql-cleartext-logging-is-not-a-required-check: Drop interpolated next_action from v1 verifying assert messages so CodeQL cleartext-logging is not a required-check failure |
+| 2026-09-26 | lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file: Lifecycle commits stage only what the change owns, never every untracked file |

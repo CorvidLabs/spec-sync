@@ -514,7 +514,13 @@ Job names and dependencies come from [`.github/workflows/ci.yml`](../.github/wor
 [`.github/scripts/classify-ci-paths.sh`](../.github/scripts/classify-ci-paths.sh). A tip that
 only adds a review or only moves one workflow-v2 change into the archive skips the heavy product
 lane. Documentation-only paths still run the full lane, so every PR can report the required
-gate. Branch protection on `main` requires the `Required CI gate` context.
+gate. Branch protection on `main` requires the `Required CI gate` context, which passes only when
+`SpecSync implementation ready` does. That job needs every job that can finish before it, the
+lifecycle preflight and the lifecycle gate included. A job passes when it succeeded, or when it was
+skipped because classify deselected it. A selected job that was skipped was skipped because
+something it needs did not succeed, and it fails the gate.
+[`.github/scripts/test-required-ci-gate.py`](../.github/scripts/test-required-ci-gate.py) holds
+the workflow to that rule and simulates every classify path.
 [`docs/ci-confidence.md`](ci-confidence.md) explains who owns each check and why Trust does not
 re-run the test suite.
 

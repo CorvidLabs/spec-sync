@@ -430,6 +430,8 @@ jobs:
         run: python3 .github/scripts/validate-workflow-runtime-pins.py
       - name: Validate release version consistency
         run: python3 .github/scripts/validate-release-version.py
+      - name: Test the required CI gate
+        run: python3 .github/scripts/test-required-ci-gate.py
 
   action-consumer:
     name: Packaged GitHub Action consumer
@@ -591,19 +593,70 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: ${{ always() }}
-    needs: [classify, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
+    # Every job that can finish before this one belongs in `needs`, preflight and
+    # the lifecycle gate included. A job missing from here cannot fail the gate
+    # (#796). .github/scripts/test-required-ci-gate.py fails when one is missing.
+    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
     steps:
       - name: Require every selected gate
+        # One row per job in `needs`: `<job> <selected> <result>`. <selected> is
+        # that job's own `if:`, less a leading `always() &&`, evaluated again over
+        # the same classify outputs (a job with no `if:` is always selected). So
+        # `skipped` passes only where classify deselected the job. A selected job
+        # that was skipped had a dependency that did not succeed, and fails the
+        # gate: before #796 a failed lifecycle gate left test, audit, coverage and
+        # spec-check skipped and this gate green. test-required-ci-gate.py holds
+        # each row to its job's `if:` and runs this script on every classify path.
         env:
-          RESULTS: >-
-            ${{ join(needs.*.result, ' ') }}
+          NEEDS_RESULTS: ${{ join(needs.*.result, ' ') }}
+          GATES: |
+            classify true ${{ needs.classify.result }}
+            preflight true ${{ needs.preflight.result }}
+            lifecycle-gate true ${{ needs.lifecycle-gate.result }}
+            test ${{ needs.classify.outputs.full == 'true' }} ${{ needs.test.result }}
+            fmt ${{ needs.classify.outputs.full == 'true' }} ${{ needs.fmt.result }}
+            hi-check ${{ needs.classify.outputs.full == 'true' }} ${{ needs.hi-check.result }}
+            validate-action ${{ needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true' }} ${{ needs.validate-action.result }}
+            action-consumer ${{ needs.classify.outputs.full == 'true' }} ${{ needs.action-consumer.result }}
+            spec-check ${{ needs.classify.outputs.archive_only != 'true' && needs.classify.outputs.review_only != 'true' }} ${{ needs.spec-check.result }}
+            audit ${{ needs.classify.outputs.full == 'true' }} ${{ needs.audit.result }}
+            coverage ${{ needs.classify.outputs.full == 'true' }} ${{ needs.coverage.result }}
+            site ${{ needs.classify.outputs.full == 'true' || needs.classify.outputs.site == 'true' }} ${{ needs.site.result }}
+            vscode-extension ${{ needs.classify.outputs.full == 'true' || needs.classify.outputs.vscode == 'true' }} ${{ needs.vscode-extension.result }}
+            corvid-pet ${{ github.event_name == 'pull_request' && needs.classify.outputs.review_required == 'true' }} ${{ needs.corvid-pet.result }}
         run: |
-          for result in $RESULTS; do
+          status=0
+          rows=0
+          while read -r job selected result; do
+            [[ -n "$job" ]] || continue
+            rows=$((rows + 1))
+            case "$selected:$result" in
+              true:success|false:skipped) continue ;;
+              true:skipped) why="was selected but skipped, so a job it needs did not succeed" ;;
+              true:*) why="was selected and ended with: ${result:-no result}" ;;
+              false:*) why="was not selected yet ended with: ${result:-no result}; its row no longer matches its if:" ;;
+              *) why="has no usable selection '${selected}'; its row is malformed" ;;
+            esac
+            echo "::error::${job} ${why}"
+            status=1
+          done <<<"$GATES"
+          # Belt and braces: the rows must cover `needs` exactly, and nothing in
+          # `needs` may have failed or been cancelled whatever its row says.
+          read -r -a results <<<"$NEEDS_RESULTS"
+          if [[ "$rows" -ne "${#results[@]}" ]]; then
+            echo "::error::this gate has ${rows} rows for ${#results[@]} jobs in needs"
+            status=1
+          fi
+          for result in "${results[@]}"; do
             case "$result" in
               success|skipped) ;;
-              *) echo "Selected CI gate ended with: $result" >&2; exit 1 ;;
+              *) echo "::error::a job this gate needs ended with: $result"; status=1 ;;
             esac
           done
+          if [[ "$status" -ne 0 ]]; then
+            exit 1
+          fi
+          echo "Every selected gate succeeded; every skipped job was deselected by classify."
 
   ci-gate:
     name: Required CI gate
@@ -613,8 +666,9 @@ jobs:
     needs: [classify, implementation-gate]
     steps:
       # One aggregate context, suitable for a required status check. Lifecycle
-      # coherence is proven by `specsync change audit --strict` in spec-check,
-      # not by inspecting commit topology.
+      # coherence is proven by `specsync change audit --strict` in the lifecycle
+      # gate and in spec-check, not by inspecting commit topology, and the
+      # implementation gate requires both of them.
       - name: Require the implementation gate
         env:
           IMPLEMENTATION_RESULT: ${{ needs.implementation-gate.result }}

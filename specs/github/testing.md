@@ -11,6 +11,7 @@ spec: github.spec.md
 | Hosted Bun runtime | `python3 -S .github/scripts/validate-workflow-runtime-pins.py` | Pages, site CI, and VS Code extension CI each contain exactly one expected `setup-bun` Action ref with the supported exact Bun version under that step's `with` mapping; structural parsing covers block/flow mappings, quoted keys, arbitrary valid list-marker spacing, and `uses` after other keys, while mixed-case repositories, moving refs, duplicates, unexpected jobs, and missing inputs fail without Python site packages |
 | Immutable RC evidence | `python3 .github/scripts/test-validate-release-candidate.py` | Exactly one successful Ubuntu and macOS record must share the expected annotated RC identity, candidate SHA, schema, and Fledge lane; Windows is not required as of 6.0. Missing, duplicate, malformed, failed, cancelled, or mixed identity evidence fails closed |
 | Lifecycle coherence | `cargo run -- change audit --strict` | SpecSync itself validates active change workspaces and living SDD policy/spec coherence; CI no longer reimplements these rules against commit topology |
+| Required CI gate | `python3 -S .github/scripts/test-required-ci-gate.py` (Fledge `ci-gate-test`) | Every job that can finish before `implementation-gate` is in its `needs`, `preflight` and `lifecycle-gate` included; each `GATES` row reads its own job's result and repeats that job's `if:`; simulated over every classify lane, flag combination and event, the required gate is green when every selected job succeeds and red when any one fails or is cancelled; the pre-#796 gate reproduces the bug (REQ-github-021) |
 
 ## Coverage Gaps
 
@@ -75,6 +76,8 @@ spec: github.spec.md
 | Candidate content or marker changes | Prior platform evidence cannot authorize promotion or upload | Change the expected SHA/tag in validator fixtures and require failure; conflicting workflow history also fails |
 | Final publication | Final tag and artifacts use the already-qualified candidate SHA | Require authorization before promotion and independent final-tag/checkout identity checks before upload |
 | Lifecycle metadata rides with the product commit | No separate archive tip is required before merge | Require `cargo run -- change audit --strict` to pass on the pull request as a whole |
+| Lifecycle gate or preflight fails on a pull request | `test`, `audit`, `coverage` and `spec-check` are skipped, and `SpecSync implementation ready` and `Required CI gate` fail (#796) | `test_issue_796_lifecycle_gate_failure_turns_the_required_gate_red` and the per-path injection test in `test-required-ci-gate.py` |
+| A new CI job gates on `lifecycle-gate` or is selected before the gate | It must be in `implementation-gate.needs` with a `GATES` row matching its `if:` | `test_workflow_holds_to_the_gate_contract` and the guard mutation tests in `test-required-ci-gate.py` |
 
 | Action omitted-input default after stable 6.0.0 | Default on `main` and `@v6` is `6.0.0`; `@v6.0.0` tag still embeds `6.0.0-rc.14` | Read `action.yml` default and site inputs-table default; `git show v6:action.yml` default is `6.0.0`; `git rev-parse v6^{commit}` is not the `v6.0.0` commit; run `python3 -S .github/scripts/validate-release-version.py` |
 

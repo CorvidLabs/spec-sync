@@ -1,6 +1,6 @@
 ---
 id: pin-the-trust-gate-to-1-2-1
-state: implementing
+state: archived
 type: operations
 base_commit: cddc39e478dcc1f111940a3cfb02134bba9804cc
 ---

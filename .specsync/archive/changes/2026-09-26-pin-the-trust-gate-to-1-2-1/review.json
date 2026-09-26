@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "pin-the-trust-gate-to-1-2-1",
+  "reviewer": "user:0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "c656982771a869edc29ff8f8e95d2d7aff95d6ca",
+  "contract_digest": "58eb157bde5b96fa2e91e96f2e1550de8b5c1b63f6bd10a399179b13875c4107",
+  "execution_digest": "968e711a9e59b86a68809e44feeb2703adcbe14ca334de7e2bb9294db30c95d2",
+  "workspace_digest": "69577a876f5631724fc5fe7504066663ea8ae65afac8163cbf1e79770b7716c7",
+  "timestamp": 1790443689
+}

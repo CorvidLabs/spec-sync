@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "required-ci-gate-fails-when-the-lifecycle-gate-fails",
+      "reviewer": "user:0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "3ffef4758ab6654507183cab5942b412dc6064fa",
+      "contract_digest": "baa6fc958f3c065adeafb9385c73380bedc2abdb580462737d18a48a55704d24",
+      "execution_digest": "751b6e677bfde7d7d922ca616de219af0101f79d5f5506beb2e0c5dbfb171ea6",
+      "workspace_digest": "e27514201aa0d0f122fc272801f011eccfe56489ef7d529ee5a776307dee2945",
+      "timestamp": 1790441666
+    }
+  ]
+}

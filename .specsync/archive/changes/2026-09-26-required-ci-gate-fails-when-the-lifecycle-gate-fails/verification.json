@@ -1,0 +1,114 @@
+{
+  "timestamp": 1790441052,
+  "commit": "3ffef4758ab6654507183cab5942b412dc6064fa",
+  "contract_digest": "baa6fc958f3c065adeafb9385c73380bedc2abdb580462737d18a48a55704d24",
+  "execution_digest": "751b6e677bfde7d7d922ca616de219af0101f79d5f5506beb2e0c5dbfb171ea6",
+  "workspace_digest": "e27514201aa0d0f122fc272801f011eccfe56489ef7d529ee5a776307dee2945",
+  "acceptance_input_digest": "97ce79f04fdc4f42af6b0b479b6376eec4c5027e4c9f2d660c0d0389284b092f",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/scripts/test-required-ci-gate.py",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fd8d688305dd7f0ff9afcae7df3f9e21c28acf20aa9e019f5d07ed3f17969886",
+        "entry_digest": "374959d5ca4582b4ca8026ae6edba8fa45df7ebc734c77e2abdfd8c6d29b6ab0",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7e9aa330aa2f3fe6f2a2e96d402aeb800fd01be4c04f0cd8421a547d10718780",
+        "entry_digest": "264e8690a48bb67236874ecd860f89cfd1ff79026d1f52b59aecd0301d03e899",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/HLD.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9910cecb9a6b26b55d490efef4beb256727a61d438f4555ebcf21d8512dcbedd",
+        "entry_digest": "d79c5bc3b533f39f7b5ece13de3cd60c6caa5879ec4493732862895b10fc65f2",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "fledge.toml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "78f64165a395e854e30229257f36ca9c557c8ad4fe39b3ce4c8df41c5f485131",
+        "entry_digest": "60c7c021098391dcb96a613dfda311b037c8f3416116f0ffa0368b47a5ce4480",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/github/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ffce758891c4af10782a3d9bd921d6eda66d108926e01d2d18555b1216f86e26",
+        "entry_digest": "44294b2ce66eb191595c62e34b796c6e0fc14b19044f3a592691c6a970043d39",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/github.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fa43398ed65dd52866f35569f6b7f49bc3041fddb02f5c4947622b84f4becf15",
+        "entry_digest": "b160d264d9ad6e971ad10eb372ecb282509326475b9e87d72adb1ee35753cd6a",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8c6463559c27e9beb6f36a867a4228cd55a7c7e124310465f1d1f442b3f15569",
+        "entry_digest": "97ba7deda278926ea27e1ca43d80196768d12146d294d7930e9002d73c838481",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "d956ef03115be8ea4938deb00471931254b1f197b58268415005c77cb92fadbb",
+        "entry_digest": "75042e3c7ce9bd7f96a1b6f610ed4c8669742b027433e603f66842b5a2ea3542",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5b36338d60cda1180fb06965132f3d5f2801e6a3ac0e745544e54c12cb8ed893",
+        "entry_digest": "1d44058708b3160aa64371081ae687e415ebab8bb7a6ba044743a6cfdc64c68a",
+        "owners": [
+          "github"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec github",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-github-021"
+  ]
+}

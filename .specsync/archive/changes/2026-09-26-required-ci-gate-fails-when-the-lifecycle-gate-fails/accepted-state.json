@@ -7,11 +7,11 @@
   "title": "Required CI gate fails when the lifecycle gate fails",
   "description": "Required CI gate fails when the lifecycle gate fails",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "cddc39e478dcc1f111940a3cfb02134bba9804cc",
   "created_at": 1790434419,
-  "updated_at": 1790441057,
+  "updated_at": 1790441718,
   "affected_specs": [
     "github"
   ],

@@ -7,10 +7,11 @@
   "title": "Pin the Trust gate to 1.2.1",
   "description": "Pin the Trust gate to 1.2.1",
   "kind": "operations",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "cddc39e478dcc1f111940a3cfb02134bba9804cc",
   "created_at": 1790437668,
-  "updated_at": 1790437718,
+  "updated_at": 1790443071,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/trust.yml"

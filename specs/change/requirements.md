@@ -1337,3 +1337,14 @@ Acceptance Criteria
 - The message contains `--kind bug-fix` and does not contain `--kind fix`.
 - `--no-spec-change` and `--path` guidance is unchanged.
 
+### REQ-change-102
+
+The change domain SHALL be the single answer to which untracked paths a lifecycle commit for one change may stage, so the command layer that stages them never decides lifecycle ownership itself.
+
+Acceptance Criteria
+- `lifecycle_commit_scope` names the change's active workspace, its archive package once finalization has moved it there, each affected spec's canonical spec file and its canonical companions, and the lifecycle ledgers: the sequence ledger, the workflow-v2 and legacy-archive baselines, the bootstrap record, and the hash cache.
+- It never names the change's `affected_paths` prefixes or an affected spec's whole directory, so an untracked file under `src/` or beside a spec is not owned by being there.
+- It names the project lock and the transaction journal separately as runtime files, which a lifecycle commit neither stages nor reports.
+- Canonical spec paths resolve through the same registry-aware resolver materialization writes through.
+- Paths are project-relative with forward slashes, sorted and deduplicated, and a change that cannot be loaded is an error rather than an empty answer.
+

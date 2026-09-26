@@ -1911,7 +1911,12 @@ fn run_ship(
 
 /// Commit archive package (if dirty) and push the current branch.
 fn ship_commit_and_push_archive(root: &Path, id: &str) -> Result<String, String> {
-    git_commit_all(root, &format!("chore(lifecycle): archive {id}"))?;
+    let archive = git_commit_lifecycle(
+        root,
+        &change::lifecycle_commit_scope(root, id)?,
+        &format!("chore(lifecycle): archive {id}"),
+    )?;
+    disclose_left_out(&archive.left_out, &mut Vec::new(), None);
     run_git(root, &["push"])?;
     let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
     Ok(format!("pushed archive tip {sha:.8}"))
@@ -2394,7 +2399,8 @@ mod tests {
     /// The floor must be WIRED, not merely present (#533).
     ///
     /// `floor_sequence_ledger_to_committed` has its own unit tests, but those
-    /// exercise the function directly. Nothing asserted that `git_commit_all`
+    /// exercise the function directly. Nothing asserted that the lifecycle
+    /// staging path (`git_commit_lifecycle`, formerly `git_commit_all`)
     /// actually calls it, so deleting the call left the entire suite green
     /// while every lifecycle commit went back to staging a stale ledger over a
     /// higher committed mark — the exact regression #533 is about.
@@ -2402,7 +2408,7 @@ mod tests {
     /// This test drives the real staging path and inspects what landed in the
     /// commit, so it fails if the call is removed.
     #[test]
-    fn git_commit_all_raises_a_stale_ledger_before_staging_it() {
+    fn lifecycle_commit_raises_a_stale_ledger_before_staging_it() {
         use std::process::Command;
         let temp = TempDir::new().expect("temp project");
         let root = temp.path();
@@ -2451,12 +2457,17 @@ mod tests {
         write_ledger(1);
         std::fs::write(root.join("README.md"), "work\n").unwrap();
 
-        git_commit_all(root, "lifecycle commit").expect("commit");
+        // Nothing is owned here: the ledger is tracked, so the tracked-edit rule stages it.
+        let scope = change::LifecycleCommitScope {
+            owned: Vec::new(),
+            runtime: Vec::new(),
+        };
+        git_commit_lifecycle(root, &scope, "lifecycle commit").expect("commit");
 
         assert_eq!(
             committed_sequence(),
             3,
-            "the staging path must raise the stale ledger before `git add -A`; \
+            "the staging path must raise the stale ledger before staging it; \
 committing 1 over a committed 3 is the #533 regression, and it is what happens \
 if the floor call is removed from this function"
         );
@@ -2553,6 +2564,30 @@ if the floor call is removed from this function"
     /// honour. The caller owns the repository and the branch, because the three #743/#689
     /// cases differ only in what happens to history afterwards.
     fn reviewed_change_fixture(root: &Path) -> String {
+        let id = approved_change_fixture(root);
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "implement"]);
+        // `check_change`, not `verify_change`: the CLI's `change check` materializes the
+        // approved deltas as well as verifying, and `finalize` refuses outright on a change
+        // whose canonical deltas were never applied. A fixture that only verifies would make
+        // `finalize` fail for a reason that has nothing to do with the review — exactly the
+        // kind of accidental agreement these tests must not be built on.
+        change::check_change(root, Some(&id)).expect("check");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "record verification"]);
+        change::record_scoped_review_with_verdict(
+            root,
+            &id,
+            "Independent".into(),
+            change::ScopedReviewVerdict::Pass,
+        )
+        .expect("review");
+        id
+    }
+
+    /// Drives one change through approval into implementation and stops there, with its
+    /// workspace still uncommitted: the state `change check --commit` is run from.
+    fn approved_change_fixture(root: &Path) -> String {
         let record = draft_fixture(root);
         let id = record.id.clone();
         for (question, answer) in [
@@ -2580,16 +2615,164 @@ if the floor call is removed from this function"
         }
         change::approve_definition(root, &id, Some("Reviewer".into()), None).expect("approve");
         change::start_implementation(root, &id).expect("implement");
-        git_in(root, &["add", "."]);
-        git_in(root, &["commit", "-m", "implement"]);
-        // `check_change`, not `verify_change`: the CLI's `change check` materializes the
-        // approved deltas as well as verifying, and `finalize` refuses outright on a change
-        // whose canonical deltas were never applied. A fixture that only verifies would make
-        // `finalize` fail for a reason that has nothing to do with the review — exactly the
-        // kind of accidental agreement these tests must not be built on.
-        change::check_change(root, Some(&id)).expect("check");
-        git_in(root, &["add", "."]);
-        git_in(root, &["commit", "-m", "record verification"]);
+        id
+    }
+
+    /// Untracked files nobody asked the lifecycle to commit, shaped like the ones `git add -A`
+    /// swept into pushed commits: a private debug archive, an agent's scratch directory, and an
+    /// experiment script at the project root.
+    const STRAYS: [&str; 3] = ["debug-dump.zip", ".agents/scratch.md", "exp2.sh"];
+
+    fn write_strays(root: &Path) {
+        for stray in STRAYS {
+            let path = root.join(stray);
+            fs::create_dir_all(path.parent().expect("parent")).expect("stray dir");
+            fs::write(&path, format!("not for history: {stray}\n")).expect("stray");
+        }
+    }
+
+    /// Every path any commit reachable from any ref in `git_dir` ever touched.
+    fn paths_in_history(git_dir: &Path) -> Vec<String> {
+        let output = std::process::Command::new("git")
+            .arg(format!("--git-dir={}", git_dir.display()))
+            .args(["log", "--all", "--name-only", "--pretty=format:"])
+            .output()
+            .expect("git log");
+        assert!(output.status.success(), "git log failed");
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    fn worktree_status(root: &Path) -> Vec<String> {
+        let output = std::process::Command::new("git")
+            .args(["status", "--porcelain=v1", "--untracked-files=all"])
+            .current_dir(root)
+            .output()
+            .expect("git status");
+        String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// The strays are in no commit of `git_dir` and still sit untracked in `root`, untouched.
+    fn assert_strays_left_alone(root: &Path, git_dir: &Path) {
+        let history = paths_in_history(git_dir);
+        let status = worktree_status(root);
+        for stray in STRAYS {
+            assert!(
+                !history.iter().any(|path| path == stray),
+                "{stray} was committed; a lifecycle commit must never stage an untracked file the change does not own: {history:?}"
+            );
+            assert!(
+                status.contains(&format!("?? {stray}")),
+                "{stray} must still be untracked in the working tree: {status:?}"
+            );
+            assert_eq!(
+                fs::read_to_string(root.join(stray)).expect("stray still on disk"),
+                format!("not for history: {stray}\n")
+            );
+        }
+    }
+
+    /// Honest label: DISCRIMINATOR for the `git add -A` sweep. On the unfixed binary every
+    /// stray lands in the materialize commit, and this fails on the first one.
+    ///
+    /// The second half is the CONTROL that keeps the fix honest: the cheap way to pass the
+    /// first half is to stage nothing untracked at all, which would leave the change's own
+    /// workspace, deliberately left uncommitted here, out of the commit that records it.
+    #[test]
+    fn check_commit_never_commits_an_unrelated_untracked_file() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        let id = approved_change_fixture(root);
+        // The delivery is a tracked edit.
+        fs::write(root.join("README.md"), "# fixture\n\nthe delivery\n").unwrap();
+        write_strays(root);
+
+        run_checked_commit(root, Some(&id), false, false, OutputFormat::Json)
+            .expect("check --commit");
+
+        assert_strays_left_alone(root, &root.join(".git"));
+
+        let history = paths_in_history(&root.join(".git"));
+        for owned in [
+            "state.json",
+            "change.md",
+            "verification.json",
+            "approvals.json",
+        ] {
+            let path = format!(".specsync/changes/{id}/{owned}");
+            assert!(
+                history.contains(&path),
+                "the change's own untracked workspace must still be committed: {path} missing from {history:?}"
+            );
+        }
+        // `change new` wrote this ledger in the freshly adopted fixture. Left out, the change
+        // would reach history without the origin anchor every later read of it checks.
+        assert!(
+            history.contains(&".specsync/workflow-v2-baseline.json".to_string()),
+            "the lifecycle ledger `change new` wrote must be committed: {history:?}"
+        );
+        let committed_readme = std::process::Command::new("git")
+            .args(["show", "HEAD:README.md"])
+            .current_dir(root)
+            .output()
+            .expect("git show");
+        assert_eq!(
+            String::from_utf8_lossy(&committed_readme.stdout),
+            "# fixture\n\nthe delivery\n",
+            "the tracked delivery edit must be committed"
+        );
+        // The fixture has no `.specsync/.gitignore`, so the project lock is untracked too. It is
+        // a runtime file: never committed, never reported, and allowed to stay behind.
+        let runtime = change::lifecycle_commit_scope(root, &id)
+            .expect("scope")
+            .runtime;
+        let leftovers: Vec<String> = worktree_status(root)
+            .into_iter()
+            .filter(|line| !STRAYS.iter().any(|stray| *line == format!("?? {stray}")))
+            .filter(|line| !runtime.iter().any(|path| *line == format!("?? {path}")))
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "only the strays and runtime files may remain outside history: {leftovers:?}"
+        );
+    }
+
+    /// Honest label: DISCRIMINATOR for the archive commit `ship --push` makes, which went
+    /// through the same `git add -A`. It asserts on what reached the remote, because a pushed
+    /// commit is the one that cannot be taken back.
+    ///
+    /// CONTROL in the same test: the archive package still reaches the remote, and the active
+    /// workspace it moved out of is gone from the pushed tree.
+    #[test]
+    fn ship_push_never_commits_an_unrelated_untracked_file() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let remote_parent = TempDir::new().expect("temp remote");
+        let remote = remote_parent.path().join("origin.git");
+        git_project_fixture(root);
+        git_in(
+            remote_parent.path(),
+            &["init", "--bare", "-b", "main", "origin.git"],
+        );
+        git_in(
+            root,
+            &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+        );
+        git_in(root, &["push", "-u", "origin", "main"]);
+
+        let id = approved_change_fixture(root);
+        // Present from before verification, as in the reports: a stray written after review
+        // would stale the review and block ship for an unrelated reason.
+        write_strays(root);
+        run_checked_commit(root, Some(&id), false, false, OutputFormat::Json)
+            .expect("check --commit");
         change::record_scoped_review_with_verdict(
             root,
             &id,
@@ -2597,7 +2780,136 @@ if the floor call is removed from this function"
             change::ScopedReviewVerdict::Pass,
         )
         .expect("review");
-        id
+
+        run_ship(root, Some(&id), false, true, false, 1, OutputFormat::Json).expect("ship --push");
+
+        assert_strays_left_alone(root, &remote);
+
+        let pushed = std::process::Command::new("git")
+            .arg(format!("--git-dir={}", remote.display()))
+            .args(["ls-tree", "-r", "--name-only", "main"])
+            .output()
+            .expect("git ls-tree");
+        let pushed = String::from_utf8_lossy(&pushed.stdout).into_owned();
+        assert!(
+            pushed
+                .lines()
+                .any(|path| path.starts_with(".specsync/archive/changes/")
+                    && path.ends_with(&format!("-{id}/finalization.json"))),
+            "the archive package must reach the remote: {pushed}"
+        );
+        assert!(
+            !pushed
+                .lines()
+                .any(|path| path.starts_with(&format!(".specsync/changes/{id}/"))),
+            "the archived workspace must be gone from the pushed tree: {pushed}"
+        );
+        let subject = std::process::Command::new("git")
+            .arg(format!("--git-dir={}", remote.display()))
+            .args(["log", "-1", "--pretty=%s", "main"])
+            .output()
+            .expect("git log");
+        assert_eq!(
+            String::from_utf8_lossy(&subject.stdout).trim(),
+            format!("chore(lifecycle): archive {id}")
+        );
+    }
+
+    /// Porcelain `-z` writes a rename as two fields, destination then source. Reading the source
+    /// as an entry of its own would take the first two bytes of a filename as status codes. A
+    /// staged rename, a tracked deletion, a tracked edit and a stray are each classified once:
+    /// the edit and the deletion are staged, the stray is reported and left untracked.
+    #[test]
+    fn staging_reads_each_porcelain_entry_once_and_stages_only_tracked_edits() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_in(root, &["init", "-b", "main"]);
+        git_in(root, &["config", "user.email", "t@example.com"]);
+        git_in(root, &["config", "user.name", "T"]);
+        for name in ["moved.txt", "gone.txt", "edited.txt"] {
+            fs::write(root.join(name), format!("{name}\n")).unwrap();
+        }
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-m", "base"]);
+        git_in(root, &["mv", "moved.txt", "renamed.txt"]);
+        fs::remove_file(root.join("gone.txt")).unwrap();
+        fs::write(root.join("edited.txt"), "edited\n").unwrap();
+        fs::write(root.join("exp2.sh"), "echo stray\n").unwrap();
+
+        let scope = change::LifecycleCommitScope {
+            owned: Vec::new(),
+            runtime: Vec::new(),
+        };
+        let left_out = stage_lifecycle_paths(root, &scope).expect("stage");
+
+        assert_eq!(left_out, vec!["exp2.sh".to_string()]);
+        let staged = worktree_status(root);
+        for expected in [
+            "R  moved.txt -> renamed.txt",
+            "D  gone.txt",
+            "M  edited.txt",
+            "?? exp2.sh",
+        ] {
+            assert!(
+                staged.contains(&expected.to_string()),
+                "missing `{expected}`: {staged:?}"
+            );
+        }
+    }
+
+    /// A scope owns itself and what lies beneath it, never a sibling sharing its prefix: the
+    /// workspace of `add-auth` must not own the workspace of `add-auth-v2`.
+    #[test]
+    fn a_lifecycle_scope_owns_its_subtree_and_not_a_prefix_sibling() {
+        let workspace = ".specsync/changes/add-auth";
+        assert!(path_is_within(workspace, workspace));
+        assert!(path_is_within(
+            ".specsync/changes/add-auth/state.json",
+            workspace
+        ));
+        assert!(path_is_within(
+            ".specsync/changes/add-auth/deltas/auth.md",
+            &format!("{workspace}/")
+        ));
+        assert!(!path_is_within(
+            ".specsync/changes/add-auth-v2/state.json",
+            workspace
+        ));
+        assert!(!path_is_within(".specsync/changes", workspace));
+        assert!(!path_is_within("exp2.sh", workspace));
+    }
+
+    /// The warning names each left-out file, bounds a long list, and tells the author what
+    /// removing one does to verification only when there is verification to stale.
+    #[test]
+    fn the_left_out_warning_names_the_files_and_what_to_do() {
+        let few: Vec<String> = STRAYS.iter().map(|stray| stray.to_string()).collect();
+        let few_refs: Vec<&String> = few.iter().collect();
+        let checked = left_out_warning(&few_refs, Some("add-auth"));
+        for stray in STRAYS {
+            assert!(checked.contains(&format!("\n  {stray}")), "{checked}");
+        }
+        assert!(checked.contains("git add"), "{checked}");
+        assert!(
+            checked.contains("specsync change check add-auth --commit"),
+            "{checked}"
+        );
+        let archived = left_out_warning(&few_refs, None);
+        assert!(!archived.contains("change check"), "{archived}");
+
+        let many: Vec<String> = (0..LEFT_OUT_LISTING_LIMIT + 5)
+            .map(|index| format!("scratch/{index}.log"))
+            .collect();
+        let many_refs: Vec<&String> = many.iter().collect();
+        let bounded = left_out_warning(&many_refs, None);
+        assert!(bounded.contains("… and 5 more"), "{bounded}");
+        assert!(!bounded.contains(&format!("scratch/{}.log", LEFT_OUT_LISTING_LIMIT)));
+
+        // A second commit in the same run does not repeat what the first already named.
+        let mut disclosed = few.clone();
+        let before = disclosed.len();
+        disclose_left_out(&few, &mut disclosed, None);
+        assert_eq!(disclosed.len(), before);
     }
 
     /// Honest label: CONTROL for the two tests below, and it passes on the unfixed binary
@@ -3151,8 +3463,14 @@ if the floor call is removed from this function"
 ///
 /// SpecSync still does not commit by default; this runs only under `--commit`.
 ///
-/// Nothing is committed unless verification passes: a half-committed lifecycle is
-/// worse than none.
+/// Nothing is committed unless the first verification passes. The second pass re-verifies the
+/// same content against the commit the first one made. If it fails anyway, that materialize
+/// commit stays on the branch and is not rewound, and the error names it along with the command
+/// that resumes. Moving a branch tip back on the author's behalf is worse than leaving a commit
+/// they can see and finish.
+///
+/// Each commit stages the change's own paths and the project's tracked edits, never other
+/// untracked files; see [`git_commit_lifecycle`].
 fn run_checked_commit(
     root: &std::path::Path,
     id: Option<&str>,
@@ -3201,17 +3519,37 @@ fn run_checked_commit(
         }
     };
 
-    git_commit_all(root, &format!("chore(lifecycle): materialize {resolved}"))?;
-    say("Committed the materialized spec.");
+    let mut disclosed = Vec::new();
+    let materialized = git_commit_lifecycle(
+        root,
+        &change::lifecycle_commit_scope(root, &resolved)?,
+        &format!("chore(lifecycle): materialize {resolved}"),
+    )?;
+    disclose_left_out(&materialized.left_out, &mut disclosed, Some(&resolved));
+    say(if materialized.committed {
+        "Committed the materialized spec."
+    } else {
+        "Nothing new to commit for the materialized spec."
+    });
 
     // Second pass: re-anchor against the committed tree. Evidence files live under
     // `.specsync/changes/`, which is excluded from the project-input digest, so
     // committing them cannot stale this result.
-    verify("Checking (2/2): re-verifying against the committed tree…")?;
-    git_commit_all(
+    if let Err(error) = verify("Checking (2/2): re-verifying against the committed tree…") {
+        if !materialized.committed {
+            return Err(error);
+        }
+        let head = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
+        return Err(format!(
+            "{error}\nnote: the first pass already committed `chore(lifecycle): materialize {resolved}` as {head:.8} and it was left in place; fix the failure, then re-run `specsync change check {resolved} --commit`"
+        ));
+    }
+    let recorded = git_commit_lifecycle(
         root,
+        &change::lifecycle_commit_scope(root, &resolved)?,
         &format!("chore(lifecycle): record {resolved} verification"),
     )?;
+    disclose_left_out(&recorded.left_out, &mut disclosed, Some(&resolved));
     say("Committed the verification evidence.");
 
     if push {
@@ -3238,13 +3576,29 @@ fn run_git(root: &std::path::Path, args: &[&str]) -> Result<(), String> {
     Ok(())
 }
 
-/// Stage everything and commit, treating "nothing to commit" as success so the
-/// sequence stays idempotent when a pass produced no change.
-fn git_commit_all(root: &std::path::Path, message: &str) -> Result<(), String> {
-    // Every lifecycle commit stages `-A`, so every one of them can commit a
-    // sequence ledger that went stale while the branch sat. Flooring here rather
-    // than at the single call site named in the report covers all three, which is
-    // the difference between fixing this and fixing where it was noticed.
+/// What one lifecycle commit did.
+struct LifecycleCommit {
+    /// False when nothing was staged, so no commit was made.
+    committed: bool,
+    /// Untracked files deliberately left out, as project-relative paths.
+    left_out: Vec<String>,
+}
+
+/// Stage what a lifecycle commit owns and commit it, treating "nothing to commit" as success so
+/// the sequence stays idempotent when a pass produced no change.
+///
+/// `scope` is [`change::lifecycle_commit_scope`] for the change being committed. This used to be
+/// `git add -A`, which put every untracked, non-ignored file in the project into a commit that
+/// `--push` then published. See [`stage_lifecycle_paths`] for what is staged now.
+fn git_commit_lifecycle(
+    root: &Path,
+    scope: &change::LifecycleCommitScope,
+    message: &str,
+) -> Result<LifecycleCommit, String> {
+    // Every lifecycle commit can commit a sequence ledger that went stale while
+    // the branch sat. Flooring here rather than at the single call site named in
+    // the report covers all three, which is the difference between fixing this
+    // and fixing where it was noticed.
     // Reported on stderr rather than through the caller's `say`: this is a state
     // correction, not progress chatter, so it must survive `--quiet`, and it must
     // stay off stdout where a `--format json` payload is being written.
@@ -3254,16 +3608,193 @@ fn git_commit_all(root: &std::path::Path, message: &str) -> Result<(), String> {
              a ledger written before the branch caught up would have committed a lower high-water mark"
         );
     }
-    run_git(root, &["add", "-A"])?;
+    let left_out = stage_lifecycle_paths(root, scope)?;
     let status = std::process::Command::new("git")
         .args(["diff", "--cached", "--quiet"])
         .current_dir(root)
         .status()
         .map_err(|error| format!("failed to inspect staged changes: {error}"))?;
     if status.success() {
-        return Ok(());
+        return Ok(LifecycleCommit {
+            committed: false,
+            left_out,
+        });
     }
-    run_git(root, &["commit", "-m", message])
+    run_git(root, &["commit", "-m", message])?;
+    Ok(LifecycleCommit {
+        committed: true,
+        left_out,
+    })
+}
+
+/// How many paths go to one `git add`, well inside every platform's argument limit.
+const STAGE_BATCH_PATHS: usize = 200;
+
+/// Stage the project's tracked edits and the untracked files under `scope.owned`, by explicit
+/// literal pathspecs. Returns every other untracked file, which is left unstaged, except the
+/// lifecycle's own runtime files, which are neither staged nor returned.
+///
+/// A tracked edit is part of the delivery. Verification digests the working tree, so a tracked
+/// edit left unstaged would be verified and never committed. An untracked file is different: it
+/// may be a private debug archive, an agent's scratch directory or an experiment script, and
+/// nothing about it being on disk says it belongs in history. Of those, only the ones the
+/// lifecycle wrote or the change owns are staged. The rest are the author's to stage.
+///
+/// The index is not reset. Whatever the author already staged is committed with the rest, as it
+/// always was. Unmerged entries are not staged, so an unresolved conflict still stops the commit
+/// instead of being recorded as resolved.
+fn stage_lifecycle_paths(
+    root: &Path,
+    scope: &change::LifecycleCommitScope,
+) -> Result<Vec<String>, String> {
+    // Porcelain paths are relative to the repository top-level, and `git add` resolves them
+    // against the working directory. Both are brought to project-relative form so that a project
+    // nested inside a larger repository stages its own paths and only those.
+    let prefix = git_output_text(root, &["rev-parse", "--show-prefix"])?
+        .trim_end_matches(['\n', '\r'])
+        .to_string();
+    let output = std::process::Command::new("git")
+        .args([
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--",
+            ".",
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to run git status: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "git status failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+
+    let mut stage = Vec::new();
+    let mut left_out = Vec::new();
+    let mut fields = output.stdout.split(|byte| *byte == 0);
+    while let Some(entry) = fields.next() {
+        if entry.len() < 4 {
+            continue;
+        }
+        let (index, worktree) = (entry[0], entry[1]);
+        // A rename or copy, in either column, carries its source as the next field. The source
+        // is already recorded as removed, so only the destination is acted on.
+        if matches!(index, b'R' | b'C') || matches!(worktree, b'R' | b'C') {
+            fields.next();
+        }
+        let path = String::from_utf8_lossy(&entry[3..]).into_owned();
+        let Some(path) = path.strip_prefix(prefix.as_str()).map(str::to_owned) else {
+            continue;
+        };
+        let unmerged = index == b'U'
+            || worktree == b'U'
+            || (index == b'A' && worktree == b'A')
+            || (index == b'D' && worktree == b'D');
+        if unmerged {
+            continue;
+        }
+        if index == b'?' {
+            if scope.owned.iter().any(|owned| path_is_within(&path, owned)) {
+                stage.push(path);
+            } else if !scope
+                .runtime
+                .iter()
+                .any(|runtime| path_is_within(&path, runtime))
+            {
+                left_out.push(path);
+            }
+        } else if worktree != b' ' {
+            stage.push(path);
+        }
+    }
+
+    for batch in stage.chunks(STAGE_BATCH_PATHS) {
+        let mut args = vec!["--literal-pathspecs", "add", "--"];
+        args.extend(batch.iter().map(String::as_str));
+        run_git(root, &args)?;
+    }
+    left_out.sort();
+    Ok(left_out)
+}
+
+/// True when `path` is `scope` itself or lies beneath it.
+fn path_is_within(path: &str, scope: &str) -> bool {
+    let scope = scope.trim_end_matches('/');
+    path == scope
+        || path
+            .strip_prefix(scope)
+            .is_some_and(|rest| rest.starts_with('/'))
+}
+
+fn git_output_text(root: &Path, args: &[&str]) -> Result<String, String> {
+    let output = std::process::Command::new("git")
+        .args(args)
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    if !output.status.success() {
+        return Err(format!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// How many left-out paths a warning names before it summarizes the rest.
+const LEFT_OUT_LISTING_LIMIT: usize = 20;
+
+/// Name, on stderr, the untracked files a lifecycle commit left out. `disclosed` carries what an
+/// earlier commit of the same run already named, so the second commit does not repeat it.
+///
+/// Stderr, like the ledger note: it must survive `--quiet` and keep `--format json` stdout a
+/// single document. `verified_change` is set when the files sit under recorded verification, which
+/// digests the working tree including them.
+fn disclose_left_out(
+    left_out: &[String],
+    disclosed: &mut Vec<String>,
+    verified_change: Option<&str>,
+) {
+    let fresh: Vec<&String> = left_out
+        .iter()
+        .filter(|path| !disclosed.contains(path))
+        .collect();
+    if fresh.is_empty() {
+        return;
+    }
+    eprintln!("{}", left_out_warning(&fresh, verified_change));
+    disclosed.extend(fresh.into_iter().cloned());
+}
+
+fn left_out_warning(paths: &[&String], verified_change: Option<&str>) -> String {
+    let mut out = format!(
+        "warning: left {} untracked file(s) out of this lifecycle commit. It commits only the change's \
+         own workspace, its specs, the lifecycle ledgers and tracked edits:",
+        paths.len()
+    );
+    for path in paths.iter().take(LEFT_OUT_LISTING_LIMIT) {
+        out.push_str(&format!("\n  {path}"));
+    }
+    if paths.len() > LEFT_OUT_LISTING_LIMIT {
+        out.push_str(&format!(
+            "\n  … and {} more",
+            paths.len() - LEFT_OUT_LISTING_LIMIT
+        ));
+    }
+    out.push_str(
+        "\n  `git add` and commit any that belong to this delivery. Move, delete, or .gitignore the rest.",
+    );
+    if let Some(id) = verified_change {
+        out.push_str(&format!(
+            "\n  The recorded verification digests them where they sit. Committing one keeps it current; \
+             removing one stales it, so re-run `specsync change check {id} --commit` afterwards."
+        ));
+    }
+    out
 }
 
 #[cfg(test)]

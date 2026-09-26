@@ -76,3 +76,16 @@ decide an open design question by accident. Readiness can decline to answer with
 what should happen next.
 
 Issue #745 extends the same verification-content predicate used by readiness to the product-tip stage. Commit ancestry remains diagnostic; it no longer substitutes for freshness in product-stage completion. The scoped-review currency check is unchanged, so unavailable review evidence may still prevent finalization even when product verification is current.
+
+Lifecycle commits used to stage with `git add -A`, and `--push` published whatever that swept up:
+a private debug archive in one project, an agent's `.agents/` directory and an experiment script in
+another. `git_commit_lifecycle` now stages every tracked edit plus the untracked paths
+`change::lifecycle_commit_scope` names, using explicit literal pathspecs, and lists every other
+untracked file on stderr. Tracked edits stay in because verification digests the working tree, so
+a tracked edit that was verified but not committed would leave CI checking a different tree.
+Untracked files stay out because being on disk says nothing about belonging in history. A new
+source file therefore joins the delivery when its author stages it. The warning says what removing
+a left-out file does to verification, because the digest covers it where it sits. `run_checked_commit`'s
+doc comment used to say nothing is committed unless verification passes. That holds for the first
+pass only. When the second pass fails, the materialize commit stays on the branch rather than being
+rewound, and the error now names it.

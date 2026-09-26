@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 37
+version: 38
 status: active
 files:
   - src/commands/change.rs
@@ -150,4 +150,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-09-02 | tell-agents-when-it-is-safe-to-clear-context: Tell agents when it is safe to clear context |
 | 2026-09-07 | make-ship-status-product-stage-completion-use-current-verification-content-consistently: Make ship-status product-stage completion use current verification content consistently |
 | 2026-09-10 | document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release: Document shipped SpecSync 6.0.0 in ADOPTING (stable install, Trust 1.2.0, always pass Action version) |
-
+| 2026-09-26 | lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file: Lifecycle commits stage only what the change owns, never every untracked file |

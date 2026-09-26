@@ -108,6 +108,12 @@ Run `review` and `ship` consecutively, without committing between them. The revi
 the scope approver. Commit and push the archive result, wait for required checks, then merge
 on GitHub. **Merge only after every active change on the PR is archived.**
 
+`check --commit` and `ship --push` commit edits to files git already tracks, plus the untracked
+files the change owns: its workspace and archive package, the canonical specs its deltas write,
+and SpecSync's own ledgers. They never stage any other untracked file, so `git add` a new source
+file yourself before `check --commit`. Every other untracked file stays out of the commit and is
+listed as a warning, so a stray debug file cannot end up in a pushed commit.
+
 ## 5. Wire CI
 
     # For a candidate instead, choose a release that has binary assets.

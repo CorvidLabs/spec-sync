@@ -19,3 +19,5 @@ spec: cmd_change.spec.md
 
 - [x] Use recorded verification content currency consistently in the product stage and readiness (#745).
 - [x] Add preserved-content squash and stale-content ancestor regression controls.
+- [x] Stage lifecycle commits by explicit literal pathspecs (tracked edits plus the change's owned untracked paths), never `git add -A`, and list every other untracked file on stderr (REQ-cmd-change-017).
+- [x] State in `run_checked_commit`'s doc comment what happens when the second verification fails, and name the materialize commit in that error.

@@ -63,3 +63,5 @@ spec: change.spec.md
 - [x] Let a module own paths beyond its spec's `files:` through `[modules."<name>"] owns`, sign them under the module ahead of the reserved exact classes, judge a successor's eligibility for an exact-only predecessor entry by the module that owns the path now, read the claimants of a changed exact-only entry from the successors' declared obligations in the walk, and name the supersede alternative beside the audited reopen (2026-09-05)
 
 - [x] Clarify scoped-review claims versus separately enforced authentication without changing runtime review rules.
+
+- [x] Name the untracked paths a lifecycle commit may stage in the domain (`lifecycle_commit_scope`), excluding `affected_paths` prefixes and whole spec directories, and name the lock and transaction journal as never-committed runtime files.

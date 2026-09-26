@@ -19041,3 +19041,80 @@ fn verifying_change_refuses_to_recreate_a_missing_attempts_ledger() {
         "got {error}"
     );
 }
+
+// Verifies REQ-change-102.
+//
+// Honest label: DISCRIMINATOR for the ownership answer the lifecycle staging path trusts. The
+// exact-set assertion is the point. A version that returned `affected_paths` would hand the
+// staging path `src/` (or `.`) and bring back the `git add -A` sweep through the side door, and a
+// version that returned the spec directory would own any stray file dropped beside a spec.
+#[test]
+fn lifecycle_commit_scope_names_exactly_what_the_change_owns() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .status()
+                .unwrap()
+                .success(),
+            "git command failed: {args:?}"
+        );
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    git(&["add", "README.md"]);
+    git(&["commit", "-m", "base"]);
+    ensure_auth_spec_owns_its_source(root);
+    let record = completed_current_record(root);
+    let workspace = format!(".specsync/changes/{}", record.id);
+
+    let mut expected = vec![
+        workspace.clone(),
+        SEQUENCE_PATH.to_string(),
+        WORKFLOW_V2_BASELINE_PATH.to_string(),
+        LEGACY_BASELINE_PATH.to_string(),
+        BOOTSTRAP_RECORD_PATH.to_string(),
+        HASH_CACHE_PATH.to_string(),
+        "specs/auth/auth.spec.md".to_string(),
+    ];
+    expected.extend(
+        CANONICAL_SPEC_COMPANIONS
+            .iter()
+            .map(|companion| format!("specs/auth/{companion}")),
+    );
+    expected.sort();
+    let scope = lifecycle_commit_scope(root, &record.id).unwrap();
+    assert_eq!(scope.owned, expected);
+    assert!(
+        !scope
+            .owned
+            .iter()
+            .any(|path| path == "src/auth.rs" || path == "src" || path == "specs/auth"),
+        "affected paths and spec directories are not lifecycle-owned"
+    );
+    assert_eq!(
+        scope.runtime,
+        vec![LOCK_PATH.to_string(), TRANSACTION_PATH.to_string()],
+        "the lock and journal are runtime files, never owned delivery"
+    );
+    assert!(
+        !scope.owned.iter().any(|path| scope.runtime.contains(path)),
+        "no path may be both committed and never-committed"
+    );
+
+    // Once `finalize` has moved the workspace, the package it moved into is owned as well, and
+    // the vacated workspace stays owned so the removal of its tracked files can be staged.
+    let package = format!("{ARCHIVE_PATH}/2026-01-01-{}", record.id);
+    fs::create_dir_all(root.join(ARCHIVE_PATH)).unwrap();
+    fs::rename(change_dir(root, &record.id), root.join(&package)).unwrap();
+    let archived = lifecycle_commit_scope(root, &record.id).unwrap().owned;
+    assert!(archived.contains(&package), "{archived:?}");
+    assert!(archived.contains(&workspace), "{archived:?}");
+
+    assert!(lifecycle_commit_scope(root, "no-such-change").is_err());
+}

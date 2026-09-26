@@ -10,7 +10,7 @@ Issue #751: explicit legacy reopen now evaluates the same historical manifest re
 
 Canonical module maturity remains under `specsync lifecycle`; SDD delivery uses six separate states. `.specsync/sdd.json` is a dedicated versioned policy so existing projects remain opt-in. Human artifacts and deltas are Markdown, while state, approvals, and evidence are JSON. `change check` compares specs to code in-process and does not run the project's tests.
 
-The committed `.specsync/change-sequence.json` ledger records the last numeric allocation ever made. Nothing ALLOCATES into it any more — identity is minted from the description as a slug — and it is retained so the marks it already carries cannot be lost: the gates read it and refuse a ledger that has fallen below what disk or the branch's own history already recorded. It is not read-only, and that is the part worth carrying: `floor_sequence_ledger_to_committed` still WRITES the file, from inside `git_commit_all`, raising a working-tree ledger that has fallen behind back to the committed high-water mark before staging. Every lifecycle commit runs it, so treating the ledger as immutable is how a change that edits it goes uncovered. The OS lock still serializes a checkout. Lifecycle checking scans active and archived records together; the repository's immutable historical sequence collisions are acknowledged only as exact sets of full IDs.
+The committed `.specsync/change-sequence.json` ledger records the last numeric allocation ever made. Nothing ALLOCATES into it any more — identity is minted from the description as a slug — and it is retained so the marks it already carries cannot be lost: the gates read it and refuse a ledger that has fallen below what disk or the branch's own history already recorded. It is not read-only, and that is the part worth carrying: `floor_sequence_ledger_to_committed` still WRITES the file, from inside the command layer's lifecycle staging path (`git_commit_lifecycle`, formerly `git_commit_all`), raising a working-tree ledger that has fallen behind back to the committed high-water mark before staging. Every lifecycle commit runs it, so treating the ledger as immutable is how a change that edits it goes uncovered. The OS lock still serializes a checkout. Lifecycle checking scans active and archived records together; the repository's immutable historical sequence collisions are acknowledged only as exact sets of full IDs.
 
 Historical acceptance reconstruction treats the committed sequence ledger as evidence, not a template. When immutable collision members signed one canonical collision-owner ledger, a bounded invocation-cached history lookup reuses those exact bytes after later claims advance the current ledger. The historical candidate must explicitly name the record in its same-sequence collision; ordinary records, unavailable history, and collision acknowledgements added after acceptance keep successor-aware synthetic reconstruction.
 
@@ -546,3 +546,15 @@ authenticate.
 ## Release review: claims and authentication
 
 The stored scoped-review provider declaration is format-validated metadata bound to the recorded review; it is not a live provider response or authenticated identity. Local finalization validates the claim, verdict, history, and content currency. Authenticated provenance must be enforced by separately configured hosted checks and policy verification. The CLI, canonical REQ-change-046, and Public API description now state that boundary consistently. Existing blocking, append-only, same-approver, and freshness rules are unchanged.
+
+## Lifecycle commit ownership
+
+`lifecycle_commit_scope` is the domain's answer to which untracked paths a lifecycle commit may
+stage; the command layer does the staging and decides nothing about ownership. It names the
+workspace, the archive package, each affected spec's canonical file and companions, and the
+lifecycle ledgers, and it names the lock and transaction journal separately as runtime files that
+are never committed. It deliberately leaves out `affected_paths`. Those are prefixes as broad as
+`src/` or `.`, and owning every untracked file under them is the `git add -A` sweep with extra
+steps. The workflow-v2 baseline is on the list because `change new` writes it in a freshly adopted
+project: the first test run of the fix left it out, which would have committed a change whose
+origin anchor never reached history.

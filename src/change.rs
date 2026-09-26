@@ -6775,6 +6775,81 @@ pub(crate) fn lesson_fold_targets(root: &Path, id: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// The hash cache `specsync check` rewrites beside the lifecycle ledgers. `init` ignores it; it
+/// is named as lifecycle-owned so a project that does not ignore it still commits its own cache.
+const HASH_CACHE_PATH: &str = ".specsync/hashes.json";
+
+/// What a lifecycle commit for one change may stage, and what it must neither stage nor report.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LifecycleCommitScope {
+    /// Untracked paths the lifecycle wrote or the change owns. A lifecycle commit stages these.
+    pub(crate) owned: Vec<String>,
+    /// Lifecycle runtime files: the project lock and an in-flight transaction journal. They are
+    /// never committed, and never reported as left out either, because they are nobody's delivery
+    /// and the project-input digest already excludes them.
+    pub(crate) runtime: Vec<String>,
+}
+
+/// Which untracked paths a lifecycle commit for this change may stage, and which runtime files it
+/// must leave alone.
+///
+/// `change check --commit` and `change ship --push` staged with `git add -A`, which swept every
+/// untracked, non-ignored file in the project into a pushed commit: a private debug archive, an
+/// agent's scratch directory, an experiment script. Tracked edits are the delivery, and the
+/// command layer stages all of them. An untracked file is the lifecycle's to commit only when the
+/// lifecycle wrote it or the change owns it, and this is the one answer to which files those are:
+///
+/// - the active workspace. `finalize` empties it by moving it, so staging the removal of its
+///   tracked files needs this path as well;
+/// - the archive package, once `finalize` has moved the workspace there;
+/// - each affected spec's canonical spec file and its companions, resolved through the same
+///   registry-aware resolver materialization writes through, so the two cannot name different
+///   files. Only those files, never the whole directory: a stray file there is not a spec;
+/// - the lifecycle ledgers: the sequence ledger the staging path floors, the workflow-v2 and
+///   legacy-archive baselines, the bootstrap record, and the hash cache. `change new` writes the
+///   workflow-v2 baseline in a freshly adopted project, and it has to reach history with the first
+///   change or every later reader of that change fails its origin check.
+///
+/// The paths are project-relative with forward slashes, sorted and deduplicated. The change's
+/// `affected_paths` are deliberately absent. They are prefixes as broad as `src/` or `.`, and
+/// owning every untracked file under them is the sweep this exists to stop. A new source file
+/// joins the delivery when its author stages it.
+pub(crate) fn lifecycle_commit_scope(
+    root: &Path,
+    id: &str,
+) -> Result<LifecycleCommitScope, String> {
+    let record = load_change(root, id)?;
+    let mut owned = BTreeSet::new();
+    owned.insert(portable_project_path(root, &change_dir(root, &record.id)));
+    owned.insert(portable_project_path(
+        root,
+        &find_change_dir(root, &record.id)?,
+    ));
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    for module in &record.affected_specs {
+        let (spec, _) = canonical_module_paths(root, &specs_dir, module)?;
+        owned.insert(portable_project_path(root, &spec));
+        if let Some(directory) = spec.parent() {
+            for companion in CANONICAL_SPEC_COMPANIONS {
+                owned.insert(portable_project_path(root, &directory.join(companion)));
+            }
+        }
+    }
+    for ledger in [
+        SEQUENCE_PATH,
+        WORKFLOW_V2_BASELINE_PATH,
+        LEGACY_BASELINE_PATH,
+        BOOTSTRAP_RECORD_PATH,
+        HASH_CACHE_PATH,
+    ] {
+        owned.insert(ledger.to_string());
+    }
+    Ok(LifecycleCommitScope {
+        owned: owned.into_iter().collect(),
+        runtime: vec![LOCK_PATH.to_string(), TRANSACTION_PATH.to_string()],
+    })
+}
+
 /// Assemble the material an agent needs to fold this change's lessons into the SPEC's context.
 ///
 /// Lessons belong in `specs/<module>/context.md`, not in the change — a per-change lessons file

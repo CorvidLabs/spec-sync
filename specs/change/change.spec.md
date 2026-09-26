@@ -116,6 +116,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `SddCheckReport` | Unified lifecycle errors, warnings, checked-change count, and terminal-evidence results |
 | `UnreadableChange` | One active-change workspace that exists on disk but could not be read, carrying its directory identity and a reason naming the offending path |
 | `ChangeRoster` | The active-change roster as two separate facts: the records that were read and the workspaces that could not be, so absence and unreadability cannot share a value |
+| `LifecycleCommitScope` | Crate-private answer to what one change's lifecycle commit may stage: the untracked paths the lifecycle wrote or the change owns, and the runtime files (lock, transaction journal) it must neither stage nor report |
 
 **Exported Functions**
 
@@ -156,6 +157,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `floor_sequence_ledger_to_committed` | `root: &Path` | `Result<Option<(u64, u64)>, String>` | Raise a working-tree sequence ledger to the committed high-water mark before staging, returning the previous and adopted values so the caller can disclose the raise, or `None` when the ledger is already at or above it |
 | `handoff_summary` | `root, record` | `HandoffSummary` | Gather only the signals the record's state needs — never the archive-history walk for an Archived record — and classify them; the same verdict `ChangeSummary.handoff` carries |
 | `lesson_fold_targets` | `root, id` | `Vec<String>` | Module context paths this change's lessons are folded into at archival; empty when the change is unreadable or owns no specs |
+| `lifecycle_commit_scope` | `root, id` | `Result<LifecycleCommitScope, String>` | The one answer to which untracked paths a lifecycle commit for this change may stage: its workspace, its archive package, each affected spec's canonical file and companions, and the lifecycle ledgers — never its `affected_paths` prefixes; `Err` when the change cannot be loaded |
 | `list_changes` | `root: &Path` | `Result<ChangeRoster, String>` | List active changes in stable ID order alongside the workspaces that could not be read; `Err` only when the changes directory itself is unreadable |
 | `load_change` | `root: &Path, id: &str` | `Result<ChangeRecord, String>` | Load active or archived change state |
 | `load_policy` | `root: &Path` | `Option<SddPolicy>` | Load `.specsync/sdd.json`; absence leaves existing projects unenforced |

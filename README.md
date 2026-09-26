@@ -230,6 +230,25 @@ specs/auth/
 
 [Read the complete spec format](site/src/content/docs/spec-format.md), [companion-file reference](site/src/content/docs/companion-files.md), and [workflow conventions](site/src/content/docs/workflow.md).
 
+## Architecture
+
+One local binary does the work. Editors, the GitHub Action, MCP clients and agent skills all run
+the same CLI. `check` is the drift check. `change` is the opt-in lifecycle that leaves its
+evidence in Git.
+
+```mermaid
+flowchart LR
+    users([Developers, coding agents,<br/>VS Code, MCP clients, CI]) --> cli[[specsync]]
+    cli --> check[check<br/>spec vs code drift]
+    cli --> change[change<br/>new, approve, check,<br/>review, finalize]
+    check --> repo[(specs/ + source)]
+    change -->|scoped sync| check
+    change --> evidence[(.specsync/changes/<br/>then archive/)]
+```
+
+The [high-level design](docs/HLD.md) covers the components, the change state machine, sequence
+diagrams for the key commands, the evidence files and digests, and CI, Trust and release.
+
 ## Documentation
 
 | Start here | Reference and integration |

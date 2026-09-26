@@ -1,6 +1,6 @@
 ---
 module: github
-version: 33
+version: 34
 status: stable
 files:
   - src/github.rs
@@ -59,6 +59,13 @@ extension CI.
 
 Every path that can be merged can reach the required CI gate; a path the CI
 workflow cannot trigger can never report the gate and blocks its pull request.
+
+The required CI gate fails whenever a job it depends on did not succeed, unless classify
+deselected that job. A skipped job passes only when its own `if:` condition, evaluated over the
+classify outputs, left it unselected. A selected job that was skipped was skipped because a job it
+needs did not succeed, and it fails the gate: `skipped` is never read as green on its own. The
+lifecycle preflight and the lifecycle gate are selected on every path, so either one failing turns
+the required gate red.
 
 Release qualification verifies exactly the tag protections this repository actually has, and names
 every protection it does not verify on every run, green runs included. A gate that demands an
@@ -224,3 +231,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-09-10 | document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release: Set the Action omitted-input default on main to shipped 6.0.0 and document that @v6.0.0 still embeds 6.0.0-rc.14 |
 | 2026-09-10 | rc-qualification-requires-ubuntu-and-macos-only-windows-is-not-a-6-0-target: RC qualification requires Ubuntu and macOS only; Windows is not a 6.0 target |
 | 2026-09-10 | correct-remaining-specsync-6-0-docs-after-the-stable-ship: Correct remaining SpecSync 6.0 docs after the stable ship |
+| 2026-09-26 | required-ci-gate-fails-when-the-lifecycle-gate-fails: Required CI gate fails when the lifecycle gate fails |

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "required-ci-gate-fails-when-the-lifecycle-gate-fails",
+  "slug": "required-ci-gate-fails-when-the-lifecycle-gate-fails",
+  "title": "Required CI gate fails when the lifecycle gate fails",
+  "description": "Required CI gate fails when the lifecycle gate fails",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "cddc39e478dcc1f111940a3cfb02134bba9804cc",
+  "created_at": 1790434419,
+  "updated_at": 1790441718,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/ci.yml",
+    ".github/scripts/test-required-ci-gate.py",
+    "fledge.toml",
+    "docs/HLD.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Required CI gate fails whenever Lifecycle preflight or Lifecycle gate fails or is cancelled. implementation-gate (SpecSync implementation ready) needs classify, preflight, lifecycle-gate and every other job that can finish before it, and accepts skipped for a job only when that job's own if: condition, evaluated again over the classify outputs, deselected it; a selected job that was skipped because something it needs did not succeed fails the gate. Full, site-only, VS Code-only, specs/lifecycle-only, archive-only, legacy archive-only and review-only pull requests, pushes to main and workflow_dispatch runs stay green when every selected job succeeds. .github/scripts/test-required-ci-gate.py runs in the validate-action CI job and in the Fledge verify lane; it fails if preflight or lifecycle-gate is missing from implementation-gate.needs, if a job that gates on lifecycle-gate or can otherwise finish before the gate is missing, or if a gate row no longer matches its job's if:, and it simulates every classify path to show the required gate red when any one selected job fails or is cancelled and green otherwise, and reproduces #796 against the pre-fix gate."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

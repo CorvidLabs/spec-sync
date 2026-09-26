@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "required-ci-gate-fails-when-the-lifecycle-gate-fails",
+  "implementation_commit": "3ffef4758ab6654507183cab5942b412dc6064fa",
+  "implementation_tree": "15dc0b08430b89b2cbb6d866eb9f17962f41b2a9",
+  "contract_digest": "baa6fc958f3c065adeafb9385c73380bedc2abdb580462737d18a48a55704d24",
+  "workspace_digest": "e27514201aa0d0f122fc272801f011eccfe56489ef7d529ee5a776307dee2945",
+  "closing_digest": "846c770fee65169aee2f680122bf3db12bb73e23401ef8c3614dfeb633df9e7e",
+  "review_digest": "90e1655610732ad67f229d54288e3edd2b73e904539f720b46d80d373fd2bc0d",
+  "finalization_digest": "9b7de0951756847938dbc2ce0a087110054ea049212094654db63f4768aae1a1",
+  "timestamp": 1790441718
+}

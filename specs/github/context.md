@@ -72,6 +72,15 @@ spec: github.spec.md
   is retained only because `src/change.rs` reads it. Two of the live defects #499 removed were in
   the CI copy and not in SpecSync, which is the argument for not rebuilding it: a reimplementation
   of a shipped rule drifts from it, and only the copy is unshipped and untested by users.
+- **A skipped job is not a pass unless classify deselected it (#796)**: `implementation-gate`
+  ("SpecSync implementation ready") needs every job that can finish before it, `preflight` and
+  `lifecycle-gate` included. GitHub reports `skipped` both for a job classify deselected and for a
+  job whose dependency failed, so each row of the gate's `GATES` table carries that job's own `if:`
+  (less a leading `always() &&`), evaluated again over the same classify outputs. `skipped` passes
+  only where that says the job was not selected; a selected job that was skipped fails the gate.
+  Before this, a failed lifecycle gate left `test`, `audit`, `coverage` and `spec-check` skipped
+  and `Required CI gate` green. `.github/scripts/test-required-ci-gate.py` holds each row to its
+  job's `if:` as text and simulates every classify lane against the gate's own script.
 
 ## Key Files
 
@@ -82,6 +91,9 @@ spec: github.spec.md
 - `.github/scripts/validate-release-version.py` - Current package, Action, docs, CI consumer, and
   Trust candidate version consistency
 - `.github/scripts/validate-workflow-runtime-pins.py` - Exact hosted Bun runtime enforcement
+- `.github/scripts/test-required-ci-gate.py` - Required CI gate contract: every job before the
+  gate is in its `needs`, each gate row mirrors its job's `if:`, and the gate's own script is run
+  over every classify lane
 - `fledge.toml` and `.trust.toml` - Keep full local verification separate from hosted Trust's
   residual lifecycle prerequisite
 - `docs/ci-confidence.md` - CI/Trust ownership, confidence tiers, and protected Tier B follow-up

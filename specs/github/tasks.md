@@ -74,3 +74,4 @@ Per-module role sign-offs were not collected. Release approval is governed by di
   crossing code edges or allowing cancelled republications to poison exact-SHA success (CHG-0077)
 
 - [x] Pin Action/`github-action.md` default to published `6.0.0-rc.14` and teach `validate-release-version.py` the candidate-window exception (#628)
+- [x] Make `Required CI gate` fail when `preflight` or `lifecycle-gate` fails, and read `skipped` as a pass only where classify deselected the job, with a workflow guard and per-path simulation (#796, REQ-github-021)

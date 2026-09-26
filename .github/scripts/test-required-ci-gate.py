@@ -18,8 +18,8 @@ These tests hold the workflow to three rules:
    selected job succeeds, and red when any one of them fails or is cancelled.
 
 The workflow is parsed with Ruby's standard-library Psych, like the other
-workflow validators here, and the gate's own shell steps are executed under
-GitHub's default bash invocation. `--truth-table` prints the per-path table.
+workflow validators here, and the gate's own shell steps are executed the way
+the runner invokes them. `--truth-table` prints the per-path table.
 """
 
 from __future__ import annotations
@@ -584,7 +584,7 @@ def run_gate_steps(
                 environment[key] = interpolate(value, evaluator.evaluate)
         script = interpolate(step["run"], evaluator.evaluate)
         returncode, output = run_step(
-            step.get("shell", "bash"), script, tuple(sorted(environment.items()))
+            step.get("shell"), script, tuple(sorted(environment.items()))
         )
         transcript.append(output)
         if returncode != 0:
@@ -593,13 +593,21 @@ def run_gate_steps(
 
 
 @functools.lru_cache(maxsize=None)
-def run_step(shell: str, script: str, environment: tuple[tuple[str, str], ...]) -> tuple[int, str]:
-    """Run one step script under GitHub's invocation for its shell; same input, same answer."""
+def run_step(
+    shell: str | None, script: str, environment: tuple[tuple[str, str], ...]
+) -> tuple[int, str]:
+    """Run one step script under the runner's invocation for its shell; same input, same answer."""
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "step.sh"
         path.write_text(script, encoding="utf-8")
-        if shell == "bash":
+        if shell is None:
+            # A step that names no shell runs as `bash -e {0}` on Linux runners
+            # (the job log prints `shell: /usr/bin/bash -e {0}`), without pipefail.
+            command = ["bash", "-e", str(path)]
+        elif shell == "bash":
             command = ["bash", "--noprofile", "--norc", "-eo", "pipefail", str(path)]
+        elif shell == "sh":
+            command = ["sh", "-e", str(path)]
         elif "{0}" in shell:
             command = shlex.split(shell.replace("{0}", str(path)))
         else:
@@ -916,7 +924,7 @@ class GateScriptTests(unittest.TestCase):
             ("NEEDS_RESULTS", needs_results),
             ("PATH", os.environ.get("PATH", "/usr/bin:/bin")),
         )
-        return run_step(steps[0].get("shell", "bash"), steps[0]["run"], environment)
+        return run_step(steps[0].get("shell"), steps[0]["run"], environment)
 
     def test_consistent_rows_pass(self) -> None:
         code, output = self.run_gate("lifecycle-gate true success\nsite false skipped\n", "success skipped")

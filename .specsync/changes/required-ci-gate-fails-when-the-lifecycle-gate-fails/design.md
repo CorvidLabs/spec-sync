@@ -51,10 +51,10 @@ validators, and checks:
    selection text equals the job's `if:`. A job whose `if:` uses a status function other than a
    leading `always()` fails, because the gate cannot mirror it.
 3. A simulation of the job graph, with GitHub's implicit and transitive `success()`, runs the
-   gate's own step and `ci-gate`'s step under `bash --noprofile --norc -eo pipefail` for every
-   classify lane, every combination of the classify flags the conditions read, and every event.
-   The required gate must be green when every selected job succeeds, and red when any one of them
-   fails or is cancelled.
+   gate's own step and `ci-gate`'s step under `bash -e`, as the runner does for a step that names
+   no shell. It covers every classify lane, every combination of the classify flags the
+   conditions read, and every event. The required gate must be green when every selected job
+   succeeds, and red when any one of them fails or is cancelled.
 4. The pre-#796 gate definition, kept as a fixture, reproduces the bug in the same simulation, so
    the harness can see what it guards against.
 

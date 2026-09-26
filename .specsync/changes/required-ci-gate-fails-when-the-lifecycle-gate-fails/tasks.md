@@ -14,4 +14,4 @@ artifact: tasks
 - [x] Wire the test into `validate-action` and the Fledge `verify`, `ci` and `repo` lanes.
 - [x] `docs/HLD.md`, the `github` delta, and the `github` companion notes.
 - [x] `fledge lanes run verify`, `fledge lanes run pre-push` and `fledge trust verify`.
-- [ ] Confirm on the pull request that `Required CI gate` is red while the draft is unapproved.
+- [x] Confirm on the pull request that `Required CI gate` is red while the draft is unapproved (#797, run 36252382792).

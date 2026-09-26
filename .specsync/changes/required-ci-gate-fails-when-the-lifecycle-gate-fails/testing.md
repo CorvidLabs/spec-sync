@@ -22,8 +22,9 @@ artifact: testing
   site-selected job without adding it, adding a job to `needs` without a row, changing `test`'s
   `if:` without its row, and an `if:` that calls `failure()`.
 - **Simulation.** The job graph is evaluated with GitHub's implicit, transitive `success()`, and
-  the steps of `implementation-gate` and `ci-gate` run under
-  `bash --noprofile --norc -eo pipefail`. On 15 named lanes (full, full awaiting review, site-only,
+  the steps of `implementation-gate` and `ci-gate` run under `bash -e`, which is how the runner
+  invokes a step that names no shell (the job log prints `shell: /usr/bin/bash -e {0}`). On 15
+  named lanes (full, full awaiting review, site-only,
   VS Code-only, site and VS Code, specs/lifecycle-only with and without a review due, archive-only,
   legacy archive-only, review-only, four push-to-`main` lanes and `workflow_dispatch`), the
   required gate is green when every selected job succeeds. Forcing any one selected job to
@@ -37,10 +38,10 @@ artifact: testing
 
 ## Discrimination
 
-The same tests run against `ci.yml` from `origin/main` (`cddc39e4`) fail 64 cases in four tests:
+The same tests run against `ci.yml` from `origin/main` (`cddc39e4`) fail 65 cases in five tests:
 the contract (`preflight` and `lifecycle-gate` missing, no `GATES` table), both named `needs`
-checks, the #796 reproduction, and 60 injection cases (`preflight` or `lifecycle-gate` failing or
-cancelled, on each of the 15 lanes). On this branch all pass.
+checks, the CI wiring check, the #796 reproduction, and 60 injection cases (`preflight` or
+`lifecycle-gate` failing or cancelled, on each of the 15 lanes). On this branch all pass.
 
 ## Truth table
 
@@ -60,5 +61,20 @@ the 52 release-candidate tests; and the 29 new `ci-gate-test` tests.
 
 ## Live check
 
-The pull request is opened before approval, so `Lifecycle gate` fails on the unapproved draft.
-With this change `SpecSync implementation ready` and `Required CI gate` must be red on that head.
+The pull request (#797) was opened before approval, so `Lifecycle gate` failed on the unapproved
+draft at `17e63f5d` (run 36252382792): "meaningful changed paths are not covered by an active
+change". `test`, `audit`, `coverage` and `spec-check` were skipped, as on #795. This time
+`SpecSync implementation ready` failed, with one annotation per cause:
+
+```text
+lifecycle-gate was selected and ended with: failure
+test was selected but skipped, so a job it needs did not succeed
+spec-check was selected but skipped, so a job it needs did not succeed
+audit was selected but skipped, so a job it needs did not succeed
+coverage was selected but skipped, so a job it needs did not succeed
+a job this gate needs ended with: failure
+```
+
+`Required CI gate` failed with it. The new test ran in `validate-action` (29 tests, OK). The same
+job log shows the step shell as `bash -e {0}`; the simulation first assumed
+`bash --noprofile --norc -eo pipefail`, which is what `shell: bash` gets, and now uses `bash -e`.

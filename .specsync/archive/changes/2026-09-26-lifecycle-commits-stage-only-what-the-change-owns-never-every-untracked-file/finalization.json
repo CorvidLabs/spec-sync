@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file",
+  "implementation_commit": "f50bfdd57e62925c4cebcd6cb60719907cb5ff63",
+  "implementation_tree": "4554f306e90222ba3d608a8800a118c50f382012",
+  "contract_digest": "5a998fa452db13dff8d35fe8edbb0266b9173d6baa04e50a2a60831ee7c461f5",
+  "workspace_digest": "8bd65c4f58d8b0244e9d3c692dfc843446137fca4d9a9df62594374f775be2ef",
+  "closing_digest": "6fa921faeaa7e5740f31c181921c7e1c1a783e1c2ae3e7f04c08754ed96297db",
+  "review_digest": "209f5256ff60df0c9178552a198db78970fd55335229b12f39a15720822d9b50",
+  "finalization_digest": "d4beee9001f1fea6ee85a32457e54a7ae42bffa31c85e1809b9b8a31a497bd5a",
+  "timestamp": 1790402817
+}

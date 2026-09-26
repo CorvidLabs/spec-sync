@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file",
+  "slug": "lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file",
+  "title": "Lifecycle commits stage only what the change owns, never every untracked file",
+  "description": "Lifecycle commits stage only what the change owns, never every untracked file",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "be3d90d8a67b31204623dd48c761e9c25770636f",
+  "created_at": 1790399719,
+  "updated_at": 1790402817,
+  "affected_specs": [
+    "cmd_change",
+    "change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    "src/change.rs",
+    "src/change_tests.rs",
+    "docs/ADOPTING.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "change check --commit and change ship --push never commit an untracked file outside the paths the change owns: an untracked file elsewhere in the tree stays untracked and is absent from every lifecycle commit, and each one left out is listed on standard error. Those commits still carry the change workspace, its archive package, the canonical spec and requirements files its deltas write, the sequence ledger, and every tracked edit, staged through explicit literal pathspecs rather than git add -A. The run_checked_commit doc comment states what is actually committed when the second verification fails, and that error names the materialize commit already made. Regression tests drive both commands over a tree holding an unrelated untracked file and fail if it is committed."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

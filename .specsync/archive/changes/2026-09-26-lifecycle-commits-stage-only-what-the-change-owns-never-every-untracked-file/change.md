@@ -1,6 +1,6 @@
 ---
 id: lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file
-state: implementing
+state: archived
 type: bug_fix
 base_commit: be3d90d8a67b31204623dd48c761e9c25770636f
 ---

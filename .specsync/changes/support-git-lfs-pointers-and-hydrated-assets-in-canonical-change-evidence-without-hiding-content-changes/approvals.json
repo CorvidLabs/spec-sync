@@ -1,0 +1,41 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Bruno",
+      "timestamp": 1790795582,
+      "digest": "b48bcae372df50ad508a103108ee6cd299ac3a323e35a3d14f16eb5503f28d28",
+      "note": "Bruno explicitly answered Yes, use those criteria to EVIDENCE-1 and EVIDENCE-2 for issue #789. Scope approval only; implementation review is pending.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "support-git-lfs-pointers-and-hydrated-assets-in-canonical-change-evidence-without-hiding-content-changes",
+        "title": "Support Git LFS pointers and hydrated assets in canonical change evidence without hiding content changes",
+        "description": "Support Git LFS pointers and hydrated assets in canonical change evidence without hiding content changes",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "hi/evidence.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "I can complete verification in a repository containing Git LFS assets. I can trust verification to detect changed asset content, whether assets are downloaded or represented by LFS pointers. Preserve whole-workspace coverage and fail closed for unsupported filters."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "e3d6ae04b211b108bbcd4fab24f53ea493c90e47639cf6cbdcaaf3971844c366"
+      }
+    }
+  ],
+  "reopenings": []
+}

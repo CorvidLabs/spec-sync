@@ -13681,7 +13681,28 @@ fn inspect_git_candidates(
         return Err("Git core.fsmonitor cannot supply canonical working-tree evidence".into());
     }
 
-    let checkout_overrides = effective_checkout_overrides(root)?;
+    // Classify content attributes before asking Git about worktree changes.
+    // LFS is handled locally below, never by executing a configured filter.
+    let regular_for_attributes = candidates
+        .iter()
+        .filter(|path| {
+            matches!(modes.get(*path), Some(0o100644 | 0o100755))
+                || fs::symlink_metadata(root.join(*path)).is_ok_and(|metadata| metadata.is_file())
+        })
+        .cloned()
+        .collect();
+    let lfs_paths = validate_canonical_git_attributes(root, &regular_for_attributes)?;
+    let mut checkout_overrides = effective_checkout_overrides(root)?;
+    checkout_overrides.extend(
+        [
+            "filter.lfs.process=",
+            "filter.lfs.clean=",
+            "filter.lfs.smudge=",
+            "filter.lfs.required=false",
+        ]
+        .into_iter()
+        .map(str::to_string),
+    );
     let mut modified = BTreeSet::new();
     for batch in &batches {
         let mut prefix = Vec::new();
@@ -13785,18 +13806,6 @@ fn inspect_git_candidates(
         }
     }
 
-    let regular_for_attributes = candidates
-        .iter()
-        .filter(|path| {
-            matches!(modes.get(*path), Some(0o100644 | 0o100755))
-                && !modified.contains(*path)
-                && !sparse_absent.contains(*path)
-                && fs::symlink_metadata(root.join(*path)).is_ok_and(|metadata| metadata.is_file())
-        })
-        .cloned()
-        .collect();
-    validate_canonical_git_attributes(root, &regular_for_attributes)?;
-
     let worktree = GitWorktreeState {
         modified,
         sparse_absent,
@@ -13806,8 +13815,9 @@ fn inspect_git_candidates(
         .filter_map(|path| {
             let mode = modes.get(path)?;
             let object = objects.get(path)?;
-            (!worktree.modified.contains(path) && matches!(mode, 0o100644 | 0o100755 | 0o120000))
-                .then_some(object.as_str())
+            ((!worktree.modified.contains(path) || lfs_paths.contains(path))
+                && matches!(mode, 0o100644 | 0o100755 | 0o120000))
+            .then_some(object.as_str())
         })
         .collect();
     let clean_object_refs: Vec<_> = clean_objects.iter().copied().collect();
@@ -13830,14 +13840,71 @@ fn inspect_git_candidates(
                 ));
             }
         }
-        let entry = capture_git_candidate(
-            root,
-            path,
-            modes.get(path).copied(),
-            objects.get(path),
-            &worktree,
-            Some(&prefetched_blobs),
-        )?;
+        let entry = if lfs_paths.contains(path) {
+            // Never substitute the index just because Git reports a hydrated file
+            // as clean. Its actual bytes must agree with the recorded pointer.
+            if let Some(payload) = objects
+                .get(path)
+                .and_then(|object| prefetched_blobs.get(object))
+            {
+                validate_lfs_pointer(payload)
+                    .map_err(|error| format!("LFS index `{path}`: {error}"))?;
+            }
+            if fs::symlink_metadata(root.join(path)).is_ok_and(|metadata| metadata.is_file()) {
+                let mut options = OpenOptions::new();
+                options.read(true);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    // Do not follow a symlink or block on a FIFO swapped in after metadata.
+                    options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+                }
+                let mut file = options
+                    .open(root.join(path))
+                    .map_err(|error| format!("failed to open LFS input `{path}`: {error}"))?;
+                let metadata = file
+                    .metadata()
+                    .map_err(|error| format!("failed to inspect LFS input `{path}`: {error}"))?;
+                if !metadata.is_file() {
+                    return Err(format!("LFS input is not a regular file: `{path}`"));
+                }
+                // Bound even an actively growing file by its observed size.
+                let limit = metadata
+                    .len()
+                    .checked_add(1)
+                    .ok_or_else(|| format!("LFS input size overflow: `{path}`"))?;
+                let mut reader = (&mut file).take(limit);
+                let payload = canonical_lfs_payload(&mut reader)
+                    .map_err(|error| format!("LFS input `{path}`: {error}"))?;
+                if limit - reader.limit() != metadata.len() {
+                    return Err(format!("LFS input changed size during capture: `{path}`"));
+                }
+                GitCapturedEntry {
+                    kind: AcceptanceInputKind::File,
+                    mode: working_file_mode(&metadata),
+                    object: objects.get(path).cloned(),
+                    payload,
+                }
+            } else {
+                capture_git_candidate(
+                    root,
+                    path,
+                    modes.get(path).copied(),
+                    objects.get(path),
+                    &worktree,
+                    Some(&prefetched_blobs),
+                )?
+            }
+        } else {
+            capture_git_candidate(
+                root,
+                path,
+                modes.get(path).copied(),
+                objects.get(path),
+                &worktree,
+                Some(&prefetched_blobs),
+            )?
+        };
         payload_bytes = payload_bytes
             .checked_add(entry.payload.len())
             .ok_or_else(|| "Git evidence payload exceeds deterministic bounds".to_string())?;
@@ -13992,9 +14059,13 @@ fn git_worktree_state(root: &Path) -> Result<Option<GitWorktreeState>, String> {
     ))
 }
 
-fn validate_canonical_git_attributes(root: &Path, paths: &BTreeSet<String>) -> Result<(), String> {
+fn validate_canonical_git_attributes(
+    root: &Path,
+    paths: &BTreeSet<String>,
+) -> Result<BTreeSet<String>, String> {
+    let mut lfs_paths = BTreeSet::new();
     if paths.is_empty() {
-        return Ok(());
+        return Ok(lfs_paths);
     }
     let paths = paths.iter().collect::<Vec<_>>();
     for batch in paths.chunks(GIT_ATTRIBUTE_BATCH_PATHS) {
@@ -14017,12 +14088,15 @@ fn validate_canonical_git_attributes(root: &Path, paths: &BTreeSet<String>) -> R
             MAX_GIT_ATTRIBUTE_OUTPUT_BYTES,
         )
         .map_err(|error| format!("failed to inspect Git content attributes: {error}"))?;
-        validate_git_attribute_output(batch, &output)?;
+        lfs_paths.extend(validate_git_attribute_output(batch, &output)?);
     }
-    Ok(())
+    Ok(lfs_paths)
 }
 
-fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(), String> {
+fn validate_git_attribute_output(
+    paths: &[&String],
+    output: &[u8],
+) -> Result<BTreeSet<String>, String> {
     if !output.ends_with(&[0]) {
         return Err("invalid unterminated NUL-delimited `git check-attr` output".into());
     }
@@ -14042,6 +14116,7 @@ fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(),
         })
         .collect::<BTreeSet<_>>();
     let mut seen = BTreeSet::new();
+    let mut lfs_paths = BTreeSet::new();
     for record in fields.chunks_exact(3) {
         let path = record[0];
         let attribute = record[1];
@@ -14062,7 +14137,9 @@ fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(),
                 "Git returned a duplicate attribute pair `{path}` / `{attribute}`"
             ));
         }
-        if value != "unspecified" && value != "unset" {
+        if attribute == "filter" && value == "lfs" {
+            lfs_paths.insert(path.to_string());
+        } else if value != "unspecified" && value != "unset" {
             return Err(format!(
                 "Git `{attribute}` attribute is not supported for canonical evidence: `{path}`"
             ));
@@ -14071,7 +14148,77 @@ fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(),
     if seen != expected {
         return Err("Git attribute output is missing a requested path/attribute pair".into());
     }
+    Ok(lfs_paths)
+}
+
+// LFS canonicalization deliberately supports the plain v1 SHA-256 format only.
+// Extensions may transform bytes; silently stripping them would falsify evidence.
+fn validate_lfs_pointer(bytes: &[u8]) -> Result<(), String> {
+    if bytes.is_empty() {
+        return Ok(()); // LFS represents an empty object as an empty file.
+    }
+    let invalid = || "unsupported or malformed LFS pointer (expected plain SHA-256 v1)".to_string();
+    if bytes.len() >= 1024 {
+        return Err(invalid());
+    }
+    let text = std::str::from_utf8(bytes).map_err(|_| invalid())?;
+    let mut lines = text.split('\n');
+    if lines.next() != Some("version https://git-lfs.github.com/spec/v1") {
+        return Err(invalid());
+    }
+    let oid = lines
+        .next()
+        .and_then(|line| line.strip_prefix("oid sha256:"))
+        .ok_or_else(invalid)?;
+    if oid.len() != 64
+        || !oid
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(invalid());
+    }
+    let size = lines
+        .next()
+        .and_then(|line| line.strip_prefix("size "))
+        .ok_or_else(invalid)?;
+    let parsed = size.parse::<u64>().map_err(|_| invalid())?;
+    if size != parsed.to_string() || lines.next() != Some("") || lines.next().is_some() {
+        return Err(invalid());
+    }
     Ok(())
+}
+
+fn canonical_lfs_payload(reader: &mut impl Read) -> Result<Vec<u8>, String> {
+    let mut prefix = Vec::with_capacity(1024);
+    (&mut *reader)
+        .take(1024)
+        .read_to_end(&mut prefix)
+        .map_err(|error| error.to_string())?;
+    if prefix.is_empty() || prefix.starts_with(b"version ") {
+        validate_lfs_pointer(&prefix)?;
+        return Ok(prefix);
+    }
+    let mut hash = Sha256::new();
+    hash.update(&prefix);
+    let mut size = prefix.len() as u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count = reader
+            .read(&mut buffer)
+            .map_err(|error| error.to_string())?;
+        if count == 0 {
+            break;
+        }
+        size = size
+            .checked_add(count as u64)
+            .ok_or("LFS object size overflow")?;
+        hash.update(&buffer[..count]);
+    }
+    Ok(format!(
+        "version https://git-lfs.github.com/spec/v1\noid sha256:{:x}\nsize {size}\n",
+        hash.finalize()
+    )
+    .into_bytes())
 }
 
 fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {

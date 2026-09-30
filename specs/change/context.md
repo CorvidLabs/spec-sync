@@ -558,3 +558,9 @@ are never committed. It deliberately leaves out `affected_paths`. Those are pref
 steps. The workflow-v2 baseline is on the list because `change new` writes it in a freshly adopted
 project: the first test run of the fix left it out, which would have committed a change whose
 origin anchor never reached history.
+
+## Git LFS canonical evidence (#789)
+
+Ordinary Git LFS v1 files are governed inputs, not ignored assets. Evidence recognizes `filter=lfs`, suppresses external LFS filters during worktree inspection, and uses the standard SHA-256/size pointer as the canonical payload. Pointer-only checkouts therefore agree with hydrated checkouts. Hydrated bytes are streamed directly even when Git reports the path clean; pointer edits, content edits and file mode changes remain visible. The empty-file convention is preserved. Unsupported extensions or malformed pointers fail closed; custom filters and encoding/ident transformations remain unsupported. No LFS download is attempted.
+
+`ignored_paths` still controls meaningful-change policy; it does not omit assets from workspace evidence. Hydrated archives must be read to verify their actual bytes, so memory is bounded but I/O scales with content size. This draft still requires full-project typechecking and integration tests; offline dependency resolution is blocked by unavailable cached `serde-saphyr`.

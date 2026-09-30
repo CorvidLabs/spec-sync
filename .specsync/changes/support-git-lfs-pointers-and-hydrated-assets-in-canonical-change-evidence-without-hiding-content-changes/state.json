@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "support-git-lfs-pointers-and-hydrated-assets-in-canonical-change-evidence-without-hiding-content-changes",
+  "slug": "support-git-lfs-pointers-and-hydrated-assets-in-canonical-change-evidence-without-hiding-content-changes",
+  "title": "Support Git LFS pointers and hydrated assets in canonical change evidence without hiding content changes",
+  "description": "Support Git LFS pointers and hydrated assets in canonical change evidence without hiding content changes",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "6a47f2cd0c6dc5dfa4168b79ac6dda960966bcfc",
+  "created_at": 1790795521,
+  "updated_at": 1790795582,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "hi/evidence.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "I can complete verification in a repository containing Git LFS assets. I can trust verification to detect changed asset content, whether assets are downloaded or represented by LFS pointers. Preserve whole-workspace coverage and fail closed for unsupported filters."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "yes"
+  }
+}

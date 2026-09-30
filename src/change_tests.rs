@@ -19118,3 +19118,220 @@ fn lifecycle_commit_scope_names_exactly_what_the_change_owns() {
 
     assert!(lifecycle_commit_scope(root, "no-such-change").is_err());
 }
+
+// REQ-change-103: portable LFS evidence, without executing Git LFS.
+#[test]
+fn lfs_payload_pointer_and_hydrated_bytes_are_equivalent() {
+    let contents = b"asset bytes\n";
+    let pointer = format!(
+        "version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize {}\n",
+        sha256_hex(contents),
+        contents.len()
+    )
+    .into_bytes();
+    assert_eq!(
+        canonical_lfs_payload(&mut contents.as_slice()).unwrap(),
+        pointer
+    );
+    assert_eq!(
+        canonical_lfs_payload(&mut pointer.as_slice()).unwrap(),
+        pointer
+    );
+    assert!(
+        canonical_lfs_payload(&mut b"".as_slice())
+            .unwrap()
+            .is_empty()
+    );
+    assert_ne!(
+        canonical_lfs_payload(&mut b"asset edits\n".as_slice()).unwrap(),
+        pointer
+    );
+}
+
+#[test]
+fn lfs_payload_refuses_malformed_and_extended_pointers() {
+    let pointer = canonical_lfs_payload(&mut b"asset".as_slice()).unwrap();
+    let pointer = String::from_utf8(pointer).unwrap();
+    for invalid in [
+        pointer.trim_end().to_string(),
+        pointer.replace("size 5", "size 05"),
+        pointer.replace("size 5", "size 18446744073709551616"),
+        pointer.replace("spec/v1", "spec/v2"),
+        pointer.replace("oid sha256:", "oid sha512:"),
+        pointer.replace("\noid", "\next-0-test sha256:unsupported\noid"),
+        pointer.replace("\n", "\r\n"),
+        format!("{pointer}extra ignored\n"),
+        format!("version {}", "x".repeat(2048)),
+    ] {
+        assert!(
+            canonical_lfs_payload(&mut invalid.as_bytes()).is_err(),
+            "{invalid}"
+        );
+    }
+}
+
+#[test]
+fn lfs_payload_streams_large_content_in_bounded_chunks() {
+    struct BoundedReader {
+        remaining: u64,
+    }
+    impl Read for BoundedReader {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            assert!(buffer.len() <= 64 * 1024);
+            let count = self.remaining.min(buffer.len() as u64) as usize;
+            buffer[..count].fill(b'x');
+            self.remaining -= count as u64;
+            Ok(count)
+        }
+    }
+    let size = MAX_GIT_EVIDENCE_PAYLOAD_BYTES as u64 + 17;
+    let pointer = canonical_lfs_payload(&mut BoundedReader { remaining: size }).unwrap();
+    assert!(pointer.len() < 1024);
+    assert!(
+        String::from_utf8(pointer)
+            .unwrap()
+            .ends_with(&format!("size {size}\n"))
+    );
+}
+
+#[test]
+fn lfs_attribute_exception_is_specific_and_keeps_exact_output_checks() {
+    let paths = ["asset.bin".to_string()];
+    let refs = paths.iter().collect::<Vec<_>>();
+    let output = b"asset.bin\0filter\0lfs\0asset.bin\0working-tree-encoding\0unset\0asset.bin\0ident\0unspecified\0";
+    assert_eq!(
+        validate_git_attribute_output(&refs, output).unwrap(),
+        BTreeSet::from(["asset.bin".into()])
+    );
+    let unsupported = String::from_utf8(output.to_vec())
+        .unwrap()
+        .replace("lfs", "custom");
+    assert!(validate_git_attribute_output(&refs, unsupported.as_bytes()).is_err());
+    let unsupported = String::from_utf8(output.to_vec())
+        .unwrap()
+        .replace("unset", "UTF-8");
+    assert!(validate_git_attribute_output(&refs, unsupported.as_bytes()).is_err());
+    assert!(validate_git_attribute_output(&refs, &output[..output.len() - 1]).is_err());
+}
+
+#[test]
+fn lfs_workspace_and_scoped_evidence_detect_edits_without_filters() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    // Override global installations too: this fixture never needs git-lfs.
+    for setting in [
+        "filter.lfs.process=",
+        "filter.lfs.clean=",
+        "filter.lfs.smudge=",
+        "filter.lfs.required=false",
+    ] {
+        let (key, value) = setting.split_once('=').unwrap();
+        quiet_git(root, &["config", key, value]);
+    }
+    fs::write(root.join(".gitattributes"), "*.bin filter=lfs -text\n").unwrap();
+    let original = b"asset bytes\n";
+    let pointer = canonical_lfs_payload(&mut original.as_slice()).unwrap();
+    fs::write(root.join("asset.bin"), &pointer).unwrap();
+    quiet_git(root, &["add", ".gitattributes", "asset.bin"]);
+    quiet_git(root, &["commit", "-m", "LFS pointer fixture"]);
+    // If any evidence query invokes a clean/process filter, Git will fail.
+    quiet_git(root, &["config", "filter.lfs.process", "false"]);
+    quiet_git(root, &["config", "filter.lfs.clean", "false"]);
+    quiet_git(root, &["config", "filter.lfs.required", "true"]);
+    let pointer_digest = project_input_digest(root).unwrap();
+    let candidates = BTreeSet::from(["asset.bin".to_string()]);
+    let scoped = git_evidence_with_policy(root, &candidates, false, |_, _| {}).unwrap();
+    fs::write(root.join("asset.bin"), original).unwrap();
+    assert_eq!(pointer_digest, project_input_digest(root).unwrap());
+    assert_eq!(
+        scoped,
+        git_evidence_with_policy(root, &candidates, false, |_, _| {}).unwrap()
+    );
+    fs::write(root.join("asset.bin"), b"asset edits\n").unwrap();
+    assert_ne!(pointer_digest, project_input_digest(root).unwrap());
+    assert_ne!(
+        scoped,
+        git_evidence_with_policy(root, &candidates, false, |_, _| {}).unwrap()
+    );
+    let edited_pointer = canonical_lfs_payload(&mut b"asset edits\n".as_slice()).unwrap();
+    fs::write(root.join("asset.bin"), &edited_pointer).unwrap();
+    assert_ne!(pointer_digest, project_input_digest(root).unwrap());
+    quiet_git(
+        root,
+        &[
+            "-c",
+            "filter.lfs.process=",
+            "-c",
+            "filter.lfs.clean=",
+            "-c",
+            "filter.lfs.required=false",
+            "add",
+            "asset.bin",
+        ],
+    );
+    assert_ne!(pointer_digest, project_input_digest(root).unwrap());
+    fs::remove_file(root.join("asset.bin")).unwrap();
+    assert_ne!(pointer_digest, project_input_digest(root).unwrap());
+}
+
+#[test]
+fn lfs_unchanged_out_of_scope_assets_allow_change_check() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    for setting in [
+        "filter.lfs.process=",
+        "filter.lfs.clean=",
+        "filter.lfs.smudge=",
+        "filter.lfs.required=false",
+    ] {
+        let (key, value) = setting.split_once('=').unwrap();
+        quiet_git(root, &["config", key, value]);
+    }
+    fs::create_dir(root.join("assets")).unwrap();
+    fs::write(root.join("README.md"), "base\n").unwrap();
+    fs::write(root.join(".gitattributes"), "assets/* filter=lfs -text\n").unwrap();
+    let contents = b"archived source art";
+    fs::write(
+        root.join("assets/archive.bin"),
+        canonical_lfs_payload(&mut contents.as_slice()).unwrap(),
+    )
+    .unwrap();
+    quiet_git(root, &["add", "."]);
+    quiet_git(root, &["commit", "-m", "source and unrelated LFS asset"]);
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    let mut policy: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join(POLICY_PATH)).unwrap()).unwrap();
+    policy["ignored_paths"] = serde_json::json!([".specsync/", "specs/", "assets/"]);
+    fs::write(
+        root.join(POLICY_PATH),
+        serde_json::to_vec_pretty(&policy).unwrap(),
+    )
+    .unwrap();
+    approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    assert!(
+        check_change(root, Some(&record.id))
+            .unwrap()
+            .unwrap()
+            .passed
+    );
+    fs::write(root.join("assets/archive.bin"), contents).unwrap();
+    assert!(
+        check_change(root, Some(&record.id))
+            .unwrap()
+            .unwrap()
+            .passed
+    );
+    let digest = project_input_digest(root).unwrap();
+    fs::write(root.join("assets/archive.bin"), b"different source art").unwrap();
+    assert_ne!(
+        digest,
+        project_input_digest(root).unwrap(),
+        "ignored_paths must not hide an asset mutation"
+    );
+}

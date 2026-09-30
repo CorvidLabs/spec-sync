@@ -1,6 +1,6 @@
 ---
 module: change
-version: 126
+version: 127
 status: active
 files:
   - src/change.rs
@@ -489,3 +489,5 @@ Acceptance Criteria
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
 | 2026-09-09 | drop-interpolated-next-action-from-v1-verifying-assert-messages-so-codeql-cleartext-logging-is-not-a-required-check: Drop interpolated next_action from v1 verifying assert messages so CodeQL cleartext-logging is not a required-check failure |
 | 2026-09-26 | lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file: Lifecycle commits stage only what the change owns, never every untracked file |
+
+| 2026-09-30 | LFS evidence (#789) | Support ordinary SHA-256 v1 pointers and streamed hydrated content without invoking filters; preserve full evidence inventory and mutation detection. |

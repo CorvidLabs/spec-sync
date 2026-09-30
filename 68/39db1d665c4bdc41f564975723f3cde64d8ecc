@@ -1,0 +1,1 @@
+{"commit":"6839db1d665c4bdc41f564975723f3cde64d8ecc","confidence":0.9,"humanApproved":false,"note":"Focused MCP 83/83 unit and 44/44 integration tests, lint/format, six targeted regressions, and Windows GNU compilation passed; hosted Windows runtime and lifecycle reapproval remain pending.","reviewer":"agent:codex","testsPassed":true,"timestamp":1784771597,"verdict":"proceed"}

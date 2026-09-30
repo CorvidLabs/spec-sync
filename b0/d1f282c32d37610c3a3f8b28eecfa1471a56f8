@@ -1,0 +1,1 @@
+{"commit":"b0d1f282c32d37610c3a3f8b28eecfa1471a56f8","confidence":0.99,"humanApproved":true,"note":"Post-merge verification for PR 374: CHG-0033 acceptance and CHG-0026/0027/0029 reacceptances are integrated on exact main; PR 373 preserves newer exact-main CHG-0024/0025 evidence.","reviewer":"agent:codex","testsPassed":true,"timestamp":1784050116,"verdict":"proceed"}

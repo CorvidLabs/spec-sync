@@ -1,0 +1,1 @@
+{"commit":"9065432bf783f985372dfd2a28ce021a82e71303","confidence":0.99,"humanApproved":true,"note":"CHG-0041 reaccepted as 0xLeif after the Windows CRLF parity correction; Fledge trust verification passed with 1,810 tests and strict 100% spec coverage.","reviewer":"agent:codex","testsPassed":true,"timestamp":1784075749,"verdict":"proceed"}

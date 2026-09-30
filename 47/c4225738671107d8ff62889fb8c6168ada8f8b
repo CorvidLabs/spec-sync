@@ -1,0 +1,1 @@
+{"commit":"47c4225738671107d8ff62889fb8c6168ada8f8b","confidence":0.9,"humanApproved":false,"note":"CI green: test, fmt, audit, coverage, site, vscode-extension, validate-action, action-consumer, spec-check","reviewer":"agent:ci","testsPassed":true,"timestamp":1783801143,"verdict":"proceed"}

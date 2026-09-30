@@ -8,4 +8,4 @@ artifact: tasks
 - [x] Implement LFS evidence collection.
 - [x] Add parity, mutation, failure and lifecycle regressions.
 - [x] Synchronize specs and record actual validation.
-- [ ] Pass pre-push gate before publishing a PR.
+- [x] Pass pre-push gate before publishing a PR.

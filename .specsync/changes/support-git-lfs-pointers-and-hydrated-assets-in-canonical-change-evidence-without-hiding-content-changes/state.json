@@ -7,10 +7,11 @@
   "title": "Support Git LFS pointers and hydrated assets in canonical change evidence without hiding content changes",
   "description": "Support Git LFS pointers and hydrated assets in canonical change evidence without hiding content changes",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "6a47f2cd0c6dc5dfa4168b79ac6dda960966bcfc",
   "created_at": 1790795521,
-  "updated_at": 1790795582,
+  "updated_at": 1790797646,
   "affected_specs": [
     "change"
   ],

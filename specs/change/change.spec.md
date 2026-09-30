@@ -1,6 +1,6 @@
 ---
 module: change
-version: 127
+version: 128
 status: active
 files:
   - src/change.rs
@@ -491,3 +491,4 @@ Acceptance Criteria
 | 2026-09-26 | lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file: Lifecycle commits stage only what the change owns, never every untracked file |
 
 | 2026-09-30 | LFS evidence (#789) | Support ordinary SHA-256 v1 pointers and streamed hydrated content without invoking filters; preserve full evidence inventory and mutation detection. |
+| 2026-09-30 | support-git-lfs-pointers-and-hydrated-assets-in-canonical-change-evidence-without-hiding-content-changes: Support Git LFS pointers and hydrated assets in canonical change evidence without hiding content changes |

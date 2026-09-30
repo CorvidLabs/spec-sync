@@ -1,6 +1,6 @@
 ---
 id: support-git-lfs-pointers-and-hydrated-assets-in-canonical-change-evidence-without-hiding-content-changes
-state: approved
+state: implementing
 type: bug_fix
 base_commit: 6a47f2cd0c6dc5dfa4168b79ac6dda960966bcfc
 ---

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "pin-the-trust-gate-to-1-2-1",
+  "implementation_commit": "c656982771a869edc29ff8f8e95d2d7aff95d6ca",
+  "implementation_tree": "1812691b2c90bee15ccd9d87cc2260905cf26d4c",
+  "contract_digest": "58eb157bde5b96fa2e91e96f2e1550de8b5c1b63f6bd10a399179b13875c4107",
+  "workspace_digest": "69577a876f5631724fc5fe7504066663ea8ae65afac8163cbf1e79770b7716c7",
+  "closing_digest": "bd1be37cd849d4b4911800ccd13fe57adae33d4d2212200c37f5c2f8ae5b3bf3",
+  "review_digest": "424a5d19c89fd6d767a7c8619b81caacabff6085ed431d636c9e1acf88df48a7",
+  "finalization_digest": "305e09ae9021efef99a33e580fa73c15217694ba647df49ca333079133f72911",
+  "timestamp": 1790443749
+}

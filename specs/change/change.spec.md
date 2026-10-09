@@ -1,6 +1,6 @@
 ---
 module: change
-version: 126
+version: 127
 status: active
 files:
   - src/change.rs
@@ -42,6 +42,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 20. Workflow-v2 adoption atomically freezes a comparison-base cutoff that precedes its unique introduction, opens its lifecycle lock without following symlinks, journals only lossless UTF-8 publication paths whose filename components cannot be confused with platform separators, confines them beneath the project without symlink traversal, leaves an existing enabled version-1 policy byte-identical (adoption rewrites only `enabled`, and only when it is off), refuses to strand v1 records absent from that cutoff, routes every subsequent change through workflow v2, and fails closed if any reachable parent introduced a subsequently absent baseline.
 21. Existing-change definition mutations validate correction-ledger integrity while holding the same project lock that guards persistence and return the validated effective-definition snapshot used by command output.
 22. Every change carries a handoff readiness — `safe`, `conditional`, or `not-yet` — computed as a pure function of its lifecycle signals: a project-wide sequence freeze, open interview questions, artifact completeness, definition-approval currency, correction-ledger validity, uncommitted edits under `affected_paths` (never `.specsync/` evidence, which the review → finalize pair leaves uncommitted by design), verification currency, scoped-review currency, and terminal-evidence staleness. A Draft is never `safe` because approval is the first boundary a fresh session can resume from; the summary names one plain-language reason without digests, the resume command `specsync change status <id>`, and the steps to take before clearing when readiness is not `safe`.
+23. The workspace digest names each clean tracked file by its Git object id (`specsync.project-input-digest.v3`). It reads file bytes only for dirty or untracked paths, and those reads stay inside the existing payload bound. `filter=lfs` is that object id, which is the pointer, so a clean LFS file is not read from the worktree. Every other content filter still fails closed. A change's own acceptance evidence still hashes the bytes of the paths it covers.
 
 ## Public API
 
@@ -351,6 +352,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-10-08 | name-clean-git-files-by-object-id-so-change-check-accepts-an-lfs-pointer: Name clean Git files by object id so change check accepts an LFS pointer |
 | 2026-09-01 | Scoped review may be recorded by the definition approver; GitHub remains merge authority. |
 | 2026-08-30 | Fresh `init` writes SDD off; `require_change_for_meaningful_files` is false on new policies. `check` does not call `audit_project`. `change check` is in-process spec↔code sync and does not spawn `verification_commands`. |
 | 2026-08-30 | v117: `change check` is scoped to the change. A declared module with no spec on disk fails by name instead of shrinking the scope to nothing; an empty scope stays a pass only for a change that claimed no contract. Evidence `--spec` names are the stems `filter_specs` matches. |

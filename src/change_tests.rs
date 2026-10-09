@@ -2589,9 +2589,17 @@ fn clean_materialized_symlink_uses_canonical_git_target() {
         sparse_absent: BTreeSet::new(),
     };
     assert_eq!(
-        capture_git_candidate(root, "link", Some(0o120000), Some(&object), &worktree, None,)
-            .unwrap()
-            .payload,
+        capture_git_candidate(
+            root,
+            "link",
+            Some(0o120000),
+            Some(&object),
+            &worktree,
+            None,
+            false,
+        )
+        .unwrap()
+        .payload,
         b"../shared/tool"
     );
 }
@@ -2631,8 +2639,16 @@ fn portable_symlink_payload_preserves_valid_relative_target_bytes() {
         let object = String::from_utf8(output.stdout).unwrap().trim().to_string();
         fs::write(&materialized, b"host-working-copy-bytes").unwrap();
         assert_eq!(
-            capture_git_candidate(root, "link", Some(0o120000), Some(&object), &worktree, None,)
-                .unwrap(),
+            capture_git_candidate(
+                root,
+                "link",
+                Some(0o120000),
+                Some(&object),
+                &worktree,
+                None,
+                false,
+            )
+            .unwrap(),
             GitCapturedEntry {
                 kind: AcceptanceInputKind::Symlink,
                 mode: 0o120000,
@@ -2860,6 +2876,36 @@ fn custom_content_attributes_fail_before_index_substitution() {
 }
 
 #[test]
+fn git_lfs_clean_file_is_named_by_its_object_id() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    // Do not invoke the real Git LFS process filter; only the attribute matters.
+    quiet_git(root, &["config", "filter.lfs.required", "false"]);
+    quiet_git(root, &["config", "filter.lfs.clean", "cat"]);
+    quiet_git(root, &["config", "filter.lfs.smudge", "cat"]);
+    fs::write(root.join(".gitattributes"), "*.bin filter=lfs -text\n").unwrap();
+    let pointer = b"version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n";
+    fs::write(root.join("pack.bin"), pointer).unwrap();
+    quiet_git(root, &["add", ".gitattributes", "pack.bin"]);
+    quiet_git(root, &["commit", "-m", "track lfs pointer"]);
+
+    let candidates = BTreeSet::from(["pack.bin".to_string()]);
+    let inspected = inspect_git_candidates(root, &candidates, false, true).unwrap();
+    let entry = inspected.entries.get("pack.bin").unwrap();
+    let object = entry.object.clone().unwrap();
+    assert_eq!(entry.payload, object.as_bytes());
+    assert_ne!(entry.payload.as_slice(), pointer);
+
+    let clean = project_input_digest(root).unwrap();
+    fs::write(root.join("pack.bin"), b"smudged working tree\n").unwrap();
+    let dirty = project_input_digest(root).unwrap();
+    assert_ne!(clean, dirty);
+}
+
+#[test]
 fn attribute_output_requires_the_exact_requested_cartesian_set() {
     let paths = ["tracked.txt".to_string()];
     let refs = paths.iter().collect::<Vec<_>>();
@@ -3040,7 +3086,7 @@ fn a_directory_candidate_admits_the_files_it_expands_to() {
     let mut extra = BTreeSet::new();
     extra.insert(archived.to_string());
 
-    let result = stable_discovered_evidence(root, None, &extra, false);
+    let result = stable_discovered_evidence(root, None, &extra, false, false);
     assert!(
         result.is_ok(),
         "directory candidate rejected its own expansion: {}",
@@ -3059,6 +3105,7 @@ fn discovered_git_inventory_mutation_retries_then_fails_closed() {
         root,
         None,
         &BTreeSet::new(),
+        false,
         false,
         |attempt, root| {
             let path = format!("appeared-{attempt}.txt");
@@ -3085,6 +3132,7 @@ fn discovered_non_git_inventory_mutation_retries_then_fails_closed() {
         None,
         &BTreeSet::new(),
         false,
+        false,
         |attempt, root| {
             fs::write(root.join(format!("appeared-{attempt}.txt")), "new\n").unwrap();
         },
@@ -3107,6 +3155,7 @@ fn repository_worktree_link_mutation_fails_closed() {
         root,
         None,
         &BTreeSet::new(),
+        false,
         false,
         |_attempt, root| {
             if !root.join(".git-original").exists() {
@@ -4361,7 +4410,7 @@ fn git_candidate_inspection_deduplicates_identical_overlapping_pathspec_entries(
     }
     quiet_git(root, &["add", parent]);
 
-    let inspected = inspect_git_candidates(root, &candidates, false).unwrap();
+    let inspected = inspect_git_candidates(root, &candidates, false, false).unwrap();
 
     assert_eq!(inspected.modes.len(), GIT_ATTRIBUTE_BATCH_PATHS + 1);
     assert_eq!(inspected.objects.len(), GIT_ATTRIBUTE_BATCH_PATHS + 1);

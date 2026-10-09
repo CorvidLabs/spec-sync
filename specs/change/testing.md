@@ -14,6 +14,8 @@ Unit tests cover IDs, requirement grammar, semantic application, unsafe command 
 
 ## Requirement Evidence
 
+- `REQ-change-103`: `git_lfs_clean_file_is_named_by_its_object_id` proves a clean `filter=lfs` file is the Git object id, that the workspace digest succeeds, and that a dirty working tree changes it. `custom_content_attributes_fail_before_index_substitution` and `fsmonitor_valid_and_ident_conversion_fail_closed` keep every other content filter fail-closed. Scoped acceptance tests still compare payload digests to the file bytes.
+
 - `REQ-change-001`–`REQ-change-004`: full lifecycle, stale approval, JSON interview, and requirement-evidence unit/integration tests.
 - `REQ-change-005`: Markdown boundary, rollback, and interrupted-transaction recovery tests.
 - `REQ-change-006`: working-tree digest, Unicode/space path, and failed-evidence tests.

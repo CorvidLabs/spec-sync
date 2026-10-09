@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1791507279,
+      "commit": "6a47f2cd0c6dc5dfa4168b79ac6dda960966bcfc",
+      "contract_digest": "fde7580f4978add274440f6f04b53d65cb12159d514dac4121816161eb44219a",
+      "execution_digest": "3ae29f31bf8d872a0dcda5d386ee698ec55e123278e8355e0aa48ae3def64013",
+      "workspace_digest": "42d9d6223078d7205809fe17005019a9aeb049c12415be6c16bc118937094f7e",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-103"
+      ]
+    },
+    {
+      "timestamp": 1791507470,
+      "commit": "6a47f2cd0c6dc5dfa4168b79ac6dda960966bcfc",
+      "contract_digest": "fde7580f4978add274440f6f04b53d65cb12159d514dac4121816161eb44219a",
+      "execution_digest": "3ae29f31bf8d872a0dcda5d386ee698ec55e123278e8355e0aa48ae3def64013",
+      "workspace_digest": "42d9d6223078d7205809fe17005019a9aeb049c12415be6c16bc118937094f7e",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-103"
+      ]
+    }
+  ]
+}

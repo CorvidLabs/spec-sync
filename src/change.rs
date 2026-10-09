@@ -95,6 +95,8 @@ struct DiscoveredEvidenceCacheKey {
     scopes: Option<Vec<String>>,
     extra_candidates: Vec<String>,
     regular_files_only: bool,
+    /// Clean tracked files are named by Git object id instead of their blob bytes.
+    identify_clean_blobs: bool,
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -306,7 +308,7 @@ impl GitEvidence {
 
 const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
 const SCOPE_DIGEST_DOMAIN: &[u8] = b"specsync.scope-digest.v1";
-const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v2";
+const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v3";
 const ACCEPTANCE_DIGEST_DOMAIN: &[u8] = b"specsync.acceptance-input-digest.v2";
 const ACCEPTANCE_ENTRY_DOMAIN: &[u8] = b"specsync.acceptance-entry.v1";
 const ACCEPTANCE_MANIFEST_DOMAIN: &[u8] = b"specsync.acceptance-manifest.v1";
@@ -11439,7 +11441,10 @@ fn project_input_digest(root: &Path) -> Result<String, String> {
 }
 
 fn project_input_digest_uncached(root: &Path) -> Result<String, String> {
-    let (paths, evidence) = stable_discovered_evidence(root, None, &BTreeSet::new(), false)?;
+    // Name clean Git files by object id. The digest still changes when the
+    // blob changes, and the payload bound applies only to bytes actually read
+    // (dirty files and repositories that are not Git).
+    let (paths, evidence) = stable_discovered_evidence(root, None, &BTreeSet::new(), false, true)?;
     let mut digest = FramedDigest::new(PROJECT_DIGEST_DOMAIN);
     for relative in paths {
         if project_input_is_volatile(&relative) {
@@ -11721,11 +11726,13 @@ fn stable_discovered_evidence(
     scopes: Option<&BTreeSet<String>>,
     extra_candidates: &BTreeSet<String>,
     regular_files_only: bool,
+    identify_clean_blobs: bool,
 ) -> Result<(Vec<String>, GitEvidence), String> {
     let key = DiscoveredEvidenceCacheKey {
         scopes: scopes.map(|values| values.iter().cloned().collect()),
         extra_candidates: extra_candidates.iter().cloned().collect(),
         regular_files_only,
+        identify_clean_blobs,
     };
     if let Some(evidence) =
         read_scope_value(root, |scope| scope.discovered_evidence.get(&key).cloned())
@@ -11737,6 +11744,7 @@ fn stable_discovered_evidence(
         scopes,
         extra_candidates,
         regular_files_only,
+        identify_clean_blobs,
         |_, _| {},
     );
     update_read_scope(root, |scope| {
@@ -11753,6 +11761,7 @@ fn stable_discovered_evidence_with_hook<Hook>(
     scopes: Option<&BTreeSet<String>>,
     extra_candidates: &BTreeSet<String>,
     regular_files_only: bool,
+    identify_clean_blobs: bool,
     hook: Hook,
 ) -> Result<(Vec<String>, GitEvidence), String>
 where
@@ -11763,6 +11772,7 @@ where
         scopes,
         extra_candidates,
         regular_files_only,
+        identify_clean_blobs,
         hook,
     )
 }
@@ -11772,6 +11782,7 @@ fn stable_discovered_evidence_with_hook_internal<Hook>(
     scopes: Option<&BTreeSet<String>>,
     extra_candidates: &BTreeSet<String>,
     regular_files_only: bool,
+    identify_clean_blobs: bool,
     mut hook: Hook,
 ) -> Result<(Vec<String>, GitEvidence), String>
 where
@@ -11783,7 +11794,12 @@ where
             |candidates: &BTreeSet<String>| -> Result<(Option<String>, GitEvidence), String> {
                 if initial_context.git {
                     let index = git_index_fingerprint(root)?;
-                    let inspected = inspect_git_candidates(root, candidates, regular_files_only)?;
+                    let inspected = inspect_git_candidates(
+                        root,
+                        candidates,
+                        regular_files_only,
+                        identify_clean_blobs,
+                    )?;
                     Ok((
                         Some(index),
                         GitEvidence {
@@ -12059,8 +12075,13 @@ fn acceptance_manifest_internal(
     if let Some(signed) = signed {
         extra_candidates.extend(signed.entries.iter().map(|entry| entry.path.clone()));
     }
-    let (mut paths, evidence) =
-        stable_discovered_evidence(root, Some(&discovery_scopes), &extra_candidates, false)?;
+    let (mut paths, evidence) = stable_discovered_evidence(
+        root,
+        Some(&discovery_scopes),
+        &extra_candidates,
+        false,
+        false,
+    )?;
     paths.retain(|path| {
         (!project_input_is_volatile(path) || path == LEGACY_BASELINE_PATH)
             && record_covers_project_path(root, record, path)
@@ -13383,9 +13404,9 @@ where
     }
     for attempt in 0..2 {
         let before_index = git_index_fingerprint(root)?;
-        let before = inspect_git_candidates(root, candidates, regular_files_only)?;
+        let before = inspect_git_candidates(root, candidates, regular_files_only, false)?;
         after_inspection(attempt, root);
-        let after = inspect_git_candidates(root, candidates, regular_files_only)?;
+        let after = inspect_git_candidates(root, candidates, regular_files_only, false)?;
         let after_index = git_index_fingerprint(root)?;
         if before_index == after_index && before == after {
             return Ok(GitEvidence {
@@ -13586,6 +13607,7 @@ fn inspect_git_candidates(
     root: &Path,
     candidates: &BTreeSet<String>,
     regular_files_only: bool,
+    identify_clean_blobs: bool,
 ) -> Result<InspectedGitCandidates, String> {
     let mut stage_entries = BTreeMap::new();
     let batches = candidate_argument_batches(candidates);
@@ -13806,8 +13828,17 @@ fn inspect_git_candidates(
         .filter_map(|path| {
             let mode = modes.get(path)?;
             let object = objects.get(path)?;
-            (!worktree.modified.contains(path) && matches!(mode, 0o100644 | 0o100755 | 0o120000))
-                .then_some(object.as_str())
+            let clean =
+                !worktree.modified.contains(path) && matches!(mode, 0o100644 | 0o100755 | 0o120000);
+            if !clean {
+                return None;
+            }
+            // Regular-file bytes are not needed when the caller names the object.
+            // Symlinks stay materialized so their targets are still checked.
+            if identify_clean_blobs && matches!(mode, 0o100644 | 0o100755) {
+                return None;
+            }
+            Some(object.as_str())
         })
         .collect();
     let clean_object_refs: Vec<_> = clean_objects.iter().copied().collect();
@@ -13837,6 +13868,7 @@ fn inspect_git_candidates(
             objects.get(path),
             &worktree,
             Some(&prefetched_blobs),
+            identify_clean_blobs,
         )?;
         payload_bytes = payload_bytes
             .checked_add(entry.payload.len())
@@ -13861,6 +13893,7 @@ fn capture_git_candidate(
     object: Option<&String>,
     worktree: &GitWorktreeState,
     prefetched_blobs: Option<&BTreeMap<String, Vec<u8>>>,
+    identify_clean_blobs: bool,
 ) -> Result<GitCapturedEntry, String> {
     if index_mode == Some(0o160000) {
         let object = object
@@ -13880,6 +13913,14 @@ fn capture_git_candidate(
             || matches!(mode, 0o100644 | 0o100755 | 0o120000)
         {
             let object = object.expect("clean tracked object").clone();
+            if identify_clean_blobs && matches!(mode, 0o100644 | 0o100755) {
+                return Ok(GitCapturedEntry {
+                    kind: acceptance_kind_for_mode(mode),
+                    mode,
+                    payload: object.as_bytes().to_vec(),
+                    object: Some(object),
+                });
+            }
             let payload = match prefetched_blobs.and_then(|blobs| blobs.get(&object)) {
                 Some(payload) => payload.clone(),
                 None => git_blob_bytes(root, &object)?,
@@ -13988,7 +14029,7 @@ fn git_worktree_state(root: &Path) -> Result<Option<GitWorktreeState>, String> {
         return Ok(None);
     }
     Ok(Some(
-        inspect_git_candidates(root, &candidates, false)?.worktree,
+        inspect_git_candidates(root, &candidates, false, false)?.worktree,
     ))
 }
 
@@ -14063,6 +14104,11 @@ fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(),
             ));
         }
         if value != "unspecified" && value != "unset" {
+            // Git LFS stores a pointer blob. That object id is the canonical
+            // evidence. The smudged working tree is not.
+            if attribute == "filter" && value == "lfs" {
+                continue;
+            }
             return Err(format!(
                 "Git `{attribute}` attribute is not supported for canonical evidence: `{path}`"
             ));
@@ -15113,8 +15159,13 @@ fn acceptance_input_digest(
         })
         .collect::<Result<_, String>>()?;
     let extra_candidates = override_content.keys().cloned().collect();
-    let (mut paths, evidence) =
-        stable_discovered_evidence(root, Some(&discovery_scopes), &extra_candidates, false)?;
+    let (mut paths, evidence) = stable_discovered_evidence(
+        root,
+        Some(&discovery_scopes),
+        &extra_candidates,
+        false,
+        false,
+    )?;
     paths.retain(|path| {
         !project_input_is_volatile(path) && record_covers_project_path(root, record, path)
     });
@@ -16135,7 +16186,7 @@ fn load_legacy_archive_baseline_context(
         .map(|entry| entry.archive_path.clone())
         .collect();
     let (project_paths, evidence) =
-        stable_discovered_evidence(root, Some(&scopes), &BTreeSet::new(), false)?;
+        stable_discovered_evidence(root, Some(&scopes), &BTreeSet::new(), false, false)?;
     let snapshots = baseline
         .entries
         .iter()
@@ -16442,7 +16493,7 @@ fn archive_workspace_snapshot(
     }
     let scopes = BTreeSet::from([project_subtree.to_string()]);
     let (project_paths, evidence) =
-        stable_discovered_evidence(root, Some(&scopes), &workspace_paths, false)?;
+        stable_discovered_evidence(root, Some(&scopes), &workspace_paths, false, false)?;
     archive_snapshot_from_evidence(&project_paths, &evidence, project_subtree)
 }
 

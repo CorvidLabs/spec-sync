@@ -2596,8 +2596,7 @@ fn clean_materialized_symlink_uses_canonical_git_target() {
             Some(&object),
             &worktree,
             None,
-            false,
-            false,
+            GitCaptureOptions::default(),
         )
         .unwrap()
         .payload,
@@ -2647,8 +2646,7 @@ fn portable_symlink_payload_preserves_valid_relative_target_bytes() {
                 Some(&object),
                 &worktree,
                 None,
-                false,
-                false,
+                GitCaptureOptions::default(),
             )
             .unwrap(),
             GitCapturedEntry {
@@ -2988,8 +2986,10 @@ fn filter_lfs_rejects_a_blob_that_is_not_a_pointer() {
         Some(&object),
         &worktree,
         Some(&prefetched),
-        true,
-        true,
+        GitCaptureOptions {
+            identify_clean_blobs: true,
+            lfs: true,
+        },
     )
     .unwrap_err();
     assert!(error.contains("not a Git LFS pointer"), "{error}");

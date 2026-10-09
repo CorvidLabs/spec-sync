@@ -13896,8 +13896,10 @@ fn inspect_git_candidates(
             objects.get(path),
             &worktree,
             Some(&prefetched_blobs),
-            identify_clean_blobs,
-            lfs_paths.contains(path),
+            GitCaptureOptions {
+                identify_clean_blobs,
+                lfs: lfs_paths.contains(path),
+            },
         )?;
         payload_bytes = payload_bytes
             .checked_add(entry.payload.len())
@@ -13915,6 +13917,12 @@ fn inspect_git_candidates(
     })
 }
 
+#[derive(Default)]
+struct GitCaptureOptions {
+    identify_clean_blobs: bool,
+    lfs: bool,
+}
+
 fn capture_git_candidate(
     root: &Path,
     relative: &str,
@@ -13922,8 +13930,7 @@ fn capture_git_candidate(
     object: Option<&String>,
     worktree: &GitWorktreeState,
     prefetched_blobs: Option<&BTreeMap<String, Vec<u8>>>,
-    identify_clean_blobs: bool,
-    lfs: bool,
+    options: GitCaptureOptions,
 ) -> Result<GitCapturedEntry, String> {
     if index_mode == Some(0o160000) {
         let object = object
@@ -13944,8 +13951,8 @@ fn capture_git_candidate(
             || matches!(mode, 0o100644 | 0o100755 | 0o120000)
         {
             let object = object.expect("clean tracked object").clone();
-            if identify_clean_blobs && matches!(mode, 0o100644 | 0o100755) {
-                if lfs {
+            if options.identify_clean_blobs && matches!(mode, 0o100644 | 0o100755) {
+                if options.lfs {
                     let pointer = match prefetched_blobs.and_then(|blobs| blobs.get(&object)) {
                         Some(payload) => payload.clone(),
                         None => git_blob_bytes(root, &object)?,

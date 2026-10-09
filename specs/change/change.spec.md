@@ -1,6 +1,6 @@
 ---
 module: change
-version: 128
+version: 129
 status: active
 files:
   - src/change.rs
@@ -352,6 +352,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-10-09 | v129: group private Git capture options to satisfy Clippy's argument limit without changing evidence behavior. |
 | 2026-10-09 | v128: a clean object id is framed apart from file bytes. `filter=lfs` requires the Git LFS clean and smudge commands and a pointer blob. |
 | 2026-10-08 | name-clean-git-files-by-object-id-so-change-check-accepts-an-lfs-pointer: Name clean Git files by object id so change check accepts an LFS pointer |
 | 2026-09-01 | Scoped review may be recorded by the definition approver; GitHub remains merge authority. |

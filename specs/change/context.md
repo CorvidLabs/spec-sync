@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Context
 
+PR #801's CI failed at Clippy because `capture_git_candidate` took eight arguments. Its two capture flags now live in private `GitCaptureOptions`; object identity, LFS pointer validation, and payload capture behavior remain the same.
+
 The workspace digest (`specsync.project-input-digest.v4`) names each clean tracked file by its Git object id, framed as an object id so those bytes cannot match a dirty file. `change check` uses that digest to tell whether the tree still matches the recorded verification. It does not load every blob. `filter=lfs` is that object id only when clean and smudge are the Git LFS commands and the blob is an LFS pointer. Dirty and untracked files are still read, and those reads stay inside the existing payload bound. Every other content filter still fails closed. A change's own acceptance evidence still hashes the bytes of the paths it covers. A recorded v3 digest does not match v4, so an existing verification is stale until `change check` records a new one.
 
 Issue #587: timeout cleanup tests observe child identity synchronously in a test-only parent hook. A stopped-child case makes progress impossible during the deadline; a 4 MiB stdin payload exercises the writer. waitpid with WNOHANG distinguishes already-reaped children from live children and zombies without probing a potentially reused PID. Test-only observation records the actual writer join. Production deadlines and APIs are unchanged.

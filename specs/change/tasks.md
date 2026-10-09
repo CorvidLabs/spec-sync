@@ -4,7 +4,7 @@ spec: change.spec.md
 
 # Tasks
 
-- [x] Name clean Git files by object id in the workspace digest, and accept `filter=lfs` as that pointer object.
+- [x] Name clean Git files by object id in the workspace digest, frame that id apart from file bytes, and accept `filter=lfs` only for the Git LFS driver and a pointer blob.
 - [x] Replace child-written PID evidence with deterministic parent observation and stopped-child timeout coverage (#587).
 
 - [x] Allow audited reopen of unreconstructible legacy acceptance with matching current inputs (#751).

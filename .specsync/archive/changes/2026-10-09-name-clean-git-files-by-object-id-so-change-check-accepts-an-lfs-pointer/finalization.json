@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "name-clean-git-files-by-object-id-so-change-check-accepts-an-lfs-pointer",
+  "implementation_commit": "f213f03454aeb7c596635bd7f2b9dd68b4f744ae",
+  "implementation_tree": "51b55ace1e0f54e4a8f266b9daba9b91a72837d2",
+  "contract_digest": "fde7580f4978add274440f6f04b53d65cb12159d514dac4121816161eb44219a",
+  "workspace_digest": "ee9d3808e3347ebeaf31338d86dd9530ef1fb6a0bf9b87a56ba461fa67a4d2d4",
+  "closing_digest": "42422742c2a9453e34f9a9d737652f53b0120613baaff8d5e3e0dbe12c5c2c01",
+  "review_digest": "7251bdf79f361b67ee78c1afc6067ee9f6276e0f66ceada49463765672e07143",
+  "finalization_digest": "4d4ce4e06867f5bc4ee26a3414e0ff53571db920b4485cb0b17d9210341bca4f",
+  "timestamp": 1791508712
+}

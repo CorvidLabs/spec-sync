@@ -1,6 +1,6 @@
 ---
 id: name-clean-git-files-by-object-id-so-change-check-accepts-an-lfs-pointer
-state: implementing
+state: archived
 type: feature
 base_commit: 6a47f2cd0c6dc5dfa4168b79ac6dda960966bcfc
 ---

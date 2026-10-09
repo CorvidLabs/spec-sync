@@ -7,11 +7,11 @@
   "title": "Name clean Git files by object id so change check accepts an LFS pointer",
   "description": "Name clean Git files by object id so change check accepts an LFS pointer",
   "kind": "feature",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "6a47f2cd0c6dc5dfa4168b79ac6dda960966bcfc",
   "created_at": 1791506869,
-  "updated_at": 1791507479,
+  "updated_at": 1791509373,
   "affected_specs": [
     "change"
   ],

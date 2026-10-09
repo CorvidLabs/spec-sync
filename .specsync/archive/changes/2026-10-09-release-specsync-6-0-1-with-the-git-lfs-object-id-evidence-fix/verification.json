@@ -1,0 +1,224 @@
+{
+  "timestamp": 1791556001,
+  "commit": "7864698fa17f5c4daff308db3e3491e7e1600487",
+  "contract_digest": "2b9facb5572a4c4cf60dac73180504117baf695d16cced1e0d06490843dba65a",
+  "execution_digest": "69bd2df0b05d3502add6e7ffe4bbecfaee810ecf84708527459df9ce093f4f88",
+  "workspace_digest": "5efccf6a555560a681bced7cfa92628d8cf980ec9727e2b9dff53d318479c232",
+  "acceptance_input_digest": "058af1006789d8cf9862198d665ab8ea577f66743fc81bddbf153e4c0fc274a2",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "017f9562f012e5df89eb3bfd78850fced955e1292daed2bfcc755084c8a3ad1b",
+        "entry_digest": "c7a803a4de220e012795f10c44cfeedfc23f65f56864eb06ea3fc616b8328e30",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": ".github/workflows/trust.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f0b85a483f8bd118915e14746ca16255040d6022cadd627474ba84d5d686b4c8",
+        "entry_digest": "0499c2ac4800b03c8cd5009214b9eea6bf45706cc7f765522b43cc635ef4a672",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "CHANGELOG.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "fbddbdd32ccef90fa21bd6d955e15fe7f252f433182fb4fbe2b8ed003438ff17",
+        "entry_digest": "fd13a6c5d19f6d9ce0f5006263da92dae692fbbcc050e67dbea69e60b32cd740",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Cargo.lock",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "df5d6211aef7257871dec71cdfcddd79c58147428b6229dd72399f4c07690016",
+        "entry_digest": "9a17a65130ad48937411a73c6920b06aa1f6b13fbc2ae5601b84e8e2721d8b72",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "Cargo.toml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "067e6db00f5f747539b834cb3a9379ae776533275be6fe7578ee4e2e5e62cdde",
+        "entry_digest": "35e1e3bcef38e8ccdd8f140b0c3b66977925f0ae50f9457a03c3eb83d8ec5ede",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "MIGRATION.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e9e8d3b7cffbb9c21ee6163c79a6d03a8bd1fc4e19302c280577ae999f2c4e2f",
+        "entry_digest": "c0010fb495fffc6030b345ece9281a208a699381fccdac89138d2e1dbd24b04c",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "README.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7727a95cc162046523e3e140e145752a8b012de3571a8fb33937b40753b0a151",
+        "entry_digest": "3cd4b376e880af8b4e01430ed148e21832e233694a6a7a9cf902840c6fa4671d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "SECURITY.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "0a5a128b01b2af4a3bc5ec392cfdfdea40235aaefea62c15b3feba99973df610",
+        "entry_digest": "d5dd98489fba6fe68ee3a5625a8bfc82884db58273eeb1d4fac59f8e9a792634",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "action.yml",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "73ef01ab121d4c75b77398b3636ad26073f2137e93e60c40375f0a2acac814e4",
+        "entry_digest": "b55965ef7a6d2beca02fbca91caee0d306f3614c7d549f7cc62ac4d47d4ec45b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "docs/ADOPTING.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "79b99183426a82e4ff64c3d47f76745d91e2076601596c434244cc2b80816285",
+        "entry_digest": "154ca82c9925ae51709bd3d83572a557d7a3c0119d2bfb8e08e5475ee0d4955e",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/index.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f67296701202a5395d5116521ed9fc0b844284e75bbabf2e8e46e8b8971110c9",
+        "entry_digest": "fc3f2d1b3e50d77d9a053410cdcf43fd5acb02153f59f1f2047f2665194b220d",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/integrations/github-action.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "510db027a940eea56fbfa4c75eb2c98fa7b30df4528b7f417095818e1ecefc64",
+        "entry_digest": "5a6bf8efc6977658d0ac6c97ce3097ddd6146daea2327e470a0e686b5fc0c52b",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/quickstart.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8bff38cb0a0d0d27eff373f1dcd19cbe9c95998378810694bd17ff29a03c6ca2",
+        "entry_digest": "44a9a8c54d0ddb3b9c4574f06bcf00c4aef52ee7524612e463d8dce8e0d573c9",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/examples/ci-gate.mdx",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "7908a30daa256f0983f879d590237b1c81c1eb1ad740612044b16444058a2b8d",
+        "entry_digest": "9b50e6dc8d871f4cd59728563c9ea89521041f627694de4ce8bc1b567f6d3e01",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/examples/polyglot.mdx",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f1bd2d4136e26473959bc7c5c080ca9c989f4e61e4c2acf0de5325e58e158076",
+        "entry_digest": "c19aa832779fc778242e733f42cc18540d073cd4fb41961af0b86c50fc8b81d4",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/github/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "a7c0eb1fae2261a767858299ddd46acbb80a8912ce4592cfea919f7ce6e60f8a",
+        "entry_digest": "c2015e0552fc50713fc7585473ab6462985e7cfa55e0706ed6d9cdb4e382ee63",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/github.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9cc3b1e37876a66d055904f11369e98aabd1af2f8f01739d5ff66bb1b68edd15",
+        "entry_digest": "8956b4f6ea95068b8b394ed3d89ef86adec446935edc6170a236cb5215ea2fa2",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "abeecd1cfae5d7f09f29d3c958ec3dabbb0c009aad3e9a2687c3c5243fd49a90",
+        "entry_digest": "b7c5bb307bcbb6218c22e64eda8cc6b2a5992a2b1fc7c87827a03552a5b5ded1",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "911c1ce0621f45d1ebc22d432006c9c95191f19cb41af8256dc7e5a13fcaa4b4",
+        "entry_digest": "e0023ff25236f4402c9e1e1047b863e4ab48ba1bd7c41e41041e603012e81bad",
+        "owners": [
+          "github"
+        ]
+      },
+      {
+        "path": "specs/github/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5e1488de4e36853400be6b6c9b58c67d5e7d2c95b1c7b8cc839c45674a6249c2",
+        "entry_digest": "93faad021150c230763ca7a15d93eefa1df78ed2cdfd337d7cac5bbdf5bcdc06",
+        "owners": [
+          "github"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec cmd_change --spec github",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-github-002"
+  ]
+}

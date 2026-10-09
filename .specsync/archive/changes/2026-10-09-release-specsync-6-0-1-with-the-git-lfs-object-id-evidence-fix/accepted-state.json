@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix",
+  "slug": "release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix",
+  "title": "Release SpecSync 6.0.1 with the Git LFS object-id evidence fix",
+  "description": "Release SpecSync 6.0.1 with the Git LFS object-id evidence fix",
+  "kind": "operations",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "495f2536303673387d95b7844f71097508cea0e4",
+  "created_at": 1791555484,
+  "updated_at": 1791556876,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "action.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/trust.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "MIGRATION.md",
+    "docs/ADOPTING.md",
+    "site/src/content/docs/index.md",
+    "site/src/content/docs/quickstart.md",
+    "site/src/content/docs/integrations/github-action.md",
+    "site/src/content/examples/ci-gate.mdx",
+    "site/src/content/examples/polyglot.mdx",
+    "specs/github/github.spec.md",
+    "specs/github/requirements.md",
+    "specs/github/context.md",
+    "specs/github/testing.md",
+    "specs/github/tasks.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Cargo.toml and Cargo.lock are 6.0.1, the release-version validator passes, CHANGELOG has a 6.0.1 section for the Git LFS object-id evidence fix, and the Action omitted-input default on this commit is 6.0.1"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "yes"
+  }
+}

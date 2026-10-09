@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "7864698fa17f5c4daff308db3e3491e7e1600487",
+  "contract_digest": "2b9facb5572a4c4cf60dac73180504117baf695d16cced1e0d06490843dba65a",
+  "execution_digest": "69bd2df0b05d3502add6e7ffe4bbecfaee810ecf84708527459df9ce093f4f88",
+  "workspace_digest": "5efccf6a555560a681bced7cfa92628d8cf980ec9727e2b9dff53d318479c232",
+  "timestamp": 1791556115
+}

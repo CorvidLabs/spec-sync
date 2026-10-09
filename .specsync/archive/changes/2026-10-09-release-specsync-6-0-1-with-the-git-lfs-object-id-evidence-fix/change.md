@@ -1,6 +1,6 @@
 ---
 id: release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix
-state: implementing
+state: archived
 type: operations
 base_commit: 495f2536303673387d95b7844f71097508cea0e4
 ---

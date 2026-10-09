@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "name-clean-git-files-by-object-id-so-change-check-accepts-an-lfs-pointer",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "f213f03454aeb7c596635bd7f2b9dd68b4f744ae",
+      "contract_digest": "fde7580f4978add274440f6f04b53d65cb12159d514dac4121816161eb44219a",
+      "execution_digest": "3ae29f31bf8d872a0dcda5d386ee698ec55e123278e8355e0aa48ae3def64013",
+      "workspace_digest": "ee9d3808e3347ebeaf31338d86dd9530ef1fb6a0bf9b87a56ba461fa67a4d2d4",
+      "timestamp": 1791507609
+    }
+  ]
+}

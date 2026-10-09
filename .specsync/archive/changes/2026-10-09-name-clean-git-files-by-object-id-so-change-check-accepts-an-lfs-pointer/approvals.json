@@ -1,0 +1,48 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791507216,
+      "digest": "fde7580f4978add274440f6f04b53d65cb12159d514dac4121816161eb44219a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "name-clean-git-files-by-object-id-so-change-check-accepts-an-lfs-pointer",
+        "title": "Name clean Git files by object id so change check accepts an LFS pointer",
+        "description": "Name clean Git files by object id so change check accepts an LFS pointer",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "docs/HLD.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A clean filter=lfs file is named by its Git object id and is not read from the worktree. A dirty copy of that file changes the workspace digest. Other content filters still fail. Scoped acceptance still hashes the bytes of the paths the change covers. The 256 MiB bound still applies to bytes that are read."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "8a5f4cccd3e7306e24684c464813c7adf0a05484737580a356e34b5af1a48406"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791508711,
+      "digest": "42422742c2a9453e34f9a9d737652f53b0120613baaff8d5e3e0dbe12c5c2c01",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

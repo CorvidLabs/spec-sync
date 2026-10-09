@@ -95,6 +95,8 @@ struct DiscoveredEvidenceCacheKey {
     scopes: Option<Vec<String>>,
     extra_candidates: Vec<String>,
     regular_files_only: bool,
+    /// Clean tracked files are named by Git object id instead of their blob bytes.
+    identify_clean_blobs: bool,
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -264,6 +266,10 @@ struct GitCapturedEntry {
     mode: u32,
     object: Option<String>,
     payload: Vec<u8>,
+    /// The payload is a Git object id, not file bytes. The workspace digest
+    /// frames it under `object-id` so those bytes cannot collide with a dirty
+    /// file that happens to contain the same id text.
+    object_identity: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -306,7 +312,7 @@ impl GitEvidence {
 
 const DEFINITION_DIGEST_DOMAIN: &[u8] = b"specsync.definition-digest.v2";
 const SCOPE_DIGEST_DOMAIN: &[u8] = b"specsync.scope-digest.v1";
-const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v2";
+const PROJECT_DIGEST_DOMAIN: &[u8] = b"specsync.project-input-digest.v4";
 const ACCEPTANCE_DIGEST_DOMAIN: &[u8] = b"specsync.acceptance-input-digest.v2";
 const ACCEPTANCE_ENTRY_DOMAIN: &[u8] = b"specsync.acceptance-entry.v1";
 const ACCEPTANCE_MANIFEST_DOMAIN: &[u8] = b"specsync.acceptance-manifest.v1";
@@ -413,6 +419,16 @@ impl FramedDigest {
         self.frame(b"kind", kind);
         self.frame(b"mode", &mode.to_be_bytes());
         self.frame(b"content", content);
+    }
+
+    /// Same path, kind, and mode as [`Self::entry`], with the bytes framed as a
+    /// Git object id. A file whose bytes are that id text still uses `content`.
+    fn object_entry(&mut self, path: &str, kind: &[u8], mode: u32, object_id: &[u8]) {
+        self.frame(b"entry", b"");
+        self.frame(b"path", path.as_bytes());
+        self.frame(b"kind", kind);
+        self.frame(b"mode", &mode.to_be_bytes());
+        self.frame(b"object-id", object_id);
     }
 
     fn finish(self) -> String {
@@ -11439,19 +11455,31 @@ fn project_input_digest(root: &Path) -> Result<String, String> {
 }
 
 fn project_input_digest_uncached(root: &Path) -> Result<String, String> {
-    let (paths, evidence) = stable_discovered_evidence(root, None, &BTreeSet::new(), false)?;
+    // Name clean Git files by object id. The digest still changes when the
+    // blob changes, and the payload bound applies only to bytes actually read
+    // (dirty files and repositories that are not Git).
+    let (paths, evidence) = stable_discovered_evidence(root, None, &BTreeSet::new(), false, true)?;
     let mut digest = FramedDigest::new(PROJECT_DIGEST_DOMAIN);
     for relative in paths {
         if project_input_is_volatile(&relative) {
             continue;
         }
         let entry = evidence.entry(&relative)?;
-        digest.entry(
-            &relative,
-            acceptance_kind_bytes(&entry.kind),
-            entry.mode,
-            &entry.payload,
-        );
+        if entry.object_identity {
+            digest.object_entry(
+                &relative,
+                acceptance_kind_bytes(&entry.kind),
+                entry.mode,
+                &entry.payload,
+            );
+        } else {
+            digest.entry(
+                &relative,
+                acceptance_kind_bytes(&entry.kind),
+                entry.mode,
+                &entry.payload,
+            );
+        }
     }
     Ok(digest.finish())
 }
@@ -11721,11 +11749,13 @@ fn stable_discovered_evidence(
     scopes: Option<&BTreeSet<String>>,
     extra_candidates: &BTreeSet<String>,
     regular_files_only: bool,
+    identify_clean_blobs: bool,
 ) -> Result<(Vec<String>, GitEvidence), String> {
     let key = DiscoveredEvidenceCacheKey {
         scopes: scopes.map(|values| values.iter().cloned().collect()),
         extra_candidates: extra_candidates.iter().cloned().collect(),
         regular_files_only,
+        identify_clean_blobs,
     };
     if let Some(evidence) =
         read_scope_value(root, |scope| scope.discovered_evidence.get(&key).cloned())
@@ -11737,6 +11767,7 @@ fn stable_discovered_evidence(
         scopes,
         extra_candidates,
         regular_files_only,
+        identify_clean_blobs,
         |_, _| {},
     );
     update_read_scope(root, |scope| {
@@ -11753,6 +11784,7 @@ fn stable_discovered_evidence_with_hook<Hook>(
     scopes: Option<&BTreeSet<String>>,
     extra_candidates: &BTreeSet<String>,
     regular_files_only: bool,
+    identify_clean_blobs: bool,
     hook: Hook,
 ) -> Result<(Vec<String>, GitEvidence), String>
 where
@@ -11763,6 +11795,7 @@ where
         scopes,
         extra_candidates,
         regular_files_only,
+        identify_clean_blobs,
         hook,
     )
 }
@@ -11772,6 +11805,7 @@ fn stable_discovered_evidence_with_hook_internal<Hook>(
     scopes: Option<&BTreeSet<String>>,
     extra_candidates: &BTreeSet<String>,
     regular_files_only: bool,
+    identify_clean_blobs: bool,
     mut hook: Hook,
 ) -> Result<(Vec<String>, GitEvidence), String>
 where
@@ -11783,7 +11817,12 @@ where
             |candidates: &BTreeSet<String>| -> Result<(Option<String>, GitEvidence), String> {
                 if initial_context.git {
                     let index = git_index_fingerprint(root)?;
-                    let inspected = inspect_git_candidates(root, candidates, regular_files_only)?;
+                    let inspected = inspect_git_candidates(
+                        root,
+                        candidates,
+                        regular_files_only,
+                        identify_clean_blobs,
+                    )?;
                     Ok((
                         Some(index),
                         GitEvidence {
@@ -12059,8 +12098,13 @@ fn acceptance_manifest_internal(
     if let Some(signed) = signed {
         extra_candidates.extend(signed.entries.iter().map(|entry| entry.path.clone()));
     }
-    let (mut paths, evidence) =
-        stable_discovered_evidence(root, Some(&discovery_scopes), &extra_candidates, false)?;
+    let (mut paths, evidence) = stable_discovered_evidence(
+        root,
+        Some(&discovery_scopes),
+        &extra_candidates,
+        false,
+        false,
+    )?;
     paths.retain(|path| {
         (!project_input_is_volatile(path) || path == LEGACY_BASELINE_PATH)
             && record_covers_project_path(root, record, path)
@@ -13383,9 +13427,9 @@ where
     }
     for attempt in 0..2 {
         let before_index = git_index_fingerprint(root)?;
-        let before = inspect_git_candidates(root, candidates, regular_files_only)?;
+        let before = inspect_git_candidates(root, candidates, regular_files_only, false)?;
         after_inspection(attempt, root);
-        let after = inspect_git_candidates(root, candidates, regular_files_only)?;
+        let after = inspect_git_candidates(root, candidates, regular_files_only, false)?;
         let after_index = git_index_fingerprint(root)?;
         if before_index == after_index && before == after {
             return Ok(GitEvidence {
@@ -13586,6 +13630,7 @@ fn inspect_git_candidates(
     root: &Path,
     candidates: &BTreeSet<String>,
     regular_files_only: bool,
+    identify_clean_blobs: bool,
 ) -> Result<InspectedGitCandidates, String> {
     let mut stage_entries = BTreeMap::new();
     let batches = candidate_argument_batches(candidates);
@@ -13795,7 +13840,7 @@ fn inspect_git_candidates(
         })
         .cloned()
         .collect();
-    validate_canonical_git_attributes(root, &regular_for_attributes)?;
+    let lfs_paths = validate_canonical_git_attributes(root, &regular_for_attributes)?;
 
     let worktree = GitWorktreeState {
         modified,
@@ -13806,8 +13851,22 @@ fn inspect_git_candidates(
         .filter_map(|path| {
             let mode = modes.get(path)?;
             let object = objects.get(path)?;
-            (!worktree.modified.contains(path) && matches!(mode, 0o100644 | 0o100755 | 0o120000))
-                .then_some(object.as_str())
+            let clean =
+                !worktree.modified.contains(path) && matches!(mode, 0o100644 | 0o100755 | 0o120000);
+            if !clean {
+                return None;
+            }
+            // Regular-file bytes are not needed when the caller names the object.
+            // An LFS path is the exception: its pointer blob is read so a
+            // `filter=lfs` attribute cannot name an arbitrary object. Symlinks
+            // stay materialized so their targets are still checked.
+            if identify_clean_blobs
+                && matches!(mode, 0o100644 | 0o100755)
+                && !lfs_paths.contains(path)
+            {
+                return None;
+            }
+            Some(object.as_str())
         })
         .collect();
     let clean_object_refs: Vec<_> = clean_objects.iter().copied().collect();
@@ -13837,6 +13896,10 @@ fn inspect_git_candidates(
             objects.get(path),
             &worktree,
             Some(&prefetched_blobs),
+            GitCaptureOptions {
+                identify_clean_blobs,
+                lfs: lfs_paths.contains(path),
+            },
         )?;
         payload_bytes = payload_bytes
             .checked_add(entry.payload.len())
@@ -13854,6 +13917,12 @@ fn inspect_git_candidates(
     })
 }
 
+#[derive(Default)]
+struct GitCaptureOptions {
+    identify_clean_blobs: bool,
+    lfs: bool,
+}
+
 fn capture_git_candidate(
     root: &Path,
     relative: &str,
@@ -13861,6 +13930,7 @@ fn capture_git_candidate(
     object: Option<&String>,
     worktree: &GitWorktreeState,
     prefetched_blobs: Option<&BTreeMap<String, Vec<u8>>>,
+    options: GitCaptureOptions,
 ) -> Result<GitCapturedEntry, String> {
     if index_mode == Some(0o160000) {
         let object = object
@@ -13871,6 +13941,7 @@ fn capture_git_candidate(
             mode: 0o160000,
             payload: object.as_bytes().to_vec(),
             object: Some(object),
+            object_identity: false,
         });
     }
     let clean = object.is_some() && !worktree.modified.contains(relative);
@@ -13880,6 +13951,26 @@ fn capture_git_candidate(
             || matches!(mode, 0o100644 | 0o100755 | 0o120000)
         {
             let object = object.expect("clean tracked object").clone();
+            if options.identify_clean_blobs && matches!(mode, 0o100644 | 0o100755) {
+                if options.lfs {
+                    let pointer = match prefetched_blobs.and_then(|blobs| blobs.get(&object)) {
+                        Some(payload) => payload.clone(),
+                        None => git_blob_bytes(root, &object)?,
+                    };
+                    if !is_git_lfs_pointer(&pointer) {
+                        return Err(format!(
+                            "Git `filter=lfs` blob is not a Git LFS pointer: `{relative}`"
+                        ));
+                    }
+                }
+                return Ok(GitCapturedEntry {
+                    kind: acceptance_kind_for_mode(mode),
+                    mode,
+                    payload: object.as_bytes().to_vec(),
+                    object: Some(object),
+                    object_identity: true,
+                });
+            }
             let payload = match prefetched_blobs.and_then(|blobs| blobs.get(&object)) {
                 Some(payload) => payload.clone(),
                 None => git_blob_bytes(root, &object)?,
@@ -13894,6 +13985,7 @@ fn capture_git_candidate(
                 mode,
                 object: Some(object),
                 payload,
+                object_identity: false,
             });
         }
         return Err(format!(
@@ -13948,6 +14040,7 @@ fn capture_working_candidate(
         mode,
         object,
         payload,
+        object_identity: false,
     })
 }
 
@@ -13988,15 +14081,19 @@ fn git_worktree_state(root: &Path) -> Result<Option<GitWorktreeState>, String> {
         return Ok(None);
     }
     Ok(Some(
-        inspect_git_candidates(root, &candidates, false)?.worktree,
+        inspect_git_candidates(root, &candidates, false, false)?.worktree,
     ))
 }
 
-fn validate_canonical_git_attributes(root: &Path, paths: &BTreeSet<String>) -> Result<(), String> {
+fn validate_canonical_git_attributes(
+    root: &Path,
+    paths: &BTreeSet<String>,
+) -> Result<BTreeSet<String>, String> {
     if paths.is_empty() {
-        return Ok(());
+        return Ok(BTreeSet::new());
     }
     let paths = paths.iter().collect::<Vec<_>>();
+    let mut lfs_paths = BTreeSet::new();
     for batch in paths.chunks(GIT_ATTRIBUTE_BATCH_PATHS) {
         let mut input = Vec::new();
         for path in batch {
@@ -14017,12 +14114,18 @@ fn validate_canonical_git_attributes(root: &Path, paths: &BTreeSet<String>) -> R
             MAX_GIT_ATTRIBUTE_OUTPUT_BYTES,
         )
         .map_err(|error| format!("failed to inspect Git content attributes: {error}"))?;
-        validate_git_attribute_output(batch, &output)?;
+        lfs_paths.extend(validate_git_attribute_output(batch, &output)?);
     }
-    Ok(())
+    if !lfs_paths.is_empty() {
+        ensure_official_git_lfs_driver(root)?;
+    }
+    Ok(lfs_paths)
 }
 
-fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(), String> {
+fn validate_git_attribute_output(
+    paths: &[&String],
+    output: &[u8],
+) -> Result<BTreeSet<String>, String> {
     if !output.ends_with(&[0]) {
         return Err("invalid unterminated NUL-delimited `git check-attr` output".into());
     }
@@ -14042,6 +14145,7 @@ fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(),
         })
         .collect::<BTreeSet<_>>();
     let mut seen = BTreeSet::new();
+    let mut lfs_paths = BTreeSet::new();
     for record in fields.chunks_exact(3) {
         let path = record[0];
         let attribute = record[1];
@@ -14063,6 +14167,12 @@ fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(),
             ));
         }
         if value != "unspecified" && value != "unset" {
+            // `filter=lfs` names a driver. The driver commands and the pointer
+            // blob are checked before that object id is used as evidence.
+            if attribute == "filter" && value == "lfs" {
+                lfs_paths.insert(path.to_string());
+                continue;
+            }
             return Err(format!(
                 "Git `{attribute}` attribute is not supported for canonical evidence: `{path}`"
             ));
@@ -14071,7 +14181,105 @@ fn validate_git_attribute_output(paths: &[&String], output: &[u8]) -> Result<(),
     if seen != expected {
         return Err("Git attribute output is missing a requested path/attribute pair".into());
     }
-    Ok(())
+    Ok(lfs_paths)
+}
+
+/// `git lfs install` writes these commands. Anything else is some other
+/// program using the name `lfs`, and a clean filter can hide a dirty worktree.
+fn ensure_official_git_lfs_driver(root: &Path) -> Result<(), String> {
+    let clean = local_git_config(root, "filter.lfs.clean")?;
+    let smudge = local_git_config(root, "filter.lfs.smudge")?;
+    let process = local_git_config(root, "filter.lfs.process")?;
+    let clean_ok = clean.as_deref().is_some_and(is_official_lfs_clean);
+    let smudge_ok = smudge.as_deref().is_some_and(is_official_lfs_smudge);
+    let process_ok = match process.as_deref() {
+        None => true,
+        Some(value) => is_official_lfs_process(value),
+    };
+    if clean_ok && smudge_ok && process_ok {
+        return Ok(());
+    }
+    Err(
+        "Git `filter.lfs` is not the Git LFS driver; canonical evidence cannot treat `filter=lfs` as a pointer"
+            .into(),
+    )
+}
+
+fn local_git_config(root: &Path, key: &str) -> Result<Option<String>, String> {
+    let output = run_git_bounded(root, &["config", "--local", "--get", key], None, 4096)?;
+    if output.status.success() {
+        let value = std::str::from_utf8(&output.stdout)
+            .map_err(|_| format!("Git config `{key}` is not UTF-8"))?
+            .trim()
+            .to_string();
+        return Ok((!value.is_empty()).then_some(value));
+    }
+    if output.stdout.is_empty() && output.stderr.is_empty() {
+        return Ok(None);
+    }
+    Err(format!(
+        "failed to read Git config `{key}`: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    ))
+}
+
+fn is_official_lfs_clean(value: &str) -> bool {
+    matches!(value, "git-lfs clean -- %f" | "git lfs clean -- %f")
+}
+
+fn is_official_lfs_smudge(value: &str) -> bool {
+    matches!(value, "git-lfs smudge -- %f" | "git lfs smudge -- %f")
+}
+
+fn is_official_lfs_process(value: &str) -> bool {
+    matches!(value, "git-lfs filter-process" | "git lfs filter-process")
+}
+
+/// A Git LFS pointer is a short text blob. The smudged object is not.
+fn is_git_lfs_pointer(bytes: &[u8]) -> bool {
+    if bytes.is_empty() || bytes.len() > 1024 || !bytes.ends_with(b"\n") {
+        return false;
+    }
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return false;
+    };
+    let mut lines = text.lines();
+    if lines.next() != Some("version https://git-lfs.github.com/spec/v1") {
+        return false;
+    }
+    let mut saw_oid = false;
+    let mut saw_size = false;
+    for line in lines {
+        let Some((key, value)) = line.split_once(' ') else {
+            return false;
+        };
+        if key.is_empty() || value.is_empty() || value.contains(' ') {
+            return false;
+        }
+        match key {
+            "oid" => {
+                let Some(hex) = value.strip_prefix("sha256:") else {
+                    return false;
+                };
+                if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                    return false;
+                }
+                saw_oid = true;
+            }
+            "size" => {
+                if value.len() > 20
+                    || !value.bytes().all(|byte| byte.is_ascii_digit())
+                    || value.starts_with('0') && value != "0"
+                {
+                    return false;
+                }
+                saw_size = true;
+            }
+            "version" => return false,
+            _ => {}
+        }
+    }
+    saw_oid && saw_size
 }
 
 fn git_blob_bytes(root: &Path, object: &str) -> Result<Vec<u8>, String> {
@@ -15113,8 +15321,13 @@ fn acceptance_input_digest(
         })
         .collect::<Result<_, String>>()?;
     let extra_candidates = override_content.keys().cloned().collect();
-    let (mut paths, evidence) =
-        stable_discovered_evidence(root, Some(&discovery_scopes), &extra_candidates, false)?;
+    let (mut paths, evidence) = stable_discovered_evidence(
+        root,
+        Some(&discovery_scopes),
+        &extra_candidates,
+        false,
+        false,
+    )?;
     paths.retain(|path| {
         !project_input_is_volatile(path) && record_covers_project_path(root, record, path)
     });
@@ -16135,7 +16348,7 @@ fn load_legacy_archive_baseline_context(
         .map(|entry| entry.archive_path.clone())
         .collect();
     let (project_paths, evidence) =
-        stable_discovered_evidence(root, Some(&scopes), &BTreeSet::new(), false)?;
+        stable_discovered_evidence(root, Some(&scopes), &BTreeSet::new(), false, false)?;
     let snapshots = baseline
         .entries
         .iter()
@@ -16442,7 +16655,7 @@ fn archive_workspace_snapshot(
     }
     let scopes = BTreeSet::from([project_subtree.to_string()]);
     let (project_paths, evidence) =
-        stable_discovered_evidence(root, Some(&scopes), &workspace_paths, false)?;
+        stable_discovered_evidence(root, Some(&scopes), &workspace_paths, false, false)?;
     archive_snapshot_from_evidence(&project_paths, &evidence, project_subtree)
 }
 

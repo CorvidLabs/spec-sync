@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Tasks
 
+- [x] Group private Git capture options to fix PR #801's Clippy argument-count failure.
+- [x] Name clean Git files by object id in the workspace digest, frame that id apart from file bytes, and accept `filter=lfs` only for the Git LFS driver and a pointer blob.
 - [x] Replace child-written PID evidence with deterministic parent observation and stopped-child timeout coverage (#587).
 
 - [x] Allow audited reopen of unreconstructible legacy acceptance with matching current inputs (#751).

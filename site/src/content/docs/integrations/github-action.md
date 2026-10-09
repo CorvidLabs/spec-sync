@@ -11,9 +11,9 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 ## Basic Usage
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
+- uses: CorvidLabs/spec-sync@v6.0.1
   with:
-    version: '6.0.0'
+    version: '6.0.1'
     strict: 'true'
     require-coverage: '100'
 ```
@@ -24,7 +24,7 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 
 | Input | Default | Description |
 |:------|:--------|:------------|
-| `version` | `6.0.0` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
+| `version` | `6.0.1` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
 | `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
@@ -49,28 +49,29 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.0.0
+      - uses: CorvidLabs/spec-sync@v6.0.1
         with:
-          version: '6.0.0'
+          version: '6.0.1'
           strict: 'true'
           require-coverage: '100'
 ```
 
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
-Pin both the Action ref and its binary version. The floating `@v6` tag is published; its
-omitted-input default is `6.0.0`. YAML examples keep the immutable `@v6.0.0` pin.
+Pin both the Action ref and its binary version. YAML examples pin `@v6.0.1` with
+`version: '6.0.1'`. This commit's omitted-input default is `6.0.1`.
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
+- uses: CorvidLabs/spec-sync@v6.0.1
   with:
-    version: '6.0.0'
+    version: '6.0.1'
     strict: 'true'
 ```
 
 Always pass `version: '6.0.0'` with `@v6.0.0`. That tag's composite Action still embeds
 default `6.0.0-rc.14` (the last RC with assets when the tag was cut). Omitting `version` on
-that tag downloads the RC binary. `main` and the floating `@v6` tag default to `6.0.0`. Do
+that tag downloads the RC binary. `main` defaults to `6.0.1` on this commit. Move the floating
+`@v6` tag only after promotion, to a commit whose omitted-input default is `6.0.1`. Do
 not retarget `v6` at `v6.0.0`.
 
 ---
@@ -94,9 +95,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.0.0
+      - uses: CorvidLabs/spec-sync@v6.0.1
         with:
-          version: '6.0.0'
+          version: '6.0.1'
           strict: 'true'
           comment: 'true'
 ```
@@ -110,9 +111,9 @@ jobs:
 **Custom token (e.g., for private registries or cross-repo refs):**
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
+- uses: CorvidLabs/spec-sync@v6.0.1
   with:
-    version: '6.0.0'
+    version: '6.0.1'
     comment: 'true'
     token: ${{ secrets.MY_PAT }}
 ```
@@ -132,9 +133,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.0.0
+      - uses: CorvidLabs/spec-sync@v6.0.1
         with:
-          version: '6.0.0'
+          version: '6.0.1'
           strict: 'true'
 ```
 
@@ -143,9 +144,9 @@ jobs:
 ## Monorepo
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
+- uses: CorvidLabs/spec-sync@v6.0.1
   with:
-    version: '6.0.0'
+    version: '6.0.1'
     root: './packages/backend'
     strict: 'true'
 ```
@@ -157,7 +158,7 @@ jobs:
 ```yaml
 - name: Install specsync
   run: |
-    curl -sL https://github.com/CorvidLabs/spec-sync/releases/download/v6.0.0/specsync-linux-x86_64.tar.gz | tar xz
+    curl -sL https://github.com/CorvidLabs/spec-sync/releases/download/v6.0.1/specsync-linux-x86_64.tar.gz | tar xz
     sudo mv specsync-linux-x86_64 /usr/local/bin/specsync
 
 - name: Spec check

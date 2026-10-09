@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1791555993,
+      "commit": "495f2536303673387d95b7844f71097508cea0e4",
+      "contract_digest": "2b9facb5572a4c4cf60dac73180504117baf695d16cced1e0d06490843dba65a",
+      "execution_digest": "69bd2df0b05d3502add6e7ffe4bbecfaee810ecf84708527459df9ce093f4f88",
+      "workspace_digest": "6701bcce3c54582581186522c4164f89d4fefcfdd5dcc22d29e1ab44667a573c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_change --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-002"
+      ]
+    },
+    {
+      "timestamp": 1791556001,
+      "commit": "c5acfb7b1263c79ba9e6b1844f82a220b4163147",
+      "contract_digest": "2b9facb5572a4c4cf60dac73180504117baf695d16cced1e0d06490843dba65a",
+      "execution_digest": "69bd2df0b05d3502add6e7ffe4bbecfaee810ecf84708527459df9ce093f4f88",
+      "workspace_digest": "5efccf6a555560a681bced7cfa92628d8cf980ec9727e2b9dff53d318479c232",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_change --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-github-002"
+      ]
+    }
+  ]
+}

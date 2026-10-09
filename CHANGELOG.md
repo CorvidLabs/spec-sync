@@ -7,12 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.1] - 2026-10-09
+
+### Fixed
+
+- **`change check` names a clean Git file by its object id.** A clean tracked file, including a
+  Git LFS pointer, is named by the Git object id and is not loaded as file bytes. `filter=lfs`
+  is accepted only when local `filter.lfs.clean`, `filter.lfs.smudge`, and `filter.lfs.process`
+  (when set) are the official Git LFS commands and the blob is a real pointer. A non-official
+  driver fails closed. Dirty and untracked bytes stay inside the existing 256 MiB bound. The
+  workspace digest domain is `specsync.project-input-digest.v4`.
+
 ### Changed
 
-- **Publish the floating `v6` Action tag.** `uses: CorvidLabs/spec-sync@v6` omitted-input
-  default is `6.0.0`. The tag points at a commit whose `action.yml` default is `6.0.0`, not at
-  immutable `v6.0.0` (that tag still embeds `6.0.0-rc.14`). YAML examples keep
-  `@v6.0.0` with `version: '6.0.0'`. Homebrew serves 6.0.0.
+- **The Action omitted-input default on this commit is `6.0.1`.** README, the documentation
+  site, `MIGRATION.md`, `docs/ADOPTING.md`, and `SECURITY.md` pin `@v6.0.1` with
+  `version: '6.0.1'`. The immutable `@v6.0.0` tag is unchanged and still embeds
+  `6.0.0-rc.14`; pass `version: '6.0.0'` when using that tag. Move the floating `@v6` tag
+  only after promotion, to a commit whose omitted-input default is `6.0.1`. Do not retarget
+  `v6` at `v6.0.0`.
 
 ### Added
 
@@ -3578,7 +3591,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.0.0...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.0.1...HEAD
+[6.0.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.0.1
 [6.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.0.0
 [5.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.2.0
 [5.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.1.1

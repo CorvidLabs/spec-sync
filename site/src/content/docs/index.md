@@ -32,8 +32,8 @@ Specs reference functions that were renamed. Code exports things the spec doesn'
 ## Quick Start
 
 ```bash
-cargo install specsync          # crates.io 6.0.0; or GitHub Action / Release binary
-specsync --version              # specsync 6.0.0
+cargo install specsync          # crates.io 6.0.1; or GitHub Action / Release binary
+specsync --version              # specsync 6.0.1
 specsync init                   # .specsync/config.toml; change workflow off
 specsync add-spec auth          # scaffold a spec after you write a source file
 specsync check                  # the product: validate specs against code

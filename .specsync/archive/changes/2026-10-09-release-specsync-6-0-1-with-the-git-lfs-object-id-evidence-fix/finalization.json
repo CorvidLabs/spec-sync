@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix",
+  "implementation_commit": "d10c1b2b070763578fdb6a4f836ce2958843e26e",
+  "implementation_tree": "ef9af0543378218a9d2444d577b79b268e6f72b0",
+  "contract_digest": "2b9facb5572a4c4cf60dac73180504117baf695d16cced1e0d06490843dba65a",
+  "workspace_digest": "5efccf6a555560a681bced7cfa92628d8cf980ec9727e2b9dff53d318479c232",
+  "closing_digest": "ccbd1e0b8657d319cfb12c691cac549b20ca2a323cb76cf16f1c9f7e4ba6e1e9",
+  "review_digest": "eac6846d6ca8ff8059f1956fcb829c674673a3e23eb9af11cdb9af6d8f1c9dd3",
+  "finalization_digest": "57563daa48d4e3c2b0cd8b706ea490fabd81580a57f5d5b4665844c997cb22dd",
+  "timestamp": 1791557545
+}

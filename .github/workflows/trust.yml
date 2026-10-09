@@ -50,5 +50,5 @@ jobs:
         id: trust
         uses: CorvidLabs/trust@dd52a7a90ffbc1d2b1030e37007c18274f3d96bc # v1.2.1
         with:
-          specsync-version: "6.0.0"
+          specsync-version: "6.0.1"
           specsync-download-base-url: file://${{ runner.temp }}/specsync-trust-mirror

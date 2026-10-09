@@ -1,0 +1,58 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791555571,
+      "digest": "2b9facb5572a4c4cf60dac73180504117baf695d16cced1e0d06490843dba65a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix",
+        "title": "Release SpecSync 6.0.1 with the Git LFS object-id evidence fix",
+        "description": "Release SpecSync 6.0.1 with the Git LFS object-id evidence fix",
+        "kind": "operations",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "site/src/content/docs/index.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "site/src/content/docs/quickstart.md",
+          "site/src/content/examples/ci-gate.mdx",
+          "site/src/content/examples/polyglot.mdx",
+          "specs/github/context.md",
+          "specs/github/github.spec.md",
+          "specs/github/requirements.md",
+          "specs/github/tasks.md",
+          "specs/github/testing.md"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Cargo.toml and Cargo.lock are 6.0.1, the release-version validator passes, CHANGELOG has a 6.0.1 section for the Git LFS object-id evidence fix, and the Action omitted-input default on this commit is 6.0.1"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "5c7444c12c2661b96fb7739b655aad28331378cdff716542fc83dca1923a0861"
+      }
+    }
+  ],
+  "reopenings": []
+}

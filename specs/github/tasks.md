@@ -44,6 +44,8 @@ spec: github.spec.md
 - [x] After publishing each exact release, smoke-test the immutable Action ref on Linux and macOS
   before creating or advancing the floating major ref. Windows is not a supported target as of 6.0.
   `v6` published 2026-09-10 at a commit whose Action default is 6.0.0 (not at `v6.0.0`).
+- [ ] After promoting 6.0.1, move floating `v6` to the commit whose Action default is `6.0.1`.
+  Do not retarget it at `v6.0.0`.
 
 ## Review Status
 

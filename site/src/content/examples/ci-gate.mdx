@@ -22,22 +22,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v6.0.0
+      - uses: CorvidLabs/spec-sync@v6.0.1
         with:
-          version: '6.0.0'
+          version: '6.0.1'
           strict: true
 ```
 
-Pin both the Action ref (`uses: CorvidLabs/spec-sync@v6.0.0`) and the binary (`version: '6.0.0'`). The immutable `@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`. With `strict: true` the action installs `specsync` and runs `specsync check --force --strict`.
+Pin both the Action ref (`uses: CorvidLabs/spec-sync@v6.0.1`) and the binary (`version: '6.0.1'`). The immutable `@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`. With `strict: true` the action installs `specsync` and runs `specsync check --force --strict`.
 
 ## 2. Pin the spec-sync version
 
-Keep the dual pin while validating 6.0.0 so an unintended upstream change cannot break a Friday-afternoon merge:
+Keep the dual pin while validating 6.0.1 so an unintended upstream change cannot break a Friday-afternoon merge:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
+- uses: CorvidLabs/spec-sync@v6.0.1
   with:
-    version: '6.0.0'
+    version: '6.0.1'
 ```
 
 The Action follows the spec-sync release cadence. Match the version you `cargo install` locally.
@@ -47,18 +47,18 @@ The Action follows the spec-sync release cadence. Match the version you `cargo i
 The Action `strict` input defaults to `false` (errors fail; warnings do not). For teams onboarding spec-sync incrementally, start there:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
+- uses: CorvidLabs/spec-sync@v6.0.1
   with:
-    version: '6.0.0'
+    version: '6.0.1'
     strict: false
 ```
 
 There is no `score_threshold` Action input. Real inputs are `version`, `download-base-url`, `strict`, `require-coverage`, `root`, `args`, `lifecycle-enforce`, `comment`, and `token`. To fail when any spec scores below a floor, run `specsync score` after the Action has put `specsync` on PATH:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
+- uses: CorvidLabs/spec-sync@v6.0.1
   with:
-    version: '6.0.0'
+    version: '6.0.1'
     strict: false
 - run: specsync score --min-score 60
 ```
@@ -78,9 +78,9 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v6.0.0
+      - uses: CorvidLabs/spec-sync@v6.0.1
         with:
-          version: '6.0.0'
+          version: '6.0.1'
           comment: true
 ```
 
@@ -91,9 +91,9 @@ A job-level `permissions` block zeros unspecified scopes, so `contents: read` ha
 When you genuinely need to ship a fix without updating the spec (and you're not lying to yourself), opt out per-PR with a label:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.0.0
+- uses: CorvidLabs/spec-sync@v6.0.1
   with:
-    version: '6.0.0'
+    version: '6.0.1'
   if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-specsync') }}
 ```
 

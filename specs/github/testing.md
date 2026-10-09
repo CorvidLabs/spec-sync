@@ -79,7 +79,7 @@ spec: github.spec.md
 | Lifecycle gate or preflight fails on a pull request | `test`, `audit`, `coverage` and `spec-check` are skipped, and `SpecSync implementation ready` and `Required CI gate` fail (#796) | `test_issue_796_lifecycle_gate_failure_turns_the_required_gate_red` and the per-path injection test in `test-required-ci-gate.py` |
 | A new CI job gates on `lifecycle-gate` or is selected before the gate | It must be in `implementation-gate.needs` with a `GATES` row matching its `if:` | `test_workflow_holds_to_the_gate_contract` and the guard mutation tests in `test-required-ci-gate.py` |
 
-| Action omitted-input default after stable 6.0.0 | Default on `main` and `@v6` is `6.0.0`; `@v6.0.0` tag still embeds `6.0.0-rc.14` | Read `action.yml` default and site inputs-table default; `git show v6:action.yml` default is `6.0.0`; `git rev-parse v6^{commit}` is not the `v6.0.0` commit; run `python3 -S .github/scripts/validate-release-version.py` |
+| Action omitted-input default after stable 6.0.1 | Default on `main` and `@v6` is `6.0.1`; `@v6.0.0` tag still embeds `6.0.0-rc.14` | Read `action.yml` default and site inputs-table default; `git show v6:action.yml` default is `6.0.1`; `git rev-parse v6^{commit}` is not the `v6.0.0` commit; run `python3 -S .github/scripts/validate-release-version.py` |
 
 ## Reviewer Checklist
 

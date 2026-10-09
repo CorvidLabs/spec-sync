@@ -19,8 +19,8 @@ Upgrading the binary does **not** flip an existing `.specsync/sdd.json` off. Omi
 
 Existing 5.x consumers, in this order:
 
-1. **Pin the 6.0.0 binary everywhere before resuming lifecycle work.** `cargo install specsync` (crates.io serves 6.0.0) or `cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.0.0 --locked specsync` (or the `specsync-linux-*` / `specsync-macos-*` GitHub Release asset), then confirm `specsync --version` prints `specsync 6.0.0` on every developer machine, agent, hook, and CI runner. Homebrew (`CorvidLabs/tap/spec-sync`) serves 6.0.0. Linux and macOS only: 6.0 neither builds nor publishes a Windows binary (#735). Windows users run SpecSync under WSL or build from source.
-2. **Update the GitHub Action to two explicit pins:** `uses: CorvidLabs/spec-sync@v6.0.0` with `version: '6.0.0'`. The `uses` ref pins the action code and `version` pins the binary it downloads. Drop any floating `@v5` ref or `version: latest`; pin the exact release rather than a floating major tag so CI runs the action code and binary you validated. The action now refuses a Windows runner.
+1. **Pin the 6.0.1 binary everywhere before resuming lifecycle work.** `cargo install specsync` (crates.io serves 6.0.1) or `cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.0.1 --locked specsync` (or the `specsync-linux-*` / `specsync-macos-*` GitHub Release asset), then confirm `specsync --version` prints `specsync 6.0.1` on every developer machine, agent, hook, and CI runner. Homebrew (`CorvidLabs/tap/spec-sync`) serves 6.0.1. Linux and macOS only: 6.0 neither builds nor publishes a Windows binary (#735). Windows users run SpecSync under WSL or build from source.
+2. **Update the GitHub Action to two explicit pins:** `uses: CorvidLabs/spec-sync@v6.0.1` with `version: '6.0.1'`. The `uses` ref pins the action code and `version` pins the binary it downloads. Drop any floating `@v5` ref or `version: latest`; pin the exact release rather than a floating major tag so CI runs the action code and binary you validated. The action now refuses a Windows runner. The immutable `@v6.0.0` tag still embeds `6.0.0-rc.14`, so pass `version: '6.0.0'` only when using that older tag.
 3. **`specsync check` gates by default.** The default `enforcement` moved from `warn` to `strict`, so a bare `check` exits 1 on any validation error (warnings still pass unless `--strict` is given). Repositories with pre-existing spec errors start failing on the 6.0 binary: fix the specs, or keep the 5.x non-blocking behaviour with `enforcement = "warn"` in `.specsync/config.toml` or `--enforcement warn`.
 4. **Finish, archive, or abandon every active workflow-v1 change and merge those PRs *before* running `specsync change adopt`** (#674). Workflow-v1 is **merge-then-archive**: `verify` → `accept` → merge the PR → `archive`. The workflow-v2 baseline (`.specsync/workflow-v2-baseline.json`) is written once — by `change adopt`, or by the first `change new` that mints a workflow-v2 change, whichever comes first — with a cutoff at the merge-base of your checkout and the remote default branch; the baseline is immutable and the cutoff never moves forward. A workflow-v1 change that merges after that cutoff can never be adopted — 6.0 recognises only v1 changes already present in the trusted history at the cutoff — and would have to be recreated as a workflow-v2 change. `adopt` refuses only when a v1 change in the *current* tree is missing from the cutoff history; it is **silent** on a committed still-active v1 that is already in that cutoff (it does not warn, archive, or migrate it). Run it from an up-to-date checkout of the default branch on which `specsync change list` shows no active changes.
 
@@ -57,7 +57,7 @@ Existing 5.x consumers, in this order:
 
 ```bash
 # existing 5.x repo: binary upgrade does not disable SDD
-specsync --version               # 6.0.0 on every writer before touching a change
+specsync --version               # 6.0.1 on every writer before touching a change
 specsync change list             # close every active v1 change first (verify → accept → merge → archive)
 specsync change adopt            # records the workflow-v2 baseline; slug IDs from here on
 git add .specsync/workflow-v2-baseline.json .specsync/adoption-report.json
@@ -72,7 +72,7 @@ git add .specsync/workflow-v2-baseline.json .specsync/adoption-report.json
 git commit -m "Record the SpecSync 6.0 workflow-v2 baseline"
 ```
 
-Pin the GitHub Action explicitly: `uses: CorvidLabs/spec-sync@v6.0.0` with `version: '6.0.0'` (the form the README and site examples use). Pre-releases were `@v6.0.0-rc.N`; a candidate is never reachable through a floating major ref, and the exact tag is the form to keep after release too. Do not treat a 5.0 `adopt` + `check --strict` sequence as an SDD gate on 6.0: `check` will not consult the change workflow.
+Pin the GitHub Action explicitly: `uses: CorvidLabs/spec-sync@v6.0.1` with `version: '6.0.1'` (the form the README and site examples use). Pre-releases were `@v6.0.0-rc.N`; a candidate is never reachable through a floating major ref, and the exact tag is the form to keep after release too. The immutable `@v6.0.0` tag still embeds `6.0.0-rc.14`. Do not treat a 5.0 `adopt` + `check --strict` sequence as an SDD gate on 6.0: `check` will not consult the change workflow.
 
 ### Validation, approval, and rollout boundaries
 

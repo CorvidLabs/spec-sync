@@ -7,11 +7,11 @@
   "title": "Tell agents to record lessons in the module 3md file",
   "description": "Tell agents to record lessons in the module 3md file",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "fc0c668270c42efa6ead1a9f759c1ba61ac77904",
   "created_at": 1791674523,
-  "updated_at": 1791674626,
+  "updated_at": 1791674689,
   "affected_specs": [
     "agents",
     "hooks"

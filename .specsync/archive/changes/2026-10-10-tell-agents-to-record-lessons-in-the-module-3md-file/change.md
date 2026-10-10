@@ -1,6 +1,6 @@
 ---
 id: tell-agents-to-record-lessons-in-the-module-3md-file
-state: implementing
+state: archived
 type: bug_fix
 base_commit: fc0c668270c42efa6ead1a9f759c1ba61ac77904
 ---

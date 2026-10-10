@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "tell-agents-to-record-lessons-in-the-module-3md-file",
+  "implementation_commit": "afad988a8bf9d4835f3f491a5ebece03bf7195d4",
+  "implementation_tree": "3b224e9a5897d8b6f8bc39f0885c6cc0e6d70ef5",
+  "contract_digest": "7fa46c2f73386b2261fded2085edc86cf33ea367e0ee629bd7f4f2f95bb12012",
+  "workspace_digest": "575e89b497da32e0fdacdd1b19bf2fe73cebc7bd5cf587e48a03595874e8d9ea",
+  "closing_digest": "9940a51a67e24fd37401c3c4527458591f655d8845e9f43ac4dc7622637b9360",
+  "review_digest": "f84a7926a26026e1c8e7f0bd8656225c8f17c6238908ef97fe474fec61f6bbe8",
+  "finalization_digest": "854c3f99d5410b08545481498807b3699e21979711df46f6cf2a2b97c6539d35",
+  "timestamp": 1791674689
+}

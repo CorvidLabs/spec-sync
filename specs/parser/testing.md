@@ -4,16 +4,23 @@ spec: parser.spec.md
 
 ## Automated Coverage
 
+All 69 original parser regressions are retained: 31 frontmatter tests, 11 checked issue tests,
+11 API-symbol tests, and 16 section tests. Complete function bodies, literals, attributes and
+leaf test names are compared with the pre-extraction source; compiled module paths change only
+to reflect the private owners. The original pristine-main unit log provides the baseline,
+so no duplicate pristine build is needed. Full combined unit/integration verification is
+coordinated separately against that baseline rather than claimed from a focused parser run.
+
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/parser.rs` | cargo test parser:: | `test_parse_frontmatter_basic`, `test_strip_yaml_comment`, `test_parse_frontmatter_inline_comments`, `test_parse_frontmatter_tabs_and_whitespace`, `test_parse_frontmatter_trailing_spaces`, `test_parse_frontmatter_missing` |
-| `src/parser.rs` | cargo test parser::checked_issue_references | LF/CRLF delimiters and real-YAML comments/trailing commas are accepted; duplicate/global malformed YAML and blank/null/wrong shapes fail; nested extensions and block scalars do not contribute references; errors do not echo content |
-| `src/parser.rs` | cargo test parser::tests::all_frontmatter_readers_agree_on_what_a_delimiter_is | All three readers give the SAME verdict on a matrix of delimiter shapes — this is what fails if the rule in `is_frontmatter_delimiter` and the rule in `FRONTMATTER_RE` ever drift apart |
-| `src/parser.rs` | cargo test parser::tests::test_strip_frontmatter_accepts_a_delimiter_padded_with_trailing_whitespace | A padded OPENER opens the block, so its YAML never counts as prose; a padded CLOSER ends it, so body prose above the first horizontal rule is not deleted |
-| `src/parser.rs` | cargo test parser::tests::test_strip_frontmatter_refuses_a_delimiter_that_is_not_three_dashes | `----`, `--- x`, `---change: x` and an indented `---` are NOT delimiters — loosening this deletes the body of any document that opens with a thematic break |
-| `src/parser.rs` | cargo test parser::tests::test_parse_frontmatter_body_is_lf_even_when_only_the_body_is_crlf | `parsed.body` is LF-only when the frontmatter is LF and the body is CRLF |
-| `src/parser.rs` | cargo test parser::tests::test_get_spec_symbols_preserves_complete_punctuated_symbols | Dots, hyphens, selectors, operators, apostrophes, spaces, Unicode, and ordinary identifiers are preserved exactly |
-| `src/parser.rs` | cargo test parser::tests::test_api_table_symbol_parser_rejects_empty_or_malformed_rows | Empty, whitespace-only, unterminated, later-column, trailing-text, and prose spans remain excluded |
+| `src/parser/tests/` | cargo test --bin specsync parser:: | `test_parse_frontmatter_basic`, `test_strip_yaml_comment`, `test_parse_frontmatter_inline_comments`, `test_parse_frontmatter_tabs_and_whitespace`, `test_parse_frontmatter_trailing_spaces`, `test_parse_frontmatter_missing` |
+| `src/parser/tests/checked_issues.rs` | cargo test --bin specsync parser::checked_issues::tests:: | LF/CRLF delimiters and real-YAML comments/trailing commas are accepted; duplicate/global malformed YAML and blank/null/wrong shapes fail; nested extensions and block scalars do not contribute references; errors do not echo content |
+| `src/parser/tests/frontmatter.rs` | cargo test parser::frontmatter::tests::all_frontmatter_readers_agree_on_what_a_delimiter_is | All three readers give the SAME verdict on a matrix of delimiter shapes — this is what fails if the rule in `is_frontmatter_delimiter` and the rule in `FRONTMATTER_RE` ever drift apart |
+| `src/parser/tests/frontmatter.rs` | cargo test parser::frontmatter::tests::test_strip_frontmatter_accepts_a_delimiter_padded_with_trailing_whitespace | A padded OPENER opens the block, so its YAML never counts as prose; a padded CLOSER ends it, so body prose above the first horizontal rule is not deleted |
+| `src/parser/tests/frontmatter.rs` | cargo test parser::frontmatter::tests::test_strip_frontmatter_refuses_a_delimiter_that_is_not_three_dashes | `----`, `--- x`, `---change: x` and an indented `---` are NOT delimiters — loosening this deletes the body of any document that opens with a thematic break |
+| `src/parser/tests/frontmatter.rs` | cargo test parser::frontmatter::tests::test_parse_frontmatter_body_is_lf_even_when_only_the_body_is_crlf | `parsed.body` is LF-only when the frontmatter is LF and the body is CRLF |
+| `src/parser/tests/api_symbols.rs` | cargo test parser::api_symbols::tests::test_get_spec_symbols_preserves_complete_punctuated_symbols | Dots, hyphens, selectors, operators, apostrophes, spaces, Unicode, and ordinary identifiers are preserved exactly |
+| `src/parser/tests/api_symbols.rs` | cargo test parser::api_symbols::tests::test_api_table_symbol_parser_rejects_empty_or_malformed_rows | Empty, whitespace-only, unterminated, later-column, trailing-text, and prose spans remain excluded |
 | `tests/integration.rs` | cargo test --test integration check_github_actions_yaml_with_dotted_exports_passes_strict | Active GitHub Actions workflow contract reports `10/10 exports documented` with zero warnings under strict forced validation |
 | `tests/integration.rs` | cargo test --test integration check_undocumented_export_warns | End-to-end fixture: `check_undocumented_export_warns` |
 | `tests/integration.rs` | cargo test --test integration check_phantom_export_errors | End-to-end fixture: `check_phantom_export_errors` |

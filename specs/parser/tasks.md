@@ -13,6 +13,8 @@ spec: parser.spec.md
 
 ## Done
 
+- [x] Split parser implementation and its existing 69 regressions into focused private owners below 1000 lines, preserving the facade and both frontmatter contracts
+
 - [x] Preserve complete dotted, hyphenated, operator, selector, Unicode, and space-containing symbols from the first Public API table cell
 - [x] Zero-dependency YAML frontmatter parsing
 - [x] Flat key-value and list field extraction

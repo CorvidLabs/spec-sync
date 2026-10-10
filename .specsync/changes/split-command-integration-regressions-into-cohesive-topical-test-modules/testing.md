@@ -9,7 +9,7 @@ Baseline pristine-main integration log contains 120 passing commands:: cases; th
 
 ## Focused Refactor Evidence
 
-The registered facade is reduced from 5496 to 103 lines. Its 11 explicitly declared children are 185–970 lines. All 134 complete original function declarations match exactly, including signatures, visibility, bodies, literals and attached cfg/cfg_attr attributes; no rustfmt exception or added function is needed. All 124 test declarations remain, including four Windows-only cases. The compiled Linux inventory contains the same 120 short test names with no additions or omissions, and all 120 focused cases pass. The unchanged root registration guard passes. cargo fmt --check, cargo check --locked --test integration and git diff --check pass.
+The registered facade is reduced from 5496 to 103 lines. Its 11 explicitly declared children are 185–970 lines. All 134 complete original function declarations match exactly, including signatures, visibility, bodies, literals and attached cfg/cfg_attr attributes; no rustfmt exception or added function is needed. All 124 test declarations remain, including four Windows-only cases. The compiled Linux inventory contains the same 120 short test names with no additions or omissions, and all 120 focused cases pass. The unchanged root registration guard passes. cargo fmt --check and cargo check --locked --test integration pass. Working-tree diff checks passed; the full committed-patch fixture diagnostic is explained below.
 
 The Windows commands::create_windows_junction helper retains its original path and visibility for the sibling MCP integration module. All other integration files, shared helpers, root harness and production source remain unchanged. Native Windows runtime is not claimed.
 
@@ -22,3 +22,7 @@ Independent final technical review confirms all declarations and bodies, all 120
 ## Final Available Gates
 
 The release build and mandatory pre-push gate passed. Strict validation reports all 62 specs passing, zero warnings and 107/107 production source files covered; this source-coverage figure is distinct from the separately verified compiled test inventory. CLI spec quality is 100/A. All available checks and baseline limitations are recorded above, and the local result is prepared for the real scoped lifecycle materialize/verify commit. No human implementation review, publication or merge is claimed.
+
+## Intentional Merge-Fixture Diff Diagnostic
+
+`git diff --check origin/main..HEAD` reports six conflict-marker lines in the relocated maintenance.rs file. They are the original literal fixture contents inside merge_never_writes_corrupt_spec_for_fence_hunk and merge_resolves_interior_field_conflict, preserved exactly by the 134-body comparison. They are deliberately conflicted inputs tested by the merge command, not unresolved repository merges. The index has no unmerged entries (`git ls-files -u` is empty), the Rust source compiles and the fixtures pass. No whitespace error is reported. The strings and Git checks were not altered or suppressed to hide this expected diagnostic.

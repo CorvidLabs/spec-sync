@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-approval-tests-valid-after-a-plan-must-name-its-sections",
+  "slug": "keep-approval-tests-valid-after-a-plan-must-name-its-sections",
+  "title": "Keep approval tests valid after a plan must name its sections",
+  "description": "Keep approval tests valid after a plan must name its sections",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "81e0d1181f8983aee9630aea20d09304830bb787",
+  "created_at": 1791652643,
+  "updated_at": 1791652667,
+  "affected_specs": [],
+  "affected_paths": [
+    "src/change_tests.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The tests only complete a selected plan and record that principles constrain the draft. They do not change a contract.",
+  "acceptance_criteria": [
+    "The approval tests pass, and changing the principles file still invalidates that approval."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

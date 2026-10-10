@@ -1,0 +1,35 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791652661,
+      "digest": "2d75bd216b5fb65f354401c972414fd110b32aba5e7ffaa6f561943003c8350a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-approval-tests-valid-after-a-plan-must-name-its-sections",
+        "title": "Keep approval tests valid after a plan must name its sections",
+        "description": "Keep approval tests valid after a plan must name its sections",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The tests only complete a selected plan and record that principles constrain the draft. They do not change a contract.",
+        "acceptance_criteria": [
+          "The approval tests pass, and changing the principles file still invalidates that approval."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

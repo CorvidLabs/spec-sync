@@ -6882,7 +6882,7 @@ fn stale_definition_approval_is_rejected() {
     for artifact in &record.selected_artifacts {
         fs::write(
             change_dir(temp.path(), &record.id).join(artifact.file_name()),
-            "complete\n",
+            prose_or_plan(artifact, "# Complete\n\nReviewed.\n"),
         )
         .unwrap();
     }
@@ -13721,6 +13721,10 @@ fn project_principles_are_part_of_the_approval_digest() {
     policy.require_change_for_meaningful_files = false;
     write_json(&root.join(POLICY_PATH), &policy).unwrap();
     let mut record = completed_record(root);
+    record
+        .answers
+        .insert("constraints".into(), "none".into());
+    save_change(root, &record).unwrap();
     for artifact in &record.selected_artifacts {
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),

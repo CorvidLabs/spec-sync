@@ -1,6 +1,6 @@
 ---
 id: show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how
-state: implementing
+state: archived
 type: feature
 base_commit: 684aed366163c29ce3b5df22b3c4716353d93fcf
 ---

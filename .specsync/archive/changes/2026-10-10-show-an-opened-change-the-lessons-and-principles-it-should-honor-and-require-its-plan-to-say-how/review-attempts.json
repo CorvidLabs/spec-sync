@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "4c3c6783b6ff040e638b78638aa87f26f48e5d91",
+      "contract_digest": "d314b58b4a824c17aa92375b5a9491204fa07ba7534f45c45364a09d8a9a4ee8",
+      "execution_digest": "9b056b93cbaf088c3f40362c5ef6a8007d088cf729a1ff3b69d0edcf4986511a",
+      "workspace_digest": "866f792e8ab5ce963342c138ae29487bf870dac5ad5d709382ac3fbbba6eb0b4",
+      "timestamp": 1791646761
+    }
+  ]
+}

@@ -7,11 +7,11 @@
   "title": "Show an opened change the lessons and principles it should honor, and require its plan to say how",
   "description": "Show an opened change the lessons and principles it should honor, and require its plan to say how",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "684aed366163c29ce3b5df22b3c4716353d93fcf",
   "created_at": 1791645122,
-  "updated_at": 1791646348,
+  "updated_at": 1791646809,
   "affected_specs": [
     "change",
     "cmd_change",

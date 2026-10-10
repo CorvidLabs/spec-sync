@@ -1776,12 +1776,22 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         // branch that did not contain an earlier change, which is an ordinary
         // branching pattern and blocked the first command in the workflow.
         //
-        // A directory with no `state.json` is not an active change *here*. Skip it.
-        // Every other read error is still reported: an unreadable state.json is a
-        // real problem and must never be mistaken for an absent one.
+        // A husk holds no regular file and is not an active change here. A
+        // directory that holds a file but no `state.json` is damaged and still
+        // open: report it and keep enumerating. Every other read error is still
+        // reported, so an unreadable state.json is never mistaken for an absent one.
         let content = match fs::read_to_string(&path) {
             Ok(content) => content,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if is_untrackable_husk(&entry.path()) {
+                    continue;
+                }
+                roster.unreadable.push(UnreadableChange {
+                    id: expected_id,
+                    reason: format!("active change state file is missing: {}", path.display()),
+                });
+                continue;
+            }
             Err(error) => {
                 roster.unreadable.push(UnreadableChange {
                     id: expected_id,
@@ -2032,11 +2042,15 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 }
                 // Git cannot track empty directories, so checking out a branch
                 // without this change leaves a husk behind — typically just an
-                // empty `deltas/`. Treating it as a corrupt change made
-                // `change new` fail outright on any branch that did not contain
-                // an earlier change, which is an ordinary branching pattern.
-                // A directory with no `state.json` is not an active change here.
-                Err(error) if !archived && error.kind() == std::io::ErrorKind::NotFound => {
+                // empty `deltas/`. A husk is not an active change. Treating one
+                // as corrupt made `change new` fail on an ordinary checkout.
+                // A directory that holds a file but no `state.json` is damaged
+                // and must not be skipped.
+                Err(error)
+                    if !archived
+                        && error.kind() == std::io::ErrorKind::NotFound
+                        && is_untrackable_husk(&entry.path()) =>
+                {
                     continue;
                 }
                 Err(error) => {

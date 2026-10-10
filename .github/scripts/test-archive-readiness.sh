@@ -73,6 +73,25 @@ mkdir -p "$tmp/.specsync/changes/left-behind"
 printf '{"state":"archived"}\n' >"$tmp/.specsync/changes/left-behind/state.json"
 assert_fail "This pull request is not finished. \`left-behind\` is still open. Run \`specsync change status left-behind\`."
 
+# A directory that holds a file but no state.json is damaged and still open.
+# An empty deltas/ sibling is a husk and must not appear in the sentence.
+rm -rf "$tmp/.specsync"
+mkdir -p "$tmp/.specsync/changes/broken-notes"
+printf '# context\n' >"$tmp/.specsync/changes/broken-notes/context.md"
+mkdir -p "$tmp/.specsync/changes/left-husk/deltas"
+assert_fail "This pull request is not finished. \`broken-notes\` is still open. Run \`specsync change status broken-notes\`."
+
+# A regular file nested under deltas/ is the same damage, not a husk.
+rm -rf "$tmp/.specsync"
+mkdir -p "$tmp/.specsync/changes/nested-damage/deltas"
+printf 'note\n' >"$tmp/.specsync/changes/nested-damage/deltas/note.md"
+assert_fail "This pull request is not finished. \`nested-damage\` is still open. Run \`specsync change status nested-damage\`."
+
+# An empty deltas/ husk is not an open change.
+rm -rf "$tmp/.specsync"
+mkdir -p "$tmp/.specsync/changes/left-husk/deltas"
+assert_pass
+
 rm -rf "$tmp/.specsync"
 assert_pass
 

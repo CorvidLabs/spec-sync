@@ -14,6 +14,7 @@ shopt -s nullglob
 
 python3 - "$root" <<'PY'
 import json
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -21,20 +22,48 @@ from pathlib import Path
 root = Path(sys.argv[1])
 changes = root / ".specsync" / "changes"
 rows = []
+
+
+def holds_regular_file(directory: Path) -> bool:
+    """True when any regular file sits at any depth. Symlinks are not files."""
+    try:
+        children = list(directory.iterdir())
+    except OSError:
+        return False
+    for child in children:
+        try:
+            kind = child.lstat()
+        except OSError:
+            continue
+        if stat.S_ISREG(kind.st_mode):
+            return True
+        if stat.S_ISDIR(kind.st_mode) and holds_regular_file(child):
+            return True
+    return False
+
+
 if changes.is_dir():
     for directory in sorted(path for path in changes.iterdir() if path.is_dir()):
         state_file = directory / "state.json"
-        if not state_file.is_file():
+        # A husk is a directory tree with no regular file (often an empty
+        # `deltas/` left after checkout). A directory that holds a file but
+        # no state.json is damaged and still open: same rank as unreadable.
+        missing_state = not state_file.is_file()
+        if missing_state and not holds_regular_file(directory):
             continue
         change_id = directory.name
-        try:
-            payload = json.loads(state_file.read_text(encoding="utf-8"))
-            state = payload.get("state") if isinstance(payload, dict) else None
-            if not isinstance(state, str) or not state:
-                state = "unreadable"
-        except (OSError, json.JSONDecodeError):
+        if missing_state:
             payload = None
             state = "unreadable"
+        else:
+            try:
+                payload = json.loads(state_file.read_text(encoding="utf-8"))
+                state = payload.get("state") if isinstance(payload, dict) else None
+                if not isinstance(state, str) or not state:
+                    state = "unreadable"
+            except (OSError, json.JSONDecodeError):
+                payload = None
+                state = "unreadable"
         rank = {
             "accepted": 0,
             "verifying": 1,

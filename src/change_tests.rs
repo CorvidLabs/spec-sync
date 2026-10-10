@@ -4222,6 +4222,80 @@ fn archive_husk_nested_below_an_empty_directory_is_still_a_husk() {
     assert!(list_all_changes_checked(root).unwrap().is_empty());
 }
 
+/// An active directory that holds a file but no `state.json` is damaged, not absent.
+///
+/// An empty `deltas/` left by checkout is a husk and must stay invisible, including
+/// to `change new`. Reporting that husk as corrupt made the first command fail.
+#[test]
+fn active_directory_with_files_and_no_state_is_still_open() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let healthy = create_change(
+        root,
+        CreateChangeRequest {
+            description: "Healthy sibling".into(),
+            kind: ChangeKind::Operations,
+            affected_specs: Vec::new(),
+            affected_paths: vec!["ops/healthy/".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("husk fixture".into()),
+        },
+    )
+    .unwrap()
+    .id;
+
+    let damaged = root.join(CHANGES_PATH).join("broken-notes");
+    fs::create_dir_all(damaged.join("deltas")).unwrap();
+    fs::write(damaged.join("deltas").join("note.md"), "note\n").unwrap();
+    fs::create_dir_all(root.join(CHANGES_PATH).join("left-husk").join("deltas")).unwrap();
+
+    let roster = list_changes(root).unwrap();
+    assert_eq!(
+        roster
+            .records
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![healthy.as_str()],
+        "a damaged neighbour must not erase the healthy change"
+    );
+    assert_eq!(roster.unreadable.len(), 1);
+    assert_eq!(roster.unreadable[0].id, "broken-notes");
+    assert!(
+        roster.unreadable[0]
+            .reason
+            .contains("state file is missing"),
+        "{}",
+        roster.unreadable[0].reason
+    );
+    assert!(
+        roster.unreadable[0].reason.contains("state.json"),
+        "{}",
+        roster.unreadable[0].reason
+    );
+    let checked = list_changes_checked(root).unwrap_err();
+    assert!(checked.contains("state file is missing"), "{checked}");
+
+    let sequences = located_change_sequences(root).unwrap_err();
+    assert!(
+        sequences.contains("failed to read active change state"),
+        "{sequences}"
+    );
+    assert!(sequences.contains("broken-notes"), "{sequences}");
+
+    fs::remove_dir_all(&damaged).unwrap();
+    let roster = list_changes(root).unwrap();
+    assert!(
+        !roster.is_degraded(),
+        "a husk must not be unreadable: {:?}",
+        roster.unreadable
+    );
+    assert_eq!(roster.records.len(), 1);
+    assert!(located_change_sequences(root).is_ok());
+    assert!(validate_change_sequences(root).is_ok());
+}
+
 #[test]
 fn archived_package_keeps_directories_that_hold_files_and_drops_the_rest() {
     let temp = TempDir::new().unwrap();

@@ -13,7 +13,7 @@ Keep approval tests valid after a plan must name its sections
 
 ## Affected Canonical Specs
 
-- None
+- `change`
 
 ## Acceptance Criteria
 
@@ -21,4 +21,4 @@ Keep approval tests valid after a plan must name its sections
 
 ## No-spec Rationale
 
-The tests only complete a selected plan and record that principles constrain the draft. They do not change a contract.
+Not applicable

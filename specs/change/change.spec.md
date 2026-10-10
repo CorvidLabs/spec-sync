@@ -1,6 +1,6 @@
 ---
 module: change
-version: 130
+version: 131
 status: active
 files:
   - src/change.rs
@@ -509,3 +509,4 @@ Acceptance Criteria
 | 2026-09-09 | drop-interpolated-next-action-from-v1-verifying-assert-messages-so-codeql-cleartext-logging-is-not-a-required-check: Drop interpolated next_action from v1 verifying assert messages so CodeQL cleartext-logging is not a required-check failure |
 | 2026-09-26 | lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file: Lifecycle commits stage only what the change owns, never every untracked file |
 | 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |
+| 2026-10-10 | keep-approval-tests-valid-after-a-plan-must-name-its-sections: Keep approval tests valid after a plan must name its sections |

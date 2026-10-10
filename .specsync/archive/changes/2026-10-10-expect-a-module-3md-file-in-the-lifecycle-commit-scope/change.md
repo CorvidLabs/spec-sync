@@ -1,6 +1,6 @@
 ---
 id: expect-a-module-3md-file-in-the-lifecycle-commit-scope
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 353765989a52957754cbefb909eaff9c6208d136
 ---

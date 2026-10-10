@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "expect-a-module-3md-file-in-the-lifecycle-commit-scope",
+  "implementation_commit": "5eda3df343d50ca8b7a685b7b4625ac357e31983",
+  "implementation_tree": "4f4d5a88f4a2747874c2f1ad14a9d1e6f93a398b",
+  "contract_digest": "8acb1d1150906650eae5b668973bcecc4551c140eddaea94b2d94ab888699273",
+  "workspace_digest": "f243f015505708fd63757d7c739cabb5d358a88f11a483ec45e7e792f424afe3",
+  "closing_digest": "a64d764745fdd4fab5896d34492b7544f758c83471aaee5b1ccd90b4e1b902fb",
+  "review_digest": "8246ac317e96661eaa92c1206534670e8a53ea1ec67fdef594ba1032d723522c",
+  "finalization_digest": "7aeed2d92b2a9f4297f003ce8d052802745dea6c6d54d522d192918b11dfd3bc",
+  "timestamp": 1791669045
+}

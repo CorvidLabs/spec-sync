@@ -7,11 +7,11 @@
   "title": "Expect a module 3md file in the lifecycle commit scope",
   "description": "Expect a module 3md file in the lifecycle commit scope",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "353765989a52957754cbefb909eaff9c6208d136",
   "created_at": 1791668956,
-  "updated_at": 1791668992,
+  "updated_at": 1791669458,
   "affected_specs": [
     "change"
   ],

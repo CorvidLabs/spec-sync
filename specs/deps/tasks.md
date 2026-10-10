@@ -12,6 +12,8 @@ spec: deps.spec.md
 
 ## Done
 
+- [x] Split the dependency facade, graph validation, import analysis, report rendering and all 43 existing tests into focused private files below 1000 lines (2026-10-10)
+
 - [x] `build_dep_graph` / `extract_module_from_dep_path` — build the module graph from spec frontmatter
 - [x] `validate_deps` — report missing dependency targets (errors + `missing_deps`)
 - [x] `detect_cycles` — DFS-coloring cycle detection with full chain reporting
@@ -19,7 +21,7 @@ spec: deps.spec.md
 - [x] `check_undeclared_imports` — warn on undeclared cross-module imports, never flag self-imports
 - [x] `topological_sort` — deterministic DAG ordering, `None` on cycles
 - [x] Skip cross-project refs during local validation
-- [x] Inline unit tests for graph build, validation, cycles, import extraction, and topo sort
+- [x] Unit tests grouped by owner for graph build, validation, cycles, import extraction, and topo sort
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
 
 ## Open

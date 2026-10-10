@@ -6,7 +6,7 @@ spec: deps.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/deps.rs` | cargo test deps:: | `test_extract_module_from_dep_path`, `test_build_dep_graph_empty`, `test_build_dep_graph_basic`, `test_validate_no_errors`, `test_validate_missing_dep`, `test_detect_circular_deps` |
+| `src/deps/graph/tests.rs`, `src/deps/imports/basic_tests.rs`, `src/deps/imports/jvm_tests.rs`, `src/deps/report/tests.rs` | cargo test --bin specsync deps:: | `test_extract_module_from_dep_path`, `test_build_dep_graph_empty`, `test_build_dep_graph_basic`, `test_validate_no_errors`, `test_validate_missing_dep`, `test_detect_circular_deps` |
 
 ## Coverage Gaps
 
@@ -30,7 +30,7 @@ spec: deps.spec.md
 
 ## Reviewer Checklist
 
-- Run the narrow source command above before the full suite when changing `src/deps.rs`.
+- Run the narrow source command above before the full suite when changing `src/deps.rs` or `src/deps/`.
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.

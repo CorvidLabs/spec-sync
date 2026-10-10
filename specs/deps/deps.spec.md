@@ -1,9 +1,17 @@
 ---
 module: deps
-version: 7
+version: 9
 status: stable
 files:
   - src/deps.rs
+  - src/deps/graph/tests.rs
+  - src/deps/graph.rs
+  - src/deps/imports/basic_tests.rs
+  - src/deps/imports/jvm_tests.rs
+  - src/deps/imports.rs
+  - src/deps/report/tests.rs
+  - src/deps/report.rs
+  - src/deps/test_support.rs
 db_tables: []
 tracks: [139]
 depends_on:
@@ -99,6 +107,7 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Split the dependency facade, graph validation, complete import analysis, report rendering and all 43 existing tests into focused private files without changing behavior |
 | 2026-07-06 | Documented fail-loud behavior for unreadable declared source and spec files: added invariant 7 and updated Error Cases table so an existing-but-non-UTF-8 file is a hard error gating `cmd_deps` rather than a silent skip |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |
@@ -106,3 +115,8 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-13 | CHG-0110-report-the-specs-that-dependency-analysis-dropped-instead-of-calling-a-malformed: Report the specs that dependency analysis dropped instead of calling a malformed graph valid |
 | 2026-08-15 | CHG-0131-dependency-analysis-must-not-report-a-clean-graph-built-from-imports-it-could-no: Dependency analysis must not report a clean graph built from imports it could not read or could not resolve, so an unattributable import is disclosed rather than dropped |
+| 2026-10-10 | split-dependency-graph-import-analysis-and-reporting-into-focused-private-modules: Split dependency graph import analysis and reporting into focused private modules |
+
+## Internal Organization
+
+Dependency analysis retains its public API paths and report types behind a small facade. Private owners separate graph construction and validation, the complete import scanner and source-ownership subsystem, and disclosure/report rendering. Existing tests are grouped beside their owners with shared fixture builders. The split preserves source-root guards, fail-loud source/spec errors, ImportDialect authority, Rust masking and attribution, JVM declaration-before-layout ownership including ambiguous and unresolved outcomes, cycle traversal, topological order and rendered output without adding public behavior.

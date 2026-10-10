@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 26
+version: 27
 status: stable
 files:
   - src/main.rs
@@ -385,3 +385,8 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-10-10 | split-command-integration-regressions-into-cohesive-topical-test-modules: Split command integration regressions into cohesive topical test modules |
+
+## Integration Test Organization
+
+The registered `tests/integration/commands.rs` module is a small entry point for private topical command-regression modules beneath `tests/integration/commands/`. Related tests share fixtures at their nearest common owner. Every existing test name, assertion, fixture behavior, subprocess filter and platform/debug guard is preserved; only module-qualified test paths change. The root integration harness registration remains intact, and compiled inventory comparisons ensure no relocated regression is omitted. This internal organization changes no CLI behavior or production API.

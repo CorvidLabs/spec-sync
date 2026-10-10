@@ -12,6 +12,8 @@ spec: cli.spec.md
 
 ## Done
 
+- [x] Group command integration regressions into private topical modules while preserving their registered entry point, fixture behavior and platform helper paths.
+
 - [x] Implement the full subcommand surface (check, coverage, generate, init, score, watch, mcp, add-spec, scaffold, init-registry, resolve, diff, hooks, compact, archive-tasks, view, merge, issues, new, wizard, deps, import, stale, report, comment, rules, changelog, rehash, migrate, lifecycle)
 - [x] Add `--json` output mode (shorthand for `--format json`) and `--format text/json/markdown`
 - [x] Add `--strict`, `--require-coverage`, `--enforcement`, `--exclude-status`, `--only-status` global flags

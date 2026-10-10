@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791659895,
+      "digest": "85a1f1eaa1406ab65558d7233c3e88919db36b03f5b46ad87b46c5a9758d5282",
+      "note": "Recorded by corvid-agent from the owner’s explicit whole-repository large-file refactoring, continuation and branch/commit instructions; scope approval only, not implementation review.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "split-command-integration-regressions-into-cohesive-topical-test-modules",
+        "title": "Split command integration regressions into cohesive topical test modules",
+        "description": "Split command integration regressions into cohesive topical test modules",
+        "kind": "refactor",
+        "affected_specs": [
+          "cli"
+        ],
+        "affected_paths": [
+          "specs/cli",
+          "tests/integration/commands",
+          "tests/integration/commands.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Reduce the 5496-line command integration test file to a small registered facade and cohesive topical test files below 1000 lines where sensible; preserve every existing test/helper body, assertion, fixture and platform/debug attribute, retain all 120 Linux command test cases and platform-only declarations, preserve effective subprocess filters and root integration registration, change no production code or user-visible behavior, and document the test layout with faithful lifecycle evidence"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Honor the existing CLI behavior and integration registration guard, exact command arguments and environment sanitization, retained requested-root spelling for capability-sensitive gates, output/exit-code assertions and all platform/debug race fixtures. Preserve every test including security and no-write regressions; no configured principles file exists.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "cli": "58ddb28659e20f2fa803c715aaed2cdf836574d9182cc22ebca7ad084141fa63"
+      }
+    }
+  ],
+  "reopenings": []
+}

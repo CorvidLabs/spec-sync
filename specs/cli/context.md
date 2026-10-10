@@ -4,6 +4,12 @@ spec: cli.spec.md
 
 ## Key Decisions
 
+- **Topical command regressions**: `tests/integration/commands.rs` remains the harness-registered
+  entry point; private children group issues, coverage and retained-root races, generation,
+  project setup, quality gates, history, migration, dependencies and maintenance. Windows junction
+  helpers keep their original commands-module path for the sibling MCP tests. Test bodies,
+  fixtures, platform/debug guards and command arguments remain unchanged.
+
 - **Thin dispatcher**: `main.rs` parses CLI args with `clap`, then routes to `cmd_*` handler functions that orchestrate calls to the library modules. No domain logic lives here — purely argument parsing, output formatting, and exit code management.
 - **Default subcommand**: `check` runs when no subcommand is given, making the most common operation the easiest to invoke.
 - **JSON mode**: `--json` is normalized globally so structured-output handlers receive one consistent machine-readable format selection.

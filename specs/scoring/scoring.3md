@@ -1,0 +1,30 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/scoring/scoring.spec.md`.
+
+Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubric (20 points each): frontmatter completeness, required sections, API documentation coverage, content depth, and freshness. Provides actionable improvement suggestions.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- **5 equal components**: Each dimension (frontmatter, sections, API coverage, content depth, freshness) is worth exactly 20 points for a total of 100. Equal weighting keeps the rubric simple and predictable.
+- **Letter grades**: A (90+), B (80-89), C (70-79), D (60-69), F (<60). These map to intuitive quality tiers.
+- **Unfinished-work marker counting ignores code blocks**: Standalone `TODO` lines and unfilled `<!-- ... -->` HTML comments are counted only outside fenced code blocks. For the HTML-comment check, inline code spans (`` `...` ``) are also stripped first, so a spec that *documents* `<!-- -->` syntax inside a code span isn't falsely flagged as a placeholder.
+- **No-exports = full API score**: Modules with no extractable exports (e.g., config-only, types-only) receive full API coverage points rather than being penalized for having nothing to document.
+- **Stale reference penalties**: Missing source files cost 5 points each (max 15), missing dependency specs cost 3 points each. This encourages keeping specs in sync with code changes.
+- **Actionable suggestions**: Each score includes specific improvement suggestions (e.g., "Add version field to frontmatter") so users know exactly what to fix.
+
+@plane z=2 label="Files to Read First"
+- `src/scoring.rs` — Single-file module with scoring logic, grade calculation, and project-level aggregation.
+
+@plane z=3 label="Current Status"
+Fully implemented. Individual spec scoring and project-level aggregation both work. The MCP server exposes scoring through the `specsync_score` tool.
+
+@plane z=4 label="Notes"
+- Content depth checks for "meaningful content" — sections with only headings, HTML comments, or table separator rows (`|---|`) don't count as having content.
+- Project scores include a grade distribution (count of A/B/C/D/F specs) for quick triage.

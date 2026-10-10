@@ -1,0 +1,40 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/importer/importer.spec.md`.
+
+Generates spec files from external project management systems. Supports importing from GitHub Issues, Jira issues/epics, and Confluence pages, converting them into spec-format markdown with frontmatter, requirements or guided requirement prompts, starter sections, and traceability links.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- Reuses `github::fetch_issue_details()` for explicit-token typed REST, operation bounds, strict
+  payload parsing, and repository-aware 404 classification; GitHub imports never launch `gh`.
+- Uses simple regex-free HTML stripping for Confluence — no external HTML parser dependency
+- Base64 encoding is hand-rolled to avoid adding a dependency (only used for Jira/Confluence basic auth)
+- Requirements extraction is heuristic-based: looks for checkboxes, "Acceptance Criteria"/"Requirements", and "Definition of Done" sections
+- Generated specs always start as `draft` status — user fills in details after import
+- Every provider title is slugified and then passed through shared portable module-name validation
+  before an `ImportedItem` exists; this keeps Unix imports safe for Windows checkout.
+- `redact_secret` strips any verbatim auth token from REST error strings before surfacing them (added 4.3.5), mirroring the GitHub module's `redact_token`. It originally also mirrored the embedded AI provider client's sanitization; that client was retired in 5.0 and `specs/ai` is a tombstone.
+
+@plane z=2 label="Files to Read First"
+- `src/importer.rs` — all importer logic, parsers, and tests
+- `src/commands/import.rs` — wires the `specsync import` subcommand to the importer functions (dispatched from `src/main.rs`)
+
+@plane z=3 label="Current Status"
+All three importers are implemented. The GitHub public entry delegates through an injected
+crate-private seam to the shared typed provider, with success conversion and provider-failure
+non-production covered in unit tests; single and batch CLI token failures are covered end-to-end
+and assert that no spec output is created. GitHub, Jira, and Confluence titles that normalize to an
+empty, reserved, or overlong module name are rejected before an imported item or output path is
+created. Live REST success remains an integration-only gate.
+
+@plane z=4 label="Notes"
+- Jira Cloud uses email:token basic auth; Jira Server/DC uses bearer token
+- Confluence storage format is HTML-like, not markdown
+- Repository selection remains command-layer policy; the importer accepts a validated repository identifier and performs no Git or provider-subprocess discovery

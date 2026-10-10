@@ -1,0 +1,28 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/changelog/changelog.spec.md`.
+
+Automated changelog generation for spec changes between git refs. Compares specs at two git commits/tags and produces a structured diff showing which specs were added, removed, or modified — and which specific fields changed for modified specs.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- Spec state is read from git (`git ls-tree` + `git show`) rather than the working tree, so the changelog never depends on or disturbs uncommitted edits.
+- A spec is only "modified" when raw content differs AND a tracked frontmatter field or `##` section actually changed — identical-content or no-op edits are dropped.
+- Section diffing is coarse: top-level `##` sections are reported as `(added)`/`(removed)`/`(modified)`, never line-by-line, to keep output reviewable.
+- The `ChangelogReport` model is shared by all three formatters (text/JSON/markdown) so analysis and rendering stay decoupled.
+- Output is sorted by module name for deterministic, reviewable diffs.
+
+@plane z=2 label="Files to Read First"
+- `src/changelog.rs` — entire module (types, git helpers, `compare_frontmatter`, `compare_sections`, `generate_changelog`, formatters)
+- `src/parser.rs` — `parse_frontmatter` (the parse used at each ref)
+- `src/types.rs` — `Frontmatter` fields that drive field-level diffing
+- `src/commands/changelog.rs` — the CLI wiring that calls `generate_changelog` and selects a formatter
+
+@plane z=3 label="Current Status"
+Stable. Frontmatter and section diffing, range parsing, and all three formatters are implemented and unit-tested (including git-backed `generate_changelog` tests via a temp repo). CLI-level coverage is `changelog_bogus_ref_exits_1` and `changelog_valid_range_exits_0` in `tests/integration/regression_w1.rs`.

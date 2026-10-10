@@ -1,0 +1,24 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/types/types.spec.md`.
+
+Core deterministic data structures and enums shared across the codebase: configuration, validation, coverage, language detection, lifecycle, and registry entries.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- Shared types remain deterministic and dependency-light.
+- Inference provider identity and credential fields were removed in 5.0.
+- Language, validation, coverage, lifecycle, registry, GitHub, rule, and companion types remain canonical.
+
+@plane z=2 label="Files to Read First"
+- `src/types.rs`
+- `src/config.rs`
+
+@plane z=3 label="Current Status"
+Stable 5.0 deterministic type model.

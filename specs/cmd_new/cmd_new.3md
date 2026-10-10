@@ -1,0 +1,34 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/cmd_new/cmd_new.spec.md`.
+
+Implements the `specsync new` command. Quick-creates a minimal spec with auto-detected source files and pre-populated exports that include generated review prompts. `--full` also generates companion files.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- **Scaffold, don't author**: `cmd_new` writes frontmatter and section skeletons but leaves prose, invariants, and dependency descriptions to the author. Public API rows are review prompts, not finished docs.
+- **Auto-detect sources two ways**: a `src/<module>/` directory (walked recursively) and a top-level `src/<module>.<ext>` file are both treated as the module's sources, filtered by configured `source_extensions`.
+- **Pre-populate exports**: exported symbols from detected sources are pulled via `generator::generate_spec` / `collect_exports_for_files`, de-duplicated, and seeded into the Public API table so the author starts from the real surface area.
+- **Never clobber**: an existing target spec aborts with exit 1 — creation is non-destructive.
+- **No chrono dependency**: Change Log dates come from the shared generator, not an in-module `chrono_lite_today()` helper.
+
+@plane z=2 label="Files to Read First"
+- `src/commands/new.rs` — the command itself: `cmd_new` and `detect_module_sources`.
+- `src/generator.rs` — `generate_spec`, `collect_exports_for_files`, `generate_companion_files_for_spec`.
+- `src/exports/mod.rs` — `has_configured_extension` and `is_test_file`, used for source detection.
+
+@plane z=3 label="Current Status"
+Stable and implemented. Integration tests cover basic creation, source auto-detection, no-match guidance, and
+module-name safety. The command module's one inline `#[cfg(test)]` module covers only
+`detect_module_sources` test-file exclusion; explicit `--full` and refuse-overwrite
+integration fixtures remain open.
+
+@plane z=4 label="Notes"
+- This is a command-layer module: it orchestrates `config`, `exports`, and `generator` rather than holding domain logic.
+- `depends_on` is always emitted empty; imports are not analyzed to infer dependencies.

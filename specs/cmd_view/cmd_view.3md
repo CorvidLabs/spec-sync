@@ -1,0 +1,29 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/cmd_view/cmd_view.spec.md`.
+
+Implements the `specsync view` command. Renders specs filtered by role (dev, qa, product, agent), showing only relevant sections.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- Thin command wrapper: load config, find spec files, loop and delegate each to `view::view_spec`, print with a `---` separator. All section-filtering logic lives in the `view` library module.
+- Per-file resilience: a render error for one spec is printed to stderr and skipped rather than aborting the whole run.
+- Role validation is delegated: an unknown role surfaces as an error string from `view::view_spec` (valid roles: dev, qa, product, agent).
+- `--spec` filtering matches on module name derived from the file stem with a trailing `.spec` stripped.
+
+@plane z=2 label="Files to Read First"
+- `src/commands/view.rs` — the command wrapper
+- `src/view.rs` — `view_spec`, `sections_for_role`, `valid_roles` (the actual role-to-section mapping)
+- `src/validator.rs` — `find_spec_files` used for discovery
+
+@plane z=3 label="Current Status"
+Fully implemented and stable. The command itself has no unit tests; the role/section logic it relies on is unit-tested in `src/view.rs` (e.g. `test_sections_for_role`).
+
+@plane z=4 label="Notes"
+- Part of the command layer — it orchestrates the `view`, `config`, and `validator` modules rather than holding domain logic.

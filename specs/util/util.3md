@@ -1,0 +1,26 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/util/util.spec.md`.
+
+Provides small shared utility functions used by validators, fix suggestions, and rule compilation. The module keeps low-level helpers centralized so parsing and validation modules do not duplicate edit-distance or regex-safety logic.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- **Centralized helpers**: Edit-distance and safe-regex helpers live in `util` to avoid duplicate implementations in parser and validator code.
+- **Fail closed regex compilation**: User-provided regex patterns return `None` when invalid or too large, keeping callers on the safe path without panics.
+
+@plane z=2 label="Files to Read First"
+- `src/util.rs` — Shared helper functions and unit tests.
+- `src/validator.rs` — Main caller for regex-safe config patterns and near-miss suggestions.
+
+@plane z=3 label="Current Status"
+Stable. The helpers are small, covered by unit tests, and intentionally have no project-internal dependencies.
+
+@plane z=4 label="Notes"
+- Keep this module dependency-light. It is imported by validation code that runs on every check.

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "8b3286cd75e0d1e311b339deabc82e45abff34b6",
+      "contract_digest": "d1083761d76ec180947e732774a388d26858c032039badf1b77ae8cfac875323",
+      "execution_digest": "ea4990f7738a7b2f62b5997f92302fa1a09143f1fab3c4905a10fbfb82089a67",
+      "workspace_digest": "f7a1a1f053c91c18d9b60209142fe31eeee2808ea166ff235800537edfee8a80",
+      "timestamp": 1791651506
+    }
+  ]
+}

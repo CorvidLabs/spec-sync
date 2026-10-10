@@ -1,6 +1,6 @@
 ---
 id: when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it
-state: implementing
+state: archived
 type: feature
 base_commit: 4deb0ff097987e0edadc92359a7d0a278579dd2d
 ---

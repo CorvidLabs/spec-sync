@@ -19348,8 +19348,8 @@ fn lifecycle_commit_scope_names_exactly_what_the_change_owns() {
         "specs/auth/auth.spec.md".to_string(),
     ];
     expected.extend(
-        CANONICAL_SPEC_COMPANIONS
-            .iter()
+        canonical_companion_names("auth")
+            .into_iter()
             .map(|companion| format!("specs/auth/{companion}")),
     );
     expected.sort();

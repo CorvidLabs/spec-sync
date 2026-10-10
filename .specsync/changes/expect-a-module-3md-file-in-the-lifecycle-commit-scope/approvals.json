@@ -1,0 +1,40 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791668979,
+      "digest": "8acb1d1150906650eae5b668973bcecc4551c140eddaea94b2d94ab888699273",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "expect-a-module-3md-file-in-the-lifecycle-commit-scope",
+        "title": "Expect a module 3md file in the lifecycle commit scope",
+        "description": "Expect a module 3md file in the lifecycle commit scope",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "The lifecycle scope test includes specs/<module>/<module>.3md with the other companions."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7883601682e73f1f1f74902d1c30defa8ae580661035f760b1e34222e07f777b"
+      }
+    }
+  ],
+  "reopenings": []
+}

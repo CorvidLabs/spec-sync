@@ -1,6 +1,6 @@
 ---
 module: change
-version: 142
+version: 143
 status: active
 files:
   - src/change.rs
@@ -526,3 +526,4 @@ Acceptance Criteria
 | 2026-10-10 | close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file: Close a fence only on whitespace and count a symlink as a file |
 | 2026-10-10 | show-lessons-from-an-optional-module-3md-file: Show lessons from an optional module 3md file |
 | 2026-10-10 | read-3md-lessons-in-file-order-and-stage-the-file: Read 3md lessons in file order and stage the file |
+| 2026-10-10 | expect-a-module-3md-file-in-the-lifecycle-commit-scope: Expect a module 3md file in the lifecycle commit scope |

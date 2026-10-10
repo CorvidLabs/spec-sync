@@ -1,6 +1,6 @@
 ---
 id: show-lessons-from-an-optional-module-3md-file
-state: implementing
+state: archived
 type: feature
 base_commit: 6891ac2ed97a98bfa24c5e66a8383a482948b0df
 ---

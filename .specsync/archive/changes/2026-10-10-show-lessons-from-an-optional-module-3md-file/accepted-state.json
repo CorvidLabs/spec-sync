@@ -7,11 +7,11 @@
   "title": "Show lessons from an optional module 3md file",
   "description": "Show lessons from an optional module 3md file",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "6891ac2ed97a98bfa24c5e66a8383a482948b0df",
   "created_at": 1791664791,
-  "updated_at": 1791664861,
+  "updated_at": 1791665071,
   "affected_specs": [
     "change"
   ],

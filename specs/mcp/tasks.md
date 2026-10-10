@@ -8,6 +8,10 @@ spec: mcp.spec.md
 
 ## Done
 
+- [x] Split the registered MCP integration facade into nine private topical modules below 1000
+  lines while preserving all test/helper bodies, fixture bytes, platform/debug guards, and
+  the Windows command-helper seam.
+
 - [x] Make the server read-only by default and gate mutators behind `--allow-write`
 - [x] Confine reads to canonical descendants and writes to the canonical server root
 - [x] Enforce exact tool schemas and notification-safe no-dispatch behavior

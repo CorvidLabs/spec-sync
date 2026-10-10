@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "split-mcp-integration-regressions-into-cohesive-topical-test-modules",
+  "slug": "split-mcp-integration-regressions-into-cohesive-topical-test-modules",
+  "title": "Split MCP integration regressions into cohesive topical test modules",
+  "description": "Split MCP integration regressions into cohesive topical test modules",
+  "kind": "refactor",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "815690d1b01776915d93d11ff9f814efeced1a3d",
+  "created_at": 1791662152,
+  "updated_at": 1791662541,
+  "affected_specs": [
+    "mcp"
+  ],
+  "affected_paths": [
+    "tests/integration/mcp.rs",
+    "tests/integration/mcp",
+    "specs/mcp"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Reduce the 4139-line MCP integration test file to a small registered facade and cohesive private topical modules below 1000 lines; preserve all 77 test declarations, 72 Linux cases, complete test and helper bodies, fixture literals, assertions, platform attributes, four release-ignore guards, FIFO and socket PermissionDenied semantics, Windows command-helper seam, and root integration registration; change no production code or public behavior and document the test topology with faithful lifecycle evidence"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Honor MCP read-only defaults, retained-root confinement, exact protocol and fixture assertions, FIFO-mandatory and socket-PermissionDenied behavior, all Unix/Windows and debug rendezvous gates, successful subprocess exits, and the unchanged integration root registration guard. Move every complete test and helper without modifying production source. No configured principles file exists.",
+    "public_contract": "no"
+  }
+}

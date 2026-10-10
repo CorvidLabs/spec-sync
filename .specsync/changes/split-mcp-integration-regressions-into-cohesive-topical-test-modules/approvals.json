@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791662234,
+      "digest": "a44095057fd71d044394adebe289d3d9785f1d8ae82179f7c950762db49addc3",
+      "note": "Recorded by corvid-agent from the owner’s explicit whole-repository large-file refactoring, continuation, and branch/commit instructions; scope approval only, not implementation review.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "split-mcp-integration-regressions-into-cohesive-topical-test-modules",
+        "title": "Split MCP integration regressions into cohesive topical test modules",
+        "description": "Split MCP integration regressions into cohesive topical test modules",
+        "kind": "refactor",
+        "affected_specs": [
+          "mcp"
+        ],
+        "affected_paths": [
+          "specs/mcp",
+          "tests/integration/mcp",
+          "tests/integration/mcp.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Reduce the 4139-line MCP integration test file to a small registered facade and cohesive private topical modules below 1000 lines; preserve all 77 test declarations, 72 Linux cases, complete test and helper bodies, fixture literals, assertions, platform attributes, four release-ignore guards, FIFO and socket PermissionDenied semantics, Windows command-helper seam, and root integration registration; change no production code or public behavior and document the test topology with faithful lifecycle evidence"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Honor MCP read-only defaults, retained-root confinement, exact protocol and fixture assertions, FIFO-mandatory and socket-PermissionDenied behavior, all Unix/Windows and debug rendezvous gates, successful subprocess exits, and the unchanged integration root registration guard. Move every complete test and helper without modifying production source. No configured principles file exists.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "mcp": "ed67a845f1138857c4004ac69cab75a77b88ae5f80fd4cfbd42432227cc9ca0b"
+      }
+    }
+  ],
+  "reopenings": []
+}

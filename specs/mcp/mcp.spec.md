@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 30
+version: 31
 status: stable
 files:
   - src/mcp.rs
@@ -299,3 +299,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-09-09 | isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up: Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up |
 | 2026-09-09 | feat-mcp-tools-lock: Add `.specsync/mcp-tools.lock.json` SoT with `mcp lock` / `mcp lock --write` / `mcp diff` fail-closed drift detection over the shared tool catalog |
 | 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |
+| 2026-10-10 | split-mcp-integration-regressions-into-cohesive-topical-test-modules: Split MCP integration regressions into cohesive topical test modules |
+
+## Integration Test Organization
+
+The registered `tests/integration/mcp.rs` module is a small facade for private topical regression modules beneath `tests/integration/mcp/`: protocol, tools, read roots, configuration, snapshots, issues, Gradle, workspaces, and limits. Cross-topic fixtures remain at the facade; topic-specific helpers stay with their callers. Every existing test declaration, complete body, literal, assertion, platform attribute, and debug-only rendezvous ignore guard is preserved. The root integration harness registration remains unchanged, and compiled inventory comparisons verify no regression is omitted. This internal organization changes no MCP behavior or production API.

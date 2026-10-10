@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-lifecycle-tests-approvable-after-a-plan-must-name-its-sections",
+  "slug": "keep-lifecycle-tests-approvable-after-a-plan-must-name-its-sections",
+  "title": "Keep lifecycle tests approvable after a plan must name its sections",
+  "description": "Keep lifecycle tests approvable after a plan must name its sections",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "09cf77f298753eb671e9384efd7952ad5c64e0be",
+  "created_at": 1791650635,
+  "updated_at": 1791650665,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/change.rs",
+    "tests/integration/comment.rs",
+    "tests/integration/helpers.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "These tests only fill a selected plan so approval still succeeds. They do not change a contract.",
+  "acceptance_criteria": [
+    "Lifecycle tests that select a plan still approve when that plan names its sections."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

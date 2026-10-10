@@ -77,9 +77,25 @@ Unix FIFO assertions always run. Socket assertions run when the host permits `Un
 fixture creation; a host-level `PermissionDenied` skips only that unavailable socket fixture, while
 all other acquisition and replacement checks remain mandatory.
 
-The adversarial integration matrix lives in `tests/integration/mcp.rs`; its local write-enabled
-process helper and the shared `mcp_request` helper both require a successful server exit before
-parsing stdout.
+The adversarial integration matrix enters through the registered `tests/integration/mcp.rs`
+facade and its private modules under `tests/integration/mcp/`:
+
+- `protocol.rs`: initialization, schemas, envelopes, notifications, and protocol errors
+- `tools.rs`: tool results, write authorization, generation, and Windows write confinement
+- `read_roots.rs`: read-root selection, aliases, startup identity, and route revalidation
+- `configuration.rs`: selected configuration shape, parsing, compatibility, and path confinement
+- `snapshots.rs`: generic snapshots, replacement races, mappings, symlinks, and exclusions
+- `issues.rs`: explicit repository authority and issue diagnostic identity
+- `gradle.rs`: bounded Gradle manifest discovery and fail-closed path handling
+- `workspaces.rs`: Cargo/Node/Python discovery, workspace expansion, and nested manifest validation
+- `limits.rs`: descriptor, project-input, and outbound-response budgets
+
+The facade's write-enabled process helper and the shared `mcp_request` helper both require a
+successful server exit before parsing stdout. All 77 test declarations remain: 51 unrestricted,
+19 Unix-only, five Windows-only, and two Unix-or-Windows. The four debug rendezvous regressions
+retain their release-ignore attributes. Exact complete-declaration and fixture-byte comparisons,
+a 72-name compiled Linux inventory comparison, and the unchanged root registration guard protect
+against silent omissions when moving tests. Native Windows runtime remains a separate gate.
 Focused MCP source and integration coverage includes exact envelope and resource validation,
 explicit Git repository configuration, generation-failure reporting,
 Windows read/write junctions, identity-bound capability acquisition, cycle/bound and actual-byte budgets, bounded

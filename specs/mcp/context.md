@@ -119,6 +119,7 @@ spec: mcp.spec.md
 - `src/mcp.rs`
 - `src/generator.rs`
 - `src/validator.rs`
+- `tests/integration/mcp.rs` and its private topical children in `tests/integration/mcp/`
 
 ## Current Status
 
@@ -164,3 +165,14 @@ replacements. An earlier
 private-sandbox replay passed but its untracked inputs were not reproducible from the cited
 revisions, so a hash-bound exact-tree replay is required with fresh definition approval, Windows
 runtime CI, independent rereview, and final repository/trust/provenance/CI gates.
+
+## Integration Test Layout
+
+The MCP integration facade remains registered through the existing entry in
+`tests/integration.rs`. Its nine private children separate protocol, tools, read-root selection,
+selected configuration, generic snapshots, issue verification, Gradle discovery, workspace
+discovery, and limits. Cross-topic fixtures stay private at the facade; topic-only helpers stay
+with their callers. All 77 original tests and nine helper declarations retain their complete
+bodies, literals, assertions, and platform/debug attributes. The Windows junction helper is
+still imported from `crate::commands::create_windows_junction`. This test-only reorganization
+does not alter MCP implementation or the existing hosted-Windows runtime requirements.

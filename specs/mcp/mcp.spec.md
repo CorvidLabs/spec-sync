@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 32
+version: 33
 status: stable
 files:
   - src/mcp.rs
@@ -330,6 +330,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |
 | 2026-10-10 | split-mcp-issue-verification-into-focused-private-modules: Split MCP issue verification into focused private modules |
 | 2026-10-10 | split-remaining-mcp-server-responsibilities-into-focused-private-modules: Split remaining MCP server responsibilities into focused private modules |
+| 2026-10-10 | split-mcp-integration-regressions-into-cohesive-topical-test-modules: Split MCP integration regressions into cohesive topical test modules |
 
 ## Internal Organization
 
@@ -338,3 +339,7 @@ The MCP server facade preserves its existing public entry points and delegates t
 Issue verification remains private, with bounded content-free diagnostics and fail-closed checked discovery. Owner-specific unit tests reside alongside their implementation modules and share reusable fixtures. Files target fewer than 1000 lines where cohesive boundaries allow; no include-based textual shards or duplicate implementations are introduced.
 
 This organization does not expand the public API or change CLI behavior, MCP JSON/catalog, diagnostics, defaults, limits, authentication, serialization, call ordering, or retained filesystem authority. Platform and test cfg guards remain unchanged.
+
+## Integration Test Organization
+
+The registered `tests/integration/mcp.rs` module is a small facade for private topical regression modules beneath `tests/integration/mcp/`: protocol, tools, read roots, configuration, snapshots, issues, Gradle, workspaces, and limits. Cross-topic fixtures remain at the facade; topic-specific helpers stay with their callers. Every existing test declaration, complete body, literal, assertion, platform attribute, and debug-only rendezvous ignore guard is preserved. The root integration harness registration remains unchanged, and compiled inventory comparisons verify no regression is omitted. This internal organization changes no MCP behavior or production API.

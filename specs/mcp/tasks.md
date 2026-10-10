@@ -11,6 +11,9 @@ spec: mcp.spec.md
 - [x] Split remaining MCP implementation and unit tests by responsibility, keeping orchestration and each source/test file below 1000 lines without changing behavior.
 
 - [x] Extract issue verification and its 17 unchanged regressions into focused private modules.
+- [x] Split the registered MCP integration facade into nine private topical modules below 1000
+  lines while preserving all test/helper bodies, fixture bytes, platform/debug guards, and
+  the Windows command-helper seam.
 
 - [x] Make the server read-only by default and gate mutators behind `--allow-write`
 - [x] Confine reads to canonical descendants and writes to the canonical server root

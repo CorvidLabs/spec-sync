@@ -4,6 +4,7 @@ spec: change.spec.md
 
 # Tasks
 
+- [x] Refuse to open a change when `.specsync/sdd.json` cannot be parsed (REQ-change-108).
 - [x] Show an opened change the lessons and principles it should honor, and require a selected plan to say how.
 - [x] Report a change directory that holds files but no state.json as still open, and keep an empty husk skipped.
 - [x] Group private Git capture options to fix PR #801's Clippy argument-count failure.

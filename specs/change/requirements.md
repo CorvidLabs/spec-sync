@@ -1416,3 +1416,12 @@ Acceptance Criteria
 - `stale_definition_approval_is_rejected` approves a plan that names its sections.
 - `project_principles_are_part_of_the_approval_digest` records a constraints answer and still fails approval after the principles file changes.
 
+### REQ-change-108
+
+The system SHALL refuse to open a change when `.specsync/sdd.json` exists and cannot be parsed. The error SHALL say the SDD policy is invalid. A missing policy file SHALL still open a workflow-v2 change.
+
+Acceptance Criteria
+- `create_change` fails with `invalid SDD policy` when the policy file is `{`.
+- `configured_principles_file` returns that same error for the same file.
+- A missing policy file is not reported as an invalid policy.
+

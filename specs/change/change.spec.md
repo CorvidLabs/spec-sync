@@ -1,6 +1,6 @@
 ---
 module: change
-version: 143
+version: 144
 status: active
 files:
   - src/change.rs
@@ -246,7 +246,16 @@ Acceptance Criteria
 
 43. A draft whose affected modules have substantive lessons, or whose project names a principles file, is asked which of those constrain it once the rest of the interview is answered, and "none" is a complete answer stored in the stable scope. A draft with neither is not asked. A change that has left draft without that answer is not sent back to the interview. Re-answering affected specs clears the answer. A selected plan is incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted each contain substantive text. A change that did not select a plan does not gain one. Opening, showing, or asking status computes a briefing of those lessons and of that principles file. The excerpt is bounded, a scaffold-only context is omitted, and an unreadable file does not fail the command.
 
+44. Opening a change fails when `.specsync/sdd.json` exists and cannot be parsed. The error says the SDD policy is invalid. A missing policy file still opens a workflow-v2 change. A parsed policy is not treated as absent.
+
 ## Behavioral Examples
+
+**Scenario: A broken policy does not open a change**
+
+- **Given** `.specsync/sdd.json` exists and is not valid JSON
+- **When** a change is opened
+- **Then** opening fails with an invalid SDD policy error and no change is created
+- **And** a project with no policy file still opens a workflow-v2 change
 
 **Scenario: Archival compounds knowledge into the spec**
 
@@ -527,3 +536,4 @@ Acceptance Criteria
 | 2026-10-10 | show-lessons-from-an-optional-module-3md-file: Show lessons from an optional module 3md file |
 | 2026-10-10 | read-3md-lessons-in-file-order-and-stage-the-file: Read 3md lessons in file order and stage the file |
 | 2026-10-10 | expect-a-module-3md-file-in-the-lifecycle-commit-scope: Expect a module 3md file in the lifecycle commit scope |
+| 2026-10-10 | refuse-a-broken-policy-and-commit-the-archive-move: Refuse a broken policy and commit the archive move |

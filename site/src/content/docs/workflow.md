@@ -74,8 +74,8 @@ specsync change check add-passkeys --commit
 # after a human reviewer passes the change package, diff, spec delta, and evidence:
 specsync change review add-passkeys --reviewer "Ada Reviewer"
 specsync change finalize add-passkeys
-# do not commit between review and finalize
-# commit and push the archive result, wait for required checks, then merge on GitHub
+# do not commit between review and finalize; finalize commits the archive move
+# push the archive commit, wait for required checks, then merge on GitHub
 ```
 
 `change check` applies approved semantic deltas and compares specs to code in-process for
@@ -90,9 +90,10 @@ review` records the completed review and does not replace the repository's ordin
 Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate. The scope approver may also perform the implementation review.
 
 `change finalize` requires current verification and scoped review, writes finalization evidence,
-and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. Run `review` and
-`finalize` (or `ship`) consecutively without an intervening commit. Commit the archive result
-on the same PR and wait for required checks. Never merge while a change on that PR remains active.
+and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. That command commits
+the move as `chore(lifecycle): archive <id>`. Run `review` and `finalize` (or `ship`)
+consecutively without an intervening commit. Push the archive commit and wait for required
+checks. Never merge while a change on that PR remains active.
 GitHub protection and required workflows enforce hosted review and provenance policy where
 configured; the local reviewer label alone does not supply that authentication.
 
@@ -145,7 +146,7 @@ specsync change check add-passkeys --commit
 # push the corrected product tip, wait for required checks, and complete human review
 specsync change review add-passkeys --reviewer "Ada Reviewer"
 specsync change finalize add-passkeys
-# commit and push the archive result; wait for required checks before merging
+# finalize commits the archive; push it and wait for required checks before merging
 ```
 
 An archived package moves back to the active workspace on a successful reopen. The audit

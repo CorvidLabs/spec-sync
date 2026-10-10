@@ -1,0 +1,68 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791671388,
+      "digest": "7c0883051f4ca3362e94f9ed9f89cee48be5afa5bf64677943827ac5ead55980",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "refuse-a-broken-policy-and-commit-the-archive-move",
+        "title": "Refuse a broken policy and commit the archive move",
+        "description": "Refuse a broken policy and commit the archive move",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change",
+          "cmd_rules"
+        ],
+        "affected_paths": [
+          "site/src/content/docs/cli.md",
+          "site/src/content/docs/configuration.md",
+          "site/src/content/docs/quickstart.md",
+          "site/src/content/docs/workflow.md",
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/cmd_change/context.md",
+          "specs/cmd_change/requirements.md",
+          "specs/cmd_change/tasks.md",
+          "specs/cmd_change/testing.md",
+          "specs/cmd_rules/cmd_rules.spec.md",
+          "specs/cmd_rules/context.md",
+          "specs/cmd_rules/requirements.md",
+          "specs/cmd_rules/tasks.md",
+          "specs/cmd_rules/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "src/commands/rules.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Opening a change and asking its status fail when .specsync/sdd.json cannot be parsed.",
+          "change finalize commits the archive move.",
+          "specsync rules warns when the named principles file is not on disk."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "A broken .specsync/sdd.json must not look like no principles file.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "41784eb2a6d1916a03adcd0753e17dd84f9834faeb69707d03fdf725858970c8",
+        "cmd_change": "f1128cc348f20bc12fc8e2c77f422e2fd8df3df58affb296da4cdd4d47d3b94f",
+        "cmd_rules": "7425fc3809567c291debca9fea3f1619f5133475b81d365fe78e3d2b4bd69479"
+      }
+    }
+  ],
+  "reopenings": []
+}

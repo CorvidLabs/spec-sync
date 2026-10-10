@@ -1624,9 +1624,16 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
     let workflow_version = if read_workflow_v2_baseline(root)?.is_some() {
         2
     } else {
-        load_policy(root)
-            .map(|policy| if policy.version >= 2 { 2 } else { 1 })
-            .unwrap_or(2)
+        match load_policy_checked(root)? {
+            Some(policy) => {
+                if policy.version >= 2 {
+                    2
+                } else {
+                    1
+                }
+            }
+            None => 2,
+        }
     };
     if workflow_version >= 2 {
         ensure_workflow_v2_baseline(root)?;

@@ -19864,6 +19864,40 @@ fn a_module_3md_file_shows_later_planes_as_lessons_and_leaves_context_md() {
     assert!(fallback.lessons[0].excerpt.contains("context.md lesson"));
 }
 
+// Verifies REQ-change-108.
+#[test]
+fn change_new_refuses_a_broken_sdd_policy() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/sdd.json"), "{").unwrap();
+    let error = create_change(
+        root,
+        CreateChangeRequest {
+            description: "note a broken policy".into(),
+            kind: ChangeKind::BugFix,
+            affected_specs: Vec::new(),
+            affected_paths: Vec::new(),
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("the policy file itself is the defect".into()),
+        },
+    )
+    .unwrap_err();
+    assert!(error.contains("invalid SDD policy"), "{error}");
+}
+
+// Verifies REQ-cmd-change-021. `change status` returns this error and does not print a briefing.
+#[test]
+fn status_reads_the_same_broken_policy_error() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/sdd.json"), "{").unwrap();
+    let error = configured_principles_file(root).unwrap_err();
+    assert!(error.contains("invalid SDD policy"), "{error}");
+}
+
 // Verifies REQ-change-106.
 #[test]
 fn open_change_briefing_survives_an_unreadable_context() {

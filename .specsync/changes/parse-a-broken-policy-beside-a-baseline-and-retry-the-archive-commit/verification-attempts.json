@@ -20,6 +20,26 @@
         "REQ-cmd-change-022",
         "REQ-cmd-rules-003"
       ]
+    },
+    {
+      "timestamp": 1791674342,
+      "commit": "f04e395256933fabe43bc500ac570586d2e482a9",
+      "contract_digest": "1283429ef04d77d26175fc592d155f8bd8246c6a140da29eaddccaa6a901b9bc",
+      "execution_digest": "2f5ff252e5cc62a5aa5cfce24c59234c3b2c8682be13860c34001d848ce31af2",
+      "workspace_digest": "a54231fd344d0d3eaaeb079a65b80e482f9c804948af246806d3d484ec7af083",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change --spec cmd_rules",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-108",
+        "REQ-cmd-change-022",
+        "REQ-cmd-rules-003"
+      ]
     }
   ]
 }

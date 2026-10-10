@@ -167,6 +167,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `load_policy` | `root: &Path` | `Option<SddPolicy>` | Load `.specsync/sdd.json`; absence leaves existing projects unenforced |
 | `module_context_path` | `root, module` | `String` | Where a module's accumulated lessons live, from the registry-aware canonical spec directory, shared by surfacing and folding so they cannot disagree |
 | `configured_principles_file` | `root` | `Result<Option<String>, String>` | The configured principles file, or the error when `.specsync/sdd.json` cannot be read |
+| `principles_file_is_present` | `root`, `path` | `Result<bool, String>` | Whether that path is a file inside the project. An absolute path or `..` is an error |
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
 | `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
 | `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |

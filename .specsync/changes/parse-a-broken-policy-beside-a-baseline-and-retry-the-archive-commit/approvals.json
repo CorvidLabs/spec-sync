@@ -1,0 +1,62 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791674058,
+      "digest": "1283429ef04d77d26175fc592d155f8bd8246c6a140da29eaddccaa6a901b9bc",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit",
+        "title": "Parse a broken policy beside a baseline and retry the archive commit",
+        "description": "Parse a broken policy beside a baseline and retry the archive commit",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change",
+          "cmd_rules"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/testing.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/cmd_change/context.md",
+          "specs/cmd_change/requirements.md",
+          "specs/cmd_change/testing.md",
+          "specs/cmd_rules/cmd_rules.spec.md",
+          "specs/cmd_rules/context.md",
+          "specs/cmd_rules/requirements.md",
+          "specs/cmd_rules/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "src/commands/rules.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Opening a change fails when .specsync/sdd.json cannot be parsed, including when a workflow-v2 baseline exists.",
+          "change finalize commits an archive that was left uncommitted, and its next action says to push that commit before merging.",
+          "specsync rules does not treat an escaping principles path as a usable file."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "A broken .specsync/sdd.json must not look like no principles file, including when a workflow-v2 baseline already exists.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "3249cdacdbc880075c5989cb72633ca7f125913653db04716323edf4d6bbfd60",
+        "cmd_change": "057a38289910f1e519588dc02f29f13cf2d5c2311ae981911c59e2ee29bb86a5",
+        "cmd_rules": "25c457229aafe51e30c88ee5e1621e67328315d5612756b6ac49024fced43e99"
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -1,6 +1,6 @@
 ---
 module: cmd_rules
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/rules.rs
@@ -40,7 +40,7 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 4. Each custom rule displays name, severity (color-coded), type, and optional section/pattern/min_words/applies_to/message fields
 5. Severity colors: error → red, warning → yellow, info → blue
 
-6. When the SDD policy names a principles file, the command also names that file and says a lesson becomes a standing rule only when a person writes it there. When no file is configured, the command says so. When the named file is not on disk, the command warns on stderr, says the file is missing, and says to create it or clear `principles_file`. That warning still exits 0. A policy that cannot be parsed fails the command. The command does not create or rewrite the file.
+6. When the SDD policy names a principles file, the command also names that file and says a lesson becomes a standing rule only when a person writes it there. When no file is configured, the command says so. When the named file is not on disk, the command warns on stderr, says the file is missing, and says to create it or clear `principles_file`. A path that escapes the project is not reported as a usable file. That warning still exits 0. A policy that cannot be parsed fails the command. The command does not create or rewrite the file.
 
 ## Behavioral Examples
 
@@ -109,3 +109,4 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 | 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |
 | 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |
 | 2026-10-10 | refuse-a-broken-policy-and-commit-the-archive-move: Refuse a broken policy and commit the archive move |
+| 2026-10-10 | parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit: Parse a broken policy beside a baseline and retry the archive commit |

@@ -870,7 +870,10 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
             .clone();
         let finalized: Value = serde_json::from_slice(&finalized).unwrap();
         assert_eq!(finalized["ready_for_github_merge"], true);
-        assert_eq!(finalized["next_action"], "merge the PR on GitHub");
+        assert_eq!(
+            finalized["next_action"],
+            "Push this archive, wait until the checks are green, then merge the pull request."
+        );
         assert_eq!(finalized["implementation_commit"], implementation_commit);
         assert_eq!(finalized["implementation_tree"], implementation_tree);
 

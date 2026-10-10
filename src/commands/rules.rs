@@ -40,15 +40,25 @@ pub fn cmd_rules(root: &Path) {
     println!();
     match crate::change::configured_principles_file(root) {
         Ok(principles) => {
-            let missing = principles
-                .as_ref()
-                .is_some_and(|path| !root.join(path).is_file());
-            if missing {
-                let path = principles.as_deref().unwrap_or("");
-                eprintln!(
-                    "warning: principles file {path} is named in .specsync/sdd.json but is not there"
-                );
-            }
+            let missing = match principles.as_deref() {
+                Some(path) => match crate::change::principles_file_is_present(root, path) {
+                    Ok(present) => {
+                        if !present {
+                            eprintln!(
+                                "warning: principles file {path} is named in .specsync/sdd.json but is not there"
+                            );
+                        }
+                        !present
+                    }
+                    Err(error) => {
+                        eprintln!(
+                            "warning: principles file {path} is named in .specsync/sdd.json but cannot be used: {error}"
+                        );
+                        true
+                    }
+                },
+                None => false,
+            };
             println!("{}", principles_rules_summary(principles, missing));
         }
         Err(error) => {

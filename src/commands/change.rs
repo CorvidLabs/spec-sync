@@ -378,7 +378,19 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 _ => println!("{} Archived to {}", "✓".green(), path.display()),
             })
         }
-        ChangeAction::Finalize { id } => change::finalize_change(root, &id).and_then(|path| {
+        ChangeAction::Finalize { id } => {
+            // A commit that fails after the move leaves the change archived and
+            // the package uncommitted. Finalize again must commit that package,
+            // not refuse because the state is already Archived.
+            let archived = change::load_change(root, &id)
+                .ok()
+                .is_some_and(|record| record.state == change::ChangeState::Archived);
+            let path = if archived {
+                change::find_change_dir(root, &id)
+            } else {
+                change::finalize_change(root, &id)
+            };
+            path.and_then(|path| {
             // The archive move is a working-tree rename until something commits it.
             // Ship already commits. Finalize has to do the same, or the package
             // exists only on disk and the next checkout loses it.
@@ -425,7 +437,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 }
             }
             Ok(())
-        }),
+        })
+        },
         ChangeAction::Check { id, commit, push } if commit || push => {
             if push && !commit {
                 Err("--push requires --commit".to_string())
@@ -1451,7 +1464,7 @@ fn ship_next_action(
 /// and drill 032 confirms agents follow it to termination.
 fn lessons_next_action(root: &Path, id: &str, archive: &Path) -> String {
     let _ = (change::lesson_fold_targets(root, id), archive);
-    "merge the PR on GitHub".to_string()
+    "Push this archive, wait until the checks are green, then merge the pull request.".to_string()
 }
 
 /// What merging before `finalize` actually costs.
@@ -3261,6 +3274,53 @@ if the floor call is removed from this function"
         assert!(
             !status.contains(&format!(".specsync/changes/{id}")),
             "the archive move must be committed: {status}"
+        );
+    }
+
+    // Verifies REQ-cmd-change-022. The move can land before the commit does.
+    #[test]
+    fn finalize_commits_an_archive_that_was_left_uncommitted() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        let id = approved_change_fixture(root);
+        run_checked_commit(root, Some(&id), false, false, OutputFormat::Json)
+            .expect("check --commit");
+        change::record_scoped_review_with_verdict(
+            root,
+            &id,
+            "Independent".into(),
+            change::ScopedReviewVerdict::Pass,
+        )
+        .expect("review");
+        change::finalize_change(root, &id).expect("archive move");
+
+        cmd_change(
+            root,
+            ChangeAction::Finalize { id: id.clone() },
+            OutputFormat::Text,
+            false,
+        );
+
+        let message = std::process::Command::new("git")
+            .args(["log", "-1", "--format=%s"])
+            .current_dir(root)
+            .output()
+            .expect("log");
+        let message = String::from_utf8_lossy(&message.stdout);
+        assert!(
+            message.contains(&format!("chore(lifecycle): archive {id}")),
+            "{message}"
+        );
+        let printed = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(root)
+            .output()
+            .expect("status");
+        let printed = String::from_utf8_lossy(&printed.stdout);
+        assert!(
+            !printed.contains(&format!(".specsync/changes/{id}")),
+            "{printed}"
         );
     }
 

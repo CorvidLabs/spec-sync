@@ -1,6 +1,6 @@
 ---
 id: refuse-a-broken-policy-and-commit-the-archive-move
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 4d42cd401623481ae6b99e12142b7aa8767fc25e
 ---

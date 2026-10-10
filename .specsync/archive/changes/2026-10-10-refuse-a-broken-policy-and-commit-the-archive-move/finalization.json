@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "refuse-a-broken-policy-and-commit-the-archive-move",
+  "implementation_commit": "3fb7313b333132e9f49e337a7d769e85ec16d588",
+  "implementation_tree": "86f14aab71376568b10e78a494a52543f31f52c6",
+  "contract_digest": "7c0883051f4ca3362e94f9ed9f89cee48be5afa5bf64677943827ac5ead55980",
+  "workspace_digest": "119048ae3d3e019230a331884433643d4a6995fec563a4ff972c603501668096",
+  "closing_digest": "da4cdeab653200cf4192db285f95048fb1fb77d053cc94fd32143be0fbf9d852",
+  "review_digest": "2cae8dd64336c3fbced75b368aaff1849bf8054a55b8b885d04121c7911d2310",
+  "finalization_digest": "23d7f6d0b95ac5a257224c5253bb4492eb1019c56ad9da2a5879291b869a7542",
+  "timestamp": 1791671517
+}

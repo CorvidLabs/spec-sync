@@ -7,11 +7,11 @@
   "title": "Refuse a broken policy and commit the archive move",
   "description": "Refuse a broken policy and commit the archive move",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "4d42cd401623481ae6b99e12142b7aa8767fc25e",
   "created_at": 1791671316,
-  "updated_at": 1791671429,
+  "updated_at": 1791671931,
   "affected_specs": [
     "change",
     "cmd_change",

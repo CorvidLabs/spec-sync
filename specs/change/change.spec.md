@@ -1,6 +1,6 @@
 ---
 module: change
-version: 133
+version: 138
 status: active
 files:
   - src/change.rs
@@ -162,7 +162,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `handoff_summary` | `root, record` | `HandoffSummary` | Gather only the signals the record's state needs — never the archive-history walk for an Archived record — and classify them; the same verdict `ChangeSummary.handoff` carries |
 | `lesson_fold_targets` | `root, id` | `Vec<String>` | Module context paths this change's lessons are folded into at archival; empty when the change is unreadable or owns no specs |
 | `lifecycle_commit_scope` | `root, id` | `Result<LifecycleCommitScope, String>` | The one answer to which untracked paths a lifecycle commit for this change may stage: its workspace, its archive package, each affected spec's canonical file and companions, and the lifecycle ledgers — never its `affected_paths` prefixes; `Err` when the change cannot be loaded |
-| `list_changes` | `root: &Path` | `Result<ChangeRoster, String>` | List active changes in stable ID order alongside the workspaces that could not be read; `Err` only when the changes directory itself is unreadable |
+| `list_changes` | `root: &Path` | `Result<ChangeRoster, String>` | List active changes in stable ID order alongside the workspaces that could not be read, including a directory that holds a regular file but no `state.json`; a husk with no regular file is not a change; `Err` only when the changes directory itself is unreadable |
 | `load_change` | `root: &Path, id: &str` | `Result<ChangeRecord, String>` | Load active or archived change state |
 | `load_policy` | `root: &Path` | `Option<SddPolicy>` | Load `.specsync/sdd.json`; absence leaves existing projects unenforced |
 | `module_context_path` | `root, module` | `String` | Where a module's accumulated lessons live, from the registry-aware canonical spec directory, shared by surfacing and folding so they cannot disagree |
@@ -368,6 +368,10 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | v137: a closing fence is only whitespace after the marker, a marker indented more than three spaces is not a fence, and a symlink keeps a state-less directory open. |
+| 2026-10-10 | v136: materialize the fenced-plan and damaged-directory requirements. |
+| 2026-10-10 | v135: a fenced code block cannot complete a selected plan, and a change directory with files but no state.json stays open. |
+| 2026-10-10 | v134: a change directory that holds a regular file but no `state.json` is still open; a husk with no regular file is not a change. |
 | 2026-10-10 | v132: lesson paths follow the registry-aware spec directory; a plan section ends at the next heading and ignores HTML comments. |
 | 2026-10-09 | v129: group private Git capture options to satisfy Clippy's argument limit without changing evidence behavior. |
 | 2026-10-09 | v128: a clean object id is framed apart from file bytes. `filter=lfs` requires the Git LFS clean and smudge commands and a pointer blob. |
@@ -513,3 +517,6 @@ Acceptance Criteria
 | 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |
 | 2026-10-10 | keep-approval-tests-valid-after-a-plan-must-name-its-sections: Keep approval tests valid after a plan must name its sections |
 | 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |
+| 2026-10-10 | a change directory with files and no state is still open |
+| 2026-10-10 | refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open: Refuse a fenced plan and keep a damaged change directory open |
+| 2026-10-10 | close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file: Close a fence only on whitespace and count a symlink as a file |

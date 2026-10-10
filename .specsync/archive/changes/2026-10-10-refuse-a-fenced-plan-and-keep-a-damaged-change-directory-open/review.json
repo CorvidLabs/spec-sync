@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "3b4262a2532bac958de636acabeb88e9fe2a7589",
+  "contract_digest": "7d6d40de590452573ffd938812cc30a713071e41b2aebdaa65d9474cb548df8d",
+  "execution_digest": "b4577e6082c2d510d8a953d2739c8fac31b4e536f2f1291f2c3f5d26bd508ac1",
+  "workspace_digest": "2802114d4a71a5c9826617b779077f7187e0629c4831688fe90906838a897db6",
+  "timestamp": 1791660824
+}

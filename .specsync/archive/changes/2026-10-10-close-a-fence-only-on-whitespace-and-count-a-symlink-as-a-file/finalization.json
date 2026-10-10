@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file",
+  "implementation_commit": "87d636372cdc757fd7af1b036622fcc2db673a2c",
+  "implementation_tree": "0779f8a9df671e44b7f6931af3f35f4d568d9709",
+  "contract_digest": "24fc5c585dab89d0f2af5c3d60c3d8b204b23ffbb52152c91e2f6b3843ebef51",
+  "workspace_digest": "848b42c2709bc13b3b59e5b09513b3446a71e8a5ccaf11628565adcc5551fb40",
+  "closing_digest": "36c8623eabe9316840146469633e1367a358df12df54feab41ae8a10f8be9702",
+  "review_digest": "d1c4d96e7fa36903fac455a2a37c41fc9559401496a33d65513a0ed3f4191d05",
+  "finalization_digest": "2b7a0e88fb7a85ce39e1d0364b9e87dc62ec39832c06be0a58e6976b0cb614fc",
+  "timestamp": 1791663009
+}

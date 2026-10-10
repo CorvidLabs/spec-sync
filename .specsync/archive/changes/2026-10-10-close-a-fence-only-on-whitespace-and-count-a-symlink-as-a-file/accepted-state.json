@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file",
+  "slug": "close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file",
+  "title": "Close a fence only on whitespace and count a symlink as a file",
+  "description": "Close a fence only on whitespace and count a symlink as a file",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "7713e417e406a53593381e7f934135fa95d163e1",
+  "created_at": 1791662905,
+  "updated_at": 1791663009,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    ".github/scripts/archive-readiness.sh",
+    ".github/scripts/test-archive-readiness.sh",
+    ".specsync/archive/changes/2026-10-10-refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open/testing.md",
+    "hi/three.md",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/cmd_change/requirements.md",
+    "src/change.rs",
+    "src/change_tests.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A code fence closes only when the marker is followed by whitespace, and a symlink keeps a state-less change directory open."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "A selected plan stays substantive, and a directory with a file or symlink but no state.json stays open.",
+    "public_contract": "yes"
+  }
+}

@@ -7,11 +7,11 @@
   "title": "Close a fence only on whitespace and count a symlink as a file",
   "description": "Close a fence only on whitespace and count a symlink as a file",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "7713e417e406a53593381e7f934135fa95d163e1",
   "created_at": 1791662905,
-  "updated_at": 1791662952,
+  "updated_at": 1791663009,
   "affected_specs": [
     "change",
     "cmd_change"

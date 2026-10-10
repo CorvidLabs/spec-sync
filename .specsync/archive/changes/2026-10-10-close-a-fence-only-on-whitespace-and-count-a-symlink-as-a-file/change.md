@@ -1,6 +1,6 @@
 ---
 id: close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 7713e417e406a53593381e7f934135fa95d163e1
 ---

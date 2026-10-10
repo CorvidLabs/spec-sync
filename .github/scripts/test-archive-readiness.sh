@@ -87,6 +87,12 @@ mkdir -p "$tmp/.specsync/changes/nested-damage/deltas"
 printf 'note\n' >"$tmp/.specsync/changes/nested-damage/deltas/note.md"
 assert_fail "This pull request is not finished. \`nested-damage\` is still open. Run \`specsync change status nested-damage\`."
 
+# A symlink is a file Git can track, so it is not a husk.
+rm -rf "$tmp/.specsync"
+mkdir -p "$tmp/.specsync/changes/linked-notes"
+ln -s missing-target "$tmp/.specsync/changes/linked-notes/pointer"
+assert_fail "This pull request is not finished. \`linked-notes\` is still open. Run \`specsync change status linked-notes\`."
+
 # An empty deltas/ husk is not an open change.
 rm -rf "$tmp/.specsync"
 mkdir -p "$tmp/.specsync/changes/left-husk/deltas"

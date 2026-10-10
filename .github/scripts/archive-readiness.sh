@@ -24,8 +24,12 @@ changes = root / ".specsync" / "changes"
 rows = []
 
 
-def holds_regular_file(directory: Path) -> bool:
-    """True when any regular file sits at any depth. Symlinks are not files."""
+def holds_tracked_entry(directory: Path) -> bool:
+    """True when any non-directory entry sits at any depth.
+
+    A symlink is a file Git can track. Rust's husk check treats one the same
+    way, so a symlink-only directory stays open here too.
+    """
     try:
         children = list(directory.iterdir())
     except OSError:
@@ -35,9 +39,10 @@ def holds_regular_file(directory: Path) -> bool:
             kind = child.lstat()
         except OSError:
             continue
-        if stat.S_ISREG(kind.st_mode):
-            return True
-        if stat.S_ISDIR(kind.st_mode) and holds_regular_file(child):
+        if stat.S_ISDIR(kind.st_mode):
+            if holds_tracked_entry(child):
+                return True
+        else:
             return True
     return False
 
@@ -49,7 +54,7 @@ if changes.is_dir():
         # `deltas/` left after checkout). A directory that holds a file but
         # no state.json is damaged and still open: same rank as unreadable.
         missing_state = not state_file.is_file()
-        if missing_state and not holds_regular_file(directory):
+        if missing_state and not holds_tracked_entry(directory):
             continue
         change_id = directory.name
         if missing_state:

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1791662944,
+      "commit": "7713e417e406a53593381e7f934135fa95d163e1",
+      "contract_digest": "24fc5c585dab89d0f2af5c3d60c3d8b204b23ffbb52152c91e2f6b3843ebef51",
+      "execution_digest": "6e5c9870163630c6a42611a9414ac0a18129194b14f4bc55e8c527b8683e46e0",
+      "workspace_digest": "b26bc94086dd80dedd098fe989f0295e7be45cb8fbd2c0f85fbecffe967216e9",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-050",
+        "REQ-change-068",
+        "REQ-change-105",
+        "REQ-cmd-change-019"
+      ]
+    }
+  ]
+}

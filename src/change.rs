@@ -1661,8 +1661,16 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
 
 pub fn load_change(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     let path = find_change_dir(root, id)?.join("state.json");
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    let content = match fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(format!(
+                "active change state file is missing: {}. Restore state.json or remove the stray directory.",
+                path.display()
+            ));
+        }
+        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+    };
     let record = serde_json::from_str(&content)
         .map_err(|error| format!("invalid change state {}: {error}", path.display()))?;
     validate_loaded_change(&record, id, &path)?;
@@ -9133,19 +9141,20 @@ fn plan_sections_incomplete(content: &str) -> bool {
     let mut fence: Option<(char, usize)> = None;
     for line in body.lines() {
         let trimmed = line.trim();
-        match (fence, leading_fence_marker(trimmed)) {
-            (Some((open_marker, open_length)), Some((marker, length)))
-                if marker == open_marker && length >= open_length =>
+        if let Some((open_marker, open_length)) = fence {
+            // A closing fence may be followed only by whitespace. ```markdown
+            // is an opening fence with an info string, not a close.
+            if let Some(mark) = fence_mark(line)
+                && mark.bare
+                && mark.marker == open_marker
+                && mark.length >= open_length
             {
                 fence = None;
-                continue;
             }
-            (Some(_), _) => continue,
-            (None, Some(opened)) => {
-                fence = Some(opened);
-                continue;
-            }
-            (None, None) => {}
+            continue;
+        } else if let Some(mark) = fence_mark(line) {
+            fence = Some((mark.marker, mark.length));
+            continue;
         }
         if let Some(title) = trimmed.strip_prefix("## ") {
             let key = title.trim().to_ascii_lowercase();
@@ -9175,17 +9184,40 @@ fn plan_sections_incomplete(content: &str) -> bool {
     })
 }
 
-/// Backtick or tilde run of at least three at the start of a trimmed line.
-fn leading_fence_marker(trimmed: &str) -> Option<(char, usize)> {
-    let marker = trimmed.chars().next()?;
+struct FenceMark {
+    marker: char,
+    length: usize,
+    /// True when nothing but whitespace follows the marker run.
+    bare: bool,
+}
+
+/// A CommonMark fence: at most three leading spaces, then a backtick or tilde
+/// run of at least three. Four spaces is an indented code block, not a fence.
+fn fence_mark(line: &str) -> Option<FenceMark> {
+    let indent = line
+        .chars()
+        .take_while(|character| *character == ' ')
+        .count();
+    if indent > 3 {
+        return None;
+    }
+    let rest = &line[indent..];
+    let marker = rest.chars().next()?;
     if !matches!(marker, '`' | '~') {
         return None;
     }
-    let length = trimmed
+    let length = rest
         .chars()
         .take_while(|character| *character == marker)
         .count();
-    (length >= 3).then_some((marker, length))
+    if length < 3 {
+        return None;
+    }
+    Some(FenceMark {
+        marker,
+        length,
+        bare: rest[length..].trim().is_empty(),
+    })
 }
 
 fn plan_section_line_is_substantive(line: &str) -> bool {

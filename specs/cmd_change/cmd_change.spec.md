@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 45
+version: 46
 status: active
 files:
   - src/commands/change.rs
@@ -165,3 +165,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |
 | 2026-10-10 | a change directory with files and no state is still open |
 | 2026-10-10 | refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open: Refuse a fenced plan and keep a damaged change directory open |
+| 2026-10-10 | close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file: Close a fence only on whitespace and count a symlink as a file |

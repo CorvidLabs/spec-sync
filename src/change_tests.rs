@@ -4274,6 +4274,12 @@ fn active_directory_with_files_and_no_state_is_still_open() {
         "{}",
         roster.unreadable[0].reason
     );
+    let missing = load_change(root, "broken-notes").unwrap_err();
+    assert!(
+        missing.contains("Restore state.json or remove the stray directory"),
+        "{missing}"
+    );
+
     let checked = list_changes_checked(root).unwrap_err();
     assert!(checked.contains("state file is missing"), "{checked}");
 
@@ -4294,6 +4300,19 @@ fn active_directory_with_files_and_no_state_is_still_open() {
     assert_eq!(roster.records.len(), 1);
     assert!(located_change_sequences(root).is_ok());
     assert!(validate_change_sequences(root).is_ok());
+
+    let linked = root.join(CHANGES_PATH).join("linked-notes");
+    fs::create_dir_all(&linked).unwrap();
+    std::os::unix::fs::symlink("missing-target", linked.join("pointer")).unwrap();
+    let linked_roster = list_changes(root).unwrap();
+    assert!(
+        linked_roster
+            .unreadable
+            .iter()
+            .any(|entry| entry.id == "linked-notes"),
+        "a symlink is a tracked file, not a husk: {:?}",
+        linked_roster.unreadable
+    );
 }
 
 #[test]
@@ -19552,13 +19571,21 @@ none
     assert!(artifact_is_incomplete(&ArtifactKind::Plan, quoted));
     assert!(plan_sections_incomplete(&quoted.replace("```", "~~~")));
 
+    // ```markdown is an opening fence with an info string, not a close.
+    let info_closer = "# Plan\n\n## Approach\n\n```\n```markdown\n## Steps\n\nDo it.\n\n## Out of scope\n\nNot that.\n\n## Risks\n\nnone\n\n## Constraints consulted\n\nnone\n```\n";
+    assert!(plan_sections_incomplete(info_closer));
+
+    // Four leading spaces is an indented code block, not a fence.
+    let indented = "# Plan\n\n## Approach\n\nDo it.\n\n    ```\n    ## Steps\n    hidden\n    ```\n\n## Out of scope\n\nNot that.\n\n## Steps\n\nOne.\n\n## Risks\n\nnone\n\n## Constraints consulted\n\nnone\n";
+    assert!(!plan_sections_incomplete(indented));
+
     let only_fenced_prose = r#"# Plan
 
 ## Approach
 
-    ```
-    Do the work.
-    ```
+```
+Do the work.
+```
 
 ## Out of scope
 
@@ -19683,7 +19710,40 @@ none
 
 none
 "#;
-    assert!(!plan_sections_incomplete(longer_close));
+    assert!(
+        plan_sections_incomplete(longer_close),
+        "an info string on a longer marker does not close the fence"
+    );
+
+    let bare_longer_close = r#"# Plan
+
+## Approach
+
+Do the work.
+
+```
+## Steps
+
+example only
+````
+
+## Out of scope
+
+Leave it.
+
+## Steps
+
+One.
+
+## Risks
+
+none
+
+## Constraints consulted
+
+none
+"#;
+    assert!(!plan_sections_incomplete(bare_longer_close));
 }
 
 // Verifies REQ-change-105.

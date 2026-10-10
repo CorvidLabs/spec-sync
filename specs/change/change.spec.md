@@ -1,6 +1,6 @@
 ---
 module: change
-version: 136
+version: 138
 status: active
 files:
   - src/change.rs
@@ -368,6 +368,8 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | v137: a closing fence is only whitespace after the marker, a marker indented more than three spaces is not a fence, and a symlink keeps a state-less directory open. |
+| 2026-10-10 | v136: materialize the fenced-plan and damaged-directory requirements. |
 | 2026-10-10 | v135: a fenced code block cannot complete a selected plan, and a change directory with files but no state.json stays open. |
 | 2026-10-10 | v134: a change directory that holds a regular file but no `state.json` is still open; a husk with no regular file is not a change. |
 | 2026-10-10 | v132: lesson paths follow the registry-aware spec directory; a plan section ends at the next heading and ignores HTML comments. |
@@ -517,3 +519,4 @@ Acceptance Criteria
 | 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |
 | 2026-10-10 | a change directory with files and no state is still open |
 | 2026-10-10 | refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open: Refuse a fenced plan and keep a damaged change directory open |
+| 2026-10-10 | close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file: Close a fence only on whitespace and count a symlink as a file |

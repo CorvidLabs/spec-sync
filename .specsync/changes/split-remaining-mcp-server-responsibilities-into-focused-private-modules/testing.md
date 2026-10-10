@@ -24,3 +24,11 @@ Run full available validation and distinguish new failures from known baseline f
 ## Lifecycle Blocker
 
 The approved continuation is a local implementation checkpoint, not a verified delivery. The real `change check --commit` command refused because its declared first-split dependency is still Verifying and must be Accepted before this change can start. No human review or acceptance was fabricated, and the dependency was not removed. Canonical MCP documentation is synchronized to the approved internal-organization delta manually; no canonical_applied flag or verification ledger is forged. Retry the normal lifecycle once the prerequisite review/finalization is legitimately satisfied.
+
+## Latest Main Integration
+
+The local checkpoint was rebased cleanly onto main 815690d1b01776915d93d11ff9f814efeced1a3d, which did not change MCP source or specs. Both selected plans now state the five substantive sections required by that base; the approved scope and approval records are unchanged. Existing verification evidence must be refreshed before delivery.
+
+On this base, focused tests passed 124 MCP unit tests and 72 integration tests, clippy passed with warnings denied, the release build passed, the catalog lock matched all five live tools, and the mandatory pre-push gate passed. The latest CLI still refuses the continuation check because the first split is Verifying. Its older delta must not be rematerialized over the continuation's broader canonical spec; complete the first split's legitimate verification/review/finalization in its own staged delivery, then reconcile the continuation normally.
+
+Pristine latest-main and refactored full-unit runs both produced 2338 passed and 192 failed, with exactly the same failure-name set. Compared with the prior base, the eight additional failures are new lifecycle/briefing fixtures reporting Git repository detection errors. This confirms no added full-unit failures from the refactor on the integrated base; it does not make the full suite green.

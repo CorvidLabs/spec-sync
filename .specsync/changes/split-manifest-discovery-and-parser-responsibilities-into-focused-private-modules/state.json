@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "split-manifest-discovery-and-parser-responsibilities-into-focused-private-modules",
+  "slug": "split-manifest-discovery-and-parser-responsibilities-into-focused-private-modules",
+  "title": "Split manifest discovery and parser responsibilities into focused private modules",
+  "description": "Split manifest discovery and parser responsibilities into focused private modules",
+  "kind": "refactor",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "815690d1b01776915d93d11ff9f814efeced1a3d",
+  "created_at": 1791659206,
+  "updated_at": 1791659714,
+  "affected_specs": [
+    "manifest"
+  ],
+  "affected_paths": [
+    "src/manifest.rs",
+    "src/manifest",
+    "specs/manifest"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Organize manifest discovery implementation and existing tests into cohesive private modules with the facade and every new source or test file below 1000 lines wherever coherent boundaries permit; preserve public and crate-visible API paths, fixed parser order and first-name-wins merging, all literal grammar and diagnostic behavior, retained capability and identity checks, workspace charging and memoization, limits and platform guards; retain every existing regression and complete canonical spec coverage without weakening trust or lifecycle gates"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Honor specs/manifest/context.md and requirements.md: process-free fixed-order discovery, literal-only Gradle interpretation and raw identity confinement, all-variant preflight, one retained checked authority, bounded workspace expansion charged before deduplication, sequential directory-listing identity verification and release. Preserve includeBuild argument semantics and all guards over balanced configuration block contents. No configured principles file exists.",
+    "public_contract": "no"
+  }
+}

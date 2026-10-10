@@ -1,9 +1,30 @@
 ---
 module: manifest
-version: 23
+version: 24
 status: stable
 files:
   - src/manifest.rs
+  - src/manifest/access/tests.rs
+  - src/manifest/access.rs
+  - src/manifest/cargo/tests.rs
+  - src/manifest/cargo.rs
+  - src/manifest/gradle/access/tests.rs
+  - src/manifest/gradle/access.rs
+  - src/manifest/gradle/guards.rs
+  - src/manifest/gradle/syntax.rs
+  - src/manifest/gradle/tests/discovery.rs
+  - src/manifest/gradle/tests/includes.rs
+  - src/manifest/gradle/tests/mod.rs
+  - src/manifest/gradle/tests/settings.rs
+  - src/manifest/gradle.rs
+  - src/manifest/identity.rs
+  - src/manifest/node/tests.rs
+  - src/manifest/node.rs
+  - src/manifest/simple_manifests/tests.rs
+  - src/manifest/simple_manifests.rs
+  - src/manifest/swift/tests.rs
+  - src/manifest/swift.rs
+  - src/manifest/test_support.rs
 db_tables: []
 tracks: [55]
 depends_on: []
@@ -271,3 +292,8 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | v22 / #725: Skip a balanced trailing `includeBuild` configuration block instead of refusing it, because `includeBuild(path) { dependencySubstitution { … } }` is the common spelling and declares no project |
 | 2026-08-27 | a-trailing-includebuild-configuration-block-must-be-skipped-not-refused-because-includebuild-path: A trailing includeBuild configuration block must be skipped, not refused, because includeBuild(path) { dependencySubstitution { ... } } is the common spelling and contributes no module |
+| 2026-10-10 | split-manifest-discovery-and-parser-responsibilities-into-focused-private-modules: Split manifest discovery and parser responsibilities into focused private modules |
+
+## Internal Organization
+
+Manifest discovery keeps its existing public and crate-visible API paths behind a small facade. Private ecosystem parsers share retained access and native identity helpers. Gradle discovery separates orchestration, bounded retained reads, syntax and executable-directive guards without changing their invocation order or literal interpretation. Existing tests are grouped beside their implementation owners. The split preserves fixed parser order, first-name-wins merging, diagnostics, capability authority, workspace budgets and memoization, bounded handle lifetimes, all guards and platform behavior; it introduces no new public behavior.

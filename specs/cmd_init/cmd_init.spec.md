@@ -77,6 +77,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | v15: materialize the Linguist rule that keeps `*.3md` from being classified as Roff. |
 | 2026-10-10 | v14: init adds `*.3md linguist-language=Text` so GitHub does not classify the file as Roff. |
 | 2026-08-30 | v12: init writes SDD off (`enabled: false`); no guided first-change interview. `specsync check` is the product. |
 | 2026-07-10 | v3: initialize 5.0 SDD policy/archive and offer guided agent plus first-change bootstrap |

@@ -1397,9 +1397,10 @@ The system SHALL show, when a change is opened, shown, or asked its status, the 
 
 Acceptance Criteria
 - The briefing lists each affected module context that has substantive lines, with the path, the substantive line count, a bounded excerpt, and whether the excerpt was cut.
-- When `specs/<module>/<module>.3md` exists, lessons come from every plane after the first, and the briefing names that file. The first plane is context. `context.md` is not the lesson source for that module.
-- When that file does not exist, `context.md` remains the lesson source.
+- When `specs/<module>/<module>.3md` exists and parses, lessons come from every plane after the first, in the order written, and the briefing names that file. The first plane is context even when its `z` is higher than a later plane. `context.md` is not the lesson source for that module.
+- When that file does not exist, or it cannot be parsed, `context.md` remains the lesson source.
 - An unreadable or invalid 3md file does not fail the command.
+- The lesson bundle names the same file the briefing reads.
 - The context path is the directory of the module's canonical spec, including a non-default specs directory or a registry mapping.
 - A multiline HTML comment is not a lesson.
 - A scaffold-only context is absent.

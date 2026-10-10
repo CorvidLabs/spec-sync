@@ -19830,7 +19830,7 @@ fn a_module_3md_file_shows_later_planes_as_lessons_and_leaves_context_md() {
     .unwrap();
     fs::write(
         root.join("specs/auth/auth.3md"),
-        "---\n3md: 1.0\naxis: layers\n---\n@plane z=0 label=\"Context\"\nThe retry budget is a decision, not a lesson.\n\n@plane z=1 label=\"Lessons\"\nDo not say to merge while a change is still open.\n",
+        "---\n3md: 1.0\naxis: layers\n---\n@plane z=5 label=\"Context\"\nThe retry budget is a decision, not a lesson.\n\n@plane z=1 label=\"Lessons\"\nDo not say to merge while a change is still open.\n",
     )
     .unwrap();
     let mut record = interview_complete_bugfix(root, "auth");
@@ -19850,6 +19850,18 @@ fn a_module_3md_file_shows_later_planes_as_lessons_and_leaves_context_md() {
         lesson_fold_targets(root, &record.id),
         vec!["specs/auth/auth.3md".to_string()]
     );
+    let archive = root.join("bundle");
+    fs::create_dir_all(&archive).unwrap();
+    write_lesson_bundle(root, &record, &archive).unwrap();
+    let bundle = fs::read_to_string(archive.join(LESSON_BUNDLE_FILE)).unwrap();
+    assert!(bundle.contains("specs/auth/auth.3md"), "{bundle}");
+    assert!(!bundle.contains("specs/auth/context.md"), "{bundle}");
+
+    fs::write(root.join("specs/auth/auth.3md"), "this is not 3md\n").unwrap();
+    let fallback = open_change_briefing(root, &record);
+    assert_eq!(fallback.lessons.len(), 1);
+    assert_eq!(fallback.lessons[0].path, "specs/auth/context.md");
+    assert!(fallback.lessons[0].excerpt.contains("context.md lesson"));
 }
 
 // Verifies REQ-change-106.

@@ -1,6 +1,6 @@
 ---
 module: change
-version: 140
+version: 142
 status: active
 files:
   - src/change.rs
@@ -368,6 +368,8 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | v141: lesson planes follow the order written, the lesson bundle names the 3md file, and a new `<module>.3md` is staged with the other spec companions. An unreadable 3md file falls back to `context.md`. |
+| 2026-10-10 | v140: materialize the optional module.3md lesson requirement. |
 | 2026-10-10 | v139: an optional `<module>.3md` file holds context on its first plane and lessons on later planes. `context.md` remains the lesson source until that file exists. |
 | 2026-10-10 | v138: materialize the fence-closer and symlink requirements. |
 | 2026-10-10 | v137: a closing fence is only whitespace after the marker, a marker indented more than three spaces is not a fence, and a symlink keeps a state-less directory open. |
@@ -523,3 +525,4 @@ Acceptance Criteria
 | 2026-10-10 | refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open: Refuse a fenced plan and keep a damaged change directory open |
 | 2026-10-10 | close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file: Close a fence only on whitespace and count a symlink as a file |
 | 2026-10-10 | show-lessons-from-an-optional-module-3md-file: Show lessons from an optional module 3md file |
+| 2026-10-10 | read-3md-lessons-in-file-order-and-stage-the-file: Read 3md lessons in file order and stage the file |

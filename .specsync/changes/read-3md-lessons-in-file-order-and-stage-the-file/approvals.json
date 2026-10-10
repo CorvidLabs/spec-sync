@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791667289,
+      "digest": "7060a894f942906d4d20a38ed69c960018c9163668af4bfd26db6fac8cbd91f3",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "read-3md-lessons-in-file-order-and-stage-the-file",
+        "title": "Read 3md lessons in file order and stage the file",
+        "description": "Read 3md lessons in file order and stage the file",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "Cargo.toml",
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/cmd_init/cmd_init.spec.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "The first plane in the file is context, the lesson bundle names the 3md file, and change check commits a new module.3md."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "The first plane is context, later planes are lessons, and context.md remains the source until a module.3md file parses.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7883601682e73f1f1f74902d1c30defa8ae580661035f760b1e34222e07f777b"
+      }
+    }
+  ],
+  "reopenings": []
+}

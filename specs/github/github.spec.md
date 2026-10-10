@@ -1,6 +1,6 @@
 ---
 module: github
-version: 35
+version: 36
 status: stable
 files:
   - src/github.rs
@@ -190,6 +190,7 @@ first use — so the workflow names no environment rather than publish a gate th
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `github.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out of scope sections |
 | 2026-04-06 | Initial spec for v3.3.0 |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

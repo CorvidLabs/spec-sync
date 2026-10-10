@@ -1,6 +1,6 @@
 ---
 module: cmd_wizard
-version: 5
+version: 6
 status: stable
 files:
   - src/commands/wizard.rs
@@ -79,6 +79,7 @@ Implements the `specsync wizard` command — an interactive TUI wizard for creat
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_wizard.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-07 | Replace unfinished-marker wizard defaults with guided starter text |
 | 2026-04-09 | Initial spec |
 | 2026-04-13 | Document testing.md and conditional design.md in companion generation |

@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 33
+version: 34
 status: stable
 files:
   - src/commands/check.rs
@@ -130,6 +130,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_check.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-09-08 | v30 / #615: `--fix` inserts new export rows after the last row of the nearest table in the section or subsection, never after trailing prose, so rows are no longer orphaned outside every table |
 | 2026-08-30 | v28: `check` no longer consults SDD, active changes, or archive history. Drift only. |
 | 2026-07-22 | v9: fail closed when malformed Gradle/manifest discovery makes coverage inconclusive, preserving structured JSON failure output |

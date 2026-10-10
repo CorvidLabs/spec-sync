@@ -1,6 +1,6 @@
 ---
 module: commands
-version: 24
+version: 25
 status: stable
 files:
   - src/commands/mod.rs
@@ -187,6 +187,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `commands.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-22 | v9 / CHG-0063: sanitize hostile terminal diagnostics throughout drift creation, preserve the public rendered `Vec<String>` API, and use private structured exact-path attribution for GitHub drift creation |
 | 2026-07-23 | v10 / CHG-0063: enforce portable module components, Windows reserved-name rules, and the 255-byte generated spec filename limit on every platform |
 | 2026-07-01 | v4: Add `agents` submodule (native AI-tool skill/slash-command installation) |

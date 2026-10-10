@@ -1,6 +1,6 @@
 ---
 module: ai
-version: 4
+version: 5
 status: archived
 files:
   - specs/ai/retired.md
@@ -50,4 +50,5 @@ None. This module is retained only as an auditable historical contract tombstone
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `ai.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-11 | CHG-0007-harden-specsync-5-0-as-an-agent-native-secret-free-sdd-core-and-close-release-r: Harden SpecSync 5.0 as an agent-native, secret-free SDD core and close release regressions |

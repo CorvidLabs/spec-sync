@@ -1,6 +1,6 @@
 ---
 module: registry
-version: 7
+version: 8
 status: stable
 files:
   - src/registry.rs
@@ -114,6 +114,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `registry.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-25 | Initial spec |
 | 2026-04-07 | Document register_module function |
 | 2026-04-10 | v2: Added `fetch_remote_spec`, `parse_remote_spec`, `RemoteSpec`, `spec_path` for cross-repo content verification |

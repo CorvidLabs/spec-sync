@@ -1,6 +1,6 @@
 ---
 module: agents
-version: 16
+version: 18
 status: stable
 files:
   - src/agents.rs
@@ -130,6 +130,7 @@ managed bytes from user customization.
 
 | Date | Author | Change |
 |------|--------|--------|
+| 2026-10-10 | Add `agents.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-09-10 | leif | v15: generated skills lead with check as the product; SDD opt-in via change adopt; 6.0 happy path (`approve --actor`, `check --commit`, `review --reviewer`, `ship`/`finalize`); template version 5 |
 | 2026-09-01 | leif | Generated SDD skill allows the definition approver to record scoped review (solo ship) |
 | 2026-08-30 | SpecSync | v12: generated `change check` skill describes spec↔code sync, not targeted tests |
@@ -149,3 +150,4 @@ managed bytes from user customization.
 | 2026-09-02 | SpecSync | allow-the-scope-approver-to-record-scoped-review-so-solo-projects-can-ship-when-github-does-not-require-a-second: Allow the scope approver to record scoped review so solo projects can ship when GitHub does not require a second reviewer. |
 | 2026-09-02 | SpecSync | finish-the-same-actor-scoped-review-user-facing-copy-so-cli-adopting-and-generated-agent-skills-no-longer-demand-a: Finish the same-actor scoped-review user-facing copy so CLI, ADOPTING, and generated agent skills no longer demand a second identity |
 | 2026-09-10 | SpecSync | teach-generated-agent-skills-the-specsync-6-0-check-is-product-lifecycle: Teach generated agent skills the SpecSync 6.0 check-is-product lifecycle |
+| 2026-10-10 | SpecSync | tell-agents-to-record-lessons-in-the-module-3md-file: Tell agents to record lessons in the module 3md file |

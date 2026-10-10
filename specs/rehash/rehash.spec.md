@@ -1,6 +1,6 @@
 ---
 module: rehash
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/rehash.rs
@@ -67,5 +67,6 @@ Implements the `specsync rehash` command. Regenerates the `.specsync/hashes.json
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `rehash.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-11 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

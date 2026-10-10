@@ -1,6 +1,6 @@
 ---
 module: config
-version: 27
+version: 28
 status: stable
 files:
   - src/config.rs
@@ -142,6 +142,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `config.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-22 | v9 / CHG-0063: add checked source-directory and manifest discovery APIs so malformed Gradle settings remain explicit errors while compatibility wrappers stay infallible; fail closed on non-string legacy JSON `github.repo` shapes |
 | 2026-07-22 | v12 / CHG-0063 final agent review: reject wrong-shaped GitHub repository fields in exact-byte checked JSON parsing |
 | 2026-07-22 | v10 / CHG-0063: add exact-byte checked config parsing for retained callers with real TOML syntax and known-field type validation |

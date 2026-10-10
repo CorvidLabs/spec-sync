@@ -1,6 +1,6 @@
 ---
 module: archive
-version: 5
+version: 6
 status: stable
 files:
   - src/archive.rs
@@ -106,6 +106,7 @@ Moves completed markdown task items (`- [x]`) from active sections of companion 
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `archive.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-26 | Replace silent partial writes with typed plan/stage/publish reports, atomic same-directory replacement, permission preservation, and rollback |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |

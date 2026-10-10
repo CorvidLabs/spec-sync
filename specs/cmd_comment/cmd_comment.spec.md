@@ -1,6 +1,6 @@
 ---
 module: cmd_comment
-version: 9
+version: 10
 status: stable
 files:
   - src/commands/comment.rs
@@ -96,6 +96,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_comment.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-22 | v6: fail closed when malformed Gradle/manifest discovery prevents trustworthy coverage |
 | 2026-04-11 | Documented unified pipeline: marketplace action and CI both use `specsync comment` for identical PR comments |
 | 2026-04-09 | Initial spec |

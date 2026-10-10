@@ -1,6 +1,6 @@
 ---
 module: cmd_new
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/new.rs
@@ -80,6 +80,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_new.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-11 | Fall back to the project's single source file when no name match exists (README quickstart flow); warn instead of silently writing an empty `files:` list |
 | 2026-06-07 | Replace unfinished-marker generated rows with review prompts |
 | 2026-04-09 | Initial spec |

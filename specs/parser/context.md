@@ -4,6 +4,8 @@ spec: parser.spec.md
 
 ## Key Decisions
 
+- **Private cohesive owners**: `src/parser.rs` retains `ParsedSpec` and the original public/crate-visible paths through reexports. Private `frontmatter`, `checked_issues`, `api_symbols`, and `sections` owners retain complete implementations and owner-local tests. Only the existing delimiter scan is shared between the two frontmatter contracts; checked parsing never invokes the compatibility parser.
+
 - **Two explicit frontmatter contracts**: `parse_frontmatter` remains the line-oriented
   compatibility parser for the established flat metadata subset. Security-sensitive issue
   inspection uses `parse_checked_issue_references`, a maintained `serde-saphyr` real-YAML path;
@@ -44,14 +46,20 @@ spec: parser.spec.md
 
 ## Files to Read First
 
-- `src/parser.rs` — Single-file module with frontmatter parsing, symbol extraction, and section checking.
+- `src/parser.rs` — Stable public/crate-visible facade and `ParsedSpec`.
+- `src/parser/frontmatter.rs` — Compatibility metadata parsing, canonical borrowed stripper, and shared delimiter scan.
+- `src/parser/checked_issues.rs` — Fail-closed complete-YAML issue validation and content-free errors.
+- `src/parser/api_symbols.rs` — Public API symbols and byte-preserving fence masking.
+- `src/parser/sections.rs` — Exact and near-miss headings, substantive content and stubs.
+- `src/parser/tests/` — The existing 69 regressions, grouped by their private owner.
 
 ## Current Status
 
-CHG-0063 implementation is present. The parser remains heavily depended on by validator, scoring,
-CLI issue verification, and MCP. Public API symbol parsing preserves exact extractor spelling,
-while CLI/MCP issue verification share the strict checked real-YAML boundary. Fresh CHG definition
-reapproval and final independent/repository gates remain pending.
+The parser is split into four private owners without changing its established API or behaviors.
+It remains heavily depended on by validator, scoring, CLI issue verification, and MCP. Public API
+symbol parsing preserves exact extractor spelling, while CLI/MCP issue verification share the
+strict checked real-YAML boundary. The scoped extraction package records verification evidence;
+human implementation review and repository publication/CI remain separate gates.
 
 ## Notes
 
@@ -92,7 +100,7 @@ instead — the third option #716 offered — does not close it either: a file w
 no longer equals the scaffold, so it reads as written for the same reason.
 
 One rule, three readers. `strip_frontmatter`, `parse_frontmatter` and
-`parse_checked_issue_references` all live in this file and all decided independently what a
+`parse_checked_issue_references` all live in this module and originally decided independently what a
 delimiter is, so the padded-closer bug was in all three at once — and the two that were not
 reported were arguably worse: `parse_frontmatter` fed body prose to its YAML line parser as well
 as truncating the body, and `parse_checked_issue_references` additionally required BOTH delimiters

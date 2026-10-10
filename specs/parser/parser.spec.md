@@ -1,9 +1,17 @@
 ---
 module: parser
-version: 13
+version: 14
 status: stable
 files:
   - src/parser.rs
+  - src/parser/api_symbols.rs
+  - src/parser/checked_issues.rs
+  - src/parser/frontmatter.rs
+  - src/parser/sections.rs
+  - src/parser/tests/api_symbols.rs
+  - src/parser/tests/checked_issues.rs
+  - src/parser/tests/frontmatter.rs
+  - src/parser/tests/sections.rs
 db_tables: []
 tracks: [117]
 depends_on:
@@ -212,3 +220,8 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-25 | one-canonical-frontmatter-reader-for-crlf-checkouts: One canonical frontmatter reader for CRLF checkouts |
 | 2026-08-27 | one-delimiter-rule-for-every-frontmatter-reader-at-both-ends-of-the-block: One delimiter rule for every frontmatter reader, at both ends of the block |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-10-10 | split-parser-frontmatter-issue-validation-symbols-and-sections-into-focused-private-modules: Split parser frontmatter issue validation symbols and sections into focused private modules |
+
+## Internal Organization
+
+Parser retains its public and crate-visible API paths through a small facade. Private owners separate compatibility frontmatter and the shared delimiter scan, strict checked issue-reference parsing, API symbol extraction and byte-preserving fence masking, and section analysis. Existing tests are grouped beside their owners. The split preserves strict-versus-compatibility boundaries, content-free checked errors, duplicate-key and positive-number rejection, CRLF normalization versus borrowed stripping, delimiter agreement, exact symbol spelling, and order-preserving deduplication without introducing new public behavior.

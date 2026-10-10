@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "split-parser-frontmatter-issue-validation-symbols-and-sections-into-focused-private-modules",
+  "slug": "split-parser-frontmatter-issue-validation-symbols-and-sections-into-focused-private-modules",
+  "title": "Split parser frontmatter issue validation symbols and sections into focused private modules",
+  "description": "Split parser frontmatter issue validation symbols and sections into focused private modules",
+  "kind": "refactor",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "815690d1b01776915d93d11ff9f814efeced1a3d",
+  "created_at": 1791663488,
+  "updated_at": 1791664153,
+  "affected_specs": [
+    "parser"
+  ],
+  "affected_paths": [
+    "src/parser.rs",
+    "src/parser",
+    "specs/parser"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Split the parser facade, implementation and all 69 existing tests into cohesive private files each below 1000 lines; preserve original public and crate-visible API paths, whole function and method bodies, types, literals, attributes and cfg gates; retain compatibility parsing, fail-closed checked issue parsing without fallback, content-free checked errors, duplicate-key and positive-number validation, one shared delimiter scan, CRLF normalization versus borrowed stripping, byte-length-preserving fence masking, exact Unicode symbol spelling and order-preserving deduplication; retain every test and full canonical spec coverage without changing dependencies or trust/lifecycle gates"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Honor specs/parser/context.md and requirements: compatibility parsing and strict serde-saphyr issue validation remain separate; checked errors stay content-free and never fall back; all readers retain the shared delimiter rule and regex agreement; parse_frontmatter normalizes CRLF while strip_frontmatter borrows unchanged bytes; fenced-code masking preserves byte offsets for --fix; symbols preserve Unicode, punctuation, order and deduplication. Keep documented four-dash and lifecycle gaps out of scope. No configured principles file exists.",
+    "public_contract": "no"
+  }
+}

@@ -28,7 +28,14 @@ spec: config.spec.md
 
 ## Files to Read First
 
-- `src/config.rs`
+- `src/config.rs` — stable API facade
+- `src/config/discovery.rs` — manifest-aware and scan-based source discovery
+- `src/config/checked.rs` — repair validation and exact-byte checked parsing
+- `src/config/loading.rs` — file precedence, strict/permissive loaders, and local diagnostics
+- `src/config/json.rs` — legacy JSON compatibility and invalid-repository sentinel
+- `src/config/toml_config.rs` — compatibility section dispatch
+- `src/config/toml_syntax.rs` — shared string, comment, and array syntax
+- `src/config/serialization.rs` — canonical output and loss checks
 - `src/types.rs`
 
 ## Current Status
@@ -40,3 +47,12 @@ a non-object `github` value and a non-string/non-null `github.repo` before the c
 can substitute an invalid sentinel. CHG-0063 exact-head remediation also shares config precedence
 and source classification with retained CLI discovery while preserving the established fail-loud
 fallback for malformed legacy CLI config.
+
+## Private Implementation Organization
+
+Configuration implementation and existing regressions now live in cohesive private owners behind
+the existing public and crate-visible facade. Parsing consumes unchanged bytes in the same order;
+supplied discovery remains authoritative and lazy fallback remains unchanged. Shared TOML syntax
+helpers serve both the compatibility parser and serializer. Owner-local tests keep internal
+helpers private; the source split changes no accepted formats, warning values, refusal behavior,
+filesystem authority, defaults, or migration output.

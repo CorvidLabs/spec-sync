@@ -8,6 +8,8 @@ spec: config.spec.md
 
 ## Done
 
+- [x] Separate configuration discovery, checked parsing, loading, format compatibility, syntax, and serialization into private owners; preserve the facade and all existing regressions
+
 - [x] Preserve current and legacy layout loading and deterministic round trips
 - [x] Remove embedded inference fields
 - [x] Ignore legacy AI key names with value-safe migration guidance

@@ -1,9 +1,25 @@
 ---
 module: config
-version: 27
+version: 28
 status: stable
 files:
   - src/config.rs
+  - src/config/checked/tests.rs
+  - src/config/checked.rs
+  - src/config/discovery/tests.rs
+  - src/config/discovery.rs
+  - src/config/json/tests.rs
+  - src/config/json.rs
+  - src/config/loading/legacy_tests.rs
+  - src/config/loading/tests.rs
+  - src/config/loading.rs
+  - src/config/serialization/tests.rs
+  - src/config/serialization.rs
+  - src/config/tests.rs
+  - src/config/toml_config/tests.rs
+  - src/config/toml_config.rs
+  - src/config/toml_syntax/tests.rs
+  - src/config/toml_syntax.rs
 db_tables: []
 tracks: [31]
 depends_on:
@@ -172,6 +188,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
 | 2026-09-07 | let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived: Let a module own paths beyond its spec files so a later change can supersede the exact-only inputs of an archived bootstrap change |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
+| 2026-10-10 | split-configuration-loading-parsing-and-discovery-into-focused-private-modules: Split configuration loading parsing and discovery into focused private modules |
 
 ## Config File Structure
 
@@ -193,3 +210,6 @@ The configuration file supports the following top-level sections:
 | `rules` | `ValidationRules` | Custom validation rules (`max_staleness_days`, etc.) |
 | `modules` | `Map<String, ModuleDefinition>` | User-defined module groupings: `files` (a source mapping), `depends_on`, and `owns` — project-relative files or directories the module owns for change acceptance beyond its spec's `files:`, read by the change lifecycle alone and never a source mapping |
 
+## Internal Organization
+
+Configuration retains its public and crate-visible API paths through a small facade. Private owners separate discovery, exact-byte checked validation, file loading and legacy diagnostics, JSON compatibility, TOML compatibility, shared TOML syntax, and canonical serialization. Existing tests are grouped beside their owners. The split preserves precedence, strict-loader refusal, supplied-source authority, checked versus compatibility GitHub handling, value-safe retired-key warnings, exact literal parsing, and lossless migration without introducing new public behavior.

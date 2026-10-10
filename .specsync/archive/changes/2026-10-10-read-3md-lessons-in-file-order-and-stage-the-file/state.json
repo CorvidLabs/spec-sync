@@ -7,11 +7,11 @@
   "title": "Read 3md lessons in file order and stage the file",
   "description": "Read 3md lessons in file order and stage the file",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "8d6fcc2fbfc792b2e515935c9ef6ce00c75724a2",
   "created_at": 1791667264,
-  "updated_at": 1791667302,
+  "updated_at": 1791667774,
   "affected_specs": [
     "change"
   ],

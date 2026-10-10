@@ -1,6 +1,6 @@
 ---
 id: read-3md-lessons-in-file-order-and-stage-the-file
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 8d6fcc2fbfc792b2e515935c9ef6ce00c75724a2
 ---

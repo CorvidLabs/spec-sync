@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "read-3md-lessons-in-file-order-and-stage-the-file",
+  "implementation_commit": "24a27dcec999e443dd52b944aefd20e84281e5c5",
+  "implementation_tree": "3ef030e3e704d4a8d4fd1aac38b67c0007d7d7d2",
+  "contract_digest": "7060a894f942906d4d20a38ed69c960018c9163668af4bfd26db6fac8cbd91f3",
+  "workspace_digest": "5f831136d62f917ddd812c55501635c61fb83dcab843e435a1fb293bbbf086cb",
+  "closing_digest": "e195d6303fdeb571fbd33fb37c86893fbcb2fd133223dc92874f62af8eb3dfcd",
+  "review_digest": "f777b7a4a1b8a2eee24be0be173692d738a9ea325ba8d01ce5db75135b7b3036",
+  "finalization_digest": "3331dafd03f6d2179754d843f41051775570563f2247aa2dc206347eb65c8513",
+  "timestamp": 1791667357
+}

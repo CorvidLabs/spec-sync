@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 26
+version: 27
 status: stable
 files:
   - src/cli.rs
@@ -155,3 +155,4 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-09-09 | feat-mcp-tools-lock: Add optional `McpAction` lock/diff grammar under `specsync mcp` |
 | 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |
+| 2026-10-10 | when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it: When I want a pull request, one command archives the change and prepares it |

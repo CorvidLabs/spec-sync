@@ -40,3 +40,6 @@ Once the scope is agreed, getting it delivered should be a short, ordered path w
 - **SHIP-9**  When it is time to archive, one command archives the change, commits that archive, and tells me that merging is the step that is left.
   - **SHIP-9.a**  When it is not time, that same place tells me the one reason and the one command.
 - **SHIP-10**  When more than one change is open, I am told which one to archive first.
+- **SHIP-11**  When I want a pull request, one command archives the change and prepares the pull request.
+  - **SHIP-11.a**  If the pull request is already open, that command leaves that pull request in place.
+  - **SHIP-11.b**  That command does not merge the pull request.

@@ -141,6 +141,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 })
             }
         }
+        ChangeAction::Pr { id } => run_prepare_pr(root, id.as_deref(), format),
         ChangeAction::Ship {
             id,
             dry_run,
@@ -1774,6 +1775,131 @@ fn print_ship_status(
             Ok(())
         }
     }
+}
+
+/// Archive the change when it is still open, push the branch, and open or reuse the pull request.
+///
+/// Merging stays a separate act. A change that is not ready is refused with the one command
+/// that would make it ready.
+fn run_prepare_pr(root: &Path, id: Option<&str>, format: OutputFormat) -> Result<(), String> {
+    let record = resolve_ship_record(root, id)?;
+    if record.state != ChangeState::Archived {
+        run_ship(root, Some(&record.id), false, false, false, 900, format)?;
+    } else {
+        let archive_commit = git_commit_lifecycle(
+            root,
+            &change::lifecycle_commit_scope(root, &record.id)?,
+            &format!("chore(lifecycle): archive {}", record.id),
+        )?;
+        disclose_left_out(&archive_commit.left_out, &mut Vec::new(), None);
+    }
+    push_current_branch(root)?;
+    let url = ensure_pull_request(root, &record.title, &record.description)?;
+    let next = pull_request_ready_next();
+    match format {
+        OutputFormat::Json => print_json(&serde_json::json!({
+            "id": record.id,
+            "pull_request": url,
+            "merged": false,
+            "next": next,
+        })),
+        _ => {
+            println!("{} {url}", "Pull request:".bold());
+            println!("  Next: {next}");
+        }
+    }
+    Ok(())
+}
+
+fn resolve_ship_record(root: &Path, id: Option<&str>) -> Result<ChangeRecord, String> {
+    match id {
+        Some(id) => change::load_change(root, id),
+        None => {
+            let roster = change::list_changes(root)?;
+            if let Some(unreadable) = roster.unreadable.first() {
+                return Err(format!(
+                    "cannot infer which change to prepare while a workspace is unreadable: {}; pass an explicit change id",
+                    unreadable.reason
+                ));
+            }
+            match roster.records.as_slice() {
+                [] => Err("no active change to prepare; pass an explicit change id".into()),
+                [single] => Ok(single.clone()),
+                _ => Err(
+                    "multiple active changes; pass an explicit id: `specsync change pr <ID>`"
+                        .into(),
+                ),
+            }
+        }
+    }
+}
+
+fn push_current_branch(root: &Path) -> Result<(), String> {
+    let branch = git_output_text(root, &["rev-parse", "--abbrev-ref", "HEAD"])?;
+    let branch = branch.trim();
+    if branch.is_empty() || branch == "HEAD" {
+        return Err("cannot push a pull request from a detached HEAD".into());
+    }
+    let upstream = git_output_text(
+        root,
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+        ],
+    );
+    if upstream.is_ok() {
+        run_git(root, &["push"])?;
+    } else {
+        run_git(root, &["push", "-u", "origin", branch])?;
+    }
+    Ok(())
+}
+
+fn ensure_pull_request(root: &Path, title: &str, body: &str) -> Result<String, String> {
+    let existing = std::process::Command::new("gh")
+        .args(["pr", "view", "--json", "url", "-q", ".url"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to run gh pr view: {error}"))?;
+    if existing.status.success() {
+        let url = String::from_utf8_lossy(&existing.stdout).trim().to_string();
+        if !url.is_empty() {
+            return Ok(url);
+        }
+    }
+    let base = default_pr_base(root);
+    let created = std::process::Command::new("gh")
+        .args([
+            "pr", "create", "--base", &base, "--title", title, "--body", body,
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to run gh pr create: {error}"))?;
+    if !created.status.success() {
+        return Err(format!(
+            "gh pr create failed: {}",
+            String::from_utf8_lossy(&created.stderr).trim()
+        ));
+    }
+    let url = String::from_utf8_lossy(&created.stdout).trim().to_string();
+    if url.is_empty() {
+        return Err("gh pr create succeeded without printing a url".into());
+    }
+    Ok(url)
+}
+
+fn pull_request_ready_next() -> &'static str {
+    "Wait until the checks are green, then merge the pull request."
+}
+
+fn default_pr_base(root: &Path) -> String {
+    git_output_text(root, &["rev-parse", "--abbrev-ref", "origin/HEAD"])
+        .ok()
+        .and_then(|value| value.trim().strip_prefix("origin/").map(str::to_string))
+        .filter(|base| !base.is_empty())
+        .unwrap_or_else(|| "main".to_string())
 }
 
 fn run_ship(
@@ -4033,6 +4159,16 @@ mod ship_next_action_tests {
             pull_request_archive_sentence(&[]),
             "All changes are archived. Ready to merge when the other checks are green."
         );
+    }
+
+    #[test]
+    fn change_pr_next_step_waits_for_green_checks_and_does_not_merge() {
+        let next = pull_request_ready_next();
+        assert_eq!(
+            next,
+            "Wait until the checks are green, then merge the pull request."
+        );
+        assert!(!next.contains("gh pr merge"), "{next}");
     }
 
     #[test]

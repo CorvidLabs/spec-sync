@@ -398,6 +398,11 @@ pub enum ChangeAction {
         /// Optional change ID; when omitted, report every active change
         id: Option<String>,
     },
+    /// Archive the change if needed, push the branch, and open or reuse the pull request
+    Pr {
+        /// Optional change ID; required unless exactly one active change exists
+        id: Option<String>,
+    },
     /// Preflight ship readiness and finalize when the change is ready
     Ship {
         /// Optional change ID; required unless exactly one active change exists

@@ -1,0 +1,57 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791651456,
+      "digest": "d1083761d76ec180947e732774a388d26858c032039badf1b77ae8cfac875323",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it",
+        "title": "When I want a pull request, one command archives the change and prepares it",
+        "description": "When I want a pull request, one command archives the change and prepares it",
+        "kind": "feature",
+        "affected_specs": [
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "hi/ship.md",
+          "site/src/content/docs/workflow.md",
+          "specs/cli_args/cli_args.spec.md",
+          "specs/cli_args/context.md",
+          "specs/cli_args/requirements.md",
+          "specs/cli_args/tasks.md",
+          "specs/cli_args/testing.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/cmd_change/context.md",
+          "specs/cmd_change/requirements.md",
+          "specs/cmd_change/tasks.md",
+          "specs/cmd_change/testing.md",
+          "src/cli.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "If the pull request is already open, that command leaves that pull request in place.",
+          "That command does not merge the pull request.",
+          "When I want a pull request, one command archives the change and prepares the pull request."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "none",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli_args": "f75f87edb7152e4f08d070f20ee6a7285a5cbe4c727af1cce816b617b819049e",
+        "cmd_change": "8c51c31b3e82af658024a221c52ea890ecab2ea0612c2dbaf4a00d17bbdb1218"
+      }
+    }
+  ],
+  "reopenings": []
+}

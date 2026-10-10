@@ -34,3 +34,9 @@ Once the scope is agreed, getting it delivered should be a short, ordered path w
   - **SHIP-6.a**  Reopening asks who is authorizing it and why.
   - **SHIP-6.b**  That reason stays in the change's history for whoever reads it later.
 - **SHIP-7**  I can audit the live changes and current contracts for coherence without rewalking the archives.
+- **SHIP-8**  When I look at a pull request, I can tell whether its change is still open or already archived.
+  - **SHIP-8.a**  A pull request that still has an open change does not look finished.
+  - **SHIP-8.b**  A pull request whose changes are all archived says it is ready to merge once the checks are green.
+- **SHIP-9**  When it is time to archive, one command archives the change, commits that archive, and tells me that merging is the step that is left.
+  - **SHIP-9.a**  When it is not time, that same place tells me the one reason and the one command.
+- **SHIP-10**  When more than one change is open, I am told which one to archive first.

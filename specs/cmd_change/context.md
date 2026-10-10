@@ -4,6 +4,8 @@ spec: cmd_change.spec.md
 
 # Context
 
+`change status` prints the same sentence as the Archive check: whether the pull request still has an open change, which one to archive first, and the one command. `change ship` on a ready change commits the archive tip and then says to push and merge. It does not say to merge while another change is open.
+
 `change new`, `change status`, and `change show` render the domain's open-change briefing in text and JSON. `change finalize` and `change ship` name the lesson-bundle path on its own line. Their next action stays the merge instruction.
 
 The command layer intentionally contains no lifecycle policy, keeping agent and terminal behavior identical and the domain module independently testable. Its full text/JSON lifecycle passed end-to-end integration tests and project-level dogfooding for 5.0.

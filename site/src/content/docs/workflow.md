@@ -10,6 +10,10 @@ End-to-end walkthrough of the verified SpecSync 6.0 change workflow.
 
 ## The Change Workflow
 
+A pull request has an Archive check. While a change is still open the check fails, names the one change to archive first, and names one command. When every change is archived, the check says the pull request is ready to merge once the other checks are green.
+
+When that command is `specsync change ship`, the command archives the change and commits the archive. The next line says to push that commit, wait until the checks are green, and then merge. When it is not time, the same line names the one reason and the one command.
+
 Every new delivery follows one predictable path:
 
 ```text

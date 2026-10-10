@@ -192,6 +192,7 @@ jobs:
       - name: Test lifecycle CI routing
         run: |
           .github/scripts/test-classify-ci-paths.sh
+          .github/scripts/test-archive-readiness.sh
           python3 .github/scripts/test-validate-release-candidate.py
 
   preflight:
@@ -253,6 +254,17 @@ jobs:
             exit 1
           fi
           echo "No stale verification evidence."
+
+  archive:
+    name: Archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Say whether this pull request is archived
+        run: .github/scripts/archive-readiness.sh
 
   lifecycle-gate:
     name: Lifecycle gate
@@ -596,7 +608,7 @@ jobs:
     # Every job that can finish before this one belongs in `needs`, preflight and
     # the lifecycle gate included. A job missing from here cannot fail the gate
     # (#796). .github/scripts/test-required-ci-gate.py fails when one is missing.
-    needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
+    needs: [classify, preflight, archive, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
     steps:
       - name: Require every selected gate
         # One row per job in `needs`: `<job> <selected> <result>`. <selected> is
@@ -612,6 +624,7 @@ jobs:
           GATES: |
             classify true ${{ needs.classify.result }}
             preflight true ${{ needs.preflight.result }}
+            archive true ${{ needs.archive.result }}
             lifecycle-gate true ${{ needs.lifecycle-gate.result }}
             test ${{ needs.classify.outputs.full == 'true' }} ${{ needs.test.result }}
             fmt ${{ needs.classify.outputs.full == 'true' }} ${{ needs.fmt.result }}

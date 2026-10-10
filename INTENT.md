@@ -14,7 +14,7 @@ A module's contract should be the thing you would hand a new teammate — why th
 - [maturity](hi/maturity.md): MATURITY (12 criteria)
 - [plan](hi/plan.md): PLAN (9 criteria)
 - [setup](hi/setup.md): SETUP (16 criteria)
-- [ship](hi/ship.md): SHIP (23 criteria)
+- [ship](hi/ship.md): SHIP (29 criteria)
 - [spec](hi/spec.md): SPEC (17 criteria)
 - [upkeep](hi/upkeep.md): UPKEEP (6 criteria)
 <!-- /hi:index -->

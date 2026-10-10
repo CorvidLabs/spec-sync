@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 39
+version: 40
 status: active
 files:
   - src/commands/change.rs
@@ -158,3 +158,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-09-10 | document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release: Document shipped SpecSync 6.0.0 in ADOPTING (stable install, Trust 1.2.0, always pass Action version) |
 | 2026-09-26 | lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file: Lifecycle commits stage only what the change owns, never every untracked file |
 | 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |
+| 2026-10-10 | make-it-obvious-on-a-pull-request-when-a-change-is-still-open-and-when-it-is-archived: Make it obvious on a pull request when a change is still open and when it is archived |

@@ -1,6 +1,6 @@
 ---
 id: keep-lifecycle-tests-approvable-after-a-plan-must-name-its-sections
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 09cf77f298753eb671e9384efd7952ad5c64e0be
 ---

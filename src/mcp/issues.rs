@@ -1,6 +1,6 @@
 //! Checked MCP issue verification and bounded, content-free diagnostics.
 
-use super::{load_confined_config, read_file_bounded, validate_spec_file_mappings};
+use super::confinement::{load_confined_config, read_file_bounded, validate_spec_file_mappings};
 use crate::types::SpecSyncConfig;
 use serde_json::{Value, json};
 use std::ffi::OsStr;

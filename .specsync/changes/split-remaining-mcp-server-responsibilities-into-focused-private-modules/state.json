@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "split-remaining-mcp-server-responsibilities-into-focused-private-modules",
+  "slug": "split-remaining-mcp-server-responsibilities-into-focused-private-modules",
+  "title": "Split remaining MCP server responsibilities into focused private modules",
+  "description": "Split remaining MCP server responsibilities into focused private modules",
+  "kind": "refactor",
+  "state": "approved",
+  "base_commit": "684aed366163c29ce3b5df22b3c4716353d93fcf",
+  "created_at": 1791656888,
+  "updated_at": 1791657167,
+  "affected_specs": [
+    "mcp"
+  ],
+  "affected_paths": [
+    "src/mcp.rs",
+    "src/mcp",
+    "specs/mcp"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "MCP server implementation and unit tests are organized into cohesive private responsibility modules; the orchestration file and each new source or test file target fewer than 1000 lines unless a documented cohesive boundary requires more; public API and CLI and MCP JSON and diagnostics and ordering and limits and filesystem authority remain unchanged; all 124 MCP unit tests and 72 integration tests remain represented and pass; canonical spec coverage stays complete and no existing test or trust gate is weakened"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [
+    "split-mcp-issue-verification-into-focused-private-modules"
+  ],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

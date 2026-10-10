@@ -1,11 +1,38 @@
 ---
 module: mcp
-version: 31
+version: 32
 status: stable
 files:
   - src/mcp.rs
+  - src/mcp/capabilities.rs
+  - src/mcp/capabilities/tests.rs
+  - src/mcp/confinement.rs
+  - src/mcp/confinement/manifests.rs
+  - src/mcp/confinement/manifests/tests.rs
+  - src/mcp/confinement/tests.rs
   - src/mcp/issues.rs
   - src/mcp/issues/tests.rs
+  - src/mcp/manifest_paths.rs
+  - src/mcp/protocol.rs
+  - src/mcp/protocol/tests.rs
+  - src/mcp/publication.rs
+  - src/mcp/publication/tests.rs
+  - src/mcp/read_root.rs
+  - src/mcp/read_root/tests.rs
+  - src/mcp/resources.rs
+  - src/mcp/resources/tests.rs
+  - src/mcp/snapshot.rs
+  - src/mcp/snapshot/inputs.rs
+  - src/mcp/snapshot/inputs/tests.rs
+  - src/mcp/snapshot/manifests.rs
+  - src/mcp/snapshot/manifests/tests.rs
+  - src/mcp/snapshot/tests.rs
+  - src/mcp/snapshot/traversal.rs
+  - src/mcp/snapshot/traversal/tests.rs
+  - src/mcp/test_barriers.rs
+  - src/mcp/tests.rs
+  - src/mcp/tools.rs
+  - src/mcp/tools/tests.rs
   - src/mcp_tools_lock.rs
 db_tables: []
 tracks: [30]
@@ -302,7 +329,12 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-09-09 | feat-mcp-tools-lock: Add `.specsync/mcp-tools.lock.json` SoT with `mcp lock` / `mcp lock --write` / `mcp diff` fail-closed drift detection over the shared tool catalog |
 | 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |
 | 2026-10-10 | split-mcp-issue-verification-into-focused-private-modules: Split MCP issue verification into focused private modules |
+| 2026-10-10 | split-remaining-mcp-server-responsibilities-into-focused-private-modules: Split remaining MCP server responsibilities into focused private modules |
 
 ## Internal Organization
 
-MCP issue verification lives in the private `src/mcp/issues.rs` module, with its existing regressions in `src/mcp/issues/tests.rs`. Only the handler is visible to the parent module. Checked discovery, bounded content-free diagnostics, explicit GitHub configuration and inconclusive-error handling remain private and retain their existing behavior. Files are split by responsibility without expanding the public API or changing JSON output, security limits, authentication, or filesystem authority.
+The MCP server facade preserves its existing public entry points and delegates to private responsibility modules for protocol/catalog, resources, tool operations, retained capabilities, read-root selection, atomic publication, shared manifest-path interpretation, confinement, and snapshot construction. Snapshot collection, retained input reading and traversal are private children sharing one budget owner. The complete publication transaction retains a single ownership boundary. Debug integration barriers remain available under `cfg(debug_assertions)`.
+
+Issue verification remains private, with bounded content-free diagnostics and fail-closed checked discovery. Owner-specific unit tests reside alongside their implementation modules and share reusable fixtures. Files target fewer than 1000 lines where cohesive boundaries allow; no include-based textual shards or duplicate implementations are introduced.
+
+This organization does not expand the public API or change CLI behavior, MCP JSON/catalog, diagnostics, defaults, limits, authentication, serialization, call ordering, or retained filesystem authority. Platform and test cfg guards remain unchanged.

@@ -7,11 +7,11 @@
   "title": "Keep 3md files from being classified as Roff",
   "description": "Keep 3md files from being classified as Roff",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "f60b5ea20f360c8b6db5b536abbc7be88ecffd70",
   "created_at": 1791666052,
-  "updated_at": 1791666104,
+  "updated_at": 1791666156,
   "affected_specs": [
     "cmd_init"
   ],

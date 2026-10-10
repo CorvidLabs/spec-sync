@@ -1,6 +1,6 @@
 ---
 id: keep-3md-files-from-being-classified-as-roff
-state: implementing
+state: archived
 type: bug_fix
 base_commit: f60b5ea20f360c8b6db5b536abbc7be88ecffd70
 ---

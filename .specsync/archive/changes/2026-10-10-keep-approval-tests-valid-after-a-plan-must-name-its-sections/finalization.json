@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-approval-tests-valid-after-a-plan-must-name-its-sections",
+  "implementation_commit": "6ce5d8e95be2a322cbfe2b4d9adec3a00e527f05",
+  "implementation_tree": "013a8e2da633720fc35c39f156d1022ad3395ac5",
+  "contract_digest": "079d7a075a9fb94441e55578f67e714bdadf56448b95ec1378525c5d0e8bd357",
+  "workspace_digest": "912cf0ff24a8fe5c5daae2f88947263bff71ac2ef80a578f24b403247aad9ead",
+  "closing_digest": "9a70d6bcad1e3e09d1b1db62a13f0bfdad97d834f76fc28b3dac9008f512cc1d",
+  "review_digest": "35bc56f51d99972388d4710dbe115210536b96493bb3d0482d77f4909ba32662",
+  "finalization_digest": "a2d775e2ff35b2ae1bff1bdeeeb416f7d5bc537ba90e75f55be59b8abd88ccd5",
+  "timestamp": 1791652890
+}

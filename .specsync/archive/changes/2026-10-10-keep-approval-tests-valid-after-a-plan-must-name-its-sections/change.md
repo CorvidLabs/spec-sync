@@ -1,6 +1,6 @@
 ---
 id: keep-approval-tests-valid-after-a-plan-must-name-its-sections
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 81e0d1181f8983aee9630aea20d09304830bb787
 ---

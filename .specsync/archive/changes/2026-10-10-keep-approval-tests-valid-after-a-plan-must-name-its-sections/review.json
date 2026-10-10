@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-approval-tests-valid-after-a-plan-must-name-its-sections",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6ce5d8e95be2a322cbfe2b4d9adec3a00e527f05",
+  "contract_digest": "079d7a075a9fb94441e55578f67e714bdadf56448b95ec1378525c5d0e8bd357",
+  "execution_digest": "dcff36610ab98b4f5498e120751512a479f4a8bbd79c7398ecc33f721c9db342",
+  "workspace_digest": "912cf0ff24a8fe5c5daae2f88947263bff71ac2ef80a578f24b403247aad9ead",
+  "timestamp": 1791652858
+}

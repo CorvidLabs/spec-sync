@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "09cf77f298753eb671e9384efd7952ad5c64e0be",
   "created_at": 1791650635,
-  "updated_at": 1791650665,
+  "updated_at": 1791650671,
   "affected_specs": [],
   "affected_paths": [
     "tests/integration/change.rs",

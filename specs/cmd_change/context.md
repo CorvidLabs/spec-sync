@@ -95,3 +95,9 @@ a left-out file does to verification, because the digest covers it where it sits
 doc comment used to say nothing is committed unless verification passes. That holds for the first
 pass only. When the second pass fails, the materialize commit stays on the branch rather than being
 rewound, and the error now names it.
+
+## Private command modules
+
+`src/commands/change.rs` retains the public dispatcher and all original read-scope guards. Its private `change/` children separate rendering (`render.rs`), readiness/trust projections (`ship_status.rs`), archive ordering and copy (`archive_guidance.rs`), shipping and pull-request orchestration (`shipping.rs`), Git inspection (`repo_status.rs`), owner-input parsing (`owner_inputs.rs`) and verified scoped commits (`lifecycle_commit.rs`). Module seams use parent-private visibility, so no command internals become crate-visible or public. Domain policy remains in `crate::change`.
+
+The split preserves whole function bodies and literal values. In particular, mutation JSON still reads the domain transaction snapshot and captured summaries, text counts remain a separate best-effort state reload, and read-only status retains the original ledger gate and read-scope lifetime. Readiness still calls the same domain currency predicates. Lifecycle commits retain the sequence floor, NUL-aware rename parser, literal pathspec batching and stderr-only exclusion warnings; shipping retains gate-before-push and no-merge ordering. Tests remain under `commands::change::tests` in topical children, with `ship_next_action_tests` kept at its original root.

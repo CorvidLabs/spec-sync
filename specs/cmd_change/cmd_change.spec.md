@@ -1,9 +1,22 @@
 ---
 module: cmd_change
-version: 43
+version: 44
 status: active
 files:
   - src/commands/change.rs
+  - src/commands/change/archive_guidance.rs
+  - src/commands/change/lifecycle_commit.rs
+  - src/commands/change/owner_inputs.rs
+  - src/commands/change/render.rs
+  - src/commands/change/repo_status.rs
+  - src/commands/change/ship_next_action_tests.rs
+  - src/commands/change/ship_status.rs
+  - src/commands/change/shipping.rs
+  - src/commands/change/tests/fixtures.rs
+  - src/commands/change/tests/rendering.rs
+  - src/commands/change/tests/scoped_commits.rs
+  - src/commands/change/tests/ship_status.rs
+  - src/commands/change/tests.rs
   - docs/ADOPTING.md
 db_tables: []
 tracks: []
@@ -162,3 +175,8 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-10-10 | make-it-obvious-on-a-pull-request-when-a-change-is-still-open-and-when-it-is-archived: Make it obvious on a pull request when a change is still open and when it is archived |
 | 2026-10-10 | when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it: When I want a pull request, one command archives the change and prepares it |
 | 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |
+| 2026-10-10 | split-change-command-dispatch-rendering-shipping-and-lifecycle-helpers-into-private-modules: Split change command dispatch rendering shipping and lifecycle helpers into private modules |
+
+## Internal Organization
+
+The public `cmd_change` entry point remains a thin dispatcher. Private modules group rendering, ship-status projections, archive guidance, shipping and pull-request orchestration, repository inspection, owner-input resolution and lifecycle commits. Existing tests are organized by responsibility with shared fixtures. Module boundaries preserve every existing public API, complete function body and literal, snapshot-bound mutation output, read-scope lifetime, domain readiness predicate, NUL-aware literal lifecycle staging, ledger flooring, gate-before-push ordering and no-merge behavior; the split introduces no new public behavior.

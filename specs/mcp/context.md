@@ -4,6 +4,11 @@ spec: mcp.spec.md
 
 ## Key Decisions
 
+- Issue verification and its 17 regressions are isolated in private `src/mcp/issues.rs` and
+  `src/mcp/issues/tests.rs`. Only `tool_issues` is parent-visible; confinement helpers and
+  shared test fixtures remain in `src/mcp.rs`. The move preserves complete function bodies,
+  diagnostic text, limits, JSON shape, authentication, and filesystem authority.
+
 - MCP is a deterministic stdio JSON-RPC adapter for coding agents.
 - Generate creates local templates only and rejects retired inference arguments.
 - Tool errors use `isError`; protocol errors remain JSON-RPC errors.

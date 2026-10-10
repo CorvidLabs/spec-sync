@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "split-mcp-issue-verification-into-focused-private-modules",
+  "slug": "split-mcp-issue-verification-into-focused-private-modules",
+  "title": "Split MCP issue verification into focused private modules",
+  "description": "Split MCP issue verification into focused private modules",
+  "kind": "refactor",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "684aed366163c29ce3b5df22b3c4716353d93fcf",
+  "created_at": 1791656198,
+  "updated_at": 1791656729,
+  "affected_specs": [
+    "mcp"
+  ],
+  "affected_paths": [
+    "src/mcp.rs",
+    "src/mcp",
+    "specs/mcp"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "MCP issue verification and its existing regression tests live in cohesive private files smaller than 1000 lines; public API and JSON output and diagnostics and security limits remain unchanged; all existing MCP tests remain represented and pass; canonical spec file coverage remains complete"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "public_contract": "no"
+  }
+}

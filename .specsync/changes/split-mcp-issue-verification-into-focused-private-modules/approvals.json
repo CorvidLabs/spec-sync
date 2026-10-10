@@ -1,0 +1,41 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791656357,
+      "digest": "c313b7a191ced171031d7e4c9a24aa5da8ba81edadcf5619b295b0d2f7338a07",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "split-mcp-issue-verification-into-focused-private-modules",
+        "title": "Split MCP issue verification into focused private modules",
+        "description": "Split MCP issue verification into focused private modules",
+        "kind": "refactor",
+        "affected_specs": [
+          "mcp"
+        ],
+        "affected_paths": [
+          "specs/mcp",
+          "src/mcp",
+          "src/mcp.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "MCP issue verification and its existing regression tests live in cohesive private files smaller than 1000 lines; public API and JSON output and diagnostics and security limits remain unchanged; all existing MCP tests remain represented and pass; canonical spec file coverage remains complete"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "mcp": "ab32ded447b9106a7f3c88d502720fc76742688780f316f883f0875a327e7c28"
+      }
+    }
+  ],
+  "reopenings": []
+}

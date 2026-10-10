@@ -8,6 +8,8 @@ spec: mcp.spec.md
 
 ## Done
 
+- [x] Extract issue verification and its 17 unchanged regressions into focused private modules.
+
 - [x] Make the server read-only by default and gate mutators behind `--allow-write`
 - [x] Confine reads to canonical descendants and writes to the canonical server root
 - [x] Enforce exact tool schemas and notification-safe no-dispatch behavior

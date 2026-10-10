@@ -1,9 +1,11 @@
 ---
 module: mcp
-version: 30
+version: 31
 status: stable
 files:
   - src/mcp.rs
+  - src/mcp/issues.rs
+  - src/mcp/issues/tests.rs
   - src/mcp_tools_lock.rs
 db_tables: []
 tracks: [30]
@@ -299,3 +301,8 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-09-09 | isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up: Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up |
 | 2026-09-09 | feat-mcp-tools-lock: Add `.specsync/mcp-tools.lock.json` SoT with `mcp lock` / `mcp lock --write` / `mcp diff` fail-closed drift detection over the shared tool catalog |
 | 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |
+| 2026-10-10 | split-mcp-issue-verification-into-focused-private-modules: Split MCP issue verification into focused private modules |
+
+## Internal Organization
+
+MCP issue verification lives in the private `src/mcp/issues.rs` module, with its existing regressions in `src/mcp/issues/tests.rs`. Only the handler is visible to the parent module. Checked discovery, bounded content-free diagnostics, explicit GitHub configuration and inconclusive-error handling remain private and retain their existing behavior. Files are split by responsibility without expanding the public API or changing JSON output, security limits, authentication, or filesystem authority.

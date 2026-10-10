@@ -126,3 +126,11 @@ The v21 rereview regressions exercise a 200-sibling project beneath a 128-descri
 limit, missing object-form `workspaces.packages`, and malformed, non-object, or wrong-shaped nested
 workspace manifests through both tools and resources. Focused results pass 117 MCP unit and 67 MCP
 integration tests; the full suite passes 1,951 unit and 312 integration tests.
+
+## Private Issue Module Refactor
+
+The 17 issue-discovery and diagnostic regressions now live in `src/mcp/issues/tests.rs`.
+Their assertions and platform cfg guards are unchanged; the qualified prefix is
+`mcp::issues::tests::` rather than `mcp::tests::`. `cargo test mcp::` continues to
+cover them alongside all other MCP unit and integration tests. The source-file move
+preserves the production function bodies exactly except for parent-only handler visibility.

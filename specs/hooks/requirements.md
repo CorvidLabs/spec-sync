@@ -75,3 +75,11 @@ Acceptance Criteria
 - The hook comment names `.specsync/config.toml`, not `specsync.json`, and does not call `warn` the default.
 - `init_add_spec_hooks_install_then_commit_succeeds_without_strict` ends in a successful commit.
 
+### REQ-hooks-004
+
+Installed hook instruction snippets SHALL tell an agent that when `<module>.3md` exists beside the spec, a new lesson goes on a later plane of that file. The snippets SHALL still name `context.md` for a module that has no 3md file.
+
+Acceptance Criteria
+- Each hook snippet that describes finishing work mentions a later plane when `<module>.3md` exists.
+- The snippets do not say that `context.md` is the only lesson file once `<module>.3md` exists.
+

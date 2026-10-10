@@ -1,6 +1,6 @@
 ---
 module: hash_cache
-version: 8
+version: 9
 status: stable
 files:
   - src/hash_cache.rs
@@ -129,6 +129,7 @@ Uses SHA-256 content hashing to track which spec files, companion files, and sou
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `hash_cache.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-06 | Initial spec for v3.3.0 |
 | 2026-04-13 | Document design.md and testing.md in companion file detection list |

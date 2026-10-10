@@ -1,6 +1,6 @@
 ---
 module: cmd_compact
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/compact.rs
@@ -83,6 +83,7 @@ Implements the `specsync compact` command. Trims old entries from spec changelog
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_compact.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-26 | Preserve every Unix backslash parity, including backslash-before-pipe paths, in one rendered Markdown/GitHub code cell and add truthful late-publish partial JSON/Markdown evidence |
 | 2026-07-26 | Harden #417 result truth: correct spec pluralization, platform-aware paths, safe Markdown code spans, structured failures, and nonzero incomplete outcomes |
 | 2026-07-26 | Normalize structured result paths to portable `/` separators on Windows |

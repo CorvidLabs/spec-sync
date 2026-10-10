@@ -69,7 +69,7 @@ Each canonical spec may have policy-selected companion files. Read and update th
 ## After completing work
 
 1. Mark completed items in `tasks.md`: check off finished tasks, add new ones discovered
-2. Update `context.md`: record decisions made, update current status
+2. If `<module>.3md` exists beside the spec, record the lesson on a later plane of that file. Otherwise update `context.md`: record decisions made, update current status
 3. If requirements changed, update `requirements.md` acceptance criteria
 4. If test coverage changed, update `testing.md` with new test files or edge cases
 5. If UI/layout changed, update `design.md` with revised layout, components, or tokens

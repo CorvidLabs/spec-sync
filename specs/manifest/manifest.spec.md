@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 23
+version: 24
 status: stable
 files:
   - src/manifest.rs
@@ -248,6 +248,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `manifest.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-28 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-22 | CHG-0063: Parse standard Groovy/Kotlin Gradle module declarations and effective project directories through one shared parser |

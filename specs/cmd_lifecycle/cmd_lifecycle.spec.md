@@ -1,6 +1,6 @@
 ---
 module: cmd_lifecycle
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/lifecycle.rs
@@ -113,6 +113,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_lifecycle.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-11 | Initial spec |
 | 2026-04-11 | Add cmd_auto_promote, cmd_enforce to API table; fix invariant #3 scope |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

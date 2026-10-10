@@ -1,0 +1,32 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/cmd_score/cmd_score.spec.md`.
+
+Implements the `specsync score` command. Scores spec quality 0-100 (graded A-F) across five categories: frontmatter, sections, API, depth, freshness. Shows per-spec and project-level scores.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- `cmd_score` is a pure renderer over the `scoring` module: it scores each discovered spec with `score_spec`, aggregates with `compute_project_score`, then formats per the requested `OutputFormat`.
+- Four output renderers live here — text, table (ASCII), CSV (with a SUMMARY row), and JSON — each driven off the same `ProjectScore`.
+- Scoring is advisory under warn mode, but configured coverage gates and inconclusive checked manifest discovery set a non-zero exit code; malformed Gradle JSON remains a structured failure.
+- "Batch mode" (no filters or `--all`) prints a progress header in text mode only, so CSV/JSON stay clean for piping.
+- `--explain` deepens output: in text it lists every criterion with ✓/✗ and points; in JSON it adds an `explain` array; in table it adds the five sub-score columns.
+
+@plane z=2 label="Files to Read First"
+- `src/commands/score.rs` — `cmd_score` plus the `print_text_output`, `print_table_output`, `print_csv_output`, and colorize helpers
+- `src/scoring.rs` — `score_spec`, `compute_project_score`, `SpecScore`, `ProjectScore`, and the per-dimension `explain` data
+- `src/commands/mod.rs` — `load_and_discover`, `filter_specs`, `filter_by_status`
+- `src/types.rs` — `OutputFormat`
+
+@plane z=3 label="Current Status"
+Fully implemented and stable. Covered end-to-end by `tests/integration.rs` (text, JSON, table, CSV, MCP, and with/without `--all`). No inline `#[cfg(test)]` module in `score.rs` itself.
+
+@plane z=4 label="Notes"
+- The live `cmd_score` signature also takes `min_score: Option<u32>` beyond what the spec's API table lists. (`all`, `exclude_status`, and `only_status` are listed there now.)
+- Orchestrates the scoring module; the grading rubric is defined there, not here.

@@ -1,6 +1,6 @@
 ---
 module: watch
-version: 4
+version: 5
 status: stable
 files:
   - src/watch.rs
@@ -84,6 +84,7 @@ File watcher that re-runs `specsync check` on file changes. Watches spec and sou
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `watch.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-25 | Initial spec |
 | 2026-06-11 | v2: Footer parses the check summary line so it never prints "All checks passed!" under a failing report |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

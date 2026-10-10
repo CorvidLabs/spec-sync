@@ -16,7 +16,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 
 - **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
 - **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
-- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
+- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress. When `<module>.3md` exists, record a new lesson on a later plane of that file.
 - **`testing.md`** — Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
 - **`design.md`** *(opt-in)* — Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
 
@@ -29,7 +29,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 ## After completing work
 
 1. Mark completed items in `tasks.md` — check off finished tasks, add new ones discovered
-2. Update `context.md` — record decisions made, update current status
+2. If `<module>.3md` exists beside the spec, record the lesson on a later plane of that file. Otherwise update `context.md` — record decisions made, update current status
 3. If requirements changed, update `requirements.md` acceptance criteria
 4. If test coverage changed, update `testing.md` with new test files or edge cases
 5. If UI/layout changed, update `design.md` with revised layout, components, or tokens
@@ -64,7 +64,7 @@ Each spec directory has companion files — read before working, update after:
 
 - `tasks.md` — Work items. Check off completed tasks, add new ones discovered.
 - `requirements.md` — Acceptance criteria and user stories. Permanent invariants, not tasks.
-- `context.md` — Decisions, key files, current status. Update when you make design choices.
+- `context.md` — Decisions, key files, current status. When `<module>.3md` exists, record a new lesson on a later plane of that file. Otherwise update this file when you make design choices.
 - `testing.md` — Test strategy: automated test locations, manual QA checklists, edge cases.
 - `design.md` *(opt-in)* — Layout, component hierarchy, design tokens, and asset references.
 
@@ -73,7 +73,7 @@ Each spec directory has companion files — read before working, update after:
 - Before editing a module, read its spec at `specs/<module>/<module>.spec.md`
 - Read `tasks.md`, `requirements.md`, `context.md`, `testing.md`, and `design.md` (if present) for outstanding work, requirements, decisions, test strategy, and design specs
 - After modifying code, ensure `specsync check` still passes
-- After completing work, update `tasks.md` (check off done items) and `context.md` (record decisions, update status)
+- After completing work, update `tasks.md` (check off done items). If `<module>.3md` exists, record the lesson on a later plane. Otherwise update `context.md` (record decisions, update status)
 - When creating new modules, run `specsync add-spec <module-name>` first
 - Keep specs in sync: if you change exports, parameters, or types, update the spec's Public API table
 - Run `specsync check --strict` before committing
@@ -90,7 +90,7 @@ Each spec directory has companion files — read before working, update after:
 
 - `tasks.md` — Work items to check off as completed. Add new tasks if you discover work needed.
 - `requirements.md` — Acceptance criteria and user stories. Permanent invariants, not checkable tasks.
-- `context.md` — Architectural decisions, key files, and current status. Update with decisions made.
+- `context.md` — Architectural decisions, key files, and current status. When `<module>.3md` exists, record a new lesson on a later plane of that file. Otherwise update this file with decisions made.
 - `testing.md` — Test strategy: automated test locations, manual QA checklists, edge cases.
 - `design.md` *(opt-in)* — Layout, component hierarchy, design tokens, and asset references.
 
@@ -99,7 +99,7 @@ Each spec directory has companion files — read before working, update after:
 - Specs are in `specs/<module>/<module>.spec.md` — read the relevant spec before modifying a module
 - Read companion files `tasks.md`, `requirements.md`, `context.md`, `testing.md`, and `design.md` (if present) before starting work
 - After changes, `specsync check` should pass with no errors
-- After completing work, update `tasks.md` (mark done items) and `context.md` (record decisions, update status)
+- After completing work, update `tasks.md` (mark done items). If `<module>.3md` exists, record the lesson on a later plane. Otherwise update `context.md` (record decisions, update status)
 - New modules need specs: run `specsync add-spec <module-name>`
 - Keep the Public API table in each spec up to date with actual exports
 - SDD: `specsync change check` = one change; `specsync change audit` = active workspaces + living specs (not archives)
@@ -115,7 +115,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 
 - **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
 - **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
-- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
+- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress. When `<module>.3md` exists, record a new lesson on a later plane of that file.
 - **`testing.md`** — Test strategy: automated test locations, manual QA checklists, and edge cases/boundary conditions.
 - **`design.md`** *(opt-in)* — Layout, component hierarchy, design tokens, and asset references. Present when `companions.design` is enabled in config.
 
@@ -128,7 +128,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 ## After completing work
 
 1. Mark completed items in `tasks.md` — check off finished tasks, add new ones discovered
-2. Update `context.md` — record decisions made, update current status
+2. If `<module>.3md` exists beside the spec, record the lesson on a later plane of that file. Otherwise update `context.md` — record decisions made, update current status
 3. If requirements changed, update `requirements.md` acceptance criteria
 4. If test coverage changed, update `testing.md` with new test files or edge cases
 5. If UI/layout changed, update `design.md` with revised layout, components, or tokens

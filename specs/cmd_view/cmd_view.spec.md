@@ -1,6 +1,6 @@
 ---
 module: cmd_view
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/view.rs
@@ -67,6 +67,7 @@ Implements the `specsync view` command. Renders specs filtered by role (dev, qa,
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_view.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-08-14 | CHG-0116-asking-to-view-a-module-that-does-not-exist-must-fail-not-print-nothing-and-suc: Asking to view a module that does not exist must fail, not print nothing and succeed |

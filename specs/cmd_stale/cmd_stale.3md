@@ -1,0 +1,29 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/cmd_stale/cmd_stale.spec.md`.
+
+Implements the `specsync stale` command — a focused staleness detection tool that identifies specs whose source files have diverged via git commit history. Reports which specs need updating, how many commits they are behind, and which specific source files have drifted. Supports text, JSON, markdown, and GitHub output formats.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- **Git history as source of truth**: Staleness is based on commits to source files since the spec's last commit, not file modification time.
+- **One spec commit, many source files**: the spec's last commit hash is resolved once via `spec_baseline`, then each source file's divergence is counted with `git_commits_since(root, spec_commit, source_file)` — this is the post-N+1-fix shape (`git_commits_between` was removed).
+- **Most stale first**: Results sort by maximum commits behind so the highest-risk specs appear first.
+- **Skip untracked history**: Specs not yet committed (no commit hash) and specs with empty `files` are counted as fresh to avoid false failures during bootstrap.
+- **Non-zero on drift**: the command exits 1 when any stale spec is found so CI can gate on it.
+
+@plane z=2 label="Files to Read First"
+- `src/commands/stale.rs` — CLI implementation, status filtering, and output formatting.
+- `src/git_utils.rs` — `spec_baseline`, `git_commits_since`, `is_git_repo`, and the `StaleInfo` struct.
+
+@plane z=3 label="Current Status"
+Stable. Implemented across all output formats with integration coverage for non-git and fresh-repo cases.
+
+@plane z=4 label="Notes"
+- Use `specsync report` when stale information should be combined with coverage and validation status.

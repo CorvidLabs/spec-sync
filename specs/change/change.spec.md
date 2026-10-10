@@ -1,6 +1,6 @@
 ---
 module: change
-version: 143
+version: 144
 status: active
 files:
   - src/change.rs
@@ -368,6 +368,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v141: lesson planes follow the order written, the lesson bundle names the 3md file, and a new `<module>.3md` is staged with the other spec companions. An unreadable 3md file falls back to `context.md`. |
 | 2026-10-10 | v140: materialize the optional module.3md lesson requirement. |
 | 2026-10-10 | v139: an optional `<module>.3md` file holds context on its first plane and lessons on later planes. `context.md` remains the lesson source until that file exists. |

@@ -1,6 +1,6 @@
 ---
 module: exports
-version: 16
+version: 17
 status: stable
 files:
   - src/exports/mod.rs
@@ -361,6 +361,7 @@ text and is intentionally excluded by code-only Rust dependency extraction.
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `exports.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-08-14 | Issue #578: add `ExportScan::Conflicted` and `ConflictedExtraction`; every scan now reports when extraction unioned both sides of an unresolved merge conflict instead of returning that union as the file's API |
 | 2026-07-22 | v9 / CHG-0063: add module-internal supplied-content extraction that never reopens source paths or resolves TypeScript wildcards through ambient paths |
 | 2026-07-10 | v3: parse one-level nested Kotlin annotation arguments and prevent members of annotated non-public types from leaking as exports |

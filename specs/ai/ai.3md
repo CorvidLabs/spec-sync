@@ -1,0 +1,21 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/ai/ai.spec.md`.
+
+Archived historical tombstone for SpecSync's removed embedded inference subsystem. SpecSync 5.0 is a deterministic, agent-native SDD core: it does not select providers or models, store inference credentials, transmit source to a model, or execute an AI shell command.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Decision"
+SpecSync 5.0 removed embedded inference to reduce credential exposure, automatic source transmission, provider coupling, and arbitrary shell execution. The product boundary is now deterministic scaffolding and validation plus integrations that let an already-configured coding agent enrich markdown using its own trust boundary.
+
+@plane z=2 label="Current Status"
+Deprecated tombstone. There is no source file or runtime API for this module.
+
+@plane z=3 label="Migration"
+Remove AI provider/model/key/URL/timeout/command settings, run `specsync generate`, and use `specsync agents install` or `specsync mcp` for agent-driven enrichment.

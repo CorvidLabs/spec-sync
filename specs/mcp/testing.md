@@ -126,3 +126,25 @@ The v21 rereview regressions exercise a 200-sibling project beneath a 128-descri
 limit, missing object-form `workspaces.packages`, and malformed, non-object, or wrong-shaped nested
 workspace manifests through both tools and resources. Focused results pass 117 MCP unit and 67 MCP
 integration tests; the full suite passes 1,951 unit and 312 integration tests.
+
+## Private Issue Module Refactor
+
+The 17 issue-discovery and diagnostic regressions now live in `src/mcp/issues/tests.rs`.
+Their assertions and platform cfg guards are unchanged; the qualified prefix is
+`mcp::issues::tests::` rather than `mcp::tests::`. `cargo test mcp::` continues to
+cover them alongside all other MCP unit and integration tests. The source-file move
+preserves the production function bodies exactly except for parent-only handler visibility.
+
+## Private Responsibility Modules
+
+The remaining 108 unit-test declarations now live beneath their owning private modules; their
+function bodies, platform cfg guards and original names are preserved. One declaration is
+Windows-only, while 107 run on Linux alongside the 17 issue tests. Shared project fixtures live
+in `src/mcp/tests.rs`; the publication failure enum and quarantine helper remain local to
+publication tests. Use `cargo test mcp::` rather than relying on the old `mcp::tests::` prefix.
+
+Production function and method bodies are moved unchanged. The only added runtime functions are
+thin forwarding facades for the existing public tool-catalog path and confinement's manifest
+preflight boundary. Capability ownership, snapshot budgets, publication cleanup and debug race
+barriers retain their original cfg and call ordering. Target-specific runtime evidence is still
+required before claiming non-Linux qualification.

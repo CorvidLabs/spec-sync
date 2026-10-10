@@ -4,6 +4,21 @@ spec: mcp.spec.md
 
 ## Key Decisions
 
+- The MCP facade keeps orchestration and the original public entry points. Private responsibility
+  modules own protocol/catalog, resources, ordinary tools, retained capabilities, read-root routes,
+  shared manifest interpretation, confinement, snapshots, and atomic publication. Nested snapshot
+  modules share one budget owner; the publication state machine stays together.
+- Directory acquisition shared by snapshot configuration, read-root authorization and publication
+  parent checks lives in capabilities. Pure manifest interpretation is shared without making
+  snapshot construction depend on confinement preflight internals.
+- Debug integration barriers remain cfg(debug_assertions); owner-child unit tests preserve private
+  helper access and use one shared test fixture facade. No crate-wide API is added.
+
+- Issue verification and its 17 regressions are isolated in private `src/mcp/issues.rs` and
+  `src/mcp/issues/tests.rs`. Only `tool_issues` is parent-visible; confinement helpers live in
+  `src/mcp/confinement.rs` and shared test fixtures in `src/mcp/tests.rs`. The move preserves complete function bodies,
+  diagnostic text, limits, JSON shape, authentication, and filesystem authority.
+
 - MCP is a deterministic stdio JSON-RPC adapter for coding agents.
 - Generate creates local templates only and rejects retired inference arguments.
 - Tool errors use `isError`; protocol errors remain JSON-RPC errors.

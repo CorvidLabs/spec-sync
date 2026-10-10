@@ -1,0 +1,35 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791673302,
+      "digest": "0945925bf5dfd66b1137cedda798f92e5f6839fd0c3f2a1c04de3fb02e43b5b4",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "classify-the-archive-commit-that-finalize-records",
+        "title": "Classify the archive commit that finalize records",
+        "description": "Classify the archive commit that finalize records",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The test follows the command. Finalize already commits the archive, so the spec text is unchanged.",
+        "acceptance_criteria": [
+          "The integration test classifies the archive commit that change finalize records, and that commit is the child of the implementation commit."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

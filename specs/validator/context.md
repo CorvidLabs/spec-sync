@@ -4,6 +4,15 @@ spec: validator.spec.md
 
 ## Key Decisions
 
+- **Private responsibility modules**: The stable validator facade retains its existing public and
+  crate-visible entry points. Ordered single-spec validation stays in one intact core, with
+  private policy, schema and source-mapping helpers. Retained coverage separates orchestration,
+  configuration, traversal, spec inventory, capability access and module ownership while sharing
+  the existing root capability, budget and identity observations.
+- **Owner-local regression tests**: Existing tests are grouped by responsibility without changing
+  their bodies or platform guards. Debug race barriers remain available under debug_assertions,
+  including integration-test builds. Private seams do not widen the crate's API.
+
 - **Retained coverage snapshot**: Checked coverage opens caller-selected spec ownership
   frontmatter, every recognized manifest, configured source roots/files, and spec-module entries
   through one retained project capability, binds directory/file/root identities across reads, and
@@ -53,7 +62,9 @@ spec: validator.spec.md
 
 ## Files to Read First
 
-- `src/validator.rs` — Core validation engine: spec validation, file/LOC coverage, module detection, and cross-project reference handling.
+- `src/validator.rs` — Stable validation and coverage API facade, snapshot observations, discovery and dependency entry points.
+- `src/validator/validation.rs` — Complete ordered single-spec validation core.
+- `src/validator/coverage.rs` — Retained coverage orchestration and shared accounting; child modules own configuration, traversal, inventory, access and attribution.
 - `src/parser.rs` — Used heavily by the validator for frontmatter and symbol extraction.
 - `src/exports/mod.rs` — Used for API surface validation (comparing spec symbols to code exports).
 
@@ -80,9 +91,8 @@ tests and the whole suite, which is 2,407 unit plus 407 integration tests today;
 exact-tree independent review remains pending. A
 command-wide immutable CLI analysis snapshot and generic structured
 discovery outcomes are intentionally deferred to the later CLI/outcome/generation work outside
-GitHub #414's MCP boundary. Its in-file
-regression-test module intentionally precedes coverage helpers, so the narrow
-`items_after_test_module` Clippy allowance stays localized.
+GitHub #414's MCP boundary. Regression tests now live in private topical modules beside their
+implementation owners rather than interrupting the production file.
 
 ## Notes
 

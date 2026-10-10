@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791658604,
+      "digest": "4d75b6215541c4abd69a404b040192d690a513be62f5e28cdfaf823c28b3f92f",
+      "note": "Recorded by corvid-agent from the owner’s explicit whole-repository large-file refactoring, continuation and branch/commit instructions; this approves scope only, not implementation review.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "split-validator-validation-and-retained-coverage-into-focused-private-modules",
+        "title": "Split validator validation and retained coverage into focused private modules",
+        "description": "Split validator validation and retained coverage into focused private modules",
+        "kind": "refactor",
+        "affected_specs": [
+          "validator"
+        ],
+        "affected_paths": [
+          "specs/validator",
+          "src/validator",
+          "src/validator.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Organize validator implementation and existing unit tests into cohesive private modules with the facade and every new source or test file below 1000 lines where a coherent boundary permits; preserve public and crate-visible API paths, validation ordering, severity, diagnostic text, coverage JSON and metrics, retained capabilities, identity and race checks, deterministic traversal and shared budgets; retain all existing tests and platform guards; synchronize canonical spec coverage and verify behavior against the unchanged baseline without weakening security or lifecycle gates"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve specs/validator/context.md retained-root authority, shared deterministic budgets and selected identities, bounded live handles, snapshot-only validation, ordered diagnostic severity, and explicit-source manifest failures as carried notices. No configured principles file exists. Preserve every existing public behavior and platform guard.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "validator": "da35614a0f06d1f10395c8d219c6ff84068eae1b822bc9490b6fe1998c956bbb"
+      }
+    }
+  ],
+  "reopenings": []
+}

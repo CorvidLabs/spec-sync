@@ -1,9 +1,32 @@
 ---
 module: validator
-version: 39
+version: 40
 status: stable
 files:
   - src/validator.rs
+  - src/validator/coverage/access.rs
+  - src/validator/coverage/configuration.rs
+  - src/validator/coverage/ownership.rs
+  - src/validator/coverage/sources.rs
+  - src/validator/coverage/specs.rs
+  - src/validator/coverage/test_barriers.rs
+  - src/validator/coverage/tests/access.rs
+  - src/validator/coverage/tests/configuration.rs
+  - src/validator/coverage/tests/ownership.rs
+  - src/validator/coverage/tests/sources.rs
+  - src/validator/coverage/tests/specs.rs
+  - src/validator/coverage.rs
+  - src/validator/mappings/tests.rs
+  - src/validator/mappings.rs
+  - src/validator/schema_checks/tests.rs
+  - src/validator/schema_checks.rs
+  - src/validator/tests.rs
+  - src/validator/validation/policy.rs
+  - src/validator/validation/tests/conflicts.rs
+  - src/validator/validation/tests/content.rs
+  - src/validator/validation/tests/mod.rs
+  - src/validator/validation/tests/policy.rs
+  - src/validator/validation.rs
 db_tables: []
 tracks: [119]
 depends_on:
@@ -286,3 +309,9 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-27 | v37 / #723: A manifest that cannot be parsed no longer vetoes an explicitly configured `source_dirs`; it degrades to a `manifest_notices` entry, and stays fatal only when the source list itself came from discovery |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-10-10 | split-validator-validation-and-retained-coverage-into-focused-private-modules: Split validator validation and retained coverage into focused private modules |
+
+## Internal Organization
+
+The validator keeps its existing public and crate-visible entry points behind a small facade. Private responsibility modules own ordered single-spec validation, companion/custom-rule policy, schema identity checks and source mapping helpers. Retained coverage has private owners for orchestration and shared budgets, configuration, source traversal, spec inventory, capability access, module ownership and debug race barriers. Existing tests are grouped beside their owners. Module boundaries preserve all API paths, diagnostic and traversal ordering, exact-byte snapshot authority, retained identities, shared limits, manifest degradation notices and platform guards; they introduce no new externally visible behavior.
+

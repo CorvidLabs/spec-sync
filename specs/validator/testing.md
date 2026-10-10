@@ -83,3 +83,22 @@ cross-target previously compiled, but hosted-Windows runtime remains pending.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `./target/release/specsync score --all`.
 - Do not treat historical Gradle, Windows cross-target, independent-review, trust, or CI results as
   evidence for the CHG-0063 amendment; rerun every required gate on the final exact tree.
+
+## Private Module Refactor Verification
+
+The validator facade delegates to private validation, schema, mapping and retained-coverage owners.
+Existing tests live in topical child modules. The complete ordered validation function, retained
+capability/identity checks, shared accounting, diagnostic literals and platform guards are preserved.
+Run `cargo test --locked validator::` for all owner-local tests and the full integration suite for
+CLI/MCP coverage consumers. Linux has 64 validator tests; the additional Windows-only test remains
+cfg-gated and requires a native Windows executor for runtime qualification.
+
+The mechanical comparison checks all 177 original function, method and test bodies, preserving
+literal bytes. One relocated test loses an optional closure-call trailing comma under rustfmt;
+normalizing both bodies in the same formatting context preserves every original body. Public
+forwarding wrappers are reviewed separately. Do not infer full trust from focused checks.
+
+The refactor passes 64 focused tests, debug/release checks, clippy, release build and strict coverage.
+Full-unit results are 2338 passed / 192 failed and integration results are 425 passed / 13 failed;
+both failing-name sets exactly match pristine main 815690d in this sandbox. Independent technical
+review found no remaining issues. Full trust and non-Linux runtime qualification remain outstanding.

@@ -21,3 +21,7 @@ spec: cmd_change.spec.md
 - [x] Add preserved-content squash and stale-content ancestor regression controls.
 - [x] Stage lifecycle commits by explicit literal pathspecs (tracked edits plus the change's owned untracked paths), never `git add -A`, and list every other untracked file on stderr (REQ-cmd-change-017).
 - [x] State in `run_checked_commit`'s doc comment what happens when the second verification fails, and name the materialize commit in that error.
+
+- [x] Split the complete change command into focused parent-private production modules, preserving the public dispatcher and all bodies/literals.
+- [x] Move all 29 existing regressions and their fixtures into topical files under 1000 lines, preserving assertions and cfg guards.
+- [x] Complete independent preservation review and record the unchanged focused baseline plus canonical ownership for the split.

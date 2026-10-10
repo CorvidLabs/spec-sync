@@ -1,6 +1,6 @@
 ---
 id: parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 9f4b72dd5c728f129c47a74493051b84d9d475e2
 ---

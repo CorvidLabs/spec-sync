@@ -1661,8 +1661,16 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
 
 pub fn load_change(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     let path = find_change_dir(root, id)?.join("state.json");
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    let content = match fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(format!(
+                "active change state file is missing: {}. Restore state.json or remove the stray directory.",
+                path.display()
+            ));
+        }
+        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+    };
     let record = serde_json::from_str(&content)
         .map_err(|error| format!("invalid change state {}: {error}", path.display()))?;
     validate_loaded_change(&record, id, &path)?;
@@ -1776,12 +1784,22 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         // branch that did not contain an earlier change, which is an ordinary
         // branching pattern and blocked the first command in the workflow.
         //
-        // A directory with no `state.json` is not an active change *here*. Skip it.
-        // Every other read error is still reported: an unreadable state.json is a
-        // real problem and must never be mistaken for an absent one.
+        // A husk holds no regular file and is not an active change here. A
+        // directory that holds a file but no `state.json` is damaged and still
+        // open: report it and keep enumerating. Every other read error is still
+        // reported, so an unreadable state.json is never mistaken for an absent one.
         let content = match fs::read_to_string(&path) {
             Ok(content) => content,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if is_untrackable_husk(&entry.path()) {
+                    continue;
+                }
+                roster.unreadable.push(UnreadableChange {
+                    id: expected_id,
+                    reason: format!("active change state file is missing: {}", path.display()),
+                });
+                continue;
+            }
             Err(error) => {
                 roster.unreadable.push(UnreadableChange {
                     id: expected_id,
@@ -2032,11 +2050,15 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 }
                 // Git cannot track empty directories, so checking out a branch
                 // without this change leaves a husk behind — typically just an
-                // empty `deltas/`. Treating it as a corrupt change made
-                // `change new` fail outright on any branch that did not contain
-                // an earlier change, which is an ordinary branching pattern.
-                // A directory with no `state.json` is not an active change here.
-                Err(error) if !archived && error.kind() == std::io::ErrorKind::NotFound => {
+                // empty `deltas/`. A husk is not an active change. Treating one
+                // as corrupt made `change new` fail on an ordinary checkout.
+                // A directory that holds a file but no `state.json` is damaged
+                // and must not be skipped.
+                Err(error)
+                    if !archived
+                        && error.kind() == std::io::ErrorKind::NotFound
+                        && is_untrackable_husk(&entry.path()) =>
+                {
                     continue;
                 }
                 Err(error) => {
@@ -9109,12 +9131,31 @@ const PLAN_SECTION_TITLES: [&str; 5] = [
 ];
 
 /// True when a required plan heading is missing or has no substantive text under it.
+///
+/// Headings and body lines inside a fenced code block are examples, not the plan.
+/// An unclosed fence hides the rest of the file.
 fn plan_sections_incomplete(content: &str) -> bool {
     let body = strip_html_comments(strip_frontmatter(content));
     let mut sections: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut current: Option<String> = None;
+    let mut fence: Option<(char, usize)> = None;
     for line in body.lines() {
         let trimmed = line.trim();
+        if let Some((open_marker, open_length)) = fence {
+            // A closing fence may be followed only by whitespace. ```markdown
+            // is an opening fence with an info string, not a close.
+            if let Some(mark) = fence_mark(line)
+                && mark.bare
+                && mark.marker == open_marker
+                && mark.length >= open_length
+            {
+                fence = None;
+            }
+            continue;
+        } else if let Some(mark) = fence_mark(line) {
+            fence = Some((mark.marker, mark.length));
+            continue;
+        }
         if let Some(title) = trimmed.strip_prefix("## ") {
             let key = title.trim().to_ascii_lowercase();
             if PLAN_SECTION_TITLES.contains(&key.as_str()) {
@@ -9140,6 +9181,42 @@ fn plan_sections_incomplete(content: &str) -> bool {
                 .iter()
                 .any(|line| plan_section_line_is_substantive(line))
         })
+    })
+}
+
+struct FenceMark {
+    marker: char,
+    length: usize,
+    /// True when nothing but whitespace follows the marker run.
+    bare: bool,
+}
+
+/// A CommonMark fence: at most three leading spaces, then a backtick or tilde
+/// run of at least three. Four spaces is an indented code block, not a fence.
+fn fence_mark(line: &str) -> Option<FenceMark> {
+    let indent = line
+        .chars()
+        .take_while(|character| *character == ' ')
+        .count();
+    if indent > 3 {
+        return None;
+    }
+    let rest = &line[indent..];
+    let marker = rest.chars().next()?;
+    if !matches!(marker, '`' | '~') {
+        return None;
+    }
+    let length = rest
+        .chars()
+        .take_while(|character| *character == marker)
+        .count();
+    if length < 3 {
+        return None;
+    }
+    Some(FenceMark {
+        marker,
+        length,
+        bare: rest[length..].trim().is_empty(),
     })
 }
 

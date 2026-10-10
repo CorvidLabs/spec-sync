@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 44
+version: 47
 status: active
 files:
   - src/commands/change.rs
@@ -126,6 +126,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | v44: a change directory that holds a file but no `state.json` is still open; an empty husk is not. |
 | 2026-10-10 | v42: `change pr` opens the pull request before archive readiness, runs the pre-push gate, and does not say to merge while a change is still open. |
 | 2026-09-01 | Scoped review next-action uses `--reviewer <human>`; same-actor review is allowed. |
 | 2026-08-30 | `change check` is spec↔code sync; it does not spawn `verification_commands`. |
@@ -175,6 +176,9 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-10-10 | make-it-obvious-on-a-pull-request-when-a-change-is-still-open-and-when-it-is-archived: Make it obvious on a pull request when a change is still open and when it is archived |
 | 2026-10-10 | when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it: When I want a pull request, one command archives the change and prepares it |
 | 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |
+| 2026-10-10 | a change directory with files and no state is still open |
+| 2026-10-10 | refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open: Refuse a fenced plan and keep a damaged change directory open |
+| 2026-10-10 | close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file: Close a fence only on whitespace and count a symlink as a file |
 | 2026-10-10 | split-change-command-dispatch-rendering-shipping-and-lifecycle-helpers-into-private-modules: Split change command dispatch rendering shipping and lifecycle helpers into private modules |
 
 ## Internal Organization

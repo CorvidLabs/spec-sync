@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Context
 
+An active change directory that holds a regular file but no `state.json` is damaged and still open. The roster reports it unreadable, names the missing state file, and keeps its siblings. Sequence enumeration refuses it. A directory with no regular file at any depth is a git husk and is skipped, so `change new` still succeeds on an ordinary branch checkout.
+
 Opening a change computes a bounded briefing of substantive module lessons and of the configured principles file. The lesson path is the canonical spec directory, and a multiline HTML comment is not a lesson or a plan section. A required plan section ends at the next level-two heading. The briefing is not stored on the change record. A draft is asked which of those constrain it only after the rest of the interview is answered, and only while it is still a draft. The answer lives in the stable scope. A selected plan is incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted each have substantive text. SpecSync does not call a model and does not copy a lesson into the principles file.
 
 PR #801's CI failed at Clippy because `capture_git_candidate` took eight arguments. Its two capture flags now live in private `GitCaptureOptions`; object identity, LFS pointer validation, and payload capture behavior remain the same.

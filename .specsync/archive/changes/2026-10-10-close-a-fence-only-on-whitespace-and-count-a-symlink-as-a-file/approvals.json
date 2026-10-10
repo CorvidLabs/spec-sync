@@ -1,0 +1,57 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791662933,
+      "digest": "24fc5c585dab89d0f2af5c3d60c3d8b204b23ffbb52152c91e2f6b3843ebef51",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file",
+        "title": "Close a fence only on whitespace and count a symlink as a file",
+        "description": "Close a fence only on whitespace and count a symlink as a file",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".github/scripts/archive-readiness.sh",
+          ".github/scripts/test-archive-readiness.sh",
+          ".specsync/archive/changes/2026-10-10-refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open/testing.md",
+          "hi/three.md",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "specs/cmd_change/requirements.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A code fence closes only when the marker is followed by whitespace, and a symlink keeps a state-less change directory open."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "A selected plan stays substantive, and a directory with a file or symlink but no state.json stays open.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "27847f48b86d565314c3d96b082b2244dfc759165dd357cf5cb57f7fbd272dba",
+        "cmd_change": "1ec15f6b330de705c58549164b43955e4a8c96ec597e46c20bc589b5996377e4"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791663009,
+      "digest": "36c8623eabe9316840146469633e1367a358df12df54feab41ae8a10f8be9702",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

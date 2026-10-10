@@ -25,3 +25,4 @@ spec: cmd_change.spec.md
 - [x] Split the complete change command into focused parent-private production modules, preserving the public dispatcher and all bodies/literals.
 - [x] Move all 29 existing regressions and their fixtures into topical files under 1000 lines, preserving assertions and cfg guards.
 - [x] Complete independent preservation review and record the unchanged focused baseline plus canonical ownership for the split.
+- [x] Treat a change directory that holds a file but no state.json as still open, and skip an empty husk.

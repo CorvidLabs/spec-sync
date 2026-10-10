@@ -1,0 +1,61 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791660777,
+      "digest": "7d6d40de590452573ffd938812cc30a713071e41b2aebdaa65d9474cb548df8d",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open",
+        "title": "Refuse a fenced plan and keep a damaged change directory open",
+        "description": "Refuse a fenced plan and keep a damaged change directory open",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".github/scripts/archive-readiness.sh",
+          ".github/scripts/test-archive-readiness.sh",
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/cmd_change/context.md",
+          "specs/cmd_change/requirements.md",
+          "specs/cmd_change/tasks.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A plan cannot be completed from inside a code fence, and a change directory that holds a file but no state.json stays open."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "A selected plan stays substantive, and a directory with files but no state.json stays open.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "f6476662573e5732b52c41e3a1b928a645e75e5233c2b41c514e7b1772e51039",
+        "cmd_change": "f729e6340419b0207ef72ae3f419eb5730eb8bed40d26d839a69bb660d269f13"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791660878,
+      "digest": "e47a347adb7853746f60b7cf1777cef0b0b24150598cfacfd9791a96ca7e5d8f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

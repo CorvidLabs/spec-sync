@@ -181,16 +181,43 @@ for index in 0 1 2 3 4; do
     "$bin" change answer "$id" acceptance_criteria "$outcome" >/dev/null
     "$bin" change answer "$id" public_contract yes >/dev/null
     "$bin" change answer "$id" architecture_risk yes >/dev/null
+    # The baseline product context is already a lesson, so the interview asks what constrains this epic.
+    "$bin" change answer "$id" constraints none >/dev/null
     if [ -n "$previous_id" ]; then
         "$bin" change depend "$id" "$previous_id" >/dev/null
     fi
 
     change_dir=".specsync/changes/$id"
-    for artifact in context requirements research design plan docs; do
+    for artifact in context requirements research design docs; do
         if [ -f "$change_dir/$artifact.md" ]; then
             printf '# %s\n\nEpic %s: %s. Reviewed before implementation.\n' "$artifact" "$number" "$outcome" > "$change_dir/$artifact.md"
         fi
     done
+    if [ -f "$change_dir/plan.md" ]; then
+        printf '%s\n' \
+            '# Plan' \
+            '' \
+            '## Approach' \
+            '' \
+            "Epic ${number}: ${outcome}." \
+            '' \
+            '## Out of scope' \
+            '' \
+            'Later epics and unrelated product behavior stay unchanged.' \
+            '' \
+            '## Steps' \
+            '' \
+            "Implement ${function}, add its test, then check, review, and finalize." \
+            '' \
+            '## Risks' \
+            '' \
+            'A public signature change can break product tests that already passed.' \
+            '' \
+            '## Constraints consulted' \
+            '' \
+            'The product context baseline applies. No standing principles file is configured.' \
+            > "$change_dir/plan.md"
+    fi
     if [ -f "$change_dir/tasks.md" ]; then
         printf '# Tasks\n\n- [x] Implement epic %s.\n- [x] Add requirement evidence.\n- [x] Review the closing diff.\n' "$number" > "$change_dir/tasks.md"
     fi

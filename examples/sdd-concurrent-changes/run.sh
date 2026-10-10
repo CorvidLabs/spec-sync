@@ -29,7 +29,29 @@ create_change() {
   "$bin" change answer "$id" architecture_risk no >/dev/null
   local dir=".specsync/changes/$id"
   printf '# Context\n\n%s\n' "$description" > "$dir/context.md"
-  printf '# Plan\n\nExecute in declared order.\n' > "$dir/plan.md"
+  printf '%s\n' \
+    '# Plan' \
+    '' \
+    '## Approach' \
+    '' \
+    "$description" \
+    '' \
+    '## Out of scope' \
+    '' \
+    'The other change stays a separate record.' \
+    '' \
+    '## Steps' \
+    '' \
+    'Approve, then verify only after every prerequisite is archived.' \
+    '' \
+    '## Risks' \
+    '' \
+    'Verifying the dependent change first would hide the ordering rule.' \
+    '' \
+    '## Constraints consulted' \
+    '' \
+    'none' \
+    > "$dir/plan.md"
   printf '# Testing\n\nOrdering is verified by lifecycle gates.\n' > "$dir/testing.md"
 }
 

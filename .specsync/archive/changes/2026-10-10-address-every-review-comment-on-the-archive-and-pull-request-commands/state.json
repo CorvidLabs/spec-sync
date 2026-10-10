@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "address-every-review-comment-on-the-archive-and-pull-request-commands",
+  "slug": "address-every-review-comment-on-the-archive-and-pull-request-commands",
+  "title": "Address every review comment on the archive and pull request commands",
+  "description": "Address every review comment on the archive and pull request commands",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "44eb74e2981f125c5dc57ce8a0c6fa3e3923e53c",
+  "created_at": 1791656294,
+  "updated_at": 1791656956,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cmd_rules"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/commands/change.rs",
+    "src/commands/rules.rs",
+    ".github/workflows/ci.yml",
+    ".github/scripts/archive-readiness.sh",
+    ".github/scripts/test-archive-readiness.sh",
+    ".github/scripts/test-required-ci-gate.py",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_change/requirements.md",
+    "specs/cmd_rules/cmd_rules.spec.md",
+    "specs/cmd_rules/requirements.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Every review comment on pull request 804 is fixed in the product, and each thread can be resolved."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "The archive sentence must not say to merge while a change is open, a selected plan stays substantive, and SpecSync does not copy lessons into principles.",
+    "public_contract": "yes"
+  }
+}

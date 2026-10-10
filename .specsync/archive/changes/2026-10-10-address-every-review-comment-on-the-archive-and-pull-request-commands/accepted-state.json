@@ -7,11 +7,11 @@
   "title": "Address every review comment on the archive and pull request commands",
   "description": "Address every review comment on the archive and pull request commands",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "44eb74e2981f125c5dc57ce8a0c6fa3e3923e53c",
   "created_at": 1791656294,
-  "updated_at": 1791656465,
+  "updated_at": 1791656566,
   "affected_specs": [
     "change",
     "cmd_change",

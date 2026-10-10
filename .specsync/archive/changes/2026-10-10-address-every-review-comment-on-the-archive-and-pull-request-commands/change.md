@@ -1,6 +1,6 @@
 ---
 id: address-every-review-comment-on-the-archive-and-pull-request-commands
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 44eb74e2981f125c5dc57ce8a0c6fa3e3923e53c
 ---

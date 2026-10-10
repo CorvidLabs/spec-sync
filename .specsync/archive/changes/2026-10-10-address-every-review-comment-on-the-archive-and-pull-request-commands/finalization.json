@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "address-every-review-comment-on-the-archive-and-pull-request-commands",
+  "implementation_commit": "77aac0ab1cf1cd893688c6e9ad1de483e89d718a",
+  "implementation_tree": "6845631f7dc18060fa6184471925e1554b510534",
+  "contract_digest": "af970cb438cd9dc80747ebd02566d19c7c3ff7a7a2d7e3eae33ca9adac7c62bb",
+  "workspace_digest": "32c267871dea50b7d2c59b1a669c726c1976ec7fd0852a34a2cb5f95518c3620",
+  "closing_digest": "b658b815bd5f4b91cfaea28b806f2c7a2d3023ad7061905b475af509f5f24103",
+  "review_digest": "bb121187508135162842b31c79efaf2ff80603f1fad7627a13f42a78910d94fe",
+  "finalization_digest": "86100949a118e90dae1a23d612f31aba30be9f2862049bb8e78afa3e0069604e",
+  "timestamp": 1791656566
+}

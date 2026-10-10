@@ -13,6 +13,9 @@ spec: validator.spec.md
 
 ## Done
 
+- [x] Decompose validation and retained coverage into private responsibility modules while preserving API paths, ordering, diagnostics and capability authority.
+- [x] Group existing unit regressions into topical child modules with unchanged assertions and platform guards.
+
 - [x] Keep coverage regression fixtures warning-free under current stable Clippy
 - [x] Bidirectional API surface validation (spec ↔ code exports)
 - [x] Frontmatter field validation (module, version, status, files)

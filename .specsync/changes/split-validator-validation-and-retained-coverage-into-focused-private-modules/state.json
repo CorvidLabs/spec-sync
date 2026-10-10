@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "split-validator-validation-and-retained-coverage-into-focused-private-modules",
+  "slug": "split-validator-validation-and-retained-coverage-into-focused-private-modules",
+  "title": "Split validator validation and retained coverage into focused private modules",
+  "description": "Split validator validation and retained coverage into focused private modules",
+  "kind": "refactor",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "815690d1b01776915d93d11ff9f814efeced1a3d",
+  "created_at": 1791658546,
+  "updated_at": 1791659126,
+  "affected_specs": [
+    "validator"
+  ],
+  "affected_paths": [
+    "src/validator.rs",
+    "src/validator",
+    "specs/validator"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Organize validator implementation and existing unit tests into cohesive private modules with the facade and every new source or test file below 1000 lines where a coherent boundary permits; preserve public and crate-visible API paths, validation ordering, severity, diagnostic text, coverage JSON and metrics, retained capabilities, identity and race checks, deterministic traversal and shared budgets; retain all existing tests and platform guards; synchronize canonical spec coverage and verify behavior against the unchanged baseline without weakening security or lifecycle gates"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Preserve specs/validator/context.md retained-root authority, shared deterministic budgets and selected identities, bounded live handles, snapshot-only validation, ordered diagnostic severity, and explicit-source manifest failures as carried notices. No configured principles file exists. Preserve every existing public behavior and platform guard.",
+    "public_contract": "no"
+  }
+}

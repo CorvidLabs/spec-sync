@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 44
+version: 45
 status: active
 files:
   - src/commands/change.rs
@@ -164,3 +164,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-10-10 | when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it: When I want a pull request, one command archives the change and prepares it |
 | 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |
 | 2026-10-10 | a change directory with files and no state is still open |
+| 2026-10-10 | refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open: Refuse a fenced plan and keep a damaged change directory open |

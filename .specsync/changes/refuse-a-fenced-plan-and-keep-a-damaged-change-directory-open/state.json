@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open",
+  "slug": "refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open",
+  "title": "Refuse a fenced plan and keep a damaged change directory open",
+  "description": "Refuse a fenced plan and keep a damaged change directory open",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "d2448bbbfdabfe37e44aaaceb361d03c762af6c2",
+  "created_at": 1791660744,
+  "updated_at": 1791660787,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    ".github/scripts/archive-readiness.sh",
+    ".github/scripts/test-archive-readiness.sh",
+    "specs/change/change.spec.md",
+    "specs/change/context.md",
+    "specs/change/requirements.md",
+    "specs/change/tasks.md",
+    "specs/change/testing.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_change/context.md",
+    "specs/cmd_change/requirements.md",
+    "specs/cmd_change/tasks.md",
+    "src/change.rs",
+    "src/change_tests.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A plan cannot be completed from inside a code fence, and a change directory that holds a file but no state.json stays open."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "A selected plan stays substantive, and a directory with files but no state.json stays open.",
+    "public_contract": "yes"
+  }
+}

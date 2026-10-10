@@ -1385,6 +1385,7 @@ Acceptance Criteria
 - A selected plan is incomplete while Approach, Out of scope, Steps, Risks, or Constraints consulted is missing or has no substantive text.
 - A required section ends at the next level-two heading. Prose under a later heading does not fill the empty section above it.
 - Headings, blank lines, HTML comments including those that span lines, and placeholder TODO lines are not substantive text.
+- Headings and text inside a fenced code block are not part of the plan. A plan whose required headings appear only inside a fence is incomplete.
 - A plan with substantive text under each of those headings is complete, once the generic artifact TODO check also passes.
 - A bug fix and a documentation change that did not select a plan are not given one by this rule.
 - Status names the plan file while it is incomplete, using the same predicate as approval.

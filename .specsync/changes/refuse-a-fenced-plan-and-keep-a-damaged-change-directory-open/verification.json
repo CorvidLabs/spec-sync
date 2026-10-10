@@ -1,0 +1,21 @@
+{
+  "timestamp": 1791660785,
+  "commit": "d2448bbbfdabfe37e44aaaceb361d03c762af6c2",
+  "contract_digest": "7d6d40de590452573ffd938812cc30a713071e41b2aebdaa65d9474cb548df8d",
+  "execution_digest": "b4577e6082c2d510d8a953d2739c8fac31b4e536f2f1291f2c3f5d26bd508ac1",
+  "workspace_digest": "8cd3f3ba088ed0e904dba5adbd7010db245759acce88c8191fd3fcf39ca1407c",
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec change --spec cmd_change",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-change-050",
+    "REQ-change-068",
+    "REQ-change-105",
+    "REQ-cmd-change-019"
+  ]
+}

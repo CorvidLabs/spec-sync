@@ -1,6 +1,6 @@
 ---
 module: changelog
-version: 4
+version: 5
 status: stable
 files:
   - src/changelog.rs
@@ -97,6 +97,7 @@ Automated changelog generation for spec changes between git refs. Compares specs
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `changelog.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

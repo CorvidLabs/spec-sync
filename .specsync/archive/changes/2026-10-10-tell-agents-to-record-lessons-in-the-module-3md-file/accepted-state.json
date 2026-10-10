@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "tell-agents-to-record-lessons-in-the-module-3md-file",
+  "slug": "tell-agents-to-record-lessons-in-the-module-3md-file",
+  "title": "Tell agents to record lessons in the module 3md file",
+  "description": "Tell agents to record lessons in the module 3md file",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "fc0c668270c42efa6ead1a9f759c1ba61ac77904",
+  "created_at": 1791674523,
+  "updated_at": 1791674689,
+  "affected_specs": [
+    "agents",
+    "hooks"
+  ],
+  "affected_paths": [
+    "src/agents.rs",
+    "src/hooks.rs",
+    "AGENTS.md",
+    "specs/",
+    ".claude/skills/spec-sync/SKILL.md",
+    ".codex/skills/spec-sync/SKILL.md",
+    ".cursor/skills/spec-sync/SKILL.md",
+    ".gemini/skills/spec-sync/SKILL.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Agents are told to record a new lesson on a later plane of module.3md when that file exists.",
+    "Each module spec changelog records that the 3md file is beside the spec."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "When module.3md exists and parses, it is the lesson source. context.md stays, and new lessons go on a later plane.",
+    "public_contract": "yes"
+  }
+}

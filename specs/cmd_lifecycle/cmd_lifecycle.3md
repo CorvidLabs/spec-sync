@@ -1,0 +1,27 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/cmd_lifecycle/cmd_lifecycle.spec.md`.
+
+Implements the `specsync lifecycle` command. Manages spec status transitions — promote, demote, set, status, history, and guard evaluation. Validates transitions against the `SpecStatus` lifecycle graph with configurable transition guards and writes updated frontmatter to disk.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- **Frontmatter-only mutation**: Status updates replace only the `status:` line inside YAML frontmatter to avoid accidental body edits.
+- **Guarded transitions by default**: Invalid lifecycle jumps and failed guards require `--force`, keeping CI and human workflows predictable.
+- **Machine-readable output**: Status, guard, auto-promote, and enforce paths honor JSON output for automation.
+
+@plane z=2 label="Files to Read First"
+- `src/commands/lifecycle.rs` — Lifecycle command implementation and unit tests.
+- `src/types.rs` — `SpecStatus`, lifecycle config, and transition guard types.
+
+@plane z=3 label="Current Status"
+Stable. Core status transitions, guard evaluation, auto-promotion, and enforcement are implemented.
+
+@plane z=4 label="Notes"
+- Keep lifecycle commands side-effect-light in dry-run/guard paths; only promote/demote/set/auto-promote without dry-run should edit specs.

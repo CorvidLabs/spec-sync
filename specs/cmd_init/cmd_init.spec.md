@@ -1,6 +1,6 @@
 ---
 module: cmd_init
-version: 15
+version: 16
 status: stable
 files:
   - src/commands/init.rs
@@ -77,6 +77,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_init.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v15: materialize the Linguist rule that keeps `*.3md` from being classified as Roff. |
 | 2026-10-10 | v14: init adds `*.3md linguist-language=Text` so GitHub does not classify the file as Roff. |
 | 2026-08-30 | v12: init writes SDD off (`enabled: false`); no guided first-change interview. `specsync check` is the product. |

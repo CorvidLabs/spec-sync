@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 30
+version: 31
 status: stable
 files:
   - src/mcp.rs
@@ -264,6 +264,7 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `mcp.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-07 | Tighten generated-spec test assertion for MCP tool coverage |
 | 2026-04-10 | Add MCP resources: specs list, spec by module, dependency graph, config, coverage |
 | 2026-03-25 | Initial spec |

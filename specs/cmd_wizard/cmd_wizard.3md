@@ -1,0 +1,30 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/cmd_wizard/cmd_wizard.spec.md`.
+
+Implements the `specsync wizard` command — an interactive TUI wizard for creating new specs step by step. Uses `dialoguer` prompts for module name, purpose, template type, status, source files, and dependencies. Supports template-specific sections (API endpoint, data model, utility, UI component) and shows a preview before writing.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- Interactive-first: all input is gathered through `dialoguer` (`Input`, `Select`, `Confirm`). Interrupting any prompt maps to a clean `process::exit(0)`.
+- Safety before writing: nothing touches disk until the user confirms the preview; an existing spec aborts the wizard early.
+- Module-type presets are inlined as `(extra_invariants, extra_api_hint)` tuples keyed on the selected template index, so each type seeds appropriate invariants and an API table.
+- The spec body is built as one `format!` string here rather than via the generator, but companion files are still produced through `generator::generate_companion_files_for_spec` (so design.md respects `companions.design`).
+
+@plane z=2 label="Files to Read First"
+- `src/commands/wizard.rs` — the full interactive flow and spec-body template
+- `src/generator.rs` — `generate_companion_files_for_spec` for the companion set
+- `src/config.rs` — `source_dirs`, `source_extensions`, `companions.design`
+- `src/exports/mod.rs` — `has_configured_extension` used during source auto-detection
+
+@plane z=3 label="Current Status"
+Fully implemented and stable. No automated tests cover the interactive flow (it requires a TTY); the spec-body shape mirrors the `scaffold`/`generate` templates.
+
+@plane z=4 label="Notes"
+- Part of the command layer — orchestrates `config`, `generator`, and `exports`; one of two commands that depend on interactive prompts (`init` is the other; both import `dialoguer`).

@@ -133,7 +133,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 
 - **`tasks.md`** — Work items for this module. Check off tasks (`- [x]`) as you complete them. Add new tasks if you discover work needed.
 - **`requirements.md`** — Acceptance criteria and user stories. These are permanent invariants, not tasks — do not check them off. Update if requirements change.
-- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress.
+- **`context.md`** — Architectural decisions, key files, and current status. Update when you make design decisions or change what's in progress. When `specs/<module>/<module>.3md` exists, that file is the lesson source instead: the first plane is context and later planes are lessons. Record a new lesson on a later plane. `context.md` stays, and it is not what the next change is shown while the 3md file parses.
 
 ## Workflow
 
@@ -149,7 +149,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 2. Increment the spec `version` field
 3. Add a Change Log entry with the date and description
 4. Mark completed items in `tasks.md`, add new ones discovered
-5. Update `context.md` with decisions made and current status
+5. If `<module>.3md` exists, add the lesson on a later plane of that file. Otherwise update `context.md` with decisions made and current status
 6. If requirements changed, update `requirements.md`
 7. Run `specsync check --strict` and fix all errors
 

@@ -1,6 +1,6 @@
 ---
 module: types
-version: 16
+version: 17
 status: stable
 files:
   - src/types.rs
@@ -149,6 +149,7 @@ Core deterministic data structures and enums shared across the codebase: configu
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `types.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-11 | v2: `ValidationResult` carries the spec's parsed lifecycle status for draft-skip reporting |
 | 2026-03-25 | Initial spec |
 | 2026-03-28 | Document OutputFormat, ExportLevel, ModuleDefinition |

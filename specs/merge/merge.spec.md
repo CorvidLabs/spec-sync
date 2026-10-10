@@ -1,6 +1,6 @@
 ---
 module: merge
-version: 7
+version: 8
 status: stable
 files:
   - src/merge.rs
@@ -155,6 +155,7 @@ Detects and conservatively auto-resolves git merge conflicts in spec files using
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `merge.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-08-14 | Issue #578: expose `conflict_hunks`, `document_conflict_hunks`, `conflict_free_side`, `unmerged_paths`, and `cached_unmerged_paths` as the shared conflict detector; add `MergeStatus::Unknown` so a scan git never performed stops reporting as "no conflicts found" |
 | 2026-07-27 | Issue #427 / CHG-0066: parse exact diff3 markers, use numeric max for versions, reject ambiguous rows/scalars and lossy table/YAML shapes, validate reconstructed frontmatter, report both sides accurately, and preserve all-or-nothing writes |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |

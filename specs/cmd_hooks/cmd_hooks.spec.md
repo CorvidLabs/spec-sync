@@ -1,6 +1,6 @@
 ---
 module: cmd_hooks
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/hooks.rs
@@ -69,5 +69,6 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_hooks.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

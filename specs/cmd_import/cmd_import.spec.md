@@ -1,6 +1,6 @@
 ---
 module: cmd_import
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/import.rs
@@ -78,6 +78,7 @@ Implements the `specsync import` command. Imports specs from external systems (G
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_import.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-07 | Update import success guidance for guided imported specs |
 | 2026-04-09 | Initial spec |
 | 2026-07-22 | CHG-0063: Require explicit-token in-process GitHub REST reads and fail closed on partial pagination |

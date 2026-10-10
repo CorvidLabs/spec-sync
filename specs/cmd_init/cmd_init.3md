@@ -1,0 +1,29 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/cmd_init/cmd_init.spec.md`.
+
+Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected source directories, canonical TOML configuration, SDD policy written **disabled**, version stamp, local-state ignore rules, and lifecycle/change/archive directories. Does not start an SDD interview. Enable the change workflow later with `specsync change adopt`.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- Current and legacy config locations are checked before writing; an existing configuration produces a migration/current-layout hint without being overwritten.
+- Fresh projects write deterministic `.specsync/config.toml`, `.specsync/version`, and `.specsync/sdd.json` files.
+- `ensure_hashes_gitignored` returns `Result<bool, String>` (not `io::Error`) so the caller can print a plain warning; the io error is mapped to a "Failed to update .gitignore" string. A `.gitignore` write failure is intentionally **non-fatal** — the config is already written and the cache being un-ignored is a minor issue.
+- The repository-root `.gitignore` receives the hash-cache entry, while `.specsync/.gitignore` owns local lifecycle lock and transaction-journal entries.
+
+@plane z=2 label="Files to Read First"
+- `src/commands/init.rs` — `cmd_init`, `ensure_hashes_gitignored`, and the inline unit tests.
+- `src/config.rs` — `detect_source_dirs` (the auto-detection logic exercised heavily by integration tests).
+
+@plane z=3 label="Current Status"
+Implemented for 6.0. Fresh projects write SDD off, do not detect or run project test commands, and do not start a first-change interview. `specsync check` is the product. Enable the change workflow with `specsync change adopt`.
+
+@plane z=4 label="Notes"
+- `ensure_hashes_gitignored` is `pub`, so it is callable outside `cmd_init` — `commands::migrate` is the one other caller — and is unit-tested directly. `rehash` does not call it.
+- Part of the command layer — orchestrates `config::detect_source_dirs` rather than containing domain logic.

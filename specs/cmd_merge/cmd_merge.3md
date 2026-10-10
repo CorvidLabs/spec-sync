@@ -1,0 +1,25 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/cmd_merge/cmd_merge.spec.md`.
+
+Implements the `specsync merge` command. Auto-resolves git merge conflicts in spec files, flagging files that need manual resolution.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- Module follows the standard command pattern: load config, discover specs, delegate to library module, format output, exit
+- Spec was created during the 100% coverage push to dogfood spec-sync on its own codebase
+
+@plane z=2 label="Files to Read First"
+- `src/commands/merge.rs` — primary source file
+
+@plane z=3 label="Current Status"
+Fully implemented and stable. Spec created to achieve 100% file coverage.
+
+@plane z=4 label="Notes"
+- This module is part of the command layer — it orchestrates library modules rather than containing domain logic

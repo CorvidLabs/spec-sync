@@ -121,6 +121,7 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v44: a change directory that holds a file but no `state.json` is still open; an empty husk is not. |
 | 2026-10-10 | v42: `change pr` opens the pull request before archive readiness, runs the pre-push gate, and does not say to merge while a change is still open. |
 | 2026-09-01 | Scoped review next-action uses `--reviewer <human>`; same-actor review is allowed. |

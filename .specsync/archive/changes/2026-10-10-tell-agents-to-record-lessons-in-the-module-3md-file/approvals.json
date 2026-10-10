@@ -1,0 +1,57 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791674570,
+      "digest": "7fa46c2f73386b2261fded2085edc86cf33ea367e0ee629bd7f4f2f95bb12012",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "tell-agents-to-record-lessons-in-the-module-3md-file",
+        "title": "Tell agents to record lessons in the module 3md file",
+        "description": "Tell agents to record lessons in the module 3md file",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "agents",
+          "hooks"
+        ],
+        "affected_paths": [
+          ".claude/skills/spec-sync/SKILL.md",
+          ".codex/skills/spec-sync/SKILL.md",
+          ".cursor/skills/spec-sync/SKILL.md",
+          ".gemini/skills/spec-sync/SKILL.md",
+          "AGENTS.md",
+          "specs/",
+          "src/agents.rs",
+          "src/hooks.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Agents are told to record a new lesson on a later plane of module.3md when that file exists.",
+          "Each module spec changelog records that the 3md file is beside the spec."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "When module.3md exists and parses, it is the lesson source. context.md stays, and new lessons go on a later plane.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "3a7e8668567d188d60cc7d06311ba288807e3289f753ef19c9726b3450dddd8d",
+        "hooks": "1016ee4ae064e32b7894d3bc6071465a28c0c2b071625b2257a98c9098b95dbf"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791674689,
+      "digest": "9940a51a67e24fd37401c3c4527458591f655d8845e9f43ac4dc7622637b9360",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

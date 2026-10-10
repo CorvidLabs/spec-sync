@@ -1,6 +1,6 @@
 ---
 module: cli_args
-version: 27
+version: 28
 status: stable
 files:
   - src/cli.rs
@@ -124,6 +124,7 @@ Defines the complete CLI argument grammar, including the discoverable one-approv
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cli_args.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-09 | Initial spec |
 | 2026-04-11 | Add LifecycleAction enum and Lifecycle command variant |
 | 2026-07-01 | Add AgentsAction enum and Agents command variant |

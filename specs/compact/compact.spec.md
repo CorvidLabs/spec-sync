@@ -1,6 +1,6 @@
 ---
 module: compact
-version: 8
+version: 9
 status: stable
 files:
   - src/compact.rs
@@ -106,6 +106,7 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `compact.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-26 | Stop before indented pipe-code and reject indented separators or reordered generated summaries before mutation |
 | 2026-07-26 | Close adversarial #417 gaps: ignore fenced/prefix headings, preserve keep-zero EOF bytes, retain complete plan counts on staging failure, and characterize late partial publication |
 | 2026-07-26 | Harden #417 after adversarial review: provenance-mark summaries, preserve exact line endings, parse contiguous tables safely, reject ambiguity/overflow, and report staged atomic-write failures |

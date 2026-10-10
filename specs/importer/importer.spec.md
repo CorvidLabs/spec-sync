@@ -1,6 +1,6 @@
 ---
 module: importer
-version: 8
+version: 9
 status: active
 files:
   - src/importer.rs
@@ -114,6 +114,7 @@ Generates spec files from external project management systems. Supports importin
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `importer.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-07 | Replace imported-spec unfinished-work markers with guided requirement prompts |
 | 2026-07-22 | CHG-0063: Move GitHub imports to explicit-token typed REST and remove `gh issue view` reads |
 | 2026-07-22 | CHG-0063 final agent review: reject GitHub titles that cannot produce a safe non-empty module name |

@@ -1,6 +1,6 @@
 ---
 module: output
-version: 11
+version: 12
 status: stable
 files:
   - src/output.rs
@@ -113,6 +113,7 @@ Renders terminal and markdown output for spec-sync commands. Provides colored te
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `output.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-07-14 | CHG-0039-allow-draft-specs-to-declare-planned-missing-source-mappings-without-failing-str: Allow draft specs to declare planned missing source mappings without failing strict validation while preserving path safety ownership enforcement exact coverage and complete notice contracts |

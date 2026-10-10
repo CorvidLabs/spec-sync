@@ -103,6 +103,7 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_rules.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v4: a broken SDD policy is reported instead of being shown as no principles file. |
 | 2026-04-10 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

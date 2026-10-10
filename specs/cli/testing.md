@@ -58,3 +58,38 @@ spec: cli.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.
+
+## Command Regression Layout
+
+`tests/integration/commands.rs` remains the registered entry point, so existing references to that
+path still identify the complete command-regression suite. Its private children are:
+
+| File under `tests/integration/commands/` | Responsibility |
+|---|---|
+| `issues.rs` | Issue configuration, references, rendering and authentication/import safety |
+| `issues/confinement.rs` | Confined issue discovery and symlink/junction refusal |
+| `coverage.rs` | Coverage/Gradle/input gates and shared assertions |
+| `coverage/retained_root.rs` | Retained-root replacement and cross-platform race regressions |
+| `generation.rs` | Deterministic generation, companions and structured generation gates |
+| `project_setup.rs` | Initialization, source discovery, configuration and hook preservation |
+| `quality_gates.rs` | Scoring and requested enforcement/coverage gates |
+| `history.rs` | Diff and staleness behavior |
+| `migration.rs` | Migration fixtures and outcomes |
+| `dependencies.rs` | Dependency analysis, supported-language disclosure and strict gates |
+| `maintenance.rs` | Merge, compact and archive-task regressions |
+
+Run `cargo test --locked --test integration commands::` for the complete group. Original short test
+names and all assertion/fixture bodies remain unchanged; module-qualified names now include their
+topic. Compare the compiled inventory to retain all 120 Linux command cases and preserve the
+platform-only declarations. The root integration registration guard remains unchanged and every
+new child has an explicit module declaration. Windows junction helpers remain at
+`commands::create_windows_junction` for the sibling MCP module.
+
+For this layout change, all 120 Linux command cases and the unchanged harness registration guard
+pass. The complete 134 function declarations and 124 platform-gated test declarations are
+mechanically identical apart from their owning module paths. Windows runtime remains unqualified.
+
+The complete integration rerun has 425 passes and 13 failures, exactly matching the pristine-main
+failure set in this sandbox. Production clippy passes; integration-target clippy retains the
+pre-existing collapsible-if failure in `tests/integration/change.rs:19`, reproduced on pristine main.
+No unrelated test or lint guard was changed. Independent technical review found no remaining issues.

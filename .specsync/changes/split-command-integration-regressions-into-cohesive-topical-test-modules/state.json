@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "split-command-integration-regressions-into-cohesive-topical-test-modules",
+  "slug": "split-command-integration-regressions-into-cohesive-topical-test-modules",
+  "title": "Split command integration regressions into cohesive topical test modules",
+  "description": "Split command integration regressions into cohesive topical test modules",
+  "kind": "refactor",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "815690d1b01776915d93d11ff9f814efeced1a3d",
+  "created_at": 1791659891,
+  "updated_at": 1791660451,
+  "affected_specs": [
+    "cli"
+  ],
+  "affected_paths": [
+    "tests/integration/commands.rs",
+    "tests/integration/commands",
+    "specs/cli"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Reduce the 5496-line command integration test file to a small registered facade and cohesive topical test files below 1000 lines where sensible; preserve every existing test/helper body, assertion, fixture and platform/debug attribute, retain all 120 Linux command test cases and platform-only declarations, preserve effective subprocess filters and root integration registration, change no production code or user-visible behavior, and document the test layout with faithful lifecycle evidence"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Honor the existing CLI behavior and integration registration guard, exact command arguments and environment sanitization, retained requested-root spelling for capability-sensitive gates, output/exit-code assertions and all platform/debug race fixtures. Preserve every test including security and no-write regressions; no configured principles file exists.",
+    "public_contract": "no"
+  }
+}

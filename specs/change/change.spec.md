@@ -1,6 +1,6 @@
 ---
 module: change
-version: 138
+version: 140
 status: active
 files:
   - src/change.rs
@@ -368,6 +368,8 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | v139: an optional `<module>.3md` file holds context on its first plane and lessons on later planes. `context.md` remains the lesson source until that file exists. |
+| 2026-10-10 | v138: materialize the fence-closer and symlink requirements. |
 | 2026-10-10 | v137: a closing fence is only whitespace after the marker, a marker indented more than three spaces is not a fence, and a symlink keeps a state-less directory open. |
 | 2026-10-10 | v136: materialize the fenced-plan and damaged-directory requirements. |
 | 2026-10-10 | v135: a fenced code block cannot complete a selected plan, and a change directory with files but no state.json stays open. |
@@ -520,3 +522,4 @@ Acceptance Criteria
 | 2026-10-10 | a change directory with files and no state is still open |
 | 2026-10-10 | refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open: Refuse a fenced plan and keep a damaged change directory open |
 | 2026-10-10 | close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file: Close a fence only on whitespace and count a symlink as a file |
+| 2026-10-10 | show-lessons-from-an-optional-module-3md-file: Show lessons from an optional module 3md file |

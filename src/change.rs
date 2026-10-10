@@ -6838,16 +6838,61 @@ pub(crate) fn configured_principles_file(root: &Path) -> Result<Option<String>, 
 pub(crate) fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(String, usize)> {
     let mut found = Vec::new();
     for module in modules {
-        let relative = module_context_path(root, module);
-        let Ok(text) = fs::read_to_string(root.join(&relative)) else {
+        let Some((relative, substantive)) = module_lesson_lines(root, module) else {
             continue;
         };
-        let substantive = context_substantive_lines(module, &text);
         if !substantive.is_empty() {
             found.push((relative, substantive.len()));
         }
     }
     found
+}
+
+/// `specs/<module>/<module>.3md` when the spec directory is known.
+///
+/// The spec itself stays `<module>.spec.md`. This file is the optional place
+/// for context and lessons, and it is plain text.
+fn module_layers_path(root: &Path, module: &str) -> String {
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    if let Ok((spec, _)) = canonical_module_paths(root, &specs_dir, module)
+        && let Some(directory) = spec.parent()
+    {
+        return portable_project_path(root, &directory.join(format!("{module}.3md")));
+    }
+    let specs_dir = specs_dir.trim_matches('/');
+    format!("{specs_dir}/{module}/{module}.3md")
+}
+
+/// Lesson lines for one module, and the file they came from.
+///
+/// A `<module>.3md` file means the module has moved: the lowest plane is
+/// context, and every later plane is a lesson. Until that file exists,
+/// `context.md` is still the lesson source. An unreadable or invalid file
+/// yields nothing. This must not fail a lifecycle command.
+fn module_lesson_lines(root: &Path, module: &str) -> Option<(String, Vec<String>)> {
+    let layers = module_layers_path(root, module);
+    if root.join(&layers).is_file() {
+        let text = fs::read_to_string(root.join(&layers)).ok()?;
+        let document = threemd::parse(&text).ok()?;
+        let mut planes = document.planes;
+        planes.sort_by(|left, right| {
+            left.z
+                .partial_cmp(&right.z)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let context_z = planes.first().map(|plane| plane.z);
+        let mut lines = Vec::new();
+        for plane in planes {
+            if context_z.is_some_and(|z| plane.z <= z) {
+                continue;
+            }
+            lines.extend(context_substantive_lines(module, &plane.body));
+        }
+        return Some((layers, lines));
+    }
+    let relative = module_context_path(root, module);
+    let text = fs::read_to_string(root.join(&relative)).ok()?;
+    Some((relative, context_substantive_lines(module, &text)))
 }
 
 /// How much of a lesson or principles file the open-change briefing quotes.
@@ -6889,11 +6934,9 @@ pub(crate) struct OpenChangeBriefing {
 pub(crate) fn open_change_briefing(root: &Path, record: &ChangeRecord) -> OpenChangeBriefing {
     let mut lessons = Vec::new();
     for module in &record.affected_specs {
-        let relative = module_context_path(root, module);
-        let Ok(text) = fs::read_to_string(root.join(&relative)) else {
+        let Some((relative, substantive)) = module_lesson_lines(root, module) else {
             continue;
         };
-        let substantive = context_substantive_lines(module, &text);
         if substantive.is_empty() {
             continue;
         }
@@ -7004,7 +7047,14 @@ pub(crate) fn lesson_fold_targets(root: &Path, id: &str) -> Vec<String> {
             record
                 .affected_specs
                 .iter()
-                .map(|module| module_context_path(root, module))
+                .map(|module| {
+                    let layers = module_layers_path(root, module);
+                    if root.join(&layers).is_file() {
+                        layers
+                    } else {
+                        module_context_path(root, module)
+                    }
+                })
                 .collect()
         })
         .unwrap_or_default()

@@ -20,6 +20,16 @@ use super::*;
 use std::sync::{Arc, Barrier, mpsc};
 use tempfile::TempDir;
 
+const SUBSTANTIVE_PLAN: &str = "# Plan\n\n## Approach\n\nDo the work.\n\n## Out of scope\n\nLeave unrelated work alone.\n\n## Steps\n\nLand the change.\n\n## Risks\n\nnone\n\n## Constraints consulted\n\nnone\n";
+
+fn prose_or_plan<'a>(artifact: &ArtifactKind, prose: &'a str) -> &'a str {
+    if matches!(artifact, ArtifactKind::Plan) {
+        SUBSTANTIVE_PLAN
+    } else {
+        prose
+    }
+}
+
 // Verifies REQ-change-021.
 #[test]
 fn append_changelog_preserves_version_date_changes_schema() {
@@ -282,7 +292,7 @@ fn completed_no_spec_record_with_workflow(root: &Path, legacy: bool) -> ChangeRe
         let content = if *artifact == ArtifactKind::Tasks {
             "# Tasks\n\n- [x] Complete\n"
         } else {
-            "# Complete\n\nReviewed.\n"
+            prose_or_plan(artifact, "# Complete\n\nReviewed.\n")
         };
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
@@ -323,7 +333,7 @@ fn completed_section_only_record_with_workflow(
         let content = if *artifact == ArtifactKind::Tasks {
             "# Tasks\n\n- [x] Complete the documentation change.\n"
         } else {
-            "# Complete\n\nReviewed content.\n"
+            prose_or_plan(artifact, "# Complete\n\nReviewed content.\n")
         };
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
@@ -6987,7 +6997,7 @@ fn current_workflow_delta_materialization_preserves_scope_approval() {
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Complete\n"
             } else {
-                "# Complete\n\nReviewed.\n"
+                prose_or_plan(artifact, "# Complete\n\nReviewed.\n")
             },
         )
         .unwrap();
@@ -9269,7 +9279,7 @@ fn finalize_archives_a_v2_successor_that_supersedes_a_legacy_accepted_change() {
         let content = if *artifact == ArtifactKind::Tasks {
             "# Tasks\n\n- [x] Complete the successor.\n"
         } else {
-            "# Complete\n\nReviewed content.\n"
+            prose_or_plan(artifact, "# Complete\n\nReviewed content.\n")
         };
         fs::write(
             change_dir(root, &successor.id).join(artifact.file_name()),
@@ -9466,7 +9476,7 @@ fn successor_over_exact_only_bootstrap(root: &Path, extra_paths: &[&str]) -> Cha
         let content = if *artifact == ArtifactKind::Tasks {
             "# Tasks\n\n- [x] Complete the successor.\n"
         } else {
-            "# Complete\n\nReviewed content.\n"
+            prose_or_plan(artifact, "# Complete\n\nReviewed content.\n")
         };
         fs::write(
             change_dir(root, &successor.id).join(artifact.file_name()),
@@ -9850,7 +9860,7 @@ fn stale_accepted_change_error_names_exact_only_input_and_audited_reopen() {
         let content = if *artifact == ArtifactKind::Tasks {
             "# Tasks\n\n- [x] Complete\n"
         } else {
-            "# Complete\n\nReviewed.\n"
+            prose_or_plan(artifact, "# Complete\n\nReviewed.\n")
         };
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
@@ -10136,7 +10146,7 @@ fn batch_owner_corrections_append_transactionally_or_not_at_all() {
         let content = if *artifact == ArtifactKind::Tasks {
             "# Tasks\n\n- [x] Complete\n"
         } else {
-            "# Complete\n\nReviewed.\n"
+            prose_or_plan(artifact, "# Complete\n\nReviewed.\n")
         };
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
@@ -10407,7 +10417,7 @@ fn broad_successor_without_explicit_obligations_cannot_suppress_stale_predecesso
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Govern the expanded surface.\n"
             } else {
-                "# Complete\n\nReviewed successor evidence.\n"
+                prose_or_plan(artifact, "# Complete\n\nReviewed successor evidence.\n")
             },
         )
         .unwrap();
@@ -11068,7 +11078,10 @@ fn trusted_history_rejects_correction_rollback_and_divergent_same_count() {
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Review the corrected classification.\n"
             } else {
-                "# Complete\n\nThe corrected classification was reviewed.\n"
+                prose_or_plan(
+                    artifact,
+                    "# Complete\n\nThe corrected classification was reviewed.\n",
+                )
             },
         )
         .unwrap();
@@ -11195,7 +11208,10 @@ fn full_history_finds_a_corrected_anchor_hidden_by_a_treesame_merge_result() {
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Review the corrected classification.\n"
             } else {
-                "# Complete\n\nThe corrected classification was reviewed.\n"
+                prose_or_plan(
+                    artifact,
+                    "# Complete\n\nThe corrected classification was reviewed.\n",
+                )
             },
         )
         .unwrap();
@@ -11383,7 +11399,10 @@ fn archived_change_uses_prior_active_correction_anchor() {
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Review the corrected classification.\n"
             } else {
-                "# Complete\n\nThe corrected classification was reviewed.\n"
+                prose_or_plan(
+                    artifact,
+                    "# Complete\n\nThe corrected classification was reviewed.\n",
+                )
             },
         )
         .unwrap();
@@ -11455,7 +11474,10 @@ fn archived_only_corrected_snapshot_remains_a_trusted_anchor() {
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Review the corrected classification.\n"
             } else {
-                "# Complete\n\nThe corrected classification was reviewed.\n"
+                prose_or_plan(
+                    artifact,
+                    "# Complete\n\nThe corrected classification was reviewed.\n",
+                )
             },
         )
         .unwrap();
@@ -11583,7 +11605,10 @@ fn shallow_rollback_tip_cannot_hide_a_corrected_acceptance() {
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Review the corrected classification.\n"
             } else {
-                "# Complete\n\nThe corrected classification was reviewed.\n"
+                prose_or_plan(
+                    artifact,
+                    "# Complete\n\nThe corrected classification was reviewed.\n",
+                )
             },
         )
         .unwrap();
@@ -11675,7 +11700,10 @@ fn accepted_snapshot_with_a_stale_contract_is_not_an_anchor() {
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Review the corrected classification.\n"
             } else {
-                "# Complete\n\nThe corrected classification was reviewed.\n"
+                prose_or_plan(
+                    artifact,
+                    "# Complete\n\nThe corrected classification was reviewed.\n",
+                )
             },
         )
         .unwrap();
@@ -12469,7 +12497,7 @@ fn full_lifecycle_applies_contract_and_archives() {
         let content = if *artifact == ArtifactKind::Tasks {
             "# Tasks\n\n- [x] Implement passkeys\n"
         } else {
-            "# Complete\n\nReviewed content.\n"
+            prose_or_plan(artifact, "# Complete\n\nReviewed content.\n")
         };
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
@@ -12958,7 +12986,7 @@ fn no_spec_change_record_over_src(root: &Path, description: &str) -> ChangeRecor
         let content = if *artifact == ArtifactKind::Tasks {
             "# Tasks\n\n- [x] Complete\n"
         } else {
-            "# Complete\n\nReviewed.\n"
+            prose_or_plan(artifact, "# Complete\n\nReviewed.\n")
         };
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
@@ -13549,7 +13577,7 @@ fn unified_gate_validates_code_against_effective_delta() {
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Done\n"
             } else {
-                "# Complete\n\nReviewed.\n"
+                prose_or_plan(artifact, "# Complete\n\nReviewed.\n")
             },
         )
         .unwrap();
@@ -13696,7 +13724,7 @@ fn project_principles_are_part_of_the_approval_digest() {
     for artifact in &record.selected_artifacts {
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
-            "# Complete\n\nReviewed.\n",
+            prose_or_plan(artifact, "# Complete\n\nReviewed.\n"),
         )
         .unwrap();
     }
@@ -13723,7 +13751,7 @@ fn definition_approval_rejects_an_invalid_semantic_delta() {
     for artifact in &record.selected_artifacts {
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
-            "# Complete\n\nReviewed.\n",
+            prose_or_plan(artifact, "# Complete\n\nReviewed.\n"),
         )
         .unwrap();
     }
@@ -13980,7 +14008,7 @@ fn draft_next_action_prefers_complete_artifacts_over_approve() {
         let body = if *artifact == ArtifactKind::Tasks {
             "# Tasks\n\n- [x] Complete\n"
         } else {
-            "# Complete\n\nReady for approval.\n"
+            prose_or_plan(artifact, "# Complete\n\nReady for approval.\n")
         };
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
@@ -14022,7 +14050,7 @@ fn added_requirement_already_in_living_tree_fails_delta_validation() {
             if *artifact == ArtifactKind::Tasks {
                 "# Tasks\n\n- [x] Complete\n"
             } else {
-                "# Complete\n\nReviewed.\n"
+                prose_or_plan(artifact, "# Complete\n\nReviewed.\n")
             },
         )
         .unwrap();
@@ -16123,7 +16151,7 @@ fn definition_approval_preserves_a_corrupt_ledger() {
     for artifact in &record.selected_artifacts {
         fs::write(
             change_dir(root, &record.id).join(artifact.file_name()),
-            "# Complete\n\nReviewed.\n",
+            prose_or_plan(artifact, "# Complete\n\nReviewed.\n"),
         )
         .unwrap();
     }
@@ -19259,4 +19287,240 @@ fn lifecycle_commit_scope_names_exactly_what_the_change_owns() {
     assert!(archived.contains(&workspace), "{archived:?}");
 
     assert!(lifecycle_commit_scope(root, "no-such-change").is_err());
+}
+
+fn interview_complete_bugfix(root: &Path, module: &str) -> ChangeRecord {
+    let mut record = create_change(
+        root,
+        CreateChangeRequest {
+            description: format!("note a constraint for {module}"),
+            kind: ChangeKind::BugFix,
+            affected_specs: vec![module.into()],
+            affected_paths: vec!["src/lib.rs".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: true,
+            rationale: Some("The note does not move a contract".into()),
+        },
+    )
+    .unwrap();
+    record.acceptance_criteria = vec!["The constraint is visible".into()];
+    record.answers.insert("public_contract".into(), "no".into());
+    record
+        .answers
+        .insert("architecture_risk".into(), "no".into());
+    save_change(root, &record).unwrap();
+    record
+}
+
+// Verifies REQ-change-104.
+#[test]
+fn constraints_question_is_asked_only_for_a_draft_that_has_lessons_or_principles() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/context.md"),
+        "---\nspec: auth.spec.md\n---\n\n## Notes\n\nKeep the lock around the write.\n",
+    )
+    .unwrap();
+    let mut record = interview_complete_bugfix(root, "auth");
+
+    let questions = next_questions_for(root, &record);
+    assert_eq!(questions.len(), 1);
+    assert_eq!(questions[0].id, "constraints");
+
+    record.state = ChangeState::Approved;
+    assert!(
+        next_questions_for(root, &record).is_empty(),
+        "a change that has left draft is not sent back to the interview"
+    );
+}
+
+// Verifies REQ-change-104.
+#[test]
+fn constraints_question_is_absent_when_the_context_is_only_a_scaffold() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/context.md"),
+        crate::generator::generated_context_scaffold("auth"),
+    )
+    .unwrap();
+    let record = interview_complete_bugfix(root, "auth");
+
+    assert!(next_questions_for(root, &record).is_empty());
+}
+
+// Verifies REQ-change-104.
+#[test]
+fn answering_none_completes_the_constraints_question() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/context.md"),
+        "---\nspec: auth.spec.md\n---\n\nKeep the lock around the write.\n",
+    )
+    .unwrap();
+    let record = interview_complete_bugfix(root, "auth");
+    let error = answer_question(root, &record.id, "constraints", "   ").unwrap_err();
+    assert!(error.contains("must not be empty"), "{error}");
+
+    let record = answer_question(root, &record.id, "constraints", "none").unwrap();
+    assert!(next_questions_for(root, &record).is_empty());
+    assert_eq!(
+        record.answers.get("constraints").map(String::as_str),
+        Some("none")
+    );
+}
+
+// Verifies REQ-change-104.
+#[test]
+fn changing_affected_specs_asks_the_constraints_question_again() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/context.md"),
+        "---\nspec: auth.spec.md\n---\n\nKeep the lock around the write.\n",
+    )
+    .unwrap();
+    let record = interview_complete_bugfix(root, "auth");
+    let record = answer_question(root, &record.id, "constraints", "none").unwrap();
+    let record = answer_question(root, &record.id, "affected_specs", "auth").unwrap();
+
+    assert!(!record.answers.contains_key("constraints"));
+    assert_eq!(next_questions_for(root, &record)[0].id, "constraints");
+}
+
+// Verifies REQ-change-104.
+#[test]
+fn a_constraints_answer_changes_the_scope_digest() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = interview_complete_bugfix(root, "auth");
+    let before = scope_digest(root, &record).unwrap();
+    record.answers.insert("constraints".into(), "none".into());
+    let none = scope_digest(root, &record).unwrap();
+    record
+        .answers
+        .insert("constraints".into(), "keep the lock".into());
+    let named = scope_digest(root, &record).unwrap();
+
+    assert_ne!(before, none);
+    assert_ne!(none, named);
+}
+
+// Verifies REQ-change-105.
+#[test]
+fn a_plan_of_empty_headings_is_incomplete() {
+    let empty = "# Plan\n\n## Approach\n\n## Out of scope\n\n## Steps\n\n## Risks\n\n## Constraints consulted\n";
+    assert!(plan_sections_incomplete(empty));
+    assert!(artifact_is_incomplete(&ArtifactKind::Plan, empty));
+    assert!(!artifact_is_incomplete(
+        &ArtifactKind::Context,
+        "# Complete\n\nReviewed.\n"
+    ));
+}
+
+// Verifies REQ-change-105.
+#[test]
+fn a_plan_with_substantive_sections_is_complete() {
+    assert!(!plan_sections_incomplete(SUBSTANTIVE_PLAN));
+    assert!(!artifact_is_incomplete(
+        &ArtifactKind::Plan,
+        SUBSTANTIVE_PLAN
+    ));
+    let mixed_case = "# Plan\n\n## APPROACH\n\nDo it.\n\n## Out of Scope\n\nNot that.\n\n## steps\n\nOne.\n\n## RISKS\n\nnone\n\n## Constraints Consulted\n\nnone\n";
+    assert!(!plan_sections_incomplete(mixed_case));
+}
+
+// Verifies REQ-change-105.
+#[test]
+fn a_bug_fix_does_not_grow_a_plan() {
+    let bug = adaptive_artifacts(
+        ChangeKind::BugFix,
+        &["auth".into()],
+        &["src/auth.rs".into()],
+    );
+    assert!(!bug.contains(&ArtifactKind::Plan));
+    let docs = adaptive_artifacts(ChangeKind::Documentation, &[], &["README.md".into()]);
+    assert!(!docs.contains(&ArtifactKind::Plan));
+}
+
+// Verifies REQ-change-106.
+#[test]
+fn open_change_briefing_quotes_substantive_lessons_and_omits_a_scaffold() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::create_dir_all(root.join("specs/plain")).unwrap();
+    let mut lesson = String::from("---\nspec: auth.spec.md\n---\n\n## Notes\n\n");
+    for index in 0..30 {
+        lesson.push_str(&format!("Lesson line {index} stays in the module.\n"));
+    }
+    fs::write(root.join("specs/auth/context.md"), lesson).unwrap();
+    fs::write(
+        root.join("specs/plain/context.md"),
+        crate::generator::generated_context_scaffold("plain"),
+    )
+    .unwrap();
+    let mut record = interview_complete_bugfix(root, "auth");
+    record.affected_specs = vec!["auth".into(), "plain".into()];
+
+    let briefing = open_change_briefing(root, &record);
+    assert!(briefing.principles.is_none());
+    assert_eq!(briefing.lessons.len(), 1);
+    assert_eq!(briefing.lessons[0].path, "specs/auth/context.md");
+    assert_eq!(briefing.lessons[0].lines, 30);
+    assert!(briefing.lessons[0].truncated);
+    assert!(briefing.lessons[0].excerpt.contains("Lesson line 0"));
+    assert!(!briefing.lessons[0].excerpt.contains("Lesson line 29"));
+}
+
+// Verifies REQ-change-106.
+#[test]
+fn open_change_briefing_names_a_configured_principles_file() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.principles_file = Some("PRINCIPLES.md".into());
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    fs::write(
+        root.join("PRINCIPLES.md"),
+        "# Principles\n\nDo not withhold a merge on folding lessons.\n",
+    )
+    .unwrap();
+    let record = interview_complete_bugfix(root, "auth");
+
+    let briefing = open_change_briefing(root, &record);
+    let principles = briefing.principles.expect("principles");
+    assert_eq!(principles.path, "PRINCIPLES.md");
+    assert!(!principles.missing);
+    assert!(principles.excerpt.contains("Do not withhold a merge"));
+    assert!(
+        next_questions_for(root, &record)
+            .iter()
+            .any(|question| question.id == "constraints")
+    );
+}
+
+// Verifies REQ-change-106.
+#[test]
+fn open_change_briefing_survives_an_unreadable_context() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    write_lifecycle_test_policy(root);
+    let mut policy = load_policy(root).unwrap();
+    policy.principles_file = Some("missing-principles.md".into());
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    let record = interview_complete_bugfix(root, "absent");
+
+    let briefing = open_change_briefing(root, &record);
+    assert!(briefing.lessons.is_empty());
+    let principles = briefing.principles.expect("configured file");
+    assert!(principles.missing);
+    assert!(principles.excerpt.is_empty());
 }

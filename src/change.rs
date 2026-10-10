@@ -2362,6 +2362,47 @@ pub fn next_questions(record: &ChangeRecord) -> Vec<InterviewQuestion> {
     questions
 }
 
+/// Interview questions, including the draft-only constraints question.
+///
+/// [`next_questions`] stays the record-only list. This one looks at the working tree, and only
+/// after the rest of the interview is answered, so a historical approval that never recorded
+/// `constraints` is not sent back to the interview.
+pub(crate) fn next_questions_for(root: &Path, record: &ChangeRecord) -> Vec<InterviewQuestion> {
+    let mut questions = next_questions(record);
+    if questions.is_empty()
+        && let Some(question) = constraints_question(root, record)
+    {
+        questions.push(question);
+    }
+    questions
+}
+
+fn constraints_question(root: &Path, record: &ChangeRecord) -> Option<InterviewQuestion> {
+    if record.state != ChangeState::Draft || record.answers.contains_key("constraints") {
+        return None;
+    }
+    if !constraints_apply(root, record) {
+        return None;
+    }
+    Some(InterviewQuestion {
+        id: "constraints".into(),
+        prompt:
+            "Which existing lessons or principles constrain this change? Answer none if none apply."
+                .into(),
+        choices: vec!["none".into()],
+        recommended: Some("none".into()),
+    })
+}
+
+fn constraints_apply(root: &Path, record: &ChangeRecord) -> bool {
+    if !accumulated_lessons(root, &record.affected_specs).is_empty() {
+        return true;
+    }
+    load_policy(root)
+        .and_then(|policy| policy.principles_file)
+        .is_some()
+}
+
 /// Answer one deterministic interview question after validating the existing definition ledger.
 #[allow(dead_code)]
 pub fn answer_question(
@@ -2393,6 +2434,8 @@ pub(crate) fn answer_question_with_snapshot(
                     .map_err(|error| format!("invalid affected spec: {error}"))?;
             }
             record.affected_specs = values;
+            // The lessons those specs carry may have changed, so the previous citation is stale.
+            record.answers.remove("constraints");
         }
         "affected_paths" => {
             let values = split_values(answer);
@@ -2421,6 +2464,15 @@ pub(crate) fn answer_question_with_snapshot(
                 add_artifact(&mut record, ArtifactKind::Tasks);
                 add_artifact(&mut record, ArtifactKind::Testing);
             }
+        }
+        "constraints" => {
+            let answer = answer.trim();
+            if answer.is_empty() {
+                return Err(
+                    "constraints answer must not be empty; answer none if none apply".into(),
+                );
+            }
+            record.answers.insert(question.into(), answer.to_string());
         }
         _ => {
             record.answers.insert(question.into(), answer.into());
@@ -6753,25 +6805,153 @@ pub(crate) fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(Strin
         let Ok(text) = fs::read_to_string(root.join(&relative)) else {
             continue;
         };
-        let scaffold = crate::generator::generated_context_scaffold(module);
-        let scaffold_lines: std::collections::HashSet<&str> =
-            scaffold.lines().map(str::trim).collect();
-        let body = strip_frontmatter(&text);
-        let substantive = body
-            .lines()
-            .filter(|line| {
-                let line = line.trim();
-                !line.is_empty()
-                    && !line.starts_with("<!--")
-                    && !line.starts_with('#')
-                    && !scaffold_lines.contains(line)
-            })
-            .count();
-        if substantive > 0 {
-            found.push((relative, substantive));
+        let substantive = context_substantive_lines(module, &text);
+        if !substantive.is_empty() {
+            found.push((relative, substantive.len()));
         }
     }
     found
+}
+
+/// How much of a lesson or principles file the open-change briefing quotes.
+///
+/// A wall of text at creation time gets scrolled past. Twenty lines, or 1,200 characters,
+/// whichever comes first, is enough to see the lesson. The path names the rest.
+const BRIEFING_MAX_LINES: usize = 20;
+const BRIEFING_MAX_CHARS: usize = 1_200;
+
+/// One module context that already holds substantive lessons.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct LessonBriefing {
+    pub path: String,
+    pub lines: usize,
+    pub excerpt: String,
+    pub truncated: bool,
+}
+
+/// The project's principles file, when `.specsync/sdd.json` names one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct PrinciplesBriefing {
+    pub path: String,
+    pub excerpt: String,
+    pub truncated: bool,
+    pub missing: bool,
+}
+
+/// Lessons and principles computed when a change is opened. Not stored on the record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct OpenChangeBriefing {
+    pub lessons: Vec<LessonBriefing>,
+    pub principles: Option<PrinciplesBriefing>,
+}
+
+/// What a change should be shown before anyone writes more of it.
+///
+/// An unreadable context or principles file is omitted or marked missing. This never fails
+/// the caller: it is an authoring affordance, same as [`accumulated_lessons`].
+pub(crate) fn open_change_briefing(root: &Path, record: &ChangeRecord) -> OpenChangeBriefing {
+    let mut lessons = Vec::new();
+    for module in &record.affected_specs {
+        let relative = module_context_path(module);
+        let Ok(text) = fs::read_to_string(root.join(&relative)) else {
+            continue;
+        };
+        let substantive = context_substantive_lines(module, &text);
+        if substantive.is_empty() {
+            continue;
+        }
+        let (excerpt, truncated) = bounded_excerpt(&substantive);
+        lessons.push(LessonBriefing {
+            path: relative,
+            lines: substantive.len(),
+            excerpt,
+            truncated,
+        });
+    }
+    let principles = load_policy(root)
+        .and_then(|policy| policy.principles_file)
+        .map(|path| match read_principles(root, &path) {
+            Some(text) => {
+                let lines = principles_excerpt_lines(&text);
+                let (excerpt, truncated) = bounded_excerpt(&lines);
+                PrinciplesBriefing {
+                    path,
+                    excerpt,
+                    truncated,
+                    missing: false,
+                }
+            }
+            None => PrinciplesBriefing {
+                path,
+                excerpt: String::new(),
+                truncated: false,
+                missing: true,
+            },
+        });
+    OpenChangeBriefing {
+        lessons,
+        principles,
+    }
+}
+
+fn context_substantive_lines(module: &str, text: &str) -> Vec<String> {
+    let scaffold = crate::generator::generated_context_scaffold(module);
+    let scaffold_lines: std::collections::HashSet<&str> = scaffold.lines().map(str::trim).collect();
+    strip_frontmatter(text)
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty()
+                || line.starts_with("<!--")
+                || line.starts_with('#')
+                || scaffold_lines.contains(line)
+            {
+                None
+            } else {
+                Some(line.to_string())
+            }
+        })
+        .collect()
+}
+
+fn principles_excerpt_lines(text: &str) -> Vec<String> {
+    strip_frontmatter(text)
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with("<!--") {
+                None
+            } else {
+                Some(line.to_string())
+            }
+        })
+        .collect()
+}
+
+fn read_principles(root: &Path, path: &str) -> Option<String> {
+    let absolute = safe_project_path(root, path).ok()?;
+    fs::read_to_string(absolute).ok()
+}
+
+fn bounded_excerpt(lines: &[String]) -> (String, bool) {
+    let mut kept = Vec::new();
+    let mut chars = 0usize;
+    for line in lines {
+        if kept.len() >= BRIEFING_MAX_LINES {
+            return (kept.join("\n"), true);
+        }
+        let extra = if kept.is_empty() { 0 } else { 1 };
+        if chars + extra + line.chars().count() > BRIEFING_MAX_CHARS {
+            if kept.is_empty() {
+                let excerpt = line.chars().take(BRIEFING_MAX_CHARS).collect::<String>();
+                return (excerpt, true);
+            }
+            return (kept.join("\n"), true);
+        }
+        chars += extra + line.chars().count();
+        kept.push(line.clone());
+    }
+    (kept.join("\n"), false)
 }
 
 /// The context files this change's lessons should be folded into at archival.
@@ -7243,7 +7423,7 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
     match record.state {
         ChangeState::Archived => {}
         ChangeState::Draft => {
-            signals.open_questions = !next_questions(record).is_empty();
+            signals.open_questions = !next_questions_for(root, record).is_empty();
             signals.artifacts_complete =
                 signals.open_questions || validate_artifacts(root, record).is_ok();
         }
@@ -7504,7 +7684,7 @@ fn summarize_change_with_effective(
                     let relative = format!("{CHANGES_PATH}/{}/{}", record.id, artifact.file_name());
                     let path = root.join(&relative);
                     match fs::read_to_string(path) {
-                        Ok(content) if !artifact_content_is_incomplete(&content) => None,
+                        Ok(content) if !artifact_is_incomplete(artifact, &content) => None,
                         _ => Some(relative),
                     }
                 })
@@ -7539,8 +7719,8 @@ fn summarize_change_with_effective(
         remediation
     } else {
         match record.state {
-            ChangeState::Draft if !next_questions(record).is_empty() => {
-                let question = next_questions(record)
+            ChangeState::Draft if !next_questions_for(root, record).is_empty() => {
+                let question = next_questions_for(root, record)
                     .into_iter()
                     .next()
                     .map(|question| question.id)
@@ -7661,7 +7841,7 @@ fn summarize_change_with_effective(
             state: record.state,
             workflow_version: record.workflow_version,
             sequence_frozen: sequence_freeze.is_some(),
-            open_questions: !next_questions(record).is_empty(),
+            open_questions: !next_questions_for(root, record).is_empty(),
             artifacts_complete,
             approval_valid,
             correction_valid,
@@ -8587,7 +8767,7 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
                 .into(),
         );
     }
-    if !next_questions(record).is_empty() {
+    if !next_questions_for(root, record).is_empty() {
         return Err("the deterministic interview is incomplete".into());
     }
     if let Some(policy) = load_policy_checked(root)?
@@ -8884,7 +9064,7 @@ fn validate_artifact_bodies(
     for artifact in selected {
         let path = dir.join(artifact.file_name());
         let content = read_bounded_change_text(&path, "artifact")?;
-        if artifact_content_is_incomplete(&content) {
+        if artifact_is_incomplete(artifact, &content) {
             return Err(format!("artifact is incomplete: {}", path.display()));
         }
     }
@@ -8897,6 +9077,59 @@ fn validate_artifact_bodies(
 /// that are only `TODO` / `TODO: …` as incomplete (product #495 / sandbox #22).
 /// Real prose or checklist items make the artifact complete even if a TODO remains
 /// elsewhere — except HTML TODO comments, which always mark incomplete.
+fn artifact_is_incomplete(artifact: &ArtifactKind, content: &str) -> bool {
+    artifact_content_is_incomplete(content)
+        || (matches!(artifact, ArtifactKind::Plan) && plan_sections_incomplete(content))
+}
+
+/// The headings a selected plan must fill before approval.
+const PLAN_SECTION_TITLES: [&str; 5] = [
+    "approach",
+    "out of scope",
+    "steps",
+    "risks",
+    "constraints consulted",
+];
+
+/// True when a required plan heading is missing or has no substantive text under it.
+fn plan_sections_incomplete(content: &str) -> bool {
+    let body = strip_frontmatter(content);
+    let mut sections: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut current: Option<String> = None;
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if let Some(title) = trimmed.strip_prefix("## ") {
+            let key = title.trim().to_ascii_lowercase();
+            if PLAN_SECTION_TITLES.contains(&key.as_str()) {
+                current = Some(key.clone());
+                sections.entry(key).or_default();
+                continue;
+            }
+        }
+        if let Some(key) = &current {
+            sections
+                .entry(key.clone())
+                .or_default()
+                .push(line.to_string());
+        }
+    }
+    PLAN_SECTION_TITLES.iter().any(|title| {
+        sections.get(*title).is_none_or(|lines| {
+            !lines
+                .iter()
+                .any(|line| plan_section_line_is_substantive(line))
+        })
+    })
+}
+
+fn plan_section_line_is_substantive(line: &str) -> bool {
+    let line = line.trim();
+    if line.is_empty() || line.starts_with("<!--") || line.starts_with('#') {
+        return false;
+    }
+    !is_placeholder_todo_line(line)
+}
+
 fn artifact_content_is_incomplete(content: &str) -> bool {
     if content.contains("<!-- TODO") {
         return true;
@@ -10843,7 +11076,8 @@ fn scope_expansion(approved: &ApprovedScopeV1, current: &ApprovedScopeV1) -> Vec
         changes.push("spec-impact declaration changed".into());
     }
     if approved.answers != current.answers {
-        changes.push("public-contract or architecture-risk declaration changed".into());
+        changes
+            .push("public-contract, architecture-risk, or constraints declaration changed".into());
     }
     append_scope_changes(
         &mut changes,
@@ -19495,6 +19729,13 @@ fn artifact_template(root: &Path, artifact: &ArtifactKind, record: &ChangeRecord
             "<!-- What led here: the problem, and how it was noticed. -->\n\n",
             "<!-- What a session picking this up mid-flight needs to know: constraints,\n",
             "     prior attempts, anything already ruled out. -->\n\n",
+        ),
+        ArtifactKind::Plan => concat!(
+            "## Approach\n\n<!-- What you will do. -->\n\n",
+            "## Out of scope\n\n<!-- What you will not do. -->\n\n",
+            "## Steps\n\n<!-- The steps, in order. -->\n\n",
+            "## Risks\n\n<!-- What could go wrong, or none. -->\n\n",
+            "## Constraints consulted\n\n<!-- Which existing lessons or principles this change honors, or none. -->\n\n",
         ),
         _ => "",
     };

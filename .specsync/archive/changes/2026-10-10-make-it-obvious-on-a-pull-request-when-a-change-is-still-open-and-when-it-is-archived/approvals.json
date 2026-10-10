@@ -1,0 +1,63 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791647907,
+      "digest": "d0b51fcf29997222132ae536faf99c604a220a99d2905fc1b884c32a5de2206e",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-it-obvious-on-a-pull-request-when-a-change-is-still-open-and-when-it-is-archived",
+        "title": "Make it obvious on a pull request when a change is still open and when it is archived",
+        "description": "Make it obvious on a pull request when a change is still open and when it is archived",
+        "kind": "feature",
+        "affected_specs": [
+          "cmd_change"
+        ],
+        "affected_paths": [
+          ".github/scripts/archive-readiness.sh",
+          ".github/scripts/test-archive-readiness.sh",
+          ".github/workflows/ci.yml",
+          "INTENT.md",
+          "hi/ship.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/cmd_change/context.md",
+          "specs/cmd_change/requirements.md",
+          "specs/cmd_change/tasks.md",
+          "specs/cmd_change/testing.md",
+          "src/commands/change.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A pull request that still has an open change does not look finished.",
+          "A pull request whose changes are all archived says it is ready to merge once the checks are green.",
+          "When I look at a pull request, I can tell whether its change is still open or already archived.",
+          "When it is not time, that same place tells me the one reason and the one command.",
+          "When it is time to archive, one command archives the change, commits that archive, and tells me that merging is the step that is left.",
+          "When more than one change is open, I am told which one to archive first."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Do not withhold a merge on an open change. One sentence names the state. One command finishes the archive and commits it. Do not tell me to merge when it is not time.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_change": "45c3fb49439ed6db0121c0581d4f3fd489a08ed4b3d012714715e6817a675eab"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791648322,
+      "digest": "a83b3ac2c981172ff9950a0570adf6fa08c712d098c765834ef4dd1176a9e0c0",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

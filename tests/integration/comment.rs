@@ -65,6 +65,8 @@ fn setup_active_change(root: &Path, verification_commands: &[&str]) -> PathBuf {
         let name = artifact.as_str().unwrap();
         let body = if name == "tasks" {
             "# Tasks\n\n- [x] Complete\n"
+        } else if name == "plan" {
+            SUBSTANTIVE_PLAN
         } else {
             "# Complete\n\nReviewed.\n"
         };

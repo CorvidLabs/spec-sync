@@ -41,9 +41,6 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 )
             })
             .and_then(|record| {
-                if !matches!(format, OutputFormat::Json) {
-                    print_accumulated_lessons(root, &record);
-                }
                 print_record(root, &record, format, true, strict)
             }),
         ChangeAction::Answer {
@@ -81,6 +78,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
         }
         ChangeAction::Status { id } => {
             let _scope = change::begin_change_read_scope(root);
+            if !matches!(format, OutputFormat::Json) {
+                match pull_request_sentence(root) {
+                    Ok(sentence) => println!("{sentence}"),
+                    Err(error) => eprintln!("{} {error}", "error:".red().bold()),
+                }
+            }
             if let Some(id) = id {
                 change::load_change(root, &id)
                     .and_then(|record| print_record(root, &record, format, false, strict))
@@ -396,6 +399,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     println!("{} {} finalized on this PR", "✓".green(), id);
                     println!("  Archive: {}", path.display());
                     println!("  Implementation: {}", finalization.implementation_commit);
+                    println!(
+                        "  {}",
+                        lesson_bundle_line(&path.join(change::LESSON_BUNDLE_FILE))
+                    );
                     println!("  Next: {}", lessons_next_action(root, &id, &path));
                     print_handoff_line_for(root, &id);
                 }
@@ -472,7 +479,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                             if let Some(change_id) = &verified_id
                                 && let Ok(change_record) = change::load_change(root, change_id)
                             {
-                                let questions = change::next_questions(&change_record);
+                                let questions = change::next_questions_for(root, &change_record);
                                 println!(
                                     "  Next: {}",
                                     text_mode_next_action(root, &change_record, &questions)
@@ -581,7 +588,7 @@ fn print_record(
     strict: bool,
 ) -> Result<(), String> {
     let questions = if include_questions {
-        change::next_questions(record)
+        change::next_questions_for(root, record)
     } else {
         Vec::new()
     };
@@ -602,6 +609,7 @@ fn print_record(
                 "corrections": corrections,
                 "summary": summary,
                 "questions": questions,
+                "briefing": change::open_change_briefing(root, record),
             }));
         }
         _ => {
@@ -611,6 +619,7 @@ fn print_record(
             ensure_text_correction_ledger_valid(root, record)?;
             // `text_mode_next_action` uses lightweight artifact file reads only.
             print_change_text_identity(record);
+            print_open_change_briefing(root, record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
@@ -641,7 +650,7 @@ fn print_mutation_record(
 ) -> Result<(), String> {
     let record = &result.change;
     let questions = if include_questions {
-        change::next_questions(record)
+        change::next_questions_for(root, record)
     } else {
         Vec::new()
     };
@@ -663,6 +672,7 @@ fn print_mutation_record(
                 "corrections": result.corrections,
                 "summary": summary,
                 "questions": questions,
+                "briefing": change::open_change_briefing(root, record),
             }));
         }
         _ => {
@@ -670,6 +680,7 @@ fn print_mutation_record(
             // Do not turn successful persistence into a false command failure by rereading that
             // ledger after the transaction has completed.
             print_change_text_identity(record);
+            print_open_change_briefing(root, record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
             print_handoff_line(&change::handoff_summary(root, record));
@@ -813,7 +824,7 @@ fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Re
 /// parent (or tip) SHA. Offline / no-token stays on `local_guidance`. Force offline with
 /// `SPECSYNC_SHIP_LOCAL_GUIDANCE=1`.
 fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
-    let questions = change::next_questions(record);
+    let questions = change::next_questions_for(root, record);
     let lifecycle_next = text_mode_next_action(root, record, &questions);
     let tip = classify_head_tip(root)?;
 
@@ -990,18 +1001,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         });
 
     let ship_next = if ready_to_finalize {
-        if sibling_active_ids.is_empty() {
-            format!(
-                "run `specsync change ship {}` (or finalize without intermediate commits), push the archive tip, wait for CI, then merge the PR",
-                record.id
-            )
-        } else {
-            format!(
-                "run `specsync change ship {}` without an intermediate commit after review; then re-check siblings ({}) before merge — never merge while any change is active",
-                record.id,
-                sibling_active_ids.join(", ")
-            )
-        }
+        format!("run `specsync change ship {}`", record.id)
     } else if matches!(
         record.state,
         ChangeState::Draft | ChangeState::Accepted | ChangeState::Archived
@@ -1186,27 +1186,46 @@ fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
     }
 }
 
-/// Point a new change at what its modules already learned.
-///
-/// The other end of the loop `finalize` closes. Lessons are folded into `specs/<module>/context.md`
-/// at archival precisely so the NEXT change to that module can read them — but nothing surfaced
-/// them, so they accumulated where nobody looked.
-///
-/// Deliberately a pointer and not a dump: the file can be long, and a wall of text at creation
-/// time gets scrolled past. Naming it with its size is enough to make reading it a choice the
-/// author knows they are making.
-fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
-    let found = change::accumulated_lessons(root, &record.affected_specs);
-    if found.is_empty() {
+/// Show the same briefing text and JSON carry. A bounded excerpt, then the path for the rest.
+fn print_open_change_briefing(root: &Path, record: &change::ChangeRecord) {
+    let briefing = change::open_change_briefing(root, record);
+    if briefing.lessons.is_empty() && briefing.principles.is_none() {
         return;
     }
-    println!(
-        "\n  {} what these modules already learned:",
-        "Lessons:".bold()
-    );
-    for (path, lines) in found {
-        println!("    {path} ({lines} line(s)) — read before scoping this change");
+    if !briefing.lessons.is_empty() {
+        println!(
+            "\n  {} what these modules already learned:",
+            "Lessons:".bold()
+        );
+        for lesson in &briefing.lessons {
+            let more = if lesson.truncated {
+                ", more in the file"
+            } else {
+                ""
+            };
+            println!("    {} ({} line(s){more})", lesson.path, lesson.lines);
+            for line in lesson.excerpt.lines() {
+                println!("      {line}");
+            }
+        }
     }
+    if let Some(principles) = &briefing.principles {
+        println!("\n  {} {}", "Principles:".bold(), principles.path);
+        if principles.missing {
+            println!("    the file could not be read");
+        } else {
+            for line in principles.excerpt.lines() {
+                println!("    {line}");
+            }
+            if principles.truncated {
+                println!("    more in the file");
+            }
+        }
+    }
+}
+
+fn lesson_bundle_line(bundle: &Path) -> String {
+    format!("Lesson bundle: {}", bundle.display())
 }
 
 /// What to do after `ship` finalizes.
@@ -1221,6 +1240,106 @@ fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
 ///
 /// Fold-back comes FIRST because it is the step a merge makes irreversible — after the merge the
 /// change is inert history and the material is archived where nobody reads it.
+/// One open change, in the order the pull request names them.
+#[derive(Clone)]
+struct ArchiveCandidate {
+    id: String,
+    state: String,
+    /// Verifying, with review and verification files on disk. The ship command is the next step.
+    ship: bool,
+}
+
+fn ordered_archive_id(open: &[ArchiveCandidate]) -> Option<String> {
+    let mut ordered = open.to_vec();
+    ordered.sort_by(|left, right| {
+        archive_rank(&left.state)
+            .cmp(&archive_rank(&right.state))
+            .then(left.id.cmp(&right.id))
+    });
+    ordered.into_iter().next().map(|candidate| candidate.id)
+}
+
+fn archive_rank(state: &str) -> u8 {
+    match state {
+        "verifying" => 0,
+        "approved" => 1,
+        "implementing" => 2,
+        "draft" => 3,
+        _ => 4,
+    }
+}
+
+/// The sentence the Archive check prints. Empty means every change is archived.
+///
+/// The same words are in `.github/scripts/archive-readiness.sh`.
+fn pull_request_archive_sentence(open: &[ArchiveCandidate]) -> String {
+    if open.is_empty() {
+        return "All changes are archived. Ready to merge when the other checks are green."
+            .to_string();
+    }
+    let mut ordered = open.to_vec();
+    ordered.sort_by(|left, right| {
+        archive_rank(&left.state)
+            .cmp(&archive_rank(&right.state))
+            .then(left.id.cmp(&right.id))
+    });
+    let first = &ordered[0];
+    let command = if first.ship {
+        format!("specsync change ship {}", first.id)
+    } else {
+        format!("specsync change status {}", first.id)
+    };
+    if ordered.len() == 1 {
+        format!(
+            "This pull request is not finished. `{}` is still open. Run `{command}`.",
+            first.id
+        )
+    } else {
+        let still_open = ordered
+            .iter()
+            .map(|candidate| format!("`{}`", candidate.id))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "This pull request is not finished. Archive `{}` first. Still open: {still_open}. Run `{command}`.",
+            first.id
+        )
+    }
+}
+
+fn open_archive_candidates(root: &Path) -> Result<Vec<ArchiveCandidate>, String> {
+    let roster = change::list_changes(root)?;
+    let mut open = Vec::new();
+    for record in roster.records {
+        if record.state == change::ChangeState::Archived {
+            continue;
+        }
+        let dir = change::find_change_dir(root, &record.id)?;
+        let ship = record.state == change::ChangeState::Verifying
+            && dir.join("review.json").is_file()
+            && dir.join("verification.json").is_file();
+        open.push(ArchiveCandidate {
+            id: record.id,
+            state: record.state.as_str().to_string(),
+            ship,
+        });
+    }
+    for unreadable in roster.unreadable {
+        open.push(ArchiveCandidate {
+            id: unreadable.id,
+            state: "unreadable".to_string(),
+            ship: false,
+        });
+    }
+    Ok(open)
+}
+
+fn pull_request_sentence(root: &Path) -> Result<String, String> {
+    Ok(pull_request_archive_sentence(&open_archive_candidates(
+        root,
+    )?))
+}
+
 fn ship_next_action(
     push: bool,
     wait: bool,
@@ -1228,36 +1347,18 @@ fn ship_next_action(
     fold_targets: &[String],
     bundle: &str,
 ) -> String {
-    let remaining = if push && wait {
-        if siblings_before.is_empty() {
-            "merge the PR on GitHub when Required CI is green".to_string()
-        } else {
-            format!(
-                "re-run `change check --commit` on remaining active changes ({}) before merge",
-                siblings_before.join(", ")
-            )
-        }
-    } else if push {
-        if siblings_before.is_empty() {
-            "wait for CI, then merge the PR (or re-run `change ship --wait`)".to_string()
-        } else {
-            format!(
-                "wait for CI; then re-run `change check --commit` on remaining active changes ({})",
-                siblings_before.join(", ")
-            )
-        }
-    } else if siblings_before.is_empty() {
-        "commit if needed, push the archive tip, wait for CI, then merge the PR".to_string()
-    } else {
-        format!(
-            "commit if needed, push the archive tip, wait for CI; then re-run `change check --commit` on remaining active changes ({}) — do not merge while any change is active",
-            siblings_before.join(", ")
-        )
-    };
-    // The archive still writes the lesson bundle. Naming the fold in next_action
-    // made a documentation convention a merge gate. Keep the remaining guidance.
     let _ = (fold_targets, bundle);
-    remaining
+    if let Some(next_id) = siblings_before.first() {
+        return format!("Archive `{next_id}` next. This pull request is not finished.");
+    }
+    if push && wait {
+        "Merge the pull request when the checks are green.".to_string()
+    } else if push {
+        "Wait until the checks are green, then merge the pull request.".to_string()
+    } else {
+        "Push this archive, wait until the checks are green, then merge the pull request."
+            .to_string()
+    }
 }
 
 /// Name the fold-back step archival exists for, then the merge.
@@ -1447,11 +1548,10 @@ fn ship_stages(
         "title": "Archive tip (finalize on the same PR)",
         "status": archive_status,
         "action": if record.state == ChangeState::Archived {
-            "change is archived; merge the PR".to_string()
+            "change is archived; push it if you have not, then merge when the checks are green"
+                .to_string()
         } else if ready_to_finalize {
-            format!(
-                "run `specsync change ship {id}` (or finalize), push the archive tip, wait for CI, then merge"
-            )
+            format!("run `specsync change ship {id}`")
         } else {
             "complete product tip and scoped review first".to_string()
         },
@@ -1720,9 +1820,17 @@ fn run_ship(
 
     if record.state == ChangeState::Archived {
         let report = ship_status_report(root, &record)?;
+        let archive_commit = git_commit_lifecycle(
+            root,
+            &change::lifecycle_commit_scope(root, &record.id)?,
+            &format!("chore(lifecycle): archive {}", record.id),
+        )?;
+        disclose_left_out(&archive_commit.left_out, &mut Vec::new(), None);
         if push || wait {
             let push_result = if push {
-                Some(ship_commit_and_push_archive(root, &record.id)?)
+                run_git(root, &["push"])?;
+                let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
+                Some(format!("pushed archive tip {sha:.8}"))
             } else {
                 None
             };
@@ -1754,7 +1862,7 @@ fn run_ship(
                         );
                     }
                     if !push && !wait {
-                        println!("  Next: merge the PR on GitHub");
+                        println!("  Next: {}", pull_request_sentence(root)?);
                     }
                 }
             }
@@ -1768,9 +1876,10 @@ fn run_ship(
             })),
             _ => {
                 println!(
-                    "{} {} is already archived — merge the PR on GitHub",
+                    "{} {} is already archived. {}",
                     "✓".green(),
-                    record.id
+                    record.id,
+                    pull_request_sentence(root)?
                 );
             }
         }
@@ -1798,24 +1907,41 @@ fn run_ship(
         }
     }
 
+    let open = open_archive_candidates(root)?;
+    let before = pull_request_archive_sentence(&open);
+    let first_id = ordered_archive_id(&open);
+    if first_id.as_deref() != Some(record.id.as_str()) && !open.is_empty() {
+        match format {
+            OutputFormat::Json => print_json(&serde_json::json!({
+                "id": record.id,
+                "status": "blocked",
+                "pull_request": before,
+            })),
+            _ => println!("{before}"),
+        }
+        return Err(before);
+    }
     if !ready {
+        let command = report["ship_next"]
+            .as_str()
+            .unwrap_or("specsync change status");
+        let reason = report["blockers"]
+            .as_array()
+            .and_then(|values| values.first())
+            .and_then(|value| value.as_str())
+            .unwrap_or("this change is not ready to archive");
+        let blocked = format!("This pull request is not finished. {reason} Run `{command}`.");
         match format {
             OutputFormat::Json => print_json(&serde_json::json!({
                 "id": record.id,
                 "status": "blocked",
                 "tip_class": tip_class,
+                "pull_request": blocked,
                 "report": report,
             })),
-            _ => {
-                let _ = print_ship_status(root, &record, format);
-                println!(
-                    "{} ship blocked — resolve blockers above, then re-run `specsync change ship {}`",
-                    "✗".red(),
-                    record.id
-                );
-            }
+            _ => println!("{blocked}"),
         }
-        return Err(format!("change {} is not ready to ship", record.id));
+        return Err(blocked);
     }
 
     if dry_run {
@@ -1851,23 +1977,36 @@ fn run_ship(
 
     // Finalize mutates the workspace; drop the read scope by ending this block first.
     let path = change::finalize_change(root, &record.id)?;
+    let archive_commit = git_commit_lifecycle(
+        root,
+        &change::lifecycle_commit_scope(root, &record.id)?,
+        &format!("chore(lifecycle): archive {}", record.id),
+    )?;
+    disclose_left_out(&archive_commit.left_out, &mut Vec::new(), None);
 
     let mut push_result = None;
     let mut wait_result = None;
     if push {
-        push_result = Some(ship_commit_and_push_archive(root, &record.id)?);
+        run_git(root, &["push"])?;
+        let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
+        push_result = Some(format!("pushed archive tip {sha:.8}"));
     }
     if wait {
         wait_result = Some(wait_for_head_check_runs(root, wait_timeout_secs, format)?);
     }
 
-    let next = ship_next_action(
-        push,
-        wait,
-        &siblings_before,
-        &change::lesson_fold_targets(root, &record.id),
-        &path.join(change::LESSON_BUNDLE_FILE).display().to_string(),
-    );
+    let after = pull_request_sentence(root)?;
+    let next = if after.starts_with("All changes are archived") {
+        ship_next_action(
+            push,
+            wait,
+            &[],
+            &change::lesson_fold_targets(root, &record.id),
+            &path.join(change::LESSON_BUNDLE_FILE).display().to_string(),
+        )
+    } else {
+        after
+    };
     match format {
         OutputFormat::Json => print_json(&serde_json::json!({
             "id": record.id,
@@ -1883,6 +2022,10 @@ fn run_ship(
         _ => {
             println!("{} {} finalized on this PR", "✓".green(), record.id);
             println!("  Archive: {}", path.display());
+            println!(
+                "  {}",
+                lesson_bundle_line(&path.join(change::LESSON_BUNDLE_FILE))
+            );
             if let Some(push_result) = push_result.as_ref() {
                 println!("  Push: {push_result}");
             }
@@ -1897,29 +2040,9 @@ fn run_ship(
             }
             println!("  Next: {next}");
             print_handoff_line_for(root, &record.id);
-            if !siblings_before.is_empty() {
-                println!(
-                    "  {}",
-                    "Warning: sibling active changes still need their own check → review → ship cycle (archive tips stale them)."
-                        .yellow()
-                );
-            }
         }
     }
     Ok(())
-}
-
-/// Commit archive package (if dirty) and push the current branch.
-fn ship_commit_and_push_archive(root: &Path, id: &str) -> Result<String, String> {
-    let archive = git_commit_lifecycle(
-        root,
-        &change::lifecycle_commit_scope(root, id)?,
-        &format!("chore(lifecycle): archive {id}"),
-    )?;
-    disclose_left_out(&archive.left_out, &mut Vec::new(), None);
-    run_git(root, &["push"])?;
-    let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
-    Ok(format!("pushed archive tip {sha:.8}"))
 }
 
 /// Poll GitHub check-runs for HEAD until green, failed, empty, timeout, or offline.
@@ -2191,7 +2314,7 @@ fn print_records(
                 ensure_text_correction_ledger_valid(root, record)?;
             }
             for record in records {
-                let questions = change::next_questions(record);
+                let questions = change::next_questions_for(root, record);
                 let id = record.id.clone();
                 let title = record.title.clone();
                 let state = record.state.as_str().to_owned();
@@ -2503,7 +2626,7 @@ if the floor call is removed from this function"
             record = change::answer_question(root, &record.id, question, answer)
                 .expect("answer interview question");
         }
-        let questions = change::next_questions(&record);
+        let questions = change::next_questions_for(root, &record);
         assert!(questions.is_empty(), "interview must be complete");
 
         for surface in ["status", "show", "list"] {
@@ -3813,7 +3936,7 @@ mod ship_next_action_tests {
             "/archive/lesson-bundle.md",
         );
 
-        assert_eq!(next, "merge the PR on GitHub when Required CI is green");
+        assert_eq!(next, "Merge the pull request when the checks are green.");
         assert!(!next.contains("write lessons"), "got {next:?}");
     }
 
@@ -3828,26 +3951,22 @@ mod ship_next_action_tests {
             (
                 true,
                 true,
-                "merge the PR on GitHub when Required CI is green",
+                "Merge the pull request when the checks are green.",
             ),
             (
                 true,
                 false,
-                "wait for CI, then merge the PR (or re-run `change ship --wait`)",
+                "Wait until the checks are green, then merge the pull request.",
             ),
-            // `--wait` without `--push` collapses into the no-push branch, so the guidance
-            // still says to push the archive tip. That is pre-existing behaviour, unchanged
-            // here, and pinning it is the point of a control: this test exists to detect any
-            // drift in these strings, not to endorse them.
             (
                 false,
                 true,
-                "commit if needed, push the archive tip, wait for CI, then merge the PR",
+                "Push this archive, wait until the checks are green, then merge the pull request.",
             ),
             (
                 false,
                 false,
-                "commit if needed, push the archive tip, wait for CI, then merge the PR",
+                "Push this archive, wait until the checks are green, then merge the pull request.",
             ),
         ];
 
@@ -3875,7 +3994,68 @@ mod ship_next_action_tests {
             !next.contains("write lessons"),
             "lessons must not displace the sibling blocker: {next:?}"
         );
-        assert!(next.contains("do not merge while any change is active"));
-        assert!(next.contains("other-change"));
+        assert_eq!(
+            next,
+            "Archive `other-change` next. This pull request is not finished."
+        );
+        assert!(!next.to_ascii_lowercase().contains("merge"), "{next}");
+    }
+
+    #[test]
+    fn finalize_text_names_the_lesson_bundle_beside_the_merge_instruction() {
+        let bundle = lesson_bundle_line(std::path::Path::new(
+            ".specsync/archive/changes/2026-10-10-example/lesson-bundle.md",
+        ));
+        let next = ship_next_action(
+            true,
+            true,
+            &[],
+            &["specs/change/context.md".to_string()],
+            "/archive/lesson-bundle.md",
+        );
+        assert!(bundle.starts_with("Lesson bundle: "), "{bundle}");
+        assert!(bundle.contains("lesson-bundle.md"), "{bundle}");
+        assert!(!bundle.contains("Next:"), "{bundle}");
+        assert_eq!(next, "Merge the pull request when the checks are green.");
+        assert!(!next.contains("write lessons"), "{next}");
+        assert!(!next.contains("Lesson bundle"), "{next}");
+    }
+
+    #[test]
+    fn ship_commits_the_archive_and_names_merge_as_what_is_left() {
+        let next = ship_next_action(false, false, &[], &[], "lesson-bundle.md");
+        assert_eq!(
+            next,
+            "Push this archive, wait until the checks are green, then merge the pull request."
+        );
+        assert!(!pull_request_archive_sentence(&[]).contains("not finished"));
+        assert_eq!(
+            pull_request_archive_sentence(&[]),
+            "All changes are archived. Ready to merge when the other checks are green."
+        );
+    }
+
+    #[test]
+    fn status_says_which_open_change_to_archive_first() {
+        let open = vec![
+            ArchiveCandidate {
+                id: "draft-notes".into(),
+                state: "draft".into(),
+                ship: false,
+            },
+            ArchiveCandidate {
+                id: "zebra-feature".into(),
+                state: "verifying".into(),
+                ship: true,
+            },
+        ];
+        let sentence = pull_request_archive_sentence(&open);
+        assert!(
+            sentence
+                .starts_with("This pull request is not finished. Archive `zebra-feature` first."),
+            "{sentence}"
+        );
+        assert!(sentence.contains("Run `specsync change ship zebra-feature`."));
+        assert!(!sentence.contains("Ready to merge"), "{sentence}");
     }
 }

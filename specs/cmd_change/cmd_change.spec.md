@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 38
+version: 40
 status: active
 files:
   - src/commands/change.rs
@@ -50,7 +50,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 4. `change audit` reports active-workspace and living-spec integrity only and exits non-zero on report errors.
 5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge.
 6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact. Product-stage completion uses the same verification currency predicate, and its action text describes content currency rather than asserting ancestry. The rule covers the scoped review as well as the verification: readiness asks whether the recorded review is current, reports that answer as `current`, `stale`, or `unavailable`, and treats only `current` as satisfied. An unavailable guarantee reported as a satisfied one is worse than the refusal it conceals, and readiness that never asks receives no negative answer and reads its own silence as a pass.
-7. The lessons loop surfaces at each of the three moments a lesson exists: `change new` names every affected module's `specs/<module>/context.md` that holds substantive prose, a FAILED `change check` names where to record what the failure taught, and BOTH `change finalize` and `change ship` name folding the archived bundle into those specs before their remaining guidance. Every surface is a pointer, never a dump, and none can fail a lifecycle command. A passing `change check` says nothing, and a change owning no affected specs receives the same guidance it received before the fold-back existed. Both verbs also emit a `lesson_bundle` path in `--json`.
+7. Opening, showing, and status render one briefing of the substantive lessons for the change's modules and of the configured principles file, in text and in JSON. A scaffold-only context is omitted. The excerpt is bounded and names the file for the rest. An unreadable file does not fail the command. `change finalize` and `change ship` name the lesson-bundle path in text and in JSON. Their next action stays the merge instruction and does not require copying lessons into the spec. A passing `change check` says nothing about lessons.
 8. `status`, `show`, a passing `check`, `approve`, `review`, `finalize`, and ship's finalize each end their text result with exactly one `Handoff:` line — after `Next:` where one is printed — reading `safe`, `conditional`, or `not yet`, an em-dash, the domain's reason, and, when readiness is not safe, `Before clearing:` followed by the domain's steps. The line renders the domain's `HandoffSummary` verbatim: the adapter never decides readiness itself and never prints a digest on it. JSON carries the same object under `summary.handoff` wherever a change summary is rendered and under `handoff` on the approve transition.
 
 ## Behavioral Examples
@@ -72,6 +72,12 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 - **Given** verification and the configured scoped-review check are current
 - **When** `specsync change finalize <id>` succeeds
 - **Then** output names the dated archive and says the PR is ready for GitHub merge without merging it
+
+### Scenario: Finalize names the lesson bundle
+
+- **Given** a workflow-v2 change is finalized
+- **When** `change finalize` or `change ship` prints its result
+- **Then** text and JSON name the lesson-bundle path, and the next action is still the merge instruction
 
 ## Error Cases
 
@@ -151,3 +157,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-09-07 | make-ship-status-product-stage-completion-use-current-verification-content-consistently: Make ship-status product-stage completion use current verification content consistently |
 | 2026-09-10 | document-shipped-specsync-6-0-0-and-set-the-action-default-to-the-stable-release: Document shipped SpecSync 6.0.0 in ADOPTING (stable install, Trust 1.2.0, always pass Action version) |
 | 2026-09-26 | lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file: Lifecycle commits stage only what the change owns, never every untracked file |
+| 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |
+| 2026-10-10 | make-it-obvious-on-a-pull-request-when-a-change-is-still-open-and-when-it-is-archived: Make it obvious on a pull request when a change is still open and when it is archived |

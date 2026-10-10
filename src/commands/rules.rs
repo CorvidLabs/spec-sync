@@ -38,7 +38,13 @@ pub fn cmd_rules(root: &Path) {
         config.rules.require_depends_on.map(|b| b.to_string()),
     );
     println!();
-    println!("{}", principles_rules_summary(load_principles_file(root)));
+    match crate::change::configured_principles_file(root) {
+        Ok(principles) => println!("{}", principles_rules_summary(principles)),
+        Err(error) => {
+            eprintln!("error: {error}");
+            std::process::exit(1);
+        }
+    }
     println!();
 
     if config.custom_rules.is_empty() {
@@ -104,10 +110,6 @@ pub fn cmd_rules(root: &Path) {
         }
         println!();
     }
-}
-
-fn load_principles_file(root: &Path) -> Option<String> {
-    crate::change::load_policy(root).and_then(|policy| policy.principles_file)
 }
 
 /// What `specsync rules` says about standing principles. Spec-shape rules stay a separate list.

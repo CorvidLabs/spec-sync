@@ -1,6 +1,6 @@
 ---
 module: cmd_rules
-version: 3
+version: 5
 status: stable
 files:
   - src/commands/rules.rs
@@ -94,6 +94,8 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | v4: a broken SDD policy is reported instead of being shown as no principles file. |
 | 2026-04-10 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |
+| 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |

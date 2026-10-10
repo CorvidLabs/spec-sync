@@ -10,10 +10,12 @@ write_change() {
     local id="$1" state="$2" ship="$3"
     local dir="$tmp/.specsync/changes/$id"
     mkdir -p "$dir"
-    printf '{"state":"%s"}\n' "$state" >"$dir/state.json"
     if [[ "$ship" == "yes" ]]; then
-        printf '{}\n' >"$dir/review.json"
+        printf '{"state":"%s","workflow_version":2}\n' "$state" >"$dir/state.json"
+        printf '{"verdict":"pass","implementation_commit":"%s"}\n' "$head" >"$dir/review.json"
         printf '{}\n' >"$dir/verification.json"
+    else
+        printf '{"state":"%s"}\n' "$state" >"$dir/state.json"
     fi
 }
 
@@ -42,11 +44,34 @@ assert_pass() {
     }
 }
 
+git -C "$tmp" init -b main >/dev/null
+git -C "$tmp" config user.email archive@specsync.dev
+git -C "$tmp" config user.name "Archive check"
+printf 'seed\n' >"$tmp/README.md"
+git -C "$tmp" add README.md
+git -C "$tmp" commit -m "seed" >/dev/null
+head="$(git -C "$tmp" rev-parse HEAD)"
+
 write_change draft-notes draft no
 assert_fail "This pull request is not finished. \`draft-notes\` is still open. Run \`specsync change status draft-notes\`."
 
 write_change zebra-feature verifying yes
 assert_fail "This pull request is not finished. Archive \`zebra-feature\` first. Still open: \`zebra-feature\`, \`draft-notes\`. Run \`specsync change ship zebra-feature\`."
+
+# A blocking review must not be told to ship.
+printf '{"verdict":"block","implementation_commit":"%s"}\n' "$head" >"$tmp/.specsync/changes/zebra-feature/review.json"
+assert_fail "This pull request is not finished. Archive \`zebra-feature\` first. Still open: \`zebra-feature\`, \`draft-notes\`. Run \`specsync change status zebra-feature\`."
+
+# Accepted is closer to the archive than a verifying change.
+printf '{"verdict":"pass","implementation_commit":"%s"}\n' "$head" >"$tmp/.specsync/changes/zebra-feature/review.json"
+write_change almost-done accepted no
+assert_fail "This pull request is not finished. Archive \`almost-done\` first. Still open: \`almost-done\`, \`zebra-feature\`, \`draft-notes\`. Run \`specsync change status almost-done\`."
+
+# A state that says archived, left in the active tree, is still open.
+rm -rf "$tmp/.specsync"
+mkdir -p "$tmp/.specsync/changes/left-behind"
+printf '{"state":"archived"}\n' >"$tmp/.specsync/changes/left-behind/state.json"
+assert_fail "This pull request is not finished. \`left-behind\` is still open. Run \`specsync change status left-behind\`."
 
 rm -rf "$tmp/.specsync"
 assert_pass

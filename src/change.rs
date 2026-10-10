@@ -6777,8 +6777,23 @@ pub(crate) fn active_change_id(root: &Path) -> Option<String> {
 ///
 /// One definition of the convention, so surfacing at `new` and folding at `finalize` can never
 /// disagree about which file they mean.
-pub(crate) fn module_context_path(module: &str) -> String {
-    format!("specs/{module}/context.md")
+pub(crate) fn module_context_path(root: &Path, module: &str) -> String {
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    if let Ok((spec, _)) = canonical_module_paths(root, &specs_dir, module)
+        && let Some(directory) = spec.parent()
+    {
+        return portable_project_path(root, &directory.join("context.md"));
+    }
+    let specs_dir = specs_dir.trim_matches('/');
+    format!("{specs_dir}/{module}/context.md")
+}
+
+/// The configured principles file, or the policy error when `.specsync/sdd.json` cannot be read.
+///
+/// `load_policy` turns a broken file into "nothing configured". An inspection command has to
+/// tell those apart: a person cannot honor principles the tool has hidden.
+pub(crate) fn configured_principles_file(root: &Path) -> Result<Option<String>, String> {
+    Ok(load_policy_checked(root)?.and_then(|policy| policy.principles_file))
 }
 
 /// What these modules have already learned, as substantive line counts.
@@ -6801,7 +6816,7 @@ pub(crate) fn module_context_path(module: &str) -> String {
 pub(crate) fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(String, usize)> {
     let mut found = Vec::new();
     for module in modules {
-        let relative = module_context_path(module);
+        let relative = module_context_path(root, module);
         let Ok(text) = fs::read_to_string(root.join(&relative)) else {
             continue;
         };
@@ -6852,7 +6867,7 @@ pub(crate) struct OpenChangeBriefing {
 pub(crate) fn open_change_briefing(root: &Path, record: &ChangeRecord) -> OpenChangeBriefing {
     let mut lessons = Vec::new();
     for module in &record.affected_specs {
-        let relative = module_context_path(module);
+        let relative = module_context_path(root, module);
         let Ok(text) = fs::read_to_string(root.join(&relative)) else {
             continue;
         };
@@ -6897,7 +6912,8 @@ pub(crate) fn open_change_briefing(root: &Path, record: &ChangeRecord) -> OpenCh
 fn context_substantive_lines(module: &str, text: &str) -> Vec<String> {
     let scaffold = crate::generator::generated_context_scaffold(module);
     let scaffold_lines: std::collections::HashSet<&str> = scaffold.lines().map(str::trim).collect();
-    strip_frontmatter(text)
+    let text = strip_html_comments(text);
+    strip_frontmatter(&text)
         .lines()
         .filter_map(|line| {
             let line = line.trim();
@@ -6915,7 +6931,8 @@ fn context_substantive_lines(module: &str, text: &str) -> Vec<String> {
 }
 
 fn principles_excerpt_lines(text: &str) -> Vec<String> {
-    strip_frontmatter(text)
+    let text = strip_html_comments(text);
+    strip_frontmatter(&text)
         .lines()
         .filter_map(|line| {
             let line = line.trim();
@@ -6965,7 +6982,7 @@ pub(crate) fn lesson_fold_targets(root: &Path, id: &str) -> Vec<String> {
             record
                 .affected_specs
                 .iter()
-                .map(|module| module_context_path(module))
+                .map(|module| module_context_path(root, module))
                 .collect()
         })
         .unwrap_or_default()
@@ -9093,7 +9110,7 @@ const PLAN_SECTION_TITLES: [&str; 5] = [
 
 /// True when a required plan heading is missing or has no substantive text under it.
 fn plan_sections_incomplete(content: &str) -> bool {
-    let body = strip_frontmatter(content);
+    let body = strip_html_comments(strip_frontmatter(content));
     let mut sections: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut current: Option<String> = None;
     for line in body.lines() {
@@ -9103,8 +9120,12 @@ fn plan_sections_incomplete(content: &str) -> bool {
             if PLAN_SECTION_TITLES.contains(&key.as_str()) {
                 current = Some(key.clone());
                 sections.entry(key).or_default();
-                continue;
+            } else {
+                // An unrelated heading ends the previous section. Leaving `current` set
+                // would count that heading's prose as the empty required section above it.
+                current = None;
             }
+            continue;
         }
         if let Some(key) = &current {
             sections
@@ -9128,6 +9149,26 @@ fn plan_section_line_is_substantive(line: &str) -> bool {
         return false;
     }
     !is_placeholder_todo_line(line)
+}
+
+/// Remove HTML comments, including ones that span lines.
+///
+/// A comment is not a lesson and not a plan. Keeping only the opening line out
+/// left the hidden prose looking substantive.
+fn strip_html_comments(text: &str) -> String {
+    let mut kept = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("<!--") {
+        kept.push_str(&rest[..start]);
+        rest = &rest[start + 4..];
+        if let Some(end) = rest.find("-->") {
+            rest = &rest[end + 3..];
+        } else {
+            rest = "";
+        }
+    }
+    kept.push_str(rest);
+    kept
 }
 
 fn artifact_content_is_incomplete(content: &str) -> bool {

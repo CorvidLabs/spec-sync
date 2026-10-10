@@ -1,6 +1,6 @@
 ---
 module: change
-version: 131
+version: 133
 status: active
 files:
   - src/change.rs
@@ -165,7 +165,8 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `list_changes` | `root: &Path` | `Result<ChangeRoster, String>` | List active changes in stable ID order alongside the workspaces that could not be read; `Err` only when the changes directory itself is unreadable |
 | `load_change` | `root: &Path, id: &str` | `Result<ChangeRecord, String>` | Load active or archived change state |
 | `load_policy` | `root: &Path` | `Option<SddPolicy>` | Load `.specsync/sdd.json`; absence leaves existing projects unenforced |
-| `module_context_path` | `module` | `String` | The single definition of where a module's accumulated lessons live, shared by surfacing and folding so they cannot disagree |
+| `module_context_path` | `root, module` | `String` | Where a module's accumulated lessons live, from the registry-aware canonical spec directory, shared by surfacing and folding so they cannot disagree |
+| `configured_principles_file` | `root` | `Result<Option<String>, String>` | The configured principles file, or the error when `.specsync/sdd.json` cannot be read |
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
 | `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
 | `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
@@ -367,6 +368,7 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | v132: lesson paths follow the registry-aware spec directory; a plan section ends at the next heading and ignores HTML comments. |
 | 2026-10-09 | v129: group private Git capture options to satisfy Clippy's argument limit without changing evidence behavior. |
 | 2026-10-09 | v128: a clean object id is framed apart from file bytes. `filter=lfs` requires the Git LFS clean and smudge commands and a pointer blob. |
 | 2026-10-08 | name-clean-git-files-by-object-id-so-change-check-accepts-an-lfs-pointer: Name clean Git files by object id so change check accepts an LFS pointer |
@@ -510,3 +512,4 @@ Acceptance Criteria
 | 2026-09-26 | lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file: Lifecycle commits stage only what the change owns, never every untracked file |
 | 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |
 | 2026-10-10 | keep-approval-tests-valid-after-a-plan-must-name-its-sections: Keep approval tests valid after a plan must name its sections |
+| 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |

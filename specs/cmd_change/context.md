@@ -4,7 +4,9 @@ spec: cmd_change.spec.md
 
 # Context
 
-`change status` prints the same sentence as the Archive check: whether the pull request still has an open change, which one to archive first, and the one command. `change ship` on a ready change commits the archive tip and then says to push and merge. It does not say to merge while another change is open.
+`change status` prints whether the pull request still has an open change and which one to archive first, without telling the operator to run `change status` again. `change ship` on a ready change commits the archive tip and then says to push and merge. It does not say to merge while another change is open. Re-running it on an archived change commits only that archive package.
+
+`change pr` archives a ready change when it is the one to archive first, runs the pre-push gate, pushes the branch, and opens or reuses an open pull request. A change that is not ready still gets the pull request, then the one next command. A closed pull request is not reused. The command does not merge, and it does not say to merge while a change is still open.
 
 `change new`, `change status`, and `change show` render the domain's open-change briefing in text and JSON. `change finalize` and `change ship` name the lesson-bundle path on its own line. Their next action stays the merge instruction.
 

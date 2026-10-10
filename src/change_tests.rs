@@ -19440,6 +19440,20 @@ fn a_plan_with_substantive_sections_is_complete() {
 
 // Verifies REQ-change-105.
 #[test]
+fn a_plan_section_does_not_borrow_the_next_heading_or_an_html_comment() {
+    let borrowed = "# Plan\n\n## Approach\n\n\n## Rollout\n\nShip it.\n\n## Out of scope\n\nNot that.\n\n## Steps\n\nOne.\n\n## Risks\n\nnone\n\n## Constraints consulted\n\nnone\n";
+    assert!(plan_sections_incomplete(borrowed));
+    let commented = "# Plan\n\n## Approach\n\nDo it.\n\n## Out of scope\n\nNot that.\n\n## Steps\n\nOne.\n\n## Risks\n\n<!--\nplaceholder\n-->\n\n## Constraints consulted\n\nnone\n";
+    assert!(plan_sections_incomplete(commented));
+    let lessons = context_substantive_lines(
+        "auth",
+        "---\nspec: auth.spec.md\n---\n# Context\n\n<!--\nhidden lesson\n-->\n",
+    );
+    assert!(lessons.is_empty(), "{lessons:?}");
+}
+
+// Verifies REQ-change-105.
+#[test]
 fn a_bug_fix_does_not_grow_a_plan() {
     let bug = adaptive_artifacts(
         ChangeKind::BugFix,

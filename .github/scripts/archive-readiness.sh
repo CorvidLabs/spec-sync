@@ -14,6 +14,7 @@ shopt -s nullglob
 
 python3 - "$root" <<'PY'
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -32,16 +33,49 @@ if changes.is_dir():
             if not isinstance(state, str) or not state:
                 state = "unreadable"
         except (OSError, json.JSONDecodeError):
+            payload = None
             state = "unreadable"
         rank = {
-            "verifying": 0,
-            "approved": 1,
-            "implementing": 2,
-            "draft": 3,
-        }.get(state, 4)
+            "accepted": 0,
+            "verifying": 1,
+            "approved": 2,
+            "implementing": 3,
+            "draft": 4,
+        }.get(state, 5)
+        workflow = payload.get("workflow_version", 1) if isinstance(payload, dict) else 1
+        if not isinstance(workflow, int):
+            workflow = 1
+        verdict = None
+        reviewed_commit = None
+        review_path = directory / "review.json"
+        if review_path.is_file():
+            try:
+                review = json.loads(review_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                review = None
+            if isinstance(review, dict):
+                verdict = review.get("verdict")
+                reviewed_commit = review.get("implementation_commit")
+        head = ""
+        try:
+            completed = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if completed.returncode == 0:
+                head = completed.stdout.strip()
+        except OSError:
+            head = ""
         ship = (
             state == "verifying"
-            and (directory / "review.json").is_file()
+            and workflow >= 2
+            and verdict == "pass"
+            and isinstance(reviewed_commit, str)
+            and reviewed_commit != ""
+            and reviewed_commit == head
             and (directory / "verification.json").is_file()
         )
         rows.append((rank, change_id, ship))

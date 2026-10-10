@@ -46,6 +46,7 @@ Acceptance Criteria
 - A configured `principles_file` is printed with its path.
 - The output says SpecSync does not copy lessons into that file.
 - An unset principles file prints that none is configured.
+- A malformed or unreadable `.specsync/sdd.json` fails the command with the policy error instead of claiming that no principles file is configured.
 - Built-in rule listing is unchanged.
 - The command does not write the principles file or any spec.
 

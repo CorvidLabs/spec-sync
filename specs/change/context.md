@@ -4,7 +4,7 @@ spec: change.spec.md
 
 # Context
 
-Opening a change computes a bounded briefing of substantive module lessons and of the configured principles file. The briefing is not stored on the change record. A draft is asked which of those constrain it only after the rest of the interview is answered, and only while it is still a draft. The answer lives in the stable scope. A selected plan is incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted each have substantive text. SpecSync does not call a model and does not copy a lesson into the principles file.
+Opening a change computes a bounded briefing of substantive module lessons and of the configured principles file. The lesson path is the canonical spec directory, and a multiline HTML comment is not a lesson or a plan section. A required plan section ends at the next level-two heading. The briefing is not stored on the change record. A draft is asked which of those constrain it only after the rest of the interview is answered, and only while it is still a draft. The answer lives in the stable scope. A selected plan is incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted each have substantive text. SpecSync does not call a model and does not copy a lesson into the principles file.
 
 PR #801's CI failed at Clippy because `capture_git_candidate` took eight arguments. Its two capture flags now live in private `GitCaptureOptions`; object identity, LFS pointer validation, and payload capture behavior remain the same.
 

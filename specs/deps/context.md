@@ -11,13 +11,20 @@ spec: deps.spec.md
 - **Disclosed skips**: unreadable source files and unparseable frontmatter are dropped from the graph, but each one is recorded as a hard error on the report (#550) — they were once silent, and `deps` then affirmed "all dependency declarations are valid" over specs it could not read. Validation still returns a populated `DepsReport` rather than erroring out.
 - **Cross-project refs skipped**: refs matching `is_cross_project_ref` are dropped before validation so external links aren't reported as missing.
 
+- **Private ownership split**: the facade keeps the existing API and data types; graph validation, the complete import scanner/ownership subsystem and report formatting have separate private owners. Source-root guards, fail-loud errors, lexical masking and ownership/disclosure semantics are unchanged.
+
 ## Key Files
 
-- `src/deps.rs` - Graph construction, cycle detection, import analysis, topological sort, and inline tests
+- `src/deps.rs` - Stable public facade and dependency report types
+- `src/deps/graph.rs` - Graph construction, validation, cycle detection and topological ordering
+- `src/deps/imports.rs` - ImportDialect dispatch, lexical scanners, Rust/JVM ownership and undeclared-import analysis
+- `src/deps/report.rs` - Shared disclosure notes and terminal report rendering
+- `src/deps/graph/tests.rs`, `src/deps/imports/basic_tests.rs`, `src/deps/imports/jvm_tests.rs`, `src/deps/report/tests.rs` - The 43 preserved regressions grouped by owner
+- `src/deps/test_support.rs` - Two shared filesystem fixture builders, compiled only for tests
 - `src/validator.rs` - provides `find_spec_files` and `is_cross_project_ref` used here
 - `src/commands/deps.rs` - wires the `specsync deps` subcommand to `validate_deps`
 - `specs/deps/deps.spec.md` - Module specification
 
 ## Current Status
 
-Module is stable and complete, with extensive inline unit tests. Validation is exposed via the `specsync deps` subcommand.
+Module is stable and complete, with 43 existing unit tests grouped by owner. Validation is exposed via the `specsync deps` subcommand.

@@ -1,0 +1,44 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791650659,
+      "digest": "f564f1afa5f770da152c6943e55504ad163fb0593060aee12be74372749939cc",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-lifecycle-tests-approvable-after-a-plan-must-name-its-sections",
+        "title": "Keep lifecycle tests approvable after a plan must name its sections",
+        "description": "Keep lifecycle tests approvable after a plan must name its sections",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "tests/integration/change.rs",
+          "tests/integration/comment.rs",
+          "tests/integration/helpers.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "These tests only fill a selected plan so approval still succeeds. They do not change a contract.",
+        "acceptance_criteria": [
+          "Lifecycle tests that select a plan still approve when that plan names its sections."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791650730,
+      "digest": "87e76ab0b591e9c42bbdf8130b4ccb0e320a28b640b8dbf47c95f8c73cb03909",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

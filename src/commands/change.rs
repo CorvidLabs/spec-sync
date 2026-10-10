@@ -41,9 +41,6 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 )
             })
             .and_then(|record| {
-                if !matches!(format, OutputFormat::Json) {
-                    print_accumulated_lessons(root, &record);
-                }
                 print_record(root, &record, format, true, strict)
             }),
         ChangeAction::Answer {
@@ -81,6 +78,12 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
         }
         ChangeAction::Status { id } => {
             let _scope = change::begin_change_read_scope(root);
+            if !matches!(format, OutputFormat::Json) {
+                match pull_request_sentence(root) {
+                    Ok(sentence) => println!("{}", archive_sentence_without_command(&sentence)),
+                    Err(error) => eprintln!("{} {error}", "error:".red().bold()),
+                }
+            }
             if let Some(id) = id {
                 change::load_change(root, &id)
                     .and_then(|record| print_record(root, &record, format, false, strict))
@@ -138,6 +141,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 })
             }
         }
+        ChangeAction::Pr { id } => run_prepare_pr(root, id.as_deref(), format),
         ChangeAction::Ship {
             id,
             dry_run,
@@ -152,6 +156,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             wait,
             wait_timeout_secs,
             format,
+            true,
         ),
         ChangeAction::Approve {
             id,
@@ -396,6 +401,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     println!("{} {} finalized on this PR", "✓".green(), id);
                     println!("  Archive: {}", path.display());
                     println!("  Implementation: {}", finalization.implementation_commit);
+                    println!("  {}", lesson_bundle_line());
                     println!("  Next: {}", lessons_next_action(root, &id, &path));
                     print_handoff_line_for(root, &id);
                 }
@@ -472,7 +478,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                             if let Some(change_id) = &verified_id
                                 && let Ok(change_record) = change::load_change(root, change_id)
                             {
-                                let questions = change::next_questions(&change_record);
+                                let questions = change::next_questions_for(root, &change_record);
                                 println!(
                                     "  Next: {}",
                                     text_mode_next_action(root, &change_record, &questions)
@@ -581,7 +587,7 @@ fn print_record(
     strict: bool,
 ) -> Result<(), String> {
     let questions = if include_questions {
-        change::next_questions(record)
+        change::next_questions_for(root, record)
     } else {
         Vec::new()
     };
@@ -602,6 +608,7 @@ fn print_record(
                 "corrections": corrections,
                 "summary": summary,
                 "questions": questions,
+                "briefing": change::open_change_briefing(root, record),
             }));
         }
         _ => {
@@ -611,6 +618,7 @@ fn print_record(
             ensure_text_correction_ledger_valid(root, record)?;
             // `text_mode_next_action` uses lightweight artifact file reads only.
             print_change_text_identity(record);
+            print_open_change_briefing(root, record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
@@ -641,7 +649,7 @@ fn print_mutation_record(
 ) -> Result<(), String> {
     let record = &result.change;
     let questions = if include_questions {
-        change::next_questions(record)
+        change::next_questions_for(root, record)
     } else {
         Vec::new()
     };
@@ -663,6 +671,7 @@ fn print_mutation_record(
                 "corrections": result.corrections,
                 "summary": summary,
                 "questions": questions,
+                "briefing": change::open_change_briefing(root, record),
             }));
         }
         _ => {
@@ -670,6 +679,7 @@ fn print_mutation_record(
             // Do not turn successful persistence into a false command failure by rereading that
             // ledger after the transaction has completed.
             print_change_text_identity(record);
+            print_open_change_briefing(root, record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
             print_handoff_line(&change::handoff_summary(root, record));
@@ -813,7 +823,7 @@ fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Re
 /// parent (or tip) SHA. Offline / no-token stays on `local_guidance`. Force offline with
 /// `SPECSYNC_SHIP_LOCAL_GUIDANCE=1`.
 fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
-    let questions = change::next_questions(record);
+    let questions = change::next_questions_for(root, record);
     let lifecycle_next = text_mode_next_action(root, record, &questions);
     let tip = classify_head_tip(root)?;
 
@@ -990,18 +1000,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         });
 
     let ship_next = if ready_to_finalize {
-        if sibling_active_ids.is_empty() {
-            format!(
-                "run `specsync change ship {}` (or finalize without intermediate commits), push the archive tip, wait for CI, then merge the PR",
-                record.id
-            )
-        } else {
-            format!(
-                "run `specsync change ship {}` without an intermediate commit after review; then re-check siblings ({}) before merge — never merge while any change is active",
-                record.id,
-                sibling_active_ids.join(", ")
-            )
-        }
+        format!("run `specsync change ship {}`", record.id)
     } else if matches!(
         record.state,
         ChangeState::Draft | ChangeState::Accepted | ChangeState::Archived
@@ -1186,27 +1185,49 @@ fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
     }
 }
 
-/// Point a new change at what its modules already learned.
-///
-/// The other end of the loop `finalize` closes. Lessons are folded into `specs/<module>/context.md`
-/// at archival precisely so the NEXT change to that module can read them — but nothing surfaced
-/// them, so they accumulated where nobody looked.
-///
-/// Deliberately a pointer and not a dump: the file can be long, and a wall of text at creation
-/// time gets scrolled past. Naming it with its size is enough to make reading it a choice the
-/// author knows they are making.
-fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
-    let found = change::accumulated_lessons(root, &record.affected_specs);
-    if found.is_empty() {
+/// Show the same briefing text and JSON carry. A bounded excerpt, then the path for the rest.
+fn print_open_change_briefing(root: &Path, record: &change::ChangeRecord) {
+    let briefing = change::open_change_briefing(root, record);
+    if briefing.lessons.is_empty() && briefing.principles.is_none() {
         return;
     }
-    println!(
-        "\n  {} what these modules already learned:",
-        "Lessons:".bold()
-    );
-    for (path, lines) in found {
-        println!("    {path} ({lines} line(s)) — read before scoping this change");
+    if !briefing.lessons.is_empty() {
+        println!(
+            "\n  {} what these modules already learned:",
+            "Lessons:".bold()
+        );
+        for lesson in &briefing.lessons {
+            let more = if lesson.truncated {
+                ", more in the file"
+            } else {
+                ""
+            };
+            println!("    {} ({} line(s){more})", lesson.path, lesson.lines);
+            for line in lesson.excerpt.lines() {
+                println!("      {line}");
+            }
+        }
     }
+    if let Some(principles) = &briefing.principles {
+        println!("\n  {} {}", "Principles:".bold(), principles.path);
+        if principles.missing {
+            println!("    the file could not be read");
+        } else {
+            for line in principles.excerpt.lines() {
+                println!("    {line}");
+            }
+            if principles.truncated {
+                println!("    more in the file");
+            }
+        }
+    }
+}
+
+fn lesson_bundle_line() -> String {
+    // The file name only. The archive directory is printed on its own line from
+    // `finalize_change`'s path, and formatting that path into this string is what
+    // CodeQL `rust/cleartext-logging` treats as logging correction history.
+    format!("Lesson bundle: {}", change::LESSON_BUNDLE_FILE)
 }
 
 /// What to do after `ship` finalizes.
@@ -1221,6 +1242,163 @@ fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
 ///
 /// Fold-back comes FIRST because it is the step a merge makes irreversible — after the merge the
 /// change is inert history and the material is archived where nobody reads it.
+/// One open change, in the order the pull request names them.
+#[derive(Clone)]
+struct ArchiveCandidate {
+    id: String,
+    state: String,
+    /// Verifying, with review and verification files on disk. The ship command is the next step.
+    ship: bool,
+}
+
+fn ordered_archive_id(open: &[ArchiveCandidate]) -> Option<String> {
+    let mut ordered = open.to_vec();
+    ordered.sort_by(|left, right| {
+        archive_rank(&left.state)
+            .cmp(&archive_rank(&right.state))
+            .then(left.id.cmp(&right.id))
+    });
+    ordered.into_iter().next().map(|candidate| candidate.id)
+}
+
+fn archive_rank(state: &str) -> u8 {
+    match state {
+        // Accepted is closest to the archive: it resumes at finalize, not at a new check.
+        "accepted" => 0,
+        "verifying" => 1,
+        "approved" => 2,
+        "implementing" => 3,
+        "draft" => 4,
+        _ => 5,
+    }
+}
+
+/// The Archive sentence without its `Run ...` tail.
+///
+/// `change status` already prints the real next action underneath. Repeating
+/// `Run specsync change status <id>` there tells the operator to run the command
+/// they are already in.
+fn archive_sentence_without_command(sentence: &str) -> String {
+    match sentence.rfind(" Run `") {
+        Some(index) => {
+            let mut text = sentence[..index].trim_end().to_string();
+            if !text.ends_with('.') {
+                text.push('.');
+            }
+            text
+        }
+        None => sentence.to_string(),
+    }
+}
+
+/// The sentence the Archive check prints. Empty means every change is archived.
+///
+/// The same words are in `.github/scripts/archive-readiness.sh`.
+fn pull_request_archive_sentence(open: &[ArchiveCandidate]) -> String {
+    if open.is_empty() {
+        return "All changes are archived. Ready to merge when the other checks are green."
+            .to_string();
+    }
+    let mut ordered = open.to_vec();
+    ordered.sort_by(|left, right| {
+        archive_rank(&left.state)
+            .cmp(&archive_rank(&right.state))
+            .then(left.id.cmp(&right.id))
+    });
+    let first = &ordered[0];
+    let command = if first.ship {
+        format!("specsync change ship {}", first.id)
+    } else {
+        format!("specsync change status {}", first.id)
+    };
+    if ordered.len() == 1 {
+        format!(
+            "This pull request is not finished. `{}` is still open. Run `{command}`.",
+            first.id
+        )
+    } else {
+        let still_open = ordered
+            .iter()
+            .map(|candidate| format!("`{}`", candidate.id))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "This pull request is not finished. Archive `{}` first. Still open: {still_open}. Run `{command}`.",
+            first.id
+        )
+    }
+}
+
+fn open_archive_candidates(root: &Path) -> Result<Vec<ArchiveCandidate>, String> {
+    let roster = change::list_changes(root)?;
+    let mut open = Vec::new();
+    for record in roster.records {
+        // `list_changes` only reads `.specsync/changes/`. A record whose state
+        // says archived but that still sits in the active tree is not finished.
+        // Skipping it told `change status` to merge while the Archive check failed.
+        let dir = change::find_change_dir(root, &record.id)?;
+        let state = if record.state == change::ChangeState::Archived {
+            "archived".to_string()
+        } else {
+            record.state.as_str().to_string()
+        };
+        let ship = archive_candidate_can_ship(root, &record, &dir);
+        open.push(ArchiveCandidate {
+            id: record.id,
+            state,
+            ship,
+        });
+    }
+    for unreadable in roster.unreadable {
+        open.push(ArchiveCandidate {
+            id: unreadable.id,
+            state: "unreadable".to_string(),
+            ship: false,
+        });
+    }
+    Ok(open)
+}
+
+/// Whether the Archive check may tell this workspace to run `change ship`.
+///
+/// A blocking review, a legacy workflow, or a review recorded against a different
+/// commit cannot be archived by that command. The same proof is in
+/// `.github/scripts/archive-readiness.sh`: verdict `pass`, workflow v2, and
+/// `implementation_commit` equal to HEAD. Anything the check cannot prove stays
+/// on `change status`.
+fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) -> bool {
+    if record.workflow_version < 2 || record.state != change::ChangeState::Verifying {
+        return false;
+    }
+    if !dir.join("verification.json").is_file() {
+        return false;
+    }
+    let Ok(text) = fs::read_to_string(dir.join("review.json")) else {
+        return false;
+    };
+    let Ok(review) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return false;
+    };
+    if review.get("verdict").and_then(|value| value.as_str()) != Some("pass") {
+        return false;
+    }
+    let Some(commit) = review
+        .get("implementation_commit")
+        .and_then(|value| value.as_str())
+    else {
+        return false;
+    };
+    git_rev_parse(root, "HEAD")
+        .ok()
+        .is_some_and(|head| head == commit)
+}
+
+fn pull_request_sentence(root: &Path) -> Result<String, String> {
+    Ok(pull_request_archive_sentence(&open_archive_candidates(
+        root,
+    )?))
+}
+
 fn ship_next_action(
     push: bool,
     wait: bool,
@@ -1228,36 +1406,18 @@ fn ship_next_action(
     fold_targets: &[String],
     bundle: &str,
 ) -> String {
-    let remaining = if push && wait {
-        if siblings_before.is_empty() {
-            "merge the PR on GitHub when Required CI is green".to_string()
-        } else {
-            format!(
-                "re-run `change check --commit` on remaining active changes ({}) before merge",
-                siblings_before.join(", ")
-            )
-        }
-    } else if push {
-        if siblings_before.is_empty() {
-            "wait for CI, then merge the PR (or re-run `change ship --wait`)".to_string()
-        } else {
-            format!(
-                "wait for CI; then re-run `change check --commit` on remaining active changes ({})",
-                siblings_before.join(", ")
-            )
-        }
-    } else if siblings_before.is_empty() {
-        "commit if needed, push the archive tip, wait for CI, then merge the PR".to_string()
-    } else {
-        format!(
-            "commit if needed, push the archive tip, wait for CI; then re-run `change check --commit` on remaining active changes ({}) — do not merge while any change is active",
-            siblings_before.join(", ")
-        )
-    };
-    // The archive still writes the lesson bundle. Naming the fold in next_action
-    // made a documentation convention a merge gate. Keep the remaining guidance.
     let _ = (fold_targets, bundle);
-    remaining
+    if let Some(next_id) = siblings_before.first() {
+        return format!("Archive `{next_id}` next. This pull request is not finished.");
+    }
+    if push && wait {
+        "Merge the pull request when the checks are green.".to_string()
+    } else if push {
+        "Wait until the checks are green, then merge the pull request.".to_string()
+    } else {
+        "Push this archive, wait until the checks are green, then merge the pull request."
+            .to_string()
+    }
 }
 
 /// Name the fold-back step archival exists for, then the merge.
@@ -1447,11 +1607,10 @@ fn ship_stages(
         "title": "Archive tip (finalize on the same PR)",
         "status": archive_status,
         "action": if record.state == ChangeState::Archived {
-            "change is archived; merge the PR".to_string()
+            "change is archived; push it if you have not, then merge when the checks are green"
+                .to_string()
         } else if ready_to_finalize {
-            format!(
-                "run `specsync change ship {id}` (or finalize), push the archive tip, wait for CI, then merge"
-            )
+            format!("run `specsync change ship {id}`")
         } else {
             "complete product tip and scoped review first".to_string()
         },
@@ -1676,6 +1835,184 @@ fn print_ship_status(
     }
 }
 
+/// Archive the change when it is still open, push the branch, and open or reuse the pull request.
+///
+/// Merging stays a separate act. A change that is not ready is refused with the one command
+/// that would make it ready.
+fn run_prepare_pr(root: &Path, id: Option<&str>, format: OutputFormat) -> Result<(), String> {
+    let record = resolve_ship_record(root, id)?;
+    let mut archived_now = false;
+    if record.state != ChangeState::Archived {
+        let report = ship_status_report(root, &record)?;
+        let ready = report["ready_to_finalize"].as_bool() == Some(true);
+        let open = open_archive_candidates(root)?;
+        let first = ordered_archive_id(&open);
+        let this_is_first = first.as_deref() == Some(record.id.as_str()) || open.is_empty();
+        if ready && this_is_first {
+            // Quiet: this command prints one document after the pull request exists.
+            run_ship(
+                root,
+                Some(&record.id),
+                false,
+                false,
+                false,
+                900,
+                OutputFormat::Text,
+                false,
+            )?;
+            archived_now = true;
+        }
+    } else {
+        // Re-running ship on an archived change must not sweep unrelated edits
+        // into that change's archive commit.
+        let archive_commit = git_commit_lifecycle(
+            root,
+            &change::lifecycle_commit_scope(root, &record.id)?,
+            &format!("chore(lifecycle): archive {}", record.id),
+            false,
+        )?;
+        disclose_left_out(&archive_commit.left_out, &mut Vec::new(), None);
+    }
+    // The pull request has to exist before review. A change that is not ready
+    // still gets its branch pushed and its pull request opened, then stops.
+    run_pre_push_gate(root)?;
+    push_current_branch(root)?;
+    let url = ensure_pull_request(root, &record.title, &record.description)?;
+    let sentence = pull_request_sentence(root)?;
+    let next = if sentence.starts_with("All changes are archived") {
+        pull_request_ready_next().to_string()
+    } else {
+        sentence
+    };
+    match format {
+        OutputFormat::Json => print_json(&serde_json::json!({
+            "id": record.id,
+            "pull_request": url,
+            "merged": false,
+            "archived": archived_now || record.state == ChangeState::Archived,
+            "next": next,
+        })),
+        _ => {
+            println!("{} {url}", "Pull request:".bold());
+            println!("  Next: {next}");
+        }
+    }
+    Ok(())
+}
+
+fn run_pre_push_gate(root: &Path) -> Result<(), String> {
+    let status = std::process::Command::new("fledge")
+        .args(["lanes", "run", "pre-push"])
+        .current_dir(root)
+        .status()
+        .map_err(|error| {
+            format!(
+                "pre-push gate could not start (`fledge lanes run pre-push`): {error}. The branch was not pushed."
+            )
+        })?;
+    if !status.success() {
+        return Err("pre-push gate failed. The branch was not pushed.".into());
+    }
+    Ok(())
+}
+
+fn resolve_ship_record(root: &Path, id: Option<&str>) -> Result<ChangeRecord, String> {
+    match id {
+        Some(id) => change::load_change(root, id),
+        None => {
+            let roster = change::list_changes(root)?;
+            if let Some(unreadable) = roster.unreadable.first() {
+                return Err(format!(
+                    "cannot infer which change to prepare while a workspace is unreadable: {}; pass an explicit change id",
+                    unreadable.reason
+                ));
+            }
+            match roster.records.as_slice() {
+                [] => Err("no active change to prepare; pass an explicit change id".into()),
+                [single] => Ok(single.clone()),
+                _ => Err(
+                    "multiple active changes; pass an explicit id: `specsync change pr <ID>`"
+                        .into(),
+                ),
+            }
+        }
+    }
+}
+
+fn push_current_branch(root: &Path) -> Result<(), String> {
+    let branch = git_output_text(root, &["rev-parse", "--abbrev-ref", "HEAD"])?;
+    let branch = branch.trim();
+    if branch.is_empty() || branch == "HEAD" {
+        return Err("cannot push a pull request from a detached HEAD".into());
+    }
+    let upstream = git_output_text(
+        root,
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+        ],
+    );
+    if upstream.is_ok() {
+        run_git(root, &["push"])?;
+    } else {
+        run_git(root, &["push", "-u", "origin", branch])?;
+    }
+    Ok(())
+}
+
+fn ensure_pull_request(root: &Path, title: &str, body: &str) -> Result<String, String> {
+    let existing = std::process::Command::new("gh")
+        .args(["pr", "view", "--json", "url,state"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("failed to run gh pr view: {error}"))?;
+    if existing.status.success()
+        && let Ok(value) = serde_json::from_slice::<serde_json::Value>(&existing.stdout)
+        && value.get("state").and_then(|state| state.as_str()) == Some("OPEN")
+        && let Some(url) = value.get("url").and_then(|url| url.as_str())
+        && !url.is_empty()
+    {
+        return Ok(url.to_string());
+    }
+    let mut command = std::process::Command::new("gh");
+    command
+        .args(["pr", "create", "--title", title, "--body", body])
+        .current_dir(root);
+    // Omit `--base` when this checkout cannot see `origin/HEAD`. `gh pr create`
+    // then uses the repository's default branch instead of a hard-coded `main`.
+    if let Some(base) = discovered_pr_base(root) {
+        command.args(["--base", &base]);
+    }
+    let created = command
+        .output()
+        .map_err(|error| format!("failed to run gh pr create: {error}"))?;
+    if !created.status.success() {
+        return Err(format!(
+            "gh pr create failed: {}",
+            String::from_utf8_lossy(&created.stderr).trim()
+        ));
+    }
+    let url = String::from_utf8_lossy(&created.stdout).trim().to_string();
+    if url.is_empty() {
+        return Err("gh pr create succeeded without printing a url".into());
+    }
+    Ok(url)
+}
+
+fn pull_request_ready_next() -> &'static str {
+    "Wait until the checks are green, then merge the pull request."
+}
+
+fn discovered_pr_base(root: &Path) -> Option<String> {
+    git_output_text(root, &["rev-parse", "--abbrev-ref", "origin/HEAD"])
+        .ok()
+        .and_then(|value| value.trim().strip_prefix("origin/").map(str::to_string))
+        .filter(|base| !base.is_empty())
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_ship(
     root: &Path,
     id: Option<&str>,
@@ -1684,6 +2021,7 @@ fn run_ship(
     wait: bool,
     wait_timeout_secs: u64,
     format: OutputFormat,
+    announce: bool,
 ) -> Result<(), String> {
     if wait && !push && !dry_run {
         // Waiting without push still polls HEAD (already-pushed archive tips).
@@ -1720,13 +2058,25 @@ fn run_ship(
 
     if record.state == ChangeState::Archived {
         let report = ship_status_report(root, &record)?;
+        // Only the archive package. A later dirty edit is not this change.
+        let archive_commit = git_commit_lifecycle(
+            root,
+            &change::lifecycle_commit_scope(root, &record.id)?,
+            &format!("chore(lifecycle): archive {}", record.id),
+            false,
+        )?;
+        disclose_left_out(&archive_commit.left_out, &mut Vec::new(), None);
         if push || wait {
             let push_result = if push {
-                Some(ship_commit_and_push_archive(root, &record.id)?)
+                run_git(root, &["push"])?;
+                let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
+                Some(format!("pushed archive tip {sha:.8}"))
             } else {
                 None
             };
-            let wait_result = if wait {
+            let wait_result = if wait && !push && archive_commit.committed {
+                Some(local_archive_not_pushed())
+            } else if wait {
                 Some(wait_for_head_check_runs(root, wait_timeout_secs, format)?)
             } else {
                 None
@@ -1754,7 +2104,7 @@ fn run_ship(
                         );
                     }
                     if !push && !wait {
-                        println!("  Next: merge the PR on GitHub");
+                        println!("  Next: {}", pull_request_sentence(root)?);
                     }
                 }
             }
@@ -1768,9 +2118,10 @@ fn run_ship(
             })),
             _ => {
                 println!(
-                    "{} {} is already archived — merge the PR on GitHub",
+                    "{} {} is already archived. {}",
                     "✓".green(),
-                    record.id
+                    record.id,
+                    pull_request_sentence(root)?
                 );
             }
         }
@@ -1786,7 +2137,7 @@ fn run_ship(
         .unwrap_or("local_guidance");
 
     // Soft preflight: live trust is advisory unless --wait forces a green parent later.
-    if matches!(trust_status, "pending" | "failed" | "empty") {
+    if announce && matches!(trust_status, "pending" | "failed" | "empty") {
         match format {
             OutputFormat::Json => {}
             _ => {
@@ -1798,24 +2149,27 @@ fn run_ship(
         }
     }
 
+    let open = open_archive_candidates(root)?;
+    let before = pull_request_archive_sentence(&open);
+    let first_id = ordered_archive_id(&open);
+    if first_id.as_deref() != Some(record.id.as_str()) && !open.is_empty() {
+        // One document. Printing here and returning Err made JSON mode emit two.
+        return Err(before);
+    }
     if !ready {
-        match format {
-            OutputFormat::Json => print_json(&serde_json::json!({
-                "id": record.id,
-                "status": "blocked",
-                "tip_class": tip_class,
-                "report": report,
-            })),
-            _ => {
-                let _ = print_ship_status(root, &record, format);
-                println!(
-                    "{} ship blocked — resolve blockers above, then re-run `specsync change ship {}`",
-                    "✗".red(),
-                    record.id
-                );
-            }
-        }
-        return Err(format!("change {} is not ready to ship", record.id));
+        let action = report["ship_next"]
+            .as_str()
+            .unwrap_or("specsync change status");
+        let reason = report["blockers"]
+            .as_array()
+            .and_then(|values| values.first())
+            .and_then(|value| value.as_str())
+            .unwrap_or("this change is not ready to archive");
+        // `ship_next` is already the action. Wrapping it in another `Run \`...\``
+        // nested the backticks and hid the command.
+        return Err(format!(
+            "This pull request is not finished. {reason} {action}"
+        ));
     }
 
     if dry_run {
@@ -1851,23 +2205,42 @@ fn run_ship(
 
     // Finalize mutates the workspace; drop the read scope by ending this block first.
     let path = change::finalize_change(root, &record.id)?;
+    let archive_commit = git_commit_lifecycle(
+        root,
+        &change::lifecycle_commit_scope(root, &record.id)?,
+        &format!("chore(lifecycle): archive {}", record.id),
+        true,
+    )?;
+    disclose_left_out(&archive_commit.left_out, &mut Vec::new(), None);
 
     let mut push_result = None;
     let mut wait_result = None;
     if push {
-        push_result = Some(ship_commit_and_push_archive(root, &record.id)?);
+        run_git(root, &["push"])?;
+        let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
+        push_result = Some(format!("pushed archive tip {sha:.8}"));
     }
-    if wait {
+    if wait && !push && archive_commit.committed {
+        wait_result = Some(local_archive_not_pushed());
+    } else if wait {
         wait_result = Some(wait_for_head_check_runs(root, wait_timeout_secs, format)?);
     }
 
-    let next = ship_next_action(
-        push,
-        wait,
-        &siblings_before,
-        &change::lesson_fold_targets(root, &record.id),
-        &path.join(change::LESSON_BUNDLE_FILE).display().to_string(),
-    );
+    let after = pull_request_sentence(root)?;
+    let next = if after.starts_with("All changes are archived") {
+        ship_next_action(
+            push,
+            wait,
+            &[],
+            &change::lesson_fold_targets(root, &record.id),
+            &path.join(change::LESSON_BUNDLE_FILE).display().to_string(),
+        )
+    } else {
+        after
+    };
+    if !announce {
+        return Ok(());
+    }
     match format {
         OutputFormat::Json => print_json(&serde_json::json!({
             "id": record.id,
@@ -1883,6 +2256,7 @@ fn run_ship(
         _ => {
             println!("{} {} finalized on this PR", "✓".green(), record.id);
             println!("  Archive: {}", path.display());
+            println!("  {}", lesson_bundle_line());
             if let Some(push_result) = push_result.as_ref() {
                 println!("  Push: {push_result}");
             }
@@ -1897,29 +2271,16 @@ fn run_ship(
             }
             println!("  Next: {next}");
             print_handoff_line_for(root, &record.id);
-            if !siblings_before.is_empty() {
-                println!(
-                    "  {}",
-                    "Warning: sibling active changes still need their own check → review → ship cycle (archive tips stale them)."
-                        .yellow()
-                );
-            }
         }
     }
     Ok(())
 }
 
-/// Commit archive package (if dirty) and push the current branch.
-fn ship_commit_and_push_archive(root: &Path, id: &str) -> Result<String, String> {
-    let archive = git_commit_lifecycle(
-        root,
-        &change::lifecycle_commit_scope(root, id)?,
-        &format!("chore(lifecycle): archive {id}"),
-    )?;
-    disclose_left_out(&archive.left_out, &mut Vec::new(), None);
-    run_git(root, &["push"])?;
-    let sha = git_rev_parse(root, "HEAD").unwrap_or_else(|_| "HEAD".into());
-    Ok(format!("pushed archive tip {sha:.8}"))
+fn local_archive_not_pushed() -> serde_json::Value {
+    serde_json::json!({
+        "status": "not_pushed",
+        "detail": "the archive commit is only local; rerun with --push to wait on its checks",
+    })
 }
 
 /// Poll GitHub check-runs for HEAD until green, failed, empty, timeout, or offline.
@@ -2143,7 +2504,7 @@ fn print_roster(
         let summaries: Vec<_> = roster
             .records
             .iter()
-            .map(|record| change::summarize_change_with_strict(root, record, strict))
+            .map(|record| summary_with_briefing(root, record, strict))
             .collect();
         let error = unreadable_error(roster).err();
         print_json(&serde_json::json!({
@@ -2164,6 +2525,19 @@ fn print_roster(
     unreadable_error(roster)
 }
 
+fn summary_with_briefing(root: &Path, record: &ChangeRecord, strict: bool) -> serde_json::Value {
+    let summary = change::summarize_change_with_strict(root, record, strict);
+    let mut value = serde_json::to_value(summary).unwrap_or(serde_json::Value::Null);
+    if let Some(object) = value.as_object_mut() {
+        object.insert(
+            "briefing".to_string(),
+            serde_json::to_value(change::open_change_briefing(root, record))
+                .unwrap_or(serde_json::Value::Null),
+        );
+    }
+    value
+}
+
 fn print_records(
     root: &Path,
     records: &[ChangeRecord],
@@ -2174,7 +2548,7 @@ fn print_records(
         OutputFormat::Json => {
             let summaries: Vec<_> = records
                 .iter()
-                .map(|record| change::summarize_change_with_strict(root, record, strict))
+                .map(|record| summary_with_briefing(root, record, strict))
                 .collect();
             print_json(&summaries);
             Ok(())
@@ -2191,12 +2565,13 @@ fn print_records(
                 ensure_text_correction_ledger_valid(root, record)?;
             }
             for record in records {
-                let questions = change::next_questions(record);
+                let questions = change::next_questions_for(root, record);
                 let id = record.id.clone();
                 let title = record.title.clone();
                 let state = record.state.as_str().to_owned();
                 let next = text_mode_next_action(root, record, &questions);
                 println!("{:<14}  {state:<13}  {title}  next: {next}", id.bold());
+                print_open_change_briefing(root, record);
             }
             Ok(())
         }
@@ -2462,7 +2837,7 @@ mod tests {
             owned: Vec::new(),
             runtime: Vec::new(),
         };
-        git_commit_lifecycle(root, &scope, "lifecycle commit").expect("commit");
+        git_commit_lifecycle(root, &scope, "lifecycle commit", true).expect("commit");
 
         assert_eq!(
             committed_sequence(),
@@ -2503,7 +2878,7 @@ if the floor call is removed from this function"
             record = change::answer_question(root, &record.id, question, answer)
                 .expect("answer interview question");
         }
-        let questions = change::next_questions(&record);
+        let questions = change::next_questions_for(root, &record);
         assert!(questions.is_empty(), "interview must be complete");
 
         for surface in ["status", "show", "list"] {
@@ -2781,7 +3156,17 @@ if the floor call is removed from this function"
         )
         .expect("review");
 
-        run_ship(root, Some(&id), false, true, false, 1, OutputFormat::Json).expect("ship --push");
+        run_ship(
+            root,
+            Some(&id),
+            false,
+            true,
+            false,
+            1,
+            OutputFormat::Json,
+            true,
+        )
+        .expect("ship --push");
 
         assert_strays_left_alone(root, &remote);
 
@@ -2840,7 +3225,7 @@ if the floor call is removed from this function"
             owned: Vec::new(),
             runtime: Vec::new(),
         };
-        let left_out = stage_lifecycle_paths(root, &scope).expect("stage");
+        let left_out = stage_lifecycle_paths(root, &scope, true).expect("stage");
 
         assert_eq!(left_out, vec!["exp2.sh".to_string()]);
         let staged = worktree_status(root);
@@ -3524,6 +3909,7 @@ fn run_checked_commit(
         root,
         &change::lifecycle_commit_scope(root, &resolved)?,
         &format!("chore(lifecycle): materialize {resolved}"),
+        true,
     )?;
     disclose_left_out(&materialized.left_out, &mut disclosed, Some(&resolved));
     say(if materialized.committed {
@@ -3548,6 +3934,7 @@ fn run_checked_commit(
         root,
         &change::lifecycle_commit_scope(root, &resolved)?,
         &format!("chore(lifecycle): record {resolved} verification"),
+        true,
     )?;
     disclose_left_out(&recorded.left_out, &mut disclosed, Some(&resolved));
     say("Committed the verification evidence.");
@@ -3594,6 +3981,7 @@ fn git_commit_lifecycle(
     root: &Path,
     scope: &change::LifecycleCommitScope,
     message: &str,
+    include_tracked_edits: bool,
 ) -> Result<LifecycleCommit, String> {
     // Every lifecycle commit can commit a sequence ledger that went stale while
     // the branch sat. Flooring here rather than at the single call site named in
@@ -3608,7 +3996,7 @@ fn git_commit_lifecycle(
              a ledger written before the branch caught up would have committed a lower high-water mark"
         );
     }
-    let left_out = stage_lifecycle_paths(root, scope)?;
+    let left_out = stage_lifecycle_paths(root, scope, include_tracked_edits)?;
     let status = std::process::Command::new("git")
         .args(["diff", "--cached", "--quiet"])
         .current_dir(root)
@@ -3646,6 +4034,7 @@ const STAGE_BATCH_PATHS: usize = 200;
 fn stage_lifecycle_paths(
     root: &Path,
     scope: &change::LifecycleCommitScope,
+    include_tracked_edits: bool,
 ) -> Result<Vec<String>, String> {
     // Porcelain paths are relative to the repository top-level, and `git add` resolves them
     // against the working directory. Both are brought to project-relative form so that a project
@@ -3706,7 +4095,10 @@ fn stage_lifecycle_paths(
             {
                 left_out.push(path);
             }
-        } else if worktree != b' ' {
+        } else if worktree != b' '
+            && (include_tracked_edits
+                || scope.owned.iter().any(|owned| path_is_within(&path, owned)))
+        {
             stage.push(path);
         }
     }
@@ -3813,7 +4205,7 @@ mod ship_next_action_tests {
             "/archive/lesson-bundle.md",
         );
 
-        assert_eq!(next, "merge the PR on GitHub when Required CI is green");
+        assert_eq!(next, "Merge the pull request when the checks are green.");
         assert!(!next.contains("write lessons"), "got {next:?}");
     }
 
@@ -3828,26 +4220,22 @@ mod ship_next_action_tests {
             (
                 true,
                 true,
-                "merge the PR on GitHub when Required CI is green",
+                "Merge the pull request when the checks are green.",
             ),
             (
                 true,
                 false,
-                "wait for CI, then merge the PR (or re-run `change ship --wait`)",
+                "Wait until the checks are green, then merge the pull request.",
             ),
-            // `--wait` without `--push` collapses into the no-push branch, so the guidance
-            // still says to push the archive tip. That is pre-existing behaviour, unchanged
-            // here, and pinning it is the point of a control: this test exists to detect any
-            // drift in these strings, not to endorse them.
             (
                 false,
                 true,
-                "commit if needed, push the archive tip, wait for CI, then merge the PR",
+                "Push this archive, wait until the checks are green, then merge the pull request.",
             ),
             (
                 false,
                 false,
-                "commit if needed, push the archive tip, wait for CI, then merge the PR",
+                "Push this archive, wait until the checks are green, then merge the pull request.",
             ),
         ];
 
@@ -3875,7 +4263,105 @@ mod ship_next_action_tests {
             !next.contains("write lessons"),
             "lessons must not displace the sibling blocker: {next:?}"
         );
-        assert!(next.contains("do not merge while any change is active"));
-        assert!(next.contains("other-change"));
+        assert_eq!(
+            next,
+            "Archive `other-change` next. This pull request is not finished."
+        );
+        assert!(!next.to_ascii_lowercase().contains("merge"), "{next}");
+    }
+
+    #[test]
+    fn finalize_text_names_the_lesson_bundle_beside_the_merge_instruction() {
+        let bundle = lesson_bundle_line();
+        let next = ship_next_action(
+            true,
+            true,
+            &[],
+            &["specs/change/context.md".to_string()],
+            "/archive/lesson-bundle.md",
+        );
+        assert!(bundle.starts_with("Lesson bundle: "), "{bundle}");
+        assert!(bundle.contains("lesson-bundle.md"), "{bundle}");
+        assert!(!bundle.contains("Next:"), "{bundle}");
+        assert_eq!(next, "Merge the pull request when the checks are green.");
+        assert!(!next.contains("write lessons"), "{next}");
+        assert!(!next.contains("Lesson bundle"), "{next}");
+    }
+
+    #[test]
+    fn ship_commits_the_archive_and_names_merge_as_what_is_left() {
+        let next = ship_next_action(false, false, &[], &[], "lesson-bundle.md");
+        assert_eq!(
+            next,
+            "Push this archive, wait until the checks are green, then merge the pull request."
+        );
+        assert!(!pull_request_archive_sentence(&[]).contains("not finished"));
+        assert_eq!(
+            pull_request_archive_sentence(&[]),
+            "All changes are archived. Ready to merge when the other checks are green."
+        );
+    }
+
+    #[test]
+    fn change_pr_next_step_waits_for_green_checks_and_does_not_merge() {
+        let next = pull_request_ready_next();
+        assert_eq!(
+            next,
+            "Wait until the checks are green, then merge the pull request."
+        );
+        assert!(!next.contains("gh pr merge"), "{next}");
+    }
+
+    #[test]
+    fn status_says_which_open_change_to_archive_first() {
+        let open = vec![
+            ArchiveCandidate {
+                id: "draft-notes".into(),
+                state: "draft".into(),
+                ship: false,
+            },
+            ArchiveCandidate {
+                id: "zebra-feature".into(),
+                state: "verifying".into(),
+                ship: true,
+            },
+        ];
+        let sentence = pull_request_archive_sentence(&open);
+        assert!(
+            sentence
+                .starts_with("This pull request is not finished. Archive `zebra-feature` first."),
+            "{sentence}"
+        );
+        assert!(sentence.contains("Run `specsync change ship zebra-feature`."));
+        assert!(!sentence.contains("Ready to merge"), "{sentence}");
+    }
+
+    #[test]
+    fn accepted_is_named_before_a_verifying_change() {
+        let open = vec![
+            ArchiveCandidate {
+                id: "later-verify".into(),
+                state: "verifying".into(),
+                ship: true,
+            },
+            ArchiveCandidate {
+                id: "sooner-accept".into(),
+                state: "accepted".into(),
+                ship: false,
+            },
+        ];
+        let sentence = pull_request_archive_sentence(&open);
+        assert!(
+            sentence.contains("Archive `sooner-accept` first"),
+            "{sentence}"
+        );
+        assert!(
+            sentence.contains("Run `specsync change status sooner-accept`."),
+            "{sentence}"
+        );
+        assert_eq!(
+            archive_sentence_without_command(&sentence),
+            "This pull request is not finished. Archive `sooner-accept` first. Still open: `sooner-accept`, `later-verify`."
+        );
     }
 }

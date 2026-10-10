@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "when-i-want-a-pull-request-one-command-archives-the-change-and-prepares-it",
+  "implementation_commit": "8b3286cd75e0d1e311b339deabc82e45abff34b6",
+  "implementation_tree": "afc3fce76f64857603dee33fb7c6b68b3f5069c4",
+  "contract_digest": "d1083761d76ec180947e732774a388d26858c032039badf1b77ae8cfac875323",
+  "workspace_digest": "f7a1a1f053c91c18d9b60209142fe31eeee2808ea166ff235800537edfee8a80",
+  "closing_digest": "61ecbddd374c0860b0b3389ff6c7f3704a04eb8ee5f12f7e42ff8ee77e43ea5b",
+  "review_digest": "7a3d63fa7a8838ea6d2bbffe2e2f5b55a5ddc28a7f377896fb9e144d3f9337c5",
+  "finalization_digest": "6270fe709d291bacba2364ff95f67af87351aba24d2d6d039e366160335e68c1",
+  "timestamp": 1791651549
+}

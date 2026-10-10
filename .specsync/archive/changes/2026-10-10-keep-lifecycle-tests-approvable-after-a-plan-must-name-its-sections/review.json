@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-lifecycle-tests-approvable-after-a-plan-must-name-its-sections",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "e880a1b10abb073d8ba24ef89f7134bdedfd6b6a",
+  "contract_digest": "f564f1afa5f770da152c6943e55504ad163fb0593060aee12be74372749939cc",
+  "execution_digest": "3af93744a65c966256c4426ae9af33519c425fd8a74dd6c15a6249a1c737df19",
+  "workspace_digest": "ff2de36c7cb7f9cb59ff4e6e6f84062f26c3a87ed04a24e6cac1e8dac62cfb9d",
+  "timestamp": 1791650680
+}

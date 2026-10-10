@@ -1,0 +1,81 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791652661,
+      "digest": "2d75bd216b5fb65f354401c972414fd110b32aba5e7ffaa6f561943003c8350a",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-approval-tests-valid-after-a-plan-must-name-its-sections",
+        "title": "Keep approval tests valid after a plan must name its sections",
+        "description": "Keep approval tests valid after a plan must name its sections",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The tests only complete a selected plan and record that principles constrain the draft. They do not change a contract.",
+        "acceptance_criteria": [
+          "The approval tests pass, and changing the principles file still invalidates that approval."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791652827,
+      "digest": "079d7a075a9fb94441e55578f67e714bdadf56448b95ec1378525c5d0e8bd357",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-approval-tests-valid-after-a-plan-must-name-its-sections",
+        "title": "Keep approval tests valid after a plan must name its sections",
+        "description": "Keep approval tests valid after a plan must name its sections",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "The approval tests pass, and changing the principles file still invalidates that approval."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "c36432be3a9c4e2da7d3d5adb01dd8b6ca0b4566a01e3b2b000eb4e08b747766"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791652890,
+      "digest": "9a70d6bcad1e3e09d1b1db62a13f0bfdad97d834f76fc28b3dac9008f512cc1d",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

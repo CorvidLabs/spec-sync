@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "address-every-review-comment-on-the-archive-and-pull-request-commands",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "77aac0ab1cf1cd893688c6e9ad1de483e89d718a",
+  "contract_digest": "af970cb438cd9dc80747ebd02566d19c7c3ff7a7a2d7e3eae33ca9adac7c62bb",
+  "execution_digest": "c4642ad24abaa6649970e7db4c8ee8403cfecc7116e765d1bcaed75b47574221",
+  "workspace_digest": "32c267871dea50b7d2c59b1a669c726c1976ec7fd0852a34a2cb5f95518c3620",
+  "timestamp": 1791656512
+}

@@ -192,6 +192,7 @@ jobs:
       - name: Test lifecycle CI routing
         run: |
           .github/scripts/test-classify-ci-paths.sh
+          .github/scripts/test-archive-readiness.sh
           python3 .github/scripts/test-validate-release-candidate.py
 
   preflight:
@@ -253,6 +254,17 @@ jobs:
             exit 1
           fi
           echo "No stale verification evidence."
+
+  archive:
+    name: Archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Say whether this pull request is archived
+        run: .github/scripts/archive-readiness.sh
 
   lifecycle-gate:
     name: Lifecycle gate
@@ -593,9 +605,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: ${{ always() }}
-    # Every job that can finish before this one belongs in `needs`, preflight and
-    # the lifecycle gate included. A job missing from here cannot fail the gate
-    # (#796). .github/scripts/test-required-ci-gate.py fails when one is missing.
+    # Every product job that can finish before this one belongs in `needs`,
+    # preflight and the lifecycle gate included. A job missing from here cannot
+    # fail this gate (#796). Archive is the exception: an open change fails that
+    # job on purpose, and this gate is the product-tip signal review waits on.
+    # The required merge gate needs Archive on its own.
+    # .github/scripts/test-required-ci-gate.py fails when another job is missing.
     needs: [classify, preflight, lifecycle-gate, test, fmt, hi-check, validate-action, action-consumer, spec-check, audit, coverage, site, vscode-extension, corvid-pet]
     steps:
       - name: Require every selected gate
@@ -663,18 +678,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: always()
-    needs: [classify, implementation-gate]
+    needs: [classify, implementation-gate, archive]
     steps:
       # One aggregate context, suitable for a required status check. Lifecycle
       # coherence is proven by `specsync change audit --strict` in the lifecycle
       # gate and in spec-check, not by inspecting commit topology, and the
-      # implementation gate requires both of them.
+      # implementation gate requires both of them. Archive is required here, not
+      # by implementation ready: an open change blocks the merge and leaves the
+      # product tip able to go green.
       - name: Require the implementation gate
         env:
           IMPLEMENTATION_RESULT: ${{ needs.implementation-gate.result }}
+          ARCHIVE_RESULT: ${{ needs.archive.result }}
         run: |
           if [[ "$IMPLEMENTATION_RESULT" != "success" ]]; then
             echo "Implementation gate ended with: $IMPLEMENTATION_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$ARCHIVE_RESULT" != "success" ]]; then
+            echo "Archive check ended with: $ARCHIVE_RESULT" >&2
             exit 1
           fi
 

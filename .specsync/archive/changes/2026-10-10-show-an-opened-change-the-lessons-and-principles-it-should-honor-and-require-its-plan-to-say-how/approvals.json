@@ -1,0 +1,150 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791645503,
+      "digest": "d314b58b4a824c17aa92375b5a9491204fa07ba7534f45c45364a09d8a9a4ee8",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how",
+        "title": "Show an opened change the lessons and principles it should honor, and require its plan to say how",
+        "description": "Show an opened change the lessons and principles it should honor, and require its plan to say how",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change",
+          "cmd_rules"
+        ],
+        "affected_paths": [
+          "docs/HLD.md",
+          "hi/plan.md",
+          "site/src/content/docs/configuration.md",
+          "site/src/content/docs/workflow.md",
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/cmd_change/context.md",
+          "specs/cmd_change/requirements.md",
+          "specs/cmd_change/tasks.md",
+          "specs/cmd_change/testing.md",
+          "specs/cmd_rules/cmd_rules.spec.md",
+          "specs/cmd_rules/context.md",
+          "specs/cmd_rules/requirements.md",
+          "specs/cmd_rules/tasks.md",
+          "specs/cmd_rules/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "src/commands/rules.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A change that needs a plan cannot be approved until that plan says what I will do, what I will not do, the steps, the risks, and which existing constraints I am honoring.",
+          "A change the interview did not select a plan for still does not grow one.",
+          "A lesson becomes a standing rule only when I write it into the project's principles, and the next change shows me that file before I approve it.",
+          "A module that still has only its original scaffold is not presented as if it had learned something.",
+          "Changing that answer is a change of the agreed scope.",
+          "My agent sees the same thing in the structured result.",
+          "When I open a change, I can see the lessons already written for the modules it touches, and the project's principles when I have any.",
+          "When a change is archived I am shown where its lesson bundle is, and I can still merge without copying those lessons into the spec.",
+          "While a change is still a draft, and only when lessons or principles exist, I am asked which of them constrain it, and \"none\" is a complete answer."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Do not withhold merge on folding lessons. Do not call a model. Do not fail a lifecycle command when a context or principles file is unreadable. Do not treat a generated scaffold as knowledge. Show a bounded excerpt, and keep spec-shape rules separate from principles.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "5e691aab1aff7cdd764934af12cb1de06ebc987b91938bdfa23a11ba08cd8da4",
+        "cmd_change": "19441688c1f95b7b2b21e67d6ebd761a0deb5d2a3aca43de5901e40cc3dea86c",
+        "cmd_rules": "1fbab401b94329053c4c18d8343238076d665a109873540521a34c0a47f8c0ca"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791645737,
+      "digest": "d314b58b4a824c17aa92375b5a9491204fa07ba7534f45c45364a09d8a9a4ee8",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how",
+        "title": "Show an opened change the lessons and principles it should honor, and require its plan to say how",
+        "description": "Show an opened change the lessons and principles it should honor, and require its plan to say how",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change",
+          "cmd_rules"
+        ],
+        "affected_paths": [
+          "docs/HLD.md",
+          "hi/plan.md",
+          "site/src/content/docs/configuration.md",
+          "site/src/content/docs/workflow.md",
+          "specs/change/change.spec.md",
+          "specs/change/context.md",
+          "specs/change/requirements.md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "specs/cmd_change/cmd_change.spec.md",
+          "specs/cmd_change/context.md",
+          "specs/cmd_change/requirements.md",
+          "specs/cmd_change/tasks.md",
+          "specs/cmd_change/testing.md",
+          "specs/cmd_rules/cmd_rules.spec.md",
+          "specs/cmd_rules/context.md",
+          "specs/cmd_rules/requirements.md",
+          "specs/cmd_rules/tasks.md",
+          "specs/cmd_rules/testing.md",
+          "src/change.rs",
+          "src/change_tests.rs",
+          "src/commands/change.rs",
+          "src/commands/rules.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A change that needs a plan cannot be approved until that plan says what I will do, what I will not do, the steps, the risks, and which existing constraints I am honoring.",
+          "A change the interview did not select a plan for still does not grow one.",
+          "A lesson becomes a standing rule only when I write it into the project's principles, and the next change shows me that file before I approve it.",
+          "A module that still has only its original scaffold is not presented as if it had learned something.",
+          "Changing that answer is a change of the agreed scope.",
+          "My agent sees the same thing in the structured result.",
+          "When I open a change, I can see the lessons already written for the modules it touches, and the project's principles when I have any.",
+          "When a change is archived I am shown where its lesson bundle is, and I can still merge without copying those lessons into the spec.",
+          "While a change is still a draft, and only when lessons or principles exist, I am asked which of them constrain it, and \"none\" is a complete answer."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Do not withhold merge on folding lessons. Do not call a model. Do not fail a lifecycle command when a context or principles file is unreadable. Do not treat a generated scaffold as knowledge. Show a bounded excerpt, and keep spec-shape rules separate from principles.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "a2bc205d2dda6f3b918a8ca05964db671b60446abf332d1a2ced860363b9067e",
+        "cmd_change": "19441688c1f95b7b2b21e67d6ebd761a0deb5d2a3aca43de5901e40cc3dea86c",
+        "cmd_rules": "1fbab401b94329053c4c18d8343238076d665a109873540521a34c0a47f8c0ca"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791646809,
+      "digest": "cc1e41c4ae2f9206a0c24f76a0a30c769c93928d8e87252b28e94badc54e41b9",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

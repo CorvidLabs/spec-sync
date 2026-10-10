@@ -3,6 +3,8 @@ use assert_cmd::Command;
 use std::fs;
 use tempfile::TempDir;
 
+pub const SUBSTANTIVE_PLAN: &str = "# Plan\n\n## Approach\n\nDo the work.\n\n## Out of scope\n\nLeave unrelated work alone.\n\n## Steps\n\nLand the change.\n\n## Risks\n\nnone\n\n## Constraints consulted\n\nnone\n";
+
 pub fn specsync() -> Command {
     let mut cmd = Command::cargo_bin("specsync").unwrap();
     cmd.env_remove("GITHUB_EVENT_NAME");

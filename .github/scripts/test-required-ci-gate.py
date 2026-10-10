@@ -48,6 +48,9 @@ WORKFLOW = ROOT / ".github/workflows/ci.yml"
 GATE_JOB = "implementation-gate"
 REQUIRED_JOB = "ci-gate"
 ALWAYS_REQUIRED = ("classify", "preflight", "lifecycle-gate")
+# An open change fails Archive on purpose. That blocks the merge gate and must
+# not fail SpecSync implementation ready, which review is allowed to wait on.
+MERGE_ONLY = ("archive",)
 CLASSIFY_FLAGS = (
     "full",
     "site",
@@ -423,8 +426,14 @@ def gate_contract_errors(jobs: dict[str, Any]) -> list[str]:
         if name not in needs:
             errors.append(f"{GATE_JOB}.needs must include {name}")
     downstream = {name for name in jobs if GATE_JOB in ancestors(jobs, name)} | {GATE_JOB}
+    required_needs = set(jobs[REQUIRED_JOB]["needs"])
+    for name in MERGE_ONLY:
+        if name not in required_needs:
+            errors.append(
+                f"{name} must be needed by {REQUIRED_JOB} so an open change still blocks merge"
+            )
     for name in sorted(set(jobs) - downstream):
-        if name in needs or name in ALWAYS_REQUIRED:
+        if name in needs or name in ALWAYS_REQUIRED or name in MERGE_ONLY:
             continue
         reason = (
             "gates on lifecycle-gate"
@@ -882,7 +891,11 @@ class RequiredGateSimulationTests(unittest.TestCase):
             )
         for (scenario, forced), (results, transcript) in zip(cases, simulate_many(self.workflow, cases)):
             with self.subTest(path=scenario.label, forced=forced):
-                self.assertEqual(results[GATE_JOB], "failure", transcript)
+                forced_name = next(iter(forced))
+                if forced_name in MERGE_ONLY:
+                    self.assertEqual(results[GATE_JOB], "success", transcript)
+                else:
+                    self.assertEqual(results[GATE_JOB], "failure", transcript)
                 self.assertEqual(results[REQUIRED_JOB], "failure", transcript)
 
     def test_deselected_jobs_are_skipped_and_do_not_block(self) -> None:

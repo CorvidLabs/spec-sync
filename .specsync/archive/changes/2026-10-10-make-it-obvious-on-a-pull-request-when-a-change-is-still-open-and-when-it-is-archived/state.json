@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "make-it-obvious-on-a-pull-request-when-a-change-is-still-open-and-when-it-is-archived",
+  "slug": "make-it-obvious-on-a-pull-request-when-a-change-is-still-open-and-when-it-is-archived",
+  "title": "Make it obvious on a pull request when a change is still open and when it is archived",
+  "description": "Make it obvious on a pull request when a change is still open and when it is archived",
+  "kind": "feature",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "ee89640c3ccd3c68d044ff0a58499749b2fba92c",
+  "created_at": 1791647821,
+  "updated_at": 1791648710,
+  "affected_specs": [
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/commands/change.rs",
+    "src/commands/change.rs",
+    ".github/workflows/ci.yml",
+    ".github/scripts/archive-readiness.sh",
+    ".github/scripts/test-archive-readiness.sh",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_change/requirements.md",
+    "specs/cmd_change/context.md",
+    "specs/cmd_change/tasks.md",
+    "specs/cmd_change/testing.md",
+    "hi/ship.md",
+    "INTENT.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "When I look at a pull request, I can tell whether its change is still open or already archived.",
+    "A pull request that still has an open change does not look finished.",
+    "A pull request whose changes are all archived says it is ready to merge once the checks are green.",
+    "When it is time to archive, one command archives the change, commits that archive, and tells me that merging is the step that is left.",
+    "When it is not time, that same place tells me the one reason and the one command.",
+    "When more than one change is open, I am told which one to archive first."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Do not withhold a merge on an open change. One sentence names the state. One command finishes the archive and commits it. Do not tell me to merge when it is not time.",
+    "public_contract": "yes"
+  }
+}

@@ -1360,3 +1360,48 @@ The workspace digest SHALL name each clean tracked file by its Git object id, in
 - `filter=demo`, `working-tree-encoding`, and `ident` still fail closed.
 - Scoped acceptance of a covered path still hashes that path's bytes.
 
+### REQ-change-104
+
+The system SHALL ask a draft which existing lessons or principles constrain it, and only when that draft's affected modules have substantive lessons or the project names a principles file. The question SHALL be asked after the rest of the interview is answered. The answer "none" SHALL be complete. The answer SHALL be part of the stable scope, so changing it SHALL require a fresh approval. Re-answering the affected specs SHALL clear the answer. A draft with neither lessons nor a principles file SHALL NOT be asked. A change that has left draft without the answer SHALL NOT be sent back to the interview.
+
+Acceptance Criteria
+- A draft with substantive module lessons, or a configured principles file, is asked `constraints` only after the other interview questions are answered.
+- The answer "none" completes the question.
+- Changing the answer changes the scope digest.
+- Re-answering affected specs clears the answer and asks the question again when it still applies.
+- A scaffold-only context and no principles file produces no question.
+- An approved, implementing, verifying, or archived change that never recorded the answer stays a complete interview.
+
+### REQ-change-105
+
+The system SHALL refuse approval of a selected plan until that plan says what will be done, what will not be done, the steps, the risks, and which existing constraints are honored. The system SHALL NOT add a plan to a change the interview did not select one for.
+
+Acceptance Criteria
+- A selected plan is incomplete while Approach, Out of scope, Steps, Risks, or Constraints consulted is missing or has no substantive text.
+- A required section ends at the next level-two heading. Prose under a later heading does not fill the empty section above it.
+- Headings, blank lines, HTML comments including those that span lines, and placeholder TODO lines are not substantive text.
+- A plan with substantive text under each of those headings is complete, once the generic artifact TODO check also passes.
+- A bug fix and a documentation change that did not select a plan are not given one by this rule.
+- Status names the plan file while it is incomplete, using the same predicate as approval.
+
+### REQ-change-106
+
+The system SHALL show, when a change is opened, shown, or asked its status, the lessons already written for the modules it touches and the project's principles when a principles file is configured. The text result and the structured result SHALL carry the same briefing. A module context that holds only its generated scaffold SHALL NOT be presented as knowledge. The briefing SHALL be bounded and SHALL name the file for anything left unread. An unreadable context or principles file SHALL NOT fail the command.
+
+Acceptance Criteria
+- The briefing lists each affected module context that has substantive lines, with the path, the substantive line count, a bounded excerpt, and whether the excerpt was cut.
+- The context path is the directory of the module's canonical spec, including a non-default specs directory or a registry mapping.
+- A multiline HTML comment is not a lesson.
+- A scaffold-only context is absent.
+- A configured principles file is named, with a bounded excerpt, or marked missing when it cannot be read.
+- No principles file produces no principles entry.
+- The briefing is computed and is not stored on the change record.
+
+### REQ-change-107
+
+The approval tests SHALL keep passing after a selected plan must name its sections. A test that sets a principles file SHALL record which constraints apply before approval, and changing that file SHALL still invalidate the approval.
+
+Acceptance Criteria
+- `stale_definition_approval_is_rejected` approves a plan that names its sections.
+- `project_principles_are_part_of_the_approval_digest` records a constraints answer and still fails approval after the principles file changes.
+

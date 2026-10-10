@@ -207,6 +207,8 @@ fn verification_freshness_status_and_check_are_environment_independent() {
         let name = artifact.as_str().unwrap();
         let content = if name == "tasks" {
             "# Tasks\n\n- [x] Complete verification preparation.\n"
+        } else if name == "plan" {
+            super::helpers::SUBSTANTIVE_PLAN
         } else {
             "# Complete\n\nReviewed lifecycle evidence.\n"
         };
@@ -1262,6 +1264,8 @@ fn change_supersede_persists_an_exact_predecessor_obligation_through_the_cli() {
         let name = artifact.as_str().unwrap();
         let content = if name == "tasks" {
             "# Tasks\n\n- [x] Complete predecessor preparation.\n"
+        } else if name == "plan" {
+            super::helpers::SUBSTANTIVE_PLAN
         } else {
             "# Complete\n\nReviewed predecessor evidence.\n"
         };
@@ -2124,11 +2128,12 @@ fn accepted_metadata_corrects_through_cli_with_effective_text_and_json_views() {
     assert_eq!(value["corrections"].as_array().unwrap().len(), 1);
 
     for artifact in ["research.md", "design.md", "plan.md"] {
-        fs::write(
-            dir.join(artifact),
-            format!("# {}\n\nComplete.\n", artifact.trim_end_matches(".md")),
-        )
-        .unwrap();
+        let body = if artifact == "plan.md" {
+            super::helpers::SUBSTANTIVE_PLAN.to_string()
+        } else {
+            format!("# {}\n\nComplete.\n", artifact.trim_end_matches(".md"))
+        };
+        fs::write(dir.join(artifact), body).unwrap();
     }
     let show_output = specsync()
         .args([
@@ -2512,6 +2517,8 @@ fn change_ready_to_verify(root: &Path, verification_commands: &[String]) -> Stri
         let name = artifact.as_str().unwrap();
         let content = if name == "tasks" {
             "# Tasks\n\n- [x] Complete verification preparation.\n"
+        } else if name == "plan" {
+            super::helpers::SUBSTANTIVE_PLAN
         } else {
             "# Complete\n\nReviewed lifecycle evidence.\n"
         };
@@ -2848,6 +2855,8 @@ fn status_prints_a_handoff_line_and_json_carries_it() {
         let name = artifact.as_str().unwrap();
         let content = if name == "tasks" {
             "# Tasks\n\n- [x] Print the handoff line.\n"
+        } else if name == "plan" {
+            super::helpers::SUBSTANTIVE_PLAN
         } else {
             "# Complete\n\nReviewed lifecycle evidence.\n"
         };

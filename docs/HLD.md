@@ -384,7 +384,15 @@ sequenceDiagram
 
 The interview asks, only while unanswered: `acceptance_criteria`, `affected_specs` (skipped with
 `--no-spec-change`), `affected_paths`, `public_contract` and `architecture_risk`
-(`next_questions`). The artifacts start from the change kind (`adaptive_artifacts`):
+(`next_questions`). When that list is empty, the change is still a draft, and an affected module
+already has substantive lessons or the project names a principles file, it also asks `constraints`.
+"none" is a complete answer and is part of the stable scope. A change that has left draft without
+that answer is not asked. Opening, showing, or status computes a bounded briefing of those lessons
+and of that principles file (`open_change_briefing`). A generated scaffold is not a lesson.
+Finalize and ship name `lesson-bundle.md` and leave the merge instruction as the next action.
+
+A selected plan is incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted
+each have substantive text. The artifacts start from the change kind (`adaptive_artifacts`):
 
 | Kind | Artifacts added to `context` |
 |---|---|

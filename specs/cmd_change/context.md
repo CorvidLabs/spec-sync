@@ -4,6 +4,12 @@ spec: cmd_change.spec.md
 
 # Context
 
+`change status` prints whether the pull request still has an open change and which one to archive first, without telling the operator to run `change status` again. `change ship` on a ready change commits the archive tip and then says to push and merge. It does not say to merge while another change is open. Re-running it on an archived change commits only that archive package.
+
+`change pr` archives a ready change when it is the one to archive first, runs the pre-push gate, pushes the branch, and opens or reuses an open pull request. A change that is not ready still gets the pull request, then the one next command. A closed pull request is not reused. The command does not merge, and it does not say to merge while a change is still open.
+
+`change new`, `change status`, and `change show` render the domain's open-change briefing in text and JSON. `change finalize` and `change ship` name the lesson-bundle path on its own line. Their next action stays the merge instruction.
+
 The command layer intentionally contains no lifecycle policy, keeping agent and terminal behavior identical and the domain module independently testable. Its full text/JSON lifecycle passed end-to-end integration tests and project-level dogfooding for 5.0.
 
 `change reopen` prints the domain `ReopenResult` directly in JSON so persisted and emitted audit metadata cannot drift. Human output states that fresh verification and closing approval are required.

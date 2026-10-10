@@ -1,6 +1,6 @@
 ---
 id: classify-the-archive-commit-that-finalize-records
-state: implementing
+state: archived
 type: bug_fix
 base_commit: efa8046bc3bb3d70f006304b7ceef3fa285725cb
 ---

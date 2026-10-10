@@ -1,0 +1,32 @@
+{
+  "timestamp": 1791673311,
+  "commit": "af08729f59a667f1bed5f467a5e7f8db6e58cb14",
+  "contract_digest": "0945925bf5dfd66b1137cedda798f92e5f6839fd0c3f2a1c04de3fb02e43b5b4",
+  "execution_digest": "506445af99ea7580a1a9d8eab992f52d267ebc787ba012ff8a829bafd8846834",
+  "workspace_digest": "7e4709b56859fc8a3ed12844dc0f535d3e3f88704bd5f7ecfc03509e54a32f28",
+  "acceptance_input_digest": "18c994f19de48d1fea1e3568317390cd5f7f4ef4375549a4d402f923c146a166",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "tests/integration/change.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "ca666e0788a0a2dc980cd7c1d5de86b245cfc19a4481850e8cc7c05b2fee2859",
+        "entry_digest": "de2cdd337f55c324e2d224d773178c28339e6b126cf35252c0973013630d46e5",
+        "owners": [
+          "@exact:test"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check (no spec in scope)",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

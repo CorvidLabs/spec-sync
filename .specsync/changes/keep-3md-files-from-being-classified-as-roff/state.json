@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-3md-files-from-being-classified-as-roff",
+  "slug": "keep-3md-files-from-being-classified-as-roff",
+  "title": "Keep 3md files from being classified as Roff",
+  "description": "Keep 3md files from being classified as Roff",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "f60b5ea20f360c8b6db5b536abbc7be88ecffd70",
+  "created_at": 1791666052,
+  "updated_at": 1791666098,
+  "affected_specs": [
+    "cmd_init"
+  ],
+  "affected_paths": [
+    ".gitattributes",
+    "specs/cmd_init/cmd_init.spec.md",
+    "specs/cmd_init/requirements.md",
+    "src/commands/init.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A new spec-sync project gets *.3md linguist-language=Text, and a project that already classifies *.3md is left alone."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Init must not overwrite an existing configuration, including a Linguist rule the project already set.",
+    "public_contract": "yes"
+  }
+}

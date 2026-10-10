@@ -19454,6 +19454,166 @@ fn a_plan_section_does_not_borrow_the_next_heading_or_an_html_comment() {
 
 // Verifies REQ-change-105.
 #[test]
+fn a_fenced_plan_cannot_be_completed_from_inside_a_code_block() {
+    let quoted = r#"# Plan
+
+## Approach
+
+```markdown
+## Steps
+
+Looks done.
+## Out of scope
+
+no
+## Risks
+
+none
+## Constraints consulted
+
+none
+```
+"#;
+    assert!(plan_sections_incomplete(quoted));
+    assert!(artifact_is_incomplete(&ArtifactKind::Plan, quoted));
+    assert!(plan_sections_incomplete(&quoted.replace("```", "~~~")));
+
+    let only_fenced_prose = r#"# Plan
+
+## Approach
+
+    ```
+    Do the work.
+    ```
+
+## Out of scope
+
+Leave it.
+
+## Steps
+
+One.
+
+## Risks
+
+none
+
+## Constraints consulted
+
+none
+"#;
+    assert!(plan_sections_incomplete(only_fenced_prose));
+
+    let unclosed = r#"# Plan
+
+## Approach
+
+Do the work.
+
+```
+## Out of scope
+
+Leave it.
+
+## Steps
+
+One.
+
+## Risks
+
+none
+
+## Constraints consulted
+
+none
+"#;
+    assert!(plan_sections_incomplete(unclosed));
+
+    let outside = r#"# Plan
+
+## Approach
+
+Do the work.
+
+```markdown
+## Approach
+
+not this
+## Steps
+
+Looks done.
+## Out of scope
+
+no
+```
+
+## Out of scope
+
+Leave unrelated work alone.
+
+~~~
+```
+## Risks
+
+none of these count
+~~~
+
+## Steps
+
+Land the change.
+
+````
+## Constraints consulted
+
+quoted
+```
+still quoted
+````
+
+## Risks
+
+none
+
+## Constraints consulted
+
+none
+"#;
+    assert!(!plan_sections_incomplete(outside));
+    assert!(!artifact_is_incomplete(&ArtifactKind::Plan, outside));
+
+    let longer_close = r#"# Plan
+
+## Approach
+
+Do the work.
+
+```
+## Steps
+
+example only
+```` end
+
+## Out of scope
+
+Leave it.
+
+## Steps
+
+One.
+
+## Risks
+
+none
+
+## Constraints consulted
+
+none
+"#;
+    assert!(!plan_sections_incomplete(longer_close));
+}
+
+// Verifies REQ-change-105.
+#[test]
 fn a_bug_fix_does_not_grow_a_plan() {
     let bug = adaptive_artifacts(
         ChangeKind::BugFix,

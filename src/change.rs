@@ -9109,12 +9109,30 @@ const PLAN_SECTION_TITLES: [&str; 5] = [
 ];
 
 /// True when a required plan heading is missing or has no substantive text under it.
+///
+/// Headings and body lines inside a fenced code block are examples, not the plan.
+/// An unclosed fence hides the rest of the file.
 fn plan_sections_incomplete(content: &str) -> bool {
     let body = strip_html_comments(strip_frontmatter(content));
     let mut sections: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut current: Option<String> = None;
+    let mut fence: Option<(char, usize)> = None;
     for line in body.lines() {
         let trimmed = line.trim();
+        match (fence, leading_fence_marker(trimmed)) {
+            (Some((open_marker, open_length)), Some((marker, length)))
+                if marker == open_marker && length >= open_length =>
+            {
+                fence = None;
+                continue;
+            }
+            (Some(_), _) => continue,
+            (None, Some(opened)) => {
+                fence = Some(opened);
+                continue;
+            }
+            (None, None) => {}
+        }
         if let Some(title) = trimmed.strip_prefix("## ") {
             let key = title.trim().to_ascii_lowercase();
             if PLAN_SECTION_TITLES.contains(&key.as_str()) {
@@ -9141,6 +9159,19 @@ fn plan_sections_incomplete(content: &str) -> bool {
                 .any(|line| plan_section_line_is_substantive(line))
         })
     })
+}
+
+/// Backtick or tilde run of at least three at the start of a trimmed line.
+fn leading_fence_marker(trimmed: &str) -> Option<(char, usize)> {
+    let marker = trimmed.chars().next()?;
+    if !matches!(marker, '`' | '~') {
+        return None;
+    }
+    let length = trimmed
+        .chars()
+        .take_while(|character| *character == marker)
+        .count();
+    (length >= 3).then_some((marker, length))
 }
 
 fn plan_section_line_is_substantive(line: &str) -> bool {

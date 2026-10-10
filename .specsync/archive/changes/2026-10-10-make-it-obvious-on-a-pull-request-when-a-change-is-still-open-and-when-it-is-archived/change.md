@@ -1,6 +1,6 @@
 ---
 id: make-it-obvious-on-a-pull-request-when-a-change-is-still-open-and-when-it-is-archived
-state: implementing
+state: archived
 type: feature
 base_commit: ee89640c3ccd3c68d044ff0a58499749b2fba92c
 ---

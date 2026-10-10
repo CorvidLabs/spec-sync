@@ -7,11 +7,11 @@
   "title": "Make it obvious on a pull request when a change is still open and when it is archived",
   "description": "Make it obvious on a pull request when a change is still open and when it is archived",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "ee89640c3ccd3c68d044ff0a58499749b2fba92c",
   "created_at": 1791647821,
-  "updated_at": 1791648266,
+  "updated_at": 1791648322,
   "affected_specs": [
     "cmd_change"
   ],

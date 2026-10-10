@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "make-it-obvious-on-a-pull-request-when-a-change-is-still-open-and-when-it-is-archived",
+  "implementation_commit": "7fb084f7c39b80e91743753a38e3b289f5a5c6f9",
+  "implementation_tree": "180db28cf73d5e672c3f27fe2af33f290343e7f7",
+  "contract_digest": "d0b51fcf29997222132ae536faf99c604a220a99d2905fc1b884c32a5de2206e",
+  "workspace_digest": "ff2de36c7cb7f9cb59ff4e6e6f84062f26c3a87ed04a24e6cac1e8dac62cfb9d",
+  "closing_digest": "a83b3ac2c981172ff9950a0570adf6fa08c712d098c765834ef4dd1176a9e0c0",
+  "review_digest": "29aebae80293a62ed836cdade52830e08ab7a9c622c7e7c5a33e1f07328c48fb",
+  "finalization_digest": "4e4650f41b602b35ae9a74c527db4e3cace1e55a70cd974979f5aaa8eb36d7a6",
+  "timestamp": 1791648322
+}

@@ -38,6 +38,8 @@ pub fn cmd_rules(root: &Path) {
         config.rules.require_depends_on.map(|b| b.to_string()),
     );
     println!();
+    println!("{}", principles_rules_summary(load_principles_file(root)));
+    println!();
 
     if config.custom_rules.is_empty() {
         println!("{}", "No custom rules defined.".dimmed());
@@ -104,6 +106,20 @@ pub fn cmd_rules(root: &Path) {
     }
 }
 
+fn load_principles_file(root: &Path) -> Option<String> {
+    crate::change::load_policy(root).and_then(|policy| policy.principles_file)
+}
+
+/// What `specsync rules` says about standing principles. Spec-shape rules stay a separate list.
+fn principles_rules_summary(principles_file: Option<String>) -> String {
+    match principles_file {
+        Some(path) => format!(
+            "Standing principles:\n  {path}\n  A lesson becomes a standing rule only when a person writes it into this file. SpecSync does not copy lessons here."
+        ),
+        None => "Standing principles:\n  none configured\n  Set principles_file in .specsync/sdd.json to name a standing principles file.".to_string(),
+    }
+}
+
 fn print_builtin(name: &str, description: &str, value: Option<String>) {
     let status = match &value {
         Some(v) => format!("{} = {v}", "active".green()),
@@ -111,4 +127,24 @@ fn print_builtin(name: &str, description: &str, value: Option<String>) {
     };
     println!("  {name:.<40} {status}");
     println!("  {}", description.dimmed());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::principles_rules_summary;
+
+    #[test]
+    fn rules_names_the_principles_file_and_does_not_invent_one() {
+        let text = principles_rules_summary(Some("PRINCIPLES.md".into()));
+        assert!(text.contains("PRINCIPLES.md"), "{text}");
+        assert!(text.contains("only when a person writes it"), "{text}");
+        assert!(text.contains("does not copy lessons"), "{text}");
+    }
+
+    #[test]
+    fn rules_says_when_no_principles_file_is_configured() {
+        let text = principles_rules_summary(None);
+        assert!(text.contains("none configured"), "{text}");
+        assert!(text.contains("Standing principles:"), "{text}");
+    }
 }

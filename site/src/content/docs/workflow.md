@@ -38,7 +38,11 @@ specsync change answer add-passkeys architecture_risk yes --json
 
 Acceptance criteria preserve the submitted prose as one criterion, including commas and line breaks. To submit more than one criterion, pass an explicit JSON string array such as `'["Passkey login works", "Recovery remains available"]'`. Scope questions such as `affected_specs` and `affected_paths` continue to accept comma- or newline-separated lists.
 
-The shared deterministic engine asks only unresolved questions and selects requirements, research, design, plan, tasks, context, testing, docs, or custom artifacts according to change type and risk. Agent skills present the same questions conversationally.
+The shared deterministic engine asks only unresolved questions and selects requirements, research, design, plan, tasks, context, testing, docs, or custom artifacts according to change type and risk. After those questions, and only when an affected module already has lessons or the project names a principles file, it asks which of them constrain the change. "none" is a complete answer. A change that has left draft without that answer is not sent back to the interview. Agent skills present the same questions conversationally.
+
+A selected plan has to say what the change will do, what it will not do, the steps, the risks, and which existing constraints it honors before it can be approved. A bug fix or a documentation change that did not select a plan does not grow one.
+
+Opening, showing, or asking the status of a change shows those lessons and that principles file, in text and in JSON. A module context that still holds only its generated scaffold is left out. Finalizing or shipping names the lesson bundle and still tells you to merge. Copying lessons into the spec is not required before the merge.
 
 New changes use a slug derived from their description, such as `add-passkeys`. Use the ID
 returned by `change new`. A repeated description is refused and names the existing change;

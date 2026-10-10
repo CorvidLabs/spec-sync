@@ -144,7 +144,7 @@ Use `specsync lifecycle`, `specsync stale`, and `specsync score` to inspect thes
 
 `verification_commands` is retained on the policy file for adopters who still list them, but `change check` does not execute the list. Spec↔code sync is the verifier; CI owns the project's tests. Committed policy/configuration files remain meaningful even if a broad ignored path would otherwise cover them.
 
-`custom_artifacts` maps an artifact name to a project-owned Markdown template. `principles_file` optionally adds project governance to interviews and agent context.
+`custom_artifacts` maps an artifact name to a project-owned Markdown template. `principles_file` names a standing principles file. When a change opens, SpecSync shows that file beside the lessons already written for the modules the change touches. A draft is asked which of those lessons or principles constrain it, and "none" is a complete answer. `specsync rules` names the file. SpecSync does not copy lessons into it. A lesson becomes a standing rule only when a person writes it there.
 
 ## Custom modules
 

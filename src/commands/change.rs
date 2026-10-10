@@ -41,9 +41,6 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 )
             })
             .and_then(|record| {
-                if !matches!(format, OutputFormat::Json) {
-                    print_accumulated_lessons(root, &record);
-                }
                 print_record(root, &record, format, true, strict)
             }),
         ChangeAction::Answer {
@@ -396,6 +393,10 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                     println!("{} {} finalized on this PR", "✓".green(), id);
                     println!("  Archive: {}", path.display());
                     println!("  Implementation: {}", finalization.implementation_commit);
+                    println!(
+                        "  {}",
+                        lesson_bundle_line(&path.join(change::LESSON_BUNDLE_FILE))
+                    );
                     println!("  Next: {}", lessons_next_action(root, &id, &path));
                     print_handoff_line_for(root, &id);
                 }
@@ -472,7 +473,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                             if let Some(change_id) = &verified_id
                                 && let Ok(change_record) = change::load_change(root, change_id)
                             {
-                                let questions = change::next_questions(&change_record);
+                                let questions = change::next_questions_for(root, &change_record);
                                 println!(
                                     "  Next: {}",
                                     text_mode_next_action(root, &change_record, &questions)
@@ -581,7 +582,7 @@ fn print_record(
     strict: bool,
 ) -> Result<(), String> {
     let questions = if include_questions {
-        change::next_questions(record)
+        change::next_questions_for(root, record)
     } else {
         Vec::new()
     };
@@ -602,6 +603,7 @@ fn print_record(
                 "corrections": corrections,
                 "summary": summary,
                 "questions": questions,
+                "briefing": change::open_change_briefing(root, record),
             }));
         }
         _ => {
@@ -611,6 +613,7 @@ fn print_record(
             ensure_text_correction_ledger_valid(root, record)?;
             // `text_mode_next_action` uses lightweight artifact file reads only.
             print_change_text_identity(record);
+            print_open_change_briefing(root, record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
@@ -641,7 +644,7 @@ fn print_mutation_record(
 ) -> Result<(), String> {
     let record = &result.change;
     let questions = if include_questions {
-        change::next_questions(record)
+        change::next_questions_for(root, record)
     } else {
         Vec::new()
     };
@@ -663,6 +666,7 @@ fn print_mutation_record(
                 "corrections": result.corrections,
                 "summary": summary,
                 "questions": questions,
+                "briefing": change::open_change_briefing(root, record),
             }));
         }
         _ => {
@@ -670,6 +674,7 @@ fn print_mutation_record(
             // Do not turn successful persistence into a false command failure by rereading that
             // ledger after the transaction has completed.
             print_change_text_identity(record);
+            print_open_change_briefing(root, record);
             let next = text_mode_next_action(root, record, &questions);
             println!("  Next: {next}");
             print_handoff_line(&change::handoff_summary(root, record));
@@ -813,7 +818,7 @@ fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Re
 /// parent (or tip) SHA. Offline / no-token stays on `local_guidance`. Force offline with
 /// `SPECSYNC_SHIP_LOCAL_GUIDANCE=1`.
 fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
-    let questions = change::next_questions(record);
+    let questions = change::next_questions_for(root, record);
     let lifecycle_next = text_mode_next_action(root, record, &questions);
     let tip = classify_head_tip(root)?;
 
@@ -1186,27 +1191,46 @@ fn build_ship_trust(root: &Path, tip: &HeadTip) -> serde_json::Value {
     }
 }
 
-/// Point a new change at what its modules already learned.
-///
-/// The other end of the loop `finalize` closes. Lessons are folded into `specs/<module>/context.md`
-/// at archival precisely so the NEXT change to that module can read them — but nothing surfaced
-/// them, so they accumulated where nobody looked.
-///
-/// Deliberately a pointer and not a dump: the file can be long, and a wall of text at creation
-/// time gets scrolled past. Naming it with its size is enough to make reading it a choice the
-/// author knows they are making.
-fn print_accumulated_lessons(root: &Path, record: &change::ChangeRecord) {
-    let found = change::accumulated_lessons(root, &record.affected_specs);
-    if found.is_empty() {
+/// Show the same briefing text and JSON carry. A bounded excerpt, then the path for the rest.
+fn print_open_change_briefing(root: &Path, record: &change::ChangeRecord) {
+    let briefing = change::open_change_briefing(root, record);
+    if briefing.lessons.is_empty() && briefing.principles.is_none() {
         return;
     }
-    println!(
-        "\n  {} what these modules already learned:",
-        "Lessons:".bold()
-    );
-    for (path, lines) in found {
-        println!("    {path} ({lines} line(s)) — read before scoping this change");
+    if !briefing.lessons.is_empty() {
+        println!(
+            "\n  {} what these modules already learned:",
+            "Lessons:".bold()
+        );
+        for lesson in &briefing.lessons {
+            let more = if lesson.truncated {
+                ", more in the file"
+            } else {
+                ""
+            };
+            println!("    {} ({} line(s){more})", lesson.path, lesson.lines);
+            for line in lesson.excerpt.lines() {
+                println!("      {line}");
+            }
+        }
     }
+    if let Some(principles) = &briefing.principles {
+        println!("\n  {} {}", "Principles:".bold(), principles.path);
+        if principles.missing {
+            println!("    the file could not be read");
+        } else {
+            for line in principles.excerpt.lines() {
+                println!("    {line}");
+            }
+            if principles.truncated {
+                println!("    more in the file");
+            }
+        }
+    }
+}
+
+fn lesson_bundle_line(bundle: &Path) -> String {
+    format!("Lesson bundle: {}", bundle.display())
 }
 
 /// What to do after `ship` finalizes.
@@ -1883,6 +1907,10 @@ fn run_ship(
         _ => {
             println!("{} {} finalized on this PR", "✓".green(), record.id);
             println!("  Archive: {}", path.display());
+            println!(
+                "  {}",
+                lesson_bundle_line(&path.join(change::LESSON_BUNDLE_FILE))
+            );
             if let Some(push_result) = push_result.as_ref() {
                 println!("  Push: {push_result}");
             }
@@ -2191,7 +2219,7 @@ fn print_records(
                 ensure_text_correction_ledger_valid(root, record)?;
             }
             for record in records {
-                let questions = change::next_questions(record);
+                let questions = change::next_questions_for(root, record);
                 let id = record.id.clone();
                 let title = record.title.clone();
                 let state = record.state.as_str().to_owned();
@@ -2503,7 +2531,7 @@ if the floor call is removed from this function"
             record = change::answer_question(root, &record.id, question, answer)
                 .expect("answer interview question");
         }
-        let questions = change::next_questions(&record);
+        let questions = change::next_questions_for(root, &record);
         assert!(questions.is_empty(), "interview must be complete");
 
         for surface in ["status", "show", "list"] {
@@ -3877,5 +3905,25 @@ mod ship_next_action_tests {
         );
         assert!(next.contains("do not merge while any change is active"));
         assert!(next.contains("other-change"));
+    }
+
+    #[test]
+    fn finalize_text_names_the_lesson_bundle_beside_the_merge_instruction() {
+        let bundle = lesson_bundle_line(std::path::Path::new(
+            ".specsync/archive/changes/2026-10-10-example/lesson-bundle.md",
+        ));
+        let next = ship_next_action(
+            true,
+            true,
+            &[],
+            &["specs/change/context.md".to_string()],
+            "/archive/lesson-bundle.md",
+        );
+        assert!(bundle.starts_with("Lesson bundle: "), "{bundle}");
+        assert!(bundle.contains("lesson-bundle.md"), "{bundle}");
+        assert!(!bundle.contains("Next:"), "{bundle}");
+        assert_eq!(next, "merge the PR on GitHub when Required CI is green");
+        assert!(!next.contains("write lessons"), "{next}");
+        assert!(!next.contains("Lesson bundle"), "{next}");
     }
 }

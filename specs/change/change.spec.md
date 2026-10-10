@@ -1,6 +1,6 @@
 ---
 module: change
-version: 129
+version: 130
 status: active
 files:
   - src/change.rs
@@ -107,6 +107,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `FinalizationRecord` | Automated non-approval evidence binding implementation commit/tree, contract/workspace/closing/review digests, archive identity, and a domain-separated finalization digest |
 | `ChangeReadScope` | Crate-private invocation guard that owns one bounded read-only lifecycle snapshot |
 | `InterviewQuestion` | Stable deterministic question with choices and recommendation |
+| `LessonBriefing` | One module context that already holds substantive lessons: path, line count, bounded excerpt, and whether the excerpt was cut |
+| `OpenChangeBriefing` | Lessons for the change's modules plus the configured principles file, computed when a change is opened and never stored on the record |
+| `PrinciplesBriefing` | The project's principles file: path, bounded excerpt, whether the excerpt was cut, and whether the file could not be read |
 | `TerminalEvidenceValidity` | State-aware exact, successor-covered, stale, authenticated-history, or corrupt-history evidence conclusion |
 | `TerminalEvidenceSummary` | Shared terminal validity plus optional fail-closed reason |
 | `TerminalEvidenceResult` | Change ID paired with its shared terminal-evidence summary |
@@ -163,7 +166,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `load_change` | `root: &Path, id: &str` | `Result<ChangeRecord, String>` | Load active or archived change state |
 | `load_policy` | `root: &Path` | `Option<SddPolicy>` | Load `.specsync/sdd.json`; absence leaves existing projects unenforced |
 | `module_context_path` | `module` | `String` | The single definition of where a module's accumulated lessons live, shared by surfacing and folding so they cannot disagree |
-| `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Return deterministic unanswered interview questions |
+| `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
+| `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
+| `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
 | `record_bootstrap_paths` | `root: &Path` | `Result<(), String>` | Record the protected SDD paths this bootstrap created in `.specsync/bootstrap.json`, so initialization's own output is not reported as uncovered meaningful delivery; editing a recorded file revokes its exemption |
 | `record_scoped_review` | `root, id, reviewer` | `Result<ScopedReviewRecord, String>` | Record one implementation-scoped review bound to current governed inputs; the reviewer may be the definition approver |
 | `record_scoped_review_with_verdict` | `root, id, reviewer, verdict` | `Result<ScopedReviewRecord, String>` | Record an explicit passing or blocking review; only a current passing verdict permits finalization |
@@ -228,7 +233,7 @@ Acceptance Criteria
 31. Immutable workflow-origin validation follows every bounded reachable canonical dated archive path for the exact change ID, preserving identity across archive, reopen, and cross-date rearchive moves.
 32. The workflow-v2 baseline retains its exact introduction bytes at every bounded touching commit and readable parent, rejecting rewrite-then-restore history.
 33. Answer, dependency, and supersession mutations load and validate correction history only after acquiring the lifecycle project lock.
-34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons. Folding them into `context.md` is a convention, not a `next_action` gate.
+34. `finalize_change` assembles `lesson-bundle.md` into the archive on a best-effort basis: a bundle failure never undoes a completed archival, and the material is read entirely from disk so finalize keeps working offline and in CI. SpecSync assembles and never authors the lessons. Folding them into `context.md` is a convention, not a `next_action` gate. Finalize and ship name the bundle path in text and JSON without making that fold the next action.
 35. This module defines no frontmatter reader of its own. Lesson counting, archived lesson bundles, and artifact completeness all read through `parser::strip_frontmatter`, the single canonical implementation, which ends frontmatter at its CLOSING delimiter LINE in either LF or CRLF encoding and never at the next `---` elsewhere in the document. A Markdown horizontal rule therefore never truncates a body to a fragment, a CRLF-authored companion is stripped exactly as an LF one is, a leading BOM never hides the opening delimiter, and a delimiter line padded with trailing whitespace still ends the block at BOTH ends. Four failure modes of the strippers this module used to own are gone with them: a written CRLF artifact is no longer refused as incomplete; an artifact that is only frontmatter is no longer accepted as written when it is closed at end of file, prefixed with a BOM, or opened with a delimiter carrying a trailing space; and prose above the first horizontal rule in a body is no longer deleted when the CLOSING delimiter carries one. One residual is stated rather than guessed at: an artifact opened with `----`, a Markdown thematic break and not a delimiter, still reads as written even when it holds nothing but frontmatter — accepting it as a delimiter would cut real bodies at their first rule, which is the worse failure, and deriving the gate from the generated scaffold instead would not close it either, because a file with a mangled opener no longer equals that scaffold.
 36. A `###` heading inside an open semantic-delta item is section CONTENT and does not end that item. Only `### REQUIREMENT <id>` and `### SPEC SECTION <name>` start a new item, and classification happens before the previous item is flushed — otherwise one section carrying subheadings becomes several items under one key and application keeps only the last, silently discarding documented behaviour the change never touched.
 37. A semantic delta declaring the same operation, target and key more than once is REFUSED. Applying it would keep the last body and discard the earlier ones with no diagnostic.
@@ -237,6 +242,8 @@ Acceptance Criteria
 40. A recorded delta binding is MONOTONE within one approval ledger. Every writer of a `definition` gate records the per-module delta digest it approved — ordinary approval, the normalizing approval inside explicit acceptance, and both members of the portable SpecSync 5.0.1 pair alike — so within a ledger the binding only ever goes from absent to present. An effective definition approval that records no delta wording while another definition approval in the same ledger records it is a claim being withdrawn, not evidence predating the binding, and materialization and acceptance refuse it and name the re-approval remedy. Absence across a whole ledger still reads as unknown, because that is the only shape recorded history has: a change is either from before the binding existed or from after it, never both.
 41. `canonical_applied` records that materialization RAN, never that it ran for the delta bodies on disk now, so `change check` and acceptance decide from the canonical artefacts instead of from the flag alone. Materialization produces three outputs per module — the delta applied to the canonical files, the spec's `version:` bump, and the spec's Change Log row — and the flag's short-circuit skipped ALL THREE, so a delta corrected after review and re-approved satisfied the delta binding (a new approval signs the new body) and then left changed contract text with no bump and no row while `change check`, `change audit --strict` and `specsync check --strict` all passed. A module is materialized again when its delta is not fully reflected in the canonical files or when its Change Log carries no row for the change, and is left untouched when both hold: a byte-identical re-approval still writes nothing, and one change bumps one module's version exactly once. Convergence is scoped to an already-applied change — on a first materialization every application refusal still fires, and only afterwards does an already-reflected item, such as a `## REMOVED` block that is already absent, read as done rather than as an error.
 42. Handoff readiness is a PURE function of `HandoffSignals`, and the verdict a session sees in text is the same object JSON carries under `summary.handoff`. A frozen sequence ledger, a stale approval digest, an invalid correction ledger, and stale legacy terminal evidence are `not yet` and name their repair, because clearing context there strands the next session on a gate it cannot see the cause of. A Draft is never `safe` — the interview and artifacts live only in the session's head until approval records them — so it is `conditional` and names approval as the first clean boundary. Uncommitted edits under `affected_paths` are `conditional` and name committing or writing intent into `change.md`; evidence under `.specsync/` alone never counts, because `review.json` is uncommitted between `review` and `finalize` by design. A current approval on a clean tree, a Verifying change with current verification, an Accepted workflow-v2 change, and an Archived change are `safe`, and the reason says where the next session resumes. The reason, the resume command, and the steps carry the change ID and literal prose only; no digest reaches them.
+
+43. A draft whose affected modules have substantive lessons, or whose project names a principles file, is asked which of those constrain it once the rest of the interview is answered, and "none" is a complete answer stored in the stable scope. A draft with neither is not asked. A change that has left draft without that answer is not sent back to the interview. Re-answering affected specs clears the answer. A selected plan is incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted each contain substantive text. A change that did not select a plan does not gain one. Opening, showing, or asking status computes a briefing of those lessons and of that principles file. The excerpt is bounded, a scaffold-only context is omitted, and an unreadable file does not fail the command.
 
 ## Behavioral Examples
 
@@ -300,6 +307,14 @@ Acceptance Criteria
 - **Given** an existing-change mutation blocked on the lifecycle project lock
 - **When** the correction ledger becomes invalid before that mutation acquires the lock
 - **Then** the mutation reloads and validates the ledger under lock, fails safely, and persists no lifecycle update
+
+**Scenario: A draft is shown what it should honor**
+
+- **Given** a draft whose affected module context holds substantive lessons, or a project that names a principles file
+- **When** the rest of the interview is answered
+- **Then** the remaining question is `constraints`, the answer "none" completes it, and the briefing names the lessons and the principles file
+- **And** a selected plan whose required headings have no substantive text is incomplete, while a change that did not select a plan is not given one
+- **And** a change that has left draft without a constraints answer is not returned to the interview
 
 ## Error Cases
 
@@ -493,3 +508,4 @@ Acceptance Criteria
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
 | 2026-09-09 | drop-interpolated-next-action-from-v1-verifying-assert-messages-so-codeql-cleartext-logging-is-not-a-required-check: Drop interpolated next_action from v1 verifying assert messages so CodeQL cleartext-logging is not a required-check failure |
 | 2026-09-26 | lifecycle-commits-stage-only-what-the-change-owns-never-every-untracked-file: Lifecycle commits stage only what the change owns, never every untracked file |
+| 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |

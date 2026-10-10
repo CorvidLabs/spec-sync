@@ -310,3 +310,13 @@ Acceptance Criteria
 - Unmerged entries are not staged, so an unresolved conflict still stops the commit instead of being recorded as resolved.
 - `check --commit` makes no commit unless its first verification passes. When the re-verification against the committed tree fails, the materialize commit stays on the branch, and the error names that commit and the command that resumes.
 
+### REQ-cmd-change-018
+
+`change new`, `change status`, and `change show` SHALL render the open-change briefing in text and in JSON. `change finalize` and `change ship` SHALL name the lesson-bundle path in text and in JSON. Their next action SHALL remain the merge instruction, so merging SHALL NOT wait on copying lessons into the spec.
+
+Acceptance Criteria
+- The structured result of new, status, and show includes the same briefing the text result prints.
+- Finalize and ship text name the bundle path on a line other than the next action.
+- The next action of ship, when the change is ready and no sibling changes remain, is still the merge instruction.
+- JSON for finalize and ship keeps `lesson_bundle`.
+

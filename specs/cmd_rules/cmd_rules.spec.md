@@ -1,6 +1,6 @@
 ---
 module: cmd_rules
-version: 2
+version: 3
 status: stable
 files:
   - src/commands/rules.rs
@@ -40,6 +40,8 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 4. Each custom rule displays name, severity (color-coded), type, and optional section/pattern/min_words/applies_to/message fields
 5. Severity colors: error → red, warning → yellow, info → blue
 
+6. When the SDD policy names a principles file, the command also names that file and says a lesson becomes a standing rule only when a person writes it there. When no file is configured, the command says so. The command does not create or rewrite the file.
+
 ## Behavioral Examples
 
 **Scenario: No custom rules defined**
@@ -53,6 +55,18 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 - **Given** a custom rule with `appliesTo: { status: "stable", module: "^auth" }`
 - **When** `specsync rules` runs
 - **Then** the rule shows `applies_to: status=stable, module=/^auth/`
+
+**Scenario: Principles file is named**
+
+- **Given** `.specsync/sdd.json` sets `principles_file`
+- **When** `specsync rules` runs
+- **Then** the output names that file and says a lesson becomes a standing rule only when a person writes it there
+
+**Scenario: No principles file**
+
+- **Given** the SDD policy does not set `principles_file`
+- **When** `specsync rules` runs
+- **Then** the output says no standing principles file is configured and still lists the built-in rules
 
 ## Error Cases
 
@@ -82,3 +96,4 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 |------|--------|
 | 2026-04-10 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
+| 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |

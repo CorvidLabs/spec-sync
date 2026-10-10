@@ -4,6 +4,14 @@ spec: manifest.spec.md
 
 ## Key Decisions
 
+- **Private responsibility modules**: The facade retains the existing public types, discovery
+  entry points, fixed parser order and merge priority. Private ecosystem parsers share retained
+  access and native identity primitives. Gradle orchestration delegates to private access, syntax
+  and guard owners without changing the semantic pipeline or literal interpretation.
+- **Owner-local tests**: Existing regressions and platform helpers move into topical child modules.
+  Restricted internal seams preserve the original API surface and all security checks; files are
+  divided by ownership rather than splitting function bodies to meet line counts.
+
 - **Process-free parsing with structural Cargo security checks**: General metadata extraction remains string/regex based. MCP snapshot and confinement discovery parse bounded Cargo manifests with the in-process `toml` crate; no manifest discovery launches a process.
 - **Fixed parse order, merged results**: Parsers run in a fixed sequence; results are merged with first-module-name-wins on conflict. This keeps behavior deterministic across runs.
 - **Checked Gradle failure**: Missing ordinary manifests remain a normal skip. Present unreadable or malformed Gradle settings return `Err` from `discover_from_manifests_checked`; the checked path merges the exact single-read parse result, while the compatibility wrapper collapses failure to an empty result.
@@ -71,7 +79,10 @@ spec: manifest.spec.md
 
 ## Files to Read First
 
-- `src/manifest.rs` — Single-file module with a parser function per language ecosystem.
+- `src/manifest.rs` — Stable discovery/type facade with fixed parse and merge order.
+- `src/manifest/access.rs` and `identity.rs` — Shared retained capability, workspace accounting and native identity primitives.
+- `src/manifest/gradle.rs` — Gradle discovery/effective-directory orchestration; child modules own retained reads, syntax and executable-directive guards.
+- `src/manifest/cargo.rs`, `swift.rs`, `node.rs` and `simple_manifests.rs` — Ecosystem parser owners.
 
 ## Current Status
 

@@ -13,6 +13,9 @@ spec: manifest.spec.md
 
 ## Done
 
+- [x] Separate discovery, retained access/identity, ecosystem parsers and Gradle syntax/guards into private modules with unchanged behavior.
+- [x] Relocate existing regression tests and platform fixtures into topical owner-local files.
+
 - [x] Cargo.toml parser (packages, binaries, workspace members)
 - [x] Package.swift parser (targets with balanced paren extraction)
 - [x] build.gradle/build.gradle.kts parser (modules, Android detection)

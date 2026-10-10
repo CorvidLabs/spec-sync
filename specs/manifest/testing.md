@@ -82,3 +82,23 @@ rereview and hosted-Windows runtime remain pending.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
 - Treat all CHG-0063 amendment regressions, hosted-Windows runtime, independent rereviews,
   repository/CI, trust, and Attest evidence as pending until rerun on the final tree.
+
+## Private Module Refactor Verification
+
+The stable manifest facade delegates to private ecosystem parsers, retained access/identity helpers,
+and Gradle orchestration, syntax, guards and bounded reads. Existing tests are grouped by owner.
+The refactor preserves fixed parser order and merge priority, complete parser bodies/literal bytes,
+all retained authority and accounting, and platform guards. `cargo test --locked manifest::` runs
+59 Linux tests; the Windows-only declaration remains present and needs native runtime qualification.
+Both descriptor-limit regressions retain their original subprocess test filters and execute their
+actual child tests beneath the 64-descriptor limit.
+
+Mechanical comparison covers all 180 original function/method/test bodies. Three relocated tests
+or helpers lose optional call commas under rustfmt; formatting both bodies in the same context
+preserves every body and literal byte. Two stable-path forwarding wrappers are reviewed separately.
+Historical whole-suite and Windows claims above are not qualification for this refactor.
+
+For this refactor, full unit results are 2338 passed / 192 failed and integration results are
+425 passed / 13 failed, with both failing-name sets exactly matching pristine main 815690d in
+this sandbox. Independent technical review has no remaining findings; this does not establish
+human implementation acceptance, hosted-Windows runtime or full trust qualification.

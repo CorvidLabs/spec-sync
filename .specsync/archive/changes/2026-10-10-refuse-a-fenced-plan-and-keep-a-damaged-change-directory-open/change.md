@@ -1,6 +1,6 @@
 ---
 id: refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open
-state: implementing
+state: archived
 type: bug_fix
 base_commit: d2448bbbfdabfe37e44aaaceb361d03c762af6c2
 ---

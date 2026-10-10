@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open",
+  "implementation_commit": "3b4262a2532bac958de636acabeb88e9fe2a7589",
+  "implementation_tree": "433ba26f8c928577d9fcf0de6c1f4d43cb33fd98",
+  "contract_digest": "7d6d40de590452573ffd938812cc30a713071e41b2aebdaa65d9474cb548df8d",
+  "workspace_digest": "2802114d4a71a5c9826617b779077f7187e0629c4831688fe90906838a897db6",
+  "closing_digest": "e47a347adb7853746f60b7cf1777cef0b0b24150598cfacfd9791a96ca7e5d8f",
+  "review_digest": "8ae2a8e66e8d71778c089b41fed057b8496855904aa5dffd1d8c5266a62bdfce",
+  "finalization_digest": "5dd9734c6c308cc41059cdcee68ed3ffcce2e919fa1db2564597cc981e8f979d",
+  "timestamp": 1791660878
+}

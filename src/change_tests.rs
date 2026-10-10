@@ -19348,8 +19348,8 @@ fn lifecycle_commit_scope_names_exactly_what_the_change_owns() {
         "specs/auth/auth.spec.md".to_string(),
     ];
     expected.extend(
-        CANONICAL_SPEC_COMPANIONS
-            .iter()
+        canonical_companion_names("auth")
+            .into_iter()
             .map(|companion| format!("specs/auth/{companion}")),
     );
     expected.sort();
@@ -19815,6 +19815,53 @@ fn open_change_briefing_names_a_configured_principles_file() {
             .iter()
             .any(|question| question.id == "constraints")
     );
+}
+
+// Verifies REQ-change-106.
+#[test]
+fn a_module_3md_file_shows_later_planes_as_lessons_and_leaves_context_md() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("specs/auth/context.md"),
+        "---\nspec: auth.spec.md\n---\n\nThis context.md lesson must stay hidden once the module moves.\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/auth/auth.3md"),
+        "---\n3md: 1.0\naxis: layers\n---\n@plane z=5 label=\"Context\"\nThe retry budget is a decision, not a lesson.\n\n@plane z=1 label=\"Lessons\"\nDo not say to merge while a change is still open.\n",
+    )
+    .unwrap();
+    let mut record = interview_complete_bugfix(root, "auth");
+    record.affected_specs = vec!["auth".into()];
+
+    let briefing = open_change_briefing(root, &record);
+    assert_eq!(briefing.lessons.len(), 1);
+    assert_eq!(briefing.lessons[0].path, "specs/auth/auth.3md");
+    assert!(briefing.lessons[0].excerpt.contains("Do not say to merge"));
+    assert!(!briefing.lessons[0].excerpt.contains("context.md lesson"));
+    assert!(!briefing.lessons[0].excerpt.contains("retry budget"));
+    assert_eq!(
+        accumulated_lessons(root, &["auth".to_string()]),
+        vec![("specs/auth/auth.3md".to_string(), 1)]
+    );
+    assert_eq!(
+        lesson_fold_targets(root, &record.id),
+        vec!["specs/auth/auth.3md".to_string()]
+    );
+    let archive = root.join("bundle");
+    fs::create_dir_all(&archive).unwrap();
+    write_lesson_bundle(root, &record, &archive).unwrap();
+    let bundle = fs::read_to_string(archive.join(LESSON_BUNDLE_FILE)).unwrap();
+    assert!(bundle.contains("specs/auth/auth.3md"), "{bundle}");
+    assert!(!bundle.contains("specs/auth/context.md"), "{bundle}");
+
+    fs::write(root.join("specs/auth/auth.3md"), "this is not 3md\n").unwrap();
+    let fallback = open_change_briefing(root, &record);
+    assert_eq!(fallback.lessons.len(), 1);
+    assert_eq!(fallback.lessons[0].path, "specs/auth/context.md");
+    assert!(fallback.lessons[0].excerpt.contains("context.md lesson"));
 }
 
 // Verifies REQ-change-106.

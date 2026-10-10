@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-3md-files-from-being-classified-as-roff",
+  "implementation_commit": "3ad7b3ed4114e83d6f3084a5aaf4fc7d16f566c4",
+  "implementation_tree": "89d95714e56af8c0e6e56a72ff784e0fb108a0f6",
+  "contract_digest": "da64c93098c4cca395369ffb426712f37290959b8510fd5bfaa7cecfb80e4a35",
+  "workspace_digest": "b8070640477871aa3a8e7937561d7bf30c72acc40207a6ca57259cb9b6e1c031",
+  "closing_digest": "30d8440d4f6780803cb7730bc1c774072097d4afedfff5f535502bdfb46a69ae",
+  "review_digest": "a1c7a066d9df36d29acfc49e95321edb42369bc22981aafcb12abc57d02cf65c",
+  "finalization_digest": "4e22e20c0078f6363afe4c5dcb6ba9bd440638792303ad623d04b1a41341778e",
+  "timestamp": 1791666156
+}

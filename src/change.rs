@@ -69,6 +69,20 @@ const CANONICAL_SPEC_COMPANIONS: [&str; 5] = [
     "testing.md",
     "design.md",
 ];
+
+/// Companion names for one module, including its optional `<module>.3md`.
+///
+/// The 3md file is named after the module, so it cannot live in the fixed list
+/// above. `change check --commit` stages these paths. Leaving the 3md file off
+/// the list left a new lesson file untracked.
+fn canonical_companion_names(module: &str) -> Vec<String> {
+    let mut names: Vec<String> = CANONICAL_SPEC_COMPANIONS
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect();
+    names.push(format!("{module}.3md"));
+    names
+}
 static EFFECTIVE_CONTRACT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static TRUSTED_CORRECTION_HISTORY_CACHE: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
 static GIT_BLOB_CACHE: OnceLock<Mutex<BTreeMap<String, Vec<u8>>>> = OnceLock::new();
@@ -6838,16 +6852,62 @@ pub(crate) fn configured_principles_file(root: &Path) -> Result<Option<String>, 
 pub(crate) fn accumulated_lessons(root: &Path, modules: &[String]) -> Vec<(String, usize)> {
     let mut found = Vec::new();
     for module in modules {
-        let relative = module_context_path(root, module);
-        let Ok(text) = fs::read_to_string(root.join(&relative)) else {
+        let Some((relative, substantive)) = module_lesson_lines(root, module) else {
             continue;
         };
-        let substantive = context_substantive_lines(module, &text);
         if !substantive.is_empty() {
             found.push((relative, substantive.len()));
         }
     }
     found
+}
+
+/// `specs/<module>/<module>.3md` when the spec directory is known.
+///
+/// The spec itself stays `<module>.spec.md`. This file is the optional place
+/// for context and lessons, and it is plain text.
+fn module_layers_path(root: &Path, module: &str) -> String {
+    let specs_dir = crate::config::load_config(root).specs_dir;
+    if let Ok((spec, _)) = canonical_module_paths(root, &specs_dir, module)
+        && let Some(directory) = spec.parent()
+    {
+        return portable_project_path(root, &directory.join(format!("{module}.3md")));
+    }
+    let specs_dir = specs_dir.trim_matches('/');
+    format!("{specs_dir}/{module}/{module}.3md")
+}
+
+/// Lesson lines for one module, and the file they came from.
+///
+/// A `<module>.3md` file means the module has moved. The first plane in the
+/// file is context. Every plane after it is a lesson, in the order written,
+/// whatever `z` says. Until that file exists, or when it cannot be parsed,
+/// `context.md` is the lesson source. This must not fail a lifecycle command.
+fn module_lesson_lines(root: &Path, module: &str) -> Option<(String, Vec<String>)> {
+    let layers = module_layers_path(root, module);
+    if root.join(&layers).is_file()
+        && let Ok(text) = fs::read_to_string(root.join(&layers))
+        && let Ok(document) = threemd::parse(&text)
+    {
+        let mut lines = Vec::new();
+        for plane in document.planes.into_iter().skip(1) {
+            lines.extend(context_substantive_lines(module, &plane.body));
+        }
+        return Some((layers, lines));
+    }
+    let relative = module_context_path(root, module);
+    let text = fs::read_to_string(root.join(&relative)).ok()?;
+    Some((relative, context_substantive_lines(module, &text)))
+}
+
+/// The file a module's lessons are folded into.
+fn lesson_file_for_module(root: &Path, module: &str) -> String {
+    let layers = module_layers_path(root, module);
+    if root.join(&layers).is_file() {
+        layers
+    } else {
+        module_context_path(root, module)
+    }
 }
 
 /// How much of a lesson or principles file the open-change briefing quotes.
@@ -6889,11 +6949,9 @@ pub(crate) struct OpenChangeBriefing {
 pub(crate) fn open_change_briefing(root: &Path, record: &ChangeRecord) -> OpenChangeBriefing {
     let mut lessons = Vec::new();
     for module in &record.affected_specs {
-        let relative = module_context_path(root, module);
-        let Ok(text) = fs::read_to_string(root.join(&relative)) else {
+        let Some((relative, substantive)) = module_lesson_lines(root, module) else {
             continue;
         };
-        let substantive = context_substantive_lines(module, &text);
         if substantive.is_empty() {
             continue;
         }
@@ -7004,7 +7062,7 @@ pub(crate) fn lesson_fold_targets(root: &Path, id: &str) -> Vec<String> {
             record
                 .affected_specs
                 .iter()
-                .map(|module| module_context_path(root, module))
+                .map(|module| lesson_file_for_module(root, module))
                 .collect()
         })
         .unwrap_or_default()
@@ -7065,7 +7123,7 @@ pub(crate) fn lifecycle_commit_scope(
         let (spec, _) = canonical_module_paths(root, &specs_dir, module)?;
         owned.insert(portable_project_path(root, &spec));
         if let Some(directory) = spec.parent() {
-            for companion in CANONICAL_SPEC_COMPANIONS {
+            for companion in canonical_companion_names(module) {
                 owned.insert(portable_project_path(root, &directory.join(companion)));
             }
         }
@@ -7100,7 +7158,7 @@ fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Re
     let mut out = String::new();
     out.push_str(&format!("# Lesson bundle — {}\n\n", record.id));
     out.push_str(
-        "Material for folding this change's lessons into the affected specs' `context.md`.\n\
+        "Material for folding this change's lessons into each affected module's lesson file.\n\
          Synthesise from what actually happened below; do not restate the change description.\n\n",
     );
 
@@ -7166,7 +7224,7 @@ fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Re
         );
     } else {
         for module in &record.affected_specs {
-            out.push_str(&format!("- `specs/{module}/context.md`\n"));
+            out.push_str(&format!("- `{}`\n", lesson_file_for_module(root, module)));
         }
     }
 
@@ -13068,7 +13126,7 @@ fn acceptance_input_owners(
             .ok_or_else(|| format!("canonical spec path has no parent: {}", spec_path.display()))?;
         let canonical_owned = relative == spec_relative
             || relative == strict_portable_project_path(root, &requirements_path)?
-            || CANONICAL_SPEC_COMPANIONS.iter().any(|name| {
+            || canonical_companion_names(module).iter().any(|name| {
                 strict_portable_project_path(root, &parent.join(name))
                     .is_ok_and(|path| path == relative)
             });
@@ -18350,7 +18408,7 @@ fn record_covers_project_path(root: &Path, record: &ChangeRecord, path: &str) ->
                     return true;
                 }
                 spec_path.parent().is_some_and(|parent| {
-                    CANONICAL_SPEC_COMPANIONS
+                    canonical_companion_names(module)
                         .iter()
                         .any(|name| path == portable_project_path(root, &parent.join(name)))
                 })

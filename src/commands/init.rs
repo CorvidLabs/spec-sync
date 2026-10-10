@@ -197,6 +197,11 @@ fn execute_init(root: &Path, repair: bool) -> Result<InitReport, Box<InitReport>
         Ok(false) => {}
         Err(error) => warnings.push(error),
     }
+    match ensure_3md_linguist_attribute(root) {
+        Ok(true) => restored.push(".gitattributes linguist rule (*.3md)".to_string()),
+        Ok(false) => {}
+        Err(error) => warnings.push(error),
+    }
 
     Ok(InitReport {
         command: "init",
@@ -511,6 +516,11 @@ fn repair_layout(
         Ok(false) => {}
         Err(e) => warnings.push(e),
     }
+    match ensure_3md_linguist_attribute(root) {
+        Ok(true) => restored.push(".gitattributes linguist rule (*.3md)".to_string()),
+        Ok(false) => {}
+        Err(error) => warnings.push(error),
+    }
 
     Ok(InitReport {
         command: "init",
@@ -665,10 +675,115 @@ pub fn ensure_hashes_gitignored(root: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
+const THREE_MD_LINGUIST_RULE: &str = "\
+# .3md is Markdown with a Z axis. GitHub Linguist treats a leading dot as a
+# troff macro and .3* names as man pages, so these files show up as Roff.
+# The Markdown preview also joins a single newline into a space and glues the
+# planes into one paragraph. Plain text keeps each plane on its own line.
+*.3md linguist-language=Text
+";
+
+/// Append the Linguist rule that keeps `*.3md` from being classified as Roff.
+///
+/// Returns `Ok(true)` when the rule was added, `Ok(false)` when a `*.3md`
+/// language rule is already present. A symlinked `.gitattributes` is refused.
+fn ensure_3md_linguist_attribute(root: &Path) -> Result<bool, String> {
+    let path = root.join(".gitattributes");
+    let existing = match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(
+                "Refusing to update symlinked .gitattributes; add *.3md linguist-language=Text manually"
+                    .to_string(),
+            );
+        }
+        Ok(metadata) if !metadata.is_file() => {
+            return Err(
+                "Refusing to update .gitattributes because it is not a regular file".to_string(),
+            );
+        }
+        Ok(_) => {
+            fs::read(&path).map_err(|error| format!("Failed to read .gitattributes: {error}"))?
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(format!("Failed to inspect .gitattributes: {error}")),
+    };
+    if gitattributes_has_3md_linguist(&existing) {
+        return Ok(false);
+    }
+
+    let mut addition = Vec::new();
+    if !existing.is_empty() {
+        if !existing.ends_with(b"\n") {
+            addition.push(b'\n');
+        }
+        addition.push(b'\n');
+    }
+    addition.extend_from_slice(THREE_MD_LINGUIST_RULE.as_bytes());
+
+    let mut options = fs::OpenOptions::new();
+    options.write(true);
+    if existing.is_empty() && !path.exists() {
+        options.create_new(true);
+    } else {
+        options.append(true);
+    }
+    options
+        .open(&path)
+        .and_then(|mut file| file.write_all(&addition))
+        .map_err(|error| format!("Failed to update .gitattributes: {error}"))?;
+    Ok(true)
+}
+
+fn gitattributes_has_3md_linguist(content: &[u8]) -> bool {
+    content.split(|byte| *byte == b'\n').any(|line| {
+        let line = trim_ascii_whitespace(line);
+        if line.first() == Some(&b'#') {
+            return false;
+        }
+        let line = String::from_utf8_lossy(line);
+        line.contains("*.3md") && line.contains("linguist-language")
+    })
+}
+
+fn trim_ascii_whitespace(bytes: &[u8]) -> &[u8] {
+    let start = bytes
+        .iter()
+        .position(|byte| !byte.is_ascii_whitespace())
+        .unwrap_or(bytes.len());
+    let end = bytes
+        .iter()
+        .rposition(|byte| !byte.is_ascii_whitespace())
+        .map(|index| index + 1)
+        .unwrap_or(start);
+    &bytes[start..end]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn adds_3md_linguist_rule_to_missing_gitattributes() {
+        let tmp = TempDir::new().unwrap();
+        assert!(ensure_3md_linguist_attribute(tmp.path()).unwrap());
+        let content = fs::read_to_string(tmp.path().join(".gitattributes")).unwrap();
+        assert!(content.contains("*.3md linguist-language=Text"));
+    }
+
+    #[test]
+    fn keeps_an_existing_3md_linguist_rule() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(
+            tmp.path().join(".gitattributes"),
+            "*.3md linguist-language=Markdown\n",
+        )
+        .unwrap();
+        assert!(!ensure_3md_linguist_attribute(tmp.path()).unwrap());
+        let content = fs::read_to_string(tmp.path().join(".gitattributes")).unwrap();
+        assert_eq!(content.matches("linguist-language").count(), 1);
+        assert!(content.contains("Markdown"));
+    }
 
     #[test]
     fn adds_entry_to_missing_gitignore() {

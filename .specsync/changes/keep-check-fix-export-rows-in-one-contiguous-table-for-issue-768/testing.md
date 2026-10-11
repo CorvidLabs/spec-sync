@@ -17,7 +17,7 @@ artifact: testing
 ## Planned gates
 Focused integration fix suite; fledge lanes run verify; fledge lanes run pre-push; fledge trust verify; Attest only after successful verification. Record actual results before handoff.
 
-## Current verification results
+## Initial verification results (historical)
 - Initial regression failed on unchanged main implementation; /tmp/specsync-768-red.log.
 - Final focused fix suite: 25 passed, including nine multi-table layout/header cases; /tmp/specsync-768-focused.log.
 - Pre-push gate passed: formatting, types, source-built strict validation; 62 specs, zero warnings, 121/121 source files covered; /tmp/specsync-768-pre-push.log.
@@ -28,7 +28,7 @@ Focused integration fix suite; fledge lanes run verify; fledge lanes run pre-pus
 - Trust gate passed with progressive/degraded provenance; Attest policy is unsatisfied because full verification did not pass. No tests-passed attestation was recorded.
 - Persistent logs: /home/parallels/repos/spec-sync-768-evidence/.
 
-## Lifecycle limit
+## Initial lifecycle status before human scope approval
 The scope definition is complete but unapproved. Scope approval, scoped check/commit evidence, human review, finalization, publication and merge remain pending. `change audit` does not count this draft as approved delivery coverage. No human approval or acceptance was fabricated.
 
 ## Matched diagnosis and resolved local failures
@@ -42,3 +42,10 @@ The first shared-target comparison was invalidated because Cargo reused the base
 Read-only monitoring observed transient empty `/tmp/.git` directories. After testing ended, two controlled harmless sandboxed commands each created then removed that marker for roughly 60ms. A fixture without an ancestor marker succeeded; adding an empty ancestor `.git` reproduced the Git-detection error. Lifecycle source is byte-identical between the two commits. This explains why parallel reads through the sandbox could interfere with temporary-project tests; it is not a case-1 source regression. No shared Git configuration or security setting was modified. Future qualification uses a private TMPDIR outside /tmp.
 
 Detailed logs and exact failing-test sets: `/home/parallels/repos/spec-sync-768-evidence/comparison.json`, `verified-matched/`, `serial/`, `ancestor-marker-probe.json`, and `sandbox-marker-probe.jsonl`.
+
+## Final local qualification after diagnosis
+`TMPDIR=/home/parallels/repos/spec-sync-768-evidence/scratch CARGO_NET_OFFLINE=true fledge lanes run verify` passed all six lane steps: formatting, lint and types; 2543 unit tests; 439 integration tests; release build; strict spec validation; 52 release-candidate validator tests; and 29 CI-gate validator tests. Strict validation covers 62 specs with zero warnings and 121/121 source files. Log: `/home/parallels/repos/spec-sync-768-evidence/final-verify-scratch.log`.
+
+A preliminary private directory named `test-tmp` exposed a generator test that checks the full path for the word `test`. The exact test failed under that path on both clean main and this fix, and passed on both with the path renamed to `scratch`. Only the per-command environment changed; generator source and global settings were not changed. The complete corrected lane then passed.
+
+The user has now approved the bounded case-1 scope and conditional draft publication. Supported lifecycle approval and scoped verification are recorded. Human implementation review, acceptance/finalization, and merge remain pending. Confidence is supported by the focused red/green regression, matched baseline controls, and full local qualification; no numerical probability guarantee is asserted.

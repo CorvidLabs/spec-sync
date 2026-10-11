@@ -2543,6 +2543,82 @@ fn generate_cargo_library_after_init_binds_crate_root_in_every_cli_mode() {
 }
 
 #[test]
+fn generate_cargo_same_name_module_keeps_the_crate_root() {
+    for module in ["src/utils/mod.rs", "src/utils.rs"] {
+        for args in [vec![], vec!["--json"], vec!["--batch", "utils"]] {
+            let tmp = TempDir::new().unwrap();
+            let root = tmp.path();
+            fs::create_dir_all(root.join(module).parent().unwrap()).unwrap();
+            fs::write(root.join("Cargo.toml"), "[package]\nname = \"utils\"\nversion = \"0.1.0\"\n").unwrap();
+            fs::write(root.join("src/lib.rs"), "pub mod utils;\npub fn library() {}\n").unwrap();
+            fs::write(root.join(module), "pub fn helper() {}\n").unwrap();
+            specsync().args(["init", "--root"]).arg(root).assert().success();
+            specsync().arg("generate").args(&args).arg("--root").arg(root).assert().success();
+            let content = fs::read_to_string(root.join("specs/utils/utils.spec.md")).unwrap();
+            for file in ["src/lib.rs", module] {
+                assert!(content.contains(&format!("  - {file}")), "{content}");
+            }
+            assert!(content.contains("`library`"), "{content}");
+            specsync().args(["coverage", "--require-coverage", "100", "--json", "--root"]).arg(root).assert().success();
+        }
+    }
+}
+
+#[test]
+fn generate_cargo_explicit_binary_paths_keep_exact_owners() {
+    for (package, target) in [("demo", "src/foo.rs"), ("demo", "src/demo.rs"), ("server", "src/foo.rs"), ("demo", "tools/server/main.rs"), ("demo", "src/bin/server.rs")] {
+        for args in [vec![], vec!["--json"]] {
+            let tmp = TempDir::new().unwrap();
+            let root = tmp.path();
+            fs::create_dir_all(root.join("src")).unwrap();
+            fs::create_dir_all(root.join(target).parent().unwrap()).unwrap();
+            fs::write(root.join("Cargo.toml"), format!("[package]\nname = \"{package}\"\nversion = \"0.1.0\"\n[[bin]]\nname = \"server\"\npath = \"{target}\"\n")).unwrap();
+            fs::write(root.join("src/lib.rs"), "pub fn library() {}\n").unwrap();
+            fs::write(root.join(target), "fn main() {}\npub fn serve() {}\n").unwrap();
+            specsync().args(["init", "--root"]).arg(root).assert().success();
+            specsync().arg("generate").args(&args).arg("--root").arg(root).assert().success();
+            let server = fs::read_to_string(root.join("specs/server/server.spec.md")).unwrap();
+            assert!(server.contains(&format!("  - {target}")), "{server}");
+            if package != "server" {
+                assert!(!server.contains("  - src/lib.rs"), "{server}");
+                let library = fs::read_to_string(root.join(format!("specs/{package}/{package}.spec.md"))).unwrap();
+                assert!(library.contains("  - src/lib.rs"), "{library}");
+                assert!(!library.contains(target), "{library}");
+            } else {
+                assert!(server.contains("  - src/lib.rs"), "{server}");
+            }
+            assert!(!root.join("specs/foo").exists());
+            assert!(!root.join("specs/bin").exists());
+            specsync().args(["coverage", "--require-coverage", "100", "--json", "--root"]).arg(root).assert().success();
+        }
+    }
+}
+
+#[test]
+fn generate_cargo_batch_explicit_target_preserves_library_and_existing_owner() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir(root.join("src")).unwrap();
+    fs::write(root.join("Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[[bin]]\nname=\"server\"\npath=\"src/foo.rs\"\n").unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn library() {}\n").unwrap();
+    fs::write(root.join("src/foo.rs"), "fn main() {}\npub fn serve() {}\n").unwrap();
+    specsync().args(["init", "--root"]).arg(root).assert().success();
+    specsync().args(["generate", "--batch", "server", "--json", "--root"]).arg(root).assert().success();
+    let file = root.join("specs/server/server.spec.md");
+    let server = fs::read_to_string(&file).unwrap();
+    assert!(server.contains("  - src/foo.rs"), "{server}");
+    assert!(!server.contains("src/lib.rs"), "{server}");
+    assert!(!root.join("specs/demo").exists());
+    assert!(!root.join("specs/foo").exists());
+    specsync().args(["generate", "--json", "--root"]).arg(root).assert().success();
+    assert_eq!(server, fs::read_to_string(file).unwrap());
+    let demo = fs::read_to_string(root.join("specs/demo/demo.spec.md")).unwrap();
+    assert!(demo.contains("  - src/lib.rs"), "{demo}");
+    assert!(!demo.contains("src/foo.rs"), "{demo}");
+    specsync().args(["coverage", "--require-coverage", "100", "--json", "--root"]).arg(root).assert().success();
+}
+
+#[test]
 fn generate_cargo_binary_and_combined_roots_bind_discovered_entry_points() {
     for files in [vec!["src/main.rs"], vec!["src/lib.rs", "src/main.rs"]] {
         let tmp = TempDir::new().unwrap();

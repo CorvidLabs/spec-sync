@@ -1,6 +1,6 @@
 ---
 id: bind-discovered-cargo-crate-sources-during-generation
-state: archived
+state: verifying
 type: bug_fix
 base_commit: 9003fad7ec4dea3938179d076248b48f29b6ed48
 ---

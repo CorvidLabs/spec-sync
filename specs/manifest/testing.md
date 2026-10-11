@@ -82,3 +82,7 @@ rereview and hosted-Windows runtime remain pending.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
 - Treat all CHG-0063 amendment regressions, hosted-Windows runtime, independent rereviews,
   repository/CI, trust, and Attest evidence as pending until rerun on the final tree.
+
+## Cargo target identity review regressions (#813)
+
+Cover same-name directory and flat source modules, arbitrary explicit binary files, a target sharing its package name, nested target roots and workspace prefixes. Exact target ownership must not be duplicated by package or guessed filename specs.

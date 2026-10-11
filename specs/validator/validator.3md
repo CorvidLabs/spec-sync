@@ -111,3 +111,6 @@ degrading safe and made a notice mandatory.
 
 @plane z=6 label="Cargo generation binding (#813)"
 Manifest discovery already supplies source roots for module attribution. Retain that mapping in CoverageReport so generation can use the same observation instead of reparsing a manifest. The same configured-source degradation and retained-root safety boundaries continue to govern discovery.
+
+@plane z=7 label="Cargo review corrections (#813)"
+Manifest source mappings may be exact files as well as directories. Index both kinds against measured ownership and suppress guessed filename aliases for explicitly named targets.

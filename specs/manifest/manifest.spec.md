@@ -29,7 +29,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 
 | Struct | Fields | Description |
 |--------|--------|-------------|
-| `ManifestModule` | `name: String`, `source_paths: Vec<String>`, `dependencies: Vec<String>` | A module/target discovered from a manifest file |
+| `ManifestModule` | `name: String`, `source_paths: Vec<String>`, `dependencies: Vec<String>` | A module/target discovered from a manifest file; source paths are directories or exact Cargo binary files |
 | `ManifestDiscovery` | `modules: HashMap<String, ManifestModule>`, `source_dirs: Vec<String>` | Aggregated result of parsing all manifest files in a project |
 | `GradleSettingsModule` | `name: String`, `path: String` | Crate-visible normalized Gradle module identity and effective project directory |
 
@@ -105,6 +105,8 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
     retained workspace base, and consumes child manifests/source probes only from identity-matching
     capabilities. Each verified base listing is released before the next distinct base, so
     swap/read/restore cannot mix generations and neither sibling nor base breadth exhausts handles.
+
+20. Cargo binary targets retain exact source files separately from scan directories; a same-name target extends the package source paths.
 
 ## Behavioral Examples
 
@@ -209,6 +211,12 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 - **Then** interpolation is rejected as dynamic and decoded traversal is rejected before partial
   discovery, source probing, or generation
 
+### Scenario: Cargo target path differs from its name
+
+- **Given** package `demo` and binary `server` with `path = "src/foo.rs"`
+- **When** checked manifest discovery runs
+- **Then** `server` carries `src/foo.rs`; `src` remains a source scan directory. A binary named `demo` retains both the package root and its target file.
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -250,6 +258,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 
 | Date | Change |
 |------|--------|
+| 2026-10-11 | #813 review: Preserve exact Cargo binary target files and merge same-name package roots. |
 | 2026-10-10 | Add `manifest.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-28 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

@@ -189,6 +189,24 @@ regex = "1.0"
     }
 
     #[test]
+    fn cargo_binary_target_paths_remain_exact_and_merge_same_name_package_roots() {
+        let tmp = tempdir().unwrap();
+        fs::write(tmp.path().join("Cargo.toml"), "[package]\nname=\"server\"\nversion=\"0.1.0\"\n[[bin]]\nname=\"server\"\npath=\"src/foo.rs\"\n[[bin]]\nname=\"other\"\npath=\"tools/entry.rs\"\n").unwrap();
+        let discovery = parse_cargo_toml(tmp.path()).unwrap();
+        assert_eq!(discovery.modules["server"].source_paths, ["src", "src/foo.rs"]);
+        assert_eq!(discovery.modules["other"].source_paths, ["tools/entry.rs"]);
+        assert!(discovery.source_dirs.contains(&"src".into()));
+        assert!(discovery.source_dirs.contains(&"tools".into()));
+
+        fs::create_dir_all(tmp.path().join("crates/demo")).unwrap();
+        fs::write(tmp.path().join("Cargo.toml"), "[workspace]\nmembers=[\"crates/demo\"]\n").unwrap();
+        fs::write(tmp.path().join("crates/demo/Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[[bin]]\nname=\"server\"\npath=\"bin/entry.rs\"\n").unwrap();
+        let discovery = parse_cargo_toml(tmp.path()).unwrap();
+        assert_eq!(discovery.modules["server"].source_paths, ["crates/demo/bin/entry.rs"]);
+        assert_eq!(discovery.modules["demo"].source_paths, ["crates/demo/src"]);
+    }
+
+    #[test]
     fn cargo_workspace_traversal_charges_declarations_and_memoizes_completed_members() {
         let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
         access.texts.insert(

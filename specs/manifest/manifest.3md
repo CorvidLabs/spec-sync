@@ -132,3 +132,6 @@ fix caught this un-anticipated instance: the adopter got a notice naming the fil
 fallback, and the consequence, instead of a blocked run. When a parser fix and a precedence fix are
 both available, the precedence fix is worth more, because it contains the instances you have not
 thought of yet.
+
+@plane z=7 label="Cargo review corrections (#813)"
+Cargo target ownership needs the declared file, while traversal needs its parent. Collapsing both into a directory loses the target identity and can bind a binary to a library. Merge same-name targets with package roots instead of overwriting them.

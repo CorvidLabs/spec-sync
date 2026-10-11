@@ -46,3 +46,6 @@ appeared the instant stripping failed on CRLF — two defects where either alone
 
 @plane z=4 label="Cargo generation binding (#813)"
 Cargo package names do not identify source filenames. Carry manifest source roots from checked coverage into every generation entry point, intersect them with uncovered files, and preserve more specific named bindings even when batch selection narrows the candidate list. Test init then generate on a real fresh crate; a mature repository with authored specs cannot expose this bootstrap failure.
+
+@plane z=5 label="Cargo review corrections (#813)"
+A conventional module and a manifest crate with the same name are one owner: combine their measured files. An exact manifest target must outrank a guessed filename owner, while explicit configuration keeps precedence.

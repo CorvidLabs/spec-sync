@@ -28,7 +28,7 @@ fn gradle_read_only_nofollow_options() -> OpenOptions {
 pub struct ManifestModule {
     /// Module/target name.
     pub name: String,
-    /// Source paths relative to project root. Coverage reads these to decide
+    /// Source directories or exact target files relative to project root. Coverage reads these to decide
     /// whether a manifest module's files are already mapped by some spec,
     /// whatever that spec is named.
     pub source_paths: Vec<String>,
@@ -942,14 +942,15 @@ fn parse_cargo_toml_with_access_inner(
                 .parent()
                 .unwrap_or_else(|| Path::new("src"));
             let dir = manifest_path_text(&relative_root.join(local_dir), "Cargo binary source")?;
-            discovery.modules.insert(
-                name.clone(),
-                ManifestModule {
-                    name,
-                    source_paths: vec![dir.clone()],
-                    dependencies: Vec::new(),
-                },
-            );
+            let target = manifest_path_text(&relative_root.join(path), "Cargo binary target")?;
+            let module = discovery.modules.entry(name.clone()).or_insert_with(|| ManifestModule {
+                name,
+                source_paths: Vec::new(),
+                dependencies: Vec::new(),
+            });
+            if !module.source_paths.contains(&target) {
+                module.source_paths.push(target);
+            }
             if !discovery.source_dirs.contains(&dir) {
                 discovery.source_dirs.push(dir);
             }

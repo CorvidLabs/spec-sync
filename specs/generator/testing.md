@@ -25,3 +25,7 @@ spec: generator.spec.md
 | Captured manifest mapping | Change Cargo.toml after coverage | Library generation entry points use the captured mapping without rediscovery |
 
 Run `cargo test --test integration generate_cargo` and `cargo test generator::`. Preserve malformed-manifest, missing-module, and retained-root replacement regressions.
+
+## Cargo target identity review regressions (#813)
+
+Cover same-name directory and flat source modules, arbitrary explicit binary files, a target sharing its package name, nested target roots and workspace prefixes. Exact target ownership must not be duplicated by package or guessed filename specs.

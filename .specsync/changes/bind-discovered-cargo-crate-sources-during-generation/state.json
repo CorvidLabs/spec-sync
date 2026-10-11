@@ -7,11 +7,11 @@
   "title": "Bind discovered Cargo crate sources during generation",
   "description": "Bind discovered Cargo crate sources during generation",
   "kind": "bug_fix",
-  "state": "archived",
+  "state": "verifying",
   "canonical_applied": true,
   "base_commit": "9003fad7ec4dea3938179d076248b48f29b6ed48",
   "created_at": 1791728237,
-  "updated_at": 1791731315,
+  "updated_at": 1791733393,
   "affected_specs": [
     "generator",
     "validator",

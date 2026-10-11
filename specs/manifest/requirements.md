@@ -183,3 +183,12 @@ Acceptance Criteria
 - `src/manifest.rs` keeps its module docs and includes the rest in the original order.
 - No manifest source file exceeds 5,000 lines.
 
+
+### REQ-manifest-020
+
+Cargo discovery SHALL preserve exact binary target files independently from source scan directories and retain package roots when target and package names agree.
+
+Acceptance Criteria
+- server declared at src/foo.rs retains src/foo.rs as its source path, while src remains a scan directory.
+- A same-name package retains both its package source directory and exact binary target.
+- Workspace target paths remain relative to the overall retained project.

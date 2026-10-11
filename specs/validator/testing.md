@@ -91,3 +91,7 @@ cross-target previously compiled, but hosted-Windows runtime remains pending.
 | Manifest binding metadata | Checked coverage for a Cargo crate | Report retains module source roots from the same retained discovery used for attribution |
 
 Run `cargo test --test integration generate_cargo` and `cargo test generator::`. Preserve malformed-manifest, missing-module, and retained-root replacement regressions.
+
+## Cargo target identity review regressions (#813)
+
+Cover same-name directory and flat source modules, arbitrary explicit binary files, a target sharing its package name, nested target roots and workspace prefixes. Exact target ownership must not be duplicated by package or guessed filename specs.

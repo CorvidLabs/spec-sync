@@ -1,0 +1,43 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1791733230,
+      "digest": "f7e56edd7b83e468ec0a9476daebfef63659aabb935bdd884b8801454730cca7",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs",
+        "title": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "description": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "manifest"
+        ],
+        "affected_paths": [
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Explicit Cargo binary targets retain their exact source files and workspace prefixes, while a binary sharing its package name keeps the package source root. Generation binds same-name source modules together with crate roots and never assigns an explicit target to a library or guessed filename owner. Existing configured and spec ownership remain respected."
+        ],
+        "dependencies": [
+          "bind-discovered-cargo-crate-sources-during-generation"
+        ],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve retained bounded single-read discovery; no ambient Cargo reread during generation. Keep directory scanning roots separate from exact target ownership. This corrects two reproduced review defects within the user-approved issue #813 fix; full local validation and confidence above 95 percent are required before merge.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "manifest": "24686e40aa2fb0c39650303eb2c3040854d5ae10f6427b092c387e0058bb1c7c"
+      }
+    }
+  ],
+  "reopenings": []
+}

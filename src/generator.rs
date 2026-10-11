@@ -1194,12 +1194,21 @@ fn module_files_from_coverage(
     module_name: &str,
     config: &SpecSyncConfig,
 ) -> Vec<String> {
-    let named_files = named_module_files_from_coverage(report, module_name, config);
-    if !named_files.is_empty() {
-        return named_files;
+    let mut module_files = named_module_files_from_coverage(report, module_name, config);
+    if config.modules.contains_key(module_name) && !module_files.is_empty() {
+        return module_files;
     }
+    let other_manifest_paths: std::collections::HashSet<PathBuf> = report
+        .manifest_module_paths
+        .iter()
+        .filter(|(name, _)| name.as_str() != module_name)
+        .flat_map(|(_, paths)| paths)
+        .filter_map(|path| crate::validator::normalize_source_mapping(path))
+        .map(PathBuf::from)
+        .collect();
+    module_files.retain(|source| !other_manifest_paths.contains(Path::new(source)));
     let Some(source_paths) = report.manifest_module_paths.get(module_name) else {
-        return Vec::new();
+        return module_files;
     };
 
     // A manifest crate may span src/lib.rs and independently named modules.
@@ -1209,18 +1218,20 @@ fn module_files_from_coverage(
         .filter_map(|path| crate::validator::normalize_source_mapping(path))
         .map(PathBuf::from)
         .collect();
-    let mut module_files: Vec<String> = report
-        .unspecced_files
-        .iter()
-        .filter(|source| {
-            let source = Path::new(source);
-            source_paths.iter().any(|path| {
-                source.starts_with(path)
-                    && !has_more_specific_module_binding(source, path, module_name, config)
+    module_files.extend(
+        report
+            .unspecced_files
+            .iter()
+            .filter(|source| {
+                let source = Path::new(source);
+                source_paths.iter().any(|path| {
+                    source.starts_with(path)
+                        && !has_more_specific_module_binding(source, path, module_name, config)
+                        && !other_manifest_paths.contains(source)
+                })
             })
-        })
-        .cloned()
-        .collect();
+            .cloned(),
+    );
     module_files.sort();
     module_files.dedup();
     module_files
@@ -1241,6 +1252,10 @@ fn has_more_specific_module_binding(
         {
             return true;
         }
+    }
+    // An exact manifest target is more specific than a guessed file stem.
+    if source == manifest_root {
+        return false;
     }
     for root in &config.source_dirs {
         let root = if root == "." {
@@ -1281,6 +1296,8 @@ fn named_module_files_from_coverage(
     config: &SpecSyncConfig,
 ) -> Vec<String> {
     let mut module_files = Vec::new();
+    let uncovered_files: std::collections::HashSet<&str> =
+        report.unspecced_files.iter().map(String::as_str).collect();
 
     if let Some(module) = config.modules.get(module_name) {
         for configured in &module.files {
@@ -1322,8 +1339,10 @@ fn named_module_files_from_coverage(
             name != module_name
                 && report.unspecced_modules.contains(name)
                 && paths.iter().any(|path| {
-                    crate::validator::normalize_source_mapping(path)
-                        .is_some_and(|path| Path::new(&path).starts_with(&module_dir))
+                    crate::validator::normalize_source_mapping(path).is_some_and(|path| {
+                        !uncovered_files.contains(path.as_str())
+                            && Path::new(&path).starts_with(&module_dir)
+                    })
                 })
         }) {
             continue;

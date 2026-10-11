@@ -14,3 +14,5 @@ spec: generator.spec.md
 - [x] Companion files and safe no-overwrite behavior
 - [x] Remove provider parameters and AI error outcomes
 - [x] Bind CLI generation reads and writes to one retained project-root capability
+
+- [x] Correct same-name crate and exact Cargo target bindings from PR #814 review.

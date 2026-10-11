@@ -12632,7 +12632,21 @@ fn full_lifecycle_applies_contract_and_archives() {
     assert!(spec.contains("version: 1.0.1"));
     assert!(spec.contains("REQ-auth-001"));
     assert!(spec.contains(&record.id));
-    assert!(spec.contains(&format!("| 2026-01-01 | Initial |\n| {} |", today())));
+    // The row is dated when it is written. Comparing it to a second `today()`
+    // fails when the write and the assertion fall on opposite sides of midnight.
+    let spec_lf = spec.replace("\r\n", "\n");
+    let marker = "| 2026-01-01 | Initial |\n| ";
+    let row = spec_lf.split_once(marker).unwrap_or_else(|| {
+        panic!(
+            "changelog row was not appended after Initial:\n{}",
+            spec_lf.rsplit("## Change Log").next().unwrap_or(&spec_lf)
+        )
+    });
+    let date: String = row.1.chars().take(10).collect();
+    assert!(
+        date.len() == 10 && date.as_bytes()[4] == b'-' && date.as_bytes()[7] == b'-',
+        "changelog date {date:?} is not YYYY-MM-DD"
+    );
     let requirements = fs::read_to_string(root.join("specs/auth/requirements.md")).unwrap();
     assert!(requirements.contains("### REQ-auth-001"));
     git(&["add", "."]);

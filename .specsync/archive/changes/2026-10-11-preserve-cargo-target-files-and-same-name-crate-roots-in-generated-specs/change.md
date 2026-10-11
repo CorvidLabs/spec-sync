@@ -1,6 +1,6 @@
 ---
 id: preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs
-state: implementing
+state: archived
 type: bug_fix
 base_commit: dd6eb3ef03de075556554c05b27476839da5c40a
 ---

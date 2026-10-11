@@ -7,11 +7,11 @@
   "title": "Preserve Cargo target files and same-name crate roots in generated specs",
   "description": "Preserve Cargo target files and same-name crate roots in generated specs",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "dd6eb3ef03de075556554c05b27476839da5c40a",
   "created_at": 1791732764,
-  "updated_at": 1791757305,
+  "updated_at": 1791757339,
   "affected_specs": [
     "manifest"
   ],

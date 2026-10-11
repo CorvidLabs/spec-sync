@@ -72,6 +72,24 @@
       "requirement_ids": [
         "REQ-manifest-020"
       ]
+    },
+    {
+      "timestamp": 1791751163,
+      "commit": "a3ff443a86a6b5529546dcef3d934a344f31569e",
+      "contract_digest": "a8277ab3be2772b21d1f66db173c2421b41495fba181daed32fb0b839b4fd5bc",
+      "execution_digest": "f0a397341fc4e542c77e5874c8e50471f862137a77d4214370629832de36f291",
+      "workspace_digest": "190ea7702bad15b3500db56ff712c555e0db78d6b8d726d011628c6ad39edbfb",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec manifest",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-manifest-020"
+      ]
     }
   ]
 }

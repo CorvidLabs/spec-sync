@@ -2516,12 +2516,12 @@ fn artifact_template(root: &Path, artifact: &ArtifactKind, record: &ChangeRecord
     // artifact must still read as incomplete until an author writes something.
     let prompt = match artifact {
         ArtifactKind::Context => concat!(
-            "../<!-- What led here: the problem, and how it was noticed. -->\n\n",
+            "<!-- What led here: the problem, and how it was noticed. -->\n\n",
             "<!-- What a session picking this up mid-flight needs to know: constraints,\n",
             "     prior attempts, anything already ruled out. -->\n\n",
         ),
         ArtifactKind::Plan => concat!(
-            "../## Approach\n\n<!-- What you will do. -->\n\n",
+            "## Approach\n\n<!-- What you will do. -->\n\n",
             "## Out of scope\n\n<!-- What you will not do. -->\n\n",
             "## Steps\n\n<!-- The steps, in order. -->\n\n",
             "## Risks\n\n<!-- What could go wrong, or none. -->\n\n",

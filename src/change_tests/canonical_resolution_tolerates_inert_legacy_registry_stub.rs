@@ -3530,6 +3530,62 @@ fn a_plan_with_substantive_sections_is_complete() {
     assert!(!plan_sections_incomplete(mixed_case));
 }
 
+// Verifies REQ-change-105. The generated heading must be `## Approach`.
+// A path prefix left over from a file move makes the section invisible, so a
+// plan the author filled still fails approval.
+#[test]
+fn a_filled_generated_plan_template_passes_artifact_validation() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = interview_complete_bugfix(root, "auth");
+    let template = artifact_template(root, &ArtifactKind::Plan, &record);
+    assert!(
+        template.contains("\n## Approach\n"),
+        "generated plan heading was not recognized:\n{template}"
+    );
+    assert!(
+        !template.contains("../"),
+        "generated plan template gained a path prefix:\n{template}"
+    );
+    let context = artifact_template(root, &ArtifactKind::Context, &record);
+    assert!(
+        context.contains("<!-- What led here:"),
+        "generated context prompt was not recognized:\n{context}"
+    );
+    assert!(
+        !context.contains("../"),
+        "generated context template gained a path prefix:\n{context}"
+    );
+
+    let mut filled = template.replace(
+        "<!-- TODO: complete this artifact or remove it from selected_artifacts before approval. -->",
+        "",
+    );
+    for prose in [
+        "Do the work.",
+        "Leave unrelated work alone.",
+        "Land the change.",
+        "none",
+        "none",
+    ] {
+        let start = filled
+            .find("<!--")
+            .unwrap_or_else(|| panic!("generated plan is missing a section prompt:\n{filled}"));
+        let end = filled[start..]
+            .find("-->")
+            .unwrap_or_else(|| panic!("generated plan has an unclosed prompt:\n{filled}"));
+        filled.replace_range(start..start + end + 3, prose);
+    }
+    assert!(
+        !artifact_is_incomplete(&ArtifactKind::Plan, &filled),
+        "filled generated plan is still incomplete:\n{filled}"
+    );
+    let path = change_dir(root, &record.id).join(ArtifactKind::Plan.file_name());
+    fs::write(&path, &filled).unwrap();
+    validate_artifact_bodies(root, &record.id, &[ArtifactKind::Plan])
+        .unwrap_or_else(|error| panic!("{error}\n{filled}"));
+}
+
 // Verifies REQ-change-105.
 #[test]
 fn a_plan_section_does_not_borrow_the_next_heading_or_an_html_comment() {

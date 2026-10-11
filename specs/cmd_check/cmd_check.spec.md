@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 35
+version: 36
 status: stable
 files:
   - src/commands/check.rs
@@ -171,3 +171,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-09-09 | insert-check-fix-export-rows-into-the-existing-public-api-table-and-state-the-strict-enforcement-default-in-cli-help: Insert check --fix export rows into the existing Public API table and state the strict enforcement default in CLI help |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-09-09 | stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository: Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory |
+| 2026-10-11 | keep-check-fix-export-rows-in-one-contiguous-table-for-issue-768: Keep check fix export rows in one contiguous table for issue 768 |

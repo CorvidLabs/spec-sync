@@ -5,6 +5,12 @@ artifact: testing
 
 # Testing
 
+## Requirement evidence
+
+| Requirement | Evidence |
+|-------------|----------|
+| REQ-cmd-check-015 | `tests/integration/fix.rs::fix_768_uses_one_contiguous_export_table` covers nine table/header layouts and asserts width, immediate placement, exact preservation, strict recheck and idempotence; all 25 fix tests pass. |
+
 ## Regression evidence
 `cargo test --locked --offline --test integration fix_768 -- --nocapture` failed both initial tests against unchanged main implementation. Log: /tmp/specsync-768-red.log.
 
@@ -24,3 +30,15 @@ Focused integration fix suite; fledge lanes run verify; fledge lanes run pre-pus
 
 ## Lifecycle limit
 The scope definition is complete but unapproved. Scope approval, scoped check/commit evidence, human review, finalization, publication and merge remain pending. `change audit` does not count this draft as approved delivery coverage. No human approval or acceptance was fabricated.
+
+## Matched diagnosis and resolved local failures
+The initial failed runs remain historical evidence. A fresh clean main checkout at 9003fad and preserved fix commit a305444a were rebuilt in separate target directories and tested sequentially with identical environment (CARGO_NET_OFFLINE=true, RUST_TEST_THREADS=4, TMPDIR and Git overrides unset). Both used:
+- `cargo test --locked --bin specsync -- --test-threads=4`: 2543 passed on each, zero failures.
+- `cargo test --locked --test integration -- --test-threads=4`: main 438 passed; fix 439 passed; zero failures. The additional test is the nine-case multi-table regression.
+- Serial confirmation of 13 earlier failing unit tests and two integration tests passed on both commits using `--test-threads=1 --exact`.
+
+The first shared-target comparison was invalidated because Cargo reused the baseline integration artifact (438 instead of 439); only the separate-target results above establish the comparison.
+
+Read-only monitoring observed transient empty `/tmp/.git` directories. After testing ended, two controlled harmless sandboxed commands each created then removed that marker for roughly 60ms. A fixture without an ancestor marker succeeded; adding an empty ancestor `.git` reproduced the Git-detection error. Lifecycle source is byte-identical between the two commits. This explains why parallel reads through the sandbox could interfere with temporary-project tests; it is not a case-1 source regression. No shared Git configuration or security setting was modified. Future qualification uses a private TMPDIR outside /tmp.
+
+Detailed logs and exact failing-test sets: `/home/parallels/repos/spec-sync-768-evidence/comparison.json`, `verified-matched/`, `serial/`, `ancestor-marker-probe.json`, and `sandbox-marker-probe.jsonl`.

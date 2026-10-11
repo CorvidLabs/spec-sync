@@ -15,3 +15,8 @@ Case 1 is this patch. Case 2 remains open: the insertion-only fix still duplicat
 
 ## Ownership recheck
 Main remained 9003fad on 2026-10-11. Open PRs are now #800 and #814; #814's file list has no overlap with this patch. Issue #768 comments and assignment are unchanged.
+
+## Human scope authorization
+The user was asked: "For #768, the scope is just the wrong-table insertion bug, its regression tests, and matching spec/docs. The fenced-code parsing bug stays separate. Approve that scope and a draft PR once validation is sorted?"
+The user (Sentinel_fa7dbbab35548191ad234f735456fa69) answered: "yes alweasy test locally first and make sure you are 95% confident on your fix or change and that it doesn't cause any regressions".
+This authorizes the bounded case-1 scope and draft publication after strong local validation. It is not implementation review, acceptance, merge permission, or a literal measured probability. No case-2 parser changes are included.

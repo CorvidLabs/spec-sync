@@ -7,10 +7,11 @@
   "title": "Keep check fix export rows in one contiguous table for issue 768",
   "description": "Keep check fix export rows in one contiguous table for issue 768",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "9003fad7ec4dea3938179d076248b48f29b6ed48",
   "created_at": 1791729176,
-  "updated_at": 1791729549,
+  "updated_at": 1791731088,
   "affected_specs": [
     "cmd_check"
   ],

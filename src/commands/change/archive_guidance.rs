@@ -207,5 +207,5 @@ pub(super) fn ship_next_action(
 /// and drill 032 confirms agents follow it to termination.
 pub(super) fn lessons_next_action(root: &Path, id: &str, archive: &Path) -> String {
     let _ = (change::lesson_fold_targets(root, id), archive);
-    "merge the PR on GitHub".to_string()
+    "Push this archive, wait until the checks are green, then merge the pull request.".to_string()
 }

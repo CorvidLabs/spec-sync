@@ -1,6 +1,6 @@
 ---
 module: cmd_generate
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/generate.rs
@@ -73,6 +73,7 @@ Implements deterministic `specsync generate` scaffolding for unspecced modules u
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_generate.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-22 | v4: fail closed before generation when malformed Gradle/manifest discovery makes coverage inconclusive |
 | 2026-04-09 | Initial spec |
 | 2026-06-11 | v2: Exit non-zero when AI generation fails, with the errors re-printed last on stderr and `ai_errors` in JSON output |

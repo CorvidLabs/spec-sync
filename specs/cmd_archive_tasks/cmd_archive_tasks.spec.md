@@ -1,6 +1,6 @@
 ---
 module: cmd_archive_tasks
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/archive_tasks.rs
@@ -95,6 +95,7 @@ Implements the `specsync archive-tasks` command. Moves completed tasks (checked 
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_archive_tasks.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-26 | Preserve every legal Unix backslash parity, including backslash-before-pipe paths, through one safe Markdown/GitHub code cell |
 | 2026-07-26 | Add truthful typed failure output, exit-1 incomplete results, safe path rendering, and singular/plural text |
 | 2026-07-26 | Normalize structured result paths to portable `/` separators on Windows |

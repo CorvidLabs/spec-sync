@@ -1,6 +1,6 @@
 ---
 module: cmd_init_registry
-version: 6
+version: 7
 status: stable
 files:
   - src/commands/init_registry.rs
@@ -66,6 +66,7 @@ Implements the `specsync init-registry` command. Creates a registry file for cro
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_init_registry.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-09 | Initial spec |
 | 2026-06-11 | v2: Write to v4 `.specsync/registry.toml` (legacy root path only for un-migrated 3.x projects) |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

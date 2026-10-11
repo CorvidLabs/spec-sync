@@ -1,0 +1,30 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/ignore/ignore.spec.md`.
+
+Provides a warning suppression system for spec-sync validation. Supports three layers of suppression: global rules via `.specsyncignore` file, per-spec path rules in the same file, and inline directives in spec markdown via HTML comments. Allows teams to intentionally silence known warnings without fixing them.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- **Three suppression scopes**: global (bare category in `.specsyncignore`), per-spec (`category:path-prefix`), and inline (`<!-- specsync-ignore: ... -->` in the spec body). `is_suppressed` checks all three.
+- **Classify by message text**: warnings are categorized by matching substrings/prefixes of their text (`WarningCategory::classify`), so the suppression layer stays decoupled from where warnings are emitted. Order matters — `schema-type-mismatch` is checked before the generic `schema-column`.
+- **Forgiving parsing**: `from_str` lowercases input, treats `_`/`-` as equivalent, and accepts short aliases, so users don't have to memorize exact variant names.
+- **Missing file is not an error**: `load` returns empty rules when `.specsyncignore` is absent, so the feature is purely opt-in.
+- **Prefix matching, not globs**: per-spec rules match when the spec's relative path `starts_with` the configured pattern.
+
+@plane z=2 label="Files to Read First"
+- `src/ignore.rs` — `WarningCategory`, `IgnoreRules`, and all inline tests
+- `src/commands/mod.rs`, `src/commands/issues.rs`, `src/change.rs` — the actual `is_suppressed` / `suppression_source` call sites. `src/commands/check.rs` only loads the rules (`IgnoreRules::load`) and hands them on; `src/validator.rs` never references this module at all.
+
+@plane z=3 label="Current Status"
+Fully implemented and stable, with inline unit tests covering `classify`, `from_str` aliases, `parse_inline`, all three `is_suppressed` scopes, and `load` (present + absent file). The spec validates the seven public module-level aliases as exports: `as_str`, `from_str`, `classify`, `load`, `parse_inline`, `is_suppressed`, `suppression_source`.
+
+@plane z=4 label="Notes"
+- This is a library module consumed by the validation/check path — it does no config loading or process exit of its own.
+- Each new suppressible warning needs a `WarningCategory` variant plus arms in both `from_str` and `classify`.

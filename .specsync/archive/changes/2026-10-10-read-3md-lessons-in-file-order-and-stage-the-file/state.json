@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "read-3md-lessons-in-file-order-and-stage-the-file",
+  "slug": "read-3md-lessons-in-file-order-and-stage-the-file",
+  "title": "Read 3md lessons in file order and stage the file",
+  "description": "Read 3md lessons in file order and stage the file",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "8d6fcc2fbfc792b2e515935c9ef6ce00c75724a2",
+  "created_at": 1791667264,
+  "updated_at": 1791667774,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "Cargo.toml",
+    "specs/change/change.spec.md",
+    "specs/change/context.md",
+    "specs/change/requirements.md",
+    "specs/cmd_init/cmd_init.spec.md",
+    "src/change.rs",
+    "src/change_tests.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The first plane in the file is context, the lesson bundle names the 3md file, and change check commits a new module.3md."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "The first plane is context, later planes are lessons, and context.md remains the source until a module.3md file parses.",
+    "public_contract": "yes"
+  }
+}

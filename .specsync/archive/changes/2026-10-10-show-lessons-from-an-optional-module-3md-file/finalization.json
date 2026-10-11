@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "show-lessons-from-an-optional-module-3md-file",
+  "implementation_commit": "8bfe10f6c63108539435a845a3e367f16de07ecf",
+  "implementation_tree": "2732c31499d50b7616e1942b1370791252d78eca",
+  "contract_digest": "99d66041d46e2b7b65b5dd6be97cc1675569238c085b8d26400cf22d58fa27a8",
+  "workspace_digest": "f62240ac4a9922f8c2adc87d8497be9a0098f4c7e2d04cea7d3d0706994588fc",
+  "closing_digest": "a9511a0e4f921c9636931ce2355bbb8c44e9f2f25f5f86d4a8e5ce0a7d3675a9",
+  "review_digest": "f5e04ad7970a7a22de2e2d75eedc43a8a15ebf8b325f43d37752652c0250c0f9",
+  "finalization_digest": "76a526506b66e3fa7c4b711dadcca9b6055b5a68d120d2e5cb50c3469f788f8a",
+  "timestamp": 1791665071
+}

@@ -1,6 +1,6 @@
 ---
 module: cmd_score
-version: 7
+version: 8
 status: stable
 files:
   - src/commands/score.rs
@@ -72,6 +72,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_score.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-22 | v3: fail closed when malformed Gradle/manifest discovery makes score coverage gates inconclusive |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

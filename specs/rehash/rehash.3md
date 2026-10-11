@@ -1,0 +1,27 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/rehash/rehash.spec.md`.
+
+Implements the `specsync rehash` command. Regenerates the `.specsync/hashes.json` cache for all discovered spec files. Useful after `git pull`, branch switches, or when hashes.json is gitignored and needs rebuilding.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Key Decisions"
+- **Full rebuild only**: `rehash` regenerates the cache from discovered specs rather than applying incremental updates.
+- **Local cache artifact**: The command writes `.specsync/hashes.json`, which is expected to remain gitignored.
+- **Failure is explicit**: Cache save failures exit non-zero because stale cache state can hide validation work.
+
+@plane z=2 label="Files to Read First"
+- `src/commands/rehash.rs` — Command entry point.
+- `src/hash_cache.rs` — Cache structure, companion discovery, and save behavior.
+
+@plane z=3 label="Current Status"
+Stable. The command is used to refresh local hash state after branch switches, pulls, or cache deletion.
+
+@plane z=4 label="Notes"
+- Keep this command deterministic: it should reflect current files on disk and avoid network or git dependencies.

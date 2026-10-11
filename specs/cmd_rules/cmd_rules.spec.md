@@ -1,6 +1,6 @@
 ---
 module: cmd_rules
-version: 5
+version: 7
 status: stable
 files:
   - src/commands/rules.rs
@@ -40,7 +40,7 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 4. Each custom rule displays name, severity (color-coded), type, and optional section/pattern/min_words/applies_to/message fields
 5. Severity colors: error → red, warning → yellow, info → blue
 
-6. When the SDD policy names a principles file, the command also names that file and says a lesson becomes a standing rule only when a person writes it there. When no file is configured, the command says so. The command does not create or rewrite the file.
+6. When the SDD policy names a principles file, the command also names that file and says a lesson becomes a standing rule only when a person writes it there. When no file is configured, the command says so. When the named file is not on disk, the command warns on stderr, says the file is missing, and says to create it or clear `principles_file`. A path that escapes the project is not reported as a usable file. That warning still exits 0. A policy that cannot be parsed fails the command. The command does not create or rewrite the file.
 
 ## Behavioral Examples
 
@@ -68,12 +68,21 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 - **When** `specsync rules` runs
 - **Then** the output says no standing principles file is configured and still lists the built-in rules
 
+**Scenario: Named principles file is missing**
+
+- **Given** `.specsync/sdd.json` sets `principles_file` and that path is not a file
+- **When** `specsync rules` runs
+- **Then** stderr warns that the file is named but is not there, stdout says the file is missing, and the command says to create it or clear `principles_file`
+- **And** the command exits 0 and does not create the file
+
 ## Error Cases
 
 | Condition | Behavior |
 |-----------|----------|
 | No configuration file | Loads defaults and reports all built-in rules as off |
 | Legacy JSON has no `customRules` | Reports no custom rules without failing |
+| `principles_file` is set and the file is absent | Warns on stderr, says the file is missing, and exits 0 |
+| `.specsync/sdd.json` cannot be parsed | Exits 1 with the invalid SDD policy error |
 
 ## Dependencies
 
@@ -94,8 +103,11 @@ Implements the read-only `specsync rules` command. It lists built-in rules from 
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_rules.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-10-10 | v4: a broken SDD policy is reported instead of being shown as no principles file. |
 | 2026-04-10 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
 | 2026-10-10 | show-an-opened-change-the-lessons-and-principles-it-should-honor-and-require-its-plan-to-say-how: Show an opened change the lessons and principles it should honor, and require its plan to say how |
 | 2026-10-10 | address-every-review-comment-on-the-archive-and-pull-request-commands: Address every review comment on the archive and pull request commands |
+| 2026-10-10 | refuse-a-broken-policy-and-commit-the-archive-move: Refuse a broken policy and commit the archive move |
+| 2026-10-10 | parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit: Parse a broken policy beside a baseline and retry the archive commit |

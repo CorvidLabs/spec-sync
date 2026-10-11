@@ -268,6 +268,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `validator.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-22 | v12: add checked coverage so malformed Gradle discovery fails CLI and MCP gates as inconclusive while retaining the compatibility report wrapper |
 | 2026-07-22 | v13 / CHG-0063: add `validate_spec_content` so capability-rooted callers validate exact pre-read snapshots without reopening spec paths |
 | 2026-07-23 | v14 / CHG-0063 independent review: keep raw drive-qualified modules, unsupported `setProjectDir` forms, and linked/reparse-backed Gradle source roots inconclusive across CLI and MCP gates |

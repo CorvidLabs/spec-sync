@@ -6,7 +6,7 @@ spec: cmd_rules.spec.md
 
 | Area | Command | Assertions To Watch |
 |------|---------|---------------------|
-| `src/commands/rules.rs` | cargo test commands::rules | No inline tests found; add focused coverage for `cmd_rules`, `print_builtin`, `load_config` before risky changes |
+| `src/commands/rules.rs` | cargo test --bin specsync -- rules_says_when | `rules_says_when_the_named_principles_file_is_missing` requires the summary to name the path, say missing, and say to create it (REQ-cmd-rules-003). `rules_says_when_no_principles_file_is_configured` still says none configured. |
 | `tests/integration.rs` | cargo test --test integration write_config_with_custom_rules | End-to-end fixture: `write_config_with_custom_rules` |
 | `tests/integration.rs` | cargo test --test integration rules_command_lists_custom_rules | End-to-end fixture: `rules_command_lists_custom_rules` |
 

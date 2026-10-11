@@ -1,6 +1,6 @@
 ---
 module: comment
-version: 10
+version: 11
 status: stable
 files:
   - src/comment.rs
@@ -88,6 +88,7 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `comment.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-11 | Documented unified output pipeline: marketplace action and CI workflow both use `specsync comment` for identical PR comments |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |

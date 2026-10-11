@@ -1,6 +1,6 @@
 ---
 module: cmd_scaffold
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/scaffold.rs
@@ -75,6 +75,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_scaffold.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-11 | `cmd_scaffold` falls back to the project's single source file when no module name match exists |
 | 2026-06-07 | Document guided starter content in generated companions |
 | 2026-04-09 | Initial spec |

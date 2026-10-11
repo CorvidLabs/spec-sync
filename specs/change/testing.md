@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Testing
 
+REQ-change-108: `change_new_refuses_a_broken_sdd_policy` writes `{` to `.specsync/sdd.json` and requires `create_change` to fail with `invalid SDD policy`. `status_reads_the_same_broken_policy_error` requires `configured_principles_file` to return that same error, which is what `change status` propagates.
+
 REQ-change-096: `timed_out_git_runner_reaps_child_and_joins_blocked_writer` and `timed_out_git_runner_reaps_child_before_child_can_make_progress` capture PID after spawn in the parent, require a deadline error, assert ECHILD after runner cleanup, and observe the stdin writer join. The latter stops the child before starting the deadline. Neither test depends on a child-written readiness file. Cleanup and writer-join mutations must fail these assertions.
 
 `REQ-change-050` / `REQ-change-068`: `active_directory_with_files_and_no_state_is_still_open` reports a workspace that holds a nested file but no `state.json` as unreadable without dropping its healthy sibling, and `located_change_sequences` refuses it. An empty `deltas/` husk is skipped, so the sequence gate still succeeds. `.github/scripts/test-archive-readiness.sh` requires the same split from the Archive check: `broken-notes` stays open on `specsync change status`, and a lone empty `deltas/` husk is ready to merge.

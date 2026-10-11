@@ -1,6 +1,6 @@
 ---
 module: change
-version: 138
+version: 145
 status: active
 files:
   - src/change.rs
@@ -167,6 +167,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `load_policy` | `root: &Path` | `Option<SddPolicy>` | Load `.specsync/sdd.json`; absence leaves existing projects unenforced |
 | `module_context_path` | `root, module` | `String` | Where a module's accumulated lessons live, from the registry-aware canonical spec directory, shared by surfacing and folding so they cannot disagree |
 | `configured_principles_file` | `root` | `Result<Option<String>, String>` | The configured principles file, or the error when `.specsync/sdd.json` cannot be read |
+| `principles_file_is_present` | `root`, `path` | `Result<bool, String>` | Whether that path is a file inside the project. An absolute path or `..` is an error |
 | `next_questions` | `record: &ChangeRecord` | `Vec<InterviewQuestion>` | Record-only unanswered interview questions. Does not ask about lessons or principles |
 | `next_questions_for` | `root: &Path, record: &ChangeRecord` | `Vec<InterviewQuestion>` | Unanswered interview questions, including the draft-only constraints question when the rest of the interview is done and lessons or a principles file exist |
 | `open_change_briefing` | `root: &Path, record: &ChangeRecord` | `OpenChangeBriefing` | Bounded lessons and principles for this change. Omits a scaffold-only context and never fails the caller |
@@ -246,7 +247,16 @@ Acceptance Criteria
 
 43. A draft whose affected modules have substantive lessons, or whose project names a principles file, is asked which of those constrain it once the rest of the interview is answered, and "none" is a complete answer stored in the stable scope. A draft with neither is not asked. A change that has left draft without that answer is not sent back to the interview. Re-answering affected specs clears the answer. A selected plan is incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted each contain substantive text. A change that did not select a plan does not gain one. Opening, showing, or asking status computes a briefing of those lessons and of that principles file. The excerpt is bounded, a scaffold-only context is omitted, and an unreadable file does not fail the command.
 
+44. Opening a change fails when `.specsync/sdd.json` exists and cannot be parsed, including when a workflow-v2 baseline is already present. The error says the SDD policy is invalid. A missing policy file still opens a workflow-v2 change. A parsed policy is not treated as absent.
+
 ## Behavioral Examples
+
+**Scenario: A broken policy does not open a change**
+
+- **Given** `.specsync/sdd.json` exists and is not valid JSON
+- **When** a change is opened
+- **Then** opening fails with an invalid SDD policy error and no change is created
+- **And** a project with no policy file still opens a workflow-v2 change
 
 **Scenario: Archival compounds knowledge into the spec**
 
@@ -368,6 +378,11 @@ Acceptance Criteria
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `change.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
+| 2026-10-10 | v141: lesson planes follow the order written, the lesson bundle names the 3md file, and a new `<module>.3md` is staged with the other spec companions. An unreadable 3md file falls back to `context.md`. |
+| 2026-10-10 | v140: materialize the optional module.3md lesson requirement. |
+| 2026-10-10 | v139: an optional `<module>.3md` file holds context on its first plane and lessons on later planes. `context.md` remains the lesson source until that file exists. |
+| 2026-10-10 | v138: materialize the fence-closer and symlink requirements. |
 | 2026-10-10 | v137: a closing fence is only whitespace after the marker, a marker indented more than three spaces is not a fence, and a symlink keeps a state-less directory open. |
 | 2026-10-10 | v136: materialize the fenced-plan and damaged-directory requirements. |
 | 2026-10-10 | v135: a fenced code block cannot complete a selected plan, and a change directory with files but no state.json stays open. |
@@ -520,3 +535,8 @@ Acceptance Criteria
 | 2026-10-10 | a change directory with files and no state is still open |
 | 2026-10-10 | refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open: Refuse a fenced plan and keep a damaged change directory open |
 | 2026-10-10 | close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file: Close a fence only on whitespace and count a symlink as a file |
+| 2026-10-10 | show-lessons-from-an-optional-module-3md-file: Show lessons from an optional module 3md file |
+| 2026-10-10 | read-3md-lessons-in-file-order-and-stage-the-file: Read 3md lessons in file order and stage the file |
+| 2026-10-10 | expect-a-module-3md-file-in-the-lifecycle-commit-scope: Expect a module 3md file in the lifecycle commit scope |
+| 2026-10-10 | refuse-a-broken-policy-and-commit-the-archive-move: Refuse a broken policy and commit the archive move |
+| 2026-10-10 | parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit: Parse a broken policy beside a baseline and retry the archive commit |

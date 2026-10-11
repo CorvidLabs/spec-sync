@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "classify-the-archive-commit-that-finalize-records",
+  "implementation_commit": "af08729f59a667f1bed5f467a5e7f8db6e58cb14",
+  "implementation_tree": "683528bb01e63f8c81c5dc01db8175f144d4c901",
+  "contract_digest": "0945925bf5dfd66b1137cedda798f92e5f6839fd0c3f2a1c04de3fb02e43b5b4",
+  "workspace_digest": "7e4709b56859fc8a3ed12844dc0f535d3e3f88704bd5f7ecfc03509e54a32f28",
+  "closing_digest": "cc4a04ea676c68b5aa5a50f4d2c638c72c6a7e6ef35bbfac95e8734d2c49c785",
+  "review_digest": "d4adf5bf3d585a5d5b981b7dabbe50a888b7c5b8c872e91ad2a564445e253a09",
+  "finalization_digest": "4f8ffb7227f253a4266c2ff7c1c7970baf32f3836db1e7cd269fc44f3687bfbd",
+  "timestamp": 1791673400
+}

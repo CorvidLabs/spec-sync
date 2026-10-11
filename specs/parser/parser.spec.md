@@ -207,6 +207,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `parser.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-25 | Initial spec |
 | 2026-06-11 | Add `get_all_api_table_symbols` so `check --fix` treats symbols documented under any Public API table (e.g. a bare `### Functions` heading) as already documented |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

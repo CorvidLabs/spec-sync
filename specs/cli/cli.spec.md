@@ -357,6 +357,7 @@ update is an explicit implementation edit because semantic section deltas do not
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cli.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-26 | Fix #417: forward resolved output format to compact/archive-tasks so JSON shorthand and Markdown are honored |
 | 2026-07-10 | v5: dispatch the verified `specsync change` SDD lifecycle |
 | 2026-06-11 | v4: `--root` now errors (exit 2) for nonexistent paths; init scenario covers the v4 config layout |

@@ -375,7 +375,7 @@ specsync change audit
 # push the product tip, wait for required checks, then complete human review
 specsync change review add-passkeys --reviewer "Ada"
 specsync change finalize add-passkeys
-# commit and push the archive result; wait for checks before GitHub merges
+# finalize commits the archive; push it and wait for checks before GitHub merges
 ```
 
 For a separately created draft successor called `update-ui`, dependency and exact succession

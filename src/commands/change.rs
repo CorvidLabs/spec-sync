@@ -1,7 +1,7 @@
 use self::archive_guidance::{
     archive_sentence_without_command, lessons_next_action, pull_request_sentence,
 };
-use self::lifecycle_commit::run_checked_commit;
+use self::lifecycle_commit::{disclose_left_out, git_commit_lifecycle, run_checked_commit};
 use self::owner_inputs::resolve_correct_owner_entries;
 use self::render::{
     lesson_bundle_line, print_handoff_line, print_handoff_line_for, print_json,
@@ -101,19 +101,27 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 .and_then(|record| print_record(root, &record, format, true, strict))
         }
         ChangeAction::Status { id } => {
-            let _scope = change::begin_change_read_scope(root);
-            if !matches!(format, OutputFormat::Json) {
-                match pull_request_sentence(root) {
-                    Ok(sentence) => println!("{}", archive_sentence_without_command(&sentence)),
-                    Err(error) => eprintln!("{} {error}", "error:".red().bold()),
-                }
-            }
-            if let Some(id) = id {
-                change::load_change(root, &id)
-                    .and_then(|record| print_record(root, &record, format, false, strict))
+            // A broken policy must not look like "no principles". `rules` already
+            // fails here; status was still printing a briefing as if the file parsed.
+            if let Err(error) = change::configured_principles_file(root) {
+                Err(error)
             } else {
-                change::list_changes(root)
-                    .and_then(|roster| print_roster(root, &roster, format, strict))
+                let _scope = change::begin_change_read_scope(root);
+                if !matches!(format, OutputFormat::Json) {
+                    match pull_request_sentence(root) {
+                        Ok(sentence) => {
+                            println!("{}", archive_sentence_without_command(&sentence))
+                        }
+                        Err(error) => eprintln!("{} {error}", "error:".red().bold()),
+                    }
+                }
+                if let Some(id) = id {
+                    change::load_change(root, &id)
+                        .and_then(|record| print_record(root, &record, format, false, strict))
+                } else {
+                    change::list_changes(root)
+                        .and_then(|roster| print_roster(root, &roster, format, strict))
+                }
             }
         }
         ChangeAction::ShipStatus { id } => {
@@ -394,7 +402,29 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 _ => println!("{} Archived to {}", "✓".green(), path.display()),
             })
         }
-        ChangeAction::Finalize { id } => change::finalize_change(root, &id).and_then(|path| {
+        ChangeAction::Finalize { id } => {
+            // A commit that fails after the move leaves the change archived and
+            // the package uncommitted. Finalize again must commit that package,
+            // not refuse because the state is already Archived.
+            let archived = change::load_change(root, &id)
+                .ok()
+                .is_some_and(|record| record.state == change::ChangeState::Archived);
+            let path = if archived {
+                change::find_change_dir(root, &id)
+            } else {
+                change::finalize_change(root, &id)
+            };
+            path.and_then(|path| {
+            // The archive move is a working-tree rename until something commits it.
+            // Ship already commits. Finalize has to do the same, or the package
+            // exists only on disk and the next checkout loses it.
+            let archive_commit = git_commit_lifecycle(
+                root,
+                &change::lifecycle_commit_scope(root, &id)?,
+                &format!("chore(lifecycle): archive {id}"),
+                true,
+            )?;
+            disclose_left_out(&archive_commit.left_out, &mut Vec::new(), None);
             let finalization_path = path.join("finalization.json");
             let content = fs::read_to_string(&finalization_path).map_err(|error| {
                 format!("failed to read {}: {error}", finalization_path.display())
@@ -431,7 +461,8 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                 }
             }
             Ok(())
-        }),
+        })
+        },
         ChangeAction::Check { id, commit, push } if commit || push => {
             if push && !commit {
                 Err("--push requires --commit".to_string())

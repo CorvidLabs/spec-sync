@@ -1,3 +1,4 @@
+use super::super::cmd_change;
 use super::super::lifecycle_commit::{
     LEFT_OUT_LISTING_LIMIT, disclose_left_out, git_commit_lifecycle, left_out_warning,
     path_is_within, run_checked_commit, stage_lifecycle_paths,
@@ -8,6 +9,7 @@ use super::fixtures::{
     paths_in_history, worktree_status, write_strays,
 };
 use crate::change;
+use crate::cli::ChangeAction;
 use crate::types::OutputFormat;
 use std::fs;
 use tempfile::TempDir;
@@ -328,4 +330,95 @@ fn the_left_out_warning_names_the_files_and_what_to_do() {
     let before = disclosed.len();
     disclose_left_out(&few, &mut disclosed, None);
     assert_eq!(disclosed.len(), before);
+}
+
+// Verifies REQ-cmd-change-022.
+#[test]
+fn finalize_commits_the_archive_move() {
+    let temp = TempDir::new().expect("temp project");
+    let root = temp.path();
+    git_project_fixture(root);
+    let id = approved_change_fixture(root);
+    run_checked_commit(root, Some(&id), false, false, OutputFormat::Json).expect("check --commit");
+    change::record_scoped_review_with_verdict(
+        root,
+        &id,
+        "Independent".into(),
+        change::ScopedReviewVerdict::Pass,
+    )
+    .expect("review");
+
+    cmd_change(
+        root,
+        ChangeAction::Finalize { id: id.clone() },
+        OutputFormat::Text,
+        false,
+    );
+
+    let message = std::process::Command::new("git")
+        .args(["log", "-1", "--format=%s"])
+        .current_dir(root)
+        .output()
+        .expect("log");
+    let message = String::from_utf8_lossy(&message.stdout);
+    assert!(
+        message.contains(&format!("chore(lifecycle): archive {id}")),
+        "{message}"
+    );
+    let status = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(root)
+        .output()
+        .expect("status");
+    let status = String::from_utf8_lossy(&status.stdout);
+    assert!(
+        !status.contains(&format!(".specsync/changes/{id}")),
+        "the archive move must be committed: {status}"
+    );
+}
+
+// Verifies REQ-cmd-change-022. The move can land before the commit does.
+#[test]
+fn finalize_commits_an_archive_that_was_left_uncommitted() {
+    let temp = TempDir::new().expect("temp project");
+    let root = temp.path();
+    git_project_fixture(root);
+    let id = approved_change_fixture(root);
+    run_checked_commit(root, Some(&id), false, false, OutputFormat::Json).expect("check --commit");
+    change::record_scoped_review_with_verdict(
+        root,
+        &id,
+        "Independent".into(),
+        change::ScopedReviewVerdict::Pass,
+    )
+    .expect("review");
+    change::finalize_change(root, &id).expect("archive move");
+
+    cmd_change(
+        root,
+        ChangeAction::Finalize { id: id.clone() },
+        OutputFormat::Text,
+        false,
+    );
+
+    let message = std::process::Command::new("git")
+        .args(["log", "-1", "--format=%s"])
+        .current_dir(root)
+        .output()
+        .expect("log");
+    let message = String::from_utf8_lossy(&message.stdout);
+    assert!(
+        message.contains(&format!("chore(lifecycle): archive {id}")),
+        "{message}"
+    );
+    let printed = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(root)
+        .output()
+        .expect("status");
+    let printed = String::from_utf8_lossy(&printed.stdout);
+    assert!(
+        !printed.contains(&format!(".specsync/changes/{id}")),
+        "{printed}"
+    );
 }

@@ -1,0 +1,53 @@
+---
+3md: 1.0
+axis: layers
+---
+
+@plane z=0 label="Context"
+The spec stays `specs/cmd_migrate/cmd_migrate.spec.md`.
+
+Implements the `specsync migrate` command — upgrades a spec-sync project from v3.x to v4.0.0. Handles config relocation, registry relocation, lifecycle history extraction from spec frontmatter into external JSON files, directory structure creation (changes, archive), frontmatter cleanup, and backup creation. Designed to be atomic, idempotent, and safe with `--dry-run` support.
+
+This plane is context. Later planes are lessons, in the order they were learned.
+`context.md` stays beside this file.
+
+@plane z=1 label="Domain Context"
+spec-sync v4.0.0 is a major version break that restructures how project metadata is stored. The migration command is the primary upgrade path — without it, users would need to manually move files, edit frontmatter, and create directory structures.
+
+@plane z=2 label="Key Terminology"
+- **3.x layout**: Config at root (`specsync.json`, `specsync-registry.toml`), lifecycle history embedded in spec frontmatter as `lifecycle_log` YAML field
+- **4.0 layout**: All metadata under `.specsync/` directory — `config.toml`, `registry.toml`, `lifecycle/{module}.json`, `changes/`, `archive/`, plus a `version` stamp file and `.gitignore`
+- **Migration step**: An atomic unit of work with a check function (is this done?) and an apply function (do it)
+- **Step status**: `Done` (skip), `Pending` (needs work), `Partial` (previous run crashed mid-step — fix forward)
+
+@plane z=3 label="Design Rationale"
+### Why `.specsync/` directory?
+
+Root-level config files don't scale. Projects with 100+ specs accumulate lifecycle history, change records, and archived specs that clutter the project root. A dedicated directory keeps metadata organized and allows `.gitignore` control over which parts are committed.
+
+### Why no symlink backwards-compat?
+
+Symlinks are fragile on Windows (`core.symlinks = false` in git), confuse some CI tools, and create surprising behavior. A clear "run migrate" error is better than a symlink that silently breaks on some platforms.
+
+### Why step-based (not atomic swap)?
+
+True atomic directory swaps aren't portable across filesystems. Step-based with idempotent checks is more robust — if migration crashes, re-running picks up where it left off. The backup provides the safety net.
+
+### Why extract lifecycle_log from frontmatter?
+
+Frontmatter is for spec metadata (module, version, status, dependencies). Lifecycle history grows unboundedly and is operational data, not spec content. Externalizing it keeps specs clean and allows lifecycle queries without parsing every spec file.
+
+### Modeled after `cargo fix --edition`
+
+Rust's edition migration is the gold standard: automatic, non-interactive, test-driven validation after migration, clear handling of edge cases that can't be auto-fixed. We adopt the same philosophy: migrate everything possible, flag what can't be migrated, validate the result.
+
+@plane z=4 label="Files to Read First"
+- `src/commands/migrate.rs` — the step pipeline (`steps()`), each `check_*`/`apply_*` pair, `cmd_migrate`, and the inline unit tests.
+- `src/config.rs` — `load_config_from_path` and `config_to_toml`, used by the config-relocation step.
+- `tests/integration/commands.rs` — the `specsync migrate` fixtures (`migrate_full_v3_to_v4` and friends) and 3.x project builder.
+
+@plane z=5 label="Current Status"
+Implemented, shipped, and marked `status: stable`. The full v3→v4 flow is covered by integration tests, and
+`apply_create_directories` has dedicated unit tests. Remaining work is expanding unit coverage to the other `apply_*`
+steps.
+`migrate 5.0` routes to a ledger backfill (`change::backfill_reopen_digests`) independent of the v3→v4 pipeline: idempotent, dry-run-aware, verification-gated reopening digest repair across active and archived changes.

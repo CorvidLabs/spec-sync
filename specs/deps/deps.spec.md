@@ -1,6 +1,6 @@
 ---
 module: deps
-version: 9
+version: 10
 status: stable
 files:
   - src/deps.rs
@@ -108,6 +108,7 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 | Date | Change |
 |------|--------|
 | 2026-10-10 | Split the dependency facade, graph validation, complete import analysis, report rendering and all 43 existing tests into focused private files without changing behavior |
+| 2026-10-10 | Add `deps.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-06 | Documented fail-loud behavior for unreadable declared source and spec files: added invariant 7 and updated Error Cases table so an existing-but-non-UTF-8 file is a hard error gating `cmd_deps` rather than a silent skip |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
 | 2026-04-07 | Initial spec |

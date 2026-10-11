@@ -1,0 +1,53 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791664826,
+      "digest": "99d66041d46e2b7b65b5dd6be97cc1675569238c085b8d26400cf22d58fa27a8",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "show-lessons-from-an-optional-module-3md-file",
+        "title": "Show lessons from an optional module 3md file",
+        "description": "Show lessons from an optional module 3md file",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "Cargo.lock",
+          "Cargo.toml",
+          "hi/three.md",
+          "specs/change/change.spec.md",
+          "specs/change/requirements.md",
+          "src/change.rs",
+          "src/change_tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When a module has <module>.3md, the next change shows the lessons on the later planes, and a module without that file still uses context.md."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "The spec stays module.spec.md, context.md keeps working until the module moves, and the 3md file stays text.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "9ab5641421dc486b758f0faf07da4fa39155c2b78116045dc8a34f9bf52aaabc"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791665071,
+      "digest": "a9511a0e4f921c9636931ce2355bbb8c44e9f2f25f5f86d4a8e5ce0a7d3675a9",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

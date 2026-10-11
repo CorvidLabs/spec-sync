@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 19
+version: 20
 status: stable
 files:
   - src/generator.rs
@@ -104,6 +104,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `generator.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-26 | v7 / CHG-0063: Bind CLI generation templates, directories, and no-overwrite file publication to one retained project-root capability |
 | 2026-07-10 | v5: keep module-discovery test fixtures warning-free under current stable Clippy |
 | 2026-03-25 | Initial spec |

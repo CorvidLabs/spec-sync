@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "show-lessons-from-an-optional-module-3md-file",
+  "slug": "show-lessons-from-an-optional-module-3md-file",
+  "title": "Show lessons from an optional module 3md file",
+  "description": "Show lessons from an optional module 3md file",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "6891ac2ed97a98bfa24c5e66a8383a482948b0df",
+  "created_at": 1791664791,
+  "updated_at": 1791665071,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "hi/three.md",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "src/change.rs",
+    "src/change_tests.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "When a module has <module>.3md, the next change shows the lessons on the later planes, and a module without that file still uses context.md."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "The spec stays module.spec.md, context.md keeps working until the module moves, and the 3md file stays text.",
+    "public_contract": "yes"
+  }
+}

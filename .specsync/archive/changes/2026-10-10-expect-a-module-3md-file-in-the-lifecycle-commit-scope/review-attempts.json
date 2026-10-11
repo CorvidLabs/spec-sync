@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "expect-a-module-3md-file-in-the-lifecycle-commit-scope",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "5eda3df343d50ca8b7a685b7b4625ac357e31983",
+      "contract_digest": "8acb1d1150906650eae5b668973bcecc4551c140eddaea94b2d94ab888699273",
+      "execution_digest": "1e54c0e9fb9184203d9de20c7910a6c85cceaadd5aa72f55011d456e6176617f",
+      "workspace_digest": "f243f015505708fd63757d7c739cabb5d358a88f11a483ec45e7e792f424afe3",
+      "timestamp": 1791668996
+    }
+  ]
+}

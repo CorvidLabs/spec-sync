@@ -1,6 +1,6 @@
 ---
 module: hooks
-version: 7
+version: 9
 status: stable
 files:
   - src/hooks.rs
@@ -118,6 +118,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `hooks.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-25 | Initial spec |
 | 2026-03-30 | Add Agents (AGENTS.md) hook target |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
@@ -126,3 +127,4 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 | 2026-07-31 | CHG-0070-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes: Land pre-6.0 product fixes for hooks init coverage naming and exit codes |
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
+| 2026-10-10 | tell-agents-to-record-lessons-in-the-module-3md-file: Tell agents to record lessons in the module 3md file |

@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit",
+  "slug": "parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit",
+  "title": "Parse a broken policy beside a baseline and retry the archive commit",
+  "description": "Parse a broken policy beside a baseline and retry the archive commit",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "9f4b72dd5c728f129c47a74493051b84d9d475e2",
+  "created_at": 1791674011,
+  "updated_at": 1791674408,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cmd_rules"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/commands/change.rs",
+    "src/commands/rules.rs",
+    "tests/integration/change.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/context.md",
+    "specs/change/testing.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_change/requirements.md",
+    "specs/cmd_change/context.md",
+    "specs/cmd_change/testing.md",
+    "specs/cmd_rules/cmd_rules.spec.md",
+    "specs/cmd_rules/requirements.md",
+    "specs/cmd_rules/context.md",
+    "specs/cmd_rules/testing.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Opening a change fails when .specsync/sdd.json cannot be parsed, including when a workflow-v2 baseline exists.",
+    "change finalize commits an archive that was left uncommitted, and its next action says to push that commit before merging.",
+    "specsync rules does not treat an escaping principles path as a usable file."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "A broken .specsync/sdd.json must not look like no principles file, including when a workflow-v2 baseline already exists.",
+    "public_contract": "yes"
+  }
+}

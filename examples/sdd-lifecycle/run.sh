@@ -36,9 +36,8 @@ git add .
 git commit -m "Clarify contributor workflow" >/dev/null
 "$bin" change check "$id"
 "$bin" change review "$id" --reviewer "Example Independent Reviewer" >/dev/null
+# Finalize commits the archive move. A second commit would be empty.
 "$bin" change finalize "$id" >/dev/null
-git add .
-git commit -m "Finalize contributor workflow archive" >/dev/null
 "$bin" change audit
 
 printf '\nLifecycle example passed in %s\n' "$root"

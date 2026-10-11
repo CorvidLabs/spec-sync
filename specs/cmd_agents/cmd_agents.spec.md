@@ -1,6 +1,6 @@
 ---
 module: cmd_agents
-version: 3
+version: 4
 status: stable
 files:
   - src/commands/agents.rs
@@ -73,6 +73,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Author | Change |
 |------|--------|--------|
+| 2026-10-10 | Add `cmd_agents.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-01 | claude | Initial spec |
 | 2026-07-11 | CHG-0003-finalize-specsync-5-0-release-consistency-and-parallel-validation: Finalize SpecSync 5.0 release consistency and parallel validation |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

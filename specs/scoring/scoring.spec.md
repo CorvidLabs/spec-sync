@@ -1,6 +1,6 @@
 ---
 module: scoring
-version: 10
+version: 11
 status: stable
 files:
   - src/scoring.rs
@@ -113,6 +113,7 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `scoring.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-07 | Replace template-marker suggestion wording with unfinished draft marker wording |
 | 2026-04-18 | Add `CriterionResult` and `ExplainDetail` structs; add `explain` field to `SpecScore` for `--explain` breakdown |
 | 2026-03-25 | Initial spec |

@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "classify-the-archive-commit-that-finalize-records",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "af08729f59a667f1bed5f467a5e7f8db6e58cb14",
+  "contract_digest": "0945925bf5dfd66b1137cedda798f92e5f6839fd0c3f2a1c04de3fb02e43b5b4",
+  "execution_digest": "506445af99ea7580a1a9d8eab992f52d267ebc787ba012ff8a829bafd8846834",
+  "workspace_digest": "7e4709b56859fc8a3ed12844dc0f535d3e3f88704bd5f7ecfc03509e54a32f28",
+  "timestamp": 1791673317
+}

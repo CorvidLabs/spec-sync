@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "refuse-a-broken-policy-and-commit-the-archive-move",
+  "slug": "refuse-a-broken-policy-and-commit-the-archive-move",
+  "title": "Refuse a broken policy and commit the archive move",
+  "description": "Refuse a broken policy and commit the archive move",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "4d42cd401623481ae6b99e12142b7aa8767fc25e",
+  "created_at": 1791671316,
+  "updated_at": 1791671931,
+  "affected_specs": [
+    "change",
+    "cmd_change",
+    "cmd_rules"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/commands/change.rs",
+    "src/commands/rules.rs",
+    "specs/change/change.spec.md",
+    "specs/change/requirements.md",
+    "specs/change/context.md",
+    "specs/change/testing.md",
+    "specs/change/tasks.md",
+    "specs/cmd_change/cmd_change.spec.md",
+    "specs/cmd_change/requirements.md",
+    "specs/cmd_change/context.md",
+    "specs/cmd_change/testing.md",
+    "specs/cmd_change/tasks.md",
+    "specs/cmd_rules/cmd_rules.spec.md",
+    "specs/cmd_rules/requirements.md",
+    "specs/cmd_rules/context.md",
+    "specs/cmd_rules/testing.md",
+    "specs/cmd_rules/tasks.md",
+    "site/src/content/docs/workflow.md",
+    "site/src/content/docs/quickstart.md",
+    "site/src/content/docs/cli.md",
+    "site/src/content/docs/configuration.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Opening a change and asking its status fail when .specsync/sdd.json cannot be parsed.",
+    "specsync rules warns when the named principles file is not on disk.",
+    "change finalize commits the archive move."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "A broken .specsync/sdd.json must not look like no principles file.",
+    "public_contract": "yes"
+  }
+}

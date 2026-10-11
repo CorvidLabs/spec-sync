@@ -1397,6 +1397,10 @@ The system SHALL show, when a change is opened, shown, or asked its status, the 
 
 Acceptance Criteria
 - The briefing lists each affected module context that has substantive lines, with the path, the substantive line count, a bounded excerpt, and whether the excerpt was cut.
+- When `specs/<module>/<module>.3md` exists and parses, lessons come from every plane after the first, in the order written, and the briefing names that file. The first plane is context even when its `z` is higher than a later plane. `context.md` is not the lesson source for that module.
+- When that file does not exist, or it cannot be parsed, `context.md` remains the lesson source.
+- An unreadable or invalid 3md file does not fail the command.
+- The lesson bundle names the same file the briefing reads.
 - The context path is the directory of the module's canonical spec, including a non-default specs directory or a registry mapping.
 - A multiline HTML comment is not a lesson.
 - A scaffold-only context is absent.
@@ -1411,4 +1415,15 @@ The approval tests SHALL keep passing after a selected plan must name its sectio
 Acceptance Criteria
 - `stale_definition_approval_is_rejected` approves a plan that names its sections.
 - `project_principles_are_part_of_the_approval_digest` records a constraints answer and still fails approval after the principles file changes.
+
+### REQ-change-108
+
+The system SHALL refuse to open a change when `.specsync/sdd.json` exists and cannot be parsed. The error SHALL say the SDD policy is invalid. A missing policy file SHALL still open a workflow-v2 change. An existing workflow-v2 baseline SHALL NOT skip this check.
+
+Acceptance Criteria
+- `create_change` fails with `invalid SDD policy` when the policy file is `{`.
+- The same failure happens when `.specsync/workflow-v2-baseline.json` is present.
+- No change directory is created for that failure.
+- `configured_principles_file` returns that same error for the same file.
+- A missing policy file is not reported as an invalid policy.
 

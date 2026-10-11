@@ -1,6 +1,6 @@
 ---
 module: cmd_coverage
-version: 8
+version: 9
 status: stable
 files:
   - src/commands/coverage.rs
@@ -77,6 +77,7 @@ Implements the `specsync coverage` command. Reports file-level and LOC-level spe
 
 | Date | Change |
 |------|--------|
+| 2026-10-10 | Add `cmd_coverage.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-22 | v3: fail closed on malformed Gradle/manifest discovery and preserve explicit inconclusive JSON |
 | 2026-04-09 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

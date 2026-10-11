@@ -1621,12 +1621,17 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
             artifacts.push(artifact);
         }
     }
+    // A baseline means the project already adopted workflow v2. It does not
+    // mean a broken policy file can be ignored. Parse the policy either way.
+    let policy = load_policy_checked(root)?;
     let workflow_version = if read_workflow_v2_baseline(root)?.is_some() {
         2
     } else {
-        load_policy(root)
-            .map(|policy| if policy.version >= 2 { 2 } else { 1 })
-            .unwrap_or(2)
+        match policy {
+            Some(policy) if policy.version >= 2 => 2,
+            Some(_) => 1,
+            None => 2,
+        }
     };
     if workflow_version >= 2 {
         ensure_workflow_v2_baseline(root)?;
@@ -6830,6 +6835,15 @@ pub(crate) fn module_context_path(root: &Path, module: &str) -> String {
 /// tell those apart: a person cannot honor principles the tool has hidden.
 pub(crate) fn configured_principles_file(root: &Path) -> Result<Option<String>, String> {
     Ok(load_policy_checked(root)?.and_then(|policy| policy.principles_file))
+}
+
+/// Whether the named principles file is a regular file inside the project.
+///
+/// `Path::join` would treat an absolute path as the whole location and would
+/// follow a symlink out of the project. Approval rejects those paths, so a
+/// command that reports principles must reject them too.
+pub(crate) fn principles_file_is_present(root: &Path, path: &str) -> Result<bool, String> {
+    Ok(safe_project_path(root, path)?.is_file())
 }
 
 /// What these modules have already learned, as substantive line counts.

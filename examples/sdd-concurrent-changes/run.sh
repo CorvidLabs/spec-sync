@@ -71,9 +71,8 @@ fi
 "$bin" change finalize "$second" >/dev/null
 "$bin" change check "$first" >/dev/null
 "$bin" change review "$first" --reviewer "Example Independent Reviewer" >/dev/null
+# Finalize commits each archive move.
 "$bin" change finalize "$first" >/dev/null
-git add .
-git commit -m "Complete ordered changes" >/dev/null
 "$bin" change audit
 
 printf '\nConcurrent-change example passed in %s\n' "$root"

@@ -239,9 +239,8 @@ for index in 0 1 2 3 4; do
     git commit -m "Implement epic $number: $title" >/dev/null
     "$bin" change check "$id"
     "$bin" change review "$id" --reviewer "Epic Independent Reviewer" >/dev/null
+    # Finalize commits the archive move.
     "$bin" change finalize "$id" >/dev/null
-    git add .
-    git commit -m "Finalize epic $number archive" >/dev/null
     ids+=("$id")
     previous_id="$id"
 done

@@ -8,6 +8,7 @@ spec: cmd_rules.spec.md
 
 ## Done
 
+- [x] Warn when `principles_file` is named and the file is not on disk (REQ-cmd-rules-003)
 - [x] List all five built-in rules with active/off status
 - [x] List custom rules with name, severity (color-coded), type, and optional filters
 - [x] Integration coverage for custom-rule listing (`rules_command_lists_custom_rules`)

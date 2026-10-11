@@ -39,7 +39,28 @@ pub fn cmd_rules(root: &Path) {
     );
     println!();
     match crate::change::configured_principles_file(root) {
-        Ok(principles) => println!("{}", principles_rules_summary(principles)),
+        Ok(principles) => {
+            let missing = match principles.as_deref() {
+                Some(path) => match crate::change::principles_file_is_present(root, path) {
+                    Ok(present) => {
+                        if !present {
+                            eprintln!(
+                                "warning: principles file {path} is named in .specsync/sdd.json but is not there"
+                            );
+                        }
+                        !present
+                    }
+                    Err(error) => {
+                        eprintln!(
+                            "warning: principles file {path} is named in .specsync/sdd.json but cannot be used: {error}"
+                        );
+                        true
+                    }
+                },
+                None => false,
+            };
+            println!("{}", principles_rules_summary(principles, missing));
+        }
         Err(error) => {
             eprintln!("error: {error}");
             std::process::exit(1);
@@ -113,8 +134,11 @@ pub fn cmd_rules(root: &Path) {
 }
 
 /// What `specsync rules` says about standing principles. Spec-shape rules stay a separate list.
-fn principles_rules_summary(principles_file: Option<String>) -> String {
+fn principles_rules_summary(principles_file: Option<String>, missing: bool) -> String {
     match principles_file {
+        Some(path) if missing => format!(
+            "Standing principles:\n  {path}\n  missing\n  The configured principles file is not there. Create it, or clear principles_file."
+        ),
         Some(path) => format!(
             "Standing principles:\n  {path}\n  A lesson becomes a standing rule only when a person writes it into this file. SpecSync does not copy lessons here."
         ),
@@ -137,7 +161,7 @@ mod tests {
 
     #[test]
     fn rules_names_the_principles_file_and_does_not_invent_one() {
-        let text = principles_rules_summary(Some("PRINCIPLES.md".into()));
+        let text = principles_rules_summary(Some("PRINCIPLES.md".into()), false);
         assert!(text.contains("PRINCIPLES.md"), "{text}");
         assert!(text.contains("only when a person writes it"), "{text}");
         assert!(text.contains("does not copy lessons"), "{text}");
@@ -145,8 +169,17 @@ mod tests {
 
     #[test]
     fn rules_says_when_no_principles_file_is_configured() {
-        let text = principles_rules_summary(None);
+        let text = principles_rules_summary(None, false);
         assert!(text.contains("none configured"), "{text}");
+    }
+
+    // Verifies REQ-cmd-rules-003.
+    #[test]
+    fn rules_says_when_the_named_principles_file_is_missing() {
+        let text = principles_rules_summary(Some("PRINCIPLES.md".into()), true);
+        assert!(text.contains("PRINCIPLES.md"), "{text}");
+        assert!(text.contains("missing"), "{text}");
+        assert!(text.contains("Create it"), "{text}");
         assert!(text.contains("Standing principles:"), "{text}");
     }
 }

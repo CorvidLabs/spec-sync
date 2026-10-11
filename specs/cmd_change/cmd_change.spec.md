@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 47
+version: 48
 status: active
 files:
   - src/commands/change.rs
@@ -48,9 +48,9 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 2. Domain errors always produce exit code 1.
 3. `change check` runs scoped verification for one change only: evidence completeness then in-process spec↔code sync. It does not spawn project tests or rewalk archived terminal evidence.
 4. `change audit` reports active-workspace and living-spec integrity only and exits non-zero on report errors.
-5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge.
+5. `change finalize` requires current verification and scoped-review evidence and performs no provider merge. When it succeeds, it commits the archive move as `chore(lifecycle): archive <id>`, the same commit `change ship` records on a first archive. The active change directory is not left behind as an uncommitted rename. If the package is already archived and the commit did not happen, running finalize again commits that package. The next action says to push the archive commit before merging.
 6. `change ship-status` decides readiness from evidence CURRENCY — the recorded plan and tree still match what was verified — never from whether the recorded commit is reachable from HEAD. A squash-merge rewrites that commit, so reachability would make a squash-merged change permanently unfinalizable while its evidence is intact. Product-stage completion uses the same verification currency predicate, and its action text describes content currency rather than asserting ancestry. The rule covers the scoped review as well as the verification: readiness asks whether the recorded review is current, reports that answer as `current`, `stale`, or `unavailable`, and treats only `current` as satisfied. An unavailable guarantee reported as a satisfied one is worse than the refusal it conceals, and readiness that never asks receives no negative answer and reads its own silence as a pass.
-7. Opening, showing, and status render one briefing of the substantive lessons for the change's modules and of the configured principles file, in text and in JSON. A scaffold-only context is omitted. The excerpt is bounded and names the file for the rest. An unreadable file does not fail the command. `change finalize` and `change ship` name the lesson-bundle path in text and in JSON. Their next action stays the merge instruction and does not require copying lessons into the spec. A passing `change check` says nothing about lessons.
+7. Opening, showing, and status render one briefing of the substantive lessons for the change's modules and of the configured principles file, in text and in JSON. A scaffold-only context is omitted. The excerpt is bounded and names the file for the rest. An unreadable principles file does not fail the command. A `.specsync/sdd.json` that cannot be parsed fails `change status` with the policy error, and status does not print a briefing as if no principles were configured. `change finalize` and `change ship` name the lesson-bundle path in text and in JSON. Their next action stays the merge instruction and does not require copying lessons into the spec. A passing `change check` says nothing about lessons.
 8. `status`, `show`, a passing `check`, `approve`, `review`, `finalize`, and ship's finalize each end their text result with exactly one `Handoff:` line — after `Next:` where one is printed — reading `safe`, `conditional`, or `not yet`, an em-dash, the domain's reason, and, when readiness is not safe, `Before clearing:` followed by the domain's steps. The line renders the domain's `HandoffSummary` verbatim: the adapter never decides readiness itself and never prints a digest on it. JSON carries the same object under `summary.handoff` wherever a change summary is rendered and under `handoff` on the approve transition.
 
 ## Behavioral Examples
@@ -72,6 +72,13 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 - **Given** verification and the configured scoped-review check are current
 - **When** `specsync change finalize <id>` succeeds
 - **Then** output names the dated archive and says the PR is ready for GitHub merge without merging it
+- **And** HEAD is `chore(lifecycle): archive <id>` and `.specsync/changes/<id>` is not an uncommitted rename
+
+### Scenario: Status refuses a broken policy
+
+- **Given** `.specsync/sdd.json` cannot be parsed
+- **When** `specsync change status` runs
+- **Then** the command exits 1 with an invalid SDD policy error and does not print a briefing
 
 ### Scenario: Finalize names the lesson bundle
 
@@ -94,6 +101,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Invalid correction ledger before answer, depend, or supersede | Command emits the safe integrity diagnostic and leaves lifecycle files unchanged |
 | Correction ledger changes after a successful mutation | Command renders the transaction's validated snapshot and does not report a false failure after persistence |
 | Affected module has no `context.md`, or it holds only scaffold prompts | Surfacing is skipped for that module and change creation is unaffected |
+| `.specsync/sdd.json` cannot be parsed | `change status` exits 1 with the invalid SDD policy error and does not print a briefing |
 
 ## Dependencies
 
@@ -167,3 +175,5 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-10-10 | a change directory with files and no state is still open |
 | 2026-10-10 | refuse-a-fenced-plan-and-keep-a-damaged-change-directory-open: Refuse a fenced plan and keep a damaged change directory open |
 | 2026-10-10 | close-a-fence-only-on-whitespace-and-count-a-symlink-as-a-file: Close a fence only on whitespace and count a symlink as a file |
+| 2026-10-10 | refuse-a-broken-policy-and-commit-the-archive-move: Refuse a broken policy and commit the archive move |
+| 2026-10-10 | parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit: Parse a broken policy beside a baseline and retry the archive commit |

@@ -870,7 +870,10 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
             .clone();
         let finalized: Value = serde_json::from_slice(&finalized).unwrap();
         assert_eq!(finalized["ready_for_github_merge"], true);
-        assert_eq!(finalized["next_action"], "merge the PR on GitHub");
+        assert_eq!(
+            finalized["next_action"],
+            "Push this archive, wait until the checks are green, then merge the pull request."
+        );
         assert_eq!(finalized["implementation_commit"], implementation_commit);
         assert_eq!(finalized["implementation_tree"], implementation_tree);
 
@@ -925,14 +928,15 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
         assert_eq!(approvals[1]["gate"], "finalization");
         assert_eq!(approvals[1]["actor"], "specsync:finalization");
 
-        git(&["add", ".specsync"]);
+        // Finalize commits the archive move, so the index matches HEAD. Classify
+        // that commit. An empty diff against HEAD is not an archive.
         let archive_diff = Command::new("git")
             .args([
                 "diff",
-                "--cached",
                 "--name-status",
                 "-z",
                 "--find-renames",
+                "HEAD^",
                 "HEAD",
                 "--",
                 ".specsync",
@@ -997,9 +1001,11 @@ fn eight_workflow_v2_changes_finalize_in_their_originating_prs_without_duplicate
             "{classification}"
         );
 
-        git(&["add", "."]);
-        git(&["commit", "-m", &format!("finalize Rune change {index}")]);
         assert_eq!(git(&["rev-parse", "HEAD^"]), implementation_commit);
+        assert_eq!(
+            git(&["log", "-1", "--format=%s"]),
+            format!("chore(lifecycle): archive {id}")
+        );
         git(&["switch", "main"]);
         git(&["merge", "--ff-only", &branch]);
         git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);

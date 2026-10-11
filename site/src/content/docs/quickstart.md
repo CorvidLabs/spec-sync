@@ -112,8 +112,8 @@ specsync change check <id> --commit     # scoped verify: apply deltas + spec↔c
 specsync change audit                   # active workspaces + living specs (archives are history)
 # open/update the PR; after ordinary PR review, record the scoped review
 specsync change review <id> --reviewer "Ada"
-specsync change finalize <id>           # same-PR archive; commit and push the result
-# GitHub merge protections perform the merge
+specsync change finalize <id>           # same-PR archive; the command commits the archive move
+# push the archive commit; GitHub merge protections perform the merge
 ```
 
 `<id>` is the slug `change new` returned (for the example above, `document-and-verify-the-existing-authentication-module`).

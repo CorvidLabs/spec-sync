@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ad1dcc4d0679df8b6a6f9007df0a09b04b4e4d92",
+  "contract_digest": "1283429ef04d77d26175fc592d155f8bd8246c6a140da29eaddccaa6a901b9bc",
+  "execution_digest": "2f5ff252e5cc62a5aa5cfce24c59234c3b2c8682be13860c34001d848ce31af2",
+  "workspace_digest": "8f4264b297d5844eabe0adac18ccc2545a125c13ab0fe293a17e4d7411c1690a",
+  "timestamp": 1791674355
+}

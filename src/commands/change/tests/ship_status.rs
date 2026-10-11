@@ -98,7 +98,7 @@ fn ship_status_and_finalize_agree_when_the_review_is_stale_by_content() {
     assert_eq!(
         ready,
         finalize.is_ok(),
-        "ship-status and finalize disagree about the same change in the same second: ready_to_finalize={ready}, finalize={finalize:?}, report={report}"
+        "ship-status and finalize disagree about readiness for the same change"
     );
 
     // Agreement is worth nothing if the two commands agree by accident on unrelated
@@ -110,7 +110,7 @@ fn ship_status_and_finalize_agree_when_the_review_is_stale_by_content() {
             .as_ref()
             .err()
             .is_some_and(|error| error.contains("independent scoped review is stale")),
-        "the agreement must be about the review, not some other refusal: {finalize:?}"
+        "the agreement must be about the review, not some other refusal"
     );
     // A decided negative has to name what moved, or the reader is told "not ready" and
     // left to guess (#689's content framing applied to the review half).
@@ -201,7 +201,7 @@ fn ship_status_and_finalize_agree_after_a_squash_that_preserves_content() {
     assert_eq!(
         ready,
         finalize.is_ok(),
-        "ship-status and finalize disagree about the same change in the same second: ready_to_finalize={ready}, finalize={finalize:?}, report={report}"
+        "ship-status and finalize disagree about readiness for the same change"
     );
 
     // Guards against agreeing by accident, and phrased so that #694 resolving the other
@@ -210,7 +210,7 @@ fn ship_status_and_finalize_agree_after_a_squash_that_preserves_content() {
     if let Err(error) = &finalize {
         assert!(
             error.contains("independent scoped review is stale"),
-            "the agreement must be about the review, not some other refusal: {error}"
+            "the agreement must be about the review, not some other refusal"
         );
     }
 

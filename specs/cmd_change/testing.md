@@ -36,3 +36,12 @@ REQ-cmd-change-017: `check_commit_never_commits_an_unrelated_untracked_file` and
 The command facade and every new file are below 1000 lines. `src/commands/change/tests.rs` retains the `commands::change::tests` umbrella, with shared fixtures plus `rendering`, `scoped_commits` and `ship_status` children. `src/commands/change/ship_next_action_tests.rs` retains its original test-module name. Existing broad commands above continue selecting the same regressions, and `cargo test --bin specsync commands::change` selects all 29 command tests. Leaf test names, assertions and guards are unchanged.
 
 Pristine main in the current sandbox runs 22 of those tests successfully and fails seven fixtures at Git repository detection: `a_corrupt_archived_verification_degrades_instead_of_failing`, `archived_evidence_is_resolved_from_the_archive_package`, `draft_ship_next_defers_to_the_lifecycle_next_action`, `draft_text_surfaces_require_complete_artifacts_before_approval`, `mutation_output_uses_the_in_transaction_correction_snapshot`, `ship_next_is_an_action_never_a_blocker_restatement` and `text_correction_ledger_gate_uses_a_safe_diagnostic`. Preserve those fixtures rather than weakening Git repository checks to make this environment green. The split is checked against the same baseline and by complete-body/literal comparison; scoped spec synchronization is separate from full product/trust verification.
+
+## VM integration and safe assertion diagnostics
+
+The integrated refactor retains the readiness/finalization predicates but uses static diagnostics
+for finalization-result assertions: correction-validation errors may contain sensitive data and
+must not be debug-formatted into test logs. No assertion predicate or security query is disabled.
+Run `cargo test --locked commands::change::tests::ship_status::` for the affected regressions.
+The Ubuntu ARM64 full run at integration commit `5f22c5e` passed 2,542 unit tests and 438 integration
+tests; the historical sandbox failure counts above do not reproduce in this VM.

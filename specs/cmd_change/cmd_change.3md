@@ -110,3 +110,8 @@ rewound, and the error now names it.
 The private command modules retain the merged policy refusal and retryable archive-commit behavior.
 When integrating a moved function, carry new upstream regression tests into its topical test module;
 a clean dispatcher merge alone does not carry edits to helpers that moved out of that file.
+
+@plane z=3 label="Safe test failure diagnostics"
+Finalization errors carry correction-validation context. Regression tests can assert readiness and
+error classification without debug-printing the result, so a failed assertion does not become a
+cleartext sink after module extraction changes the security analyzer’s call graph.

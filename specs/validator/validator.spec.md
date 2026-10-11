@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 44
+version: 42
 status: stable
 files:
   - src/validator.rs

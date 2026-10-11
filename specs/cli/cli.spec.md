@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 30
+version: 28
 status: stable
 files:
   - src/main.rs

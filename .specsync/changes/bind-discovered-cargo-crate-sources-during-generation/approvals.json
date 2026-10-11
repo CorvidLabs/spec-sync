@@ -50,6 +50,57 @@
         "types": "229648f368e8874ff13de2e8b2f194cd55acdae4bc498165a8e788c36989c58b",
         "validator": "882b7ab89cc54872160c4763626a37c79f79ff518cf43db49e869d08c55be228"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1791729499,
+      "digest": "e7034b2dfa95c2328ef07dcbe11d2c15e2da5a7c1720ea06edddcfa286bcfa28",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "bind-discovered-cargo-crate-sources-during-generation",
+        "title": "Bind discovered Cargo crate sources during generation",
+        "description": "Bind discovered Cargo crate sources during generation",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cli",
+          "comment",
+          "generator",
+          "output",
+          "types",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/comment.rs",
+          "src/generator.rs",
+          "src/main.rs",
+          "src/output.rs",
+          "src/types.rs",
+          "src/validator/tests.rs",
+          "tests/integration/commands/specsync_process.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "The issue #813 minimal Cargo library succeeds through init then generate, creates specs/demo/demo.spec.md bound to src/lib.rs and documents add. Text, JSON, and batch generation bind discovered Cargo sources; binary and workspace crates are scoped correctly; existing spec-owned files remain owned; missing configured modules still fail with skipped_no_files."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Keep retained capability discovery and generation, bounded snapshots, configured-module precedence, deterministic templates, and no-overwrite publication. Bind only measured uncovered files; do not substitute a global single-source guess for a Cargo manifest mapping.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli": "a9c79d7a5053cdc9d4974f4f856c8bb6e842a2ca7cafe96c6b34c11b7415983b",
+        "comment": "d96f166c6795e79210d29369118c66e4f628125d3189dcd6be2b62d01a676e2f",
+        "generator": "c57230b1e7ce773d68548e0188b46bb6185bc35763cdd7a80c2b4c744732d2e4",
+        "output": "2c7638a441c5c2f84d041a3c69fba78f02b758569240eb5719632d8233230bf5",
+        "types": "21ccdfbe6f05e90f4ecd12d74d8bada2e7cd6c1a087eb53e56061bf5ac123b9e",
+        "validator": "d93864f5d59a3a2c4f1261bf2ebb127b11629262ec21c518870ffd7048d2df3b"
+      }
     }
   ],
   "reopenings": []

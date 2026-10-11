@@ -1,6 +1,6 @@
 ---
 module: types
-version: 20
+version: 18
 status: stable
 files:
   - src/types.rs

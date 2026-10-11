@@ -1,6 +1,6 @@
 ---
 module: comment
-version: 14
+version: 12
 status: stable
 files:
   - src/comment.rs

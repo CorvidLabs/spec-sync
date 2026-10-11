@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 23
+version: 21
 status: stable
 files:
   - src/generator.rs

@@ -90,6 +90,24 @@
       "requirement_ids": [
         "REQ-generator-006"
       ]
+    },
+    {
+      "timestamp": 1791729565,
+      "commit": "9d4f940294ec07b45fe3c881a26007f65f5c787c",
+      "contract_digest": "e7034b2dfa95c2328ef07dcbe11d2c15e2da5a7c1720ea06edddcfa286bcfa28",
+      "execution_digest": "2c4280b46678744e17608680ce3b21a96e9c9a0f1f4d8ccd58b26cf4f23df095",
+      "workspace_digest": "9c97c98f43ef174b170487740e0bb895badf0795d11bbe3d42f726c53f65102a",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cli --spec comment --spec generator --spec output --spec types --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-generator-006"
+      ]
     }
   ]
 }

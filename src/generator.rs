@@ -1320,6 +1320,7 @@ fn named_module_files_from_coverage(
         // manifest package, rather than to a guessed module named "src".
         if report.manifest_module_paths.iter().any(|(name, paths)| {
             name != module_name
+                && report.unspecced_modules.contains(name)
                 && paths.iter().any(|path| {
                     crate::validator::normalize_source_mapping(path)
                         .is_some_and(|path| Path::new(&path).starts_with(&module_dir))

@@ -16,3 +16,4 @@ spec: generator.spec.md
 - [x] Bind CLI generation reads and writes to one retained project-root capability
 
 - [x] Correct same-name crate and exact Cargo target bindings from PR #814 review.
+- [x] Preserve missing explicit mappings and assign shared or overlapping manifest sources once; retain narrower targets during batch generation (#814 additional review).

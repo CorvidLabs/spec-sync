@@ -936,20 +936,26 @@ fn parse_cargo_toml_with_access_inner(
     // Extract [[bin]] targets
     for section in split_toml_array_sections(&content, "[[bin]]") {
         if let Some(name) = extract_toml_value(&section, "name", None) {
-            let path = extract_toml_value(&section, "path", None)
-                .unwrap_or_else(|| format!("src/bin/{name}.rs"));
-            let local_dir = Path::new(&path)
+            let paths = match extract_toml_value(&section, "path", None) {
+                Some(path) => vec![path],
+                // Retain both Cargo defaults; coverage intersects these paths with
+                // measured files without probing the ambient filesystem again.
+                None => vec![format!("src/bin/{name}.rs"), format!("src/bin/{name}/main.rs")],
+            };
+            let local_dir = Path::new(&paths[0])
                 .parent()
                 .unwrap_or_else(|| Path::new("src"));
             let dir = manifest_path_text(&relative_root.join(local_dir), "Cargo binary source")?;
-            let target = manifest_path_text(&relative_root.join(path), "Cargo binary target")?;
             let module = discovery.modules.entry(name.clone()).or_insert_with(|| ManifestModule {
                 name,
                 source_paths: Vec::new(),
                 dependencies: Vec::new(),
             });
-            if !module.source_paths.contains(&target) {
-                module.source_paths.push(target);
+            for path in paths {
+                let target = manifest_path_text(&relative_root.join(path), "Cargo binary target")?;
+                if !module.source_paths.contains(&target) {
+                    module.source_paths.push(target);
+                }
             }
             if !discovery.source_dirs.contains(&dir) {
                 discovery.source_dirs.push(dir);

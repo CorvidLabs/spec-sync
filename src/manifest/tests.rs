@@ -207,6 +207,19 @@ regex = "1.0"
     }
 
     #[test]
+    fn cargo_implicit_binary_paths_include_flat_and_nested_defaults() {
+        let tmp = tempdir().unwrap();
+        fs::create_dir_all(tmp.path().join("crates/demo/src/bin")).unwrap();
+        fs::write(tmp.path().join("Cargo.toml"), "[workspace]\nmembers=[\"crates/demo\"]\n").unwrap();
+        fs::write(tmp.path().join("crates/demo/Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[[bin]]\nname=\"server\"\n").unwrap();
+        let discovery = parse_cargo_toml(tmp.path()).unwrap();
+        assert_eq!(discovery.modules["server"].source_paths, ["crates/demo/src/bin/server.rs", "crates/demo/src/bin/server/main.rs"]);
+        assert!(discovery.source_dirs.contains(&"crates/demo".into()));
+        let member = parse_cargo_toml(&tmp.path().join("crates/demo")).unwrap();
+        assert!(member.source_dirs.contains(&"src/bin".into()));
+    }
+
+    #[test]
     fn cargo_workspace_traversal_charges_declarations_and_memoizes_completed_members() {
         let mut access = CountingManifestAccess::new(MAX_RETAINED_MANIFEST_ENTRIES);
         access.texts.insert(

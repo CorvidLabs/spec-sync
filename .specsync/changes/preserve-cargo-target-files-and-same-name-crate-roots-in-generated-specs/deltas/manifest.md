@@ -89,7 +89,7 @@
     capabilities. Each verified base listing is released before the next distinct base, so
     swap/read/restore cannot mix generations and neither sibling nor base breadth exhausts handles.
 
-20. Cargo binary targets retain exact source files separately from scan directories; a same-name target extends the package source paths.
+20. Cargo binary targets retain exact source files separately from scan directories; a same-name target extends the package source paths. Pathless targets retain both flat and nested main.rs defaults until measured-file intersection.
 
 ### SPEC SECTION Behavioral Examples
 
@@ -200,11 +200,17 @@
 - **When** checked manifest discovery runs
 - **Then** `server` carries `src/foo.rs`; `src` remains a source scan directory. A binary named `demo` retains both the package root and its target file.
 
+### Scenario: Cargo binary omits its path
+
+- **Given** binary `server` without a `path` declaration and an existing spec owning `src/bin/server/main.rs`
+- **When** checked discovery and coverage run
+- **Then** discovery retains both `src/bin/server.rs` and `src/bin/server/main.rs`; coverage recognizes the existing owner and generation does not invent a missing server module.
+
 ### SPEC SECTION Change Log
 
 | Date | Change |
 |------|--------|
-| 2026-10-11 | #813 review: Preserve exact Cargo binary target files and merge same-name package roots. |
+| 2026-10-11 | #813 review: Preserve exact Cargo binary target files, both implicit binary defaults and same-name package roots. |
 | 2026-10-10 | Add `manifest.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-28 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |

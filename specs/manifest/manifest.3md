@@ -135,3 +135,6 @@ thought of yet.
 
 @plane z=7 label="Cargo review corrections (#813)"
 Cargo target ownership needs the declared file, while traversal needs its parent. Collapsing both into a directory loses the target identity and can bind a binary to a library. Merge same-name targets with package roots instead of overwriting them.
+
+@plane z=8 label="Implicit Cargo binary paths (#813)"
+A pathless binary declaration can use either src/bin/<name>.rs or src/bin/<name>/main.rs. Retain both candidates in the same checked manifest snapshot and intersect them with measured files. Guessing only the flat form leaves a phantom missing target when an existing spec already owns the nested entry point.

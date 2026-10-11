@@ -1,3 +1,5 @@
 # Context
 
 Two automated PR #814 review findings reproduce against dd6eb3e. Package utils with src/lib.rs and src/utils/mod.rs drops lib.rs. Binary server at src/foo.rs binds src/lib.rs and duplicates the library owner. The user explicitly approved fixing issue #813 with local validation, confidence at least 95 percent, and no regressions. These are corrections to that same bug-fix request. The initial definition remains immutable; this narrow package owns only manifest parsing and parser tests. The reopened initial change owns generation, coverage and process regressions.
+
+The fresh review of 5b640b7 reproduced four additional cases. This package extends the same target-identity correction to both conventional pathless binary layouts. The reopened generator package keeps explicit missing mappings authoritative and resolves shared targets or overlapping roots deterministically. The four added process regressions failed before these corrections and pass afterward. Human implementation review remains pending on the final updated diff.

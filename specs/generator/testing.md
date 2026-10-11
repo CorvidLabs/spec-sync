@@ -29,3 +29,15 @@ Run `cargo test --test integration generate_cargo` and `cargo test generator::`.
 ## Cargo target identity review regressions (#813)
 
 Cover same-name directory and flat source modules, arbitrary explicit binary files, a target sharing its package name, nested target roots and workspace prefixes. Exact target ownership must not be duplicated by package or guessed filename specs.
+
+## Additional review regressions (#813)
+
+| Case | Required behavior |
+|------|-------------------|
+| Explicit mapping has no measured files | Remain skipped; never fall back to a crate root or conventional filename |
+| Two targets share an exact file | One deterministic owner; batch selection wins an equal-root tie |
+| Cargo and npm share a source root | One owner per file and complete post-generation coverage |
+| More specific unselected target | Batch generation cannot capture its source through a broader root |
+| Pathless Cargo binary | Flat and nested main.rs defaults remain covered, including an existing differently named owner |
+
+The four added process regressions failed on 5b640b7 before implementation. All eleven Cargo process tests, 51 generator unit tests and 61 manifest unit tests pass after the corrections.

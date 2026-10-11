@@ -1,6 +1,6 @@
 ---
 module: cmd_check
-version: 34
+version: 35
 status: stable
 files:
   - src/commands/check.rs
@@ -79,6 +79,12 @@ optional drift issues. SDD / change / archive history is not part of this comman
 - **When** `cmd_check` runs with `--fix` for an undocumented export
 - **Then** the new row is inserted directly after the last row of that table, the prose is preserved after it, pipe-shaped lines inside fenced or indented code examples are never treated as table rows, and a subsequent `check --strict` passes; only a section with no table at all receives rows at its end
 
+#### Scenario: Auto-fix chooses one contiguous table (#768)
+
+- **Given** an export subsection or flat Public API with multiple tables
+- **When** `check --fix` adds an undocumented export
+- **Then** it prefers the first table with a `Name` header (otherwise the first table), derives both width and insertion offset from that same contiguous table, and preserves all other content
+
 #### Scenario: Auto-fix preserves fenced examples while renaming headers
 
 - **Given** a `## Public API` section that contains a fenced markdown example and a near-miss or bare `###` heading
@@ -130,6 +136,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-11 | v35 / #768: Select one contiguous export table for both width and insertion. |
 | 2026-10-10 | Add `cmd_check.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-09-08 | v30 / #615: `--fix` inserts new export rows after the last row of the nearest table in the section or subsection, never after trailing prose, so rows are no longer orphaned outside every table |
 | 2026-08-30 | v28: `check` no longer consults SDD, active changes, or archive history. Drift only. |

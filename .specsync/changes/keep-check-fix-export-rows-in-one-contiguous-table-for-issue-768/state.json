@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-check-fix-export-rows-in-one-contiguous-table-for-issue-768",
+  "slug": "keep-check-fix-export-rows-in-one-contiguous-table-for-issue-768",
+  "title": "Keep check fix export rows in one contiguous table for issue 768",
+  "description": "Keep check fix export rows in one contiguous table for issue 768",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "9003fad7ec4dea3938179d076248b48f29b6ed48",
+  "created_at": 1791729176,
+  "updated_at": 1791729549,
+  "affected_specs": [
+    "cmd_check"
+  ],
+  "affected_paths": [
+    "src/commands/check.rs",
+    "tests/integration/fix.rs",
+    "specs/cmd_check/cmd_check.3md",
+    "specs/cmd_check/cmd_check.spec.md",
+    "specs/cmd_check/requirements.md",
+    "specs/cmd_check/tasks.md",
+    "specs/cmd_check/testing.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "For issue 768 case 1, new export rows extend one contiguous table using its own width; prefer the first Name header and otherwise the first table; preserve surrounding content; pass strict recheck and repeated-fix idempotence. Case 2 remains out of scope."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Read cmd_check.3md; preserve deterministic local repair, fenced example contents, existing export-kind routing and no SDD coupling in check. Scope excludes case 2 parser work, generate binding, publication and human approval claims.",
+    "public_contract": "yes"
+  }
+}

@@ -34,3 +34,12 @@ Fully implemented and stable. Exercised end-to-end by many `tests/integration.rs
 @plane z=4 label="Notes"
 - Orchestrates deterministic validation, scoring, lifecycle, and git modules.
 - `--dry-run` without `--fix` prints a warning and otherwise does nothing.
+
+@plane z=5 label="Issue 768 table selection lesson"
+The row scanner used the first visible row for width and the last visible row for
+insertion. Two real tables therefore mixed schemas and misplaced the new export.
+Select one contiguous table for both values; prefer its Name header when present.
+Regressions assert exact surrounding content, strict validation, and idempotence
+as well as finding the added symbol. Case 2 remains open: fixing indentation only
+in the insertion scanner is insufficient because parser symbol discovery also
+treats the literal marker as a fence and can duplicate existing exports.

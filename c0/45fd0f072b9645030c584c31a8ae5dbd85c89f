@@ -1,0 +1,1 @@
+{"commit":"c045fd0f072b9645030c584c31a8ae5dbd85c89f","confidence":0.6348564263157894,"humanApproved":false,"note":"Full local verify passed; matched main/fix suites and serial controls passed. Scope approved by user; no human implementation review or acceptance.","reviewer":"agent:corvid-agent","testsPassed":true,"timestamp":1791731598,"verdict":"review"}

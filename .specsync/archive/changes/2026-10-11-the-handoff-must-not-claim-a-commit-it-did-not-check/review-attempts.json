@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "the-handoff-must-not-claim-a-commit-it-did-not-check",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "f8d6094ea29f8e8149b90b79183c84a484d53e6d",
+      "contract_digest": "098ac9bee3d70eec641c8f2af65298fc29feace2fa155963913aa1eb6cc0d572",
+      "execution_digest": "452e125c70766365ce97f76505230ed48c15fe1f3559818129ec5c4a8b8ae1b4",
+      "workspace_digest": "ef4b213c6e22bbc320c2261f74ae606b953256f0512bc82418aaad84fc22f082",
+      "timestamp": 1791683988
+    }
+  ]
+}

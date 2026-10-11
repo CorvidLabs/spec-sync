@@ -1,6 +1,6 @@
 ---
 id: the-handoff-must-not-claim-a-commit-it-did-not-check
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 68fab607785719474db1c3573b6d25cce9309e95
 ---

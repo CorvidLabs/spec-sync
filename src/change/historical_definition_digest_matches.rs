@@ -3309,7 +3309,10 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
             ),
             ChangeState::Verifying if !signals.scoped_review_current => (
                 HandoffReadiness::Safe,
-                "the implementation is committed and its verification is current; a fresh session resumes at the independent review",
+                // Currency is this working tree. `change check` without `--commit`
+                // leaves the change directory untracked, and an empty path list
+                // counts as clean, so this branch has not seen a commit.
+                "verification is current for this working tree; a fresh session here resumes at the independent review",
                 Vec::new(),
             ),
             ChangeState::Verifying => (
@@ -3319,7 +3322,7 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
             ),
             ChangeState::Approved | ChangeState::Implementing => (
                 HandoffReadiness::Safe,
-                "the approval pins the definition and the tree under this change is committed; a fresh session resumes at `change check`",
+                "the approval pins the definition; a fresh session in this tree resumes at `change check`",
                 Vec::new(),
             ),
             ChangeState::Accepted if !signals.correction_valid => (

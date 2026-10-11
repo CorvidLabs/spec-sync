@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "the-handoff-must-not-claim-a-commit-it-did-not-check",
+  "slug": "the-handoff-must-not-claim-a-commit-it-did-not-check",
+  "title": "The handoff must not claim a commit it did not check",
+  "description": "the handoff must not claim a commit it did not check",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "68fab607785719474db1c3573b6d25cce9309e95",
+  "created_at": 1791683849,
+  "updated_at": 1791683971,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "REQ-change-093 already says a current verification is safe and the reason names where a session resumes. The sentence claimed a commit HandoffSignals does not record.",
+  "acceptance_criteria": [
+    "The verifying handoff says verification is current for this working tree and a fresh session here resumes at the independent review. It does not say the implementation is committed. The approved and implementing handoff does not say the tree is committed."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Verification currency is whether this working tree matches the recorded verification. Evidence under .specsync/ stays uncommitted until finalize, so a handoff reason must not call that a commit.",
+    "public_contract": "no"
+  }
+}

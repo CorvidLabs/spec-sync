@@ -1,10 +1,20 @@
 ---
 module: change
-version: 145
+version: 146
 status: active
 files:
   - src/change.rs
+  - src/change/collect_requirement_ids.rs
+  - src/change/consider_accepted_evidence_anchor.rs
+  - src/change/historical_definition_digest_matches.rs
+  - src/change/sdd_version.rs
+  - src/change/validate_loaded_change.rs
   - src/change_tests.rs
+  - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
+  - src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs
+  - src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs
+  - src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs
+  - src/change_tests/substantive_plan.rs
   - src/lifecycle-validation-limits.json
 db_tables: []
 tracks: []
@@ -540,3 +550,4 @@ Acceptance Criteria
 | 2026-10-10 | expect-a-module-3md-file-in-the-lifecycle-commit-scope: Expect a module 3md file in the lifecycle commit scope |
 | 2026-10-10 | refuse-a-broken-policy-and-commit-the-archive-move: Refuse a broken policy and commit the archive move |
 | 2026-10-10 | parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit: Parse a broken policy beside a baseline and retry the archive commit |
+| 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |

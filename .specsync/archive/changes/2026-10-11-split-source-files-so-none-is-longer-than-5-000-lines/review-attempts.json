@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "split-source-files-so-none-is-longer-than-5-000-lines",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "d84243e50dc2c1d54b9e423473eb21f008915496",
+      "contract_digest": "5d1b9f2f39418fc3b688d8c757d8b18a17b2672ed7342de074e497768dbe9d17",
+      "execution_digest": "494bbecf8dfa623f6f0debe77036847c10e6bd153279a4978db3c421d4b78e0d",
+      "workspace_digest": "11e94dda93cf46844ef8cceefdb0b3d4626b94ffc64236161bf998d1c550c43a",
+      "timestamp": 1791679311
+    }
+  ]
+}

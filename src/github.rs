@@ -2420,6 +2420,11 @@ mod tests {
             ("src/commands/import.rs", include_str!("commands/import.rs")),
             ("src/commands/issues.rs", include_str!("commands/issues.rs")),
             ("src/mcp.rs", include_str!("mcp.rs")),
+            ("src/mcp/server_name.rs", include_str!("mcp/server_name.rs")),
+            (
+                "src/mcp/publish_staged_file_with_verification_hooks.rs",
+                include_str!("mcp/publish_staged_file_with_verification_hooks.rs"),
+            ),
         ] {
             assert!(
                 !source.contains("Command::new(\"gh\")")

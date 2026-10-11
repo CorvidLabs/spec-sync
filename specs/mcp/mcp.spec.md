@@ -1,9 +1,11 @@
 ---
 module: mcp
-version: 31
+version: 32
 status: stable
 files:
   - src/mcp.rs
+  - src/mcp/publish_staged_file_with_verification_hooks.rs
+  - src/mcp/server_name.rs
   - src/mcp_tools_lock.rs
 db_tables: []
 tracks: [30]
@@ -300,3 +302,4 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-09-09 | isolate-mcp-snapshot-git-discovery-from-a-host-worktree-without-breaking-nested-project-walk-up: Isolate MCP snapshot git discovery from a host worktree without breaking nested-project walk-up |
 | 2026-09-09 | feat-mcp-tools-lock: Add `.specsync/mcp-tools.lock.json` SoT with `mcp lock` / `mcp lock --write` / `mcp diff` fail-closed drift detection over the shared tool catalog |
 | 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |
+| 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |

@@ -175,3 +175,11 @@ Acceptance Criteria
 - A module whose manifest declares no source paths exposes an empty set rather than being omitted, so a consumer can tell "declares nothing" from "was not discovered".
 - Cargo, Swift and Gradle discovery all populate the field, including the Gradle single-project fallback that derives its name from the root directory.
 
+### REQ-manifest-019
+
+The manifest module SHALL keep the same behavior when its source is split across `include!` files, and none of those files SHALL exceed 5,000 lines.
+
+Acceptance Criteria
+- `src/manifest.rs` keeps its module docs and includes the rest in the original order.
+- No manifest source file exceeds 5,000 lines.
+

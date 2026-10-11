@@ -1,9 +1,11 @@
 ---
 module: validator
-version: 40
+version: 41
 status: stable
 files:
   - src/validator.rs
+  - src/validator/consumed_by_re.rs
+  - src/validator/tests.rs
 db_tables: []
 tracks: [119]
 depends_on:
@@ -287,3 +289,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-27 | v37 / #723: A manifest that cannot be parsed no longer vetoes an explicitly configured `source_dirs`; it degrades to a `manifest_notices` entry, and stays fatal only when the source list itself came from discovery |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |

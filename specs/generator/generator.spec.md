@@ -1,6 +1,6 @@
 ---
 module: generator
-version: 20
+version: 21
 status: stable
 files:
   - src/generator.rs
@@ -49,6 +49,9 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 - CLI generation confines template reads, directory creation, and no-overwrite publication to one
   retained project-root capability so public-root replacement cannot redirect output.
 
+
+- Manifest fallback binds only uncovered files observed by coverage; configured mappings and more specific named modules take precedence.
+
 ## Behavioral Examples
 
 ### Scenario: Generate spec for unspecced module
@@ -74,6 +77,13 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 - **Given** no `companions.design` config (default: false)
 - **When** `generate_companion_files_for_spec` is called
 - **Then** creates tasks.md, context.md, requirements.md, testing.md but NOT design.md
+
+
+### Scenario: Generate a fresh Cargo library
+
+- **Given** package `demo` with `src/lib.rs` exporting `add`, initialized with `specsync init`
+- **When** generation runs in text, JSON, or batch mode
+- **Then** `specs/demo/demo.spec.md` binds `src/lib.rs` and documents `add`. Existing spec owners retain their files.
 
 ## Error Cases
 
@@ -104,6 +114,7 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 
 | Date | Change |
 |------|--------|
+| 2026-10-11 | #813: Bind discovered Cargo sources through coverage while preserving more specific modules and existing ownership. |
 | 2026-10-10 | Add `generator.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-26 | v7 / CHG-0063: Bind CLI generation templates, directories, and no-overwrite file publication to one retained project-root capability |
 | 2026-07-10 | v5: keep module-discovery test fixtures warning-free under current stable Clippy |
@@ -127,3 +138,4 @@ Deterministically scaffolds spec files and companion files for unspecced modules
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-10-11 | bind-discovered-cargo-crate-sources-during-generation: Bind discovered Cargo crate sources during generation |

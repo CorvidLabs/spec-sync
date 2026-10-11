@@ -1,6 +1,6 @@
 ---
 module: comment
-version: 11
+version: 12
 status: stable
 files:
   - src/comment.rs
@@ -88,6 +88,7 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 
 | Date | Change |
 |------|--------|
+| 2026-10-11 | #813: Adapt coverage fixtures to manifest binding metadata. |
 | 2026-10-10 | Add `comment.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-04-11 | Documented unified output pipeline: marketplace action and CI workflow both use `specsync comment` for identical PR comments |
 | 2026-04-10 | Populated requirements.md with user stories, acceptance criteria, constraints, and out-of-scope items |
@@ -100,3 +101,4 @@ GitHub PR comment formatting with spec links and actionable suggestions. Produce
 | 2026-08-27 | v8 / #723: `CoverageReport` also carries manifest discovery that was degraded rather than allowed to veto an explicitly configured `source_dirs` |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
+| 2026-10-11 | bind-discovered-cargo-crate-sources-during-generation: Bind discovered Cargo crate sources during generation |

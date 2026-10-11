@@ -223,6 +223,9 @@ pub struct CoverageReport {
     pub specced_file_count: usize,
     pub unspecced_files: Vec<String>,
     pub unspecced_modules: Vec<String>,
+    /// Manifest module source roots from the same retained coverage observation.
+    /// Generation intersects these paths with measured uncovered files.
+    pub manifest_module_paths: std::collections::HashMap<String, Vec<String>>,
     pub total_loc: usize,
     pub specced_loc: usize,
     /// (file_path, line_count) sorted by LOC descending.
@@ -990,6 +993,7 @@ mod coverage_report_tests {
             missing_files: Vec::new(),
             skipped_links: Vec::new(),
             manifest_notices: Vec::new(),
+            manifest_module_paths: std::collections::HashMap::new(),
         }
     }
 

@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 41
+version: 42
 status: stable
 files:
   - src/validator.rs
@@ -104,6 +104,9 @@ instead of a false success.
     reachability checks around recursion.
 22. Configured source-root selection stores stable identities without retaining every root handle;
     traversal reopens, identity-checks, consumes, and releases each root sequentially.
+
+
+- Checked coverage retains manifest module source paths in its report from the same retained manifest observation used for module attribution. Degraded discovery leaves this mapping empty.
 
 ## Behavioral Examples
 
@@ -247,6 +250,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-11 | #813: Retain manifest source mappings for generation without rediscovery. |
 | 2026-10-10 | Add `validator.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-22 | v12: add checked coverage so malformed Gradle discovery fails CLI and MCP gates as inconclusive while retaining the compatibility report wrapper |
 | 2026-07-22 | v13 / CHG-0063: add `validate_spec_content` so capability-rooted callers validate exact pre-read snapshots without reopening spec paths |
@@ -290,3 +294,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
+| 2026-10-11 | bind-discovered-cargo-crate-sources-during-generation: Bind discovered Cargo crate sources during generation |

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs",
+  "implementation_commit": "28779de1d407a5c35605298af92b3663a97709eb",
+  "implementation_tree": "a207ffdf9f0a0ade111ed085eb2fefa8ebde4d34",
+  "contract_digest": "a8277ab3be2772b21d1f66db173c2421b41495fba181daed32fb0b839b4fd5bc",
+  "workspace_digest": "1ca19e899731d2bebf18f90143d1cdcef70cacab2e210f4b5895c2dba241a101",
+  "closing_digest": "c11726da03d286b5f025f4d8a05c6e0c3bd610565487ca5a52948fa59bf5ec35",
+  "review_digest": "79bdbb792fa7f6902a8b7151c1f1b88b7596f1bdb0ba323cc58ccfbea9e9cc4e",
+  "finalization_digest": "5540712977d33a18ec77eb848d4754d772ae1a3b03503d9fe207a7a99133c68a",
+  "timestamp": 1791757339
+}

@@ -1,6 +1,6 @@
 ---
 module: cli
-version: 27
+version: 28
 status: stable
 files:
   - src/main.rs
@@ -357,6 +357,7 @@ update is an explicit implementation edit because semantic section deltas do not
 
 | Date | Change |
 |------|--------|
+| 2026-10-11 | #813: Adapt coverage fixtures to manifest binding metadata. |
 | 2026-10-10 | Add `cli.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-26 | Fix #417: forward resolved output format to compact/archive-tasks so JSON shorthand and Markdown are honored |
 | 2026-07-10 | v5: dispatch the verified `specsync change` SDD lifecycle |
@@ -386,3 +387,4 @@ update is an explicit implementation edit because semantic section deltas do not
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-10-11 | bind-discovered-cargo-crate-sources-during-generation: Bind discovered Cargo crate sources during generation |

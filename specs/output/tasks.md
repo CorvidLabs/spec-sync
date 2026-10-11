@@ -8,6 +8,8 @@ spec: output.spec.md
 
 ## Done
 
+- [x] Adapt coverage renderer fixtures for source-binding metadata (#813).
+
 - [x] `print_summary` / `print_coverage_line` / `print_coverage_report` colored terminal output
 - [x] `print_check_markdown` and `print_diff_markdown` for PR comments and CI summaries
 - [x] `saturating_sub` underflow fix in `print_summary` (`passed > total` no longer panics)

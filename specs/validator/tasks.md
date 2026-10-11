@@ -13,6 +13,8 @@ spec: validator.spec.md
 
 ## Done
 
+- [x] Retain manifest module source roots in CoverageReport for generation (#813).
+
 - [x] Keep coverage regression fixtures warning-free under current stable Clippy
 - [x] Bidirectional API surface validation (spec ↔ code exports)
 - [x] Frontmatter field validation (module, version, status, files)
@@ -83,3 +85,5 @@ spec: validator.spec.md
 ## Review Status
 
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
+
+- [x] Correct same-name crate and exact Cargo target bindings from PR #814 review.

@@ -1,0 +1,194 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1791733230,
+      "digest": "f7e56edd7b83e468ec0a9476daebfef63659aabb935bdd884b8801454730cca7",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs",
+        "title": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "description": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "manifest"
+        ],
+        "affected_paths": [
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Explicit Cargo binary targets retain their exact source files and workspace prefixes, while a binary sharing its package name keeps the package source root. Generation binds same-name source modules together with crate roots and never assigns an explicit target to a library or guessed filename owner. Existing configured and spec ownership remain respected."
+        ],
+        "dependencies": [
+          "bind-discovered-cargo-crate-sources-during-generation"
+        ],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve retained bounded single-read discovery; no ambient Cargo reread during generation. Keep directory scanning roots separate from exact target ownership. This corrects two reproduced review defects within the user-approved issue #813 fix; full local validation and confidence above 95 percent are required before merge.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "manifest": "24686e40aa2fb0c39650303eb2c3040854d5ae10f6427b092c387e0058bb1c7c"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1791733929,
+      "digest": "a8277ab3be2772b21d1f66db173c2421b41495fba181daed32fb0b839b4fd5bc",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs",
+        "title": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "description": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "manifest"
+        ],
+        "affected_paths": [
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Explicit Cargo binary targets retain their exact source files and workspace prefixes, while a binary sharing its package name keeps the package source root. Generation binds same-name source modules together with crate roots and never assigns an explicit target to a library or guessed filename owner. Existing configured and spec ownership remain respected."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve retained bounded single-read discovery; no ambient Cargo reread during generation. Keep directory scanning roots separate from exact target ownership. This corrects two reproduced review defects within the user-approved issue #813 fix; full local validation and confidence above 95 percent are required before merge.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "manifest": "24686e40aa2fb0c39650303eb2c3040854d5ae10f6427b092c387e0058bb1c7c"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1791734526,
+      "digest": "a8277ab3be2772b21d1f66db173c2421b41495fba181daed32fb0b839b4fd5bc",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs",
+        "title": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "description": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "manifest"
+        ],
+        "affected_paths": [
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Explicit Cargo binary targets retain their exact source files and workspace prefixes, while a binary sharing its package name keeps the package source root. Generation binds same-name source modules together with crate roots and never assigns an explicit target to a library or guessed filename owner. Existing configured and spec ownership remain respected."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve retained bounded single-read discovery; no ambient Cargo reread during generation. Keep directory scanning roots separate from exact target ownership. This corrects two reproduced review defects within the user-approved issue #813 fix; full local validation and confidence above 95 percent are required before merge.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "manifest": "24686e40aa2fb0c39650303eb2c3040854d5ae10f6427b092c387e0058bb1c7c"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1791734632,
+      "digest": "a8277ab3be2772b21d1f66db173c2421b41495fba181daed32fb0b839b4fd5bc",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs",
+        "title": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "description": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "manifest"
+        ],
+        "affected_paths": [
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Explicit Cargo binary targets retain their exact source files and workspace prefixes, while a binary sharing its package name keeps the package source root. Generation binds same-name source modules together with crate roots and never assigns an explicit target to a library or guessed filename owner. Existing configured and spec ownership remain respected."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve retained bounded single-read discovery; no ambient Cargo reread during generation. Keep directory scanning roots separate from exact target ownership. This corrects two reproduced review defects within the user-approved issue #813 fix; full local validation and confidence above 95 percent are required before merge.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "manifest": "24686e40aa2fb0c39650303eb2c3040854d5ae10f6427b092c387e0058bb1c7c"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "leif",
+      "timestamp": 1791751144,
+      "digest": "a8277ab3be2772b21d1f66db173c2421b41495fba181daed32fb0b839b4fd5bc",
+      "note": "User authorized fixing issue #813 and PR change requests subject to full local testing, at least 95 percent confidence and no regressions. Refresh the same manifest bug-fix definition to document both Cargo implicit binary layouts; implementation review remains pending.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs",
+        "title": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "description": "Preserve Cargo target files and same-name crate roots in generated specs",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "manifest"
+        ],
+        "affected_paths": [
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Explicit Cargo binary targets retain their exact source files and workspace prefixes, while a binary sharing its package name keeps the package source root. Generation binds same-name source modules together with crate roots and never assigns an explicit target to a library or guessed filename owner. Existing configured and spec ownership remain respected."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve retained bounded single-read discovery; no ambient Cargo reread during generation. Keep directory scanning roots separate from exact target ownership. This corrects two reproduced review defects within the user-approved issue #813 fix; full local validation and confidence above 95 percent are required before merge.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "manifest": "c2a63fcecf63b18997d8b04fcb39039106bbbc38503aa5d37b4ee74aac54f72d"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1791757339,
+      "digest": "c11726da03d286b5f025f4d8a05c6e0c3bd610565487ca5a52948fa59bf5ec35",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

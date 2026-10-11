@@ -83,3 +83,6 @@ spec: manifest.spec.md
 ## Review Status
 
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
+
+- [x] Correct same-name crate and exact Cargo target bindings from PR #814 review.
+- [x] Retain both conventional Cargo binary entry paths when a target omits path, including workspace and existing-owner regressions (#814 additional review).

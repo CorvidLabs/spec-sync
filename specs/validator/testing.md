@@ -83,3 +83,15 @@ cross-target previously compiled, but hosted-Windows runtime remains pending.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `./target/release/specsync score --all`.
 - Do not treat historical Gradle, Windows cross-target, independent-review, trust, or CI results as
   evidence for the CHG-0063 amendment; rerun every required gate on the final exact tree.
+
+## Cargo generation regressions (#813)
+
+| Case | Setup | Required Behavior |
+|------|-------|-------------------|
+| Manifest binding metadata | Checked coverage for a Cargo crate | Report retains module source roots from the same retained discovery used for attribution |
+
+Run `cargo test --test integration generate_cargo` and `cargo test generator::`. Preserve malformed-manifest, missing-module, and retained-root replacement regressions.
+
+## Cargo target identity review regressions (#813)
+
+Cover same-name directory and flat source modules, arbitrary explicit binary files, a target sharing its package name, nested target roots and workspace prefixes. Exact target ownership must not be duplicated by package or guessed filename specs.

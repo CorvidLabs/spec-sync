@@ -404,6 +404,7 @@ mod tests {
             missing_files: vec![],
             skipped_links: vec![],
             manifest_notices: vec![],
+            manifest_module_paths: std::collections::HashMap::new(),
         }
     }
 
@@ -431,6 +432,7 @@ mod tests {
             missing_files: vec![],
             skipped_links: vec![],
             manifest_notices: vec![],
+            manifest_module_paths: std::collections::HashMap::new(),
         }
     }
 

@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 25
+version: 26
 status: stable
 files:
   - src/manifest.rs
@@ -29,7 +29,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 
 | Struct | Fields | Description |
 |--------|--------|-------------|
-| `ManifestModule` | `name: String`, `source_paths: Vec<String>`, `dependencies: Vec<String>` | A module/target discovered from a manifest file |
+| `ManifestModule` | `name: String`, `source_paths: Vec<String>`, `dependencies: Vec<String>` | A module/target discovered from a manifest file; source paths are directories or exact Cargo binary files |
 | `ManifestDiscovery` | `modules: HashMap<String, ManifestModule>`, `source_dirs: Vec<String>` | Aggregated result of parsing all manifest files in a project |
 | `GradleSettingsModule` | `name: String`, `path: String` | Crate-visible normalized Gradle module identity and effective project directory |
 
@@ -105,6 +105,8 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
     retained workspace base, and consumes child manifests/source probes only from identity-matching
     capabilities. Each verified base listing is released before the next distinct base, so
     swap/read/restore cannot mix generations and neither sibling nor base breadth exhausts handles.
+
+20. Cargo binary targets retain exact source files separately from scan directories; a same-name target extends the package source paths. Pathless targets retain both flat and nested main.rs defaults until measured-file intersection.
 
 ## Behavioral Examples
 
@@ -209,6 +211,18 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 - **Then** interpolation is rejected as dynamic and decoded traversal is rejected before partial
   discovery, source probing, or generation
 
+### Scenario: Cargo target path differs from its name
+
+- **Given** package `demo` and binary `server` with `path = "src/foo.rs"`
+- **When** checked manifest discovery runs
+- **Then** `server` carries `src/foo.rs`; `src` remains a source scan directory. A binary named `demo` retains both the package root and its target file.
+
+### Scenario: Cargo binary omits its path
+
+- **Given** binary `server` without a `path` declaration and an existing spec owning `src/bin/server/main.rs`
+- **When** checked discovery and coverage run
+- **Then** discovery retains both `src/bin/server.rs` and `src/bin/server/main.rs`; coverage recognizes the existing owner and generation does not invent a missing server module.
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -250,6 +264,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 
 | Date | Change |
 |------|--------|
+| 2026-10-11 | #813 review: Preserve exact Cargo binary target files, both implicit binary defaults and same-name package roots. |
 | 2026-10-10 | Add `manifest.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-28 | Initial spec |
 | 2026-07-11 | CHG-0010-canonicalize-every-specsync-5-0-contract-and-requirement: Canonicalize every SpecSync 5.0 contract and requirement |
@@ -275,3 +290,5 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | 2026-08-27 | v22 / #725: Skip a balanced trailing `includeBuild` configuration block instead of refusing it, because `includeBuild(path) { dependencySubstitution { … } }` is the common spelling and declares no project |
 | 2026-08-27 | a-trailing-includebuild-configuration-block-must-be-skipped-not-refused-because-includebuild-path: A trailing includeBuild configuration block must be skipped, not refused, because includeBuild(path) { dependencySubstitution { ... } } is the common spelling and contributes no module |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
+| 2026-10-11 | preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs: Preserve Cargo target files and same-name crate roots in generated specs |
+

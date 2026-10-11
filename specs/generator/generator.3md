@@ -43,3 +43,12 @@ Anything comparing text against a template must compare against the EXPANDED tem
 a caller comparing against the raw text silently fails to recognise a line it wrote itself. That
 mismatch stayed invisible for as long as frontmatter was being stripped before it mattered, and
 appeared the instant stripping failed on CRLF — two defects where either alone is silent.
+
+@plane z=4 label="Cargo generation binding (#813)"
+Cargo package names do not identify source filenames. Carry manifest source roots from checked coverage into every generation entry point, intersect them with uncovered files, and preserve more specific named bindings even when batch selection narrows the candidate list. Test init then generate on a real fresh crate; a mature repository with authored specs cannot expose this bootstrap failure.
+
+@plane z=5 label="Cargo review corrections (#813)"
+A conventional module and a manifest crate with the same name are one owner: combine their measured files. An exact manifest target must outrank a guessed filename owner, while explicit configuration keeps precedence.
+
+@plane z=6 label="Shared source ownership (#813)"
+Excluding every source claimed by another target drops shared files from every owner. Independently including directory roots duplicates overlapping owners. Resolve ownership once from the captured manifest: nearest path first, selected names then lexical order for ties. Retain unselected exact targets during batch generation. An explicit mapping that matches nothing remains authoritative. An existing empty package spec must still allow named scaffolds for uncovered files beneath its source directory.

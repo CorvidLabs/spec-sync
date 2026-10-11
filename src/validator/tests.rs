@@ -2802,6 +2802,9 @@ impl CoverageModuleOwnership {
         };
         for file in source_files {
             let mapped = specced_files.contains(file.as_str());
+            if let Some(entry) = ownership.directories.get_mut(file) {
+                entry.observe(mapped);
+            }
             let (parent, name) = match file.rsplit_once('/') {
                 Some((parent, name)) => (parent, name),
                 None => ("", file.as_str()),
@@ -2842,7 +2845,7 @@ impl CoverageModuleOwnership {
         self.directories.get(directory).copied().unwrap_or_default()
     }
 
-    /// Ownership across every source path a manifest declares for a module.
+    /// Ownership across every directory or exact file a manifest declares for a module.
     /// Paths that do not normalize contribute nothing, so a module whose
     /// declared sources cannot be located keeps its report.
     fn declared_directories(&self, source_paths: &[String]) -> ModuleFileOwnership {
@@ -2904,6 +2907,7 @@ pub fn compute_coverage(
         missing_files: Vec::new(),
         skipped_links: Vec::new(),
         manifest_notices: Vec::new(),
+        manifest_module_paths: std::collections::HashMap::new(),
     })
 }
 
@@ -3135,6 +3139,13 @@ pub fn compute_coverage_checked(
     let skip_stems: HashSet<&str> = ["main", "lib", "mod", "index", "__init__", "app"]
         .into_iter()
         .collect();
+    let manifest_targets: HashSet<PathBuf> = manifest
+        .modules
+        .values()
+        .flat_map(|module| &module.source_paths)
+        .filter_map(|path| normalize_source_mapping(path))
+        .map(PathBuf::from)
+        .collect();
     for src_dir in &config.source_dirs {
         let normalized = normalized_coverage_source_dir(src_dir)?;
         let normalized_path = PathBuf::from(&normalized);
@@ -3150,6 +3161,11 @@ pub fn compute_coverage_checked(
                 continue;
             };
             if skip_stems.contains(stem.as_str()) {
+                continue;
+            }
+            // An explicitly declared target keeps its identity even when its
+            // source filename differs from the Cargo target name.
+            if manifest_targets.contains(&file.relative_path) {
                 continue;
             }
             if spec_modules.contains(&stem) {
@@ -3214,6 +3230,11 @@ pub fn compute_coverage_checked(
         missing_files,
         skipped_links: budget.skipped_links.iter().cloned().collect(),
         manifest_notices,
+        manifest_module_paths: manifest
+            .modules
+            .into_iter()
+            .map(|(name, module)| (name, module.source_paths))
+            .collect(),
     })
 }
 

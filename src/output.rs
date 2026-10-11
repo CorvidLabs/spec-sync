@@ -694,6 +694,7 @@ mod tests {
             missing_files: Vec::new(),
             skipped_links: Vec::new(),
             manifest_notices: Vec::new(),
+            manifest_module_paths: std::collections::HashMap::new(),
         }
     }
 

@@ -1094,6 +1094,7 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
 ) -> Result<GenerationOutcome, String> {
     let specs_relative = confined_generation_path(Path::new(&config.specs_dir), "specs directory")?;
     let mut outcome = GenerationOutcome::default();
+    let module_bindings = module_file_bindings_from_coverage(report, config);
 
     for module_name in &report.unspecced_modules {
         let module_relative =
@@ -1108,7 +1109,10 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
             continue;
         }
 
-        let module_files = module_files_from_coverage(report, module_name, config);
+        let module_files = module_bindings
+            .get(module_name)
+            .cloned()
+            .unwrap_or_default();
         if module_files.is_empty() {
             outcome.skipped_no_files.push(module_name.clone());
             continue;
@@ -1189,12 +1193,154 @@ pub(crate) fn confined_generation_path(path: &Path, label: &str) -> Result<PathB
     Ok(relative)
 }
 
+fn module_file_bindings_from_coverage(
+    report: &CoverageReport,
+    config: &SpecSyncConfig,
+) -> std::collections::HashMap<String, Vec<String>> {
+    let selected: std::collections::HashSet<&str> = report
+        .unspecced_modules
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let mut manifest_roots: std::collections::HashMap<PathBuf, Vec<&str>> =
+        std::collections::HashMap::new();
+    for (name, paths) in &report.manifest_module_paths {
+        // An explicit mapping is authoritative, including when it matches no files.
+        if config.modules.contains_key(name) {
+            continue;
+        }
+        for path in paths {
+            if let Some(path) = crate::validator::normalize_source_mapping(path) {
+                manifest_roots
+                    .entry(PathBuf::from(path))
+                    .or_default()
+                    .push(name);
+            }
+        }
+    }
+    for names in manifest_roots.values_mut() {
+        // Shared roots and targets get one owner, independent of discovery order.
+        // Batch selection wins ties, but cannot take an unselected exact target.
+        names.sort_by_key(|name| (!selected.contains(name), *name));
+        names.dedup();
+    }
+    let mut manifest_owners = std::collections::HashMap::new();
+    for source in &report.unspecced_files {
+        let source_path = Path::new(source);
+        // Exact targets precede their nearest enclosing root, then broader roots.
+        let owner = source_path.ancestors().find_map(|root| {
+            manifest_roots.get(root)?.iter().copied().find(|name| {
+                // A manifest directory whose spec already exists must not
+                // block named scaffolds for its remaining uncovered files.
+                (source_path == root || selected.contains(name))
+                    && !has_more_specific_module_binding(source_path, root, name, config)
+            })
+        });
+        if let Some(owner) = owner {
+            manifest_owners.insert(source.as_str(), owner);
+        }
+    }
+
+    let mut bindings = std::collections::HashMap::new();
+    for module_name in &report.unspecced_modules {
+        let mut files = named_module_files_from_coverage(report, module_name, config);
+        if !config.modules.contains_key(module_name) {
+            files.retain(|source| {
+                manifest_owners
+                    .get(source.as_str())
+                    .is_none_or(|owner| *owner == module_name)
+            });
+            files.extend(
+                report
+                    .unspecced_files
+                    .iter()
+                    .filter(|source| {
+                        manifest_owners
+                            .get(source.as_str())
+                            .is_some_and(|owner| *owner == module_name)
+                    })
+                    .cloned(),
+            );
+        }
+        files.sort();
+        files.dedup();
+        bindings.insert(module_name.clone(), files);
+    }
+    bindings
+}
+
+#[cfg(test)]
 fn module_files_from_coverage(
     report: &CoverageReport,
     module_name: &str,
     config: &SpecSyncConfig,
 ) -> Vec<String> {
+    module_file_bindings_from_coverage(report, config)
+        .remove(module_name)
+        .unwrap_or_default()
+}
+
+fn has_more_specific_module_binding(
+    source: &Path,
+    manifest_root: &Path,
+    module_name: &str,
+    config: &SpecSyncConfig,
+) -> bool {
+    for (name, module) in &config.modules {
+        if name != module_name
+            && module.files.iter().any(|path| {
+                crate::validator::normalize_source_mapping(path)
+                    .is_some_and(|path| source.starts_with(path))
+            })
+        {
+            return true;
+        }
+    }
+    // An exact manifest target is more specific than a guessed file stem.
+    if source == manifest_root {
+        return false;
+    }
+    for root in &config.source_dirs {
+        let root = if root == "." {
+            PathBuf::new()
+        } else {
+            let Some(root) = crate::validator::normalize_source_mapping(root) else {
+                continue;
+            };
+            PathBuf::from(root)
+        };
+        let Ok(relative) = source.strip_prefix(&root) else {
+            continue;
+        };
+        if relative.components().count() > 1 {
+            let Some(Component::Normal(name)) = relative.components().next() else {
+                continue;
+            };
+            let directory = root.join(name);
+            if name != module_name
+                && directory != manifest_root
+                && directory.starts_with(manifest_root)
+            {
+                return true;
+            }
+        } else if let Some(stem) = source.file_stem().and_then(|stem| stem.to_str())
+            && stem != module_name
+            && !matches!(stem, "main" | "lib" | "mod" | "index" | "__init__" | "app")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn named_module_files_from_coverage(
+    report: &CoverageReport,
+    module_name: &str,
+    config: &SpecSyncConfig,
+) -> Vec<String> {
     let mut module_files = Vec::new();
+    let uncovered_files: std::collections::HashSet<&str> =
+        report.unspecced_files.iter().map(String::as_str).collect();
 
     if let Some(module) = config.modules.get(module_name) {
         for configured in &module.files {
@@ -1213,11 +1359,9 @@ fn module_files_from_coverage(
                     .cloned(),
             );
         }
-        if !module_files.is_empty() {
-            module_files.sort();
-            module_files.dedup();
-            return module_files;
-        }
+        module_files.sort();
+        module_files.dedup();
+        return module_files;
     }
 
     for source_dir in &config.source_dirs {
@@ -1230,6 +1374,20 @@ fn module_files_from_coverage(
             PathBuf::from(source_dir)
         };
         let module_dir = source_dir.join(module_name);
+        // A workspace source container such as crates/demo/src belongs to its
+        // manifest package, rather than to a guessed module named "src".
+        if report.manifest_module_paths.iter().any(|(name, paths)| {
+            name != module_name
+                && report.unspecced_modules.contains(name)
+                && paths.iter().any(|path| {
+                    crate::validator::normalize_source_mapping(path).is_some_and(|path| {
+                        !uncovered_files.contains(path.as_str())
+                            && Path::new(&path).starts_with(&module_dir)
+                    })
+                })
+        }) {
+            continue;
+        }
         module_files.extend(
             report
                 .unspecced_files
@@ -1343,6 +1501,7 @@ pub fn generate_specs_for_unspecced_modules(
 ) -> GenerationOutcome {
     let specs_dir = root.join(&config.specs_dir);
     let mut outcome = GenerationOutcome::default();
+    let module_bindings = module_file_bindings_from_coverage(report, config);
 
     for module_name in &report.unspecced_modules {
         let spec_dir = specs_dir.join(module_name);
@@ -1352,7 +1511,10 @@ pub fn generate_specs_for_unspecced_modules(
             continue;
         }
 
-        let module_files = find_files_for_module(root, module_name, config);
+        let module_files = module_bindings
+            .get(module_name)
+            .cloned()
+            .unwrap_or_default();
 
         if module_files.is_empty() {
             outcome.skipped_no_files.push(module_name.clone());
@@ -1402,6 +1564,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
 ) -> GenerationOutcome {
     let specs_dir = root.join(&config.specs_dir);
     let mut outcome = GenerationOutcome::default();
+    let module_bindings = module_file_bindings_from_coverage(report, config);
 
     for module_name in &report.unspecced_modules {
         let spec_dir = specs_dir.join(module_name);
@@ -1411,7 +1574,10 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let module_files = find_files_for_module(root, module_name, config);
+        let module_files = module_bindings
+            .get(module_name)
+            .cloned()
+            .unwrap_or_default();
 
         if module_files.is_empty() {
             outcome.skipped_no_files.push(module_name.clone());
@@ -1597,6 +1763,134 @@ mod tests {
     }
 
     #[test]
+    fn generation_entry_points_use_retained_cargo_mapping_without_rediscovery() {
+        for quiet in [false, true] {
+            let tmp = TempDir::new().unwrap();
+            let root = tmp.path();
+            fs::create_dir(root.join("src")).unwrap();
+            fs::write(
+                root.join("Cargo.toml"),
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+            )
+            .unwrap();
+            fs::write(root.join("src/lib.rs"), "pub fn add() {}\n").unwrap();
+            let config = SpecSyncConfig::default();
+            let report = crate::validator::compute_coverage_checked(root, &[], &config).unwrap();
+            assert_eq!(report.manifest_module_paths["demo"], ["src"]);
+            fs::write(root.join("Cargo.toml"), "malformed after coverage\n").unwrap();
+
+            let outcome = if quiet {
+                generate_specs_for_unspecced_modules_paths(root, &report, &config)
+            } else {
+                generate_specs_for_unspecced_modules(root, &report, &config)
+            };
+            assert_eq!(outcome.generated_paths, ["specs/demo/demo.spec.md"]);
+            assert!(outcome.skipped_no_files.is_empty());
+            let content = fs::read_to_string(root.join(&outcome.generated_paths[0])).unwrap();
+            assert!(content.contains("  - src/lib.rs"));
+            assert!(content.contains("`add`"));
+        }
+    }
+
+    #[test]
+    fn cargo_mapping_preserves_configuration_and_batch_named_module_boundaries() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src/utils")).unwrap();
+        fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        for file in [
+            "src/lib.rs",
+            "src/main.rs",
+            "src/helper.rs",
+            "src/utils/mod.rs",
+        ] {
+            fs::write(root.join(file), "pub fn example() {}\n").unwrap();
+        }
+        let mut config = SpecSyncConfig::default();
+        config.source_dirs = vec!["./src".into()];
+        let mut report = crate::validator::compute_coverage_checked(root, &[], &config).unwrap();
+        // Batch selection narrows modules, but must retain named-file boundaries.
+        report.unspecced_modules = vec!["demo".into()];
+        assert_eq!(
+            module_files_from_coverage(&report, "demo", &config),
+            ["src/lib.rs", "src/main.rs"]
+        );
+        config.modules.insert(
+            "demo".into(),
+            crate::types::ModuleDefinition {
+                files: vec!["src/helper.rs".into()],
+                depends_on: Vec::new(),
+                owns: Vec::new(),
+            },
+        );
+        assert_eq!(
+            module_files_from_coverage(&report, "demo", &config),
+            ["src/helper.rs"]
+        );
+        assert!(module_files_from_coverage(&report, "ghost", &config).is_empty());
+    }
+
+    #[test]
+    fn manifest_bindings_choose_nearest_root_and_stable_shared_owner_before_batch_filtering() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src/nested")).unwrap();
+        for file in [
+            "src/lib.rs",
+            "src/main.rs",
+            "src/nested/lib.rs",
+            "src/zeta.rs",
+        ] {
+            fs::write(root.join(file), "pub fn example() {}\n").unwrap();
+        }
+        let mut config = SpecSyncConfig::default();
+        let mut report = crate::validator::compute_coverage_checked(root, &[], &config).unwrap();
+        report.unspecced_modules = vec![
+            "zeta".into(),
+            "alpha".into(),
+            "nested".into(),
+            "server".into(),
+        ];
+        report.manifest_module_paths = [
+            ("zeta".into(), vec!["./src".into()]),
+            ("alpha".into(), vec!["src".into()]),
+            ("nested".into(), vec!["src/nested".into()]),
+            ("server".into(), vec!["src/main.rs".into()]),
+        ]
+        .into_iter()
+        .collect();
+        let bindings = module_file_bindings_from_coverage(&report, &config);
+        assert_eq!(bindings["alpha"], ["src/lib.rs"]);
+        assert_eq!(bindings["nested"], ["src/nested/lib.rs"]);
+        assert_eq!(bindings["server"], ["src/main.rs"]);
+        assert_eq!(bindings["zeta"], ["src/zeta.rs"]);
+        report.unspecced_modules.reverse();
+        assert_eq!(
+            module_file_bindings_from_coverage(&report, &config),
+            bindings
+        );
+
+        report.unspecced_modules = vec!["zeta".into()];
+        assert_eq!(
+            module_files_from_coverage(&report, "zeta", &config),
+            ["src/lib.rs", "src/zeta.rs"]
+        );
+        config.modules.insert(
+            "zeta".into(),
+            crate::types::ModuleDefinition {
+                files: vec!["src/planned.rs".into()],
+                depends_on: Vec::new(),
+                owns: Vec::new(),
+            },
+        );
+        assert!(module_files_from_coverage(&report, "zeta", &config).is_empty());
+    }
+
+    #[test]
     fn retained_generation_uses_custom_template_for_configured_module() {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path();
@@ -1620,6 +1914,7 @@ mod tests {
             missing_files: Vec::new(),
             skipped_links: Vec::new(),
             manifest_notices: Vec::new(),
+            manifest_module_paths: std::collections::HashMap::new(),
         };
         let mut config = SpecSyncConfig::default();
         config.modules.insert(

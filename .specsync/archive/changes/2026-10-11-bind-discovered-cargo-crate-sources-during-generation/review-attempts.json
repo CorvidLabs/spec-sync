@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "bind-discovered-cargo-crate-sources-during-generation",
+      "reviewer": "leif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "beca555b8421b171b1c630d03efb8fc10b208a20",
+      "contract_digest": "e7034b2dfa95c2328ef07dcbe11d2c15e2da5a7c1720ea06edddcfa286bcfa28",
+      "execution_digest": "2c4280b46678744e17608680ce3b21a96e9c9a0f1f4d8ccd58b26cf4f23df095",
+      "workspace_digest": "126c2cae3f63a0a9262dc70c2936c2d153088119824119a297e9caf956457f87",
+      "timestamp": 1791730882
+    },
+    {
+      "schema_version": 2,
+      "change_id": "bind-discovered-cargo-crate-sources-during-generation",
+      "reviewer": "agent:codex",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "2237446565b99d90af1b95c82d8f750271bab8a8",
+      "contract_digest": "e7034b2dfa95c2328ef07dcbe11d2c15e2da5a7c1720ea06edddcfa286bcfa28",
+      "execution_digest": "2c4280b46678744e17608680ce3b21a96e9c9a0f1f4d8ccd58b26cf4f23df095",
+      "workspace_digest": "1ca19e899731d2bebf18f90143d1cdcef70cacab2e210f4b5895c2dba241a101",
+      "timestamp": 1791756774
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "release-specsync-6-1-0",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "7bf70fff9be44983ec1775814845fcfd838d33c6",
+      "contract_digest": "dcae133e21696e11dbdfec7d85d747eb0bfae5c925685208e8232576af494ef2",
+      "execution_digest": "44740198a434c1b08052471b5c66ada59375b31389311e16a3416914a53bf600",
+      "workspace_digest": "5b7f16582007243e7bbe8772aceea901462e97696839530be9c8cc5152da9190",
+      "timestamp": 1791686713
+    }
+  ]
+}

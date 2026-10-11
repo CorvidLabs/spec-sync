@@ -6,7 +6,7 @@ axis: layers
 @plane z=0 label="Context"
 The spec stays `specs/github/github.spec.md`.
 
-Links spec files to GitHub issues for traceability. Validates `implements` and `tracks` frontmatter fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues when specs fall out of sync. Also defines the maintained composite GitHub Action distribution contract: immutable exact-version refs and a verified floating major compatibility ref. After stable `v6.0.1` is published, the omitted-input default on `main` and on floating `@v6` is `6.0.1`. The published `@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not rewritten; `v6` must not be retargeted at that tag. Hosted JavaScript verification uses one exact supported Bun runtime across site deployment, site CI, and VS Code extension CI.
+Links spec files to GitHub issues for traceability. Validates `implements` and `tracks` frontmatter fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues when specs fall out of sync. Also defines the maintained composite GitHub Action distribution contract: immutable exact-version refs and a verified floating major compatibility ref. After stable `v6.1.0` is published, the omitted-input default on `main` and on floating `@v6` is `6.1.0`. The published `@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not rewritten; `v6` must not be retargeted at that tag. Hosted JavaScript verification uses one exact supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 
 This plane is context. Later planes are lessons, in the order they were learned.
 `context.md` stays beside this file.

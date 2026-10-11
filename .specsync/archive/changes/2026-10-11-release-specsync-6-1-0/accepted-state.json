@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "release-specsync-6-1-0",
+  "slug": "release-specsync-6-1-0",
+  "title": "Release SpecSync 6.1.0",
+  "description": "Release SpecSync 6.1.0",
+  "kind": "documentation",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "efe441d0ee9e73a687dbd459d4f7f26b0c68f7d7",
+  "created_at": 1791686406,
+  "updated_at": 1791686761,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "action.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/trust.yml",
+    "site/",
+    "specs/github/",
+    "README.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "MIGRATION.md",
+    "docs/ADOPTING.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Cargo.toml, Cargo.lock, the Action default, CI and Trust pins, README, the site, and SECURITY name 6.1.0. CHANGELOG has a 6.1.0 section and the Unreleased link starts at v6.1.0. The three release validators pass. No tag is pushed."
+  ],
+  "selected_artifacts": [
+    "context",
+    "docs",
+    "design",
+    "tasks",
+    "requirements"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "The Action default moves with the package version. The immutable v6.0.0 tag stays on 6.0.0-rc.14. Floating v6 moves only after promotion.",
+    "public_contract": "yes"
+  }
+}

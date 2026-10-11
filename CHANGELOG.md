@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-10-11
+
+### Added
+
+- **Optional module `.3md` files.** When `specs/<module>/<module>.3md` parses, the first plane is context and later planes are lessons in the order written. Opening, showing, and status brief from that file. A missing or unparseable file falls back to `context.md`. The lesson bundle names the same file, and lifecycle commits stage it with the other spec companions.
+- **A constraints question and a real plan.** A draft whose modules already have lessons, or whose project names a principles file, is asked which of those constrain it. A selected plan stays incomplete until Approach, Out of scope, Steps, Risks, and Constraints consulted each have substantive text. Headings inside a fence do not count.
+- **`specsync change pr`.** One command archives a ready change, runs the pre-push gate, and opens or reuses the pull request. It does not merge.
+
+### Changed
+
+- **Archive readiness is a pull-request check.** An open change fails it and names one command. No open change says the pull request is ready to merge once the other checks are green.
+- **Installed agent and hook guidance records a lesson on a later `.3md` plane** when that file exists, and otherwise in `context.md`.
+- **The Action omitted-input default on this commit is `6.1.0`.** README, the documentation site, `MIGRATION.md`, `docs/ADOPTING.md`, and `SECURITY.md` pin `@v6.1.0` with `version: '6.1.0'`. The immutable `@v6.0.0` tag still embeds `6.0.0-rc.14`. Move floating `@v6` only after promotion, to a commit whose omitted-input default is `6.1.0`.
+- **Large source files are split** so none under `src/`, `tests/`, or `examples/` is longer than 5,000 lines. Each parent stays one module through `include!`.
+
+### Fixed
+
+- **A fenced example cannot complete a plan.** A closing fence is a bare marker run. An info string does not close it, and a marker indented more than three spaces is not a fence.
+- **A change directory that holds a file but no `state.json` stays open.** An empty Git husk is still skipped.
+- **A broken `.specsync/sdd.json` fails `change new` and `change status`** with an invalid SDD policy error, including when a workflow-v2 baseline already exists. A missing policy file still opens a change. `specsync rules` warns when `principles_file` is named but missing.
+- **`change finalize` commits the archive move** as `chore(lifecycle): archive <id>`. Running it again after an uncommitted move still commits. The next action says to push and wait for green checks before merging.
+- **Generated artifact headings are headings.** The Context prompt and the Plan's `## Approach` line no longer carry a path prefix.
+- **The handoff does not claim a commit it did not check.** A verifying change says verification is current for this working tree. An approved or implementing change does not say the tree is committed.
+
 ## [6.0.1] - 2026-10-09
 
 ### Fixed
@@ -3591,7 +3615,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.0.1...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.0...HEAD
+[6.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.1.0
 [6.0.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.0.1
 [6.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.0.0
 [5.2.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v5.2.0

@@ -7,11 +7,11 @@
   "title": "Release SpecSync 6.1.0",
   "description": "Release SpecSync 6.1.0",
   "kind": "documentation",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "efe441d0ee9e73a687dbd459d4f7f26b0c68f7d7",
   "created_at": 1791686406,
-  "updated_at": 1791686703,
+  "updated_at": 1791686761,
   "affected_specs": [
     "github"
   ],

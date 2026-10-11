@@ -1,6 +1,6 @@
 ---
 id: release-specsync-6-1-0
-state: implementing
+state: archived
 type: documentation
 base_commit: efe441d0ee9e73a687dbd459d4f7f26b0c68f7d7
 ---

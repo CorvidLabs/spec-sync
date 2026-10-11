@@ -1,0 +1,51 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791686455,
+      "digest": "dcae133e21696e11dbdfec7d85d747eb0bfae5c925685208e8232576af494ef2",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "release-specsync-6-1-0",
+        "title": "Release SpecSync 6.1.0",
+        "description": "Release SpecSync 6.1.0",
+        "kind": "documentation",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "site/",
+          "specs/github/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Cargo.toml, Cargo.lock, the Action default, CI and Trust pins, README, the site, and SECURITY name 6.1.0. CHANGELOG has a 6.1.0 section and the Unreleased link starts at v6.1.0. The three release validators pass. No tag is pushed."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "The Action default moves with the package version. The immutable v6.0.0 tag stays on 6.0.0-rc.14. Floating v6 moves only after promotion.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "2c40e9ea4ddb78aef5dda9487e4a516ecc5bacd955023f7ed691d207330374eb"
+      }
+    }
+  ],
+  "reopenings": []
+}

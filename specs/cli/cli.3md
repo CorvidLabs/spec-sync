@@ -46,3 +46,6 @@ structured maintenance commands honor the resolved global output format.
 - Every library module is consumed by the CLI — it's the integration point for the entire tool.
 - `watch` and `mcp` are the only commands that take over the process (long-running file watcher / stdio server).
 - The clap grammar lives in `src/cli.rs`; `main.rs` is dispatch-only. Parser-level tests live in `src/cli.rs`; exit-code tests live in `src/main.rs`.
+
+@plane z=5 label="Cargo generation binding (#813)"
+Generation bootstrap regressions need end-to-end init then generate fixtures. Coverage fixture constructors supply empty manifest binding metadata; dispatcher and exit-code contracts remain the same.

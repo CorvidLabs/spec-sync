@@ -43,3 +43,6 @@ Anything comparing text against a template must compare against the EXPANDED tem
 a caller comparing against the raw text silently fails to recognise a line it wrote itself. That
 mismatch stayed invisible for as long as frontmatter was being stripped before it mattered, and
 appeared the instant stripping failed on CRLF — two defects where either alone is silent.
+
+@plane z=4 label="Cargo generation binding (#813)"
+Cargo package names do not identify source filenames. Carry manifest source roots from checked coverage into every generation entry point, intersect them with uncovered files, and preserve more specific named bindings even when batch selection narrows the candidate list. Test init then generate on a real fresh crate; a mature repository with authored specs cannot expose this bootstrap failure.

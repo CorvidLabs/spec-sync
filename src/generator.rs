@@ -1194,6 +1194,92 @@ fn module_files_from_coverage(
     module_name: &str,
     config: &SpecSyncConfig,
 ) -> Vec<String> {
+    let named_files = named_module_files_from_coverage(report, module_name, config);
+    if !named_files.is_empty() {
+        return named_files;
+    }
+    let Some(source_paths) = report.manifest_module_paths.get(module_name) else {
+        return Vec::new();
+    };
+
+    // A manifest crate may span src/lib.rs and independently named modules.
+    // Preserve those more specific bindings instead of generating duplicate owners.
+    let source_paths: Vec<PathBuf> = source_paths
+        .iter()
+        .filter_map(|path| crate::validator::normalize_source_mapping(path))
+        .map(PathBuf::from)
+        .collect();
+    let mut module_files: Vec<String> = report
+        .unspecced_files
+        .iter()
+        .filter(|source| {
+            let source = Path::new(source);
+            source_paths.iter().any(|path| {
+                source.starts_with(path)
+                    && !has_more_specific_module_binding(source, path, module_name, config)
+            })
+        })
+        .cloned()
+        .collect();
+    module_files.sort();
+    module_files.dedup();
+    module_files
+}
+
+fn has_more_specific_module_binding(
+    source: &Path,
+    manifest_root: &Path,
+    module_name: &str,
+    config: &SpecSyncConfig,
+) -> bool {
+    for (name, module) in &config.modules {
+        if name != module_name
+            && module.files.iter().any(|path| {
+                crate::validator::normalize_source_mapping(path)
+                    .is_some_and(|path| source.starts_with(path))
+            })
+        {
+            return true;
+        }
+    }
+    for root in &config.source_dirs {
+        let root = if root == "." {
+            PathBuf::new()
+        } else {
+            let Some(root) = crate::validator::normalize_source_mapping(root) else {
+                continue;
+            };
+            PathBuf::from(root)
+        };
+        let Ok(relative) = source.strip_prefix(&root) else {
+            continue;
+        };
+        if relative.components().count() > 1 {
+            let Some(Component::Normal(name)) = relative.components().next() else {
+                continue;
+            };
+            let directory = root.join(name);
+            if name != module_name
+                && directory != manifest_root
+                && directory.starts_with(manifest_root)
+            {
+                return true;
+            }
+        } else if let Some(stem) = source.file_stem().and_then(|stem| stem.to_str())
+            && stem != module_name
+            && !matches!(stem, "main" | "lib" | "mod" | "index" | "__init__" | "app")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn named_module_files_from_coverage(
+    report: &CoverageReport,
+    module_name: &str,
+    config: &SpecSyncConfig,
+) -> Vec<String> {
     let mut module_files = Vec::new();
 
     if let Some(module) = config.modules.get(module_name) {
@@ -1230,6 +1316,17 @@ fn module_files_from_coverage(
             PathBuf::from(source_dir)
         };
         let module_dir = source_dir.join(module_name);
+        // A workspace source container such as crates/demo/src belongs to its
+        // manifest package, rather than to a guessed module named "src".
+        if report.manifest_module_paths.iter().any(|(name, paths)| {
+            name != module_name
+                && paths.iter().any(|path| {
+                    crate::validator::normalize_source_mapping(path)
+                        .is_some_and(|path| Path::new(&path).starts_with(&module_dir))
+                })
+        }) {
+            continue;
+        }
         module_files.extend(
             report
                 .unspecced_files
@@ -1352,7 +1449,7 @@ pub fn generate_specs_for_unspecced_modules(
             continue;
         }
 
-        let module_files = find_files_for_module(root, module_name, config);
+        let module_files = module_files_from_coverage(report, module_name, config);
 
         if module_files.is_empty() {
             outcome.skipped_no_files.push(module_name.clone());
@@ -1411,7 +1508,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        let module_files = find_files_for_module(root, module_name, config);
+        let module_files = module_files_from_coverage(report, module_name, config);
 
         if module_files.is_empty() {
             outcome.skipped_no_files.push(module_name.clone());
@@ -1597,6 +1694,78 @@ mod tests {
     }
 
     #[test]
+    fn generation_entry_points_use_retained_cargo_mapping_without_rediscovery() {
+        for quiet in [false, true] {
+            let tmp = TempDir::new().unwrap();
+            let root = tmp.path();
+            fs::create_dir(root.join("src")).unwrap();
+            fs::write(
+                root.join("Cargo.toml"),
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+            )
+            .unwrap();
+            fs::write(root.join("src/lib.rs"), "pub fn add() {}\n").unwrap();
+            let config = SpecSyncConfig::default();
+            let report = crate::validator::compute_coverage_checked(root, &[], &config).unwrap();
+            assert_eq!(report.manifest_module_paths["demo"], ["src"]);
+            fs::write(root.join("Cargo.toml"), "malformed after coverage\n").unwrap();
+
+            let outcome = if quiet {
+                generate_specs_for_unspecced_modules_paths(root, &report, &config)
+            } else {
+                generate_specs_for_unspecced_modules(root, &report, &config)
+            };
+            assert_eq!(outcome.generated_paths, ["specs/demo/demo.spec.md"]);
+            assert!(outcome.skipped_no_files.is_empty());
+            let content = fs::read_to_string(root.join(&outcome.generated_paths[0])).unwrap();
+            assert!(content.contains("  - src/lib.rs"));
+            assert!(content.contains("`add`"));
+        }
+    }
+
+    #[test]
+    fn cargo_mapping_preserves_configuration_and_batch_named_module_boundaries() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir_all(root.join("src/utils")).unwrap();
+        fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+        for file in [
+            "src/lib.rs",
+            "src/main.rs",
+            "src/helper.rs",
+            "src/utils/mod.rs",
+        ] {
+            fs::write(root.join(file), "pub fn example() {}\n").unwrap();
+        }
+        let mut config = SpecSyncConfig::default();
+        config.source_dirs = vec!["./src".into()];
+        let mut report = crate::validator::compute_coverage_checked(root, &[], &config).unwrap();
+        // Batch selection narrows modules, but must retain named-file boundaries.
+        report.unspecced_modules = vec!["demo".into()];
+        assert_eq!(
+            module_files_from_coverage(&report, "demo", &config),
+            ["src/lib.rs", "src/main.rs"]
+        );
+        config.modules.insert(
+            "demo".into(),
+            crate::types::ModuleDefinition {
+                files: vec!["src/helper.rs".into()],
+                depends_on: Vec::new(),
+                owns: Vec::new(),
+            },
+        );
+        assert_eq!(
+            module_files_from_coverage(&report, "demo", &config),
+            ["src/helper.rs"]
+        );
+        assert!(module_files_from_coverage(&report, "ghost", &config).is_empty());
+    }
+
+    #[test]
     fn retained_generation_uses_custom_template_for_configured_module() {
         let tmp = TempDir::new().unwrap();
         let root = tmp.path();
@@ -1620,6 +1789,7 @@ mod tests {
             missing_files: Vec::new(),
             skipped_links: Vec::new(),
             manifest_notices: Vec::new(),
+            manifest_module_paths: std::collections::HashMap::new(),
         };
         let mut config = SpecSyncConfig::default();
         config.modules.insert(

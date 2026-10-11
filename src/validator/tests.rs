@@ -2904,6 +2904,7 @@ pub fn compute_coverage(
         missing_files: Vec::new(),
         skipped_links: Vec::new(),
         manifest_notices: Vec::new(),
+        manifest_module_paths: std::collections::HashMap::new(),
     })
 }
 
@@ -3214,6 +3215,11 @@ pub fn compute_coverage_checked(
         missing_files,
         skipped_links: budget.skipped_links.iter().cloned().collect(),
         manifest_notices,
+        manifest_module_paths: manifest
+            .modules
+            .into_iter()
+            .map(|(name, module)| (name, module.source_paths))
+            .collect(),
     })
 }
 

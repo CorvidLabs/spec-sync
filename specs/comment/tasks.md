@@ -8,6 +8,8 @@ spec: comment.spec.md
 
 ## Done
 
+- [x] Adapt comment renderer fixtures for source-binding metadata (#813).
+
 - [x] `render_check_comment`: header, summary table, grouped errors/warnings, action items, unspecced files, footer
 - [x] `spec_link` GitHub URL vs inline-code fallback
 - [x] `suggestion_for_error` classification (missing section, source file, DB table, frontmatter, dependency, schema column, stale file ref, generic fallback)

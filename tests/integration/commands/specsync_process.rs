@@ -2495,6 +2495,118 @@ fn coverage_shows_unspecced_modules() {
 // ─── 3. specsync generate ───────────────────────────────────────────────
 
 #[test]
+fn generate_cargo_library_after_init_binds_crate_root_in_every_cli_mode() {
+    for args in [vec![], vec!["--json"], vec!["--batch", "demo"]] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir(root.join("src")).unwrap();
+        fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn add(a: i32, b: i32) -> i32 { a + b }\n",
+        )
+        .unwrap();
+        specsync().args(["init", "--root"]).arg(root).assert().success();
+
+        let output = specsync()
+            .arg("generate")
+            .args(&args)
+            .arg("--root")
+            .arg(root)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        if args.contains(&"--json") {
+            let json: serde_json::Value = serde_json::from_slice(&output).unwrap();
+            assert_eq!(json["generated"], serde_json::json!(["specs/demo/demo.spec.md"]));
+        }
+        let content = fs::read_to_string(root.join("specs/demo/demo.spec.md")).unwrap();
+        assert!(content.contains("  - src/lib.rs"), "{content}");
+        assert!(content.contains("`add`"), "{content}");
+        for companion in ["tasks.md", "context.md", "requirements.md", "testing.md"] {
+            assert!(root.join("specs/demo").join(companion).is_file());
+        }
+        specsync()
+            .args(["generate", "--root"])
+            .arg(root)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("No specs to generate"));
+        assert_eq!(fs::read_to_string(root.join("specs/demo/demo.spec.md")).unwrap(), content);
+    }
+}
+
+#[test]
+fn generate_cargo_binary_and_combined_roots_bind_discovered_entry_points() {
+    for files in [vec!["src/main.rs"], vec!["src/lib.rs", "src/main.rs"]] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir(root.join("src")).unwrap();
+        fs::write(root.join("Cargo.toml"), "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n").unwrap();
+        for file in &files {
+            fs::write(root.join(file), "pub fn entry_point() {}\n").unwrap();
+        }
+        specsync().args(["init", "--root"]).arg(root).assert().success();
+        specsync().args(["generate", "--root"]).arg(root).assert().success();
+        let content = fs::read_to_string(root.join("specs/demo/demo.spec.md")).unwrap();
+        for file in files {
+            assert!(content.contains(&format!("  - {file}")), "{content}");
+        }
+    }
+}
+
+#[test]
+fn generate_cargo_workspace_keeps_member_bindings_separate() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::write(root.join("Cargo.toml"), "[workspace]\nmembers = [\"crates/alpha\", \"crates/beta\"]\n").unwrap();
+    for name in ["alpha", "beta"] {
+        let member = root.join("crates").join(name);
+        fs::create_dir_all(member.join("src")).unwrap();
+        fs::write(member.join("Cargo.toml"), format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\n")).unwrap();
+        fs::write(member.join("src/lib.rs"), format!("pub fn {name}() {{}}\n")).unwrap();
+    }
+    specsync().args(["init", "--root"]).arg(root).assert().success();
+    specsync().args(["generate", "--root"]).arg(root).assert().success();
+    for (name, other) in [("alpha", "beta"), ("beta", "alpha")] {
+        let content = fs::read_to_string(root.join(format!("specs/{name}/{name}.spec.md"))).unwrap();
+        assert!(content.contains(&format!("  - crates/{name}/src/lib.rs")), "{content}");
+        assert!(!content.contains(&format!("crates/{other}/")), "{content}");
+    }
+    assert!(!root.join("specs/src").exists(), "source container must not get a duplicate spec");
+}
+
+#[test]
+fn generate_cargo_preserves_existing_owner_and_specific_named_modules() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("src/utils")).unwrap();
+    fs::create_dir_all(root.join("specs/core")).unwrap();
+    fs::write(root.join("Cargo.toml"), "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n").unwrap();
+    for (file, symbol) in [("src/lib.rs", "add"), ("src/main.rs", "run"), ("src/utils/mod.rs", "helper"), ("src/format.rs", "format")] {
+        fs::write(root.join(file), format!("pub fn {symbol}() {{}}\n")).unwrap();
+    }
+    let existing = valid_spec("core", &["src/lib.rs"]);
+    fs::write(root.join("specs/core/core.spec.md"), &existing).unwrap();
+    specsync().args(["init", "--root"]).arg(root).assert().success();
+    specsync().args(["generate", "--root"]).arg(root).assert().success();
+    assert_eq!(fs::read_to_string(root.join("specs/core/core.spec.md")).unwrap(), existing);
+    let demo = fs::read_to_string(root.join("specs/demo/demo.spec.md")).unwrap();
+    assert!(demo.contains("  - src/main.rs"), "{demo}");
+    for file in ["src/lib.rs", "src/utils/mod.rs", "src/format.rs"] {
+        assert!(!demo.contains(file), "{demo}");
+    }
+    assert!(fs::read_to_string(root.join("specs/utils/utils.spec.md")).unwrap().contains("  - src/utils/mod.rs"));
+    assert!(fs::read_to_string(root.join("specs/format/format.spec.md")).unwrap().contains("  - src/format.rs"));
+}
+
+#[test]
 fn generate_creates_spec_for_unspecced_module() {
     let tmp = TempDir::new().unwrap();
     let root = setup_minimal_project(&tmp);

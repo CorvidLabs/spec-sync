@@ -22,3 +22,6 @@ This plane is context. Later planes are lessons, in the order they were learned.
 
 @plane z=3 label="Current Status"
 Stable 5.0 deterministic type model.
+
+@plane z=4 label="Cargo generation binding (#813)"
+CoverageReport now carries manifest module source paths beside coverage measurements. This preserves discovery evidence through the generation boundary without introducing manifest or filesystem access into shared types. Presentation-only fixtures initialize the mapping empty.

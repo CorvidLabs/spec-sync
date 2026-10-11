@@ -108,3 +108,6 @@ project unmeasurable however it was configured. Before propagating a discovery e
 caller was actually relying on discovery FOR: here the file and LOC figures come entirely from
 `config.source_dirs`, and only module attribution came from the manifest, which is what made
 degrading safe and made a notice mandatory.
+
+@plane z=6 label="Cargo generation binding (#813)"
+Manifest discovery already supplies source roots for module attribution. Retain that mapping in CoverageReport so generation can use the same observation instead of reparsing a manifest. The same configured-source degradation and retained-root safety boundaries continue to govern discovery.

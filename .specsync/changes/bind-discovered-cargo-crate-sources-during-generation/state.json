@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "bind-discovered-cargo-crate-sources-during-generation",
+  "slug": "bind-discovered-cargo-crate-sources-during-generation",
+  "title": "Bind discovered Cargo crate sources during generation",
+  "description": "Bind discovered Cargo crate sources during generation",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "9003fad7ec4dea3938179d076248b48f29b6ed48",
+  "created_at": 1791728237,
+  "updated_at": 1791729157,
+  "affected_specs": [
+    "generator",
+    "validator",
+    "types",
+    "cli",
+    "output",
+    "comment"
+  ],
+  "affected_paths": [
+    "src/generator.rs",
+    "src/validator/tests.rs",
+    "src/types.rs",
+    "src/main.rs",
+    "src/output.rs",
+    "src/comment.rs",
+    "tests/integration/commands/specsync_process.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "The issue #813 minimal Cargo library succeeds through init then generate, creates specs/demo/demo.spec.md bound to src/lib.rs and documents add. Text, JSON, and batch generation bind discovered Cargo sources; binary and workspace crates are scoped correctly; existing spec-owned files remain owned; missing configured modules still fail with skipped_no_files."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Keep retained capability discovery and generation, bounded snapshots, configured-module precedence, deterministic templates, and no-overwrite publication. Bind only measured uncovered files; do not substitute a global single-source guess for a Cargo manifest mapping.",
+    "public_contract": "yes"
+  }
+}

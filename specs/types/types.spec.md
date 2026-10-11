@@ -1,6 +1,6 @@
 ---
 module: types
-version: 17
+version: 19
 status: stable
 files:
   - src/types.rs
@@ -36,7 +36,7 @@ Core deterministic data structures and enums shared across the codebase: configu
 |------|-------------|
 | `Frontmatter` | YAML frontmatter parsed from a spec file (module, version, status, files, db_tables, depends_on, implements, tracks, agent_policy, lifecycle_log) |
 | `ValidationResult` | Result of validating a single spec — errors, warnings, fixes, export summary, and the spec's parsed lifecycle status (so reporters can surface status-based skips) |
-| `CoverageReport` | File and LOC coverage metrics for the project, plus what shaped them: files referenced but missing, links not traversed, and manifests degraded rather than propagated |
+| `CoverageReport` | File and LOC coverage metrics, retained manifest module source paths for generation, missing files, skipped links, and degraded manifest notices |
 | `SpecSyncConfig` | User-provided configuration loaded from specsync.json or .specsync.toml |
 | `RegistryEntry` | Registry entry mapping module names to spec file paths for cross-project resolution |
 | `ModuleDefinition` | User-defined module grouping in `.specsync/config.toml` / specsync.json with `files` and `depends_on` lists, and `owns` — paths the module owns for change acceptance beyond its spec's `files:`, never a source mapping |
@@ -92,6 +92,9 @@ Core deterministic data structures and enums shared across the codebase: configu
 2. `Language::from_extension` returns `None` for unsupported extensions — never panics
 3. `SpecSyncConfig::default()` always provides sensible deterministic defaults
 4. `ValidationResult::new` initializes with empty error/warning/fix vectors and `status: None`
+
+
+5. `CoverageReport.manifest_module_paths` preserves discovered project-relative source roots; presentation fixtures may initialize it empty.
 
 ## Behavioral Examples
 
@@ -149,6 +152,7 @@ Core deterministic data structures and enums shared across the codebase: configu
 
 | Date | Change |
 |------|--------|
+| 2026-10-11 | #813: Carry retained manifest module source paths in CoverageReport. |
 | 2026-10-10 | Add `types.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-11 | v2: `ValidationResult` carries the spec's parsed lifecycle status for draft-skip reporting |
 | 2026-03-25 | Initial spec |
@@ -175,3 +179,4 @@ Core deterministic data structures and enums shared across the codebase: configu
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-09-07 | let-a-module-own-paths-beyond-its-spec-files-so-a-later-change-can-supersede-the-exact-only-inputs-of-an-archived: Let a module own paths beyond its spec files so a later change can supersede the exact-only inputs of an archived bootstrap change |
+

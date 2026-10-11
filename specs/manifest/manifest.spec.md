@@ -1,9 +1,11 @@
 ---
 module: manifest
-version: 24
+version: 25
 status: stable
 files:
   - src/manifest.rs
+  - src/manifest/max_gradle_manifest_bytes.rs
+  - src/manifest/tests.rs
 db_tables: []
 tracks: [55]
 depends_on: []
@@ -272,3 +274,4 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-08-27 | v22 / #725: Skip a balanced trailing `includeBuild` configuration block instead of refusing it, because `includeBuild(path) { dependencySubstitution { … } }` is the common spelling and declares no project |
 | 2026-08-27 | a-trailing-includebuild-configuration-block-must-be-skipped-not-refused-because-includebuild-path: A trailing includeBuild configuration block must be skipped, not refused, because includeBuild(path) { dependencySubstitution { ... } } is the common spelling and contributes no module |
+| 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |

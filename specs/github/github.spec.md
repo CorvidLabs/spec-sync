@@ -1,6 +1,6 @@
 ---
 module: github
-version: 36
+version: 37
 status: stable
 files:
   - src/github.rs
@@ -234,3 +234,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-09-10 | correct-remaining-specsync-6-0-docs-after-the-stable-ship: Correct remaining SpecSync 6.0 docs after the stable ship |
 | 2026-09-26 | required-ci-gate-fails-when-the-lifecycle-gate-fails: Required CI gate fails when the lifecycle gate fails |
 | 2026-10-09 | release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix: Release SpecSync 6.0.1 with the Git LFS object-id evidence fix |
+| 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |

@@ -224,3 +224,12 @@ Acceptance Criteria
 - Canonical sha256 is SHA-256 of UTF-8 JSON with sorted object keys and separators `(',', ':')` over `{name, title?, description, inputSchema}`; `title` is omitted when null/absent.
 - Lock/diff call `mcp_tool_definitions` — one catalog shared with `tools/list`.
 
+### REQ-mcp-010
+
+The MCP module SHALL keep the same behavior when its source is split across `include!` files, and none of those files SHALL exceed 5,000 lines.
+
+Acceptance Criteria
+- `src/mcp.rs` includes its parts in the original order.
+- The parts are the previous `src/mcp.rs` bytes.
+- No MCP source file exceeds 5,000 lines.
+

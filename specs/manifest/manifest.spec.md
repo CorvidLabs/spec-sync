@@ -285,3 +285,4 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | 2026-08-27 | a-trailing-includebuild-configuration-block-must-be-skipped-not-refused-because-includebuild-path: A trailing includeBuild configuration block must be skipped, not refused, because includeBuild(path) { dependencySubstitution { ... } } is the common spelling and contributes no module |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-11 | preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs: Preserve Cargo target files and same-name crate roots in generated specs |
+

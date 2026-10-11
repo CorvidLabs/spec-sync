@@ -7,10 +7,11 @@
   "title": "Preserve Cargo target files and same-name crate roots in generated specs",
   "description": "Preserve Cargo target files and same-name crate roots in generated specs",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "dd6eb3ef03de075556554c05b27476839da5c40a",
   "created_at": 1791732764,
-  "updated_at": 1791733230,
+  "updated_at": 1791734641,
   "affected_specs": [
     "manifest"
   ],
@@ -33,9 +34,7 @@
     "research",
     "design"
   ],
-  "dependencies": [
-    "bind-discovered-cargo-crate-sources-during-generation"
-  ],
+  "dependencies": [],
   "answers": {
     "architecture_risk": "yes",
     "constraints": "Preserve retained bounded single-read discovery; no ambient Cargo reread during generation. Keep directory scanning roots separate from exact target ownership. This corrects two reproduced review defects within the user-approved issue #813 fix; full local validation and confidence above 95 percent are required before merge.",

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "split-source-files-so-none-is-longer-than-5-000-lines",
+  "implementation_commit": "d84243e50dc2c1d54b9e423473eb21f008915496",
+  "implementation_tree": "74de7c7485bde7e0a2e381666b6b8c0aa6c0259f",
+  "contract_digest": "5d1b9f2f39418fc3b688d8c757d8b18a17b2672ed7342de074e497768dbe9d17",
+  "workspace_digest": "11e94dda93cf46844ef8cceefdb0b3d4626b94ffc64236161bf998d1c550c43a",
+  "closing_digest": "1a008b6033d1243cdd7e835655b10725cb9c0c14ed404121b1cb4e9cfd220c4c",
+  "review_digest": "07ed3d8826a541871f809c12a6f022c1b0dd3e8c9106a85510262566ce1d4737",
+  "finalization_digest": "05b03ac4c0f2fb5ce15ece6f2bfa22efbfaa072d1c2516a4fe1cfb42ceffc2be",
+  "timestamp": 1791679381
+}

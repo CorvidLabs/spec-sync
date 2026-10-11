@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "split-source-files-so-none-is-longer-than-5-000-lines",
+  "slug": "split-source-files-so-none-is-longer-than-5-000-lines",
+  "title": "Split source files so none is longer than 5,000 lines",
+  "description": "Split source files so none is longer than 5,000 lines",
+  "kind": "refactor",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "ec03d430b0f288d91fb7978804d1dc65abe14505",
+  "created_at": 1791679210,
+  "updated_at": 1791679381,
+  "affected_specs": [
+    "change",
+    "mcp",
+    "validator",
+    "manifest",
+    "github"
+  ],
+  "affected_paths": [
+    "src/change.rs",
+    "src/change_tests.rs",
+    "src/github.rs",
+    "src/manifest.rs",
+    "src/mcp.rs",
+    "src/validator.rs",
+    "tests/integration/commands.rs",
+    "hi/split.md",
+    "specs/change/change.spec.md",
+    "specs/mcp/mcp.spec.md",
+    "specs/validator/validator.spec.md",
+    "specs/manifest/manifest.spec.md",
+    "specs/github/github.spec.md",
+    "src/change/sdd_version.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/collect_requirement_ids.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change_tests/substantive_plan.rs",
+    "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+    "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+    "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs",
+    "src/change_tests/canonical_resolution_tolerates_inert_legacy_registry_stub.rs",
+    "src/mcp/server_name.rs",
+    "src/mcp/publish_staged_file_with_verification_hooks.rs",
+    "src/validator/consumed_by_re.rs",
+    "src/validator/tests.rs",
+    "src/manifest/max_gradle_manifest_bytes.rs",
+    "src/manifest/tests.rs",
+    "tests/integration/commands/specsync_process.rs",
+    "tests/integration/commands/generate_json_honors_enforcement_strict.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "No source file is longer than 5,000 lines, and the program behaves the same."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "The program must behave the same, and GitHub read paths must not construct a gh process.",
+    "public_contract": "no"
+  }
+}

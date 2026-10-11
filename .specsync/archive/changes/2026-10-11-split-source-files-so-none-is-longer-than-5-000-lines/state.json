@@ -7,11 +7,11 @@
   "title": "Split source files so none is longer than 5,000 lines",
   "description": "Split source files so none is longer than 5,000 lines",
   "kind": "refactor",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "ec03d430b0f288d91fb7978804d1dc65abe14505",
   "created_at": 1791679210,
-  "updated_at": 1791679301,
+  "updated_at": 1791679809,
   "affected_specs": [
     "change",
     "mcp",

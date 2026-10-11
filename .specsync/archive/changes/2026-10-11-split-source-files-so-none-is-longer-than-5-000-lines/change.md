@@ -1,6 +1,6 @@
 ---
 id: split-source-files-so-none-is-longer-than-5-000-lines
-state: implementing
+state: archived
 type: refactor
 base_commit: ec03d430b0f288d91fb7978804d1dc65abe14505
 ---

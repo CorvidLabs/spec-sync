@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-handoff-must-not-claim-a-commit-it-did-not-check",
+  "implementation_commit": "f8d6094ea29f8e8149b90b79183c84a484d53e6d",
+  "implementation_tree": "74c06c65911ffe70638819095ad2863a6c6af726",
+  "contract_digest": "098ac9bee3d70eec641c8f2af65298fc29feace2fa155963913aa1eb6cc0d572",
+  "workspace_digest": "ef4b213c6e22bbc320c2261f74ae606b953256f0512bc82418aaad84fc22f082",
+  "closing_digest": "66a8ab3cc77ac297cea6834dff22c9cd55bfb348b60072e870e213b15386f646",
+  "review_digest": "fb3094819faca27d91f11045195d5bd6fd5875762694fbc410bfaf2f0aec4ab5",
+  "finalization_digest": "62c3dedbf08c337b46eae4113b4a6004e62ea8f996fbccb328531635213cb497",
+  "timestamp": 1791684038
+}

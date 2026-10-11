@@ -2946,6 +2946,11 @@ fn handoff_approved_and_implementing_with_a_clean_tree_are_safe() {
         let summary = classify_handoff("add-passkeys", &handoff_signals(state));
         assert_eq!(summary.readiness, HandoffReadiness::Safe, "{state:?}");
         assert!(summary.reason.contains("`change check`"));
+        assert!(summary.reason.contains("this tree"));
+        assert!(
+            !summary.reason.contains("committed"),
+            "a clean affected-path list is not a commit: {summary:?}"
+        );
         assert!(summary.before_clearing.is_empty());
     }
 }
@@ -2967,10 +2972,14 @@ fn handoff_verifying_follows_evidence_currency() {
     let awaiting_review = classify_handoff("add-passkeys", &signals);
     assert_eq!(awaiting_review.readiness, HandoffReadiness::Safe);
     assert!(awaiting_review.reason.contains("independent review"));
-    // `HandoffSignals` carries no "verification committed" signal: currency is a
-    // content question, and `change check` without `--commit` leaves the evidence
-    // untracked. The reason may only claim what the classifier checked.
-    assert!(!awaiting_review.reason.contains("verification is committed"));
+    assert!(awaiting_review.reason.contains("this working tree"));
+    // `HandoffSignals` carries no commit signal. Currency is this working tree,
+    // and `change check` without `--commit` leaves the evidence untracked.
+    // The reason may only claim what the classifier checked.
+    assert!(
+        !awaiting_review.reason.contains("committed"),
+        "verification currency is not a commit: {awaiting_review:?}"
+    );
     assert!(awaiting_review.reason.contains("verification is current"));
 
     signals.scoped_review_current = true;

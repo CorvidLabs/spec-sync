@@ -41,3 +41,5 @@ Cover same-name directory and flat source modules, arbitrary explicit binary fil
 | Pathless Cargo binary | Flat and nested main.rs defaults remain covered, including an existing differently named owner |
 
 The four added process regressions failed on 5b640b7 before implementation. All eleven Cargo process tests, 51 generator unit tests and 61 manifest unit tests pass after the corrections.
+
+Preserve `mcp_multiline_cargo_workspace_members_survive_coverage_and_generation`: an existing empty member spec does not block named generation for uncovered member sources. The first full verification caught this boundary; directory assignment is limited to selected manifest modules while unselected exact targets retain precedence.

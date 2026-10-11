@@ -1220,7 +1220,7 @@ fn module_file_bindings_from_coverage(
     }
     for names in manifest_roots.values_mut() {
         // Shared roots and targets get one owner, independent of discovery order.
-        // Batch selection wins ties, but cannot take an unselected, narrower target.
+        // Batch selection wins ties, but cannot take an unselected exact target.
         names.sort_by_key(|name| (!selected.contains(name), *name));
         names.dedup();
     }
@@ -1229,11 +1229,12 @@ fn module_file_bindings_from_coverage(
         let source_path = Path::new(source);
         // Exact targets precede their nearest enclosing root, then broader roots.
         let owner = source_path.ancestors().find_map(|root| {
-            manifest_roots
-                .get(root)?
-                .iter()
-                .copied()
-                .find(|name| !has_more_specific_module_binding(source_path, root, name, config))
+            manifest_roots.get(root)?.iter().copied().find(|name| {
+                // A manifest directory whose spec already exists must not
+                // block named scaffolds for its remaining uncovered files.
+                (source_path == root || selected.contains(name))
+                    && !has_more_specific_module_binding(source_path, root, name, config)
+            })
         });
         if let Some(owner) = owner {
             manifest_owners.insert(source.as_str(), owner);

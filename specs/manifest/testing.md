@@ -88,3 +88,7 @@ rereview and hosted-Windows runtime remain pending.
 Cover same-name directory and flat source modules, arbitrary explicit binary files, a target sharing its package name, nested target roots and workspace prefixes. Exact target ownership must not be duplicated by package or guessed filename specs.
 
 Pathless Cargo binaries retain both src/bin/<name>.rs and src/bin/<name>/main.rs until coverage intersects them with measured sources. Preserve differently named existing owners of nested entry points, including workspace prefixes. The added parser regression and all 61 manifest tests pass; the Cargo process matrix covers text, JSON and batch modes.
+
+## 6.1.1 release corrections
+
+`cargo_library_target_paths_remain_exact_and_confined` covers custom library roots, alternate library names and escaping target rejection. The process matrix covers source and workspace prefixes.

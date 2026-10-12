@@ -189,6 +189,22 @@ regex = "1.0"
     }
 
     #[test]
+    fn cargo_library_target_paths_remain_exact_and_confined() {
+        let tmp = tempdir().unwrap();
+        for path in ["src/custom.rs", "lib/entry.rs", "entry.rs"] {
+            fs::write(tmp.path().join("Cargo.toml"), format!("[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\nname=\"alternate\"\npath=\"{path}\"\n")).unwrap();
+            let discovery = discover_from_manifests_checked(tmp.path()).unwrap();
+            assert_eq!(discovery.modules["demo"].source_paths, ["src", path]);
+            let parent = Path::new(path).parent().unwrap().to_str().unwrap();
+            let parent = if parent.is_empty() { "." } else { parent };
+            assert!(discovery.source_dirs.contains(&parent.to_string()));
+            assert!(!discovery.modules.contains_key("alternate"));
+        }
+        fs::write(tmp.path().join("Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\npath=\"../outside.rs\"\n").unwrap();
+        assert!(discover_from_manifests_checked(tmp.path()).unwrap_err().contains("escapes the project root"));
+    }
+
+    #[test]
     fn cargo_binary_target_paths_remain_exact_and_merge_same_name_package_roots() {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("Cargo.toml"), "[package]\nname=\"server\"\nversion=\"0.1.0\"\n[[bin]]\nname=\"server\"\npath=\"src/foo.rs\"\n[[bin]]\nname=\"other\"\npath=\"tools/entry.rs\"\n").unwrap();

@@ -2495,6 +2495,81 @@ fn coverage_shows_unspecced_modules() {
 // ─── 3. specsync generate ───────────────────────────────────────────────
 
 #[test]
+fn generate_custom_cargo_library_paths_keep_package_ownership() {
+    for prefix in ["", "crates/demo/"] {
+        for source in ["src/custom.rs", "lib/entry.rs"] {
+            for args in [vec![], vec!["--json"], vec!["--batch", "demo", "--json"]] {
+                let tmp = TempDir::new().unwrap();
+                let root = tmp.path();
+                if !prefix.is_empty() {
+                    fs::write(root.join("Cargo.toml"), "[workspace]\nmembers=[\"crates/demo\"]\n").unwrap();
+                }
+                let member = root.join(prefix);
+                fs::create_dir_all(member.join(std::path::Path::new(source).parent().unwrap())).unwrap();
+                fs::write(member.join("Cargo.toml"), format!("[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\nname=\"alternate_lib\"\npath=\"{source}\"\n")).unwrap();
+                fs::write(member.join(source), "pub fn custom_library() {}\n").unwrap();
+                specsync().args(["init", "--root"]).arg(root).assert().success();
+                let output = specsync().arg("generate").args(args).arg("--root").arg(root).assert().success().get_output().clone();
+                let spec_path = root.join("specs/demo/demo.spec.md");
+                let content = fs::read_to_string(&spec_path).unwrap_or_else(|error| panic!("{error}; stdout={}", String::from_utf8_lossy(&output.stdout)));
+                assert!(content.contains(&format!("  - {prefix}{source}")), "{content}");
+                assert!(content.contains("`custom_library`"), "{content}");
+                assert!(!root.join("specs/custom").exists());
+                assert!(!root.join("specs/entry").exists());
+                specsync().args(["coverage", "--require-coverage", "100", "--json", "--root"]).arg(root).assert().success();
+                specsync().args(["generate", "--root"]).arg(root).assert().success();
+                assert_eq!(fs::read_to_string(spec_path).unwrap(), content);
+            }
+        }
+    }
+}
+
+#[test]
+fn generate_scoped_npm_names_create_valid_specs_and_companions() {
+    for args in [vec![], vec!["--json"], vec!["--batch", "@scope/demo", "--json"]] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::create_dir(root.join("src")).unwrap();
+        fs::write(root.join("package.json"), r#"{"name":"@scope/demo"}"#).unwrap();
+        fs::write(root.join("src/index.ts"), "export function scopedExport() {}\n").unwrap();
+        specsync().args(["init", "--root"]).arg(root).assert().success();
+        let json_mode = args.contains(&"--json");
+        let output = specsync().arg("generate").args(args).arg("--root").arg(root).assert().success().get_output().clone();
+        let relative = "specs/@scope/demo/demo.spec.md";
+        if json_mode {
+            let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(json["generated"], serde_json::json!([relative]), "{json}");
+        }
+        let content = fs::read_to_string(root.join(relative)).unwrap();
+        let frontmatter = content.split("---").nth(1).unwrap();
+        let yaml: serde_json::Value = serde_saphyr::from_str(frontmatter).unwrap();
+        assert_eq!(yaml["module"], "@scope/demo");
+        assert!(content.contains("  - src/index.ts"), "{content}");
+        assert!(content.contains("`scopedExport`"), "{content}");
+        for companion in ["tasks", "context", "requirements", "testing"] {
+            let text = fs::read_to_string(root.join(format!("specs/@scope/demo/{companion}.md"))).unwrap();
+            assert!(text.contains("spec: demo.spec.md"), "{text}");
+        }
+        specsync().args(["coverage", "--require-coverage", "100", "--json", "--root"]).arg(root).assert().success();
+        specsync().args(["generate", "--json", "--root"]).arg(root).assert().success().stdout(predicate::str::contains("\"generated\": []"));
+        assert_eq!(fs::read_to_string(root.join(relative)).unwrap(), content);
+    }
+}
+
+#[test]
+fn generate_write_failure_is_inconclusive_in_json_mode() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir(root.join("src")).unwrap();
+    fs::write(root.join("package.json"), r#"{"name":"@scope/demo"}"#).unwrap();
+    fs::write(root.join("src/index.ts"), "export function scopedExport() {}\n").unwrap();
+    fs::create_dir_all(root.join("specs/@scope/demo/demo.spec.md")).unwrap();
+    let output = specsync().args(["generate", "--json", "--root"]).arg(root).assert().failure().get_output().clone();
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["inconclusive"], true, "{json}");
+}
+
+#[test]
 fn generate_cargo_library_after_init_binds_crate_root_in_every_cli_mode() {
     for args in [vec![], vec!["--json"], vec!["--batch", "demo"]] {
         let tmp = TempDir::new().unwrap();

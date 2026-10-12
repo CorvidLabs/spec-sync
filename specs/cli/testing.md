@@ -58,3 +58,7 @@ spec: cli.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.
+
+## 6.1.1 release corrections
+
+`generate_custom_cargo_library_paths_keep_package_ownership`, `generate_scoped_npm_names_create_valid_specs_and_companions` and `generate_write_failure_is_inconclusive_in_json_mode` exercise real commands. Both late-finding regressions failed before the fix.

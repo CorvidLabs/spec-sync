@@ -1,6 +1,6 @@
 ---
 module: github
-version: 38
+version: 39
 status: stable
 files:
   - src/github.rs
@@ -18,8 +18,8 @@ Links spec files to GitHub issues for traceability. Validates `implements` and `
 fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues
 when specs fall out of sync. Also defines the maintained composite GitHub Action distribution
 contract: immutable exact-version refs and a verified floating major compatibility ref. After
-stable `v6.1.0` is published, the omitted-input default on `main` and on floating `@v6` is
-`6.1.0`. The published `@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not
+stable `v6.1.1` is published, the omitted-input default on `main` and on floating `@v6` is
+`6.1.1`. The published `@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not
 rewritten; `v6` must not be retargeted at that tag. Hosted JavaScript
 verification uses one exact supported Bun runtime across site deployment, site CI, and VS Code
 extension CI.
@@ -236,3 +236,4 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-10-09 | release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix: Release SpecSync 6.0.1 with the Git LFS object-id evidence fix |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-11 | release-specsync-6-1-0: Release SpecSync 6.1.0 |
+| 2026-10-12 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |

@@ -192,3 +192,13 @@ Acceptance Criteria
 - server declared at src/foo.rs retains src/foo.rs as its source path, while src remains a scan directory.
 - A same-name package retains both its package source directory and exact binary target.
 - Workspace target paths remain relative to the overall retained project.
+
+### REQ-manifest-021
+
+Cargo discovery SHALL retain an explicitly declared library file as an exact source path of its package module and add its parent to scan directories, including workspace-relative paths.
+
+Acceptance Criteria
+- A package demo with [lib].path="src/custom.rs" owns that exact file even though its stem is custom.
+- A path outside src is measured through its declared parent without ambient probing.
+- Package source roots, binary targets and workspace prefixes keep their existing ownership.
+

@@ -43,3 +43,7 @@ Cover same-name directory and flat source modules, arbitrary explicit binary fil
 The four added process regressions failed on 5b640b7 before implementation. All eleven Cargo process tests, 51 generator unit tests and 61 manifest unit tests pass after the corrections.
 
 Preserve `mcp_multiline_cargo_workspace_members_survive_coverage_and_generation`: an existing empty member spec does not block named generation for uncovered member sources. The first full verification caught this boundary; directory assignment is limited to selected manifest modules while unselected exact targets retain precedence.
+
+## 6.1.1 release corrections
+
+`scoped_module_generation_entry_points_preserve_identity_and_leaf_paths` covers ambient entry points, valid YAML, built-in/custom companion references and context-scaffold identity. Process tests cover default, JSON and batch output, coverage, reruns and inconclusive output errors.

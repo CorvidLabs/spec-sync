@@ -138,3 +138,6 @@ Cargo target ownership needs the declared file, while traversal needs its parent
 
 @plane z=8 label="Implicit Cargo binary paths (#813)"
 A pathless binary declaration can use either src/bin/<name>.rs or src/bin/<name>/main.rs. Retain both candidates in the same checked manifest snapshot and intersect them with measured files. Guessing only the flat form leaves a phantom missing target when an existing spec already owns the nested entry point.
+
+@plane z=9 label="6.1.1 release corrections"
+An explicit Cargo library path is an exact target just like a binary path. Carry its file identity under the package name and its parent separately for traversal. Custom stems and source roots need process fixtures because src/lib.rs cannot expose the omission.

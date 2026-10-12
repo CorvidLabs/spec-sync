@@ -61,7 +61,26 @@ spec: {module}.spec.md
 /// of three of the four prompt bullets, and that copy has ALREADY drifted — it omits the Notes
 /// bullet. Unifying it is outside this change's delivery scope.
 pub(crate) fn generated_context_scaffold(module: &str) -> String {
-    CONTEXT_TEMPLATE.replace("{module}", module)
+    expand_companion_template(CONTEXT_TEMPLATE, module)
+}
+
+fn module_spec_filename(module: &str) -> String {
+    let leaf = module.rsplit('/').next().unwrap_or(module);
+    format!("{leaf}.spec.md")
+}
+
+fn expand_companion_template(template: &str, module: &str) -> String {
+    template
+        .replace("{module}.spec.md", &module_spec_filename(module))
+        .replace("{module}", module)
+}
+
+fn module_yaml_name(module: &str) -> String {
+    if module.starts_with('@') {
+        serde_json::to_string(module).expect("module name is a JSON string")
+    } else {
+        module.to_string()
+    }
 }
 
 const CONTEXT_TEMPLATE: &str = r#"---
@@ -744,7 +763,7 @@ fn render_spec_template(
     // Replace module name
     let module_re = regex::Regex::new(r"(?m)^module:\s*.+$").unwrap();
     spec = module_re
-        .replace(&spec, format!("module: {module_name}"))
+        .replace(&spec, format!("module: {}", module_yaml_name(module_name)))
         .to_string();
 
     // Replace status
@@ -859,28 +878,28 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str, design_enabled: 
     let testing_path = spec_dir.join("testing.md");
 
     if !tasks_path.exists() {
-        let content = TASKS_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(TASKS_TEMPLATE, module_name);
         if fs::write(&tasks_path, &content).is_ok() {
             println!("    {} Generated tasks.md", "✓".green());
         }
     }
 
     if !context_path.exists() {
-        let content = CONTEXT_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(CONTEXT_TEMPLATE, module_name);
         if fs::write(&context_path, &content).is_ok() {
             println!("    {} Generated context.md", "✓".green());
         }
     }
 
     if !requirements_path.exists() {
-        let content = REQUIREMENTS_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(REQUIREMENTS_TEMPLATE, module_name);
         if fs::write(&requirements_path, &content).is_ok() {
             println!("    {} Generated requirements.md", "✓".green());
         }
     }
 
     if !testing_path.exists() {
-        let content = TESTING_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(TESTING_TEMPLATE, module_name);
         if fs::write(&testing_path, &content).is_ok() {
             println!("    {} Generated testing.md", "✓".green());
         }
@@ -889,7 +908,7 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str, design_enabled: 
     if design_enabled {
         let design_path = spec_dir.join("design.md");
         if !design_path.exists() {
-            let content = DESIGN_TEMPLATE.replace("{module}", module_name);
+            let content = expand_companion_template(DESIGN_TEMPLATE, module_name);
             if fs::write(&design_path, &content).is_ok() {
                 println!("    {} Generated design.md", "✓".green());
             }
@@ -953,7 +972,7 @@ pub fn generate_spec_from_custom_template(
 
     let module_re = regex::Regex::new(r"(?m)^module:\s*.+$").unwrap();
     spec = module_re
-        .replace(&spec, format!("module: {module_name}"))
+        .replace(&spec, format!("module: {}", module_yaml_name(module_name)))
         .to_string();
 
     let status_re = regex::Regex::new(r"(?m)^status:\s*.+$").unwrap();
@@ -999,9 +1018,10 @@ pub fn generate_companion_files_from_template(
         let content = if template_file.exists() {
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| TASKS_TEMPLATE.to_string())
+                .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
-            TASKS_TEMPLATE.replace("{module}", module_name)
+            expand_companion_template(TASKS_TEMPLATE, module_name)
         };
         if fs::write(&tasks_path, &content).is_ok() {
             println!("    {} Generated tasks.md", "✓".green());
@@ -1013,9 +1033,10 @@ pub fn generate_companion_files_from_template(
         let content = if template_file.exists() {
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| CONTEXT_TEMPLATE.to_string())
+                .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
-            CONTEXT_TEMPLATE.replace("{module}", module_name)
+            expand_companion_template(CONTEXT_TEMPLATE, module_name)
         };
         if fs::write(&context_path, &content).is_ok() {
             println!("    {} Generated context.md", "✓".green());
@@ -1027,9 +1048,10 @@ pub fn generate_companion_files_from_template(
         let content = if template_file.exists() {
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| REQUIREMENTS_TEMPLATE.to_string())
+                .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
-            REQUIREMENTS_TEMPLATE.replace("{module}", module_name)
+            expand_companion_template(REQUIREMENTS_TEMPLATE, module_name)
         };
         if fs::write(&requirements_path, &content).is_ok() {
             println!("    {} Generated requirements.md", "✓".green());
@@ -1041,9 +1063,10 @@ pub fn generate_companion_files_from_template(
         let content = if template_file.exists() {
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| TESTING_TEMPLATE.to_string())
+                .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
-            TESTING_TEMPLATE.replace("{module}", module_name)
+            expand_companion_template(TESTING_TEMPLATE, module_name)
         };
         if fs::write(&testing_path, &content).is_ok() {
             println!("    {} Generated testing.md", "✓".green());
@@ -1057,9 +1080,10 @@ pub fn generate_companion_files_from_template(
             let content = if template_file.exists() {
                 fs::read_to_string(&template_file)
                     .unwrap_or_else(|_| DESIGN_TEMPLATE.to_string())
+                    .replace("{module}.spec.md", &module_spec_filename(module_name))
                     .replace("{module}", module_name)
             } else {
-                DESIGN_TEMPLATE.replace("{module}", module_name)
+                expand_companion_template(DESIGN_TEMPLATE, module_name)
             };
             if fs::write(&design_path, &content).is_ok() {
                 println!("    {} Generated design.md", "✓".green());
@@ -1099,13 +1123,25 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
     for module_name in &report.unspecced_modules {
         let module_relative =
             confined_generation_path(&specs_relative.join(module_name), "module destination")?;
-        let spec_relative = module_relative.join(format!("{module_name}.spec.md"));
+        let spec_relative = module_relative.join(module_spec_filename(module_name));
         if project.try_exists(&spec_relative).map_err(|error| {
             format!(
                 "Cannot inspect retained generate destination {}: {error}",
                 spec_relative.display()
             )
         })? {
+            let metadata = project.symlink_metadata(&spec_relative).map_err(|error| {
+                format!(
+                    "Cannot inspect retained generate destination {}: {error}",
+                    spec_relative.display()
+                )
+            })?;
+            if !metadata.is_file() || metadata.is_symlink() {
+                return Err(format!(
+                    "Generate destination {} must be a regular non-link file",
+                    spec_relative.display()
+                ));
+            }
             continue;
         }
 
@@ -1118,15 +1154,12 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
             continue;
         }
 
-        if let Err(error) = project.create_dir_all(&module_relative) {
-            if progress {
-                eprintln!(
-                    "  Failed to create {}: {error}",
-                    root.join(&module_relative).display()
-                );
-            }
-            continue;
-        }
+        project.create_dir_all(&module_relative).map_err(|error| {
+            format!(
+                "Cannot create retained generate directory {}: {error}",
+                module_relative.display()
+            )
+        })?;
 
         let template = retained_generation_template(project, &specs_relative, &module_files);
         let spec_content = render_spec_template(module_name, &module_files, root, template, config);
@@ -1157,12 +1190,10 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
             }
             Ok(false) => {}
             Err(error) => {
-                if progress {
-                    eprintln!(
-                        "  Failed to write {}: {error}",
-                        root.join(&spec_relative).display()
-                    );
-                }
+                return Err(format!(
+                    "Cannot write retained generated spec {}: {error}",
+                    spec_relative.display()
+                ));
             }
         }
     }
@@ -1468,7 +1499,7 @@ fn generate_retained_companion_files(
         ("testing.md", TESTING_TEMPLATE),
     ];
     for (name, template) in companions {
-        let content = template.replace("{module}", module_name);
+        let content = expand_companion_template(template, module_name);
         if write_new_retained_file(project, &module_relative.join(name), content.as_bytes())
             .is_ok_and(|created| created)
             && progress
@@ -1477,7 +1508,7 @@ fn generate_retained_companion_files(
         }
     }
     if design_enabled {
-        let content = DESIGN_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(DESIGN_TEMPLATE, module_name);
         if write_new_retained_file(
             project,
             &module_relative.join("design.md"),
@@ -1505,7 +1536,7 @@ pub fn generate_specs_for_unspecced_modules(
 
     for module_name in &report.unspecced_modules {
         let spec_dir = specs_dir.join(module_name);
-        let spec_file = spec_dir.join(format!("{module_name}.spec.md"));
+        let spec_file = spec_dir.join(module_spec_filename(module_name));
 
         if spec_file.exists() {
             continue;
@@ -1568,7 +1599,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
 
     for module_name in &report.unspecced_modules {
         let spec_dir = specs_dir.join(module_name);
-        let spec_file = spec_dir.join(format!("{module_name}.spec.md"));
+        let spec_file = spec_dir.join(module_spec_filename(module_name));
 
         if spec_file.exists() {
             continue;
@@ -1760,6 +1791,58 @@ mod tests {
         let spec = generate_spec("my-mod", &[], root, &specs_dir, &SpecSyncConfig::default());
         assert!(spec.contains("Custom template marker"));
         assert!(spec.contains("module: my-mod"));
+    }
+
+    #[test]
+    fn scoped_module_generation_entry_points_preserve_identity_and_leaf_paths() {
+        for quiet in [false, true] {
+            let tmp = TempDir::new().unwrap();
+            let root = tmp.path();
+            fs::create_dir(root.join("src")).unwrap();
+            fs::write(root.join("package.json"), r#"{"name":"@scope/demo"}"#).unwrap();
+            fs::write(
+                root.join("src/index.ts"),
+                "export function scopedExport() {}\n",
+            )
+            .unwrap();
+            let config = SpecSyncConfig::default();
+            let report = crate::validator::compute_coverage_checked(root, &[], &config).unwrap();
+            let outcome = if quiet {
+                generate_specs_for_unspecced_modules_paths(root, &report, &config)
+            } else {
+                generate_specs_for_unspecced_modules(root, &report, &config)
+            };
+            assert_eq!(outcome.generated_paths, ["specs/@scope/demo/demo.spec.md"]);
+            let content = fs::read_to_string(root.join(&outcome.generated_paths[0])).unwrap();
+            let yaml: serde_json::Value =
+                serde_saphyr::from_str(content.split("---").nth(1).unwrap()).unwrap();
+            assert_eq!(yaml["module"], "@scope/demo");
+        }
+        let tmp = TempDir::new().unwrap();
+        generate_companion_files_for_spec(tmp.path(), "@scope/demo", true);
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("context.md")).unwrap(),
+            generated_context_scaffold("@scope/demo")
+        );
+        for name in ["tasks", "context", "requirements", "testing", "design"] {
+            assert!(
+                fs::read_to_string(tmp.path().join(format!("{name}.md")))
+                    .unwrap()
+                    .contains("spec: demo.spec.md")
+            );
+        }
+        fs::write(
+            tmp.path().join("testing.md"),
+            "spec: {module}.spec.md\nCustom {module}",
+        )
+        .unwrap();
+        let output = TempDir::new().unwrap();
+        generate_companion_files_from_template(output.path(), "@scope/demo", tmp.path(), false);
+        assert!(
+            fs::read_to_string(output.path().join("testing.md"))
+                .unwrap()
+                .contains("spec: demo.spec.md\nCustom @scope/demo")
+        );
     }
 
     #[test]

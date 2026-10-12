@@ -17,3 +17,5 @@ spec: generator.spec.md
 
 - [x] Correct same-name crate and exact Cargo target bindings from PR #814 review.
 - [x] Preserve missing explicit mappings and assign shared or overlapping manifest sources once; retain narrower targets during batch generation (#814 additional review).
+
+- [x] Prepare the 6.1.1 discovery regression fixes and distribution contracts (fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1).

@@ -21,7 +21,9 @@ Rust · single binary · 33 languages · no SpecSync API key required
 
 ## Install
 
-GitHub Releases, crates.io, and Homebrew (`CorvidLabs/tap/spec-sync`) all serve **6.1.0**.
+This tree prepares **6.1.1**. GitHub Releases, crates.io, and Homebrew
+(`CorvidLabs/tap/spec-sync`) currently serve **6.1.0**. Publish 6.1.1 only after the
+immutable candidate passes Ubuntu and macOS qualification; the 6.1.1 pins below apply after publication.
 Confirm what you received with `specsync --version`, and pin all lifecycle writers and CI to
 the same 6.x version.
 
@@ -40,24 +42,24 @@ brew install CorvidLabs/tap/spec-sync
 ### GitHub Action
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.1.0
+- uses: CorvidLabs/spec-sync@v6.1.1
   with:
-    version: '6.1.0'
+    version: '6.1.1'
     strict: 'true'
     require-coverage: '100'
 ```
 
-Prefer the `@v6.1.0` Action and binary pins shown above for release gates.
+Prefer the `@v6.1.1` Action and binary pins shown above for release gates.
 `@v6.0.0` still defaults the download to `6.0.0-rc.14`, so pass `version: '6.0.0'` only
-when using that older tag. This commit's omitted-input default is `6.1.0`. Move the floating
-`@v6` tag only after promotion, to a commit whose omitted-input default is `6.1.0`.
+when using that older tag. This commit's omitted-input default is `6.1.1`. Move the floating
+`@v6` tag only after promotion, to a commit whose omitted-input default is `6.1.1`.
 
 Minimal immutable configuration:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.1.0
+- uses: CorvidLabs/spec-sync@v6.1.1
   with:
-    version: '6.1.0'
+    version: '6.1.1'
 ```
 
 ### Pre-built binaries

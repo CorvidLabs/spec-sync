@@ -90,3 +90,7 @@ spec: github.spec.md
 - Before promoting an Action release, run pinned `@v<major>.<minor>.<patch>` consumers on Linux and
   macOS; advance `v<major>` only after all pass. Windows is not a supported target as of 6.0, and
   the Action refuses a Windows runner rather than requesting an asset that is not published.
+
+## 6.1.1 release corrections
+
+Run the release-version and hosted-runtime validators on the prepared 6.1.1 surfaces. The existing release.yml must qualify the same integrated immutable RC SHA on Ubuntu and macOS before promotion; local tests do not satisfy that gate.

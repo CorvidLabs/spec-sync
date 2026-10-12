@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1",
+  "slug": "fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1",
+  "title": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+  "description": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+  "kind": "feature",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "8754ae17048742cc4150d1d98122b802ddc32e88",
+  "created_at": 1791810517,
+  "updated_at": 1791811328,
+  "affected_specs": [
+    "manifest",
+    "generator",
+    "cli",
+    "github"
+  ],
+  "affected_paths": [
+    "src/manifest/max_gradle_manifest_bytes.rs",
+    "src/manifest/tests.rs",
+    "src/generator.rs",
+    "tests/integration/commands/specsync_process.rs",
+    "Cargo.toml",
+    "Cargo.lock",
+    "action.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/trust.yml",
+    "CHANGELOG.md",
+    "README.md",
+    "MIGRATION.md",
+    "SECURITY.md",
+    "docs/ADOPTING.md",
+    "site/src/content/docs",
+    "site/src/content/examples"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Custom Cargo library target paths bind to the package module in default, JSON and named generation; scoped npm package names generate a truthful spec and cannot silently return success with no output; regression tests preserve existing owners and confinement; prepare version 6.1.1 and qualify the same immutable candidate on Ubuntu and macOS before Cargo or Homebrew publication."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Preserve explicit mappings, existing spec owners, exact target precedence and retained-root confinement. Qualification must identify one immutable SHA on Ubuntu and macOS; do not publish Cargo or Homebrew before qualification.",
+    "public_contract": "yes"
+  }
+}

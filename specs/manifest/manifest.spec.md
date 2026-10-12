@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 26
+version: 27
 status: stable
 files:
   - src/manifest.rs
@@ -29,7 +29,7 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 
 | Struct | Fields | Description |
 |--------|--------|-------------|
-| `ManifestModule` | `name: String`, `source_paths: Vec<String>`, `dependencies: Vec<String>` | A module/target discovered from a manifest file; source paths are directories or exact Cargo binary files |
+| `ManifestModule` | `name: String`, `source_paths: Vec<String>`, `dependencies: Vec<String>` | A module/target discovered from a manifest file; source paths are directories or exact Cargo library/binary files |
 | `ManifestDiscovery` | `modules: HashMap<String, ManifestModule>`, `source_dirs: Vec<String>` | Aggregated result of parsing all manifest files in a project |
 | `GradleSettingsModule` | `name: String`, `path: String` | Crate-visible normalized Gradle module identity and effective project directory |
 
@@ -291,4 +291,4 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | 2026-08-27 | a-trailing-includebuild-configuration-block-must-be-skipped-not-refused-because-includebuild-path: A trailing includeBuild configuration block must be skipped, not refused, because includeBuild(path) { dependencySubstitution { ... } } is the common spelling and contributes no module |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-11 | preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs: Preserve Cargo target files and same-name crate roots in generated specs |
-
+| 2026-10-12 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |

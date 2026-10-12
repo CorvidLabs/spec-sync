@@ -86,3 +86,5 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 
 - [x] Correct same-name crate and exact Cargo target bindings from PR #814 review.
 - [x] Retain both conventional Cargo binary entry paths when a target omits path, including workspace and existing-owner regressions (#814 additional review).
+
+- [x] Prepare the 6.1.1 discovery regression fixes and distribution contracts (fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1).

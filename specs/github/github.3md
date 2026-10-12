@@ -185,3 +185,6 @@ rejects the unsupported `non-file` archive-entry spelling and out-of-range lifec
 and accepts a zero-entry acceptance manifest.
 
 During the 6.0 candidate window the Action omitted-input default was pinned to published release `6.0.0-rc.14` (assets present); tags `rc.15`..`rc.17` had no Release assets and were not defaults (#628). After `v6.0.0` shipped, `main` defaults to `6.0.0`. The immutable `@v6.0.0` Action tag still embeds `6.0.0-rc.14` and is not rewritten.
+
+@plane z=4 label="6.1.1 release corrections"
+Prepare 6.1.1 without rewriting the published 6.1.0 identity. Version consistency and local macOS verification do not establish immutable Ubuntu/macOS candidate qualification. Merge only after human implementation review and same-PR archival, then tag the integrated SHA for the existing release lane.

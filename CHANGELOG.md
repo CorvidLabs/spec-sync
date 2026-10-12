@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.1] - 2026-10-12
+
+### Fixed
+
+- Cargo packages bind their measured source files during generation, including custom `[lib].path` files, exact binary targets and workspace members. Existing and explicitly configured owners retain precedence.
+- Scoped npm names generate valid specs under `specs/@scope/name/name.spec.md`, preserving the full module identity and correct companion references. Retained generation write failures return an error instead of successful empty output.
+
+### Changed
+
+- Prepare package, Action and verification pins at 6.1.1. Publication follows qualification of one immutable candidate SHA on Ubuntu and macOS; 6.1.0 remains the published release until promotion.
+
 ## [6.1.0] - 2026-10-11
 
 ### Added
@@ -3615,7 +3626,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.0...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.1...HEAD
+[6.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.1.1
 [6.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.1.0
 [6.0.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.0.1
 [6.0.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.0.0

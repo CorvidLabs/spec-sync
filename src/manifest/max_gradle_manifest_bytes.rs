@@ -920,11 +920,30 @@ fn parse_cargo_toml_with_access_inner(
     // Extract package name
     if let Some(name) = extract_toml_value(&content, "name", Some("[package]")) {
         let src_path = manifest_path_text(&relative_root.join("src"), "Cargo source")?;
+        let mut source_paths = vec![src_path.clone()];
+        if let Some(path) = document
+            .get("lib")
+            .and_then(|lib| lib.get("path"))
+            .and_then(toml::Value::as_str)
+        {
+            // Ownership follows the declared file; scanning follows its parent.
+            let target = manifest_path_text(&relative_root.join(path), "Cargo library target")?;
+            source_paths.push(target.clone());
+            let parent = Path::new(&target).parent().unwrap_or_else(|| Path::new(""));
+            let dir = if parent.as_os_str().is_empty() {
+                ".".to_string()
+            } else {
+                manifest_path_text(parent, "Cargo library source")?
+            };
+            if !discovery.source_dirs.contains(&dir) {
+                discovery.source_dirs.push(dir);
+            }
+        }
         discovery.modules.insert(
             name.clone(),
             ManifestModule {
                 name,
-                source_paths: vec![src_path.clone()],
+                source_paths,
                 dependencies: Vec::new(),
             },
         );

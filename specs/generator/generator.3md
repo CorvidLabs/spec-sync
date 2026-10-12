@@ -52,3 +52,6 @@ A conventional module and a manifest crate with the same name are one owner: com
 
 @plane z=6 label="Shared source ownership (#813)"
 Excluding every source claimed by another target drops shared files from every owner. Independently including directory roots duplicates overlapping owners. Resolve ownership once from the captured manifest: nearest path first, selected names then lexical order for ties. Retain unselected exact targets during batch generation. An explicit mapping that matches nothing remains authoritative. An existing empty package spec must still allow named scaffolds for uncovered files beneath its source directory.
+
+@plane z=7 label="6.1.1 release corrections"
+Module identity and spec filename are different: @scope/demo keeps its full identity and directory, while the spec filename is demo.spec.md. Quote reserved YAML prefixes and expand companion references from the same leaf name. An output write failure must become an error, including JSON mode.

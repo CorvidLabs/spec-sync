@@ -21,6 +21,27 @@
         "REQ-github-002",
         "REQ-manifest-021"
       ]
+    },
+    {
+      "timestamp": 1791811334,
+      "commit": "3661b623fe267dd75766d8ee925a8bfdd6d5e125",
+      "contract_digest": "d490c6c3069089004e3266775ddf9cde97a276164ff48a539bccd94ac354fdee",
+      "execution_digest": "a176166e8a2fdcdb01f2311da14867a547d564165ace51b2e222650bf2e9b9e6",
+      "workspace_digest": "687e717ebadb401627054c8919e1c93185ccf03dbbfb55f74a739cab31e941ea",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cli --spec cmd_change --spec generator --spec github --spec manifest",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cli-002",
+        "REQ-generator-007",
+        "REQ-github-002",
+        "REQ-manifest-021"
+      ]
     }
   ]
 }

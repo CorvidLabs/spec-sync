@@ -1,0 +1,1 @@
+{"commit":"643984a437abcea6abbd98259c85ddd0f1b4a26c","confidence":0.5726686833333334,"humanApproved":false,"note":"Verification evidence commit for the same source tree validated by the full Fledge lane. No human implementation review or immutable hosted release qualification is claimed.","reviewer":"agent:codex","testsPassed":true,"timestamp":1791812210,"verdict":"review"}

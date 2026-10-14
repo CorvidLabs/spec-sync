@@ -75,7 +75,7 @@ All keys use `snake_case`. `specsync migrate` preserves explicit empty arrays an
 | Option | Type | Default | Purpose |
 |---|---|---|---|
 | `specs_dir` | string | `"specs"` | Recursive canonical spec directory |
-| `source_dirs` | string[] | auto-detected or `src` | Source roots used for coverage and generation |
+| `source_dirs` | string[] | auto-detected or `src` | Source directories and, from 6.1.1, exact Cargo target files used for coverage and generation |
 | `schema_dir` | string | unset | SQL migration directory |
 | `schema_pattern` | string | built-in CREATE TABLE pattern | Table-name capture regex |
 | `required_sections` | string[] | seven contract sections | Required `##` headings |
@@ -89,6 +89,33 @@ All keys use `snake_case`. `specsync migrate` preserves explicit empty arrays an
 | `task_archive_days` | integer | unset | Age threshold used by task archival |
 
 An omitted or empty `source_extensions` list continues to select all supported language extensions. Set `include_extensionless = true` to additionally discover files such as `bin/tool`; it is additive whether `source_extensions` uses the defaults or an explicit list.
+
+## Cargo target source selections (6.1.1)
+
+A declared Cargo library or binary beside the project manifest is an exact file
+selection. For example, `[lib] path = "lib.rs"` can make `specsync init` write:
+
+```toml
+source_dirs = ["lib.rs", "src"]
+```
+
+`lib.rs` selects only that validated target; it does not recursively scan the
+project root, build output or unrelated scripts. An explicitly selected directory
+such as `.` still keeps its stated scope. The target file remains owned by its
+Cargo package or declared binary. Literal workspace members whose manifests are
+resolved keep whole-member scan boundaries, including when the root package or
+another member declares a target inside one of them. Cargo workspace glob members
+such as `members = ["crates/*"]` are not expanded for manifest-based target
+ownership; that is a separate existing limitation.
+
+Exact-file `source_dirs` entries require a **6.1.1 or newer reader**. Released
+6.1.0 skips these file entries, so a downgrade can silently leave the target out of
+coverage and generation. If another source directory remains, 6.1.0 can still
+report 100% coverage of the reduced file set, even with `--require-coverage 100`.
+Check `specsync --version` and use 6.1.1 or later; the coverage percentage alone
+does not prove the reader understands these entries. There is no silent
+backward-compatibility guarantee. 6.1.1 is still a prepared release;
+6.1.0 remains the published version until the candidate is qualified and promoted.
 
 ## Validation rules
 

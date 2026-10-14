@@ -87,3 +87,10 @@ spec: validator.spec.md
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
 
 - [x] Correct same-name crate and exact Cargo target bindings from PR #814 review.
+
+## Project-root Cargo targets (#816)
+
+The `exact_cargo_root_sources_*` regressions cover checked exact-file admission,
+extension filtering, explicit directory authority, retained replacement rejection,
+regular non-link file enforcement, invalid UTF-8 and shared entry/byte limits.
+No global ignore list or manifest-driven expansion of stated roots is introduced.

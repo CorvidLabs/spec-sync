@@ -1,13 +1,13 @@
 {
-  "timestamp": 1791811334,
-  "commit": "3661b623fe267dd75766d8ee925a8bfdd6d5e125",
-  "contract_digest": "d490c6c3069089004e3266775ddf9cde97a276164ff48a539bccd94ac354fdee",
-  "execution_digest": "a176166e8a2fdcdb01f2311da14867a547d564165ace51b2e222650bf2e9b9e6",
-  "workspace_digest": "687e717ebadb401627054c8919e1c93185ccf03dbbfb55f74a739cab31e941ea",
+  "timestamp": 1792021797,
+  "commit": "643984a437abcea6abbd98259c85ddd0f1b4a26c",
+  "contract_digest": "1911de63b622aa3d840518026b45265115bf1a6ece1a8e4a1469f241e401212c",
+  "execution_digest": "16fcda25b6db7a470b161a81e2c4931268ea3f12845dd77e2d62a1ddf65b5e08",
+  "workspace_digest": "d7fced19ae287ac680bcda27553c406be41bb0ff510d280009013d58edf87342",
   "passed": true,
   "commands": [
     {
-      "command": "specsync check --spec cli --spec cmd_change --spec generator --spec github --spec manifest",
+      "command": "specsync check --spec cli --spec cmd_change --spec generator --spec github --spec manifest --spec validator",
       "success": true,
       "exit_code": 0
     }
@@ -16,6 +16,7 @@
     "REQ-cli-002",
     "REQ-generator-007",
     "REQ-github-002",
-    "REQ-manifest-021"
+    "REQ-manifest-021",
+    "REQ-validator-044"
   ]
 }

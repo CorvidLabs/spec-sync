@@ -836,6 +836,7 @@ struct SelectedCoverageSourceDirectory {
     configured: String,
     normalized: PathBuf,
     identity: CoverageEntryIdentity,
+    exact_cargo_file: bool,
 }
 
 #[cfg(test)]
@@ -874,10 +875,20 @@ where
     )
 }
 
+#[cfg(test)]
 fn select_coverage_source_directories(
     project: &Dir,
     config: &SpecSyncConfig,
     max_depth: usize,
+) -> Result<Vec<SelectedCoverageSourceDirectory>, String> {
+    select_coverage_source_directories_with_exact_targets(project, config, max_depth, &HashSet::new())
+}
+
+fn select_coverage_source_directories_with_exact_targets(
+    project: &Dir,
+    config: &SpecSyncConfig,
+    max_depth: usize,
+    exact_targets: &HashSet<String>,
 ) -> Result<Vec<SelectedCoverageSourceDirectory>, String> {
     let mut selected_sources = Vec::new();
     for configured in &config.source_dirs {
@@ -891,6 +902,28 @@ fn select_coverage_source_directories(
             })?)
         };
         ensure_coverage_depth(&normalized, max_depth)?;
+        if normalized.components().count() == 1
+            && exact_targets.contains(&coverage_relative_path_text(&normalized)?)
+        {
+            let metadata = match project.symlink_metadata(&normalized) {
+                Ok(metadata) => metadata,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(format!("Cannot inspect selected Cargo source {}: {error}", normalized.display())),
+            };
+            if coverage_metadata_is_link(&metadata) || !metadata.is_file() {
+                return Err(format!("Selected Cargo source {} must be a regular non-link file", normalized.display()));
+            }
+            let identity = coverage_metadata_identity(&metadata).map_err(|error| {
+                format!("Cannot identify selected Cargo source {}: {error}", normalized.display())
+            })?;
+            selected_sources.push(SelectedCoverageSourceDirectory {
+                configured: configured.clone(),
+                normalized,
+                identity,
+                exact_cargo_file: true,
+            });
+            continue;
+        }
         let Some(retained) = open_retained_coverage_directory(project, &normalized)? else {
             continue;
         };
@@ -905,6 +938,7 @@ fn select_coverage_source_directories(
             configured: configured.clone(),
             normalized,
             identity,
+            exact_cargo_file: false,
         });
     }
     Ok(selected_sources)
@@ -924,6 +958,37 @@ where
 {
     let mut snapshot = CoverageSourceSnapshot::default();
     for source in selected_sources {
+        if source.exact_cargo_file {
+            // This selection names a checked Cargo target, not its entire parent.
+            // Reuse the same retained identity, no-follow read and input budgets.
+            budget.charge_entries(1)?;
+            verify_coverage_file_edge(project, source.normalized.as_os_str(), &source.normalized, source.identity)?;
+            if has_coverage_extension(&root.join(&source.normalized), config)
+                && !is_test_file(&root.join(&source.normalized), root)
+                && !budget.source_files.contains(&source.normalized)
+            {
+                let bytes = read_coverage_file_with_expected_identity_and_hook(
+                    project,
+                    source.normalized.as_os_str(),
+                    &source.normalized,
+                    budget.limits.max_file_bytes,
+                    budget.remaining_bytes(),
+                    budget.limits.max_input_bytes,
+                    Some(source.identity),
+                    || {},
+                )?;
+                let content = std::str::from_utf8(&bytes).map_err(|_| {
+                    format!("Coverage source file {} is not valid UTF-8", source.normalized.display())
+                })?;
+                if budget.charge_source_file(&source.normalized, bytes.len() as u64)? {
+                    snapshot.files.push(CoverageSourceFile {
+                        relative_path: source.normalized,
+                        loc: content.lines().count(),
+                    });
+                }
+            }
+            continue;
+        }
         let Some(retained) = open_retained_coverage_directory(project, &source.normalized)? else {
             return Err(format!(
                 "Selected coverage source directory {} changed during retained traversal",

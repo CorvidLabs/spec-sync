@@ -11,11 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Cargo packages bind their measured source files during generation, including custom `[lib].path` files, exact binary targets and workspace members. Existing and explicitly configured owners retain precedence.
+- Cargo packages bind their measured source files during generation, including custom `[lib].path` files, exact binary targets and literal workspace members whose manifests are resolved. Glob workspace member declarations such as `crates/*` remain unsupported for manifest-based target ownership. Existing and explicitly configured owners retain precedence.
 - Scoped npm names generate valid specs under `specs/@scope/name/name.spec.md`, preserving the full module identity and correct companion references. Retained generation write failures return an error instead of successful empty output.
 
 ### Changed
 
+- Cargo targets beside the project manifest use exact-file `source_dirs` entries such as `lib.rs` or `main.rs` rather than a recursive project-root scan. Configurations containing those entries require SpecSync 6.1.1 or later. Released 6.1.0 skips exact-file selections and can still report 100% coverage of remaining directory sources. Check the reader version; `--require-coverage 100` alone does not establish compatibility. This configuration format is not silently backward compatible.
 - Prepare package, Action and verification pins at 6.1.1. Publication follows qualification of one immutable candidate SHA on Ubuntu and macOS; 6.1.0 remains the published release until promotion.
 
 ## [6.1.0] - 2026-10-11

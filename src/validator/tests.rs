@@ -1004,6 +1004,106 @@ mod tests {
         snapshot_coverage_sources(&project, root, config, exclude_dirs, &mut budget)
     }
 
+    #[test]
+    fn exact_cargo_root_sources_keep_extension_and_explicit_directory_policy() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir(root.join("src")).unwrap();
+        fs::write(root.join("Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\npath=\"./lib.rs\"\n").unwrap();
+        fs::write(root.join("lib.rs"), "pub fn root_library() {}\n").unwrap();
+        fs::write(root.join("src/parser.rs"), "pub fn parse() {}\n").unwrap();
+        fs::write(root.join("build.rs"), "fn main() {}\n").unwrap();
+        for (selections, extensions, expected) in [
+            (vec!["lib.rs"], vec![], 1),
+            (vec!["src"], vec![], 1),
+            (vec!["."], vec![], 3),
+            (vec!["lib.rs"], vec!["ts"], 0),
+        ] {
+            let config = SpecSyncConfig {
+                source_dirs: selections.into_iter().map(str::to_string).collect(),
+                source_dirs_set: true,
+                source_extensions: extensions.into_iter().map(str::to_string).collect(),
+                ..SpecSyncConfig::default()
+            };
+            let report = compute_coverage_checked(root, &[], &config).unwrap();
+            assert_eq!(report.total_source_files, expected, "{:?}: {:?}", config.source_dirs, report.unspecced_files);
+            if config.source_dirs == ["src"] {
+                assert_eq!(report.unspecced_files, ["src/parser.rs"]);
+            }
+        }
+    }
+
+    #[test]
+    fn exact_cargo_root_sources_use_retained_identity_and_input_budgets() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::write(root.join("lib.rs"), "pub fn library() {}\n").unwrap();
+        fs::create_dir_all(root.join("target/debug/deps")).unwrap();
+        for index in 0..20 {
+            fs::write(root.join(format!("target/debug/deps/{index}.rs")), "pub fn generated() {}\n").unwrap();
+        }
+        let config = SpecSyncConfig { source_dirs: vec!["lib.rs".into()], ..SpecSyncConfig::default() };
+        let project = open_coverage_project_root(root).unwrap();
+        let targets = HashSet::from(["lib.rs".to_string()]);
+        for (limit, expected_error) in [(1, None), (0, Some("entry limit"))] {
+            let selected = select_coverage_source_directories_with_exact_targets(&project, &config, MAX_COVERAGE_DEPTH, &targets).unwrap();
+            let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits { max_entries: limit, ..CoverageTraversalLimits::default() });
+            let result = snapshot_selected_coverage_sources_with_hook(&project, root, &config, &HashSet::new(), &mut budget, selected, &mut |_| {});
+            if let Some(error) = expected_error {
+                assert!(result.unwrap_err().contains(error));
+            } else {
+                let snapshot = result.unwrap();
+                assert_eq!(snapshot.files.len(), 1);
+                assert_eq!(snapshot.files[0].relative_path, Path::new("lib.rs"));
+                assert_eq!(budget.entries, 1);
+            }
+        }
+        for (limit, expected) in [(1, "per-file limit"), (MAX_COVERAGE_FILE_BYTES, "cumulative limit")] {
+            let selected = select_coverage_source_directories_with_exact_targets(&project, &config, MAX_COVERAGE_DEPTH, &targets).unwrap();
+            let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits { max_file_bytes: limit, max_input_bytes: 1, ..CoverageTraversalLimits::default() });
+            let error = snapshot_selected_coverage_sources_with_hook(&project, root, &config, &HashSet::new(), &mut budget, selected, &mut |_| {}).unwrap_err();
+            assert!(error.contains(expected), "{error}");
+        }
+        fs::write(root.join("lib.rs"), [0xff]).unwrap();
+        let selected = select_coverage_source_directories_with_exact_targets(&project, &config, MAX_COVERAGE_DEPTH, &targets).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let error = snapshot_selected_coverage_sources_with_hook(&project, root, &config, &HashSet::new(), &mut budget, selected, &mut |_| {}).unwrap_err();
+        assert!(error.contains("not valid UTF-8"), "{error}");
+        fs::write(root.join("lib.rs"), "pub fn library() {}\n").unwrap();
+        let selected = select_coverage_source_directories_with_exact_targets(&project, &config, MAX_COVERAGE_DEPTH, &targets).unwrap();
+        fs::rename(root.join("lib.rs"), root.join("original.rs")).unwrap();
+        fs::write(root.join("lib.rs"), "REPLACEMENT_SOURCE_SENTINEL").unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let error = snapshot_selected_coverage_sources_with_hook(&project, root, &config, &HashSet::new(), &mut budget, selected, &mut |_| {}).unwrap_err();
+        assert!(error.contains("changed during retained traversal"), "{error}");
+        assert!(!error.contains("REPLACEMENT_SOURCE_SENTINEL"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exact_cargo_root_sources_reject_links_directories_and_special_files() {
+        use std::os::unix::fs::symlink;
+        use std::process::Command;
+        for kind in ["link", "directory", "fifo"] {
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            fs::write(root.join("Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\npath=\"lib.rs\"\n").unwrap();
+            match kind {
+                "link" => {
+                    fs::write(root.join("outside.rs"), "SOURCE_SENTINEL").unwrap();
+                    symlink(root.join("outside.rs"), root.join("lib.rs")).unwrap();
+                }
+                "directory" => fs::create_dir(root.join("lib.rs")).unwrap(),
+                "fifo" => assert!(Command::new("mkfifo").arg(root.join("lib.rs")).status().unwrap().success()),
+                _ => unreachable!(),
+            }
+            let config = SpecSyncConfig { source_dirs: vec!["lib.rs".into()], ..SpecSyncConfig::default() };
+            let error = compute_coverage_checked(root, &[], &config).unwrap_err();
+            assert!(error.contains("regular non-link file"), "{kind}: {error}");
+            assert!(!error.contains("SOURCE_SENTINEL"));
+        }
+    }
+
     #[cfg(unix)]
     #[test]
     fn broad_source_tree_succeeds_with_a_bounded_file_descriptor_limit() {
@@ -2973,8 +3073,9 @@ pub fn compute_coverage_checked(
         ));
     }
     let (manifest, manifest_notices) = retained_coverage_manifest(root, &project, config)?;
-    let selected_sources =
-        select_coverage_source_directories(&project, config, budget.limits.max_depth)?;
+    let selected_sources = select_coverage_source_directories_with_exact_targets(
+        &project, config, budget.limits.max_depth, &manifest.exact_cargo_source_files,
+    )?;
     coverage_snapshot_test_barrier(CoverageSnapshotCheckpoint::ManifestDiscovered)?;
     let retained_spec_inventory =
         discover_coverage_spec_files(&project, &config.specs_dir, &mut budget)?;

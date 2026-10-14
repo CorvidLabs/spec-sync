@@ -114,3 +114,10 @@ Manifest discovery already supplies source roots for module attribution. Retain 
 
 @plane z=7 label="Cargo review corrections (#813)"
 Manifest source mappings may be exact files as well as directories. Index both kinds against measured ownership and suppress guessed filename aliases for explicitly named targets.
+
+@plane z=8 label="Exact Cargo source selection (#816)"
+A declared root-level file is not permission to walk the whole repository.
+Preserve its exact selection through init and read it with the existing retained
+identity/no-follow/budget helpers. Keep explicitly selected directories, including
+`.`, unchanged. Compare actual measured files and adversarial replacement/bounds
+fixtures, not only inferred roots.

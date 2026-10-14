@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 42
+version: 44
 status: stable
 files:
   - src/validator.rs
@@ -107,6 +107,15 @@ instead of a false success.
 
 
 - Checked coverage retains manifest module source paths in its report from the same retained manifest observation used for module attribution. Degraded discovery leaves this mapping empty.
+
+### Exact Cargo source selections
+
+Coverage accepts an exact file selection only when checked Cargo discovery names
+that project-root target. The file is selected, then read through the retained
+project capability with expected identity, no-follow regular-file enforcement,
+extension/test filters and the existing byte/entry bounds. It never recursively
+measures the file's parent. Explicit directory selections remain directories, and
+manifest targets outside those selections are not appended.
 
 ## Behavioral Examples
 
@@ -250,6 +259,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-13 | #816 review: Measure exact declared project-root Cargo targets through retained bounded reads, while preserving explicit directory scope. |
 | 2026-10-11 | #813: Retain manifest source mappings for generation without rediscovery. |
 | 2026-10-10 | Add `validator.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-07-22 | v12: add checked coverage so malformed Gradle discovery fails CLI and MCP gates as inconclusive while retaining the compatibility report wrapper |
@@ -295,3 +305,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-08-27 | a-configured-source-dirs-must-survive-a-manifest-discovery-failure-and-an-in-repo-includebuild-must-be-judged-by-its: A configured source_dirs must survive a manifest discovery failure, and an in-repo includeBuild must be judged by its path rather than its token |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-11 | bind-discovered-cargo-crate-sources-during-generation: Bind discovered Cargo crate sources during generation |
+| 2026-10-14 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |

@@ -88,3 +88,15 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Retain both conventional Cargo binary entry paths when a target omits path, including workspace and existing-owner regressions (#814 additional review).
 
 - [x] Prepare the 6.1.1 discovery regression fixes and distribution contracts (fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1).
+- [x] Preserve whole-member Cargo package ownership while adding only external shared roots; verify equal stems, multi-file packages and stable init across CLI modes (#816).
+- [x] Select declared project-root Cargo files exactly, with no empty/project-wide inferred roots; preserve retained identity and resource bounds (#816).
+- [x] Filter propagated roots beneath every discovered sibling member, retaining exact cross-member target ownership and whole-member boundaries.
+- [x] Add cross-member CLI cases in both declaration orders, all generation modes and both init states; add genuinely nested targets outside the enclosing workspace.
+
+## PR816 root-package review correction
+
+- [x] Preserve the independently reviewed v2 freeze before local preparation.
+- [x] Reproduce root library/binary target parents splitting member packages in both declaration orders and all three CLI modes.
+- [x] Remove every non-member scan selection beneath a resolved member while retaining exact root target owners.
+- [ ] Qualify the final v3 freeze with fresh focused/native receipts and an independent review.
+- [ ] Resolve the pending human N1/N2 definition decision before publication or lifecycle actions.

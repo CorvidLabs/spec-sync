@@ -28,3 +28,7 @@ Exact target ownership must preserve configured/existing owners. Path-bearing na
 ## Constraints consulted
 
 REQ-manifest-020, REQ-generator-002/005/006 and immutable release gates.
+
+## Accepted root-target correction
+
+Leif accepted the prepared correction on October 14. Include the validator source/companions, preserve root lib.rs/main.rs as checked exact-file selections, and preserve literal workspace member ownership for member- and root-declared targets. Existing explicit directory authority, retained-root confinement and input budgets remain unchanged. No glob parser redesign, table-placement work or Git LFS change is included.

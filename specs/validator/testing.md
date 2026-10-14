@@ -95,3 +95,10 @@ Run `cargo test --test integration generate_cargo` and `cargo test generator::`.
 ## Cargo target identity review regressions (#813)
 
 Cover same-name directory and flat source modules, arbitrary explicit binary files, a target sharing its package name, nested target roots and workspace prefixes. Exact target ownership must not be duplicated by package or guessed filename specs.
+
+## Project-root Cargo targets (#816)
+
+The `exact_cargo_root_sources_*` regressions cover checked exact-file admission,
+extension filtering, explicit directory authority, retained replacement rejection,
+regular non-link file enforcement, invalid UTF-8 and shared entry/byte limits.
+No global ignore list or manifest-driven expansion of stated roots is introduced.

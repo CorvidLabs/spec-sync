@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "advance-the-published-specsync-6-1-1-action-default-after-platform-consumer-checks",
+  "implementation_commit": "5e5368fd3ac87a46685f1d6abec3918bd715342c",
+  "implementation_tree": "00639135106a85adbfb34c88b0979c49475a0668",
+  "contract_digest": "ad8fbc9f6f8cae6a4dc2da2b32c935910e178474646ef6bd119f3d7a24922b0d",
+  "workspace_digest": "a55e765d12ef56ee9ac7029f738467248d01042239228c42fe7c8e5400c0b092",
+  "closing_digest": "49416e8afa0e3c3cf20ea45337b4384d0386a5592adb9fac0c0435eae6c93803",
+  "review_digest": "50c595486e779b1930cdf7702241f7e825e58925b966ffbdc3084fc38a3428b2",
+  "finalization_digest": "762ea241b369166f2cc3c209191bda42dc6140b98ca0a5f6a21ea84bb46f545f",
+  "timestamp": 1792080685
+}

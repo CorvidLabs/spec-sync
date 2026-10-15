@@ -1,6 +1,6 @@
 ---
 id: advance-the-published-specsync-6-1-1-action-default-after-platform-consumer-checks
-state: implementing
+state: archived
 type: bug_fix
 base_commit: e8fd149d4d9e7b8df9ea1d40d446df67da13f2fa
 ---

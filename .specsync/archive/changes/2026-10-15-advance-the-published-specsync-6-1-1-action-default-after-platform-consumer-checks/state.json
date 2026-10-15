@@ -7,11 +7,11 @@
   "title": "Advance the published SpecSync 6.1.1 Action default after platform consumer checks",
   "description": "Advance the published SpecSync 6.1.1 Action default after platform consumer checks",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "e8fd149d4d9e7b8df9ea1d40d446df67da13f2fa",
   "created_at": 1792078103,
-  "updated_at": 1792079558,
+  "updated_at": 1792081146,
   "affected_specs": [
     "github"
   ],

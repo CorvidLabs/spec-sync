@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "8754ae17048742cc4150d1d98122b802ddc32e88",
   "created_at": 1791810517,
-  "updated_at": 1792021807,
+  "updated_at": 1792024229,
   "affected_specs": [
     "manifest",
     "generator",

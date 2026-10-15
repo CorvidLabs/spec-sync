@@ -39,3 +39,14 @@ and independent review remain required; no human acceptance is inferred.
 ## October 14 delivery update
 
 The earlier pending-decision paragraphs above preserve the preparation history. Leif has now explicitly accepted the exact tested root-file, workspace ownership and validator scope. Current definition metadata and delta text are amended to that accepted contract; prior approval history remains intact. Supported `change approve`, product-tip verification, provenance, scoped review and same-PR archival still supply their own real evidence. No hosted matrix, merge or publication is implied by acceptance.
+
+## October 14 security audit follow-up
+
+- [x] Reproduce four Rustls advisories newly published on October 14 in the actual hosted audit of product tip 0d8e321.
+- [x] Apply the already cached official Rustls 0.23.46 patch offline; only that package version and checksum change in Cargo.lock.
+- [x] Independently review cached crate identity, unchanged API/features/MSRV/dependency graph and current primary advisories.
+- [x] Pass the unchanged repository audit task against all 1,329 current advisories, without adding security exceptions.
+
+Fresh patched native qualification, current verification/provenance and hosted gates are required for this changed dependency. The earlier 17-file freeze and human acceptance describe the Cargo/scoped-npm/validator correction and are not relabeled as Rustls patch tests or a human inspection of its upstream diff. The dependency maintenance is within the existing owned Cargo.lock delivery scope and the requested release work.
+
+- [x] Qualify the patched dependency with all 2,552 unit and 459 integration tests, pinned Rust 1.89.0 optimized build, formatting/lint/types, both strict readers, 52 release and 29 required-CI validators; retain the initial Git timeout failure transparently.

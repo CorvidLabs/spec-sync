@@ -7,12 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [6.1.1] - 2026-10-12
+## [6.1.1] - 2026-10-14
 
 ### Fixed
 
 - Cargo packages bind their measured source files during generation, including custom `[lib].path` files, exact binary targets and literal workspace members whose manifests are resolved. Glob workspace member declarations such as `crates/*` remain unsupported for manifest-based target ownership. Existing and explicitly configured owners retain precedence.
 - Scoped npm names generate valid specs under `specs/@scope/name/name.spec.md`, preserving the full module identity and correct companion references. Retained generation write failures return an error instead of successful empty output.
+
+### Security
+
+- Update the locked Rustls TLS dependency from 0.23.45 to 0.23.46 for RUSTSEC-2026-0346, RUSTSEC-2026-0347, RUSTSEC-2026-0348 and RUSTSEC-2026-0349. The dependency graph and enabled TLS features remain unchanged.
 
 ### Changed
 

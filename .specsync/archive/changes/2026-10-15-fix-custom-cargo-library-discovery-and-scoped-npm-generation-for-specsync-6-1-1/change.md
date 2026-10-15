@@ -1,6 +1,6 @@
 ---
 id: fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1
-state: implementing
+state: archived
 type: feature
 base_commit: 8754ae17048742cc4150d1d98122b802ddc32e88
 ---

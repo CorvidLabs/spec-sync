@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1",
+  "implementation_commit": "dbf05b6c13604e36d8da06acae63193dd3aec7b3",
+  "implementation_tree": "c877263aa11d90a0e6927243bb5c8106de28c741",
+  "contract_digest": "1911de63b622aa3d840518026b45265115bf1a6ece1a8e4a1469f241e401212c",
+  "workspace_digest": "01e91beb2d74b23284366c4a65a294a7e7f319b87d11878b9e67a081761dddbd",
+  "closing_digest": "3d9cf1916b013b2fc15cb34f7ef41809b30dc2201d9b7cc879150b148291a12c",
+  "review_digest": "8814649cb6ad7730df122355492ad7b15d099e4a000f32d9e70dd69da73af7d5",
+  "finalization_digest": "b5166e9ad5c15666a3994cf4e1067954f5687789836d2b42bfac8aa8fca35679",
+  "timestamp": 1792025999
+}

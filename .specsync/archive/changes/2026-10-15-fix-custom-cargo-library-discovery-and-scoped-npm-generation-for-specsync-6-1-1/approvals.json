@@ -226,6 +226,13 @@
         "manifest": "6bd110b82cd260030f43b4d07a0161483f8f51473bdc73dddc9c25b96d899ffc",
         "validator": "23b0d4c2268164c33f8d01bdd5bda6e17f872ef6dc50674a33c83294a00184c4"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1792025998,
+      "digest": "3d9cf1916b013b2fc15cb34f7ef41809b30dc2201d9b7cc879150b148291a12c",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

@@ -7,11 +7,11 @@
   "title": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
   "description": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
   "kind": "feature",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "8754ae17048742cc4150d1d98122b802ddc32e88",
   "created_at": 1791810517,
-  "updated_at": 1792024237,
+  "updated_at": 1792026584,
   "affected_specs": [
     "manifest",
     "generator",

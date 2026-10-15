@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "advance-the-published-specsync-6-1-1-action-default-after-platform-consumer-checks",
+  "slug": "advance-the-published-specsync-6-1-1-action-default-after-platform-consumer-checks",
+  "title": "Advance the published SpecSync 6.1.1 Action default after platform consumer checks",
+  "description": "Advance the published SpecSync 6.1.1 Action default after platform consumer checks",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "e8fd149d4d9e7b8df9ea1d40d446df67da13f2fa",
+  "created_at": 1792078103,
+  "updated_at": 1792079552,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/scripts/validate-release-version.py",
+    "CHANGELOG.md",
+    "README.md",
+    "action.yml",
+    "site/src/content/docs/integrations/github-action.md",
+    "specs/github/github.3md",
+    "specs/github/github.spec.md",
+    "specs/github/testing.md",
+    "site/src/content/docs/configuration.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "After actual immutable-candidate Ubuntu/macOS qualification, validated stable v6.1.1 assets and successful immutable-A explicit-version Linux/macOS consumers, advance the separate main Action wrapper default, offline declaration and corresponding docs to published 6.1.1. Preserve the composite runtime script bytes and explicit CI/Trust candidate mirrors.",
+    "Preserve immutable v6.1.1 and RC refs at qualified candidate e8fd149d4d9e7b8df9ea1d40d446df67da13f2fa with embedded default 6.1.0 and explicit version 6.1.1 guidance; preserve the immutable v6.0.0 caveat. Represent the exact accepted Purpose with one normal github SpecSection delta, unchanged permanent REQ-github-002, actual current-parent canonical version and actual new change ID, preserving A and all historical rows.",
+    "Remove only the obsolete prepared-release/published-version sentence from site/src/content/docs/configuration.md while preserving preceding reader/downgrade warnings and without adding a new runtime or distribution claim. Qualify the fresh exact B tree and normal native/CI/review/ship gates. Floating v6 may move only after omitted-input Linux/macOS consumers pass on the exact selected B target, without version override or immutable-tag movement."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Honor specs/github/github.3md Monotonic Action promotion and Hermetic release guards: retain immutable candidate/tag identities, actual public-asset/platform evidence, unchanged Action shell scripts and explicit candidate CI/Trust mirrors. Apply only the accepted eight-file B behavior plus the factual configuration-doc refresh and mechanically generated native current-parent metadata; preserve permanent requirements, runtime/dependencies/workflows/policies/protections and all A/history rows. Use the accepted Purpose-only semantic delta, public_contract=yes, architecture_risk=no and no_spec_change=false. Conditional genuine 0xLeif acceptance is usable only after actual activation receipts. A native check or offline published-default declaration is not asset/platform evidence; future CI/consumer results belong outside frozen execution artifacts.",
+    "public_contract": "yes"
+  }
+}

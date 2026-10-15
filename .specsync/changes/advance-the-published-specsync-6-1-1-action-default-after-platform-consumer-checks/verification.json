@@ -1,0 +1,16 @@
+{
+  "timestamp": 1792079550,
+  "commit": "e8fd149d4d9e7b8df9ea1d40d446df67da13f2fa",
+  "contract_digest": "ad8fbc9f6f8cae6a4dc2da2b32c935910e178474646ef6bd119f3d7a24922b0d",
+  "execution_digest": "0cdb80e55d5c0bedd66581d0ba6db9ffc3f0d8062e4a2c5d7d8d785b0eb5d8c6",
+  "workspace_digest": "261cff279aa2a1d3758af3760d0a2253b85faedc578b6c08aaf236c7575a47ad",
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec github",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

@@ -79,7 +79,7 @@ spec: github.spec.md
 | Lifecycle gate or preflight fails on a pull request | `test`, `audit`, `coverage` and `spec-check` are skipped, and `SpecSync implementation ready` and `Required CI gate` fail (#796) | `test_issue_796_lifecycle_gate_failure_turns_the_required_gate_red` and the per-path injection test in `test-required-ci-gate.py` |
 | A new CI job gates on `lifecycle-gate` or is selected before the gate | It must be in `implementation-gate.needs` with a `GATES` row matching its `if:` | `test_workflow_holds_to_the_gate_contract` and the guard mutation tests in `test-required-ci-gate.py` |
 
-| Action candidate defaults and immutable tag | CLI candidate remains `6.1.1`; Action omitted default stays published `6.1.0`. Immutable `@v6.1.1` retains `6.1.0`; floating `v6` advances only through a later verified wrapper commit | Run the real offline version validator and its timing/mutation tests; publication and Linux/macOS Action smokes remain separate actual gates |
+| Action default after publication | Main wrapper defaults to published `6.1.1`; immutable `@v6.1.1` keeps `6.1.0` and requires explicit version for the new binary | Run the real offline validator and full release-validator suite, then require actual supported-platform Action checks of the wrapper SHA before advancing floating `v6` |
 
 ## Reviewer Checklist
 

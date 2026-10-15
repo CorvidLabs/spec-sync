@@ -114,8 +114,7 @@ coverage and generation. If another source directory remains, 6.1.0 can still
 report 100% coverage of the reduced file set, even with `--require-coverage 100`.
 Check `specsync --version` and use 6.1.1 or later; the coverage percentage alone
 does not prove the reader understands these entries. There is no silent
-backward-compatibility guarantee. 6.1.1 is still a prepared release;
-6.1.0 remains the published version until the candidate is qualified and promoted.
+backward-compatibility guarantee.
 
 ## Validation rules
 

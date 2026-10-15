@@ -12,7 +12,7 @@ import sys
 # Keep this and Action/docs pinned to the preceding qualified release until the
 # new stable assets and supported-platform Action smokes pass. Advancing this
 # value is a separate post-publication delivery; it never moves immutable tags.
-PUBLISHED_ACTION_DEFAULT = "6.1.0"
+PUBLISHED_ACTION_DEFAULT = "6.1.1"
 
 YAML_FILES = (
     "action.yml",

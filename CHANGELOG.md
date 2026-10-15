@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Advance the main Action binary default to published 6.1.1 after supported-platform asset and Action checks. Immutable `@v6.1.1` remains at its qualified candidate SHA with default 6.1.0; select `version: '6.1.1'` explicitly with that tag.
+
 ## [6.1.1] - 2026-10-14
 
 ### Fixed

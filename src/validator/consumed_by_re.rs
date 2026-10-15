@@ -924,6 +924,21 @@ fn select_coverage_source_directories_with_exact_targets(
             });
             continue;
         }
+        if normalized.components().count() == 1
+            && let Ok(metadata) = project.symlink_metadata(&normalized)
+            && !coverage_metadata_is_link(&metadata)
+            && metadata.is_file()
+            && has_coverage_extension(&normalized, config)
+            && !is_test_file(&normalized, Path::new(""))
+            && !coverage_path_is_excluded(&coverage_relative_path_text(&normalized)?, config)
+        {
+            // A selected root file is not a directory to silently skip. Its exact-file
+            // authority still requires checked Cargo discovery; losing that authority
+            // must make measurement inconclusive rather than shrink the denominator.
+            return Err(format!(
+                "Configured coverage source file {configured} is not an identified checked Cargo target; refusing to omit it"
+            ));
+        }
         let Some(retained) = open_retained_coverage_directory(project, &normalized)? else {
             continue;
         };
@@ -942,6 +957,26 @@ fn select_coverage_source_directories_with_exact_targets(
         });
     }
     Ok(selected_sources)
+}
+
+fn coverage_path_is_excluded(relative: &str, config: &SpecSyncConfig) -> bool {
+    config.exclude_patterns.iter().any(|pattern| {
+        if pattern.starts_with("**/") && pattern.ends_with("/**") {
+            let dir_part = pattern
+                .strip_prefix("**/")
+                .and_then(|rest| rest.strip_suffix("/**"))
+                .unwrap_or("");
+            relative.contains(dir_part)
+        } else if let Some(suffix) = pattern.strip_prefix("**/") {
+            if let Some(ext) = suffix.strip_prefix('*') {
+                relative.ends_with(ext)
+            } else {
+                relative.ends_with(&format!("/{suffix}")) || relative == suffix
+            }
+        } else {
+            relative.contains(pattern.as_str())
+        }
+    })
 }
 
 fn snapshot_selected_coverage_sources_with_hook<AfterEnumeration>(

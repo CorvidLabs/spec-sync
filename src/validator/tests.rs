@@ -1033,6 +1033,144 @@ mod tests {
         }
     }
 
+    fn exact_cargo_explicit_source_fixture(
+        manifest: &str,
+    ) -> (tempfile::TempDir, SpecSyncConfig, Vec<PathBuf>) {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::create_dir(root.join("src")).unwrap();
+        fs::create_dir(root.join("specs")).unwrap();
+        fs::write(root.join("lib.rs"), "pub fn uncovered_root() {}\n").unwrap();
+        fs::write(root.join("src/covered.rs"), "pub fn covered() {}\n").unwrap();
+        fs::write(root.join("unselected.rs"), "pub fn sibling() {}\n").unwrap();
+        let spec = root.join("specs/covered.spec.md");
+        fs::write(&spec, "---\nmodule: covered\nversion: 1\nstatus: stable\nfiles:\n  - src/covered.rs\n---\n").unwrap();
+        match manifest {
+            "valid" => fs::write(root.join("Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\npath=\"lib.rs\"\n").unwrap(),
+            "malformed" => fs::write(root.join("Cargo.toml"), "[package\n").unwrap(),
+            "missing" => {},
+            _ => unreachable!(),
+        }
+        let config = SpecSyncConfig {
+            source_dirs: vec!["lib.rs".into(), "src".into()],
+            source_dirs_set: true,
+            ..SpecSyncConfig::default()
+        };
+        (tmp, config, vec![spec])
+    }
+
+    #[test]
+    fn exact_cargo_root_sources_explicit_valid_manifest_keeps_full_denominator() {
+        let (tmp, config, specs) = exact_cargo_explicit_source_fixture("valid");
+        let report = compute_coverage_checked(tmp.path(), &specs, &config).unwrap();
+        assert_eq!(report.total_source_files, 2);
+        assert_eq!(report.specced_file_count, 1);
+        assert_eq!(report.unspecced_files, ["lib.rs"]);
+        assert!(report.manifest_notices.is_empty());
+    }
+
+    #[test]
+    fn exact_cargo_root_sources_explicit_malformed_manifest_is_inconclusive() {
+        let (tmp, config, specs) = exact_cargo_explicit_source_fixture("malformed");
+        let error = compute_coverage_checked(tmp.path(), &specs, &config).unwrap_err();
+        assert!(error.contains("lib.rs") && error.contains("checked Cargo target"), "{error}");
+    }
+
+    #[test]
+    fn exact_cargo_root_sources_explicit_missing_manifest_is_inconclusive() {
+        let (tmp, config, specs) = exact_cargo_explicit_source_fixture("missing");
+        let error = compute_coverage_checked(tmp.path(), &specs, &config).unwrap_err();
+        assert!(error.contains("lib.rs") && error.contains("checked Cargo target"), "{error}");
+    }
+
+    #[test]
+    fn exact_cargo_root_sources_inferred_list_cannot_shrink_after_manifest_loss() {
+        let (tmp, _, specs) = exact_cargo_explicit_source_fixture("valid");
+        fs::write(tmp.path().join("Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\npath=\"lib.rs\"\n[[bin]]\nname=\"helper\"\npath=\"src/covered.rs\"\n").unwrap();
+        let project = open_coverage_project_root(tmp.path()).unwrap();
+        let mut budget = CoverageTraversalBudget::new(CoverageTraversalLimits::default());
+        let config = retained_config(&project, tmp.path(), &mut budget).unwrap();
+        assert!(!config.source_dirs_set);
+        assert!(config.source_dirs.contains(&"lib.rs".to_string()));
+        assert!(config.source_dirs.contains(&"src".to_string()));
+        fs::remove_file(tmp.path().join("Cargo.toml")).unwrap();
+        let error = compute_coverage_checked(tmp.path(), &specs, &config).unwrap_err();
+        assert!(error.contains("lib.rs") && error.contains("checked Cargo target"), "{error}");
+    }
+
+    #[test]
+    fn exact_cargo_root_sources_explicit_directory_only_still_degrades() {
+        for manifest in ["valid", "malformed", "missing"] {
+            let (tmp, mut config, specs) = exact_cargo_explicit_source_fixture(manifest);
+            config.source_dirs = vec!["src".into()];
+            let report = compute_coverage_checked(tmp.path(), &specs, &config).unwrap();
+            assert_eq!(report.total_source_files, 1, "{manifest}");
+            assert_eq!(report.specced_file_count, 1, "{manifest}");
+            assert_eq!(report.manifest_notices.is_empty(), manifest != "malformed");
+            assert!(report.unspecced_files.is_empty());
+        }
+    }
+
+    #[test]
+    fn exact_cargo_root_sources_unverified_filtered_regular_files_do_not_block() {
+        for (source, extensions, patterns, expected_total) in [
+            ("lib.rs", vec!["ts"], vec![], 0),
+            ("lib.test.ts", vec![], vec![], 1),
+            ("lib.rs", vec![], vec!["lib.rs"], 1),
+            ("lib.rs", vec![], vec!["**/lib.rs"], 1),
+            ("lib.rs", vec![], vec!["**/*.rs"], 0),
+        ] {
+            let (tmp, mut config, specs) = exact_cargo_explicit_source_fixture("malformed");
+            if source != "lib.rs" {
+                fs::rename(tmp.path().join("lib.rs"), tmp.path().join(source)).unwrap();
+            }
+            config.source_dirs[0] = source.into();
+            config.source_extensions = extensions.into_iter().map(str::to_string).collect();
+            config.exclude_patterns = patterns.into_iter().map(str::to_string).collect();
+            let report = compute_coverage_checked(tmp.path(), &specs, &config).unwrap();
+            assert_eq!(report.total_source_files, expected_total, "{source}: {config:?}");
+            assert_eq!(report.specced_file_count, expected_total);
+            assert_eq!(report.manifest_notices.len(), 1);
+        }
+    }
+
+    #[test]
+    fn exact_cargo_root_sources_unverified_aliases_and_arbitrary_files_fail_closed() {
+        for source in ["./lib.rs", "arbitrary.rs"] {
+            let (tmp, mut config, specs) = exact_cargo_explicit_source_fixture("missing");
+            if source == "arbitrary.rs" {
+                fs::rename(tmp.path().join("lib.rs"), tmp.path().join(source)).unwrap();
+            }
+            config.source_dirs[0] = source.into();
+            let error = compute_coverage_checked(tmp.path(), &specs, &config).unwrap_err();
+            assert!(error.contains("checked Cargo target"), "{source}: {error}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exact_cargo_root_sources_unverified_links_escapes_and_specials_stay_fatal() {
+        use std::os::unix::fs::symlink;
+        for kind in ["link", "escape", "fifo"] {
+            let (tmp, mut config, specs) = exact_cargo_explicit_source_fixture("malformed");
+            fs::remove_file(tmp.path().join("lib.rs")).unwrap();
+            match kind {
+                "link" => symlink("unselected.rs", tmp.path().join("lib.rs")).unwrap(),
+                "escape" => config.source_dirs[0] = "../lib.rs".into(),
+                "fifo" => assert!(std::process::Command::new("mkfifo").arg(tmp.path().join("lib.rs")).status().unwrap().success()),
+                _ => unreachable!(),
+            }
+            let error = compute_coverage_checked(tmp.path(), &specs, &config).unwrap_err();
+            assert!(error.contains(match kind {
+                "link" => "symlink",
+                "escape" => "beneath the project root",
+                "fifo" => "regular directory",
+                _ => unreachable!(),
+            }), "{kind}: {error}");
+            assert!(!error.contains("pub fn sibling"));
+        }
+    }
+
     #[test]
     fn exact_cargo_root_sources_use_retained_identity_and_input_budgets() {
         let tmp = tempfile::tempdir().unwrap();
@@ -3102,24 +3240,7 @@ pub fn compute_coverage_checked(
     let mut file_loc: HashMap<String, usize> = HashMap::new();
     for file in &source_snapshot.files {
         let rel_str = coverage_relative_path_text(&file.relative_path)?;
-        let excluded = config.exclude_patterns.iter().any(|pattern| {
-            if pattern.starts_with("**/") && pattern.ends_with("/**") {
-                let dir_part = pattern
-                    .strip_prefix("**/")
-                    .and_then(|rest| rest.strip_suffix("/**"))
-                    .unwrap_or("");
-                rel_str.contains(dir_part)
-            } else if let Some(suffix) = pattern.strip_prefix("**/") {
-                if let Some(ext) = suffix.strip_prefix('*') {
-                    rel_str.ends_with(ext)
-                } else {
-                    rel_str.ends_with(&format!("/{suffix}")) || rel_str == suffix
-                }
-            } else {
-                rel_str.contains(pattern.as_str())
-            }
-        });
-        if excluded {
+        if coverage_path_is_excluded(&rel_str, config) {
             continue;
         }
         all_source_files.push(rel_str.clone());

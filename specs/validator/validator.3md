@@ -121,3 +121,15 @@ Preserve its exact selection through init and read it with the existing retained
 identity/no-follow/budget helpers. Keep explicitly selected directories, including
 `.`, unchanged. Compare actual measured files and adversarial replacement/bounds
 fixtures, not only inferred roots.
+
+@plane z=9 label="Degraded exact-file authority (#816 P1)"
+An explicit source list cannot silently lose a regular file when Cargo metadata
+becomes malformed or disappears. Exact-file admission still requires checked
+Cargo authority: when an eligible configured root file lacks it, fail
+inconclusively rather than improving coverage by shrinking its denominator.
+Keep directory-only degraded measurement, regular-file extension/test/pattern
+filters and all retained safety/budget controls. A manifest notice about module
+names is not evidence that every selected source file was measured.
+A previously inferred list needs the same protection if Cargo disappears before
+coverage's later observation; the explicit-source flag is not proof that an
+existing selected file may be omitted.

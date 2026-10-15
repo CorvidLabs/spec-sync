@@ -1,0 +1,18 @@
+{
+  "timestamp": 1792068069,
+  "commit": "5f0c9c69a0b40963c7a62c06feb74854e4aa8341",
+  "contract_digest": "8fcf87930217c745384d7a5b12e402cd8267614a2414bf3a7f85d90cfa37807a",
+  "execution_digest": "f0d69b66c1c917ed51e58b5cf9f9156bf34dfdc83705aaa9ef33afeeaca48cdd",
+  "workspace_digest": "fe451ce8325948a558bff3ba145c7ac86da92f859fc405adae58cc1d74c58360",
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec validator",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-validator-044"
+  ]
+}

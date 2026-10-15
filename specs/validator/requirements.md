@@ -299,4 +299,5 @@ Acceptance Criteria
 - Existing extension/test filters apply, and overlapping selections do not count the file twice.
 - Explicit configured directory scope remains authoritative; discovery does not append targets outside it.
 - Coverage and generated mappings include the selected declared target without unrelated root files.
+- An otherwise eligible selected regular project-root file without checked Cargo target authority makes coverage inconclusive rather than being silently omitted; regular-file extension/test/pattern exclusions and explicit directory-only degraded measurement retain existing behavior.
 

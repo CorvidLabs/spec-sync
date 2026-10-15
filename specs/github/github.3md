@@ -6,7 +6,7 @@ axis: layers
 @plane z=0 label="Context"
 The spec stays `specs/github/github.spec.md`.
 
-Links spec files to GitHub issues for traceability. Validates `implements` and `tracks` frontmatter fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues when specs fall out of sync. Also defines the maintained composite GitHub Action distribution contract: immutable exact-version refs and a verified floating major compatibility ref. After stable `v6.1.0` is published, the omitted-input default on `main` and on floating `@v6` is `6.1.0`. The published `@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not rewritten; `v6` must not be retargeted at that tag. Hosted JavaScript verification uses one exact supported Bun runtime across site deployment, site CI, and VS Code extension CI.
+Links spec files to GitHub issues for traceability. Validates `implements` and `tracks` frontmatter fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues when specs fall out of sync. Also defines the maintained composite GitHub Action distribution contract: immutable exact-version refs and a verified floating major compatibility ref. This PR prepares an omitted-input default of `6.1.1`; until it is merged, `main` and the published floating `@v6` retain the `6.1.0` default. Merging the candidate changes `main`, while `@v6` stays at `6.1.0` until verified release promotion. The published `@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not rewritten; `v6` must not be retargeted at that tag. Hosted JavaScript verification uses one exact supported Bun runtime across site deployment, site CI, and VS Code extension CI.
 
 This plane is context. Later planes are lessons, in the order they were learned.
 `context.md` stays beside this file.
@@ -124,7 +124,7 @@ import can consume the payload.
 Live network paths remain integration-only. The 5.1.1 release
 candidate adds deterministic Action/runtime distribution checks, while
 external exact/floating ref smoke tests remain publication-time gates.
-The 5.2.0 release promotion follows REQ-github-004: Action default and consumer pins move to the exact version through the accepted release change, and the floating major ref advances only after exact-version artifacts pass Linux/macOS verification. As of 6.0 no Windows binary is published, so a Windows consumer is refused by the Action rather than smoke-tested; the release-candidate qualification lane does not run on Windows. Floating `v6` is published at a commit whose Action omitted-input default is `6.0.1`. It is not tag `v6.0.0` (that tag still defaults to `6.0.0-rc.14`).
+The 5.2.0 release promotion follows REQ-github-004: Action default and consumer pins move to the exact version through the accepted release change, and the floating major ref advances only after exact-version artifacts pass Linux/macOS verification. As of 6.0 no Windows binary is published, so a Windows consumer is refused by the Action rather than smoke-tested; the release-candidate qualification lane does not run on Windows. The currently published floating `v6` has Action omitted-input default `6.1.0`; the `6.1.1` candidate does not advance it before release qualification and promotion. It is not tag `v6.0.0` (that tag still defaults to `6.0.0-rc.14`).
 
 CHG-0075 moves routine integration authority to Ubuntu and reserves macOS spend for one
 immutable release candidate. The RC tag - not the movable staging branch - is the release identity.

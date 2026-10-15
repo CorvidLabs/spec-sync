@@ -29,3 +29,17 @@ Native error-to-recovery controls are retained as failures: current052210/052326
 ## Final frozen local qualification
 
 Receipt052657-CODEX-0afcb8 passes the complete pinned Rust1.89 Fledge verify lane plus external latest-released6.1.0 and optimized-candidate6.1.1 forced strict100% coverage and the current security audit. Final unit2574/2574 and integration462/462 pass with0failures/ignored tests. Source/test/tool194-file hashes match before/after each step; final optimized binary SHA256 2da7ea247cba98756c1fbf14cd72ae57915555ccfebf494dfab067f0ebde140a. The initial Clippy collapsible-if failure is preserved; its exact short-circuit-equivalent correction was independently reviewed before this successful rerun. Linux-only actual-backend sequence still requires hosted execution; failed Mac control comparisons remain explicit.
+
+## Completed hosted product qualification at5f0c9c69
+
+The actual completed Linux test job116269062060 in run38688508584 passed2,577unit and464integration tests with0failures/ignored tests. Its log explicitly records `commands::watch_exact_source_edits_survive_atomic_save_and_recreation ... ok`, covering real spec-error/recovery, source edits, atomic replacement, recreation and sibling-negative behavior. Exact-head coverage, audit, Trust, scoped review and implementation-ready gates passed. Prior local Mac native control failures remain disclosed; no complete manual Mac event sequence is claimed.
+
+The four original review threads are resolved on that evidence. A later review found a separate partial-denominator bug after Cargo discovery loss, tracked in draft `refuse-incomplete-configured-root-coverage-after-cargo-discovery-loss-for-specsync-6-1-1`. The5f0qualification above is not reused as final qualification of its forthcoming source correction. The two cmd_generate/github3md context repairs are separately reviewed. Human implementation acceptance and finalization remain pending.
+
+## Completed final frozen local qualification
+
+Receipt061410-CODEX-e7709d exited0 after857.629seconds. Pinned Rust1.89.0 complete Fledge verify passed2,582unit and462Mac integration tests with0failures/ignored, formatting, Clippy with warnings denied, types, optimized build,62strict specs and forced100%file/LOC coverage,52release-validator and29CI-gate tests. Latest released6.1.0 and fresh candidate6.1.1 strict checks both passed. The current security audit reports0vulnerabilities and no new ignore entries; official advisory HEADedb58f5974b83eb8302332821cb6d389777aa351 matches the cached1329-advisory snapshot.
+
+All194runtime/test/tool inputs match the freeze before and after each step. Final optimized binary SHA256cfad05c5ce1fd5d03b4d4bfb2689c086787ca5c7de0a8f087d312ab13ce546de also passes the same16real text/JSON coverage/check CLI cases in receipt062835-CODEX-def8d2. Independent source review6c518139 reports0source findings; source65a9616c and tests83bd700e match the reviewed freeze. Existing test-only unused_mut warning in unrelated substantive_plan.rs is preserved; it was not introduced or suppressed by this repair.
+
+No new human approval or implementation acceptance is claimed. Native scoped verification, new product publication/exact-head CI, sequential archive, normal merge and immutable Ubuntu/macOS release qualification remain later gates. Prior Mac native watcher-control failures in old and new subjects remain disclosed; no complete manual Mac source event sequence is claimed.

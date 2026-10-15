@@ -1,0 +1,42 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1792067932,
+      "digest": "8fcf87930217c745384d7a5b12e402cd8267614a2414bf3a7f85d90cfa37807a",
+      "note": "Leif directly accepted the concrete tested follow-up implementations and conservative coverage-guard definition: Ok do it. Accepted runtime194-file freeze and prepared patch ef731b14 are preserved in the coordinator receipt. Required product CI, genuine scoped review, sequential archive and immutable dual-platform release qualification remain in force.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "refuse-incomplete-configured-root-coverage-after-cargo-discovery-loss-for-specsync-6-1-1",
+        "title": "Refuse incomplete configured root coverage after Cargo discovery loss for SpecSync 6.1.1",
+        "description": "Refuse incomplete configured root coverage after Cargo discovery loss for SpecSync 6.1.1",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "validator"
+        ],
+        "affected_paths": [
+          "specs/validator/",
+          "src/validator/consumed_by_re.rs",
+          "src/validator/tests.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Coverage and check must never report a complete partial inventory when an eligible selected regular root source file loses checked Cargo exact-target authority, including a previously inferred selection whose manifest disappears between discovery phases. Valid checked Cargo files retain existing coverage; malformed, missing or changed manifests with an unrecognized eligible selected regular root file fail inconclusive instead of omitting it. Explicit directory-only fallback, extension/test/exclusion filtering, no-follow confinement, exact-file boundaries and existing input budgets remain intact. Preserve the reproduced nonempty50-to-false100 before case, prove corrected text/JSON controls and pass independent review and final pinned local verification before genuine acceptance and release gates."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Restore existing REQ-validator-044 checked-Cargo-only exact-source authority and fail-closed retained coverage; preserve REQ-validator-008 directory-only configured fallback. Do not admit arbitrary configured files, widen a file selection to its parent, add dependencies/options or weaken no-follow identity/budgets. Keep old archived human acceptances and current follow-up scope approval untouched. This package is a draft, with no human definition or implementation approval yet claimed.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "validator": "59584e1bc5f00472c982eeed057cc63c61627470b8407a02ddc835ea7865f42c"
+      }
+    }
+  ],
+  "reopenings": []
+}

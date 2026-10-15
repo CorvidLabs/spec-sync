@@ -1,6 +1,6 @@
 ---
 module: validator
-version: 44
+version: 46
 status: stable
 files:
   - src/validator.rs
@@ -116,6 +116,16 @@ project capability with expected identity, no-follow regular-file enforcement,
 extension/test filters and the existing byte/entry bounds. It never recursively
 measures the file's parent. Explicit directory selections remain directories, and
 manifest targets outside those selections are not appended.
+
+If a selected, otherwise eligible regular project-root file lacks
+checked Cargo target authority (including missing or malformed manifests), checked
+coverage is inconclusive rather than silently treating that file as a directory
+and dropping it. This includes a previously inferred list if Cargo disappears
+before coverage takes its manifest observation. Extension/test/pattern exclusions
+still apply to regular files;
+links and special files retain their existing fatal safety checks. Explicit
+directory-only lists can still complete with a manifest notice when discovery
+degrades. This does not admit arbitrary configured files as exact Cargo targets.
 
 ## Behavioral Examples
 
@@ -259,6 +269,7 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 
 | Date | Change |
 |------|--------|
+| 2026-10-15 | v45: Fail inconclusively instead of silently omitting an eligible selected root file when checked Cargo authority is unavailable; preserve directory degradation, filters and Cargo-only exact admission. |
 | 2026-10-13 | #816 review: Measure exact declared project-root Cargo targets through retained bounded reads, while preserving explicit directory scope. |
 | 2026-10-11 | #813: Retain manifest source mappings for generation without rediscovery. |
 | 2026-10-10 | Add `validator.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
@@ -306,3 +317,4 @@ Implementation SHALL add these canonical dependency specs to `depends_on`: `spec
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-11 | bind-discovered-cargo-crate-sources-during-generation: Bind discovered Cargo crate sources during generation |
 | 2026-10-14 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |
+| 2026-10-15 | refuse-incomplete-configured-root-coverage-after-cargo-discovery-loss-for-specsync-6-1-1: Refuse incomplete configured root coverage after Cargo discovery loss for SpecSync 6.1.1 |

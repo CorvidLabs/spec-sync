@@ -1,6 +1,6 @@
 ---
 id: complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1
-state: implementing
+state: archived
 type: bug_fix
 base_commit: f72f0b6dd5c2fbf34617acda372d1e409c9f6b66
 ---

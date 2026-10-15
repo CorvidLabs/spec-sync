@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1",
+  "implementation_commit": "bd6aa125707b52edd0d85131dd283fb4bd34ca9b",
+  "implementation_tree": "2c96f2fa0de70556f8c00349e9241008218e38c3",
+  "contract_digest": "76d6f94de7cb1bdc674a9b29a3e5c169187fef8caf125dab16baa66727189226",
+  "workspace_digest": "a0f654f705258a2887fc5121b5a5fca40532608961c12b0e3ba024bc4731ecad",
+  "closing_digest": "c077a734353e4f03712600d5dff5b6bb9f9ac0e4b24595daff28fefa78a107d5",
+  "review_digest": "ea90d718fcf652b57fbe4ff58bbdddb419060f812514c494063d40f769c8a41e",
+  "finalization_digest": "587e146b2e0229c5c298854aebbf2d17137f175378a6955c977ef6c81c54bd55",
+  "timestamp": 1792068983
+}

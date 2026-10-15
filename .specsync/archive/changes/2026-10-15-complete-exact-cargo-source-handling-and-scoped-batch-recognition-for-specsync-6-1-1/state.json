@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1",
+  "slug": "complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1",
+  "title": "Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1",
+  "description": "Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "f72f0b6dd5c2fbf34617acda372d1e409c9f6b66",
+  "created_at": 1792040480,
+  "updated_at": 1792069408,
+  "affected_specs": [
+    "cmd_generate",
+    "cmd_new",
+    "cmd_scaffold",
+    "generator",
+    "watch",
+    "github"
+  ],
+  "affected_paths": [
+    "src/commands/generate.rs",
+    "src/commands/new.rs",
+    "src/commands/scaffold.rs",
+    "src/generator.rs",
+    "src/watch.rs",
+    "tests/integration/commands/specsync_process.rs",
+    "specs/cmd_generate/",
+    "specs/cmd_new/",
+    "specs/cmd_scaffold/",
+    "specs/generator/",
+    "specs/watch/",
+    "specs/github/",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Scoped batch reruns classify existing leaf specs without overwrite; new/add-spec/scaffold select exact configured source files with filters and confinement; watch selects regular exact files nonrecursively and preserves recursive directories with truthful diagnostics; GitHub testing row states candidate6.1.1 and baseline6.1.0; focused regressions and full pinned verification pass before review and release"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Preserve previous archived approvals; deterministic local generation; exact file roots never widen to recursive project-root scans; explicit mappings, configured filters, root confinement and no-follow safety; never overwrite; prove watcher delivery with a working positive control; no dependencies, new options, lifecycle bypass or validator ownership changes",
+    "public_contract": "yes"
+  }
+}

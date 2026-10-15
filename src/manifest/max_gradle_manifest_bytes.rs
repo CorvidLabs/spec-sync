@@ -41,8 +41,10 @@ pub struct ManifestModule {
 pub struct ManifestDiscovery {
     /// Modules discovered from manifest files, keyed by name.
     pub modules: HashMap<String, ManifestModule>,
-    /// Source directories discovered from manifests.
+    /// Source directories, or exact Cargo targets at the project root.
     pub source_dirs: Vec<String>,
+    /// Exact root-level Cargo files, validated before becoming scan selections.
+    pub(crate) exact_cargo_source_files: HashSet<String>,
 }
 
 /// A Gradle module name and its effective project-relative directory.
@@ -113,6 +115,7 @@ pub(crate) fn discover_from_manifests_checked_with_root(
 }
 
 fn merge_discovery(target: &mut ManifestDiscovery, source: ManifestDiscovery) {
+    target.exact_cargo_source_files.extend(source.exact_cargo_source_files);
     for (name, module) in source.modules {
         target.modules.entry(name).or_insert(module);
     }
@@ -920,11 +923,32 @@ fn parse_cargo_toml_with_access_inner(
     // Extract package name
     if let Some(name) = extract_toml_value(&content, "name", Some("[package]")) {
         let src_path = manifest_path_text(&relative_root.join("src"), "Cargo source")?;
+        let mut source_paths = vec![src_path.clone()];
+        if let Some(path) = document
+            .get("lib")
+            .and_then(|lib| lib.get("path"))
+            .and_then(toml::Value::as_str)
+        {
+            // Ownership follows the declared file; scanning follows its parent,
+            // except a project-root target remains an exact-file selection.
+            let target = manifest_path_text(&relative_root.join(path), "Cargo library target")?;
+            source_paths.push(target.clone());
+            let parent = Path::new(&target).parent().unwrap_or_else(|| Path::new(""));
+            let dir = if parent.as_os_str().is_empty() {
+                discovery.exact_cargo_source_files.insert(target.clone());
+                target.clone()
+            } else {
+                manifest_path_text(parent, "Cargo library source")?
+            };
+            if !discovery.source_dirs.contains(&dir) {
+                discovery.source_dirs.push(dir);
+            }
+        }
         discovery.modules.insert(
             name.clone(),
             ManifestModule {
                 name,
-                source_paths: vec![src_path.clone()],
+                source_paths,
                 dependencies: Vec::new(),
             },
         );
@@ -946,6 +970,8 @@ fn parse_cargo_toml_with_access_inner(
                 .parent()
                 .unwrap_or_else(|| Path::new("src"));
             let dir = manifest_path_text(&relative_root.join(local_dir), "Cargo binary source")?;
+            let root_target = dir.is_empty();
+            let mut scan_dir = dir;
             let module = discovery.modules.entry(name.clone()).or_insert_with(|| ManifestModule {
                 name,
                 source_paths: Vec::new(),
@@ -953,12 +979,16 @@ fn parse_cargo_toml_with_access_inner(
             });
             for path in paths {
                 let target = manifest_path_text(&relative_root.join(path), "Cargo binary target")?;
+                if root_target {
+                    discovery.exact_cargo_source_files.insert(target.clone());
+                    scan_dir = target.clone();
+                }
                 if !module.source_paths.contains(&target) {
                     module.source_paths.push(target);
                 }
             }
-            if !discovery.source_dirs.contains(&dir) {
-                discovery.source_dirs.push(dir);
+            if !discovery.source_dirs.contains(&scan_dir) {
+                discovery.source_dirs.push(scan_dir);
             }
         }
     }
@@ -966,6 +996,7 @@ fn parse_cargo_toml_with_access_inner(
     // Check for workspace members using the same TOML semantics as security preflight.
     if let Some(members) = cargo_workspace_members(&document, &manifest_path, access)? {
         let mut expanded_members = HashSet::new();
+        let mut member_scan_roots = HashSet::new();
         for member in members {
             // Workspace members are subdirectories with their own Cargo.toml
             let member_root = normalize_retained_manifest_path(
@@ -978,17 +1009,45 @@ fn parse_cargo_toml_with_access_inner(
             if let Some(sub) =
                 parse_cargo_toml_with_access(access, &member_root, active, completed)?
             {
+                let member = manifest_path_text(&member_root, "Cargo workspace member")?;
+                member_scan_roots.insert(member.clone());
+                discovery.exact_cargo_source_files.extend(sub.exact_cargo_source_files);
                 for (_, module) in sub.modules {
                     discovery
                         .modules
                         .insert(module.name.clone(), module.clone());
                 }
-                let member = manifest_path_text(&member_root, "Cargo workspace member")?;
+                // The member remains its own scan root. Promoting its src
+                // would split package files and merge equal stems across crates.
+                // Only shared roots outside the member need an additional scan.
+                for source_dir in sub.source_dirs {
+                    if source_dir.is_empty()
+                        || source_dir == "."
+                        || source_dir == member
+                        || source_dir.starts_with(&format!("{member}/"))
+                    {
+                        continue;
+                    }
+                    if !discovery.source_dirs.contains(&source_dir) {
+                        discovery.source_dirs.push(source_dir);
+                    }
+                }
                 if !discovery.source_dirs.contains(&member) {
                     discovery.source_dirs.push(member);
                 }
             }
         }
+        // Targets declared by the root package or by any member can lie inside
+        // another member. Keep their exact ownership, but remove every nested
+        // scan selection once all whole-member boundaries are known.
+        discovery.source_dirs.retain(|source_dir| {
+            member_scan_roots.contains(source_dir)
+                || !Path::new(source_dir)
+                    .ancestors()
+                    .skip(1)
+                    .filter_map(Path::to_str)
+                    .any(|ancestor| member_scan_roots.contains(ancestor))
+        });
     }
 
     // Extract [dependencies] as dependency names

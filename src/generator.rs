@@ -5,7 +5,6 @@ use colored::Colorize;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
-use walkdir::WalkDir;
 
 const TASKS_TEMPLATE: &str = r#"---
 spec: {module}.spec.md
@@ -61,7 +60,27 @@ spec: {module}.spec.md
 /// of three of the four prompt bullets, and that copy has ALREADY drifted — it omits the Notes
 /// bullet. Unifying it is outside this change's delivery scope.
 pub(crate) fn generated_context_scaffold(module: &str) -> String {
-    CONTEXT_TEMPLATE.replace("{module}", module)
+    expand_companion_template(CONTEXT_TEMPLATE, module)
+}
+
+/// Spec filename from the module identity's final path component.
+pub(crate) fn module_spec_filename(module: &str) -> String {
+    let leaf = module.rsplit('/').next().unwrap_or(module);
+    format!("{leaf}.spec.md")
+}
+
+fn expand_companion_template(template: &str, module: &str) -> String {
+    template
+        .replace("{module}.spec.md", &module_spec_filename(module))
+        .replace("{module}", module)
+}
+
+fn module_yaml_name(module: &str) -> String {
+    if module.starts_with('@') {
+        serde_json::to_string(module).expect("module name is a JSON string")
+    } else {
+        module.to_string()
+    }
 }
 
 const CONTEXT_TEMPLATE: &str = r#"---
@@ -537,147 +556,330 @@ Document this module's responsibility, inputs, outputs, and ownership boundaries
     }
 }
 
-/// Find source files in a module directory.
-///
-/// Shared with spec validation: a `files:` entry that resolves to a directory is
-/// rejected with a fix naming these same files, so the remedy a spec author is
-/// told to paste matches what generation would have written.
+// Creation commands enumerate metadata through retained directory handles. Exact
+// files never cause a walk of their parent; every descendant directory is opened
+// with no-follow semantics. Later export reads retain their existing root checks.
+struct CreationSources<'a> {
+    root: &'a Path,
+    project: Dir,
+    config: &'a SpecSyncConfig,
+    remaining_entries: usize,
+}
+
+impl<'a> CreationSources<'a> {
+    fn new(root: &'a Path, config: &'a SpecSyncConfig) -> Option<Self> {
+        Some(Self {
+            root,
+            project: Dir::open_ambient_dir(root, cap_std::ambient_authority()).ok()?,
+            config,
+            remaining_entries: 100_000,
+        })
+    }
+
+    fn normalized(selection: &str) -> Option<PathBuf> {
+        if selection.contains('\\') {
+            return None;
+        }
+        if !selection.is_empty()
+            && Path::new(selection)
+                .components()
+                .all(|component| matches!(component, Component::CurDir))
+        {
+            return Some(PathBuf::new());
+        }
+        crate::validator::normalize_source_mapping(selection).map(PathBuf::from)
+    }
+
+    fn directory(&self, relative: &Path) -> io::Result<Dir> {
+        let mut directory = self.project.try_clone()?;
+        for component in relative.components() {
+            let Component::Normal(name) = component else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "unconfined source directory",
+                ));
+            };
+            directory = Self::child_directory(&directory, name)?;
+        }
+        Ok(directory)
+    }
+
+    fn child_directory(parent: &Dir, name: &std::ffi::OsStr) -> io::Result<Dir> {
+        let handle = parent.try_clone()?.into_std_file();
+        cap_primitives::fs::open_dir_nofollow(&handle, Path::new(name)).map(Dir::from_std_file)
+    }
+
+    fn excluded_directory(&self, relative: &Path) -> bool {
+        relative.components().any(|component| {
+            self.config
+                .exclude_dirs
+                .iter()
+                .any(|excluded| component.as_os_str() == std::ffi::OsStr::new(excluded))
+        })
+    }
+
+    fn eligible_file(&self, relative: &Path) -> bool {
+        let path = self.root.join(relative);
+        if self.excluded_directory(relative)
+            || !has_configured_extension(
+                &path,
+                &self.config.source_extensions,
+                self.config.include_extensionless,
+            )
+            || is_test_file(&path, self.root)
+        {
+            return false;
+        }
+        let relative = relative.to_string_lossy().replace('\\', "/");
+        // Match the existing coverage exclusion policy; do not interpret these
+        // configured strings as a different, more permissive glob language.
+        !self.config.exclude_patterns.iter().any(|pattern| {
+            if pattern.starts_with("**/") && pattern.ends_with("/**") {
+                let part = pattern
+                    .strip_prefix("**/")
+                    .and_then(|value| value.strip_suffix("/**"))
+                    .unwrap_or("");
+                relative.contains(part)
+            } else if let Some(suffix) = pattern.strip_prefix("**/") {
+                if let Some(extension) = suffix.strip_prefix('*') {
+                    relative.ends_with(extension)
+                } else {
+                    relative.ends_with(&format!("/{suffix}")) || relative == suffix
+                }
+            } else {
+                relative.contains(pattern)
+            }
+        })
+    }
+
+    fn collect(&mut self, relative: &Path, recursive: bool) -> Option<Vec<PathBuf>> {
+        if relative.components().count() > 256 {
+            return None;
+        }
+        if self.excluded_directory(relative) {
+            return Some(Vec::new());
+        }
+        let mut files = Vec::new();
+        if relative.as_os_str().is_empty() {
+            let directory = self.project.try_clone().ok()?;
+            self.walk(&directory, relative, recursive, &mut files)?;
+            return Some(files);
+        }
+        let parent = match self.directory(relative.parent()?) {
+            Ok(parent) => parent,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                ) =>
+            {
+                return Some(files);
+            }
+            Err(_) => return None,
+        };
+        let name = relative.file_name()?;
+        let metadata = match parent.symlink_metadata(name) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Some(files),
+            Err(_) => return None,
+        };
+        if creation_metadata_is_link(&metadata) {
+            return None;
+        }
+        if metadata.is_file() {
+            if self.eligible_file(relative) {
+                files.push(relative.to_path_buf());
+            }
+        } else if metadata.is_dir() {
+            let directory = Self::child_directory(&parent, name).ok()?;
+            self.walk(&directory, relative, recursive, &mut files)?;
+        }
+        Some(files)
+    }
+
+    fn walk(
+        &mut self,
+        directory: &Dir,
+        relative: &Path,
+        recursive: bool,
+        files: &mut Vec<PathBuf>,
+    ) -> Option<()> {
+        if relative.components().count() > 256 {
+            return None;
+        }
+        for entry in directory.entries().ok()? {
+            self.remaining_entries = self.remaining_entries.checked_sub(1)?;
+            let name = entry.ok()?.file_name();
+            let child = relative.join(&name);
+            if child.components().count() > 256 {
+                return None;
+            }
+            if self.excluded_directory(&child) {
+                continue;
+            }
+            let metadata = directory.symlink_metadata(&name).ok()?;
+            if creation_metadata_is_link(&metadata) {
+                continue;
+            }
+            if metadata.is_file() && self.eligible_file(&child) {
+                files.push(child);
+            } else if metadata.is_dir() && recursive {
+                let next = Self::child_directory(directory, &name).ok()?;
+                self.walk(&next, &child, true, files)?;
+            }
+        }
+        Some(())
+    }
+}
+
+#[cfg(windows)]
+fn creation_metadata_is_link(metadata: &cap_std::fs::Metadata) -> bool {
+    use cap_std::fs::MetadataExt;
+    metadata.file_attributes() & 0x0000_0400 != 0
+}
+
+#[cfg(not(windows))]
+fn creation_metadata_is_link(metadata: &cap_std::fs::Metadata) -> bool {
+    metadata.file_type().is_symlink()
+}
+
+/// Find configured non-test source files beneath a confined module directory.
+/// Shared with validation's suggested expansion of directory mappings.
 pub(crate) fn find_module_source_files(
     dir: &Path,
     config: &SpecSyncConfig,
     root: &Path,
 ) -> Vec<String> {
-    let mut results = Vec::new();
-    if !dir.exists() {
-        return results;
-    }
-
-    for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file()
-            && has_configured_extension(
-                path,
-                &config.source_extensions,
-                config.include_extensionless,
-            )
-            && !is_test_file(path, root)
-        {
-            results.push(path.to_string_lossy().to_string());
-        }
-    }
-
-    results
+    let Some(mut sources) = CreationSources::new(root, config) else {
+        return Vec::new();
+    };
+    let Ok(relative) = dir.strip_prefix(root) else {
+        return Vec::new();
+    };
+    let relative = if relative.as_os_str().is_empty() {
+        PathBuf::new()
+    } else {
+        let Some(relative) = relative.to_str().and_then(CreationSources::normalized) else {
+            return Vec::new();
+        };
+        relative
+    };
+    let mut files: Vec<_> = sources
+        .collect(&relative, true)
+        .unwrap_or_default()
         .into_iter()
-        .map(|p| {
-            // Get path relative to root (two levels up from module dir)
-            p.replace('\\', "/")
-        })
-        .collect()
+        .map(|path| root.join(path).to_string_lossy().replace('\\', "/"))
+        .collect();
+    files.sort();
+    files.dedup();
+    files
 }
 
-/// Find source files for a module, checking config module definitions first,
-/// then subdirectories, then flat files.
+/// Find module sources with authoritative explicit mappings, then named
+/// directories, then flat or exact selected files matching the module name.
 pub fn find_files_for_module(
     root: &Path,
     module_name: &str,
     config: &SpecSyncConfig,
 ) -> Vec<String> {
-    let mut module_files = Vec::new();
-
-    // First: check user-defined module definitions in specsync.json
-    if let Some(module_def) = config.modules.get(module_name) {
-        for file in &module_def.files {
-            let full_path = root.join(file);
-            if full_path.is_file() {
-                module_files.push(full_path.to_string_lossy().replace('\\', "/"));
-            } else if full_path.is_dir() {
-                module_files.extend(find_module_source_files(&full_path, config, root));
-            }
-        }
-        if !module_files.is_empty() {
-            module_files.sort();
-            module_files.dedup();
-            return module_files;
-        }
-    }
-
-    // Second: look for subdirectory-based modules (src/module_name/)
-    for src_dir in &config.source_dirs {
-        let module_dir = root.join(src_dir).join(module_name);
-        let files = find_module_source_files(&module_dir, config, root);
-        module_files.extend(files);
-    }
-
-    // Fallback: look for flat files matching the module name (src/module_name.rs, etc.)
-    if module_files.is_empty() {
-        for src_dir in &config.source_dirs {
-            let src_path = root.join(src_dir);
-            if let Ok(entries) = std::fs::read_dir(&src_path) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if !path.is_file()
-                        || !has_configured_extension(
-                            &path,
-                            &config.source_extensions,
-                            config.include_extensionless,
-                        )
-                        || is_test_file(&path, root)
-                    {
-                        continue;
-                    }
-                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str())
-                        && stem == module_name
-                    {
-                        module_files.push(path.to_string_lossy().replace('\\', "/"));
-                    }
-                }
-            }
-        }
-    }
-
-    module_files.sort();
-    module_files.dedup();
-    module_files
+    find_creation_module_sources(root, module_name, config, false)
 }
 
-/// Fallback source detection for single-source-file projects.
-///
-/// When a module name matches no source directory or file (e.g. `greeter` in a
-/// cargo project whose only source is `src/lib.rs`), but the project contains
-/// exactly one non-test source file across all configured source directories,
-/// that file is unambiguously the module's source. Returns the root-relative
-/// path, or `None` when there are zero or multiple candidates.
-pub fn find_single_source_fallback(root: &Path, config: &SpecSyncConfig) -> Option<String> {
-    let mut found: Option<String> = None;
-    for src_dir in &config.source_dirs {
-        let base = root.join(src_dir);
-        if !base.is_dir() {
-            continue;
+fn find_creation_module_sources(
+    root: &Path,
+    module_name: &str,
+    config: &SpecSyncConfig,
+    combine_named_kinds: bool,
+) -> Vec<String> {
+    let Some(mut sources) = CreationSources::new(root, config) else {
+        return Vec::new();
+    };
+    let mut files = Vec::new();
+    if let Some(module) = config.modules.get(module_name) {
+        for selected in &module.files {
+            let Some(relative) = CreationSources::normalized(selected) else {
+                return Vec::new();
+            };
+            let Some(found) = sources.collect(&relative, true) else {
+                return Vec::new();
+            };
+            files.extend(found);
         }
-        for entry in WalkDir::new(&base).into_iter().filter_map(|e| e.ok()) {
-            let path = entry.path();
-            if !path.is_file()
-                || !has_configured_extension(
-                    path,
-                    &config.source_extensions,
-                    config.include_extensionless,
-                )
-                || is_test_file(path, root)
-            {
-                continue;
+        // An explicit empty or missing mapping never falls through to guessing.
+    } else {
+        for selected in &config.source_dirs {
+            let Some(base) = CreationSources::normalized(selected) else {
+                return Vec::new();
+            };
+            let Some(found) = sources.collect(&base.join(module_name), true) else {
+                return Vec::new();
+            };
+            files.extend(found);
+        }
+        if files.is_empty() || combine_named_kinds {
+            for selected in &config.source_dirs {
+                let Some(base) = CreationSources::normalized(selected) else {
+                    return Vec::new();
+                };
+                let Some(found) = sources.collect(&base, false) else {
+                    return Vec::new();
+                };
+                files.extend(found.into_iter().filter(|path| {
+                    path.file_stem().and_then(|name| name.to_str()) == Some(module_name)
+                }));
             }
-            let rel = path
-                .strip_prefix(root)
-                .unwrap_or(path)
-                .to_string_lossy()
-                .replace('\\', "/");
-            if found.is_some() {
-                return None; // More than one source file — ambiguous, no fallback
-            }
-            found = Some(rel);
         }
     }
-    found
+    let mut files: Vec<_> = files
+        .into_iter()
+        .map(|path| root.join(path).to_string_lossy().replace('\\', "/"))
+        .collect();
+    files.sort();
+    files.dedup();
+    files
+}
+
+/// Source selection for `new`, preserving its combined directory/flat matches
+/// and using the same confined admission and unambiguous fallback as scaffold.
+pub(crate) fn find_new_module_sources(
+    root: &Path,
+    module_name: &str,
+    config: &SpecSyncConfig,
+) -> Vec<String> {
+    let mut files = find_creation_module_sources(root, module_name, config, true);
+    if files.is_empty()
+        && !config.modules.contains_key(module_name)
+        && let Some(single) = find_single_source_fallback(root, config)
+    {
+        files.push(root.join(single).to_string_lossy().into_owned());
+    }
+    files
+        .into_iter()
+        .filter_map(|path| {
+            Path::new(&path)
+                .strip_prefix(root)
+                .ok()
+                .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+        })
+        .collect()
+}
+
+/// The project's only distinct eligible file across exact and directory source
+/// selections, or None when no file, ambiguity or inconclusive traversal exists.
+pub fn find_single_source_fallback(root: &Path, config: &SpecSyncConfig) -> Option<String> {
+    let mut sources = CreationSources::new(root, config)?;
+    let mut files = std::collections::BTreeSet::new();
+    for selected in &config.source_dirs {
+        let relative = CreationSources::normalized(selected)?;
+        files.extend(sources.collect(&relative, true)?);
+        if files.len() > 1 {
+            return None;
+        }
+    }
+    files
+        .into_iter()
+        .next()
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
 }
 
 /// Generate a spec from a template, using language-aware defaults.
@@ -744,7 +946,7 @@ fn render_spec_template(
     // Replace module name
     let module_re = regex::Regex::new(r"(?m)^module:\s*.+$").unwrap();
     spec = module_re
-        .replace(&spec, format!("module: {module_name}"))
+        .replace(&spec, format!("module: {}", module_yaml_name(module_name)))
         .to_string();
 
     // Replace status
@@ -859,28 +1061,28 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str, design_enabled: 
     let testing_path = spec_dir.join("testing.md");
 
     if !tasks_path.exists() {
-        let content = TASKS_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(TASKS_TEMPLATE, module_name);
         if fs::write(&tasks_path, &content).is_ok() {
             println!("    {} Generated tasks.md", "✓".green());
         }
     }
 
     if !context_path.exists() {
-        let content = CONTEXT_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(CONTEXT_TEMPLATE, module_name);
         if fs::write(&context_path, &content).is_ok() {
             println!("    {} Generated context.md", "✓".green());
         }
     }
 
     if !requirements_path.exists() {
-        let content = REQUIREMENTS_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(REQUIREMENTS_TEMPLATE, module_name);
         if fs::write(&requirements_path, &content).is_ok() {
             println!("    {} Generated requirements.md", "✓".green());
         }
     }
 
     if !testing_path.exists() {
-        let content = TESTING_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(TESTING_TEMPLATE, module_name);
         if fs::write(&testing_path, &content).is_ok() {
             println!("    {} Generated testing.md", "✓".green());
         }
@@ -889,7 +1091,7 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str, design_enabled: 
     if design_enabled {
         let design_path = spec_dir.join("design.md");
         if !design_path.exists() {
-            let content = DESIGN_TEMPLATE.replace("{module}", module_name);
+            let content = expand_companion_template(DESIGN_TEMPLATE, module_name);
             if fs::write(&design_path, &content).is_ok() {
                 println!("    {} Generated design.md", "✓".green());
             }
@@ -953,7 +1155,7 @@ pub fn generate_spec_from_custom_template(
 
     let module_re = regex::Regex::new(r"(?m)^module:\s*.+$").unwrap();
     spec = module_re
-        .replace(&spec, format!("module: {module_name}"))
+        .replace(&spec, format!("module: {}", module_yaml_name(module_name)))
         .to_string();
 
     let status_re = regex::Regex::new(r"(?m)^status:\s*.+$").unwrap();
@@ -999,9 +1201,10 @@ pub fn generate_companion_files_from_template(
         let content = if template_file.exists() {
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| TASKS_TEMPLATE.to_string())
+                .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
-            TASKS_TEMPLATE.replace("{module}", module_name)
+            expand_companion_template(TASKS_TEMPLATE, module_name)
         };
         if fs::write(&tasks_path, &content).is_ok() {
             println!("    {} Generated tasks.md", "✓".green());
@@ -1013,9 +1216,10 @@ pub fn generate_companion_files_from_template(
         let content = if template_file.exists() {
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| CONTEXT_TEMPLATE.to_string())
+                .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
-            CONTEXT_TEMPLATE.replace("{module}", module_name)
+            expand_companion_template(CONTEXT_TEMPLATE, module_name)
         };
         if fs::write(&context_path, &content).is_ok() {
             println!("    {} Generated context.md", "✓".green());
@@ -1027,9 +1231,10 @@ pub fn generate_companion_files_from_template(
         let content = if template_file.exists() {
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| REQUIREMENTS_TEMPLATE.to_string())
+                .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
-            REQUIREMENTS_TEMPLATE.replace("{module}", module_name)
+            expand_companion_template(REQUIREMENTS_TEMPLATE, module_name)
         };
         if fs::write(&requirements_path, &content).is_ok() {
             println!("    {} Generated requirements.md", "✓".green());
@@ -1041,9 +1246,10 @@ pub fn generate_companion_files_from_template(
         let content = if template_file.exists() {
             fs::read_to_string(&template_file)
                 .unwrap_or_else(|_| TESTING_TEMPLATE.to_string())
+                .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
-            TESTING_TEMPLATE.replace("{module}", module_name)
+            expand_companion_template(TESTING_TEMPLATE, module_name)
         };
         if fs::write(&testing_path, &content).is_ok() {
             println!("    {} Generated testing.md", "✓".green());
@@ -1057,9 +1263,10 @@ pub fn generate_companion_files_from_template(
             let content = if template_file.exists() {
                 fs::read_to_string(&template_file)
                     .unwrap_or_else(|_| DESIGN_TEMPLATE.to_string())
+                    .replace("{module}.spec.md", &module_spec_filename(module_name))
                     .replace("{module}", module_name)
             } else {
-                DESIGN_TEMPLATE.replace("{module}", module_name)
+                expand_companion_template(DESIGN_TEMPLATE, module_name)
             };
             if fs::write(&design_path, &content).is_ok() {
                 println!("    {} Generated design.md", "✓".green());
@@ -1099,13 +1306,25 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
     for module_name in &report.unspecced_modules {
         let module_relative =
             confined_generation_path(&specs_relative.join(module_name), "module destination")?;
-        let spec_relative = module_relative.join(format!("{module_name}.spec.md"));
+        let spec_relative = module_relative.join(module_spec_filename(module_name));
         if project.try_exists(&spec_relative).map_err(|error| {
             format!(
                 "Cannot inspect retained generate destination {}: {error}",
                 spec_relative.display()
             )
         })? {
+            let metadata = project.symlink_metadata(&spec_relative).map_err(|error| {
+                format!(
+                    "Cannot inspect retained generate destination {}: {error}",
+                    spec_relative.display()
+                )
+            })?;
+            if !metadata.is_file() || metadata.is_symlink() {
+                return Err(format!(
+                    "Generate destination {} must be a regular non-link file",
+                    spec_relative.display()
+                ));
+            }
             continue;
         }
 
@@ -1118,15 +1337,12 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
             continue;
         }
 
-        if let Err(error) = project.create_dir_all(&module_relative) {
-            if progress {
-                eprintln!(
-                    "  Failed to create {}: {error}",
-                    root.join(&module_relative).display()
-                );
-            }
-            continue;
-        }
+        project.create_dir_all(&module_relative).map_err(|error| {
+            format!(
+                "Cannot create retained generate directory {}: {error}",
+                module_relative.display()
+            )
+        })?;
 
         let template = retained_generation_template(project, &specs_relative, &module_files);
         let spec_content = render_spec_template(module_name, &module_files, root, template, config);
@@ -1157,12 +1373,10 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
             }
             Ok(false) => {}
             Err(error) => {
-                if progress {
-                    eprintln!(
-                        "  Failed to write {}: {error}",
-                        root.join(&spec_relative).display()
-                    );
-                }
+                return Err(format!(
+                    "Cannot write retained generated spec {}: {error}",
+                    spec_relative.display()
+                ));
             }
         }
     }
@@ -1468,7 +1682,7 @@ fn generate_retained_companion_files(
         ("testing.md", TESTING_TEMPLATE),
     ];
     for (name, template) in companions {
-        let content = template.replace("{module}", module_name);
+        let content = expand_companion_template(template, module_name);
         if write_new_retained_file(project, &module_relative.join(name), content.as_bytes())
             .is_ok_and(|created| created)
             && progress
@@ -1477,7 +1691,7 @@ fn generate_retained_companion_files(
         }
     }
     if design_enabled {
-        let content = DESIGN_TEMPLATE.replace("{module}", module_name);
+        let content = expand_companion_template(DESIGN_TEMPLATE, module_name);
         if write_new_retained_file(
             project,
             &module_relative.join("design.md"),
@@ -1505,7 +1719,7 @@ pub fn generate_specs_for_unspecced_modules(
 
     for module_name in &report.unspecced_modules {
         let spec_dir = specs_dir.join(module_name);
-        let spec_file = spec_dir.join(format!("{module_name}.spec.md"));
+        let spec_file = spec_dir.join(module_spec_filename(module_name));
 
         if spec_file.exists() {
             continue;
@@ -1568,7 +1782,7 @@ pub fn generate_specs_for_unspecced_modules_paths(
 
     for module_name in &report.unspecced_modules {
         let spec_dir = specs_dir.join(module_name);
-        let spec_file = spec_dir.join(format!("{module_name}.spec.md"));
+        let spec_file = spec_dir.join(module_spec_filename(module_name));
 
         if spec_file.exists() {
             continue;
@@ -1610,6 +1824,285 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn creation_source_selection_accepts_exact_files_and_name_matches() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::write(root.join("lib.rs"), "pub fn library() {}\n").unwrap();
+        fs::write(root.join("main.rs"), "pub fn executable() {}\n").unwrap();
+        let mut config = SpecSyncConfig {
+            source_dirs: vec!["lib.rs".into(), "src".into()],
+            ..SpecSyncConfig::default()
+        };
+        assert_eq!(
+            find_single_source_fallback(root, &config).as_deref(),
+            Some("lib.rs")
+        );
+        assert_eq!(
+            find_files_for_module(root, "lib", &config),
+            vec![root.join("lib.rs").to_string_lossy()]
+        );
+        config.source_dirs.push("main.rs".into());
+        assert_eq!(find_single_source_fallback(root, &config), None);
+        assert_eq!(
+            find_files_for_module(root, "main", &config),
+            vec![root.join("main.rs").to_string_lossy()]
+        );
+    }
+
+    #[test]
+    fn creation_source_selection_deduplicates_file_directory_overlap() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir(root.join("src")).unwrap();
+        fs::write(root.join("src/lib.rs"), "pub fn library() {}\n").unwrap();
+        let config = SpecSyncConfig {
+            source_dirs: vec![
+                "src/lib.rs".into(),
+                "src".into(),
+                "./src".into(),
+                "./src/lib.rs".into(),
+            ],
+            ..SpecSyncConfig::default()
+        };
+        assert_eq!(
+            find_single_source_fallback(root, &config).as_deref(),
+            Some("src/lib.rs")
+        );
+        assert_eq!(
+            find_files_for_module(root, "lib", &config),
+            vec![root.join("src/lib.rs").to_string_lossy()]
+        );
+    }
+
+    #[test]
+    fn creation_source_selection_keeps_directory_priorities_and_explicit_dot() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("src/widget")).unwrap();
+        fs::write(root.join("src/widget/index.rs"), "pub fn nested() {}\n").unwrap();
+        fs::write(root.join("src/widget.rs"), "pub fn flat() {}\n").unwrap();
+        let config = SpecSyncConfig::default();
+        assert_eq!(
+            find_files_for_module(root, "widget", &config),
+            vec![root.join("src/widget/index.rs").to_string_lossy()]
+        );
+        assert_eq!(
+            find_new_module_sources(root, "widget", &config),
+            vec!["src/widget.rs", "src/widget/index.rs"]
+        );
+        let explicit_dot = SpecSyncConfig {
+            source_dirs: vec![".".into()],
+            ..SpecSyncConfig::default()
+        };
+        assert_eq!(find_module_source_files(root, &explicit_dot, root).len(), 2);
+        assert_eq!(find_single_source_fallback(root, &explicit_dot), None);
+    }
+
+    #[test]
+    fn creation_source_selection_root_aliases_deduplicate_exact_files() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::write(root.join("lib.rs"), "pub fn library() {}\n").unwrap();
+        for alias in [".", "./", "./.", ".//"] {
+            let config = SpecSyncConfig {
+                source_dirs: vec![alias.into(), "lib.rs".into()],
+                ..SpecSyncConfig::default()
+            };
+            assert_eq!(
+                find_single_source_fallback(root, &config).as_deref(),
+                Some("lib.rs"),
+                "{alias}"
+            );
+            assert_eq!(
+                find_files_for_module(root, "lib", &config),
+                vec![root.join("lib.rs").to_string_lossy()],
+                "{alias}"
+            );
+            assert_eq!(
+                find_new_module_sources(root, "demo", &config),
+                vec!["lib.rs"],
+                "{alias}"
+            );
+        }
+    }
+
+    #[test]
+    fn creation_source_selection_preserves_explicit_mappings_even_when_empty() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("src/widget")).unwrap();
+        fs::write(
+            root.join("src/widget/index.rs"),
+            "pub fn conventional() {}\n",
+        )
+        .unwrap();
+        fs::write(root.join("chosen.rs"), "pub fn chosen() {}\n").unwrap();
+        let mut config = SpecSyncConfig::default();
+        config.modules.insert(
+            "widget".into(),
+            crate::types::ModuleDefinition {
+                files: vec!["chosen.rs".into()],
+                depends_on: vec![],
+                owns: vec![],
+            },
+        );
+        assert_eq!(
+            find_files_for_module(root, "widget", &config),
+            vec![root.join("chosen.rs").to_string_lossy()]
+        );
+        config.modules.get_mut("widget").unwrap().files = vec!["missing.rs".into()];
+        assert!(find_files_for_module(root, "widget", &config).is_empty());
+    }
+
+    #[test]
+    fn creation_source_selection_honors_filters_and_configured_extensions() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        for path in [
+            "src/widget/keep.ts",
+            "src/widget/skip.ts",
+            "src/widget/no.rs",
+            "src/widget/a.test.ts",
+            "src/widget/private/hidden.ts",
+        ] {
+            fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+            fs::write(root.join(path), "export const value = 1;\n").unwrap();
+        }
+        let config = SpecSyncConfig {
+            source_dirs: vec!["src".into()],
+            source_extensions: vec!["ts".into()],
+            exclude_dirs: vec!["private".into()],
+            exclude_patterns: vec!["**/skip.ts".into()],
+            ..SpecSyncConfig::default()
+        };
+        assert_eq!(
+            find_files_for_module(root, "widget", &config),
+            vec![root.join("src/widget/keep.ts").to_string_lossy()]
+        );
+        assert_eq!(
+            find_single_source_fallback(root, &config).as_deref(),
+            Some("src/widget/keep.ts")
+        );
+    }
+
+    #[test]
+    fn creation_source_selection_filters_explicit_files_and_extensionless_entries() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        for path in ["keep.ts", "skip.ts", "skip.test.ts", "other.rs", "entry"] {
+            fs::write(root.join(path), "export const value = 1;\n").unwrap();
+        }
+        let mut config = SpecSyncConfig {
+            source_dirs: vec![
+                "keep.ts".into(),
+                "skip.ts".into(),
+                "skip.test.ts".into(),
+                "other.rs".into(),
+                "entry".into(),
+            ],
+            source_extensions: vec!["ts".into()],
+            exclude_patterns: vec!["**/skip.ts".into()],
+            ..SpecSyncConfig::default()
+        };
+        assert_eq!(
+            find_single_source_fallback(root, &config).as_deref(),
+            Some("keep.ts")
+        );
+        config.include_extensionless = true;
+        assert_eq!(find_single_source_fallback(root, &config), None);
+        config.modules.insert(
+            "chosen".into(),
+            crate::types::ModuleDefinition {
+                files: vec![
+                    "keep.ts".into(),
+                    "skip.ts".into(),
+                    "skip.test.ts".into(),
+                    "other.rs".into(),
+                ],
+                depends_on: vec![],
+                owns: vec![],
+            },
+        );
+        assert_eq!(
+            find_files_for_module(root, "chosen", &config),
+            vec![root.join("keep.ts").to_string_lossy()]
+        );
+    }
+
+    #[test]
+    fn creation_source_selection_refuses_escaped_mapping() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        fs::create_dir(&root).unwrap();
+        let outside = temp.path().join("outside.rs");
+        fs::write(&outside, "pub fn outside() {}\n").unwrap();
+        for path in [
+            "../outside.rs".to_string(),
+            outside.to_string_lossy().into_owned(),
+        ] {
+            let mut config = SpecSyncConfig {
+                source_dirs: vec![path.clone()],
+                ..SpecSyncConfig::default()
+            };
+            config.modules.insert(
+                "outside".into(),
+                crate::types::ModuleDefinition {
+                    files: vec![path],
+                    depends_on: vec![],
+                    owns: vec![],
+                },
+            );
+            assert!(find_files_for_module(&root, "outside", &config).is_empty());
+            assert_eq!(find_single_source_fallback(&root, &config), None);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn creation_source_selection_refuses_symlink_files_parents_and_special_files() {
+        use std::os::unix::fs::symlink;
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        fs::create_dir(&root).unwrap();
+        fs::create_dir(temp.path().join("outside")).unwrap();
+        fs::write(
+            temp.path().join("outside/payload.rs"),
+            "pub fn outside() {}\n",
+        )
+        .unwrap();
+        fs::write(root.join("real.rs"), "pub fn real() {}\n").unwrap();
+        symlink(
+            temp.path().join("outside/payload.rs"),
+            root.join("external.rs"),
+        )
+        .unwrap();
+        symlink(root.join("real.rs"), root.join("internal.rs")).unwrap();
+        symlink(temp.path().join("outside"), root.join("linked")).unwrap();
+        let fifo = std::ffi::CString::new(root.join("pipe.rs").to_str().unwrap()).unwrap();
+        // A named pipe must be rejected from metadata without opening/blocking.
+        assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+        for path in ["external.rs", "internal.rs", "linked/payload.rs", "pipe.rs"] {
+            let mut config = SpecSyncConfig {
+                source_dirs: vec![path.into()],
+                ..SpecSyncConfig::default()
+            };
+            config.modules.insert(
+                "chosen".into(),
+                crate::types::ModuleDefinition {
+                    files: vec![path.into()],
+                    depends_on: vec![],
+                    owns: vec![],
+                },
+            );
+            assert!(
+                find_files_for_module(&root, "chosen", &config).is_empty(),
+                "{path}"
+            );
+            assert_eq!(find_single_source_fallback(&root, &config), None, "{path}");
+        }
+    }
 
     // ── detect_primary_language ─────────────────────────────────────
 
@@ -1760,6 +2253,58 @@ mod tests {
         let spec = generate_spec("my-mod", &[], root, &specs_dir, &SpecSyncConfig::default());
         assert!(spec.contains("Custom template marker"));
         assert!(spec.contains("module: my-mod"));
+    }
+
+    #[test]
+    fn scoped_module_generation_entry_points_preserve_identity_and_leaf_paths() {
+        for quiet in [false, true] {
+            let tmp = TempDir::new().unwrap();
+            let root = tmp.path();
+            fs::create_dir(root.join("src")).unwrap();
+            fs::write(root.join("package.json"), r#"{"name":"@scope/demo"}"#).unwrap();
+            fs::write(
+                root.join("src/index.ts"),
+                "export function scopedExport() {}\n",
+            )
+            .unwrap();
+            let config = SpecSyncConfig::default();
+            let report = crate::validator::compute_coverage_checked(root, &[], &config).unwrap();
+            let outcome = if quiet {
+                generate_specs_for_unspecced_modules_paths(root, &report, &config)
+            } else {
+                generate_specs_for_unspecced_modules(root, &report, &config)
+            };
+            assert_eq!(outcome.generated_paths, ["specs/@scope/demo/demo.spec.md"]);
+            let content = fs::read_to_string(root.join(&outcome.generated_paths[0])).unwrap();
+            let yaml: serde_json::Value =
+                serde_saphyr::from_str(content.split("---").nth(1).unwrap()).unwrap();
+            assert_eq!(yaml["module"], "@scope/demo");
+        }
+        let tmp = TempDir::new().unwrap();
+        generate_companion_files_for_spec(tmp.path(), "@scope/demo", true);
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("context.md")).unwrap(),
+            generated_context_scaffold("@scope/demo")
+        );
+        for name in ["tasks", "context", "requirements", "testing", "design"] {
+            assert!(
+                fs::read_to_string(tmp.path().join(format!("{name}.md")))
+                    .unwrap()
+                    .contains("spec: demo.spec.md")
+            );
+        }
+        fs::write(
+            tmp.path().join("testing.md"),
+            "spec: {module}.spec.md\nCustom {module}",
+        )
+        .unwrap();
+        let output = TempDir::new().unwrap();
+        generate_companion_files_from_template(output.path(), "@scope/demo", tmp.path(), false);
+        assert!(
+            fs::read_to_string(output.path().join("testing.md"))
+                .unwrap()
+                .contains("spec: demo.spec.md\nCustom @scope/demo")
+        );
     }
 
     #[test]

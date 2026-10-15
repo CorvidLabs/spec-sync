@@ -21,9 +21,11 @@ spec: cmd_new.spec.md
 
 ## Gaps
 
-- `src/commands/new.rs` has no inline `#[cfg(test)]` module. Integration tests cover basic creation, source detection,
-  no-match guidance, and module-name safety; `--full` and refuse-overwrite remain explicit test debt above.
+- Inline source-selection and test-file exclusion tests now complement the integration coverage. The existing
+  `--full` companion test debt above is not closed by exact-file selection alone.
 
 ## Review Status
 
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
+
+- [x] Implement the approved exact-file creation selection correction with confined no-follow metadata traversal, explicit mapping precedence and causal focused regressions. Full final-source and independent release qualification remain separate.

@@ -95,3 +95,39 @@ Run `cargo test --test integration generate_cargo` and `cargo test generator::`.
 ## Cargo target identity review regressions (#813)
 
 Cover same-name directory and flat source modules, arbitrary explicit binary files, a target sharing its package name, nested target roots and workspace prefixes. Exact target ownership must not be duplicated by package or guessed filename specs.
+
+## Project-root Cargo targets (#816)
+
+The `exact_cargo_root_sources_*` regressions cover checked exact-file admission,
+extension filtering, explicit directory authority, retained replacement rejection,
+regular non-link file enforcement, invalid UTF-8 and shared entry/byte limits.
+No global ignore list or manifest-driven expansion of stated roots is introduced.
+
+## Degraded manifest exact-file authority (#816 P1)
+
+Use `cargo test --offline --locked --bin specsync exact_cargo_root_sources_`.
+The new explicit-source fixtures contain a covered `src/covered.rs` and an
+uncovered root `lib.rs`, plus an unselected root sibling. With valid declared
+Cargo authority coverage is 1/2 (50%); losing that authority to malformed or
+missing Cargo must return an inconclusive error before partial totals. A
+directory-only explicit `src` list still completes 1/1, retaining a malformed
+manifest notice without appending the root target.
+
+The inferred-list regression performs real retained configuration inference from
+valid Cargo metadata, removes Cargo, then measures that inferred list. Missing
+metadata at the second observation must not shrink the already selected file
+list merely because `source_dirs_set` is false.
+
+Keep separate root alias/arbitrary-file failure controls, regular-file
+extension/test/pattern exclusions, and symlink/escape/FIFO failures. The existing
+valid-target identity, UTF-8 and entry/byte-budget regressions remain required.
+The same simplified pattern predicate is shared by the authority check and final
+coverage exclusion, so an ignored regular file does not spuriously block coverage.
+
+Real before/after CLI evidence must exercise both `coverage --require-coverage 100`
+and `check --strict --force --require-coverage 100`, including JSON: the malformed
+or missing manifest must not turn the valid-manifest 50% failure into a 100% pass.
+An inconclusive JSON result has `passed: false` and no usable partial percentage;
+this repair intentionally preserves Cargo-only admission rather than pretending
+that unverified files were measured. Full final-tree qualification is separate
+from these focused controls.

@@ -1,6 +1,6 @@
 ---
 module: manifest
-version: 26
+version: 30
 status: stable
 files:
   - src/manifest.rs
@@ -29,8 +29,8 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 
 | Struct | Fields | Description |
 |--------|--------|-------------|
-| `ManifestModule` | `name: String`, `source_paths: Vec<String>`, `dependencies: Vec<String>` | A module/target discovered from a manifest file; source paths are directories or exact Cargo binary files |
-| `ManifestDiscovery` | `modules: HashMap<String, ManifestModule>`, `source_dirs: Vec<String>` | Aggregated result of parsing all manifest files in a project |
+| `ManifestModule` | `name: String`, `source_paths: Vec<String>`, `dependencies: Vec<String>` | A module/target discovered from a manifest file; source paths are directories or exact Cargo library/binary files |
+| `ManifestDiscovery` | `modules: HashMap<String, ManifestModule>`, `source_dirs: Vec<String>`; crate-private `exact_cargo_source_files: HashSet<String>` | Aggregated checked discovery; scan selections are directories or exact declared Cargo files at the project root. |
 | `GradleSettingsModule` | `name: String`, `path: String` | Crate-visible normalized Gradle module identity and effective project directory |
 
 #### Exported Functions
@@ -107,6 +107,8 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
     swap/read/restore cannot mix generations and neither sibling nor base breadth exhausts handles.
 
 20. Cargo binary targets retain exact source files separately from scan directories; a same-name target extends the package source paths. Pathless targets retain both flat and nested main.rs defaults until measured-file intersection.
+
+21. Cargo targets at the project root retain exact-file scan selections, rather than scanning the entire project. The crate-private Cargo marker bounds this exception to validated declared targets; other selected directories retain their existing behavior. Workspace aggregation retains whole members as scan boundaries and retains any additional scan selection only when it is not beneath a discovered member. Targets declared by the root package or by another literal manifest-resolved member keep their exact declared owners without splitting the containing member's ordinary files. Workspace glob expansion remains unsupported.
 
 ## Behavioral Examples
 
@@ -223,6 +225,24 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 - **When** checked discovery and coverage run
 - **Then** discovery retains both `src/bin/server.rs` and `src/bin/server/main.rs`; coverage recognizes the existing owner and generation does not invent a missing server module.
 
+### Scenario: Shared workspace library target
+
+- **Given** a workspace member declares a library outside that member but inside the retained project
+- **When** checked discovery aggregates the member, including through nested workspaces
+- **Then** only a shared parent outside all discovered members is added as an extra scan root. An enclosing or sibling member already measures its nested roots. Automatic scan selections preserve ordinary package files and same-named error/config files inside their respective member boundaries, while exact cross-member targets retain their declared owner. Init preserves that same selection; explicit configured directories remain authoritative.
+
+### Scenario: Root package targets inside workspace members
+
+- **Given** a root package library in `crates/beta/src/extra.rs`, a root binary in `crates/gamma/src/tool.rs`, and literal beta/gamma members with ordinary same-named error files
+- **When** discovery, init and generation run in either member order and in text, JSON or named batch mode
+- **Then** root and tool retain their exact target files, beta and gamma keep their own whole-package files, and neither `src` parent is promoted into a splitting scan boundary. Coverage includes all six files and reruns preserve existing spec bytes.
+
+### Scenario: Cargo library or binary target at project root
+
+- **Given** a declared `lib.rs` or `main.rs` target beside Cargo.toml, plus unrelated build output, dependencies and scripts
+- **When** discovery, init and coverage run
+- **Then** the exact target is measured without recursively scanning the project root. Explicit user-selected directories, including `.`, keep their stated scope.
+
 ## Error Cases
 
 | Condition | Behavior |
@@ -264,6 +284,9 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 
 | Date | Change |
 |------|--------|
+| 2026-10-13 | Local PR816 preparation: preserve member boundaries for root-package targets and document literal-member scope; human definition amendment remains pending |
+| 2026-10-13 | v29 / #816 independent review: Preserve ordinary workspace package ownership, including cross-member targets; select root-level Cargo targets as bounded exact files instead of project-wide scans. |
+| 2026-10-12 | v28 / #816 review: Retain checked child scan directories through nested Cargo workspaces so shared custom library files remain measurable. |
 | 2026-10-11 | #813 review: Preserve exact Cargo binary target files, both implicit binary defaults and same-name package roots. |
 | 2026-10-10 | Add `manifest.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-28 | Initial spec |
@@ -291,4 +314,4 @@ Manifest-aware module detection for multi-language projects. Parses language-spe
 | 2026-08-27 | a-trailing-includebuild-configuration-block-must-be-skipped-not-refused-because-includebuild-path: A trailing includeBuild configuration block must be skipped, not refused, because includeBuild(path) { dependencySubstitution { ... } } is the common spelling and contributes no module |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-11 | preserve-cargo-target-files-and-same-name-crate-roots-in-generated-specs: Preserve Cargo target files and same-name crate roots in generated specs |
-
+| 2026-10-12 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |

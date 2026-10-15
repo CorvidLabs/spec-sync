@@ -67,6 +67,7 @@ The CLI SHALL expose deterministic generation and agent integrations without acc
 Acceptance Criteria
 - `generate` has no provider/model flags.
 - MCP and agent installation commands remain available.
+- Text, JSON and named generation support custom Cargo library paths and scoped npm names with truthful output and exit status.
 
 ### REQ-cli-003
 

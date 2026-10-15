@@ -138,3 +138,41 @@ Cargo target ownership needs the declared file, while traversal needs its parent
 
 @plane z=8 label="Implicit Cargo binary paths (#813)"
 A pathless binary declaration can use either src/bin/<name>.rs or src/bin/<name>/main.rs. Retain both candidates in the same checked manifest snapshot and intersect them with measured files. Guessing only the flat form leaves a phantom missing target when an existing spec already owns the nested entry point.
+
+@plane z=9 label="6.1.1 release corrections"
+An explicit Cargo library path is an exact target just like a binary path. Carry its file identity under the package name and its parent separately for traversal. Custom stems and source roots need process fixtures because src/lib.rs cannot expose the omission.
+
+@plane z=10 label="Workspace library scan roots (#816)"
+Dropping a shared source root can hide a target outside its workspace member, but
+promoting every child src root splits ordinary packages and merges equal stems
+across members. Keep each whole member as its package boundary and add only
+shared scan selections outside all discovered members. An enclosing member already measures its
+nested roots. Test multiple files and same-named error/config files in separate
+packages, with and without init, instead of asserting internal directory lists.
+
+@plane z=11 label="Exact project-root Cargo targets (#816)"
+A library target's parent can be the project root. Turning it into a recursive
+scan also measures build output, dependencies and unrelated scripts, and can
+exhaust traversal limits. Carry that validated Cargo target as an exact-file
+selection through init. Read it through the same retained no-follow identity and
+byte/entry budgets. Do not reinterpret an explicit directory such as `.` or add
+files outside an author's stated selections.
+
+@plane z=12 label="Cross-member targets and causal nested fixtures (#816)"
+A library declared by alpha can live inside beta's src. Preserve the declared
+file owner, but wait until every member boundary is known before retaining
+propagated scan roots: promoting beta/src splits beta and can merge its error.rs
+with another package's error.rs. An internal shared file beneath an enclosing
+workspace already worked and is a retention test. A nested target escaping only
+that enclosing workspace needs the extra shared root; use that layout for the
+failing-before CLI proof and keep the original and corrected subjects distinct.
+
+@plane z=13 label="Root package targets inside members (#816)"
+Filtering only propagated child roots misses the root package's own library or
+binary parent inside another member. After every literal member manifest is
+resolved, remove all non-member scan selections beneath a member boundary.
+Keep exact declared target ownership separately. A root lib and bin in different
+members with equal error.rs stems reproduce the split/merge bug; exercise both
+member orders, init states and CLI modes. Glob member expansion is not part of
+this repair. Exact-file init selections require a 6.1.1 reader; released 6.1.0
+skips them and must not be described as silently compatible.

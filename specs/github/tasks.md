@@ -79,3 +79,15 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 
 - [x] Pin Action/`github-action.md` default to published `6.0.0-rc.14` and teach `validate-release-version.py` the candidate-window exception (#628)
 - [x] Make `Required CI gate` fail when `preflight` or `lifecycle-gate` fails, and read `skipped` as a pass only where classify deselected the job, with a workflow guard and per-path simulation (#796, REQ-github-021)
+
+- [x] Prepare the 6.1.1 discovery regression fixes and distribution contracts (fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1).
+
+- [x] Correct the current release-testing row to candidate6.1.1 and pre-promotion floatingv6 baseline6.1.0 while retaining the immutablev6.0.0 caveat.
+
+## 6.1.1 Action publication order
+
+- [x] Qualify the independent published-default validator and real-validator mutation controls in the external proposal; record actual results in testing.md
+- [x] Obtain genuine scope and implementation acceptance for this new fallback/staged immutable-tag rule; do not infer it from prior frozen source approvals
+- [x] Apply and qualify the accepted candidate with Action/default docs at published 6.1.0 while explicit candidate CI/Trust remain 6.1.1
+- [ ] Integrate and qualify one immutable candidate SHA on Ubuntu and macOS before stable publication
+- [ ] After real stable asset/checksum/Action smoke gates, activate the separately frozen main/floating-default 6.1.1 patch; preserve immutable v6.1.1 default 6.1.0 and explicit-version guidance

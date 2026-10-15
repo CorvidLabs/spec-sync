@@ -189,6 +189,67 @@ regex = "1.0"
     }
 
     #[test]
+    fn cargo_library_target_paths_remain_exact_and_confined() {
+        let tmp = tempdir().unwrap();
+        for path in ["src/custom.rs", "lib/entry.rs", "entry.rs"] {
+            fs::write(tmp.path().join("Cargo.toml"), format!("[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\nname=\"alternate\"\npath=\"{path}\"\n")).unwrap();
+            let discovery = discover_from_manifests_checked(tmp.path()).unwrap();
+            assert_eq!(discovery.modules["demo"].source_paths, ["src", path]);
+            let parent = Path::new(path).parent().unwrap().to_str().unwrap();
+            let scan = if parent.is_empty() { path } else { parent };
+            assert!(discovery.source_dirs.contains(&scan.to_string()));
+            assert_eq!(discovery.exact_cargo_source_files.contains(path), parent.is_empty());
+            assert!(!discovery.modules.contains_key("alternate"));
+        }
+        fs::write(tmp.path().join("Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\npath=\"../outside.rs\"\n").unwrap();
+        assert!(discover_from_manifests_checked(tmp.path()).unwrap_err().contains("escapes the project root"));
+    }
+
+    #[test]
+    fn cargo_workspace_custom_library_scan_roots_survive_nested_members() {
+        for external_to_nested_workspace in [false, true] {
+            let tmp = tempdir().unwrap();
+            fs::create_dir_all(tmp.path().join("workspace/crates/demo")).unwrap();
+            fs::create_dir_all(tmp.path().join("workspace/crates/other")).unwrap();
+            fs::write(tmp.path().join("Cargo.toml"), "[workspace]\nmembers=[\"workspace\"]\n").unwrap();
+            fs::write(tmp.path().join("workspace/Cargo.toml"), "[workspace]\nmembers=[\"crates/demo\",\"crates/other\"]\n").unwrap();
+            let traversal = if external_to_nested_workspace { "../../../" } else { "../../" };
+            for name in ["demo", "other"] {
+                fs::write(tmp.path().join(format!("workspace/crates/{name}/Cargo.toml")), format!("[package]\nname=\"{name}\"\nversion=\"0.1.0\"\n[lib]\npath=\"{traversal}shared/{name}.rs\"\n")).unwrap();
+            }
+            let discovery = discover_from_manifests_checked(tmp.path()).unwrap();
+            let shared = if external_to_nested_workspace { "shared" } else { "workspace/shared" };
+            for name in ["demo", "other"] {
+                assert_eq!(discovery.modules[name].source_paths, [format!("workspace/crates/{name}/src"), format!("{shared}/{name}.rs")]);
+            }
+            // Retention inside the enclosing workspace is not a discriminator.
+            // Escaping only the nested workspace requires an extra shared root.
+            let expected = if external_to_nested_workspace { vec!["shared", "workspace"] } else { vec!["workspace"] };
+            assert_eq!(discovery.source_dirs, expected);
+        }
+    }
+
+    #[test]
+    fn cargo_root_package_targets_inside_members_keep_whole_member_scan_roots() {
+        for reversed_members in [false, true] {
+            let tmp = tempdir().unwrap();
+            for name in ["beta", "gamma"] {
+                let member = tmp.path().join("crates").join(name);
+                fs::create_dir_all(member.join("src")).unwrap();
+                fs::write(member.join("Cargo.toml"), format!("[package]\nname=\"{name}\"\nversion=\"0.1.0\"\n")).unwrap();
+            }
+            let members = if reversed_members { "[\"crates/gamma\",\"crates/beta\"]" } else { "[\"crates/beta\",\"crates/gamma\"]" };
+            fs::write(tmp.path().join("Cargo.toml"), format!("[package]\nname=\"root\"\nversion=\"0.1.0\"\n[lib]\npath=\"crates/beta/src/extra.rs\"\n[[bin]]\nname=\"tool\"\npath=\"crates/gamma/src/tool.rs\"\n[workspace]\nmembers={members}\n")).unwrap();
+            let discovery = discover_from_manifests_checked(tmp.path()).unwrap();
+            assert_eq!(discovery.modules["root"].source_paths, ["src", "crates/beta/src/extra.rs"]);
+            assert_eq!(discovery.modules["tool"].source_paths, ["crates/gamma/src/tool.rs"]);
+            let mut selections = discovery.source_dirs;
+            selections.sort();
+            assert_eq!(selections, ["crates/beta", "crates/gamma", "src"]);
+        }
+    }
+
+    #[test]
     fn cargo_binary_target_paths_remain_exact_and_merge_same_name_package_roots() {
         let tmp = tempdir().unwrap();
         fs::write(tmp.path().join("Cargo.toml"), "[package]\nname=\"server\"\nversion=\"0.1.0\"\n[[bin]]\nname=\"server\"\npath=\"src/foo.rs\"\n[[bin]]\nname=\"other\"\npath=\"tools/entry.rs\"\n").unwrap();

@@ -87,3 +87,22 @@ spec: validator.spec.md
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
 
 - [x] Correct same-name crate and exact Cargo target bindings from PR #814 review.
+
+## Project-root Cargo targets (#816)
+
+The `exact_cargo_root_sources_*` regressions cover checked exact-file admission,
+extension filtering, explicit directory authority, retained replacement rejection,
+regular non-link file enforcement, invalid UTF-8 and shared entry/byte limits.
+No global ignore list or manifest-driven expansion of stated roots is introduced.
+
+## Degraded manifest exact-file authority (#816)
+
+- [x] Reproduce the nonempty partial denominator: a covered ordinary source directory
+  masks an unmeasured configured root file after malformed/missing Cargo discovery.
+- [x] Fail checked coverage inconclusively when an eligible configured root regular
+  file lacks checked Cargo target authority; preserve directory-only fallback and
+  extension/test/pattern exclusions without admitting arbitrary exact files.
+- [x] Add valid/malformed/missing, explicit-directory, alias, filter, symlink,
+  escape and special-file controls beside the retained identity/budget regressions.
+- [ ] Qualify the final whole product tree, independently review it and complete
+  genuine native lifecycle/hosted/release evidence; earlier 5f0c9c6 gates are historical.

@@ -88,3 +88,61 @@ rereview and hosted-Windows runtime remain pending.
 Cover same-name directory and flat source modules, arbitrary explicit binary files, a target sharing its package name, nested target roots and workspace prefixes. Exact target ownership must not be duplicated by package or guessed filename specs.
 
 Pathless Cargo binaries retain both src/bin/<name>.rs and src/bin/<name>/main.rs until coverage intersects them with measured sources. Preserve differently named existing owners of nested entry points, including workspace prefixes. The added parser regression and all 61 manifest tests pass; the Cargo process matrix covers text, JSON and batch modes.
+
+## 6.1.1 release corrections
+
+`cargo_library_target_paths_remain_exact_and_confined` covers custom library roots, alternate library names and escaping target rejection. The process matrix covers source and workspace prefixes.
+
+`cargo_workspace_custom_library_scan_roots_survive_nested_members` covers both
+retention beneath an enclosing member and a shared target outside that nested
+workspace but inside the project. The first layout already worked on the
+original head and is not a failing-before discriminator.
+`generate_workspace_shared_library_paths_keep_package_ownership` covers a shared
+parent outside a flat member. The independent-review regressions
+`generate_cargo_workspace_scoped_roots_keep_member_files_in_every_mode` and
+`generate_cargo_workspace_scoped_roots_never_persist_an_empty_binary_parent`
+cover same-stem error/config files, multi-file packages, default/explicit library
+paths and stable init in text, JSON and batch modes. Their before runs failed,
+and the narrow aggregation repair passed them.
+
+`generate_cargo_root_targets_measure_only_declared_files` verifies root-level
+library targets in standalone and member packages with/without init. Unrelated
+build, target, node_modules, examples, benches and scripts do not become sources.
+Exact root-file security and byte/entry accounting are exercised by the
+`exact_cargo_root_sources_*` validator tests. Full verification and independent
+review remain separate gates.
+
+`generate_cargo_workspace_cross_member_targets_preserve_package_boundaries`
+uses four members and two cross-member targets. Both declaration orders, both
+init states and text/JSON/batch modes must retain each error/config file with
+its sibling package, preserve exact target owners, persist whole-member roots,
+reach 100% coverage and leave generated specs unchanged on rerun. It fails on
+the preserved first corrected candidate before the sibling-boundary repair.
+`generate_workspace_nested_escaping_library_paths_keep_package_ownership`
+uses `workspace/crates/*` targets at `shared/*.rs`, outside `workspace` but
+inside the retained project, alongside ordinary member sources. The original
+subject already generates those ordinary sources but omits the shared target.
+The same test binary fails against the hash-verified
+original PR816 6.1.1 subject and exercises six corrected init/mode combinations.
+
+A nested workspace with no ordinary sources also exposes a separate existing
+rerun limit: both the first corrected candidate and the sibling-boundary repair
+can report `skipped_no_files: ["crates"]` after creating the shared specs. The
+failing test source and comparison receipts are preserved in the coordinator
+report. This correction does not claim that empty-container behavior is fixed.
+
+## Root package targets inside literal workspace members (v3)
+
+`cargo_root_package_targets_inside_members_keep_whole_member_scan_roots` checks
+both declaration orders at the parser boundary.
+`generate_cargo_root_package_cross_member_targets_preserve_package_boundaries`
+uses the actual CLI with a root library inside beta and a root binary inside gamma,
+same-named ordinary error files, both declaration orders, both init states and
+text/JSON/named-batch modes. All six exact files must have their expected owners;
+init must retain whole-member roots, coverage/check must pass and reruns must not
+overwrite specs. The preserved v2 6.1.1 binary actually splits/merges these member
+files and leaves named-batch coverage incomplete. Fresh v3 receipts, not prior v2
+passes, must qualify the new final freeze. Existing project-root exact-file,
+member-declared cross-member, nested shared-root and retained-source security
+controls remain required. Literal member manifests are the supported binding
+scope; glob expansion and generated JSON list order are separate existing limits.

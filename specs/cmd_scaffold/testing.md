@@ -37,3 +37,9 @@ spec: cmd_scaffold.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.
+
+## Exact-file creation follow-up
+
+Run `cargo test --locked --offline --bin specsync creation_source_selection` for exact root files, flat-name matching, explicit mapping precedence including missing mappings, file/directory overlap, distinct-file ambiguity, configured extension/extensionless/test/exclusion rules, escaped mappings, symlink leaves/parents and Unix named pipes. `creation_source_selection_keeps_directory_priorities_and_explicit_dot` retains each command's prior matching order; root-alias coverage includes `.`, `./`, `./.` and `.//` with exact-file overlap.
+
+The preserved f72 optimized CLI produced `files: []` after init then new/scaffold for root lib.rs; subsequent ordinary check failed, while src/lib.rs controls bound their file. Root owns the real process regressions for all three creation commands and final full qualification. Passing draft checks do not represent authored prose or human implementation acceptance.

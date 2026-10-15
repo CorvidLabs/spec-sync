@@ -7,11 +7,11 @@
   "title": "Refuse incomplete configured root coverage after Cargo discovery loss for SpecSync 6.1.1",
   "description": "Refuse incomplete configured root coverage after Cargo discovery loss for SpecSync 6.1.1",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "5f0c9c69a0b40963c7a62c06feb74854e4aa8341",
   "created_at": 1792044165,
-  "updated_at": 1792068079,
+  "updated_at": 1792069492,
   "affected_specs": [
     "validator"
   ],

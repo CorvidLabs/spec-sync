@@ -1,6 +1,6 @@
 ---
 id: refuse-incomplete-configured-root-coverage-after-cargo-discovery-loss-for-specsync-6-1-1
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 5f0c9c69a0b40963c7a62c06feb74854e4aa8341
 ---

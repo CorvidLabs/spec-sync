@@ -7,11 +7,11 @@
   "title": "Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion",
   "description": "Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "944ef631d698f3d45aa5ad657817a7cd3c11d2a2",
   "created_at": 1792071528,
-  "updated_at": 1792072565,
+  "updated_at": 1792073942,
   "affected_specs": [
     "github"
   ],

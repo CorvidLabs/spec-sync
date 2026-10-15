@@ -1,6 +1,6 @@
 ---
 id: keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 944ef631d698f3d45aa5ad657817a7cd3c11d2a2
 ---

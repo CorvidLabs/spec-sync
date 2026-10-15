@@ -19,11 +19,15 @@ spec: cmd_new.spec.md
 ## Current Status
 
 Stable and implemented. Integration tests cover basic creation, source auto-detection, no-match guidance, and
-module-name safety. The command module's one inline `#[cfg(test)]` module covers only
-`detect_module_sources` test-file exclusion; explicit `--full` and refuse-overwrite
-integration fixtures remain open.
+module-name safety. Inline tests cover shared exact-file/explicit-mapping selection and
+recognized test-file exclusion. The process suite supplies independent command behavior;
+`--full` companion coverage remains separate from the bounded source-selection correction.
 
 ## Notes
 
 - This is a command-layer module: it orchestrates `config`, `exports`, and `generator` rather than holding domain logic.
 - `depends_on` is always emitted empty; imports are not analyzed to infer dependencies.
+
+## Exact-file creation correction
+
+The private detector delegates to generator::find_new_module_sources. Exact configured lib.rs/main.rs files use the same filters and no-follow metadata admission as directories; the old combined directory/flat name matches remain intact. Explicit module mappings, including empty or missing ones, do not fall back to guessing. Overlapping selections count once.

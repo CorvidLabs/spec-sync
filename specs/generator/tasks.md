@@ -19,3 +19,5 @@ spec: generator.spec.md
 - [x] Preserve missing explicit mappings and assign shared or overlapping manifest sources once; retain narrower targets during batch generation (#814 additional review).
 
 - [x] Prepare the 6.1.1 discovery regression fixes and distribution contracts (fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1).
+
+- [x] Implement the approved exact-file creation selection correction with confined no-follow metadata traversal, explicit mapping precedence and causal focused regressions. Full final-source and independent release qualification remain separate.

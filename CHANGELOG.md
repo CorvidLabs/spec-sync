@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Cargo packages bind their measured source files during generation, including custom `[lib].path` files, exact binary targets and literal workspace members whose manifests are resolved. Glob workspace member declarations such as `crates/*` remain unsupported for manifest-based target ownership. Existing and explicitly configured owners retain precedence.
 - Scoped npm names generate valid specs under `specs/@scope/name/name.spec.md`, preserving the full module identity and correct companion references. Retained generation write failures return an error instead of successful empty output.
+- Repeated scoped batch generation recognizes existing leaf-named specs without overwriting them. `new`, `add-spec` and `scaffold` accept exact configured Cargo source files, and watch mode monitors regular exact files without treating them as missing directories.
 
 ### Security
 

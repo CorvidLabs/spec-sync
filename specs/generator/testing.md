@@ -47,3 +47,11 @@ Preserve `mcp_multiline_cargo_workspace_members_survive_coverage_and_generation`
 ## 6.1.1 release corrections
 
 `scoped_module_generation_entry_points_preserve_identity_and_leaf_paths` covers ambient entry points, valid YAML, built-in/custom companion references and context-scaffold identity. Process tests cover default, JSON and batch output, coverage, reruns and inconclusive output errors.
+
+## Exact-file creation follow-up
+
+Run `cargo test --locked --offline --bin specsync creation_source_selection` for exact root files, flat-name matching, explicit mapping precedence including missing mappings, file/directory overlap, distinct-file ambiguity, configured extension/extensionless/test/exclusion rules, escaped mappings, symlink leaves/parents and Unix named pipes. `creation_source_selection_keeps_directory_priorities_and_explicit_dot` retains each command's prior matching order; root-alias coverage includes `.`, `./`, `./.` and `.//` with exact-file overlap.
+
+The preserved f72 optimized CLI produced `files: []` after init then new/scaffold for root lib.rs; subsequent ordinary check failed, while src/lib.rs controls bound their file. Root owns the real process regressions for all three creation commands and final full qualification. Passing draft checks do not represent authored prose or human implementation acceptance.
+
+The root-owned process regressions are `create_commands_bind_exact_cargo_sources_without_widening_roots` and `creation_commands_keep_two_distinct_exact_sources_ambiguous`; they remain separate from the inline selector tests.

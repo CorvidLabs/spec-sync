@@ -1,6 +1,6 @@
 ---
 module: cmd_scaffold
-version: 9
+version: 11
 status: stable
 files:
   - src/commands/scaffold.rs
@@ -30,7 +30,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 
 ## Invariants
 
-1. Both scan source dirs for module name matches; `cmd_scaffold` falls back to the project's single non-test source file (e.g. only `src/lib.rs`) when no name match exists
+1. Both use shared confined selection of exact regular source files and directory matches. Explicit module mappings retain precedence even when empty or missing; only absent mappings with no name match may use the project's one distinct eligible file. Filters and no-follow safety apply without broadening exact files to parent scans.
 2. `cmd_scaffold` supports custom templates and auto-appends to registry
 3. Neither overwrites existing specs
 4. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated with guided starter content; design.md is generated only when `companions.design` is enabled in config
@@ -75,6 +75,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 
 | Date | Change |
 |------|--------|
+| 2026-10-14 | Approved exact-source follow-up: confined exact-file selection, shared filters, overlap deduplication and explicit-mapping precedence; no parent-scan widening |
 | 2026-10-10 | Add `cmd_scaffold.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-11 | `cmd_scaffold` falls back to the project's single source file when no module name match exists |
 | 2026-06-07 | Document guided starter content in generated companions |
@@ -85,3 +86,4 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-08-15 | CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve: Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
+| 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |

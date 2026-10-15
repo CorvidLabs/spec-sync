@@ -2579,10 +2579,148 @@ fn generate_scoped_npm_names_create_valid_specs_and_companions() {
         }
         specsync().args(["coverage", "--require-coverage", "100", "--json", "--root"]).arg(root).assert().success();
         specsync().args(["generate", "--json", "--root"]).arg(root).assert().success().stdout(predicate::str::contains("\"generated\": []"));
+        let preserved: Vec<_> = fs::read_dir(root.join("specs/@scope/demo"))
+            .unwrap()
+            .map(|entry| {
+                let path = entry.unwrap().path();
+                let bytes = fs::read(&path).unwrap();
+                (path, bytes)
+            })
+            .collect();
+        let rerun = specsync()
+            .args(["generate", "--batch", "@scope/demo", "--json", "--root"])
+            .arg(root)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let rerun: serde_json::Value = serde_json::from_slice(&rerun).unwrap();
+        assert_eq!(rerun["requested"], serde_json::json!(["@scope/demo"]));
+        assert_eq!(rerun["generated"], serde_json::json!([]));
+        assert_eq!(rerun["skipped_already_specced"], serde_json::json!(["@scope/demo"]));
+        assert_eq!(rerun["skipped_not_found"], serde_json::json!([]));
+        specsync()
+            .args(["generate", "--batch", "@scope/demo", "--root"])
+            .arg(root)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("already have specs (skipped): @scope/demo"))
+            .stdout(predicate::str::contains("not found").not());
+        for (path, bytes) in preserved {
+            assert_eq!(fs::read(path).unwrap(), bytes);
+        }
+        assert!(!root.join("specs/@scope/demo/@scope").exists());
         assert_eq!(fs::read_to_string(root.join(relative)).unwrap(), content);
     }
 }
 
+#[test]
+fn batch_rerun_retains_flat_module_classification() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir(root.join("src")).unwrap();
+    fs::write(root.join("package.json"), r#"{"name":"demo"}"#).unwrap();
+    fs::write(root.join("src/index.ts"), "export function flatExport() {}\n").unwrap();
+    specsync().args(["init", "--root"]).arg(root).assert().success();
+    specsync().args(["generate", "--batch", "demo", "--root"]).arg(root).assert().success();
+    let path = root.join("specs/demo/demo.spec.md");
+    let before = fs::read(&path).unwrap();
+    let output = specsync()
+        .args(["generate", "--batch", "demo,unknown", "--json", "--root"])
+        .arg(root)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let output: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(output["generated"], serde_json::json!([]));
+    assert_eq!(output["skipped_already_specced"], serde_json::json!(["demo"]));
+    assert_eq!(output["skipped_not_found"], serde_json::json!(["unknown"]));
+    assert_eq!(fs::read(path).unwrap(), before);
+}
+
+#[test]
+fn create_commands_bind_exact_cargo_sources_without_widening_roots() {
+    for command in ["new", "add-spec", "scaffold"] {
+        for target in ["lib.rs", "main.rs", "src/lib.rs"] {
+            let tmp = TempDir::new().unwrap();
+            let root = tmp.path();
+            fs::create_dir_all(root.join("src")).unwrap();
+            let target_config = if target == "main.rs" {
+                "[[bin]]\nname = \"demo\"\npath = \"main.rs\"\n".to_string()
+            } else {
+                format!("[lib]\npath = \"{target}\"\n")
+            };
+            fs::write(
+                root.join("Cargo.toml"),
+                format!("[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n{target_config}"),
+            ).unwrap();
+            fs::write(root.join(target), "pub fn actual_export() {}\nfn main() {}\n").unwrap();
+            for unrelated in ["unrelated.rs", "target/generated.rs", "scripts/task.rs", "node_modules/vendor.rs"] {
+                let path = root.join(unrelated);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(path, "pub fn must_not_bind() {}\n").unwrap();
+            }
+            specsync().args(["init", "--root"]).arg(root).assert().success();
+            specsync().args([command, "demo", "--root"]).arg(root).assert().success();
+            let path = root.join("specs/demo/demo.spec.md");
+            let text = fs::read_to_string(&path).unwrap();
+            let header = text.split("---").nth(1).unwrap();
+            let yaml: serde_json::Value = serde_saphyr::from_str(header).unwrap();
+            assert_eq!(yaml["files"], serde_json::json!([target]), "{command} {target}: {text}");
+            assert!(text.contains("`actual_export`"), "{command} {target}: {text}");
+            assert!(!text.contains("must_not_bind"), "{text}");
+            let check = specsync()
+                .args(["check", "--json", "--force", "--root"])
+                .arg(root)
+                .assert()
+                .success()
+                .get_output()
+                .stdout
+                .clone();
+            let check: serde_json::Value = serde_json::from_slice(&check).unwrap();
+            assert_eq!(check["errors"], serde_json::json!([]), "{check}");
+            assert_eq!(check["specs_checked"], 1, "{check}");
+            assert_eq!(check["passed"], true, "{check}");
+            let preserved: Vec<_> = fs::read_dir(path.parent().unwrap())
+                .unwrap()
+                .map(|entry| {
+                    let path = entry.unwrap().path();
+                    let bytes = fs::read(&path).unwrap();
+                    (path, bytes)
+                })
+                .collect();
+            if command == "new" {
+                specsync().args([command, "demo", "--root"]).arg(root).assert().failure();
+            } else {
+                specsync().args([command, "demo", "--root"]).arg(root).assert().success();
+            }
+            for (path, bytes) in preserved {
+                assert_eq!(fs::read(path).unwrap(), bytes);
+            }
+        }
+    }
+}
+
+#[test]
+fn creation_commands_keep_two_distinct_exact_sources_ambiguous() {
+    for verb in ["new", "add-spec", "scaffold"] {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        fs::write(root.join("Cargo.toml"), "[package]\nname=\"demo\"\nversion=\"0.1.0\"\n[lib]\npath=\"lib.rs\"\n[[bin]]\nname=\"tool\"\npath=\"main.rs\"\n").unwrap();
+        fs::write(root.join("lib.rs"), "pub fn library() {}\n").unwrap();
+        fs::write(root.join("main.rs"), "fn main() {}\npub fn entry() {}\n").unwrap();
+        specsync().args(["init", "--root"]).arg(root).assert().success();
+        specsync().args([verb, "unrelated", "--root"]).arg(root).assert().success();
+        let content = fs::read_to_string(root.join("specs/unrelated/unrelated.spec.md")).unwrap();
+        let yaml: serde_json::Value = serde_saphyr::from_str(content.split("---").nth(1).unwrap()).unwrap();
+        assert_eq!(yaml["files"], serde_json::json!([]), "{content}");
+        // This is a retention control: ambiguity must not be resolved by
+        // first-file-wins or by assigning both files to an arbitrary name.
+    }
+}
 #[test]
 fn generate_write_failure_is_inconclusive_in_json_mode() {
     let tmp = TempDir::new().unwrap();
@@ -5718,4 +5856,107 @@ fn generate_json_honors_require_coverage_gate() {
         .clone();
     serde_json::from_slice::<serde_json::Value>(&output.stdout)
         .expect("generate --format json stdout must be valid JSON even when the gate fails");
+}
+
+// This is a real recommended-backend process test on Linux: never a silently-skipped timeout.
+#[cfg(target_os = "linux")]
+#[test]
+fn watch_exact_source_edits_survive_atomic_save_and_recreation() {
+    use std::io::{BufRead, BufReader};
+    use std::process::{Child, Stdio};
+    use std::sync::mpsc::{self, Receiver};
+    use std::thread::{self, JoinHandle};
+    use std::time::{Duration, Instant};
+
+    struct OwnedWatch {
+        child: Child,
+        reader: Option<JoinHandle<()>>,
+    }
+    impl Drop for OwnedWatch {
+        fn drop(&mut self) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+            if let Some(reader) = self.reader.take() {
+                let _ = reader.join();
+            }
+        }
+    }
+    fn wait_for(rx: &Receiver<String>, output: &mut String, needle: &str) {
+        let start = output.len();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if output[start..].contains(needle) {
+                return;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            assert!(!remaining.is_zero(), "native watch did not emit {needle:?}; stdout:\n{output}");
+            let line = rx.recv_timeout(remaining)
+                .unwrap_or_else(|error| panic!("native watch did not emit {needle:?}: {error}; stdout:\n{output}"));
+            output.push_str(&line);
+            output.push('\n');
+        }
+    }
+    fn phase(rx: &Receiver<String>, output: &mut String, changed: &str, footer: &str) {
+        wait_for(rx, output, changed);
+        wait_for(rx, output, footer);
+        // Preserve the product's existing extra 300ms minimum between checks.
+        thread::sleep(Duration::from_millis(400));
+    }
+
+    let tmp = TempDir::new().unwrap();
+    // Canonical root avoids /tmp -> /private/tmp alias differences on backend paths.
+    let root = tmp.path().canonicalize().unwrap();
+    fs::create_dir(root.join(".specsync")).unwrap();
+    fs::create_dir(root.join("specs")).unwrap();
+    fs::write(root.join("Cargo.toml"), "[package]\nname=\"watch_probe\"\nversion=\"0.1.0\"\nedition=\"2021\"\n[lib]\npath=\"lib.rs\"\n").unwrap();
+    fs::write(root.join("lib.rs"), "fn existing() {}\n").unwrap();
+    fs::write(root.join(".specsync/config.toml"), "specs_dir=\"specs\"\nsource_dirs=[\"lib.rs\"]\nrequired_sections=[]\n").unwrap();
+    let spec = root.join("specs/probe.spec.md");
+    fs::write(&spec, "---\nmodule: watch_probe\nversion: 1\nstatus: active\nfiles:\n  - lib.rs\ndb_tables: []\ndepends_on: []\n---\n\n# Watch Probe\n\nA local exact source fixture.\n").unwrap();
+    let child = specsync_process().args(["watch", "--strict", "--root"]).arg(&root)
+        .env("NO_COLOR", "1").stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn().unwrap();
+    let (tx, rx) = mpsc::channel();
+    let mut owned = OwnedWatch { child, reader: None };
+    let pipe = owned.child.stdout.take().unwrap();
+    owned.reader = Some(thread::spawn(move || {
+        for line in BufReader::new(pipe).lines() {
+            let Ok(line) = line else { break };
+            if tx.send(line).is_err() { break; }
+        }
+    }));
+    let mut output = String::new();
+    wait_for(&rx, &mut output, "Watching for changes in: specs, lib.rs");
+    assert!(output.contains("1 specs checked: 1 passed, 0 warning(s), 0 failed"), "initial check must really pass: {output}");
+    // Native backends may initialize asynchronously after watch registration.
+    thread::sleep(Duration::from_secs(2));
+
+    let valid_spec = fs::read_to_string(&spec).unwrap();
+    fs::write(&spec, valid_spec.replace("files:\n  - lib.rs\n", "files: []\n")).unwrap();
+    phase(&rx, &mut output, "Changed: specs", "Some checks failed.");
+    fs::write(&spec, &valid_spec).unwrap();
+    phase(&rx, &mut output, "Changed: specs", "All checks passed!");
+    fs::write(root.join("lib.rs"), "fn existing() {}\npub fn ordinary_edit() {}\n").unwrap();
+    phase(&rx, &mut output, "Changed: lib.rs", "Some checks failed.");
+    fs::write(root.join("replacement.rs"), "fn existing() {}\npub fn atomic_save() {}\n").unwrap();
+    fs::rename(root.join("replacement.rs"), root.join("lib.rs")).unwrap();
+    phase(&rx, &mut output, "Changed: lib.rs", "Some checks failed.");
+    fs::write(root.join("lib.rs"), "fn existing() {}\npub fn after_atomic_save() {}\n").unwrap();
+    phase(&rx, &mut output, "Changed: lib.rs", "Some checks failed.");
+    fs::remove_file(root.join("lib.rs")).unwrap();
+    phase(&rx, &mut output, "Changed: lib.rs", "Some checks failed.");
+    fs::write(root.join("lib.rs"), "fn existing() {}\npub fn recreated() {}\n").unwrap();
+    phase(&rx, &mut output, "Changed: lib.rs", "Some checks failed.");
+    fs::write(root.join("lib.rs"), "fn existing() {}\npub fn after_recreation() {}\n").unwrap();
+    phase(&rx, &mut output, "Changed: lib.rs", "Some checks failed.");
+
+    // Drain the already-observed footer; all remaining activity now comes from a sibling.
+    while let Ok(line) = rx.try_recv() { output.push_str(&line); output.push('\n'); }
+    fs::write(root.join("unselected.rs"), "pub fn sibling() {}\n").unwrap();
+    let deadline = Instant::now() + Duration::from_millis(1500);
+    while let Ok(line) = rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+        assert!(!line.contains("Changed:"), "unselected sibling triggered validation: {line}\n{output}");
+        if Instant::now() >= deadline { break; }
+    }
+    assert!(owned.child.try_wait().unwrap().is_none(), "watch must remain active");
+    // OwnedWatch Drop kills/waits only this watch child and joins its pipe reader on any result.
 }

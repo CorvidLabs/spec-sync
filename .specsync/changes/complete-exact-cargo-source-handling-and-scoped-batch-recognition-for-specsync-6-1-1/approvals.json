@@ -1,0 +1,119 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1792040568,
+      "digest": "76d6f94de7cb1bdc674a9b29a3e5c169187fef8caf125dab16baa66727189226",
+      "note": "Direct user I approve accepts the recorded four-fix follow-up definition; future implementation acceptance is not claimed.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1",
+        "title": "Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1",
+        "description": "Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_generate",
+          "cmd_new",
+          "cmd_scaffold",
+          "generator",
+          "github",
+          "watch"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "specs/cmd_generate/",
+          "specs/cmd_new/",
+          "specs/cmd_scaffold/",
+          "specs/generator/",
+          "specs/github/",
+          "specs/watch/",
+          "src/commands/generate.rs",
+          "src/commands/new.rs",
+          "src/commands/scaffold.rs",
+          "src/generator.rs",
+          "src/watch.rs",
+          "tests/integration/commands/specsync_process.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Scoped batch reruns classify existing leaf specs without overwrite; new/add-spec/scaffold select exact configured source files with filters and confinement; watch selects regular exact files nonrecursively and preserves recursive directories with truthful diagnostics; GitHub testing row states candidate6.1.1 and baseline6.1.0; focused regressions and full pinned verification pass before review and release"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve previous archived approvals; deterministic local generation; exact file roots never widen to recursive project-root scans; explicit mappings, configured filters, root confinement and no-follow safety; never overwrite; prove watcher delivery with a working positive control; no dependencies, new options, lifecycle bypass or validator ownership changes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_generate": "daa01de4ea75c2660a73959c8cf56e886cc6cf5f33a50e4d1c36e8d55586256b",
+        "cmd_new": "cdc5aba638fb646d823291418c63a03e122b9f244c507e6bf4563b512e40e7ae",
+        "cmd_scaffold": "b68fdc99290ba4cdf4b4c332522ce0f6199d7c9a3fa9b22a9b7777c20fcd3bbd",
+        "generator": "41dcf41bc34f3db74557a59189cdcba7dbcf6d5d4a1514fd98f7e9609e660174",
+        "github": "05e59f392332364ee8d4db785682268e82b4535f9e277df86d28a0c37643b26f",
+        "watch": "aab313eb9b64e2125c1c2095bff93eaa142632c59e36654faff89a216ae31865"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1792040628,
+      "digest": "76d6f94de7cb1bdc674a9b29a3e5c169187fef8caf125dab16baa66727189226",
+      "note": "Direct user approval of bounded four-fix proposal; preserve complete existing GitHub release requirement while adding the approved testing-row correction. Scope only.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1",
+        "title": "Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1",
+        "description": "Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_generate",
+          "cmd_new",
+          "cmd_scaffold",
+          "generator",
+          "github",
+          "watch"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "specs/cmd_generate/",
+          "specs/cmd_new/",
+          "specs/cmd_scaffold/",
+          "specs/generator/",
+          "specs/github/",
+          "specs/watch/",
+          "src/commands/generate.rs",
+          "src/commands/new.rs",
+          "src/commands/scaffold.rs",
+          "src/generator.rs",
+          "src/watch.rs",
+          "tests/integration/commands/specsync_process.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Scoped batch reruns classify existing leaf specs without overwrite; new/add-spec/scaffold select exact configured source files with filters and confinement; watch selects regular exact files nonrecursively and preserves recursive directories with truthful diagnostics; GitHub testing row states candidate6.1.1 and baseline6.1.0; focused regressions and full pinned verification pass before review and release"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Preserve previous archived approvals; deterministic local generation; exact file roots never widen to recursive project-root scans; explicit mappings, configured filters, root confinement and no-follow safety; never overwrite; prove watcher delivery with a working positive control; no dependencies, new options, lifecycle bypass or validator ownership changes",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_generate": "daa01de4ea75c2660a73959c8cf56e886cc6cf5f33a50e4d1c36e8d55586256b",
+        "cmd_new": "cdc5aba638fb646d823291418c63a03e122b9f244c507e6bf4563b512e40e7ae",
+        "cmd_scaffold": "b68fdc99290ba4cdf4b4c332522ce0f6199d7c9a3fa9b22a9b7777c20fcd3bbd",
+        "generator": "41dcf41bc34f3db74557a59189cdcba7dbcf6d5d4a1514fd98f7e9609e660174",
+        "github": "c2bea4e61bf84584b40fa5793fc892e25f64d885a1b538498b16104ad3103182",
+        "watch": "aab313eb9b64e2125c1c2095bff93eaa142632c59e36654faff89a216ae31865"
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -37,3 +37,7 @@ Anything comparing text against a template must compare against the EXPANDED tem
 a caller comparing against the raw text silently fails to recognise a line it wrote itself. That
 mismatch stayed invisible for as long as frontmatter was being stripped before it mattered, and
 appeared the instant stripping failed on CRLF — two defects where either alone is silent.
+
+## Exact-file creation correction
+
+Root-file Cargo selections were valid for init/generate but silently disappeared in new/add-spec/scaffold. Use one confined metadata selector for exact files and directories, retain explicit empty mappings, and count distinct eligible paths rather than source-root entries. Preserve each command's prior directory/flat matching priority. Source enumeration is no-follow; later export extraction retains its existing checks rather than becoming a whole-command retained transaction. The leaf filename helper is shared with scoped batch recognition.

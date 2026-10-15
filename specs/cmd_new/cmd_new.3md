@@ -32,3 +32,6 @@ integration fixtures remain open.
 @plane z=4 label="Notes"
 - This is a command-layer module: it orchestrates `config`, `exports`, and `generator` rather than holding domain logic.
 - `depends_on` is always emitted empty; imports are not analyzed to infer dependencies.
+
+@plane z=5 label="Exact source selection"
+The private detector delegates to generator::find_new_module_sources. Exact configured lib.rs/main.rs files use the same filters and no-follow metadata admission as directories; the old combined directory/flat name matches remain intact. Explicit module mappings, including empty or missing ones, do not fall back to guessing. Overlapping selections count once.

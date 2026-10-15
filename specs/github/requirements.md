@@ -106,6 +106,7 @@ Acceptance Criteria
 - The Action refuses a Windows runner with a message naming the unsupported platform and WSL as the supported alternative, rather than requesting a release asset that is not published.
 - Documentation distinguishes immutable pinning from the floating compatibility ref, and the Action inputs docs default matches the downloadable default on `main`.
 - A failed exact-version asset or Action smoke test leaves the floating ref unchanged.
+- The current release-testing regression row names candidate6.1.1 and the pre-promotion published floatingv6 baseline6.1.0, preserving the immutablev6.0.0 caveat.
 
 ### REQ-github-003
 

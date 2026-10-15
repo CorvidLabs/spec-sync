@@ -6,7 +6,7 @@ axis: layers
 @plane z=0 label="Context"
 The spec stays `specs/watch/watch.spec.md`.
 
-File watcher that re-runs `specsync check` on file changes. Watches spec and source directories with 500ms debounce, providing live validation feedback during development.
+File watcher that re-runs `specsync check` on file changes. Watches the spec directory, recursive source directories and non-recursive exact regular source files with 500ms debounce, providing live validation feedback during development.
 
 This plane is context. Later planes are lessons, in the order they were learned.
 `context.md` stays beside this file.
@@ -16,14 +16,42 @@ This plane is context. Later planes are lessons, in the order they were learned.
 - **Subprocess isolation**: Each check runs as a forked child process rather than an in-process function call. This isolates any `exit()` calls in the check path from killing the watcher.
 - **Event filtering**: Only Create, Modify, and Remove events trigger re-runs. Access and metadata changes are ignored to reduce noise.
 - **Screen clear between runs**: The terminal is cleared before each re-run for a clean output, with the changed file path displayed in a separator header so the user knows what triggered it.
-- **Exit on no directories**: If neither spec nor source directories exist, the watcher exits immediately with an error rather than watching nothing silently.
+- **Exit on no paths**: If no valid spec directory, source directory or exact source file exists, the watcher exits immediately with an error rather than watching nothing silently.
 
 @plane z=2 label="Files to Read First"
 - `src/watch.rs` — Single-file module with the watch loop, event filtering, and subprocess management.
 
 @plane z=3 label="Current Status"
-Fully implemented. The watcher uses `notify-debouncer-full` for cross-platform file system events. Works on macOS (FSEvents), Linux (inotify), and Windows (ReadDirectoryChanges).
+The watcher uses `notify-debouncer-full` with the platform recommended backend. Actual event-delivery claims require a working spec control and source-edit rerun on that platform.
 
 @plane z=4 label="Notes"
 - The watch command is one of two "long-running" modes alongside MCP. Both take over the process and run indefinitely.
 - An initial check runs immediately on startup before entering the watch loop, giving the user immediate feedback.
+
+
+@plane z=5 label="Exact Source Files"
+A configured root `lib.rs` or `main.rs` is a file selection, not a missing directory.
+Register it non-recursively; do not substitute a recursive project-root watch.
+Reject symlink/reparse components, escapes and unsupported kinds. Missing and invalid
+path warnings stay distinct. Backend event evidence requires both a successful spec
+control and a source-edit rerun; mode/selection unit tests alone do not establish that.
+Immediate-parent lifecycle observation is non-recursive and exact-name filtered,
+so atomic replacement/recreation can rearm the selected file without letting a
+sibling event trigger validation. Registration/rearming still reject links,
+escapes and changes from a file into a directory.
+
+
+@plane z=6 label="Coarse Parent Notifications"
+A parent-directory event is not permission to validate on every sibling save.
+Compare SHA-256 snapshots of declared exact source files only, through confined
+no-follow reads capped at the validator's existing 8 MiB per-source limit.
+Refresh snapshots on precise source events too. Report fingerprint limitations
+honestly; unit controls do not replace a causal native source-edit proof.
+
+
+@plane z=7 label="Native Proof Boundary"
+The frozen pre-followup binary and corrected candidate both detected an invalid
+spec but missed its restoration in the same Mac workspace fixture. This is an
+inherited/local backend limitation, not a proved new source-specific regression.
+The full Mac source/save sequence has not passed. Keep the real Linux hosted
+causal event regression mandatory before merge/release.

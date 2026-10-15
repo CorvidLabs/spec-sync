@@ -55,3 +55,6 @@ Excluding every source claimed by another target drops shared files from every o
 
 @plane z=7 label="6.1.1 release corrections"
 Module identity and spec filename are different: @scope/demo keeps its full identity and directory, while the spec filename is demo.spec.md. Quote reserved YAML prefixes and expand companion references from the same leaf name. An output write failure must become an error, including JSON mode.
+
+@plane z=8 label="Creation sources and shared filenames"
+Root-file Cargo selections were valid for init/generate but silently disappeared in new/add-spec/scaffold. Use one confined metadata selector for exact files and directories, retain explicit empty mappings, and count distinct eligible paths rather than source-root entries. Preserve each command's prior directory/flat matching priority. Source enumeration is no-follow; later export extraction retains its existing checks rather than becoming a whole-command retained transaction. The leaf filename helper is shared with scoped batch recognition.

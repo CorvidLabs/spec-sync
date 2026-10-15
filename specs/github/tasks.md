@@ -81,3 +81,5 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Make `Required CI gate` fail when `preflight` or `lifecycle-gate` fails, and read `skipped` as a pass only where classify deselected the job, with a workflow guard and per-path simulation (#796, REQ-github-021)
 
 - [x] Prepare the 6.1.1 discovery regression fixes and distribution contracts (fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1).
+
+- [x] Correct the current release-testing row to candidate6.1.1 and pre-promotion floatingv6 baseline6.1.0 while retaining the immutablev6.0.0 caveat.

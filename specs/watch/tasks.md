@@ -20,9 +20,16 @@ spec: watch.spec.md
 - [x] Initial check on startup
 - [x] Cross-platform support (macOS, Linux, Windows)
 
+- [x] Accept confined exact regular sources non-recursively while preserving recursive directory watches
+- [x] Distinguish missing-path and invalid-path text/JSON diagnostics
+- [x] Add selection/mode, escape, symlink, unsupported-kind and replacement identity controls
+- [x] Add bounded selected-content fingerprints for coarse parent events, including same-size/restored-mtime and sibling-negative controls
+- [ ] Complete real backend spec/source, atomic-save, recreation and sibling-negative qualification on the immutable release candidate
+
 ## Gaps
 
-- No way to filter which directories/files are watched (watches everything)
+- No CLI selection override; configured spec/source paths determine monitoring scope
+- Native event delivery proof must include successful spec and source controls; a timeout is not a passing event test
 - No integration with editor/IDE for inline diagnostics
 - Re-runs full check on every change — no incremental validation
 

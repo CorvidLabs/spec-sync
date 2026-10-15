@@ -14,11 +14,11 @@ spec: watch.spec.md
 - Extra 300ms minimum between consecutive check runs
 - Only reacts to Create, Modify, and Remove events (not metadata-only changes)
 - Queued events are drained after each check completes
-- Exits immediately if there are no directories to watch
+- Exits immediately if there are no valid directories or exact source files to watch
 - Check runs as a child process to isolate exit calls from the watcher
 - Screen is cleared before each re-run
 - Changed file path is displayed in the separator header
-- Watches both spec and source directories
+- Watches the spec directory, source directories recursively and exact regular source files non-recursively
 
 ## Constraints
 
@@ -42,11 +42,11 @@ Acceptance Criteria
 - Extra 300ms minimum between consecutive check runs
 - Only reacts to Create, Modify, and Remove events (not metadata-only changes)
 - Queued events are drained after each check completes
-- Exits immediately if there are no directories to watch
+- Exits immediately if there are no valid directories or exact source files to watch
 - Check runs as a child process to isolate exit calls from the watcher
 - Screen is cleared before each re-run
 - Changed file path is displayed in the separator header
-- Watches both spec and source directories
+- Watches the spec directory, source directories recursively and exact regular source files non-recursively
 
 ### REQ-watch-002
 
@@ -61,3 +61,10 @@ Acceptance Criteria
 - A pass is reported only on positive evidence that the check examined at least one spec; when the check reports finding no specs, watch states that nothing was checked.
 - A spec set that exists and passes still reports a pass, so the rule cannot be satisfied by never reporting one.
 
+
+### REQ-watch-003
+
+Watch mode SHALL admit confined regular exact source files using non-recursive monitoring while retaining recursive directory monitoring.
+
+Acceptance Criteria
+- Reject symlinks and escapes; distinguish missing from invalid paths in text/JSON diagnostics; exact-file entries must not be mislabeled nonexistent; backend event claims require positive spec and source controls.

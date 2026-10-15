@@ -21,9 +21,10 @@ Rust · single binary · 33 languages · no SpecSync API key required
 
 ## Install
 
-This tree prepares **6.1.1**. GitHub Releases, crates.io, and Homebrew
-(`CorvidLabs/tap/spec-sync`) currently serve **6.1.0**. Publish 6.1.1 only after the
-immutable candidate passes Ubuntu and macOS qualification; the 6.1.1 pins below apply after publication.
+The GitHub **6.1.1** release uses the immutable candidate qualified on Ubuntu and
+macOS. This separate Action wrapper update selects its published binary by default.
+Confirm availability at your chosen distribution before using the 6.1.1 installation
+pins below; GitHub asset publication does not itself establish crates.io or Homebrew publication.
 Confirm what you received with `specsync --version`, and pin all lifecycle writers and CI to
 the same 6.x version.
 
@@ -51,12 +52,11 @@ brew install CorvidLabs/tap/spec-sync
 
 Prefer the `@v6.1.1` Action and binary pins shown above for release gates.
 `@v6.0.0` still defaults the download to `6.0.0-rc.14`, so pass `version: '6.0.0'` only
-when using that older tag. This candidate's omitted-input default stays `6.1.0`, the
-qualified release with published assets. The planned immutable `@v6.1.1` tag will keep
-that `6.1.0` default: explicitly pass `version: '6.1.1'` to use its new binary after
-publication. A separate verified post-publication commit advances `main` and floating
-`@v6` to default `6.1.1` after supported-platform asset and Action smoke checks pass.
-The immutable `@v6.1.1` ref is never moved to that later commit.
+when using that older tag. This main wrapper's omitted-input default is published
+`6.1.1`, following supported-platform asset and Action checks. The immutable
+`@v6.1.1` tag still embeds default `6.1.0`: explicitly pass `version: '6.1.1'` with
+that tag for its new binary. Floating `@v6` advances to this wrapper commit only after
+its actual consumer checks pass; the immutable `@v6.1.1` ref is never moved here.
 
 Minimal immutable configuration:
 

@@ -94,19 +94,21 @@ Acceptance Criteria
 
 ### REQ-github-002
 
-The maintained GitHub Action SHALL expose an immutable exact-version ref and a verified floating major compatibility ref whose default binary version is synchronized only after exact-version artifacts pass supported-platform verification. Before the stable release for the package version under promotion is published, the composite Action's omitted-input default SHALL resolve to a published GitHub Release that has assets (the latest qualified release candidate for that package version). After the stable Release is published, the default matches the promoted stable package version.
+The maintained GitHub Action SHALL expose immutable exact-version refs and a verified floating major compatibility ref. Its omitted-input binary default SHALL identify a published release with assets that has passed supported-platform verification. Before new stable assets are published, the default remains the last qualified published stable release, or a specifically qualified published release candidate for the package version under promotion. An unpublished package version SHALL NOT become the default merely because it matches Cargo metadata.
+
+Stable promotion SHALL preserve the immutable qualified candidate SHA. An immutable Action tag may therefore retain the preceding published binary default; documentation SHALL identify its embedded default and show an explicit binary version for consumers requiring the tag's new stable binary. After new stable assets are published and exact-version Action smoke tests succeed, a separately verified main commit advances the default to the new stable binary. The floating major ref advances only to that verified commit. Immutable version tags SHALL NOT be retargeted.
 
 Acceptance Criteria
 
-- Before the stable `vX.Y.Z` Release exists, the composite Action's current default equals a published release-candidate identifier for that `X.Y.Z` whose GitHub Release has assets. For the 6.0 candidate window that identifier was `6.0.0-rc.14`. Tags without Release assets are not eligible defaults.
-- After the stable Release is published, the composite Action's current default on `main` matches the promoted stable package version (`6.1.1`).
-- The immutable `v6.0.0` Action tag is not rewritten; its embedded default remains `6.0.0-rc.14`. Documentation tells consumers using that tag to pass `version: '6.0.0'`.
-- An immutable `v<major>.<minor>.<patch>` Action ref resolves to the integrated release commit.
-- The floating `v6` ref resolves to a commit whose composite Action omitted-input default is `6.1.1`. It SHALL NOT resolve to immutable tag `v6.0.0`, whose embedded default remains `6.0.0-rc.14`.
-- The Action refuses a Windows runner with a message naming the unsupported platform and WSL as the supported alternative, rather than requesting a release asset that is not published.
-- Documentation distinguishes immutable pinning from the floating compatibility ref, and the Action inputs docs default matches the downloadable default on `main`.
-- A failed exact-version asset or Action smoke test leaves the floating ref unchanged.
-- The current release-testing regression row names candidate6.1.1 and the pre-promotion published floatingv6 baseline6.1.0, preserving the immutablev6.0.0 caveat.
+- During preparation of `6.1.1`, the candidate Action default and inputs-table default stay `6.1.0`, the qualified published release with assets. Missing-asset stable or RC tags are never eligible defaults.
+- Candidate consumers and Trust explicitly exercise version `6.1.1` through their runner-local candidate mirrors; the public omitted-input fallback never substitutes the published binary into candidate verification.
+- One integrated immutable RC SHA is qualified on Ubuntu and macOS before final promotion. Its final `v6.1.1` tag and artifacts use that same SHA, without changing candidate content to advance the default.
+- The immutable `v6.1.1` Action tag retains the candidate's `6.1.0` omitted-input default. Documentation tells exact-tag consumers to pass `version: '6.1.1'` after stable publication.
+- Only after stable `6.1.1` assets and supported-platform Action smoke tests succeed does a separate verified main commit advance the default to `6.1.1`; floating `v6` then advances to that wrapper commit. A failed asset/checksum/Action smoke gate leaves the preceding default and floating ref unchanged.
+- Immutable `v6.0.0` is not rewritten; its embedded default stays `6.0.0-rc.14`. Documentation tells consumers using that tag to pass `version: '6.0.0'`.
+- The Action refuses Windows with an unsupported-platform message and WSL guidance rather than requesting unpublished Windows assets.
+- Documentation distinguishes immutable pinning from the floating ref; the inputs-table default matches the downloadable default on main.
+- The offline validator independently checks the declared published default and candidate package version. It rejects a premature `6.1.1`, arbitrary `9.9.9`, moving `latest`, missing default or docs drift while retaining explicit candidate version/mirror requirements.
 
 ### REQ-github-003
 

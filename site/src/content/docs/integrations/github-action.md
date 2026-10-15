@@ -20,11 +20,14 @@ Run SpecSync in CI with zero setup. Auto-detects OS/arch, downloads the binary, 
 
 ---
 
+The `@v6.1.1` examples in this page apply after stable publication. Until then,
+use the already published `@v6.1.0` Action with explicit `version: '6.1.0'`.
+
 ## Inputs
 
 | Input | Default | Description |
 |:------|:--------|:------------|
-| `version` | `6.1.1` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
+| `version` | `6.1.0` | Release version to download. Pin an exact release for gates; `latest` follows the newest release and can change underneath you. The published `@v6.0.0` Action tag still defaults to `6.0.0-rc.14`; always pass `version: '6.0.0'` when using that tag. |
 | `download-base-url` | `''` | Optional trusted release mirror URL for enterprise mirrors and release validation |
 | `strict` | `false` | Treat warnings as errors |
 | `require-coverage` | `0` | Minimum file coverage % (0–100) |
@@ -59,7 +62,9 @@ jobs:
 Release archives and their `.sha256` files are both fetched from the selected source. A missing or mismatched checksum fails before extraction. Treat `download-base-url` as a trust boundary and configure it only with an organization-controlled mirror.
 
 Pin both the Action ref and its binary version. YAML examples pin `@v6.1.1` with
-`version: '6.1.1'`. This commit's omitted-input default is `6.1.1`.
+`version: '6.1.1'` for use after publication. This candidate's omitted-input default
+stays `6.1.0`, the qualified published release; candidate version equality alone does
+not establish that new stable assets exist.
 
 ```yaml
 - uses: CorvidLabs/spec-sync@v6.1.1
@@ -70,9 +75,12 @@ Pin both the Action ref and its binary version. YAML examples pin `@v6.1.1` with
 
 Always pass `version: '6.0.0'` with `@v6.0.0`. That tag's composite Action still embeds
 default `6.0.0-rc.14` (the last RC with assets when the tag was cut). Omitting `version` on
-that tag downloads the RC binary. `main` defaults to `6.1.1` on this commit. Move the floating
-`@v6` tag only after promotion, to a commit whose omitted-input default is `6.1.1`. Do
-not retarget `v6` at `v6.0.0`.
+that tag downloads the RC binary. The planned immutable `@v6.1.1` tag will likewise keep
+this candidate's `6.1.0` default; explicitly pass `version: '6.1.1'` for its new binary
+after publication. After immutable Ubuntu/macOS qualification and stable asset
+publication, a separate verified commit advances `main` to default `6.1.1`. Move
+floating `@v6` only after real supported-platform asset and Action smoke checks pass
+for that wrapper commit. Neither immutable `@v6.1.1` nor `@v6.0.0` is retargeted.
 
 ---
 

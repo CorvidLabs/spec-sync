@@ -1,6 +1,6 @@
 ---
 module: github
-version: 40
+version: 42
 status: stable
 files:
   - src/github.rs
@@ -17,9 +17,13 @@ depends_on:
 Links spec files to GitHub issues for traceability. Validates `implements` and `tracks` frontmatter
 fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues
 when specs fall out of sync. Also defines the maintained composite GitHub Action distribution
-contract: immutable exact-version refs and a verified floating major compatibility ref. After
-stable `v6.1.1` is published, the omitted-input default on `main` and on floating `@v6` is
-`6.1.1`. The published `@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not
+contract: immutable exact-version refs and a verified floating major compatibility ref. This
+`6.1.1` candidate keeps the qualified published `6.1.0` omitted-input default. Promotion
+keeps one immutable qualified SHA, so `@v6.1.1` retains that `6.1.0` default; pass an
+explicit `version: '6.1.1'` for the new stable binary. Only after stable assets and
+supported-platform Action smokes pass does a separately verified main commit advance
+the default and floating `@v6` to `6.1.1`. The published `@v6.0.0` Action tag still embeds
+default `6.0.0-rc.14` and is not
 rewritten; `v6` must not be retargeted at that tag. Hosted JavaScript
 verification uses one exact supported Bun runtime across site deployment, site CI, and VS Code
 extension CI.
@@ -238,3 +242,5 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-10-11 | release-specsync-6-1-0: Release SpecSync 6.1.0 |
 | 2026-10-12 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |
 | 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |
+| 2026-10-15 | Keep the Action default on published assets while immutable 6.1.1 qualification and later wrapper advancement remain separate |
+| 2026-10-15 | keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion: Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion |

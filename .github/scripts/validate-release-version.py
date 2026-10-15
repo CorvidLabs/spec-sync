@@ -8,9 +8,11 @@ import subprocess
 import sys
 
 
-# Omitted-input Action default on this tree. After v6.0.0 shipped this equals the
-# package version. The immutable @v6.0.0 Action tag still embeds 6.0.0-rc.14.
-PUBLISHED_ACTION_DEFAULT = "6.0.0"
+# Reviewed published binary default, independent of the package being prepared.
+# Keep this and Action/docs pinned to the preceding qualified release until the
+# new stable assets and supported-platform Action smokes pass. Advancing this
+# value is a separate post-publication delivery; it never moves immutable tags.
+PUBLISHED_ACTION_DEFAULT = "6.1.0"
 
 YAML_FILES = (
     "action.yml",
@@ -316,11 +318,7 @@ def main() -> int:
     inputs = mapping_block(action_lines, "inputs", 0)
     version_input = mapping_block(inputs or [], "version", 2)
     action_version = mapping_scalar(version_input or [], "default", 4)
-    expected_action_default = (
-        PUBLISHED_ACTION_DEFAULT
-        if version == "6.0.0" and PUBLISHED_ACTION_DEFAULT != version
-        else version
-    )
+    expected_action_default = PUBLISHED_ACTION_DEFAULT
     if action_version != expected_action_default:
         errors.append(
             f"action.yml default must be {expected_action_default}, found {action_version}"
@@ -419,11 +417,7 @@ def main() -> int:
         encoding="utf-8"
     )
     docs_default = re.search(r"^\| `version` \| `([^`]+)` \|", action_docs, re.MULTILINE)
-    expected_docs_default = (
-        PUBLISHED_ACTION_DEFAULT
-        if version == "6.0.0" and PUBLISHED_ACTION_DEFAULT != version
-        else version
-    )
+    expected_docs_default = PUBLISHED_ACTION_DEFAULT
     if docs_default is None or docs_default.group(1) != expected_docs_default:
         found = docs_default.group(1) if docs_default else None
         errors.append(

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion",
+  "slug": "keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion",
+  "title": "Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion",
+  "description": "Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "944ef631d698f3d45aa5ad657817a7cd3c11d2a2",
+  "created_at": 1792071528,
+  "updated_at": 1792072559,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/scripts/test-validate-release-candidate.py",
+    ".github/scripts/validate-release-version.py",
+    "CHANGELOG.md",
+    "README.md",
+    "action.yml",
+    "site/src/content/docs/integrations/github-action.md",
+    "specs/github/github.3md",
+    "specs/github/github.spec.md",
+    "specs/github/requirements.md",
+    "specs/github/tasks.md",
+    "specs/github/testing.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Keep the Action and inputs-table omitted default on qualified published6.1.0 while Cargo and explicit candidate CI/Trust remain6.1.1; enforce an independent reviewed published-default constant with real-validator regression controls; preserve candidate mirrors and all release identity guards; document the preceding stable fallback and immutablev6.1.1 default6.1.0 with explicitversion6.1.1 guidance; only a separately verified postpublication wrapper may advance main/floating after real platform asset and Action checks; unchanged frozen PhaseA patch and full local/native/hosted evidence precede archive and merge."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Preserve one immutable merged candidate SHA and real Ubuntu/macOS qualification; never move immutableRC or stabletags; preserve exact candidate CI/Trust versions and localmirrors; preserve downloader/checksum/platform/token behavior; no dependencies or workflow/protection changes; other permanent requirements unchanged; use actual acceptance and current tests; keep conditionalPhaseB external until actual stableassets and real platform consumer gates hold.",
+    "public_contract": "yes"
+  }
+}

@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Cargo targets beside the project manifest use exact-file `source_dirs` entries such as `lib.rs` or `main.rs` rather than a recursive project-root scan. Configurations containing those entries require SpecSync 6.1.1 or later. Released 6.1.0 skips exact-file selections and can still report 100% coverage of remaining directory sources. Check the reader version; `--require-coverage 100` alone does not establish compatibility. This configuration format is not silently backward compatible.
-- Prepare package, Action and verification pins at 6.1.1. Publication follows qualification of one immutable candidate SHA on Ubuntu and macOS; 6.1.0 remains the published release until promotion.
+- Prepare package and explicit candidate verification pins at 6.1.1 while the Action omitted-input default remains the qualified published 6.1.0. Immutable 6.1.1 promotion preserves that default; exact-tag users pass `version: '6.1.1'`. Main and floating v6 advance their default only in a separate verified post-publication update after asset and Action smoke gates.
 
 ## [6.1.0] - 2026-10-11
 

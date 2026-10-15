@@ -51,8 +51,12 @@ brew install CorvidLabs/tap/spec-sync
 
 Prefer the `@v6.1.1` Action and binary pins shown above for release gates.
 `@v6.0.0` still defaults the download to `6.0.0-rc.14`, so pass `version: '6.0.0'` only
-when using that older tag. This commit's omitted-input default is `6.1.1`. Move the floating
-`@v6` tag only after promotion, to a commit whose omitted-input default is `6.1.1`.
+when using that older tag. This candidate's omitted-input default stays `6.1.0`, the
+qualified release with published assets. The planned immutable `@v6.1.1` tag will keep
+that `6.1.0` default: explicitly pass `version: '6.1.1'` to use its new binary after
+publication. A separate verified post-publication commit advances `main` and floating
+`@v6` to default `6.1.1` after supported-platform asset and Action smoke checks pass.
+The immutable `@v6.1.1` ref is never moved to that later commit.
 
 Minimal immutable configuration:
 

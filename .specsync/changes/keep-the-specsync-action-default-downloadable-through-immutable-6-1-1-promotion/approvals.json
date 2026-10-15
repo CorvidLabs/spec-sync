@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1792071713,
+      "digest": "4ceb573927c9e450a54b7554de5d05473719ff50cb4f1fde1331a08710ad3d05",
+      "note": "Leif directly approved both concrete tested Action timing stages: I approve. PhaseA exactpatch919ee36b and conditionalPhaseB0f2816db plus new REQ-github-002 clarification were presented;64validator tests and actualversionvalidator perphase and independentreview91630825 passed. PhaseB remains external until real immutable dualOS qualification, stableassets and supportedplatformconsumer gates. Existing normal releaseauthority is preserved; no fabricated humaninspection or waivedgates.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion",
+        "title": "Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion",
+        "description": "Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/scripts/validate-release-version.py",
+          "CHANGELOG.md",
+          "README.md",
+          "action.yml",
+          "site/src/content/docs/integrations/github-action.md",
+          "specs/github/github.3md",
+          "specs/github/github.spec.md",
+          "specs/github/requirements.md",
+          "specs/github/tasks.md",
+          "specs/github/testing.md"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Keep the Action and inputs-table omitted default on qualified published6.1.0 while Cargo and explicit candidate CI/Trust remain6.1.1; enforce an independent reviewed published-default constant with real-validator regression controls; preserve candidate mirrors and all release identity guards; document the preceding stable fallback and immutablev6.1.1 default6.1.0 with explicitversion6.1.1 guidance; only a separately verified postpublication wrapper may advance main/floating after real platform asset and Action checks; unchanged frozen PhaseA patch and full local/native/hosted evidence precede archive and merge."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Preserve one immutable merged candidate SHA and real Ubuntu/macOS qualification; never move immutableRC or stabletags; preserve exact candidate CI/Trust versions and localmirrors; preserve downloader/checksum/platform/token behavior; no dependencies or workflow/protection changes; other permanent requirements unchanged; use actual acceptance and current tests; keep conditionalPhaseB external until actual stableassets and real platform consumer gates hold.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "04b0b3b0cda04a44e6c91700ae2948a70d8ebe4332000d251a3bf2b8cc68329f"
+      }
+    }
+  ],
+  "reopenings": []
+}

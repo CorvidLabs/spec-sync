@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "extract-issues-command-integration-tests-without-changing-their-behavior",
+  "slug": "extract-issues-command-integration-tests-without-changing-their-behavior",
+  "title": "Extract issues command integration tests without changing their behavior",
+  "description": "Extract issues command integration tests without changing their behavior",
+  "kind": "refactor",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "06d343e630deb7ad14eca93b242f7060b0928646",
+  "created_at": 1792130718,
+  "updated_at": 1792159662,
+  "affected_specs": [],
+  "affected_paths": [
+    "tests/integration/commands.rs",
+    "tests/integration/commands/issues.rs",
+    "tests/integration/commands/specsync_process.rs",
+    "specs/cmd_issues/testing.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Only byte-conserved integration tests and their testing-companion paths change; product API, source behavior and canonical spec contract remain unchanged. Draft records the required CI coverage without human approval.",
+  "acceptance_criteria": [
+    "Agent-proposed outcomes: conserve all26 test bodies/attributes/fixtures and shared helper behavior, select identical24macOS tests before/after, pass full native2582unit/462integration, retain unexecuted platform limits, update documented filters and preserve product behavior."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

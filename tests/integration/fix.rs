@@ -441,6 +441,88 @@ fn assert_rows_contiguous(updated: &str, row_marker: &str) {
     }
 }
 
+// #768 case 1: width and insertion must describe the same table.
+#[test]
+fn fix_768_uses_one_contiguous_export_table() {
+    for heading in ["### Exported Functions", "**Functions**", ""] {
+        for prefix in [
+            "",
+            "| Parameter | Description |\n|---|---|\n| input | Input value |\n\n",
+        ] {
+            let api = format!(
+                "\n{heading}\n\n{prefix}| Name | Kind | Description |\n|---|---|---|\n| `a` | fn | Existing |\n\nParameters follow.\n\n| Parameter | Description |\n|---|---|\n| input | Input value |\n"
+            );
+            assert_fix_768_table(&api);
+            if prefix.is_empty() {
+                assert_fix_768_table(&api.replace("| Name |", "| Function |"));
+            }
+        }
+    }
+}
+
+fn assert_fix_768_table(api: &str) {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function a() {}\nexport function b() {}\n",
+    )
+    .unwrap();
+    let path = root.join("specs/auth/auth.spec.md");
+    fs::write(&path, spec_with_public_api(api)).unwrap();
+    fs::write(root.join("specs/auth/requirements.md"), "# Requirements\n").unwrap();
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    let updated = fs::read_to_string(&path).unwrap();
+    let row = updated
+        .lines()
+        .find(|line| line.starts_with("| `b` |"))
+        .expect("new export row");
+    assert_eq!(
+        row.matches('|').count(),
+        4,
+        "must use export table width: {updated}"
+    );
+    assert!(
+        updated.contains(&format!(
+            "| `a` | fn | Existing |\n{row}\n\nParameters follow."
+        )),
+        "must extend the export table: {updated}"
+    );
+    assert_eq!(
+        updated,
+        spec_with_public_api(api).replace(
+            "| `a` | fn | Existing |",
+            &format!("| `a` | fn | Existing |\n{row}")
+        ),
+        "all other content is preserved"
+    );
+    specsync()
+        .args([
+            "check",
+            "--strict",
+            "--force",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    specsync()
+        .args(["check", "--fix", "--root", root.to_str().unwrap()])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(path).unwrap(),
+        updated,
+        "fix is idempotent"
+    );
+}
+
 #[test]
 fn fix_ignores_pipe_lines_inside_fenced_examples_after_the_table() {
     let tmp = TempDir::new().unwrap();

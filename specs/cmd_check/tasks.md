@@ -4,6 +4,10 @@ spec: cmd_check.spec.md
 
 ## Tasks
 
+- [ ] #768 case 2: indented literal fences require coordinated scanner/parser handling; discovery currently hides the following table and can duplicate existing symbols.
+
+- [x] Fix #768 case 1: select one contiguous table; regressions cover table width, placement, preservation, strict validation, and idempotence.
+
 - [x] Add an integration test asserting the hash cache skips unchanged specs on a second run — Evidence: `check_skips_unchanged_specs`.
 - [x] A warm cache must replay stored findings rather than report a clean skip — Evidence: `warm_cache_text_replays_cached_warnings`, `warm_cache_json_replays_cached_warnings`, `hashes_without_snapshots_revalidate_instead_of_going_silent`.
 

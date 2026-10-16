@@ -1,0 +1,46 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Sentinel_fa7dbbab35548191ad234f735456fa69",
+      "timestamp": 1791730966,
+      "digest": "d9de950bfd7163ecac055377e44b0fa71cc66e42a5b8a895baca7e7eebf1af30",
+      "note": "User approved case 1, regression tests and matching spec/docs, and draft publication after strong local validation: \"yes alweasy test locally first and make sure you are 95% confident on your fix or change and that it does not cause any regressions\". Scope approval only; no implementation review or acceptance.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-check-fix-export-rows-in-one-contiguous-table-for-issue-768",
+        "title": "Keep check fix export rows in one contiguous table for issue 768",
+        "description": "Keep check fix export rows in one contiguous table for issue 768",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check"
+        ],
+        "affected_paths": [
+          "specs/cmd_check/cmd_check.3md",
+          "specs/cmd_check/cmd_check.spec.md",
+          "specs/cmd_check/requirements.md",
+          "specs/cmd_check/tasks.md",
+          "specs/cmd_check/testing.md",
+          "src/commands/check.rs",
+          "tests/integration/fix.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "For issue 768 case 1, new export rows extend one contiguous table using its own width; prefer the first Name header and otherwise the first table; preserve surrounding content; pass strict recheck and repeated-fix idempotence. Case 2 remains out of scope."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Read cmd_check.3md; preserve deterministic local repair, fenced example contents, existing export-kind routing and no SDD coupling in check. Scope excludes case 2 parser work, generate binding, publication and human approval claims.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_check": "44ef5e16d3f463c4d5e0242f4192af89e5b1ce37ab776d66393fec28593fa4ab"
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -11,6 +11,7 @@ artifact: tasks
 - [x] Document existing-hook refresh and update hooks specs/lesson.
 - [x] Obtain independent read-only GPT implementation review.
 - [x] Complete full native verification, binary reproduction, documentation checks and mandatory pre-push.
-- [ ] Verify exact-commit Trust and preserve truthful provenance.
-- [ ] Publish a tested draft PR for repository review.
-- [ ] Obtain actual human definition/implementation acceptance and finalize before any merge/release.
+
+## Mandatory subsequent delivery gates
+
+Leif has now given genuine definition-scope approval. Exact current-commit Trust/provenance, current independent implementation review, supported native finalization, final-head hosted checks and authorized publication/merge still require actual evidence. Original draft PR #818 already exists. These later gates are not asserted complete by this implementation checklist, and must not be checked off merely to satisfy verification.

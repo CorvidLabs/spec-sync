@@ -1,6 +1,6 @@
 ---
 id: keep-project-paths-literal-in-generated-pre-commit-failure-diagnostics
-state: draft
+state: implementing
 type: bug_fix
 base_commit: 621a74785e3c09b2e9ebea35768e05f5772f886f
 ---

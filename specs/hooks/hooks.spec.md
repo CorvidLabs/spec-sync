@@ -1,6 +1,6 @@
 ---
 module: hooks
-version: 10
+version: 11
 status: stable
 files:
   - src/hooks.rs
@@ -132,3 +132,4 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 | 2026-08-01 | CHG-0071-land-pre-6-0-product-fixes-for-hooks-init-coverage-naming-and-exit-codes-scoped: Land pre-6.0 product fixes for hooks init coverage naming and exit codes (scoped paths) |
 | 2026-09-09 | close-remaining-specsync-6-0-0-first-user-p1s-pre-commit-honors-config-toml-config-fail-closed-merge-git-sanitization: Close remaining SpecSync 6.0.0 first-user P1s: pre-commit honors config, TOML config fail-closed, merge git sanitization, and 5.x upgrade docs |
 | 2026-10-10 | tell-agents-to-record-lessons-in-the-module-3md-file: Tell agents to record lessons in the module 3md file |
+| 2026-10-16 | keep-project-paths-literal-in-generated-pre-commit-failure-diagnostics: Keep project paths literal in generated pre-commit failure diagnostics |

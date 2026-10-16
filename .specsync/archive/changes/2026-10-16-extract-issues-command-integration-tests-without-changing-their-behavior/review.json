@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "extract-issues-command-integration-tests-without-changing-their-behavior",
+  "reviewer": "agent:codex",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "e47b6bd5c57e6e3d1a21c286f71b136bf8d49430",
+  "contract_digest": "8ce3e0476c62d399bf2afb4d122110071123e0c99cd2e89fd2a65ccf1aa65679",
+  "execution_digest": "a3c7cb91a95e789fe2794783e8c6ce72c9d881a57c9abedf94dd0940fea913f6",
+  "workspace_digest": "65bbeab26bc02237a4b142caebda97b7d7865f4e790bf945c653c8e1edfd0924",
+  "timestamp": 1792159248
+}

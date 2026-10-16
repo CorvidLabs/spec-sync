@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "keep-project-paths-literal-in-generated-pre-commit-failure-diagnostics",
+      "reviewer": "agent:codex",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "16e5a82ae9af7e8d912b83a8c79f04b89818688a",
+      "contract_digest": "dff595fbc1e88ffa05e6ddcc55dc61f655a390b2a477d3c1e8430a0b38492166",
+      "execution_digest": "9af077cb0ddb371493a8a9701108643efc6c3440601a1c9ab41d9312b255df4f",
+      "workspace_digest": "2d17586d6959d687180f4bf4c5bdf3da8d09be5b99590c51ccf9295d42ac50af",
+      "timestamp": 1792158269
+    }
+  ]
+}

@@ -7,11 +7,11 @@
   "title": "Keep project paths literal in generated pre-commit failure diagnostics",
   "description": "Keep project paths literal in generated pre-commit failure diagnostics",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "621a74785e3c09b2e9ebea35768e05f5772f886f",
   "created_at": 1792121366,
-  "updated_at": 1792158206,
+  "updated_at": 1792158288,
   "affected_specs": [
     "hooks"
   ],

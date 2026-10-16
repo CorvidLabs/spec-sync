@@ -1,0 +1,122 @@
+{
+  "timestamp": 1792158205,
+  "commit": "16e5a82ae9af7e8d912b83a8c79f04b89818688a",
+  "contract_digest": "dff595fbc1e88ffa05e6ddcc55dc61f655a390b2a477d3c1e8430a0b38492166",
+  "execution_digest": "9af077cb0ddb371493a8a9701108643efc6c3440601a1c9ab41d9312b255df4f",
+  "workspace_digest": "2d17586d6959d687180f4bf4c5bdf3da8d09be5b99590c51ccf9295d42ac50af",
+  "acceptance_input_digest": "20ab72f8c218a9db7b1938fb1ebfb19ee3f53dc73746f6a041afc7f171e8cea7",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "site/src/content/docs/cli.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4e07cb2c87819eb0e46f2d7a365ac64b40ce20320cf04938bec408f3caf5954e",
+        "entry_digest": "17184598780438b5fec795f86457ff72f1ba38fa658c0e9a8e4b3c5cd86eacec",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "site/src/content/docs/workflow.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c3dafe6dc843109bcc3df455f9bfd6043f6d7024433379666ae00e8d96d28602",
+        "entry_digest": "30fcc9f7d1374d3194cfb677b84c25f493775006aadf2e855d074160910a6afc",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/hooks",
+        "kind": "non_file",
+        "mode": 0,
+        "payload_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry_digest": "22c14bfd7d10dbbf62b8d3e99d29fd1c7b40735af9bb7cf1818756d4fb4eb05f",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "specs/hooks/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "f6c07ef5a9f924d0a9b6a720cf20e1c06d35e882e8baed4dd79566d5cacd56ff",
+        "entry_digest": "2426425942b30ee2a8c33e246c5792b56b19c1aaa5fff9231b1674b568977c32",
+        "owners": [
+          "hooks"
+        ]
+      },
+      {
+        "path": "specs/hooks/hooks.3md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "5c8c4ffc28593f83af534ce1c648a7ed3fcfacfaa20de0d2c47c3bf13e1d9b2e",
+        "entry_digest": "579be2f1f7c29dc884d8b2dfd87c5e6bb7a8f445481ebf37ccdc5157b44b6872",
+        "owners": [
+          "hooks"
+        ]
+      },
+      {
+        "path": "specs/hooks/hooks.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "91452516e7ce5260ba98afad0543704adc2e6e108f5b8be62166e883317bf470",
+        "entry_digest": "c198c5ffd8915e6fedd2fb1b8d8b54abc8d1fd6e82b56e91a1d53b78944c9eda",
+        "owners": [
+          "hooks"
+        ]
+      },
+      {
+        "path": "specs/hooks/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "4a32ad2e67170d4b48264bc269955277faa4ef3b0e48496eb6731fa9a78bc871",
+        "entry_digest": "5d792d5c2d853763563a458e3ca0fb422386725bab072534f1280c4fd4e66c4c",
+        "owners": [
+          "hooks"
+        ]
+      },
+      {
+        "path": "specs/hooks/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "e16d70448263fe4612bbd4a5c8c81d87aff185f1fa6bcd1283ca19f147066a5b",
+        "entry_digest": "056aebea0f8ebc3d3735188303868fffead980a21a1aa4910d61dd369d2847f1",
+        "owners": [
+          "hooks"
+        ]
+      },
+      {
+        "path": "specs/hooks/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "527aa3fcd9a6f4173e17886f11028c16518705cf4ea68a550b5a246b78d4ea6b",
+        "entry_digest": "48f0982985474acf9ffe21c168130e7c38519b25267e76d4e3e405de9abd4382",
+        "owners": [
+          "hooks"
+        ]
+      },
+      {
+        "path": "src/hooks.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "19b34d688b0618b7c69bcf5ef5a192522edd76fde98682e1c901ca6a35b20e23",
+        "entry_digest": "f3fe4fd4d412d3f8149869573c08351728d6e63a53d90b90ec244fcb8bb80976",
+        "owners": [
+          "hooks"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec hooks",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

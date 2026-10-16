@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-project-paths-literal-in-generated-pre-commit-failure-diagnostics",
+  "slug": "keep-project-paths-literal-in-generated-pre-commit-failure-diagnostics",
+  "title": "Keep project paths literal in generated pre-commit failure diagnostics",
+  "description": "Keep project paths literal in generated pre-commit failure diagnostics",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "621a74785e3c09b2e9ebea35768e05f5772f886f",
+  "created_at": 1792121366,
+  "updated_at": 1792158686,
+  "affected_specs": [
+    "hooks"
+  ],
+  "affected_paths": [
+    "src/hooks.rs",
+    "specs/hooks",
+    "site/src/content/docs/cli.md",
+    "site/src/content/docs/workflow.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Newly generated hooks pass the exact project root to the checker and preserve success/failure exit behavior for ordinary paths, spaces and apostrophes; dollar substitutions and backticks never execute from failed-check diagnostics; executable negative controls fail on released 6.1.1 and pass on the candidate; existing-hook refresh instructions state that install alone does not replace managed blocks."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "research",
+    "design",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "The hooks.3md lessons require idempotent installation, append-not-overwrite and preservation of user hooks. Keep those contracts and exact project markers, repository guard, core.hooksPath, worktree scope and enforcement behavior. Quote executable arguments and diagnostics independently. Existing managed blocks require exact-project uninstall/reinstall using the fixed binary. Do not execute user path substitutions, refresh real user hooks, weaken policy or infer human approval.",
+    "public_contract": "no"
+  }
+}

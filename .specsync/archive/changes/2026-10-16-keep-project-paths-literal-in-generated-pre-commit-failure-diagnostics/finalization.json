@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-project-paths-literal-in-generated-pre-commit-failure-diagnostics",
+  "implementation_commit": "16e5a82ae9af7e8d912b83a8c79f04b89818688a",
+  "implementation_tree": "3a1b7dff4d0faf31752ecc1d7da9d6aceb689130",
+  "contract_digest": "dff595fbc1e88ffa05e6ddcc55dc61f655a390b2a477d3c1e8430a0b38492166",
+  "workspace_digest": "2d17586d6959d687180f4bf4c5bdf3da8d09be5b99590c51ccf9295d42ac50af",
+  "closing_digest": "17178ce3edd41e1ee4cf2bfd5713619316b84233465d6e9524c3b08e89a6f234",
+  "review_digest": "62256648172063832d92c83037e35bb25d5416a10d0fc5bc8e031febbd6caef1",
+  "finalization_digest": "20bb1b418e7924f80c2cdb9a6295e79357676c69a497ed7799c6cf4c711d5f75",
+  "timestamp": 1792158288
+}

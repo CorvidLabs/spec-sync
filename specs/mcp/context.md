@@ -101,7 +101,12 @@ spec: mcp.spec.md
 
 ## Files to Read First
 
-- `src/mcp.rs`
+- `src/mcp.rs` declares the private modules and the two public entry points
+- `src/mcp/protocol.rs` is JSON-RPC transport and dispatch
+- `src/mcp/confinement.rs` and `src/mcp/preflight.rs` are root capability and manifest confinement
+- `src/mcp/snapshot.rs` and `src/mcp/snapshot_manifest.rs` are the bounded project copy
+- `src/mcp/tools.rs` is tool and resource handlers
+- `src/mcp/publication.rs` is staging, publication, and rollback
 - `src/generator.rs`
 - `src/validator.rs`
 
@@ -149,3 +154,12 @@ replacements. An earlier
 private-sandbox replay passed but its untracked inputs were not reproducible from the cited
 revisions, so a hash-bound exact-tree replay is required with fresh definition approval, Windows
 runtime CI, independent rereview, and final repository/trust/provenance/CI gates.
+
+The MCP implementation now lives in purpose-named private modules. `protocol`, `tools`,
+`snapshot`, and `confinement` call back into one another where the single module already did.
+`preflight` and `snapshot_manifest` are separate so confinement and snapshot stay readable.
+`server_name.rs` and `publish_staged_file_with_verification_hooks.rs` stay as historical paths
+for the GitHub read-path scan and are not part of the module tree. Cross-module items are
+`pub(super)`. `run_mcp_server` and `mcp_tool_definitions` remain the only external functions.
+Protocol and snapshot test modules import `std::fs` directly so release-profile tests still
+compile when the parents' debug-only `std::fs` imports are absent.

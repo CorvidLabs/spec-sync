@@ -16,7 +16,7 @@ Move only the contiguous issues integration-test family into a real Rust module,
 3. Verify independent byte conservation of the entire moved core and remaining process file, shared helpers and environment isolation.
 4. Run the moved family, full native lane, release integration compile, latest released strict check and mandatory pre-push gate.
 5. Publish a draft with truthful unsigned agent provenance, documented platform limits and corvid-agent review requested.
-6. Record the observed lifecycle CI requirement in this complete but unapproved draft. Do not approve, accept, review or finalize as a human.
+6. Record the observed lifecycle requirement and genuine current human scope approval through the native writer. Complete actual qualification and independent review, then supported finalization only under the authorized evidence threshold. Never impersonate a human reviewer.
 
 ## Out of scope
 

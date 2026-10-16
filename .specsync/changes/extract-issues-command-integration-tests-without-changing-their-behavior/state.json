@@ -7,10 +7,11 @@
   "title": "Extract issues command integration tests without changing their behavior",
   "description": "Extract issues command integration tests without changing their behavior",
   "kind": "refactor",
-  "state": "draft",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "06d343e630deb7ad14eca93b242f7060b0928646",
   "created_at": 1792130718,
-  "updated_at": 1792130779,
+  "updated_at": 1792158224,
   "affected_specs": [],
   "affected_paths": [
     "tests/integration/commands.rs",

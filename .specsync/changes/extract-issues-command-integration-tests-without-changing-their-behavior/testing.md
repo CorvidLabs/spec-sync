@@ -19,4 +19,4 @@ artifact: testing
 
 At original head `06d343e630deb7ad14eca93b242f7060b0928646`, hosted Lifecycle gate job `116836835319` failed because these four meaningful paths had no active change record. Downstream product tests/coverage were skipped. This draft corrects missing scope documentation; it does not fabricate approval or imply CI is green. The exact new committed metadata range still needs coordinator Trust/provenance checks.
 
-The Linux-only non-UTF8 filename test and Windows-only junction test are byte-preserved but were not compiled/executed on macOS. Human scope approval/review/finalization remain pending. Local child CI/color variables were unset only for local test fixtures; no CI configuration changed.
+The Linux-only non-UTF8 filename test and Windows-only junction test are byte-preserved but were not compiled/executed on macOS. Leif directly approved the prepared scope on 2026-10-16 and the native writer recorded actor 0xLeif. Current qualification, actual independent implementation review and supported finalization remain separate gates. Local child CI/color variables were unset only for local test fixtures; no CI configuration changed.

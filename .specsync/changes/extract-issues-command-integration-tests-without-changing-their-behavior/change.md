@@ -1,6 +1,6 @@
 ---
 id: extract-issues-command-integration-tests-without-changing-their-behavior
-state: draft
+state: implementing
 type: refactor
 base_commit: 06d343e630deb7ad14eca93b242f7060b0928646
 ---

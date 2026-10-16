@@ -1,4 +1,42 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1792157420,
+      "digest": "f864bb4a3d01b12142eb586541b34b7ccd0440ddd32b61bb0b29e90e7766963b",
+      "note": "Leif directly answered the pending explicit PR818/819/820 scope-approval question on2026-10-16: \"Yes I approval all!!! Omfg if you are 95% I approval… test this all locally and fucking fix it\". Genuine human definition-scope approval; actual local qualification, independent review, current lifecycle/protection gates and evidence remain required. Source receipt: _plans/2026-10-15-grok-fanout/receipts/ci-cleanup-human-approval.json. No human implementation-review event or passing tests are fabricated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "split-mcp-implementation-into-cohesive-private-modules",
+        "title": "Split MCP implementation into cohesive private modules",
+        "description": "Split MCP implementation into cohesive private modules",
+        "kind": "refactor",
+        "affected_specs": [
+          "mcp"
+        ],
+        "affected_paths": [
+          "specs/mcp",
+          "src/mcp",
+          "src/mcp.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Replace textual MCP includes with ordinary private Rust modules while preserving existing production function bodies and cfg gates; keep run_mcp_server and mcp_tool_definitions as the two external MCP entry points; conserve all existing MCP tests and scan every moved source for provider-process construction; preserve protocol responses, confinement, budgets, publication, rollback and debug race barriers; pass debug unit/integration inventories, release-test compilation and strict canonical contract checks."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Refactor only src/mcp.rs, src/mcp and specs/mcp on base621a74785e3c09b2e9ebea35768e05f5772f886f. Preserve PR800 lifecycle/evidence and PR815 check/fix ownership. Retain historical comment-only include_str scan anchors and add a complete moved-source scan. Cross-module items remain pub(super), not pub(crate). Use cached tools and latest released SpecSync6.1.1. Debug fixture qualification uses an ordinary local environment without inherited CI/forced-color overrides; real hosted lifecycle/CI gates remain pending. This is a technical draft for review, not human approval, acceptance, release or platform qualification.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "mcp": "88c18c553c386951ae8cff08ee73e124879880f42007d9cc34ac5c53dc701cfe"
+      }
+    }
+  ],
   "reopenings": []
 }

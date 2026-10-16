@@ -11,5 +11,8 @@ artifact: tasks
 - [x] Conserve original test inventory and synchronize canonical ownership/companions.
 - [x] Correct independently found release-test filesystem imports with failing-before/passing-after compilation evidence.
 - [x] Verify all debug unit/integration cases and the remaining native build/contract/control stages.
-- [ ] Finish exact-commit pre-push, risk/contract/provenance and draft publication receipts.
-- [ ] Obtain actual human definition/implementation acceptance, independent lifecycle review, finalization and required hosted gates before merge.
+- [x] Qualify the original exact-commit pre-push, risk/contract/provenance and draft publication, preserved in the coordinator result and receipts.
+
+## Mandatory subsequent delivery gates
+
+Leif has now approved the prepared definition scope. Requalify the current local candidate, preserve actual independent implementation review, complete supported native finalization, and require current committed-range pre-push/Trust/provenance plus final-head hosted checks before an authorized merge. These later gates remain pending until their actual receipts exist; this implementation checklist does not claim their completion.

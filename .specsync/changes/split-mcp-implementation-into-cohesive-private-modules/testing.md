@@ -17,8 +17,12 @@ artifact: testing
 
 ## Publication gates
 
-Before pushing, run the mandatory fast pre-push lane and committed-range Trust. An empty base..HEAD Trust result is not evidence for this change. Preserve actual risk/contract/provenance output and report any block. Hosted checks, human definition approval, acceptance and same-PR finalization are pending; do not remove this draft or weaken policy to bypass them.
+Before pushing, run the mandatory fast pre-push lane and committed-range Trust. An empty base..HEAD Trust result is not evidence for this change. Preserve actual risk/contract/provenance output and report any block. Leif directly approved the prepared definition scope on 2026-10-16 and the supported writer recorded actor 0xLeif. Current native qualification, independent implementation review, same-PR finalization and hosted checks still require actual evidence. Do not remove the package or weaken policy to bypass any of those gates.
 
 ## Limits
 
 macOS local execution only. No Windows/Linux runtime or immutable release-candidate qualification is claimed. No new dependency/tool was downloaded. Tests do not prove human acceptance or a statistical95% guarantee.
+
+## Current lifecycle follow-up
+
+The original product source and test bytes remain unchanged from the independently reviewed and locally qualified candidate. The genuine scope approval removes the absence-of-permission condition only; no new local test run, human inspection, native review/finalization or passing hosted gate is inferred from that approval. Fresh command results will be recorded after execution.

@@ -1,6 +1,6 @@
 ---
 module: mcp
-version: 34
+version: 35
 status: stable
 files:
   - src/mcp.rs
@@ -322,3 +322,4 @@ The implementation uses private protocol, tools, confinement, preflight, snapsho
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-15 | Replace the MCP `include!` chunks with purpose-named private modules. `run_mcp_server` and `mcp_tool_definitions` stay the only functions visible outside the module. |
 | 2026-10-16 | Import `std::fs` in the protocol and snapshot test modules so release-profile unit tests compile when debug assertions are disabled. |
+| 2026-10-16 | split-mcp-implementation-into-cohesive-private-modules: Split MCP implementation into cohesive private modules |

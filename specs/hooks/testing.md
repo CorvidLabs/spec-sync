@@ -12,6 +12,14 @@ spec: hooks.spec.md
 
 ## Coverage Gaps
 
+The five `generated_hook_` regressions install the actual pre-commit hook in
+disposable repositories and execute it with a fake checker that records its
+arguments. Every case runs with checker exit0 and exit1. Ordinary and spaced
+paths are positive controls; apostrophe, `$()` and backtick paths assert literal
+project selection, preserved status, and no marker-file command execution.
+Against the previous generator, the two substitution tests execute their marker
+and the apostrophe test exits2; the two ordinary/spaced controls pass.
+
 - Integration gap: add a fixture for "Install all hooks" before changing user-visible CLI output, generated files, or error handling in hooks.
 
 ## Behavioral Verification

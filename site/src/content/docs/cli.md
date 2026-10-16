@@ -144,6 +144,8 @@ specsync hooks status                      # check what's installed
 
 Supports Claude Code (`CLAUDE.md`), Cursor (`.cursorrules`), GitHub Copilot (`.github/copilot-instructions.md`), `AGENTS.md`, and pre-commit hooks.
 
+To refresh an existing pre-commit hook after upgrading the generator, run `specsync hooks uninstall --precommit` followed by `specsync hooks install --precommit` from the same project root. Use the same `--root <project>` on both commands for a nested project. Installing alone preserves an existing managed block; uninstalling removes only the selected project's managed block and preserves other hook content. See [Pre-commit hook](workflow.md#pre-commit-hook) for the quoting-fix upgrade guidance.
+
 ### `agents`
 
 Install native SDD skills and supported slash commands for coding agents. This is separate from repository instruction snippets and Git hooks managed by `hooks`.

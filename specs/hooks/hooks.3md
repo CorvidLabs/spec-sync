@@ -29,3 +29,11 @@ Fully implemented. All 6 hook targets work: CLAUDE.md (`Claude`), .cursorrules (
 - `cmd_status()` reports installed/not-installed for each target, useful for CI verification.
 - `cmd_install` exits with code 1 if any single hook installation fails.
 - Uninstall removes the spec-sync section via `remove_section_from_file`, which deletes the file when nothing else remains.
+
+@plane z=5 label="Keep shell commands and diagnostics separate"
+Global replacement put an already-single-quoted project path inside an existing
+double-quoted diagnostic, where substitutions could still execute and embedded
+apostrophes could break parsing. Generate the command at its exact template line
+and print the independently quoted diagnostic through fixed-format printf.
+Execute the installed hook on both success and failure with real metacharacter
+directory names; quote-character text assertions alone do not prove safety.

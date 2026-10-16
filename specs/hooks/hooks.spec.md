@@ -1,6 +1,6 @@
 ---
 module: hooks
-version: 9
+version: 10
 status: stable
 files:
   - src/hooks.rs
@@ -55,6 +55,9 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 8. `cmd_install` exits with code 1 if any hook installation fails
 9. Uninstall removes only the exact current-project block and preserves user and other-project content
 10. The generated pre-commit hook runs `specsync check` without `--strict`, so first-run scaffold warnings do not block the first commit
+11. Project directory names remain literal data in both the executable command
+    and failure diagnostic. Spaces, apostrophes, dollar substitutions and
+    backticks cannot alter shell syntax or execute directory-name content.
 
 ## Behavioral Examples
 
@@ -118,6 +121,7 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 
 | Date | Change |
 |------|--------|
+| 2026-10-15 | Quote the generated failure hint as a fixed-format printf argument; execute installed hooks against ordinary and shell-metacharacter project paths on success and failure (#782). |
 | 2026-10-10 | Add `hooks.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-03-25 | Initial spec |
 | 2026-03-30 | Add Agents (AGENTS.md) hook target |

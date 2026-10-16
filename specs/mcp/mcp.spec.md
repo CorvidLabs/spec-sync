@@ -1,11 +1,26 @@
 ---
 module: mcp
-version: 32
+version: 34
 status: stable
 files:
   - src/mcp.rs
-  - src/mcp/publish_staged_file_with_verification_hooks.rs
+  - src/mcp/protocol.rs
+  - src/mcp/protocol/tests.rs
+  - src/mcp/confinement.rs
+  - src/mcp/confinement/tests.rs
+  - src/mcp/preflight.rs
+  - src/mcp/preflight/tests.rs
+  - src/mcp/snapshot.rs
+  - src/mcp/snapshot/tests.rs
+  - src/mcp/snapshot_manifest.rs
+  - src/mcp/snapshot_manifest/tests.rs
+  - src/mcp/tools.rs
+  - src/mcp/tools/tests.rs
+  - src/mcp/publication.rs
+  - src/mcp/publication/tests.rs
+  - src/mcp/test_support.rs
   - src/mcp/server_name.rs
+  - src/mcp/publish_staged_file_with_verification_hooks.rs
   - src/mcp_tools_lock.rs
 db_tables: []
 tracks: [30]
@@ -23,6 +38,8 @@ depends_on:
 ## Purpose
 
 Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RPC 2.0 over stdio, exposing spec-sync functionality as tools callable from Claude Code, Cursor, Windsurf, and other MCP-compatible agents.
+
+The implementation uses private protocol, tools, confinement, preflight, snapshot, snapshot_manifest and publication modules, with shared fixtures compiled only for tests. The facade retains the existing server and tool-catalog entry points.
 
 ## Public API
 
@@ -303,3 +320,5 @@ Model Context Protocol (MCP) server for AI agent integration. Implements JSON-RP
 | 2026-09-09 | feat-mcp-tools-lock: Add `.specsync/mcp-tools.lock.json` SoT with `mcp lock` / `mcp lock --write` / `mcp diff` fail-closed drift detection over the shared tool catalog |
 | 2026-09-09 | mcp-tools-lock-file-and-mcp-lock-diff: MCP tools lock file and mcp lock/diff |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
+| 2026-10-15 | Replace the MCP `include!` chunks with purpose-named private modules. `run_mcp_server` and `mcp_tool_definitions` stay the only functions visible outside the module. |
+| 2026-10-16 | Import `std::fs` in the protocol and snapshot test modules so release-profile unit tests compile when debug assertions are disabled. |

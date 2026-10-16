@@ -1,6 +1,6 @@
 ---
 id: split-mcp-implementation-into-cohesive-private-modules
-state: implementing
+state: archived
 type: refactor
 base_commit: 621a74785e3c09b2e9ebea35768e05f5772f886f
 ---

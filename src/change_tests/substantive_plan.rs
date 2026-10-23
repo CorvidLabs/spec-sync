@@ -4015,3 +4015,140 @@ fn a_truncated_slug_does_not_end_mid_word() {
         );
     }
 }
+
+
+fn policy_audit_git(root: &Path, args: &[&str]) {
+    let output = Command::new("git").args(args).current_dir(root).output().unwrap();
+    assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+fn policy_audit_archive_fixture(owns_policy: bool) -> (TempDir, String, PathBuf) {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    policy_audit_git(root, &["init", "-b", "main"]);
+    policy_audit_git(root, &["config", "user.email", "fixture@example.invalid"]);
+    policy_audit_git(root, &["config", "user.name", "Fixture"]);
+    write_lifecycle_test_policy(root);
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Original policy"]);
+    policy_audit_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let mut record = completed_no_spec_current_record(root);
+    if owns_policy {
+        record.affected_paths.push(POLICY_PATH.to_string());
+    }
+    save_change(root, &record).unwrap();
+    write_change_markdown(root, &record).unwrap();
+    let mut policy = load_policy(root).unwrap();
+    policy.meaningful_paths.push("policy-fixture/".to_string());
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    approve_definition(root, &record.id, Some("Fixture scope owner".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Approved policy migration"]);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &record.id, "Fixture reviewer".into()).unwrap();
+    let archive = finalize_change(root, &record.id).unwrap();
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Finalize policy migration"]);
+    (temp, record.id, archive)
+}
+
+// REQ-change-110: synthetic fixture actors above never represent production consent.
+#[test]
+fn archived_policy_audit_accepts_authenticated_same_delivery_migration() {
+    let (temp, _, _) = policy_audit_archive_fixture(true);
+    let report = audit_project(temp.path());
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    assert_eq!(report.checked_changes, 0);
+    assert!(report.terminal_evidence.is_empty());
+}
+
+#[test]
+fn archived_policy_audit_rejects_wrong_scope() {
+    let (temp, _, _) = policy_audit_archive_fixture(false);
+    let report = audit_project(temp.path());
+    assert!(report.errors.iter().any(|error| error.contains("committed SDD policy")), "{:?}", report.errors);
+}
+
+#[test]
+fn archived_policy_audit_rejects_unsigned_later_policy_edit() {
+    let (temp, _, _) = policy_audit_archive_fixture(true);
+    let mut policy = load_policy(temp.path()).unwrap();
+    policy.meaningful_paths.push("unsigned/".to_string());
+    write_json(&temp.path().join(POLICY_PATH), &policy).unwrap();
+    policy_audit_git(temp.path(), &["add", "."]);
+    policy_audit_git(temp.path(), &["commit", "-m", "Unsigned later policy edit"]);
+    let report = audit_project(temp.path());
+    assert!(report.errors.iter().any(|error| error.contains("current policy differs")), "{:?}", report.errors);
+}
+
+#[test]
+fn archived_policy_audit_rejects_tampered_acceptance_evidence() {
+    for name in ["approvals.json", "review.json", "finalization.json", "accepted-state.json"] {
+        let (temp, _, archive) = policy_audit_archive_fixture(true);
+        fs::write(archive.join(name), "{}\n").unwrap();
+        let report = audit_project(temp.path());
+        assert!(report.errors.iter().any(|error| error.contains("committed SDD policy")), "{name}: {:?}", report.errors);
+    }
+}
+
+#[test]
+fn archived_policy_audit_rejects_missing_archive() {
+    let (temp, _, archive) = policy_audit_archive_fixture(true);
+    fs::remove_dir_all(archive).unwrap();
+    let report = audit_project(temp.path());
+    assert!(report.errors.iter().any(|error| error.contains("committed SDD policy")), "{:?}", report.errors);
+}
+
+#[test]
+fn archived_policy_audit_rejects_replayed_historical_archive() {
+    let (temp, _, archive) = policy_audit_archive_fixture(true);
+    policy_audit_git(temp.path(), &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let mut policy = load_policy(temp.path()).unwrap();
+    policy.meaningful_paths.push("unsigned/".to_string());
+    write_json(&temp.path().join(POLICY_PATH), &policy).unwrap();
+    fs::write(archive.join("unbound-note.md"), "Do not turn old authority into new scope.\n").unwrap();
+    policy_audit_git(temp.path(), &["add", "."]);
+    policy_audit_git(temp.path(), &["commit", "-m", "Unrelated edit of old archive and policy"]);
+    let report = audit_project(temp.path());
+    assert!(report.errors.iter().any(|error| error.contains("committed SDD policy changed without")), "{:?}", report.errors);
+}
+
+
+#[test]
+fn archived_policy_audit_rejects_unsigned_policy_disable() {
+    let (temp, _, _) = policy_audit_archive_fixture(true);
+    let mut policy = load_policy(temp.path()).unwrap();
+    policy.enabled = false;
+    write_json(&temp.path().join(POLICY_PATH), &policy).unwrap();
+    policy_audit_git(temp.path(), &["add", "."]);
+    policy_audit_git(temp.path(), &["commit", "-m", "Unauthorized policy disable"]);
+    let report = audit_project(temp.path());
+    assert!(report.errors.iter().any(|error| error.contains("current policy differs")), "{:?}", report.errors);
+}
+
+#[test]
+fn archived_policy_audit_does_not_read_unrelated_non_delivery_archives() {
+    let (temp, _, archive) = policy_audit_archive_fixture(true);
+    let unrelated = temp.path().join(ARCHIVE_PATH).join("2026-01-01-unrelated");
+    fs::create_dir_all(&unrelated).unwrap();
+    let mut state: ChangeRecord = serde_json::from_slice(&fs::read(archive.join("state.json")).unwrap()).unwrap();
+    state.id = "unrelated".into();
+    state.slug = "unrelated".into();
+    write_json(&unrelated.join("state.json"), &state).unwrap();
+    fs::write(unrelated.join("review.json"), "{invalid unrelated review").unwrap();
+    let report = audit_project(temp.path());
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    assert_eq!(report.checked_changes, 0);
+}
+
+
+#[test]
+fn archived_policy_audit_keeps_unreadable_roster_fail_closed() {
+    let (temp, _, _) = policy_audit_archive_fixture(true);
+    let unrelated = temp.path().join(ARCHIVE_PATH).join("2026-01-01-unrelated");
+    fs::create_dir_all(&unrelated).unwrap();
+    fs::write(unrelated.join("state.json"), "{invalid archived state").unwrap();
+    let report = audit_project(temp.path());
+    assert!(report.errors.iter().any(|error| error.contains("invalid archived change state")), "{:?}", report.errors);
+}

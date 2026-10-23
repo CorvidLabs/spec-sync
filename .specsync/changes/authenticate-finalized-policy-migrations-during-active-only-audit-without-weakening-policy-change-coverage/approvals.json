@@ -1,0 +1,43 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xGaspar",
+      "timestamp": 1792766683,
+      "digest": "e1fff4a72750badfd1f563301a2c7e37d80a25f0f8d566eaefd39be6873c8dbb",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "authenticate-finalized-policy-migrations-during-active-only-audit-without-weakening-policy-change-coverage",
+        "title": "Authenticate finalized policy migrations during active-only audit without weakening policy-change coverage",
+        "description": "Authenticate finalized policy migrations during active-only audit without weakening policy-change coverage",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/substantive_plan.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A valid finalized same-delivery policy migration remains recognized by active-only audit after all workspaces archive. Only authenticate relevant archive candidates and require their signed policy entry to match current policy bytes. Reject no-record, wrong-scope, forged/tampered, unrelated historical archive and later unsigned policy edits. Preserve active audit scope, strict enforcement, canonical coverage, existing approvals and every CI gate. Prove the original Algonest archived-policy failure and repair with regressions and negative controls. Submit upstream repair without merging, releasing or deploying."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Keep active-only audits scoped; finalized archives may prove an exact same-delivery policy obligation only after authenticating their existing immutable evidence. Never treat an unavailable Git blob as an intentionally deleted record, disable enforcement, rewrite prior approvals, or count unrelated archive claims as coverage.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "679748717a731f9b67dde8aeb59e70b26065f2fc71ccd3a18d4402bddf641dfa"
+      }
+    }
+  ],
+  "reopenings": []
+}

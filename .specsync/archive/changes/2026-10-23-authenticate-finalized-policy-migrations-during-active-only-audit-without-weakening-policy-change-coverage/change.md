@@ -1,6 +1,6 @@
 ---
 id: authenticate-finalized-policy-migrations-during-active-only-audit-without-weakening-policy-change-coverage
-state: implementing
+state: archived
 type: feature
 base_commit: 825c93e74663452e1927b59acee7fa0fed9ffc9c
 ---

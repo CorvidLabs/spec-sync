@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "authenticate-finalized-policy-migrations-during-active-only-audit-without-weakening-policy-change-coverage",
+  "implementation_commit": "66f58cbe7a32928666557f2e139cf15cd3de6916",
+  "implementation_tree": "4392abc941f3173f84d9de560c7bc480a1e82894",
+  "contract_digest": "e1fff4a72750badfd1f563301a2c7e37d80a25f0f8d566eaefd39be6873c8dbb",
+  "workspace_digest": "cbe9417d5c1cb66365ae6eba1cf53cba4f755adb914f020e08d1ca4d42f30d85",
+  "closing_digest": "de372cec1ad4458938e2db23452252528a441e4a3103fed3219257ba6a669178",
+  "review_digest": "bd8b6a40824bf6b4a3cfb6215f798bd90e4e6015e5499beed8fa7c63de59b906",
+  "finalization_digest": "fd879e894a17c442c25a9279be35253f8c47c3b2f27b4f0996d90844dcfd27c0",
+  "timestamp": 1792775712
+}

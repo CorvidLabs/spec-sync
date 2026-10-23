@@ -1,6 +1,6 @@
 ---
 id: patch-specsync-certificate-validation-to-reject-distrusted-intermediates
-state: approved
+state: implementing
 type: operations
 base_commit: 9366edcff596e4607b3ebb26ae5e59d4ebbbfd25
 ---

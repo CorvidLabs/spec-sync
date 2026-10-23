@@ -1,0 +1,35 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xGaspar",
+      "timestamp": 1792772227,
+      "digest": "d4ff9dfc5362d386ae911489c6e7fa11f1a0b2cc2cac01466919b00e32f34ad4",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "patch-specsync-certificate-validation-to-reject-distrusted-intermediates",
+        "title": "Patch SpecSync certificate validation to reject distrusted intermediates",
+        "description": "Patch SpecSync certificate validation to reject distrusted intermediates",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          "Cargo.lock"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Patch-level certificate-verifier dependency repair; existing TLS security expectations and CLI/API contracts are preserved. No application source, algorithms, features or canonical contract changes.",
+        "acceptance_criteria": [
+          "Update only locked rustls-webpki 0.103.15 to 0.103.16 and webpki-roots 1.0.7 to 1.0.10, with their registry checksums, to fix RUSTSEC-2026-0382 and RUSTSEC-2026-0381. Keep all other packages, dependency edges, enabled features, compiler/version pins, existing audit policy and the approved policy-audit implementation unchanged. Re-run required product/Trust/scoped/hosted checks, including the nine audit regressions and unchanged Algonest #48 candidate guard. No new ignores, fabricated approval, release, merge, deployment or consumer CI change."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    }
+  ],
+  "reopenings": []
+}

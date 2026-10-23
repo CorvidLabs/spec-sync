@@ -3721,28 +3721,50 @@ fn delivery_policy_is_covered(
     let base = pull_request_diff_base(root, records);
     let base_commit = comparison_base_commit(root, &base)
         .ok_or_else(|| "unable to resolve policy delivery base".to_string())?;
-    let changed = git_output_allow_empty(root, &["diff", "--name-only", "--relative", &base])
+    let mut changed: BTreeSet<String> = git_output_allow_empty(root, &["diff", "--name-only", "--relative", &base])
         .ok_or_else(|| "unable to inspect policy delivery paths".to_string())?
         .lines()
         .map(str::to_string)
         .collect();
-    let mut mismatches = Vec::new();
-    for archived in archived_records_in_delivery(root, &changed)? {
-        if !record_covers_path(&archived, POLICY_PATH) {
-            continue;
+    if !is_ci_project(root) {
+        for command in [
+            vec!["diff", "--name-only", "--relative"],
+            vec!["diff", "--cached", "--name-only", "--relative"],
+            vec!["ls-files", "--others", "--exclude-standard"],
+        ] {
+            let paths = git_output_allow_empty(root, &command)
+                .ok_or_else(|| "unable to inspect local policy delivery paths".to_string())?;
+            changed.extend(paths.lines().map(str::to_string));
         }
-        let workspace = find_change_dir(root, &archived.id)?;
-        let state_path = git_repo_relative_path(
-            root,
-            &portable_project_path(root, &workspace.join("state.json")),
-        )?;
-        let old_state = git_output_allow_empty(
-            root,
-            &["ls-tree", "--name-only", &base_commit, "--", &format!(":(literal){state_path}")],
-        ).ok_or_else(|| "unable to inspect policy archive introduction".to_string())?;
-        // Editing an old archive cannot turn an unrelated historical approval
-        // into authority over a new policy change.
-        if !old_state.is_empty() {
+    }
+    let candidates: Vec<_> = archived_records_in_delivery(root, &changed)?
+        .into_iter()
+        .filter(|record| record_covers_path(record, POLICY_PATH))
+        .collect();
+    if candidates.is_empty() {
+        return Ok(false);
+    }
+    // Compare identities from the immutable base roster, not directory names:
+    // moving a historical package must never create new policy authority.
+    // Only state identities are read here; unrelated closing evidence is not audited.
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
+    let paths = git_output_allow_empty(root, &[
+        "ls-tree", "--full-tree", "-r", "--name-only", "-z", &base_commit,
+        "--", &format!(":(literal){archive_root}/"),
+    ]).ok_or_else(|| "unable to inspect base policy archive roster".to_string())?;
+    let mut historical_ids = BTreeSet::new();
+    for path in paths.split('\0').filter(|path| path.ends_with("/state.json")) {
+        let content = git_output_allow_empty(root, &["show", &format!("{base_commit}:{path}")])
+            .ok_or_else(|| format!("unable to read base policy archive state {path}"))?;
+        let record: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|error| format!("invalid base policy archive state {path}: {error}"))?;
+        let id = record.get("id").and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("missing base policy archive identity {path}"))?;
+        historical_ids.insert(id.to_string());
+    }
+    let mut mismatches = Vec::new();
+    for archived in candidates {
+        if historical_ids.contains(&archived.id) {
             continue;
         }
         validate_archived_integrity_with_cache(root, &archived, cache)

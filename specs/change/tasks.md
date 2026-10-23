@@ -72,3 +72,5 @@ spec: change.spec.md
 - [x] Name the untracked paths a lifecycle commit may stage in the domain (`lifecycle_commit_scope`), excluding `affected_paths` prefixes and whole spec directories, and name the lock and transaction journal as never-committed runtime files.
 
 - [x] Add authenticated same-delivery finalized policy coverage with exact signed-entry matching and nine regression cases (REQ-change-110).
+
+- [x] Address PR #821 review with base archive identities across renames and local staged/untracked delivery coverage; add discriminating regressions.

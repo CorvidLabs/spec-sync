@@ -4129,15 +4129,30 @@ fn archived_policy_audit_rejects_unsigned_policy_disable() {
 
 #[test]
 fn archived_policy_audit_does_not_read_unrelated_non_delivery_archives() {
-    let (temp, _, archive) = policy_audit_archive_fixture(true);
-    let unrelated = temp.path().join(ARCHIVE_PATH).join("2026-01-01-unrelated");
-    fs::create_dir_all(&unrelated).unwrap();
-    let mut state: ChangeRecord = serde_json::from_slice(&fs::read(archive.join("state.json")).unwrap()).unwrap();
-    state.id = "unrelated".into();
-    state.slug = "unrelated".into();
-    write_json(&unrelated.join("state.json"), &state).unwrap();
-    fs::write(unrelated.join("review.json"), "{invalid unrelated review").unwrap();
-    let report = audit_project(temp.path());
+    let (temp, _, first_archive) = policy_audit_archive_fixture(true);
+    let root = temp.path();
+    // This damaged review belongs to the immutable base, not the local delivery.
+    fs::write(first_archive.join("review.json"), "{invalid unrelated review").unwrap();
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Historical unrelated review damage"]);
+    policy_audit_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let mut second = completed_no_spec_current_record(root);
+    second.affected_paths.push(POLICY_PATH.to_string());
+    save_change(root, &second).unwrap();
+    write_change_markdown(root, &second).unwrap();
+    let mut policy = load_policy(root).unwrap();
+    policy.meaningful_paths.push("new-approved-policy/".into());
+    write_json(&root.join(POLICY_PATH), &policy).unwrap();
+    approve_definition(root, &second.id, Some("Second fixture owner".into()), None).unwrap();
+    assert!(check_change(root, Some(&second.id)).unwrap().unwrap().passed);
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Current approved policy migration"]);
+    assert!(check_change(root, Some(&second.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &second.id, "Second fixture reviewer".into()).unwrap();
+    finalize_change(root, &second.id).unwrap();
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Finalize current migration"]);
+    let report = audit_project(root);
     assert!(report.errors.is_empty(), "{:?}", report.errors);
     assert_eq!(report.checked_changes, 0);
 }
@@ -4151,4 +4166,71 @@ fn archived_policy_audit_keeps_unreadable_roster_fail_closed() {
     fs::write(unrelated.join("state.json"), "{invalid archived state").unwrap();
     let report = audit_project(temp.path());
     assert!(report.errors.iter().any(|error| error.contains("invalid archived change state")), "{:?}", report.errors);
+}
+
+// PR #821 review regressions supplied by 0xLeif; fixture identities are synthetic.
+#[test]
+fn review_pr821_rejects_relocated_archive_after_two_genuine_policy_migrations() {
+    let (temp, first_id, first_archive) = policy_audit_archive_fixture(true);
+    let root = temp.path();
+    let first_policy = fs::read(root.join(POLICY_PATH)).unwrap();
+    policy_audit_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+
+    let mut second = completed_no_spec_current_record(root);
+    assert_ne!(first_id, second.id);
+    second.affected_paths.push(POLICY_PATH.to_string());
+    save_change(root, &second).unwrap();
+    write_change_markdown(root, &second).unwrap();
+    let mut newer_policy = load_policy(root).unwrap();
+    newer_policy.meaningful_paths.push("newer-approved-policy/".into());
+    write_json(&root.join(POLICY_PATH), &newer_policy).unwrap();
+    approve_definition(root, &second.id, Some("Second fixture scope owner".into()), None).unwrap();
+    assert!(check_change(root, Some(&second.id)).unwrap().unwrap().passed);
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Second approved policy migration"]);
+    assert!(check_change(root, Some(&second.id)).unwrap().unwrap().passed);
+    record_scoped_review(root, &second.id, "Second fixture reviewer".into()).unwrap();
+    finalize_change(root, &second.id).unwrap();
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Finalize second genuine policy migration"]);
+    policy_audit_git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    validate_archived_integrity(root, &load_change(root, &first_id).unwrap()).unwrap();
+    validate_archived_integrity(root, &load_change(root, &second.id).unwrap()).unwrap();
+    assert!(audit_project(root).errors.is_empty(), "Control: valid main must audit cleanly");
+
+    fs::write(root.join(POLICY_PATH), first_policy).unwrap();
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Unapproved rollback without renaming the old archive"]);
+    let control = audit_project(root);
+    assert!(control.errors.iter().any(|error| error.contains("committed SDD policy")),
+        "Control: rollback alone must be rejected: {control:?}");
+
+    let relocated = root.join(ARCHIVE_PATH).join("2099-01-01-relocated-policy");
+    fs::rename(first_archive, relocated).unwrap();
+    policy_audit_git(root, &["add", "."]);
+    policy_audit_git(root, &["commit", "-m", "Rename historical archive without obtaining new approval"]);
+    let report = audit_project(root);
+    assert!(report.errors.iter().any(|error| error.contains("committed SDD policy")),
+        "Renaming historical authority must not authorize the rollback: {report:?}");
+}
+
+#[test]
+fn review_pr821_accepts_authenticated_staged_archive() {
+    let (temp, id, _) = policy_audit_archive_fixture(true);
+    let root = temp.path();
+    policy_audit_git(root, &["reset", "--soft", "HEAD~1"]);
+    let archived = load_change(root, &id).unwrap();
+    validate_archived_integrity(root, &archived).unwrap();
+    let report = audit_project(root);
+    assert!(report.errors.is_empty(), "An authenticated staged archive should cover its policy: {report:?}");
+}
+
+#[test]
+fn review_pr821_accepts_authenticated_untracked_archive() {
+    let (temp, id, _) = policy_audit_archive_fixture(true);
+    let root = temp.path();
+    policy_audit_git(root, &["reset", "--mixed", "HEAD~1"]);
+    validate_archived_integrity(root, &load_change(root, &id).unwrap()).unwrap();
+    let report = audit_project(root);
+    assert!(report.errors.is_empty(), "Authenticated untracked archive: {report:?}");
 }

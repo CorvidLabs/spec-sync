@@ -21,7 +21,8 @@
     "README.md",
     "SECURITY.md",
     "site/src/content/",
-    "docs/releases/6.1.2.md"
+    "docs/releases/6.1.2.md",
+    ".github/scripts/test-validate-release-candidate.py"
   ],
   "no_spec_change": true,
   "no_spec_change_rationale": "Release package version, existing self-built candidate inputs and release documentation only; no runtime, canonical API, Action published default, risk or provenance policy changes.",

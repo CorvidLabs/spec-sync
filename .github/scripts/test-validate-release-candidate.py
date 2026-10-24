@@ -1716,11 +1716,11 @@ class PublishedActionDefaultTests(unittest.TestCase):
     def test_candidate_keeps_published_previous_stable_default(self) -> None:
         result = self.validate()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Validated release version 6.1.1", result.stdout)
+        self.assertIn("Validated release version 6.1.2", result.stdout)
 
     def test_premature_candidate_default_is_rejected(self) -> None:
-        self.set_default("6.1.1")
-        self.assert_rejected("action.yml default must be 6.1.0, found 6.1.1")
+        self.set_default("6.1.2")
+        self.assert_rejected("action.yml default must be 6.1.0, found 6.1.2")
 
     def test_arbitrary_unpublished_default_is_rejected(self) -> None:
         self.set_default("9.9.9")
@@ -1743,17 +1743,17 @@ class PublishedActionDefaultTests(unittest.TestCase):
 
     def test_ci_still_requires_candidate_binary(self) -> None:
         self.replace(
-            ".github/workflows/ci.yml", "          version: '6.1.1'",
+            ".github/workflows/ci.yml", "          version: '6.1.2'",
             "          version: '6.1.0'",
         )
-        self.assert_rejected("packaged Action consumer must use 6.1.1, found 6.1.0")
+        self.assert_rejected("packaged Action consumer must use 6.1.2, found 6.1.0")
 
     def test_trust_still_requires_candidate_binary(self) -> None:
         self.replace(
-            ".github/workflows/trust.yml", '          specsync-version: "6.1.1"',
+            ".github/workflows/trust.yml", '          specsync-version: "6.1.2"',
             '          specsync-version: "6.1.0"',
         )
-        self.assert_rejected("Trust candidate must use 6.1.1, found 6.1.0")
+        self.assert_rejected("Trust candidate must use 6.1.2, found 6.1.0")
 
     def test_ci_candidate_mirror_remains_required(self) -> None:
         self.replace(
@@ -1770,18 +1770,18 @@ class PublishedActionDefaultTests(unittest.TestCase):
 
     def test_package_and_lock_must_still_match(self) -> None:
         self.replace(
-            "Cargo.lock", 'name = "specsync"\nversion = "6.1.1"',
+            "Cargo.lock", 'name = "specsync"\nversion = "6.1.2"',
             'name = "specsync"\nversion = "6.1.0"',
         )
-        self.assert_rejected("Cargo.lock specsync version must be 6.1.1")
+        self.assert_rejected("Cargo.lock specsync version must be 6.1.2")
 
     def test_postpublication_default_requires_deliberate_advance(self) -> None:
         # This is an offline consistency control, not proof of publication.
         self.replace(
             ".github/scripts/validate-release-version.py",
-            'PUBLISHED_ACTION_DEFAULT = "6.1.0"', 'PUBLISHED_ACTION_DEFAULT = "6.1.1"',
+            'PUBLISHED_ACTION_DEFAULT = "6.1.0"', 'PUBLISHED_ACTION_DEFAULT = "6.1.2"',
         )
-        self.set_default("6.1.1")
+        self.set_default("6.1.2")
         result = self.validate()
         self.assertEqual(result.returncode, 0, result.stderr)
 

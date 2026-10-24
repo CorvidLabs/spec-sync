@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Advance the main Action binary default to published 6.1.1 after supported-platform asset and Action checks. Immutable `@v6.1.1` remains at its qualified candidate SHA with default 6.1.0; select `version: '6.1.1'` explicitly with that tag.
+## [6.1.2] - Unreleased
+
+### Fixed
+
+- Scoped verification failure diagnostics quote retry commands as literal output rather than evaluating shell syntax from a project path (#818).
+- Active-change audits recognize the matching finalized policy migration in native archives while retaining archive identity and accepted delivery-state checks (#821). This repairs archived-policy coverage; genuinely unfinished changes still need their own lifecycle completion.
+
+### Maintenance
+
+- Split private change and test modules without adding public features.
+- Prepare package and self-built candidate inputs at 6.1.2. The published Action download default stays at 6.1.1 until a separate post-publication asset and Action check.
+- The main Action wrapper already selects published 6.1.1 after supported-platform checks. Immutable `@v6.1.1` retains its historical 6.1.0 default; select `version: '6.1.1'` with that tag.
 
 ## [6.1.1] - 2026-10-14
 
@@ -3634,7 +3645,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.1...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.2...HEAD
+[6.1.2]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.1...v6.1.2
 [6.1.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.1.1
 [6.1.0]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.1.0
 [6.0.1]: https://github.com/CorvidLabs/spec-sync/releases/tag/v6.0.1

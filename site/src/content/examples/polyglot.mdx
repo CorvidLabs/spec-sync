@@ -8,6 +8,8 @@ description: "One spec format, three languages, one CI gate."
 order: 2
 ---
 
+> Candidate examples: use these 6.1.2 pins only after publication. The published release remains 6.1.1.
+
 A monorepo with a TypeScript frontend, a Python ML service, and a Rust binary can share a single spec format. `specsync` detects each language automatically and applies the right validation rules per crate or package.
 
 ## 1. Check the whole repo at once
@@ -76,9 +78,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v6.1.1
+      - uses: CorvidLabs/spec-sync@v6.1.2
         with:
-          version: '6.1.1'
+          version: '6.1.2'
           strict: true
 ```
 

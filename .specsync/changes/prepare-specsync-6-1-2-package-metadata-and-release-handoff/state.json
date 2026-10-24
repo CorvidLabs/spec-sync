@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "prepare-specsync-6-1-2-package-metadata-and-release-handoff",
+  "slug": "prepare-specsync-6-1-2-package-metadata-and-release-handoff",
+  "title": "Prepare SpecSync 6.1.2 package metadata and release handoff",
+  "description": "Prepare SpecSync 6.1.2 package metadata and release handoff",
+  "kind": "operations",
+  "state": "draft",
+  "base_commit": "f240d379b9f023f5766e5c9b39508eb84e03e2bb",
+  "created_at": 1792867275,
+  "updated_at": 1792867406,
+  "affected_specs": [],
+  "affected_paths": [
+    "Cargo.toml",
+    "Cargo.lock",
+    ".github/workflows/ci.yml",
+    ".github/workflows/trust.yml",
+    "CHANGELOG.md",
+    "README.md",
+    "SECURITY.md",
+    "site/src/content/",
+    "docs/releases/6.1.2.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Release package version, existing self-built candidate inputs and release documentation only; no runtime, canonical API, Action published default, risk or provenance policy changes.",
+  "acceptance_criteria": [
+    "All package and candidate version surfaces agree at 6.1.2 while the published Action default remains 6.1.1 and release qualification is explicitly pending."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

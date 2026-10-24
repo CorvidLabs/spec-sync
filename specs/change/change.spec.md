@@ -1,6 +1,6 @@
 ---
 module: change
-version: 146
+version: 147
 status: active
 files:
   - src/change.rs
@@ -551,3 +551,4 @@ Acceptance Criteria
 | 2026-10-10 | refuse-a-broken-policy-and-commit-the-archive-move: Refuse a broken policy and commit the archive move |
 | 2026-10-10 | parse-a-broken-policy-beside-a-baseline-and-retry-the-archive-commit: Parse a broken policy beside a baseline and retry the archive commit |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
+| 2026-10-23 | authenticate-finalized-policy-migrations-during-active-only-audit-without-weakening-policy-change-coverage: Authenticate finalized policy migrations during active-only audit without weakening policy-change coverage |

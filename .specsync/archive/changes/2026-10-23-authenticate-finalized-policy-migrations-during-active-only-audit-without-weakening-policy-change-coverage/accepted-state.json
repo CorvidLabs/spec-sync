@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "authenticate-finalized-policy-migrations-during-active-only-audit-without-weakening-policy-change-coverage",
+  "slug": "authenticate-finalized-policy-migrations-during-active-only-audit-without-weakening-policy-change-coverage",
+  "title": "Authenticate finalized policy migrations during active-only audit without weakening policy-change coverage",
+  "description": "Authenticate finalized policy migrations during active-only audit without weakening policy-change coverage",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "825c93e74663452e1927b59acee7fa0fed9ffc9c",
+  "created_at": 1792691384,
+  "updated_at": 1792775712,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change_tests/substantive_plan.rs",
+    "specs/change"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A valid finalized same-delivery policy migration remains recognized by active-only audit after all workspaces archive. Only authenticate relevant archive candidates and require their signed policy entry to match current policy bytes. Reject no-record, wrong-scope, forged/tampered, unrelated historical archive and later unsigned policy edits. Preserve active audit scope, strict enforcement, canonical coverage, existing approvals and every CI gate. Prove the original Algonest archived-policy failure and repair with regressions and negative controls. Submit upstream repair without merging, releasing or deploying."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "research",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Keep active-only audits scoped; finalized archives may prove an exact same-delivery policy obligation only after authenticating their existing immutable evidence. Never treat an unavailable Git blob as an intentionally deleted record, disable enforcement, rewrite prior approvals, or count unrelated archive claims as coverage.",
+    "public_contract": "yes"
+  }
+}

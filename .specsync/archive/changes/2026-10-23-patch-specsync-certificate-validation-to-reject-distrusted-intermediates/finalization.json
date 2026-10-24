@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "patch-specsync-certificate-validation-to-reject-distrusted-intermediates",
+  "implementation_commit": "8176e3c51e4bca5bbe6d03402bf53b949c36e51a",
+  "implementation_tree": "4407b190204e3c09083764093e65973e5a60d2b1",
+  "contract_digest": "d4ff9dfc5362d386ae911489c6e7fa11f1a0b2cc2cac01466919b00e32f34ad4",
+  "workspace_digest": "cbe9417d5c1cb66365ae6eba1cf53cba4f755adb914f020e08d1ca4d42f30d85",
+  "closing_digest": "31fbbed1d7969ad35cd26b0ecab49dba3932d98e8187060e321bf5c3ea83a3db",
+  "review_digest": "a3f94510cbcfbab28551d255c62500c415f1c35fb329a7052159991eeed3ab18",
+  "finalization_digest": "39657450c5c23ce949d09f941837382435616c499846109f6080b969772b6b40",
+  "timestamp": 1792775854
+}

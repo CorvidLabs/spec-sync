@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-check-fix-export-rows-in-one-contiguous-table-for-issue-768",
+  "implementation_commit": "06a4600a191e579a6d028593aadf5a528be570e4",
+  "implementation_tree": "6c71bb6157aafc6f1b72973e6c8a691377e4f8d1",
+  "contract_digest": "d9de950bfd7163ecac055377e44b0fa71cc66e42a5b8a895baca7e7eebf1af30",
+  "workspace_digest": "7d346ae72189100ac15148e4279586fbe57c496dcb71139d9182e410861beb17",
+  "closing_digest": "4baf8b7347342cc97981c0d0915af2dd08928cb9c2d88009c593eef240b28485",
+  "review_digest": "b17edbeda2be046a75394dec2c1939070fb55440006218c739c38032502d966f",
+  "finalization_digest": "2f6e858877bd99277e1ba04c359ac2896271bfe933476ae557c495a03e2306c7",
+  "timestamp": 1793381509
+}

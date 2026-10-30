@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-check-fix-export-rows-in-one-contiguous-table-for-issue-768",
+  "reviewer": "corvid-agent",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "06a4600a191e579a6d028593aadf5a528be570e4",
+  "contract_digest": "d9de950bfd7163ecac055377e44b0fa71cc66e42a5b8a895baca7e7eebf1af30",
+  "execution_digest": "af8c4a0c291a4a2ef333916987dcd3618bacd4a3c174a6c92fdb79a7161bf957",
+  "workspace_digest": "7d346ae72189100ac15148e4279586fbe57c496dcb71139d9182e410861beb17",
+  "timestamp": 1793381501
+}

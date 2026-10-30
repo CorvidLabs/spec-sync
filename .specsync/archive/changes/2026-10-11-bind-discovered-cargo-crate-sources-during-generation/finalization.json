@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "bind-discovered-cargo-crate-sources-during-generation",
+  "implementation_commit": "2237446565b99d90af1b95c82d8f750271bab8a8",
+  "implementation_tree": "fea34a17fc84056cade2adca5eff72584f7f8501",
+  "contract_digest": "e7034b2dfa95c2328ef07dcbe11d2c15e2da5a7c1720ea06edddcfa286bcfa28",
+  "workspace_digest": "1ca19e899731d2bebf18f90143d1cdcef70cacab2e210f4b5895c2dba241a101",
+  "closing_digest": "6725e986988e9efdffc6a851d7201948a4e4f6d4e7f8b666a7e56418e1752ee6",
+  "review_digest": "fafca70ea6dcb3effa05c726b38717be81ec3cd19af2c0cbdddda86251e082ba",
+  "finalization_digest": "7838d529c156bb767624abfb11730b08e5175f6cb767a91e4e8d6cd3dc2d80df",
+  "timestamp": 1791756812
+}

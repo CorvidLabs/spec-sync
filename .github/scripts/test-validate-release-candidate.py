@@ -9,6 +9,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -1633,6 +1634,156 @@ class PromotionAndReleaseTests(unittest.TestCase):
         mixed_result = self.fixture.run_cli("release", *mixed_arguments)
         self.assertNotEqual(mixed_result.returncode, 0)
         self.assertIn("mixed across workflow revisions", mixed_result.stderr)
+
+
+class PublishedActionDefaultTests(unittest.TestCase):
+    """Exercise the real offline version validator across release timing states."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        files = [
+            "Cargo.toml", "Cargo.lock", "README.md", "SECURITY.md", "CHANGELOG.md",
+            "action.yml", ".github/scripts/validate-release-version.py",
+            ".github/workflows/ci.yml", ".github/workflows/pages.yml",
+            ".github/workflows/release.yml", ".github/workflows/trust.yml",
+        ]
+        files.extend(
+            str(path.relative_to(ROOT))
+            for path in (ROOT / "site/src/content").rglob("*")
+            if path.suffix in {".md", ".mdx"}
+        )
+        for relative in files:
+            target = self.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, target)
+        # The fixture models the candidate window independently of the current
+        # Action default. Tests execute the production validator, not a model.
+        validator = self.root / ".github/scripts/validate-release-version.py"
+        content = validator.read_text(encoding="utf-8")
+        content, count = re.subn(
+            r'(?m)^PUBLISHED_ACTION_DEFAULT = "[^\n"]+"$',
+            'PUBLISHED_ACTION_DEFAULT = "6.1.0"', content, count=1,
+        )
+        self.assertEqual(count, 1)
+        validator.write_text(content, encoding="utf-8")
+        self.set_default("6.1.0")
+
+    def replace(self, relative: str, before: str, after: str) -> None:
+        path = self.root / relative
+        content = path.read_text(encoding="utf-8")
+        self.assertIn(before, content, f"fixture anchor missing in {relative}")
+        path.write_text(content.replace(before, after, 1), encoding="utf-8")
+
+    def set_default(self, version: str) -> None:
+        path = self.root / "action.yml"
+        content = path.read_text(encoding="utf-8")
+        updated, count = re.subn(
+            r"(?m)^    default: '[^']+'$",
+            f"    default: '{version}'",
+            content,
+            count=1,
+        )
+        self.assertEqual(count, 1)
+        path.write_text(updated, encoding="utf-8")
+        path = self.root / "site/src/content/docs/integrations/github-action.md"
+        content = path.read_text(encoding="utf-8")
+        updated, count = re.subn(
+            r"(?m)^(\| `version` \| )`[^`]+`( \|)",
+            lambda match: f"{match[1]}`{version}`{match[2]}",
+            content,
+            count=1,
+        )
+        self.assertEqual(count, 1)
+        path.write_text(updated, encoding="utf-8")
+
+    def validate(self) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-S", ".github/scripts/validate-release-version.py"],
+            cwd=self.root,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=45,
+        )
+
+    def assert_rejected(self, expected: str) -> None:
+        result = self.validate()
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn(expected, result.stderr)
+
+    def test_candidate_keeps_published_previous_stable_default(self) -> None:
+        result = self.validate()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Validated release version 6.1.1", result.stdout)
+
+    def test_premature_candidate_default_is_rejected(self) -> None:
+        self.set_default("6.1.1")
+        self.assert_rejected("action.yml default must be 6.1.0, found 6.1.1")
+
+    def test_arbitrary_unpublished_default_is_rejected(self) -> None:
+        self.set_default("9.9.9")
+        self.assert_rejected("action.yml default must be 6.1.0, found 9.9.9")
+
+    def test_latest_default_is_rejected(self) -> None:
+        self.set_default("latest")
+        self.assert_rejected("action.yml default must be 6.1.0, found latest")
+
+    def test_missing_default_is_rejected(self) -> None:
+        self.replace("action.yml", "    default: '6.1.0'\n", "")
+        self.assert_rejected("action.yml default must be 6.1.0, found None")
+
+    def test_docs_default_drift_is_rejected(self) -> None:
+        self.replace(
+            "site/src/content/docs/integrations/github-action.md",
+            "| `version` | `6.1.0` |", "| `version` | `6.1.1` |",
+        )
+        self.assert_rejected("Action docs default must be 6.1.0, found '6.1.1'")
+
+    def test_ci_still_requires_candidate_binary(self) -> None:
+        self.replace(
+            ".github/workflows/ci.yml", "          version: '6.1.1'",
+            "          version: '6.1.0'",
+        )
+        self.assert_rejected("packaged Action consumer must use 6.1.1, found 6.1.0")
+
+    def test_trust_still_requires_candidate_binary(self) -> None:
+        self.replace(
+            ".github/workflows/trust.yml", '          specsync-version: "6.1.1"',
+            '          specsync-version: "6.1.0"',
+        )
+        self.assert_rejected("Trust candidate must use 6.1.1, found 6.1.0")
+
+    def test_ci_candidate_mirror_remains_required(self) -> None:
+        self.replace(
+            ".github/workflows/ci.yml", "          download-base-url: 'http://127.0.0.1:8765'\n", "",
+        )
+        self.assert_rejected("packaged Action consumer must use the runner-local release mirror")
+
+    def test_trust_candidate_mirror_remains_required(self) -> None:
+        self.replace(
+            ".github/workflows/trust.yml",
+            "          specsync-download-base-url: file://${{ runner.temp }}/specsync-trust-mirror\n", "",
+        )
+        self.assert_rejected("Trust candidate must use the runner-local release mirror")
+
+    def test_package_and_lock_must_still_match(self) -> None:
+        self.replace(
+            "Cargo.lock", 'name = "specsync"\nversion = "6.1.1"',
+            'name = "specsync"\nversion = "6.1.0"',
+        )
+        self.assert_rejected("Cargo.lock specsync version must be 6.1.1")
+
+    def test_postpublication_default_requires_deliberate_advance(self) -> None:
+        # This is an offline consistency control, not proof of publication.
+        self.replace(
+            ".github/scripts/validate-release-version.py",
+            'PUBLISHED_ACTION_DEFAULT = "6.1.0"', 'PUBLISHED_ACTION_DEFAULT = "6.1.1"',
+        )
+        self.set_default("6.1.1")
+        result = self.validate()
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

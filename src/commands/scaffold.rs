@@ -48,6 +48,7 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
     // name-matched files, then the single-source-file fallback.
     let mut module_files = generator::find_files_for_module(root, module_name, &config);
     if module_files.is_empty()
+        && !config.modules.contains_key(module_name)
         && let Some(single) = generator::find_single_source_fallback(root, &config)
     {
         eprintln!(
@@ -96,6 +97,41 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn creation_source_selection_explicit_empty_mapping_blocks_command_fallback() {
+        for scaffold in [false, true] {
+            let temp = tempfile::tempdir().unwrap();
+            let root = temp.path();
+            fs::write(root.join("lib.rs"), "pub fn library() {}\n").unwrap();
+            fs::create_dir(root.join(".specsync")).unwrap();
+            let mut config = crate::types::SpecSyncConfig {
+                source_dirs: vec!["lib.rs".into()],
+                ..crate::types::SpecSyncConfig::default()
+            };
+            config.modules.insert(
+                "demo".into(),
+                crate::types::ModuleDefinition {
+                    files: vec!["missing.rs".into()],
+                    depends_on: vec![],
+                    owns: vec![],
+                },
+            );
+            fs::write(
+                root.join(".specsync/config.toml"),
+                crate::config::config_to_toml(&config),
+            )
+            .unwrap();
+            if scaffold {
+                cmd_scaffold(root, "demo", None, None);
+            } else {
+                cmd_add_spec(root, "demo");
+            }
+            let spec = fs::read_to_string(root.join("specs/demo/demo.spec.md")).unwrap();
+            assert!(spec.contains("files: []"), "{spec}");
+            assert!(!spec.contains("  - lib.rs"), "{spec}");
+        }
+    }
 
     #[test]
     fn add_spec_omits_module_javascript_test_sources() {
@@ -200,6 +236,7 @@ pub fn cmd_scaffold(
     // claim causes duplicate spec ownership errors at check time.
     let mut module_files = generator::find_files_for_module(root, module_name, &config);
     if module_files.is_empty()
+        && !config.modules.contains_key(module_name)
         && let Some(single) = generator::find_single_source_fallback(root, &config)
     {
         eprintln!(

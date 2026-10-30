@@ -13,6 +13,9 @@ spec: hooks.spec.md
 
 ## Done
 
+- [x] Keep generated pre-commit commands and failure diagnostics safe for shell
+      metacharacters in project paths, with executable regression controls (#782).
+
 - [x] Claude (CLAUDE.md) hook install/uninstall/status
 - [x] Cursor (.cursorrules) hook install/uninstall/status
 - [x] Copilot (.github/copilot-instructions.md) hook install/uninstall/status

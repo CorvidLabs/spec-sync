@@ -1,6 +1,6 @@
 ---
 module: cmd_new
-version: 9
+version: 11
 status: stable
 files:
   - src/commands/new.rs
@@ -28,7 +28,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 
 ## Invariants
 
-1. Auto-detects source files by scanning source dirs for module name matches; when nothing matches and the project has exactly one non-test source file (e.g. only `src/lib.rs`), that file is used as the module's source
+1. Uses shared confined source selection for exact regular files and directory name matches; explicit module mappings take precedence, including empty mappings. When no explicit mapping or name match exists, exactly one distinct eligible source file is used, with overlapping selections deduplicated.
 2. Extracts exports to pre-populate Public API tables via `generator::generate_spec`
 3. `--full` generates companion files (tasks.md, context.md, requirements.md, testing.md) via `generator::generate_companion_files_for_spec()`; design.md is included only when `companions.design` is enabled in config
 4. Emits the same seven-section skeleton as `add-spec` / `generate`; Change Log dates come from the shared generator, not a private `chrono_lite_today()` helper
@@ -66,8 +66,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 | Module | What is used |
 |--------|-------------|
 | config | `load_config` |
-| exports | `has_configured_extension`, `is_test_file` |
-| generator | `generate_spec`, `collect_exports_for_files`, `generate_companion_files_for_spec`, `find_single_source_fallback` |
+| generator | `generate_spec`, `collect_exports_for_files`, `generate_companion_files_for_spec`, `find_new_module_sources` |
 | commands | `validate_scaffold_module_name`, `check_case_collision` |
 
 #### Consumed By
@@ -80,6 +79,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 
 | Date | Change |
 |------|--------|
+| 2026-10-14 | Approved exact-source follow-up: confined exact-file selection, shared filters, overlap deduplication and explicit-mapping precedence; no parent-scan widening |
 | 2026-10-10 | Add `cmd_new.3md` beside the spec. The first plane is context and later planes are lessons. `context.md` stays. |
 | 2026-06-11 | Fall back to the project's single source file when no name match exists (README quickstart flow); warn instead of silently writing an empty `files:` list |
 | 2026-06-07 | Replace unfinished-marker generated rows with review prompts |
@@ -90,3 +90,4 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 | 2026-08-15 | CHG-0128-every-command-that-derives-a-module-s-api-must-honour-the-configured-export-leve: Every command that derives a module's API must honour the configured export level and parse mode, so check, score, new, generate, scaffold and diff cannot disagree about what the API is |
 | 2026-09-09 | close-the-specsync-6-0-0-p1-release-defects-found-in-overnight-proving: Close the SpecSync 6.0.0 P1 release defects found in overnight proving |
 | 2026-09-09 | stop-check-fix-from-overwriting-fenced-public-api-examples-and-restore-git-discovery-for-a-project-inside-a-repository: Stop check --fix from overwriting fenced Public API examples and restore git discovery for a project inside a repository subdirectory |
+| 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |

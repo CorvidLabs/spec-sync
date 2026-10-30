@@ -1,0 +1,104 @@
+{
+  "timestamp": 1791757303,
+  "commit": "28779de1d407a5c35605298af92b3663a97709eb",
+  "contract_digest": "a8277ab3be2772b21d1f66db173c2421b41495fba181daed32fb0b839b4fd5bc",
+  "execution_digest": "f0a397341fc4e542c77e5874c8e50471f862137a77d4214370629832de36f291",
+  "workspace_digest": "1ca19e899731d2bebf18f90143d1cdcef70cacab2e210f4b5895c2dba241a101",
+  "acceptance_input_digest": "6571bd05f156d53f5aed2480fad132a08340a0c6ef647270a7708eb8488a5654",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "specs/manifest/context.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "414ea739e55736aaf22fe5c9823ee0340eb6d50270cd2a61ae07394f7d34408d",
+        "entry_digest": "8abc3a137553f8555bcf7a0011076b41e38b7e460cdc3ba4f6beadf5b5cf6bb5",
+        "owners": [
+          "manifest"
+        ]
+      },
+      {
+        "path": "specs/manifest/manifest.3md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "8c21ec401ed8336e127e079f35be8ff3118386a71b8bf4b1cda2dfa820f7b075",
+        "entry_digest": "52e1673bdc63270c562ef5f157930e2a7b2c0a63e2f29f3756c04a227b10486b",
+        "owners": [
+          "manifest"
+        ]
+      },
+      {
+        "path": "specs/manifest/manifest.spec.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "cd76764913280ad2d3710d94d7c16dd973a7cd73a30037a83fdd4d177089319d",
+        "entry_digest": "0a04f520d5f759e7e29b3a6b35052dcbd7b2a6330d67da2192c9a82333e6cb8c",
+        "owners": [
+          "manifest"
+        ]
+      },
+      {
+        "path": "specs/manifest/requirements.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "9b3933836c6fb81caf0dc9fa4d1e2d9d76872a256deac71184922b9b21736e6c",
+        "entry_digest": "ed8669c6a5b265a73b1a1077014cfe1150f1ec1f0ff424f75dfeca2fc71b08ef",
+        "owners": [
+          "manifest"
+        ]
+      },
+      {
+        "path": "specs/manifest/tasks.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c6c121af14f1e14a473421e4995962cc6cc32a06ccd57d42c7cd623b26fe42f7",
+        "entry_digest": "da8167347efefbeb69efc33da843b7718f288ff9b97859652bc33a794ccee581",
+        "owners": [
+          "manifest"
+        ]
+      },
+      {
+        "path": "specs/manifest/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "cd414ce79d5e635191b489a6013196aca6e1077a97441a9436f011f4b71c6213",
+        "entry_digest": "e2b02f818a74694ac99a845b98608e2dd9af8754ab28e879a03728d2bfddae9b",
+        "owners": [
+          "manifest"
+        ]
+      },
+      {
+        "path": "src/manifest/max_gradle_manifest_bytes.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "57cc99865c219fb5faa079aa44bea1c96bc14a4561898cae309fb2aba5b917b7",
+        "entry_digest": "29db4325231dac69413cc8547ff5d9e896ccfe423caab8c3624f5a4c3e8bc2c7",
+        "owners": [
+          "manifest"
+        ]
+      },
+      {
+        "path": "src/manifest/tests.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "6f41785fc45692063f10f61c07ca3070a98fd35bf06c25e3b7f39b5fcebc0b4d",
+        "entry_digest": "6f28582f0924904aca9eb90c1633330eba8a9c9a382e6502b67258ead3b94866",
+        "owners": [
+          "manifest"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec manifest",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-manifest-020"
+  ]
+}

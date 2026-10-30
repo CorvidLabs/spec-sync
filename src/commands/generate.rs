@@ -262,7 +262,9 @@ fn cmd_generate_batch(
         } else {
             // Check if a spec already exists
             let specs_dir = root.join(&config.specs_dir);
-            let spec_file = specs_dir.join(module).join(format!("{module}.spec.md"));
+            let spec_file = specs_dir
+                .join(module)
+                .join(crate::generator::module_spec_filename(module));
             if spec_file.exists() {
                 already_specced.push(module.clone());
             } else {

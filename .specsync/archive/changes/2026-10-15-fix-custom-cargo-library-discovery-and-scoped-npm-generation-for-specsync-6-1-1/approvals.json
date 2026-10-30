@@ -1,0 +1,239 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791810843,
+      "digest": "fb8f26f2258887428f16fd85f237011987e6ad36ed95ee320c69d9c89d444ee8",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1",
+        "title": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+        "description": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+        "kind": "feature",
+        "affected_specs": [
+          "cli",
+          "generator",
+          "github",
+          "manifest"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "site/src/content/docs",
+          "src/generator.rs",
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs",
+          "tests/integration/commands/specsync_process.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Custom Cargo library target paths bind to the package module in default, JSON and named generation; scoped npm package names generate a truthful spec and cannot silently return success with no output; regression tests preserve existing owners and confinement; prepare version 6.1.1 and qualify the same immutable candidate on Ubuntu and macOS before Cargo or Homebrew publication."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Preserve explicit mappings, existing spec owners, exact target precedence and retained-root confinement. Qualification must identify one immutable SHA on Ubuntu and macOS; do not publish Cargo or Homebrew before qualification.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli": "63449d68ac43329dea0d4055bd19e991e8c8847364f84268be5c5287a95f09e7",
+        "generator": "50dfde91f8d21b218d302d15965e209ce00a78d12fde40aa21825b34dd7bd5bb",
+        "github": "1d8dfb375cac9087779e12f10667e800e97c66f6708de2f02ddc375f60c1e0e6",
+        "manifest": "764798b7ad35f059fec6187bbdd6b75509e7beb6d6e5dd208438681f5d4d584c"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791810886,
+      "digest": "fb8f26f2258887428f16fd85f237011987e6ad36ed95ee320c69d9c89d444ee8",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1",
+        "title": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+        "description": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+        "kind": "feature",
+        "affected_specs": [
+          "cli",
+          "generator",
+          "github",
+          "manifest"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "site/src/content/docs",
+          "src/generator.rs",
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs",
+          "tests/integration/commands/specsync_process.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Custom Cargo library target paths bind to the package module in default, JSON and named generation; scoped npm package names generate a truthful spec and cannot silently return success with no output; regression tests preserve existing owners and confinement; prepare version 6.1.1 and qualify the same immutable candidate on Ubuntu and macOS before Cargo or Homebrew publication."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Preserve explicit mappings, existing spec owners, exact target precedence and retained-root confinement. Qualification must identify one immutable SHA on Ubuntu and macOS; do not publish Cargo or Homebrew before qualification.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli": "e85df650f57c6790ca5e8e1f7d2544461b34daea52fff6cce4f321b1e37572b4",
+        "generator": "50dfde91f8d21b218d302d15965e209ce00a78d12fde40aa21825b34dd7bd5bb",
+        "github": "1d8dfb375cac9087779e12f10667e800e97c66f6708de2f02ddc375f60c1e0e6",
+        "manifest": "764798b7ad35f059fec6187bbdd6b75509e7beb6d6e5dd208438681f5d4d584c"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1791811156,
+      "digest": "d490c6c3069089004e3266775ddf9cde97a276164ff48a539bccd94ac354fdee",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1",
+        "title": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+        "description": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+        "kind": "feature",
+        "affected_specs": [
+          "cli",
+          "generator",
+          "github",
+          "manifest"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "site/src/content/docs",
+          "site/src/content/examples",
+          "src/generator.rs",
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs",
+          "tests/integration/commands/specsync_process.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Custom Cargo library target paths bind to the package module in default, JSON and named generation; scoped npm package names generate a truthful spec and cannot silently return success with no output; regression tests preserve existing owners and confinement; prepare version 6.1.1 and qualify the same immutable candidate on Ubuntu and macOS before Cargo or Homebrew publication."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Preserve explicit mappings, existing spec owners, exact target precedence and retained-root confinement. Qualification must identify one immutable SHA on Ubuntu and macOS; do not publish Cargo or Homebrew before qualification.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli": "e85df650f57c6790ca5e8e1f7d2544461b34daea52fff6cce4f321b1e37572b4",
+        "generator": "50dfde91f8d21b218d302d15965e209ce00a78d12fde40aa21825b34dd7bd5bb",
+        "github": "92751ffdbed2e4a4e8a9ef1b2c64a15fdf86e11f3f8fcc7ca9200e4e19153956",
+        "manifest": "8ce450ffb63988cd5e034a697004da44e31322317adb290e85633e8a4ac97ad1"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1792021760,
+      "digest": "1911de63b622aa3d840518026b45265115bf1a6ece1a8e4a1469f241e401212c",
+      "note": "Leif explicitly accepted the prepared exact-file Cargo/workspace ownership and validator scope and tested implementation on 2026-10-14: Accept the tested fix; proceed through the release gates. Prior approval history preserved; hosted CI and Ubuntu/macOS qualification still required before release.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1",
+        "title": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+        "description": "Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1",
+        "kind": "feature",
+        "affected_specs": [
+          "cli",
+          "generator",
+          "github",
+          "manifest",
+          "validator"
+        ],
+        "affected_paths": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "site/src/content/docs",
+          "site/src/content/examples",
+          "specs/validator/",
+          "src/generator.rs",
+          "src/manifest/max_gradle_manifest_bytes.rs",
+          "src/manifest/tests.rs",
+          "src/validator/",
+          "tests/integration/commands/specsync_process.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Custom Cargo library target paths bind to the package module in default, JSON and named generation; scoped npm package names generate a truthful spec and cannot silently return success with no output; regression tests preserve existing owners and confinement; prepare version 6.1.1 and qualify the same immutable candidate on Ubuntu and macOS before Cargo or Homebrew publication.",
+          "Declared project-root Cargo lib.rs/main.rs targets are bounded exact-file scan selections, not recursive scans of the project root. Literal resolved workspace members preserve whole-member boundaries and exact cross-member target ownership. Checked validator reads preserve no-follow file identity, confinement, filters and existing input budgets. Explicit directory selections retain their stated scope; workspace glob expansion is not added. Configuration and release documentation require a 6.1.1 reader for exact-file selections because 6.1.0 skips them even when its reduced coverage reports 100%."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Preserve explicit mappings, existing spec owners, exact target precedence and retained-root confinement. Qualification must identify one immutable SHA on Ubuntu and macOS; do not publish Cargo or Homebrew before qualification.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cli": "e85df650f57c6790ca5e8e1f7d2544461b34daea52fff6cce4f321b1e37572b4",
+        "generator": "50dfde91f8d21b218d302d15965e209ce00a78d12fde40aa21825b34dd7bd5bb",
+        "github": "92751ffdbed2e4a4e8a9ef1b2c64a15fdf86e11f3f8fcc7ca9200e4e19153956",
+        "manifest": "6bd110b82cd260030f43b4d07a0161483f8f51473bdc73dddc9c25b96d899ffc",
+        "validator": "23b0d4c2268164c33f8d01bdd5bda6e17f872ef6dc50674a33c83294a00184c4"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1792025998,
+      "digest": "3d9cf1916b013b2fc15cb34f7ef41809b30dc2201d9b7cc879150b148291a12c",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

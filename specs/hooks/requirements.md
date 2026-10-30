@@ -15,6 +15,10 @@ spec: hooks.spec.md
 
 ## Acceptance Criteria
 
+- Generated pre-commit hooks treat the selected project directory as literal
+  data in commands and diagnostics, preserving checker success/failure without
+  executing shell syntax embedded in the directory name.
+
 - Six targets supported: Claude, Cursor, Copilot, Agents, Precommit, ClaudeCodeHook
 - Installation is idempotent — re-installing an already-installed hook is a no-op returning Ok(false)
 - Agent instructions are appended to existing files, not overwritten
@@ -82,4 +86,3 @@ Installed hook instruction snippets SHALL tell an agent that when `<module>.3md`
 Acceptance Criteria
 - Each hook snippet that describes finishing work mentions a later plane when `<module>.3md` exists.
 - The snippets do not say that `context.md` is the only lesson file once `<module>.3md` exists.
-

@@ -80,6 +80,12 @@ all other acquisition and replacement checks remain mandatory.
 The adversarial integration matrix lives in `tests/integration/mcp.rs`; its local write-enabled
 process helper and the shared `mcp_request` helper both require a successful server exit before
 parsing stdout.
+Unit tests keep their function names and now live under the module that owns the behavior:
+`mcp::<module>::tests::<name>` instead of `mcp::tests::<name>`. Shared fixtures live in
+`mcp::test_support`. `mcp::gh_process_absence::mcp_sources_do_not_construct_a_gh_process` reads
+every MCP source file, including the historical paths the GitHub scan already includes.
+`protocol` and `snapshot` tests import `std::fs` themselves so they still compile in a release
+profile, where the parent modules' debug-only `std::fs` imports are off.
 Focused MCP source and integration coverage includes exact envelope and resource validation,
 explicit Git repository configuration, generation-failure reporting,
 Windows read/write junctions, identity-bound capability acquisition, cycle/bound and actual-byte budgets, bounded

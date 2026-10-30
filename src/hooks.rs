@@ -268,17 +268,28 @@ fn pre_commit_block(root: &Path) -> Result<String, String> {
     let (key, repository_root, project_root) = hook_project_identity(root)?;
     let begin = format!("{PRE_COMMIT_BEGIN_PREFIX}{key} >>>");
     let end = format!("{PRE_COMMIT_END_PREFIX}{key} <<<");
+    let scoped_check = format!(
+        "specsync --root {} check",
+        shell_single_quote(&project_root)
+    );
+    let failure_hint = format!("  Run '{scoped_check}' to see details.");
     let body = PRE_COMMIT_HOOK
         .lines()
         .skip(1)
         .collect::<Vec<_>>()
         .join("\n")
-        .replace(
-            "specsync check",
+        .replacen(
+            "    if ! specsync check; then",
+            &format!("    if ! {scoped_check}; then"),
+            1,
+        )
+        .replacen(
+            "        echo \"  Run 'specsync check' to see details.\"",
             &format!(
-                "specsync --root {} check",
-                shell_single_quote(&project_root)
+                "        printf '%s\\n' {}",
+                shell_single_quote(&failure_hint)
             ),
+            1,
         );
     Ok(format!(
         "{begin}\nif [ \"$(git rev-parse --show-toplevel 2>/dev/null)\" = {} ]; then\n{}\nfi\n{end}",
@@ -1262,6 +1273,112 @@ mod tests {
         assert!(
             !content.contains("check --strict"),
             "generated hook must not hardcode --strict: {content}"
+        );
+    }
+
+    #[cfg(unix)]
+    fn assert_generated_hook_preserves_literal_project_path(name: &str) {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = setup();
+        let project = tmp.path().join(name);
+        fs::create_dir(&project).unwrap();
+        assert!(
+            Command::new("git")
+                .args(["init", "--quiet"])
+                .arg(&project)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(&project)
+                .args(["config", "core.hooksPath", ".git/hooks"])
+                .status()
+                .unwrap()
+                .success()
+        );
+        let project = project.canonicalize().unwrap();
+        assert!(install_hook(&project, HookTarget::Precommit).unwrap());
+
+        let bin = tmp.path().join("bin");
+        fs::create_dir(&bin).unwrap();
+        let fake = bin.join("specsync");
+        fs::write(
+            &fake,
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOOK_ARGV\"\nexit \"$HOOK_EXIT\"\n",
+        )
+        .unwrap();
+        fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
+        let mut paths = vec![bin];
+        paths.extend(std::env::split_paths(
+            &std::env::var_os("PATH").unwrap_or_default(),
+        ));
+        let path = std::env::join_paths(paths).unwrap();
+        let arguments = tmp.path().join("arguments");
+
+        for check_exit in [0, 1] {
+            let output = Command::new("sh")
+                .arg(project.join(".git/hooks/pre-commit"))
+                .current_dir(&project)
+                .env("PATH", &path)
+                .env("HOOK_ARGV", &arguments)
+                .env("HOOK_EXIT", check_exit.to_string())
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(check_exit),
+                "generated hook failed for {name:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert_eq!(
+                fs::read_to_string(&arguments).unwrap(),
+                format!("--root\n{}\ncheck\n", project.display()),
+                "hook must pass the literal scoped project root"
+            );
+            for marker in ["HOOK_DOLLAR_MARKER", "HOOK_BACKTICK_MARKER"] {
+                assert!(
+                    !project.join(marker).exists(),
+                    "diagnostic executed directory-name content for {name:?}"
+                );
+            }
+            let stdout = String::from_utf8(output.stdout).unwrap();
+            assert_eq!(stdout.contains("specs have errors"), check_exit == 1);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generated_hook_preserves_ordinary_project_path() {
+        assert_generated_hook_preserves_literal_project_path("ordinary");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generated_hook_preserves_spaced_project_path() {
+        assert_generated_hook_preserves_literal_project_path("space project");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generated_hook_preserves_single_quoted_project_path() {
+        assert_generated_hook_preserves_literal_project_path("quote'project");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generated_hook_does_not_execute_dollar_substitution() {
+        assert_generated_hook_preserves_literal_project_path("dollar-$(touch HOOK_DOLLAR_MARKER)");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn generated_hook_does_not_execute_backtick_substitution() {
+        assert_generated_hook_preserves_literal_project_path(
+            "backtick-`touch HOOK_BACKTICK_MARKER`",
         );
     }
 

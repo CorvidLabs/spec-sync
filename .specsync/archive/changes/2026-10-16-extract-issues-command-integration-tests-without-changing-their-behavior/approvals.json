@@ -1,0 +1,45 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1792157579,
+      "digest": "8ce3e0476c62d399bf2afb4d122110071123e0c99cd2e89fd2a65ccf1aa65679",
+      "note": "Leif directly answered the pending explicit PR818/819/820 scope-approval question on2026-10-16: \"Yes I approval all!!! Omfg if you are 95% I approval… test this all locally and fucking fix it\". Genuine human definition-scope approval; actual local qualification, independent review, current lifecycle/protection gates and evidence remain required. Source receipt: _plans/2026-10-15-grok-fanout/receipts/ci-cleanup-human-approval.json. No human implementation-review event or passing tests are fabricated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "extract-issues-command-integration-tests-without-changing-their-behavior",
+        "title": "Extract issues command integration tests without changing their behavior",
+        "description": "Extract issues command integration tests without changing their behavior",
+        "kind": "refactor",
+        "affected_specs": [],
+        "affected_paths": [
+          "specs/cmd_issues/testing.md",
+          "tests/integration/commands.rs",
+          "tests/integration/commands/issues.rs",
+          "tests/integration/commands/specsync_process.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Only byte-conserved integration tests and their testing-companion paths change; product API, source behavior and canonical spec contract remain unchanged. Draft records the required CI coverage without human approval.",
+        "acceptance_criteria": [
+          "Agent-proposed outcomes: conserve all26 test bodies/attributes/fixtures and shared helper behavior, select identical24macOS tests before/after, pass full native2582unit/462integration, retain unexecuted platform limits, update documented filters and preserve product behavior."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {}
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1792159266,
+      "digest": "a8e0a89594ab491041721e5a3200343e0a1cbeb758c02c962ed059a72cad89d5",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

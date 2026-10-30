@@ -4,7 +4,6 @@ use std::path::Path;
 use std::process;
 
 use crate::config::load_config;
-use crate::exports;
 use crate::generator;
 
 use super::{check_case_collision, validate_scaffold_module_name};
@@ -106,80 +105,39 @@ fn detect_module_sources(
     module_name: &str,
     config: &crate::types::SpecSyncConfig,
 ) -> Vec<String> {
-    let mut files: Vec<String> = Vec::new();
-
-    for src_dir in &config.source_dirs {
-        let base = root.join(src_dir);
-
-        // Check for directory matching module name (e.g., src/auth/)
-        let module_dir = base.join(module_name);
-        if module_dir.is_dir() {
-            for entry in walkdir::WalkDir::new(&module_dir)
-                .into_iter()
-                .filter_map(|e| e.ok())
-            {
-                if entry.path().is_file()
-                    && exports::has_configured_extension(
-                        entry.path(),
-                        &config.source_extensions,
-                        config.include_extensionless,
-                    )
-                    && !exports::is_test_file(entry.path(), root)
-                {
-                    let rel = entry
-                        .path()
-                        .strip_prefix(root)
-                        .unwrap_or(entry.path())
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    files.push(rel);
-                }
-            }
-        }
-
-        // Check for single file matching module name (e.g., src/auth.ts, src/auth.rs)
-        if base.is_dir() {
-            for entry in fs::read_dir(&base).into_iter().flatten().flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-                    if stem == module_name
-                        && exports::has_configured_extension(
-                            &path,
-                            &config.source_extensions,
-                            config.include_extensionless,
-                        )
-                        && !exports::is_test_file(&path, root)
-                    {
-                        let rel = path
-                            .strip_prefix(root)
-                            .unwrap_or(&path)
-                            .to_string_lossy()
-                            .replace('\\', "/");
-                        if !files.contains(&rel) {
-                            files.push(rel);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Fallback: a single-source-file project (e.g. only src/lib.rs) has exactly
-    // one possible source — use it even though the name doesn't match.
-    if files.is_empty()
-        && let Some(single) = generator::find_single_source_fallback(root, config)
-    {
-        files.push(single);
-    }
-
-    files.sort();
-    files
+    generator::find_new_module_sources(root, module_name, config)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn creation_source_selection_new_uses_exact_file_and_explicit_mapping() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::write(root.join("lib.rs"), "pub fn library() {}\n").unwrap();
+        let mut config = crate::types::SpecSyncConfig {
+            source_dirs: vec!["lib.rs".into()],
+            ..crate::types::SpecSyncConfig::default()
+        };
+        assert_eq!(detect_module_sources(root, "demo", &config), vec!["lib.rs"]);
+        fs::write(root.join("chosen.rs"), "pub fn chosen() {}\n").unwrap();
+        config.modules.insert(
+            "demo".into(),
+            crate::types::ModuleDefinition {
+                files: vec!["chosen.rs".into()],
+                depends_on: vec![],
+                owns: vec![],
+            },
+        );
+        assert_eq!(
+            detect_module_sources(root, "demo", &config),
+            vec!["chosen.rs"]
+        );
+        config.modules.get_mut("demo").unwrap().files = vec!["missing.rs".into()];
+        assert!(detect_module_sources(root, "demo", &config).is_empty());
+    }
 
     #[test]
     fn detected_sources_omit_module_javascript_tests() {

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "extract-issues-command-integration-tests-without-changing-their-behavior",
+  "implementation_commit": "e47b6bd5c57e6e3d1a21c286f71b136bf8d49430",
+  "implementation_tree": "35ffa4fef1034aa8431d7c8aa47e327e6fea0556",
+  "contract_digest": "8ce3e0476c62d399bf2afb4d122110071123e0c99cd2e89fd2a65ccf1aa65679",
+  "workspace_digest": "65bbeab26bc02237a4b142caebda97b7d7865f4e790bf945c653c8e1edfd0924",
+  "closing_digest": "a8e0a89594ab491041721e5a3200343e0a1cbeb758c02c962ed059a72cad89d5",
+  "review_digest": "5b9911cb8b82fc4dce7573ab9244af9adc1d88ecc421c0e81ae56a9b1fa11911",
+  "finalization_digest": "61f0d2b1334c28ceb76e8fb9c5481b8aa85d5d595344814e494aadc76ddaef65",
+  "timestamp": 1792159266
+}

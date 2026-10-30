@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "refuse-incomplete-configured-root-coverage-after-cargo-discovery-loss-for-specsync-6-1-1",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "7a6f412a26e9e6a59a252a3a6b196f0540a5fdf9",
+  "contract_digest": "8fcf87930217c745384d7a5b12e402cd8267614a2414bf3a7f85d90cfa37807a",
+  "execution_digest": "f0d69b66c1c917ed51e58b5cf9f9156bf34dfdc83705aaa9ef33afeeaca48cdd",
+  "workspace_digest": "a0f654f705258a2887fc5121b5a5fca40532608961c12b0e3ba024bc4731ecad",
+  "timestamp": 1792069464
+}

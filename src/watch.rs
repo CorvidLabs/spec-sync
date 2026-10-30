@@ -1,48 +1,513 @@
-use std::path::{Path, PathBuf};
+use std::collections::{HashMap, HashSet};
+use std::io::{self, Read};
+use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+use cap_primitives::fs::FollowSymlinks;
+use cap_std::ambient_authority;
+use cap_std::fs::{Dir, Metadata, OpenOptions};
 use colored::Colorize;
 use notify::{EventKind, RecursiveMode};
-use notify_debouncer_full::{DebouncedEvent, new_debouncer};
+use notify_debouncer_full::{DebouncedEvent, Debouncer, RecommendedCache, new_debouncer};
+use sha2::{Digest, Sha256};
 
 use crate::config::load_config;
 use crate::types::OutputFormat;
 
-/// The result of resolving configured watch directories.
-#[derive(Debug, PartialEq)]
-struct WatchDirs {
-    /// Directories that exist and should be watched.
-    watched: Vec<PathBuf>,
-    /// Configured paths that do not exist, with their role (`specs_dir` or `source_dirs`).
-    skipped: Vec<(String, String)>,
+#[derive(Clone, Debug, PartialEq)]
+struct WatchTarget {
+    path: PathBuf,
+    configured: String,
+    role: &'static str,
+    mode: RecursiveMode,
+    identity: (u64, u64),
 }
 
-/// Resolve the configured `specs_dir` and `source_dirs` into the set of
-/// directories that actually exist. Nonexistent configured paths are recorded
-/// in `skipped` instead of silently dropped.
-fn resolve_watch_dirs(root: &Path, specs_dir: &str, source_dirs: &[String]) -> WatchDirs {
-    let abs_specs = root.join(specs_dir);
-    let abs_sources: Vec<PathBuf> = source_dirs.iter().map(|d| root.join(d)).collect();
+#[derive(Clone, Debug, PartialEq)]
+enum WatchPathIssue {
+    Missing,
+    Invalid(String),
+}
 
-    let mut watched = Vec::new();
-    let mut skipped = Vec::new();
+#[derive(Debug, PartialEq)]
+struct SkippedWatchPath {
+    configured: String,
+    role: &'static str,
+    issue: WatchPathIssue,
+}
 
-    if abs_specs.is_dir() {
-        watched.push(abs_specs);
-    } else {
-        skipped.push((specs_dir.to_string(), "specs_dir".to_string()));
-    }
-
-    for (configured, abs) in source_dirs.iter().zip(abs_sources.iter()) {
-        if abs.is_dir() {
-            watched.push(abs.clone());
-        } else {
-            skipped.push((configured.clone(), "source_dirs".to_string()));
+impl SkippedWatchPath {
+    fn message(&self) -> String {
+        match &self.issue {
+            WatchPathIssue::Missing => format!(
+                "configured {} does not exist and will not be watched: {}",
+                self.role, self.configured
+            ),
+            WatchPathIssue::Invalid(reason) => format!(
+                "configured {} is invalid and will not be watched: {} ({reason})",
+                self.role, self.configured
+            ),
         }
     }
 
+    fn json(&self) -> serde_json::Value {
+        serde_json::json!({
+            // Keep the existing missing-path code for editor integrations.
+            "warning": match self.issue {
+                WatchPathIssue::Missing => "nonexistent_watch_directory",
+                WatchPathIssue::Invalid(_) => "invalid_watch_path",
+            },
+            "path": self.configured,
+            "role": self.role,
+            "message": self.message(),
+        })
+    }
+}
+
+/// Configured directories and exact source files, plus truthful rejected-path diagnostics.
+#[derive(Debug, PartialEq)]
+struct WatchDirs {
+    watched: Vec<WatchTarget>,
+    skipped: Vec<SkippedWatchPath>,
+}
+
+fn watch_relative_path(configured: &str) -> Result<PathBuf, WatchPathIssue> {
+    // Interpret portable separators consistently and reject drive-qualified paths on Unix too.
+    let portable = configured.replace('\\', "/");
+    if portable.is_empty() || portable.as_bytes().get(1) == Some(&b':') {
+        return Err(WatchPathIssue::Invalid(
+            "path must remain beneath the project root".to_string(),
+        ));
+    }
+    let mut relative = PathBuf::new();
+    for component in Path::new(&portable).components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(name) => relative.push(name),
+            _ => {
+                return Err(WatchPathIssue::Invalid(
+                    "path must remain beneath the project root".to_string(),
+                ));
+            }
+        }
+    }
+    Ok(relative)
+}
+
+#[cfg(windows)]
+fn watch_metadata_is_link(metadata: &Metadata) -> bool {
+    use cap_std::fs::MetadataExt;
+    metadata.file_attributes() & 0x0000_0400 != 0
+}
+
+#[cfg(not(windows))]
+fn watch_metadata_is_link(metadata: &Metadata) -> bool {
+    metadata.file_type().is_symlink()
+}
+
+#[cfg(unix)]
+fn watch_metadata_identity(metadata: &Metadata) -> Result<(u64, u64), WatchPathIssue> {
+    use cap_std::fs::MetadataExt;
+    Ok((metadata.dev(), metadata.ino()))
+}
+
+#[cfg(windows)]
+fn watch_metadata_identity(metadata: &Metadata) -> Result<(u64, u64), WatchPathIssue> {
+    use cap_primitives::fs::_WindowsByHandle;
+    metadata
+        .volume_serial_number()
+        .zip(metadata.file_index())
+        .map(|(volume, index)| (u64::from(volume), index))
+        .ok_or_else(|| WatchPathIssue::Invalid("filesystem identity is unavailable".to_string()))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn watch_metadata_identity(_metadata: &Metadata) -> Result<(u64, u64), WatchPathIssue> {
+    Err(WatchPathIssue::Invalid(
+        "filesystem identity is unavailable".to_string(),
+    ))
+}
+
+fn watch_io_issue(error: io::Error) -> WatchPathIssue {
+    WatchPathIssue::Invalid(format!("cannot inspect or open path: {error}"))
+}
+
+/// Inspect each component relative to a retained root, without accepting link traversal.
+/// The watcher API itself takes a path, so registration revalidates this identity too.
+fn inspect_watch_target(
+    root: &Path,
+    configured: &str,
+    role: &'static str,
+    fingerprint: bool,
+) -> Result<(WatchTarget, Option<[u8; 32]>), WatchPathIssue> {
+    let relative = watch_relative_path(configured)?;
+    let mut directory = Dir::open_ambient_dir(root, ambient_authority()).map_err(watch_io_issue)?;
+    let mut metadata = directory.dir_metadata().map_err(watch_io_issue)?;
+    let mut digest = None;
+    let mut components = relative.components().peekable();
+    while let Some(Component::Normal(name)) = components.next() {
+        let before = match directory.symlink_metadata(name) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Err(WatchPathIssue::Missing);
+            }
+            Err(error) => return Err(watch_io_issue(error)),
+        };
+        if watch_metadata_is_link(&before) {
+            return Err(WatchPathIssue::Invalid(
+                "path must not traverse a symlink or reparse point".to_string(),
+            ));
+        }
+        let identity = watch_metadata_identity(&before)?;
+        let leaf = components.peek().is_none();
+        let next = if before.is_dir() {
+            let next = directory.open_dir(name).map_err(watch_io_issue)?;
+            metadata = next.dir_metadata().map_err(watch_io_issue)?;
+            Some(next)
+        } else if leaf && role == "source_dirs" && before.is_file() {
+            let mut options = OpenOptions::new();
+            options
+                .read(true)
+                ._cap_fs_ext_nonblock(true)
+                ._cap_fs_ext_follow(FollowSymlinks::No);
+            let file = directory
+                .open_with(name, &options)
+                .map_err(watch_io_issue)?;
+            metadata = file.metadata().map_err(watch_io_issue)?;
+            if fingerprint {
+                // Match the validator's existing source-file read cap. Never read siblings.
+                const MAX_WATCH_SOURCE_BYTES: u64 = 8 * 1024 * 1024;
+                if metadata.len() > MAX_WATCH_SOURCE_BYTES {
+                    return Err(WatchPathIssue::Invalid(
+                        "exact-source fingerprint exceeds 8 MiB".to_string(),
+                    ));
+                }
+                let mut bytes = Vec::new();
+                file.take(MAX_WATCH_SOURCE_BYTES + 1)
+                    .read_to_end(&mut bytes)
+                    .map_err(watch_io_issue)?;
+                let after_read = directory.symlink_metadata(name).map_err(watch_io_issue)?;
+                if bytes.len() as u64 > MAX_WATCH_SOURCE_BYTES
+                    || bytes.len() as u64 != metadata.len()
+                    || after_read.len() != metadata.len()
+                    || after_read.modified().ok() != metadata.modified().ok()
+                {
+                    return Err(WatchPathIssue::Invalid(
+                        "exact source changed during bounded fingerprinting".to_string(),
+                    ));
+                }
+                digest = Some(Sha256::digest(&bytes).into());
+            }
+            None
+        } else {
+            return Err(WatchPathIssue::Invalid(
+                "expected a directory or an exact regular source file".to_string(),
+            ));
+        };
+        let after = directory.symlink_metadata(name).map_err(watch_io_issue)?;
+        if watch_metadata_is_link(&after)
+            || identity != watch_metadata_identity(&metadata)?
+            || identity != watch_metadata_identity(&after)?
+        {
+            return Err(WatchPathIssue::Invalid(
+                "path changed during confined inspection".to_string(),
+            ));
+        }
+        if let Some(next) = next {
+            directory = next;
+        }
+    }
+    Ok((
+        WatchTarget {
+            path: root.join(relative),
+            configured: configured.to_string(),
+            role,
+            mode: if metadata.is_dir() {
+                RecursiveMode::Recursive
+            } else {
+                RecursiveMode::NonRecursive
+            },
+            identity: watch_metadata_identity(&metadata)?,
+        },
+        digest,
+    ))
+}
+
+fn resolve_watch_target(
+    root: &Path,
+    configured: &str,
+    role: &'static str,
+) -> Result<WatchTarget, WatchPathIssue> {
+    inspect_watch_target(root, configured, role, false).map(|(target, _)| target)
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum ExactSourceSnapshot {
+    Regular {
+        identity: (u64, u64),
+        digest: [u8; 32],
+    },
+    Missing,
+    Invalid(String),
+}
+
+fn snapshot_exact_source(root: &Path, target: &WatchTarget) -> ExactSourceSnapshot {
+    match inspect_watch_target(root, &target.configured, target.role, true) {
+        Ok((current, Some(digest))) if current.mode == RecursiveMode::NonRecursive => {
+            ExactSourceSnapshot::Regular {
+                identity: current.identity,
+                digest,
+            }
+        }
+        Ok(_) => {
+            ExactSourceSnapshot::Invalid("exact source is no longer a regular file".to_string())
+        }
+        Err(WatchPathIssue::Missing) => ExactSourceSnapshot::Missing,
+        Err(WatchPathIssue::Invalid(reason)) => ExactSourceSnapshot::Invalid(reason),
+    }
+}
+
+fn report_snapshot_issue(
+    target: &WatchTarget,
+    snapshot: &ExactSourceSnapshot,
+    format: OutputFormat,
+) {
+    if let ExactSourceSnapshot::Invalid(reason) = snapshot {
+        // Precise native events may still work; do not falsely claim all monitoring was dropped.
+        let message = format!(
+            "cannot fingerprint configured source_dirs for coarse events: {} ({reason})",
+            target.configured
+        );
+        if matches!(format, OutputFormat::Json) {
+            eprintln!(
+                "{}",
+                serde_json::json!({ "warning": "invalid_watch_path", "path": target.configured, "role": target.role, "message": message })
+            );
+        } else {
+            eprintln!("{} {message}", "⊘ Warning:".yellow());
+        }
+    }
+}
+
+fn resolve_watch_dirs(root: &Path, specs_dir: &str, source_dirs: &[String]) -> WatchDirs {
+    let mut watched = Vec::new();
+    let mut skipped = Vec::new();
+    for (configured, role) in std::iter::once((specs_dir, "specs_dir")).chain(
+        source_dirs
+            .iter()
+            .map(|path| (path.as_str(), "source_dirs")),
+    ) {
+        match resolve_watch_target(root, configured, role) {
+            Ok(target) => {
+                if !watched
+                    .iter()
+                    .any(|existing: &WatchTarget| existing.path == target.path)
+                {
+                    watched.push(target);
+                }
+            }
+            Err(issue) => skipped.push(SkippedWatchPath {
+                configured: configured.to_string(),
+                role,
+                issue,
+            }),
+        }
+    }
     WatchDirs { watched, skipped }
+}
+
+fn report_skipped_watch_path(skipped: &SkippedWatchPath, format: OutputFormat) {
+    if matches!(format, OutputFormat::Json) {
+        eprintln!("{}", skipped.json());
+    } else {
+        eprintln!("{} {}", "⊘ Warning:".yellow(), skipped.message());
+    }
+}
+
+type NativeDebouncer = Debouncer<notify::RecommendedWatcher, RecommendedCache>;
+
+fn register_watch_target(
+    debouncer: &mut NativeDebouncer,
+    root: &Path,
+    target: &WatchTarget,
+    mode: RecursiveMode,
+) -> Result<(), WatchPathIssue> {
+    let before = resolve_watch_target(root, &target.configured, target.role)?;
+    if &before != target {
+        return Err(WatchPathIssue::Invalid(
+            "path changed before watch registration".to_string(),
+        ));
+    }
+    debouncer
+        .watch(&target.path, mode)
+        .map_err(|error| WatchPathIssue::Invalid(format!("watch registration failed: {error}")))?;
+    let after = resolve_watch_target(root, &target.configured, target.role);
+    if after.as_ref().ok() != Some(target) {
+        let _ = debouncer.unwatch(&target.path);
+        return Err(after.err().unwrap_or_else(|| {
+            WatchPathIssue::Invalid("path changed during watch registration".to_string())
+        }));
+    }
+    Ok(())
+}
+
+fn exact_source_parent(root: &Path, target: &WatchTarget) -> Result<WatchTarget, WatchPathIssue> {
+    let relative = watch_relative_path(&target.configured)?;
+    let parent = relative
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty());
+    let parent = resolve_watch_target(
+        root,
+        &parent.unwrap_or(Path::new(".")).to_string_lossy(),
+        "source_dirs",
+    )?;
+    if parent.mode != RecursiveMode::Recursive {
+        return Err(WatchPathIssue::Invalid(
+            "exact source parent must remain a directory".to_string(),
+        ));
+    }
+    Ok(parent)
+}
+
+fn selected_event_path<'a>(event: &'a DebouncedEvent, targets: &[WatchTarget]) -> Option<&'a Path> {
+    event.paths.iter().find_map(|path| {
+        // Backends supply absolute paths; never treat lexical traversal as a selected event.
+        if path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+        {
+            return None;
+        }
+        targets
+            .iter()
+            .any(|target| {
+                if target.mode == RecursiveMode::Recursive {
+                    path.starts_with(&target.path)
+                } else {
+                    path == &target.path
+                }
+            })
+            .then_some(path.as_path())
+    })
+}
+
+fn select_watch_event(
+    root: &Path,
+    mut event: DebouncedEvent,
+    targets: &[WatchTarget],
+    snapshots: &mut HashMap<PathBuf, ExactSourceSnapshot>,
+    format: OutputFormat,
+) -> Option<DebouncedEvent> {
+    let mut selected = Vec::new();
+    for path in &event.paths {
+        let single = DebouncedEvent {
+            event: notify::Event::new(event.kind).add_path(path.clone()),
+            time: event.time,
+        };
+        if selected_event_path(&single, targets).is_some() {
+            selected.push(path.clone());
+        }
+    }
+    for target in targets
+        .iter()
+        .filter(|target| target.mode == RecursiveMode::NonRecursive)
+    {
+        let precise = event.paths.contains(&target.path);
+        let coarse = event
+            .paths
+            .iter()
+            .any(|path| Some(path.as_path()) == target.path.parent());
+        if !precise && !coarse {
+            continue;
+        }
+        // A native backend may coalesce a changed file to its immediate directory.
+        // Compare only declared exact sources through confined no-follow inspection.
+        let current = snapshot_exact_source(root, target);
+        let previous = snapshots.insert(target.path.clone(), current.clone());
+        if previous.as_ref() != Some(&current) {
+            report_snapshot_issue(target, &current, format);
+            if !selected.contains(&target.path) {
+                selected.push(target.path.clone());
+            }
+        }
+    }
+    if selected.is_empty() {
+        None
+    } else {
+        event.paths = selected;
+        Some(event)
+    }
+}
+
+fn rearm_exact_sources(
+    debouncer: &mut NativeDebouncer,
+    root: &Path,
+    targets: &mut [WatchTarget],
+    event: &DebouncedEvent,
+    format: OutputFormat,
+) {
+    for target in targets.iter_mut().filter(|target| {
+        target.mode == RecursiveMode::NonRecursive && event.paths.contains(&target.path)
+    }) {
+        match resolve_watch_target(root, &target.configured, target.role) {
+            Ok(current) if current.mode != RecursiveMode::NonRecursive => {
+                let _ = debouncer.unwatch(&target.path);
+                report_skipped_watch_path(
+                    &SkippedWatchPath {
+                        configured: target.configured.clone(),
+                        role: target.role,
+                        issue: WatchPathIssue::Invalid(
+                            "exact source is no longer a regular file".to_string(),
+                        ),
+                    },
+                    format,
+                );
+            }
+            Ok(current)
+                if current.identity != target.identity
+                    || matches!(
+                        event.kind,
+                        EventKind::Create(_)
+                            | EventKind::Remove(_)
+                            | EventKind::Modify(notify::event::ModifyKind::Name(_))
+                    ) =>
+            {
+                // A file inode watch can disappear on atomic save/unlink. Its nonrecursive
+                // parent watch remains, filters to this exact name, and permits safe rearming.
+                let _ = debouncer.unwatch(&target.path);
+                match register_watch_target(debouncer, root, &current, RecursiveMode::NonRecursive)
+                {
+                    Ok(()) => *target = current,
+                    Err(issue) => report_skipped_watch_path(
+                        &SkippedWatchPath {
+                            configured: target.configured.clone(),
+                            role: target.role,
+                            issue,
+                        },
+                        format,
+                    ),
+                }
+            }
+            Ok(_) => {}
+            Err(WatchPathIssue::Missing) => {
+                // MOVE_SELF may retain the old inode subscription under its former name.
+                // Keep only the safe parent lifecycle observation until the file reappears.
+                let _ = debouncer.unwatch(&target.path);
+            }
+            Err(issue) => {
+                let _ = debouncer.unwatch(&target.path);
+                report_skipped_watch_path(
+                    &SkippedWatchPath {
+                        configured: target.configured.clone(),
+                        role: target.role,
+                        issue,
+                    },
+                    format,
+                );
+            }
+        }
+    }
 }
 
 /// Run the check command in watch mode, re-running on file changes.
@@ -50,47 +515,25 @@ fn resolve_watch_dirs(root: &Path, specs_dir: &str, source_dirs: &[String]) -> W
 pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>, format: OutputFormat) {
     let config = load_config(root);
 
-    // Resolve the configured directories into the set to watch. A configured
-    // directory that does not exist is reported but does not stop the watch:
+    // Resolve configured directories and exact source files. A path that
+    // cannot be watched is reported but does not stop the other selections:
     // watch is a long-running dev loop, and a typo in one of several paths
     // should not be fatal. It must never be invisible, though — silently
     // dropping a path makes the banner lie about what is being monitored.
     let resolved = resolve_watch_dirs(root, &config.specs_dir, &config.source_dirs);
     let watch_dirs = resolved.watched;
 
-    // Report dropped directories on both human and machine-readable channels.
+    // Report dropped paths on both human and machine-readable channels.
     // Even though watch is primarily interactive, CI and editor integrations
     // read its output and need a parseable signal that a configured path was
     // ignored.
-    for (configured_path, role) in &resolved.skipped {
-        match format {
-            OutputFormat::Json => {
-                eprintln!(
-                    "{}",
-                    serde_json::json!({
-                        "warning": "nonexistent_watch_directory",
-                        "path": configured_path,
-                        "role": role,
-                        "message": format!(
-                            "configured {role} does not exist and will not be watched: {configured_path}"
-                        )
-                    })
-                );
-            }
-            _ => {
-                eprintln!(
-                    "{} configured {} does not exist and will not be watched: {}",
-                    "⊘ Warning:".yellow(),
-                    role,
-                    configured_path
-                );
-            }
-        }
+    for skipped in &resolved.skipped {
+        report_skipped_watch_path(skipped, format);
     }
 
     if watch_dirs.is_empty() {
         eprintln!(
-            "{} No directories to watch (specs_dir={}, source_dirs={:?})",
+            "{} No directories to watch and no exact source files (specs_dir={}, source_dirs={:?})",
             "Error:".red(),
             config.specs_dir,
             config.source_dirs
@@ -122,20 +565,87 @@ pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>, for
     )
     .expect("Failed to create file watcher");
 
-    for dir in &watch_dirs {
-        debouncer
-            .watch(dir, RecursiveMode::Recursive)
-            .unwrap_or_else(|e| {
-                eprintln!("{} Failed to watch {}: {e}", "Error:".red(), dir.display());
-            });
+    let mut registered = Vec::new();
+    for target in watch_dirs {
+        // Initial validation may have taken time. Do not register a replaced or linked path.
+        match register_watch_target(&mut debouncer, root, &target, target.mode) {
+            Ok(()) => registered.push(target),
+            Err(issue) => report_skipped_watch_path(
+                &SkippedWatchPath {
+                    configured: target.configured,
+                    role: target.role,
+                    issue,
+                },
+                format,
+            ),
+        }
+    }
+    // Exact-name lifecycle observations keep inode-based backends alive across atomic saves.
+    // These parents are never recursive and their unrelated sibling events are filtered out.
+    let mut parents = HashSet::new();
+    let mut durable = Vec::new();
+    for target in &registered {
+        let result = if target.mode == RecursiveMode::NonRecursive {
+            exact_source_parent(root, target).and_then(|parent| {
+                if parents.contains(&parent.path)
+                    || registered.iter().any(|other| {
+                        other.mode == RecursiveMode::Recursive
+                            && parent.path.starts_with(&other.path)
+                    })
+                {
+                    return Ok(());
+                }
+                register_watch_target(&mut debouncer, root, &parent, RecursiveMode::NonRecursive)?;
+                parents.insert(parent.path);
+                Ok(())
+            })
+        } else {
+            Ok(())
+        };
+        match result {
+            Ok(()) => durable.push(target.clone()),
+            Err(issue) => {
+                let _ = debouncer.unwatch(&target.path);
+                report_skipped_watch_path(
+                    &SkippedWatchPath {
+                        configured: target.configured.clone(),
+                        role: target.role,
+                        issue: WatchPathIssue::Invalid(format!(
+                            "exact-source lifecycle monitoring failed: {issue:?}"
+                        )),
+                    },
+                    format,
+                );
+            }
+        }
+    }
+    let mut registered = durable;
+    if registered.is_empty() {
+        eprintln!("{} No paths could be watched", "Error:".red());
+        std::process::exit(1);
+    }
+
+    let mut snapshots = HashMap::new();
+    for target in registered
+        .iter()
+        .filter(|target| target.mode == RecursiveMode::NonRecursive)
+    {
+        let snapshot = snapshot_exact_source(root, target);
+        report_snapshot_issue(target, &snapshot, format);
+        snapshots.insert(target.path.clone(), snapshot);
     }
 
     println!(
         "\n{} Watching for changes in: {}",
         ">>>".cyan(),
-        watch_dirs
+        registered
             .iter()
-            .map(|d| d.strip_prefix(root).unwrap_or(d).display().to_string())
+            .map(|target| target
+                .path
+                .strip_prefix(root)
+                .unwrap_or(&target.path)
+                .display()
+                .to_string())
             .collect::<Vec<_>>()
             .join(", ")
     );
@@ -160,19 +670,32 @@ pub fn run_watch(root: &Path, strict: bool, require_coverage: Option<usize>, for
             continue;
         }
 
+        let Some(event) = select_watch_event(root, event, &registered, &mut snapshots, format)
+        else {
+            continue;
+        };
+        let changed_path = event.paths[0].clone();
+        rearm_exact_sources(&mut debouncer, root, &mut registered, &event, format);
+
         // Extra debounce: don't re-run if we just ran
         if last_run.elapsed() < Duration::from_millis(300) {
             continue;
         }
 
-        let changed_file: Option<String> = event
-            .paths
-            .first()
-            .and_then(|p: &PathBuf| p.strip_prefix(root).ok())
-            .map(|p: &Path| p.display().to_string());
+        let changed_file = changed_path
+            .strip_prefix(root)
+            .ok()
+            .map(|path| path.display().to_string());
 
-        // Drain any remaining queued events
-        while rx.try_recv().is_ok() {}
+        // Coalesce checks, but rearm every selected replacement before draining its event.
+        while let Ok(queued) = rx.try_recv() {
+            if is_relevant_event(&queued)
+                && let Some(queued) =
+                    select_watch_event(root, queued, &registered, &mut snapshots, format)
+            {
+                rearm_exact_sources(&mut debouncer, root, &mut registered, &queued, format);
+            }
+        }
 
         print_separator(changed_file.as_deref());
         // Subsequent runs use hash cache (no --force), only re-validating changed specs
@@ -525,16 +1048,16 @@ mod tests {
 
         assert!(resolved.watched.is_empty());
         assert_eq!(resolved.skipped.len(), 2);
-        assert!(
-            resolved
-                .skipped
-                .contains(&("specs".to_string(), "specs_dir".to_string()))
-        );
-        assert!(
-            resolved
-                .skipped
-                .contains(&("src".to_string(), "source_dirs".to_string()))
-        );
+        assert!(resolved.skipped.contains(&SkippedWatchPath {
+            configured: "specs".to_string(),
+            role: "specs_dir",
+            issue: WatchPathIssue::Missing
+        }));
+        assert!(resolved.skipped.contains(&SkippedWatchPath {
+            configured: "src".to_string(),
+            role: "source_dirs",
+            issue: WatchPathIssue::Missing
+        }));
     }
 
     #[test]
@@ -551,15 +1074,374 @@ mod tests {
 
         assert_eq!(resolved.watched.len(), 1);
         assert_eq!(resolved.skipped.len(), 2);
+        assert!(resolved.skipped.contains(&SkippedWatchPath {
+            configured: "missing-specs".to_string(),
+            role: "specs_dir",
+            issue: WatchPathIssue::Missing
+        }));
+        assert!(resolved.skipped.contains(&SkippedWatchPath {
+            configured: "also-missing".to_string(),
+            role: "source_dirs",
+            issue: WatchPathIssue::Missing
+        }));
+    }
+
+    #[test]
+    fn test_watch_exact_sources_are_nonrecursive_and_directories_remain_recursive() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::create_dir(tmp.path().join("specs")).unwrap();
+        std::fs::create_dir(tmp.path().join("src")).unwrap();
+        std::fs::write(tmp.path().join("lib.rs"), "pub fn library() {}\n").unwrap();
+        std::fs::write(tmp.path().join("main.rs"), "fn main() {}\n").unwrap();
+        let resolved = resolve_watch_dirs(
+            tmp.path(),
+            "specs",
+            &[
+                "lib.rs".into(),
+                "main.rs".into(),
+                "src".into(),
+                "./lib.rs".into(),
+            ],
+        );
+        assert!(resolved.skipped.is_empty());
+        assert_eq!(
+            resolved.watched.len(),
+            4,
+            "exact files must not be skipped or duplicated"
+        );
+        for target in resolved.watched {
+            assert_eq!(
+                target.mode,
+                if target.configured.ends_with(".rs") {
+                    RecursiveMode::NonRecursive
+                } else {
+                    RecursiveMode::Recursive
+                }
+            );
+            assert_ne!(target.path, tmp.path(), "exact sources never widen to root");
+        }
+    }
+
+    #[test]
+    fn test_watch_rejects_escape_paths_even_when_target_exists() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("lib.rs"), "pub fn library() {}\n").unwrap();
+        for configured in [
+            "../lib.rs",
+            "src/../lib.rs",
+            "/lib.rs",
+            "C:\\lib.rs",
+            "\\\\server\\lib.rs",
+            "",
+            tmp.path().join("lib.rs").to_str().unwrap(),
+        ] {
+            assert!(
+                matches!(
+                    resolve_watch_target(tmp.path(), configured, "source_dirs"),
+                    Err(WatchPathIssue::Invalid(_))
+                ),
+                "{configured} must not be watched"
+            );
+        }
+    }
+
+    #[test]
+    fn test_watch_distinguishes_missing_and_invalid_text_and_json() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("lib.rs"), "pub fn library() {}\n").unwrap();
+        let resolved = resolve_watch_dirs(tmp.path(), "lib.rs", &["missing.rs".into()]);
         assert!(
-            resolved
-                .skipped
-                .contains(&("missing-specs".to_string(), "specs_dir".to_string()))
+            resolved.watched.is_empty(),
+            "specs_dir must stay a directory"
+        );
+        let invalid = &resolved.skipped[0];
+        assert!(matches!(invalid.issue, WatchPathIssue::Invalid(_)));
+        assert_eq!(invalid.json()["warning"], "invalid_watch_path");
+        assert_eq!(invalid.json()["path"], "lib.rs");
+        assert_eq!(invalid.json()["role"], "specs_dir");
+        assert!(invalid.message().contains("is invalid"));
+        assert!(!invalid.message().contains("does not exist"));
+        let missing = &resolved.skipped[1];
+        assert_eq!(missing.issue, WatchPathIssue::Missing);
+        assert_eq!(missing.json()["warning"], "nonexistent_watch_directory");
+        assert_eq!(missing.json()["path"], "missing.rs");
+        assert_eq!(missing.json()["role"], "source_dirs");
+        assert!(missing.message().contains("does not exist"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_watch_rejects_symlink_files_directories_and_parent_components() {
+        use std::os::unix::fs::symlink;
+        let tmp = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        std::fs::create_dir(tmp.path().join("real")).unwrap();
+        std::fs::write(tmp.path().join("real/lib.rs"), "pub fn library() {}\n").unwrap();
+        std::fs::write(outside.path().join("lib.rs"), "pub fn outside() {}\n").unwrap();
+        symlink("real/lib.rs", tmp.path().join("inside.rs")).unwrap();
+        symlink(outside.path().join("lib.rs"), tmp.path().join("outside.rs")).unwrap();
+        symlink("missing.rs", tmp.path().join("broken.rs")).unwrap();
+        symlink("real", tmp.path().join("linked")).unwrap();
+        symlink(outside.path(), tmp.path().join("outside-dir")).unwrap();
+        for configured in [
+            "inside.rs",
+            "outside.rs",
+            "broken.rs",
+            "linked",
+            "linked/lib.rs",
+            "outside-dir/lib.rs",
+        ] {
+            assert!(
+                matches!(
+                    resolve_watch_target(tmp.path(), configured, "source_dirs"),
+                    Err(WatchPathIssue::Invalid(_))
+                ),
+                "link {configured} must not be accepted"
+            );
+        }
+        assert!(matches!(
+            resolve_watch_target(tmp.path(), "linked", "specs_dir"),
+            Err(WatchPathIssue::Invalid(_))
+        ));
+        assert_eq!(
+            resolve_watch_target(tmp.path(), "real/lib.rs", "source_dirs")
+                .unwrap()
+                .mode,
+            RecursiveMode::NonRecursive
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_watch_rejects_nonregular_sources() {
+        let tmp = TempDir::new().unwrap();
+        let _socket =
+            std::os::unix::net::UnixListener::bind(tmp.path().join("source.sock")).unwrap();
+        assert!(matches!(
+            resolve_watch_target(tmp.path(), "source.sock", "source_dirs"),
+            Err(WatchPathIssue::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn test_watch_revalidation_detects_a_replaced_exact_file() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("lib.rs"), "pub fn library() {}\n").unwrap();
+        let before = resolve_watch_target(tmp.path(), "lib.rs", "source_dirs").unwrap();
+        std::fs::write(tmp.path().join("replacement.rs"), "pub fn library() {}\n").unwrap();
+        std::fs::rename(tmp.path().join("replacement.rs"), tmp.path().join("lib.rs")).unwrap();
+        let after = resolve_watch_target(tmp.path(), "lib.rs", "source_dirs").unwrap();
+        assert_ne!(before.identity, after.identity);
+        assert_ne!(before, after, "registration must reject a changed target");
+    }
+
+    #[test]
+    fn test_watch_parent_events_filter_siblings_and_select_matching_rename_path() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::create_dir(tmp.path().join("specs")).unwrap();
+        std::fs::write(tmp.path().join("lib.rs"), "pub fn library() {}\n").unwrap();
+        let targets = resolve_watch_dirs(tmp.path(), "specs", &["lib.rs".into()]).watched;
+        let parent = exact_source_parent(tmp.path(), &targets[1]).unwrap();
+        assert_eq!(
+            parent.path,
+            tmp.path(),
+            "only the immediate parent is observed"
+        );
+        // The parent is not added to logical selection: its registration is NonRecursive.
+        let sibling = tmp.path().join("sibling.rs");
+        let mut event = make_event_with_path(EventKind::Modify(ModifyKind::Any), sibling);
+        assert_eq!(selected_event_path(&event, &targets), None);
+        event.paths.push(tmp.path().join("lib.rs"));
+        assert_eq!(
+            selected_event_path(&event, &targets),
+            Some(tmp.path().join("lib.rs").as_path())
+        );
+        event.paths = vec![tmp.path().join("specs/nested/probe.spec.md")];
+        assert!(
+            selected_event_path(&event, &targets).is_some(),
+            "directory recursion stays intact"
+        );
+        event.paths = vec![tmp.path().join("nested/../lib.rs")];
+        assert_eq!(selected_event_path(&event, &targets), None);
+    }
+
+    #[test]
+    fn test_watch_coarse_parent_fingerprints_only_selected_content_and_refreshes_precise_events() {
+        let tmp = TempDir::new().unwrap();
+        let source = tmp.path().join("lib.rs");
+        std::fs::write(&source, "fn before() {}\n").unwrap();
+        let original_time = std::fs::metadata(&source).unwrap().modified().unwrap();
+        let target = resolve_watch_target(tmp.path(), "lib.rs", "source_dirs").unwrap();
+        let targets = vec![target];
+        let mut snapshots = HashMap::from([(
+            source.clone(),
+            snapshot_exact_source(tmp.path(), &targets[0]),
+        )]);
+        let parent_event =
+            || make_event_with_path(EventKind::Modify(ModifyKind::Any), tmp.path().to_path_buf());
+        std::fs::write(tmp.path().join("sibling.rs"), "pub fn sibling() {}\n").unwrap();
+        assert!(
+            select_watch_event(
+                tmp.path(),
+                parent_event(),
+                &targets,
+                &mut snapshots,
+                OutputFormat::Text
+            )
+            .is_none()
+        );
+        std::fs::write(&source, "fn after_() {}\n").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&source)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(original_time))
+            .unwrap();
+        let selected = select_watch_event(
+            tmp.path(),
+            parent_event(),
+            &targets,
+            &mut snapshots,
+            OutputFormat::Text,
+        )
+        .unwrap();
+        assert_eq!(
+            selected.paths,
+            vec![source.clone()],
+            "same-size/mtime source edits must still be noticed"
         );
         assert!(
-            resolved
-                .skipped
-                .contains(&("also-missing".to_string(), "source_dirs".to_string()))
+            select_watch_event(
+                tmp.path(),
+                parent_event(),
+                &targets,
+                &mut snapshots,
+                OutputFormat::Text
+            )
+            .is_none()
+        );
+        std::fs::write(&source, "fn precise() {}\n").unwrap();
+        let precise = make_event_with_path(EventKind::Modify(ModifyKind::Any), source.clone());
+        assert!(
+            select_watch_event(
+                tmp.path(),
+                precise,
+                &targets,
+                &mut snapshots,
+                OutputFormat::Text
+            )
+            .is_some()
+        );
+        assert!(
+            select_watch_event(
+                tmp.path(),
+                parent_event(),
+                &targets,
+                &mut snapshots,
+                OutputFormat::Text
+            )
+            .is_none(),
+            "later sibling/parent event cannot re-report a precise edit"
+        );
+    }
+
+    #[test]
+    fn test_watch_coarse_parent_detects_atomic_replacement_removal_and_recreation() {
+        let tmp = TempDir::new().unwrap();
+        let source = tmp.path().join("lib.rs");
+        std::fs::write(&source, "fn before() {}\n").unwrap();
+        let targets = vec![resolve_watch_target(tmp.path(), "lib.rs", "source_dirs").unwrap()];
+        let mut snapshots = HashMap::from([(
+            source.clone(),
+            snapshot_exact_source(tmp.path(), &targets[0]),
+        )]);
+        let parent_event =
+            || make_event_with_path(EventKind::Modify(ModifyKind::Any), tmp.path().to_path_buf());
+        std::fs::write(tmp.path().join("temporary.rs"), "fn before() {}\n").unwrap();
+        std::fs::rename(tmp.path().join("temporary.rs"), &source).unwrap();
+        assert_eq!(
+            select_watch_event(
+                tmp.path(),
+                parent_event(),
+                &targets,
+                &mut snapshots,
+                OutputFormat::Text
+            )
+            .unwrap()
+            .paths,
+            vec![source.clone()]
+        );
+        std::fs::remove_file(&source).unwrap();
+        assert!(
+            select_watch_event(
+                tmp.path(),
+                parent_event(),
+                &targets,
+                &mut snapshots,
+                OutputFormat::Text
+            )
+            .is_some()
+        );
+        assert!(
+            select_watch_event(
+                tmp.path(),
+                parent_event(),
+                &targets,
+                &mut snapshots,
+                OutputFormat::Text
+            )
+            .is_none(),
+            "missing selected file cannot turn every sibling event into a check"
+        );
+        std::fs::write(&source, "fn recreated() {}\n").unwrap();
+        assert!(
+            select_watch_event(
+                tmp.path(),
+                parent_event(),
+                &targets,
+                &mut snapshots,
+                OutputFormat::Text
+            )
+            .is_some()
+        );
+    }
+
+    #[test]
+    fn test_watch_exact_fingerprint_bound_and_directory_replacement_are_explicit() {
+        let tmp = TempDir::new().unwrap();
+        let source = tmp.path().join("lib.rs");
+        std::fs::write(&source, "fn before() {}\n").unwrap();
+        let target = resolve_watch_target(tmp.path(), "lib.rs", "source_dirs").unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&source)
+            .unwrap()
+            .set_len(8 * 1024 * 1024 + 1)
+            .unwrap();
+        assert!(
+            matches!(snapshot_exact_source(tmp.path(), &target), ExactSourceSnapshot::Invalid(reason) if reason.contains("8 MiB"))
+        );
+        std::fs::remove_file(&source).unwrap();
+        std::fs::create_dir(&source).unwrap();
+        assert!(
+            matches!(snapshot_exact_source(tmp.path(), &target), ExactSourceSnapshot::Invalid(reason) if reason.contains("regular file"))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_watch_exact_fingerprint_never_follows_replacement_symlink() {
+        use std::os::unix::fs::symlink;
+        let tmp = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let source = tmp.path().join("lib.rs");
+        std::fs::write(&source, "fn before() {}\n").unwrap();
+        let target = resolve_watch_target(tmp.path(), "lib.rs", "source_dirs").unwrap();
+        std::fs::write(outside.path().join("outside.rs"), "must not be read\n").unwrap();
+        std::fs::remove_file(&source).unwrap();
+        symlink(outside.path().join("outside.rs"), &source).unwrap();
+        assert!(
+            matches!(snapshot_exact_source(tmp.path(), &target), ExactSourceSnapshot::Invalid(reason) if reason.contains("symlink"))
         );
     }
 

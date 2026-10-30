@@ -155,3 +155,23 @@ replacements. An earlier
 private-sandbox replay passed but its untracked inputs were not reproducible from the cited
 revisions, so a hash-bound exact-tree replay is required with fresh definition approval, Windows
 runtime CI, independent rereview, and final repository/trust/provenance/CI gates.
+
+@plane z=4 label="Private module split"
+The MCP server is no longer two `include!` chunks. `src/mcp.rs` declares purpose-named private
+modules: `protocol`, `confinement`, `preflight`, `snapshot`, `snapshot_manifest`, `tools`, and
+`publication`, plus `test_support` for shared fixtures. Snapshot discovery and confinement
+preflight call back into the readers they share, so those edges stay cycles at `pub(super)`.
+Nothing new is `pub` or `pub(crate)`. `run_mcp_server` and `mcp_tool_definitions` forward to
+`protocol` and remain the only functions visible outside the module.
+`preflight.rs` and `snapshot_manifest.rs` are cohesive modules under the 500-line band so
+`confinement.rs` and `snapshot.rs` stay inside 1,500 lines. `server_name.rs` and
+`publish_staged_file_with_verification_hooks.rs` remain comment-only paths because
+`src/github.rs` includes them in its read-path scan. They are not modules. The scan of the
+moved source lives in `mcp::gh_process_absence`. Unit test function names are unchanged;
+their paths are `mcp::<module>::tests::<name>`.
+
+@plane z=5 label="Release-profile test imports"
+`protocol` and `snapshot` import `std::fs` only under `debug_assertions`, because production
+barrier helpers are debug-only. Their `cfg(test)` children use `fs` through `super::*`.
+Release-profile tests compile with `test` set and `debug_assertions` unset, so those children
+import `std::fs` themselves. The parent imports stay debug-only.

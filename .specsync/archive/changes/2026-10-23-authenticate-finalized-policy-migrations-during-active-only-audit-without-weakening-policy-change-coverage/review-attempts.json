@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "authenticate-finalized-policy-migrations-during-active-only-audit-without-weakening-policy-change-coverage",
+      "reviewer": "0xGaspar",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "66f58cbe7a32928666557f2e139cf15cd3de6916",
+      "contract_digest": "e1fff4a72750badfd1f563301a2c7e37d80a25f0f8d566eaefd39be6873c8dbb",
+      "execution_digest": "290170892c3fe23c443b90ca4754ccb207dbfd1bc1a83ff08a18ebfe5ad18471",
+      "workspace_digest": "cbe9417d5c1cb66365ae6eba1cf53cba4f755adb914f020e08d1ca4d42f30d85",
+      "timestamp": 1792775702
+    }
+  ]
+}

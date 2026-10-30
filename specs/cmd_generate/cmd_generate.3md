@@ -24,3 +24,10 @@ This plane is context. Later planes are lessons, in the order they were learned.
 
 @plane z=3 label="Current Status"
 Stable agent-native command. Enrichment belongs to native agent skills or MCP clients.
+
+@plane z=4 label="Scoped batch reruns use the writer's leaf filename"
+Scoped module identity and spec filename are separate: `@scope/demo` is the module, while
+`specs/@scope/demo/demo.spec.md` is its spec. Batch existence classification must use the same
+leaf-name helper as generation so a repeated request reports `skipped_already_specced`, preserves
+the spec and companions byte for byte, and never creates a nested duplicate. Keep flat-module
+and unknown-module controls beside the scoped text and JSON rerun regressions.

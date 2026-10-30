@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "patch-specsync-certificate-validation-to-reject-distrusted-intermediates",
+      "reviewer": "0xGaspar",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "8176e3c51e4bca5bbe6d03402bf53b949c36e51a",
+      "contract_digest": "d4ff9dfc5362d386ae911489c6e7fa11f1a0b2cc2cac01466919b00e32f34ad4",
+      "execution_digest": "f6b8dad865b3cd753f0fdaefa5027f938eb492fd5d0e8e3201239cff6b6a0392",
+      "workspace_digest": "cbe9417d5c1cb66365ae6eba1cf53cba4f755adb914f020e08d1ca4d42f30d85",
+      "timestamp": 1792775844
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "timestamp": 1792158227,
+  "commit": "e47b6bd5c57e6e3d1a21c286f71b136bf8d49430",
+  "contract_digest": "8ce3e0476c62d399bf2afb4d122110071123e0c99cd2e89fd2a65ccf1aa65679",
+  "execution_digest": "a3c7cb91a95e789fe2794783e8c6ce72c9d881a57c9abedf94dd0940fea913f6",
+  "workspace_digest": "65bbeab26bc02237a4b142caebda97b7d7865f4e790bf945c653c8e1edfd0924",
+  "acceptance_input_digest": "f5dc480c8d42dea9cce4f4b2dfd6010fa1e43b08961f664095f9a22e8a74720f",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "specs/cmd_issues/testing.md",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "06147c16237ca88894c99d65961c4cc11d99509f535f75ed8e36b2a4624a5154",
+        "entry_digest": "c30886e219b84058a42dd7490235595c07e1a217e8f1aebfa9e2a35006689152",
+        "owners": [
+          "@exact:delivery"
+        ]
+      },
+      {
+        "path": "tests/integration/commands.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1fb4d1d1cd210611ffdc7632bb85ca7ef752a86b8fff7385a78d1d82db58e896",
+        "entry_digest": "b13a131be5d6b0fc864cc9d37270a216cd844f11d6f1a68068de52e702f57f44",
+        "owners": [
+          "@exact:test"
+        ]
+      },
+      {
+        "path": "tests/integration/commands/issues.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "3d654a0cbe4fcc2a80b2a99cfed6874b902e51da9deb2afe135cf9c83dffaff7",
+        "entry_digest": "f95477cc1ce04977065cfd7c8bc9e35351d52a4a9424d6d72f57e274b18c372a",
+        "owners": [
+          "@exact:test"
+        ]
+      },
+      {
+        "path": "tests/integration/commands/specsync_process.rs",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "c7f2b723fb19b1190601812759530c83dd7aebd6f3e282b85d10b1bcb13e3a02",
+        "entry_digest": "5523fcc2bbbbc798222788449dfb5de9488da782625818e0bc52a6494f61c090",
+        "owners": [
+          "@exact:test"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check (no spec in scope)",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

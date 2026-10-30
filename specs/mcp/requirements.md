@@ -226,10 +226,11 @@ Acceptance Criteria
 
 ### REQ-mcp-010
 
-The MCP module SHALL keep the same behavior when its source is split across `include!` files, and none of those files SHALL exceed 5,000 lines.
+The MCP module SHALL keep the same external behavior when its source is ordinary purpose-named private modules, and none of those files SHALL exceed 5,000 lines.
 
 Acceptance Criteria
-- `src/mcp.rs` includes its parts in the original order.
-- The parts are the previous `src/mcp.rs` bytes.
+- `run_mcp_server` and `mcp_tool_definitions` stay the functions visible outside the module.
+- JSON/wire responses, resource bounds, file identity checks, atomic publication and rollback, and debug race barriers stay the same.
+- The implementation is Rust modules declared by `src/mcp.rs`. `src/mcp/server_name.rs` and `src/mcp/publish_staged_file_with_verification_hooks.rs` remain so the existing GitHub read-path scan can still include those paths. They are not modules.
 - No MCP source file exceeds 5,000 lines.
 

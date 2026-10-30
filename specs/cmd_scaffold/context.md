@@ -19,9 +19,13 @@ spec: cmd_scaffold.spec.md
 
 ## Current Status
 
-Fully implemented and stable. One inline unit test (`add_spec_omits_module_javascript_test_sources`) pins test-file exclusion; companion-generation behavior is covered by integration tests (`generate_creates_companion_files`, `companion_files_not_overwritten_on_regenerate`).
+Fully implemented and stable. Inline unit tests pin test-file exclusion and authoritative missing mappings for both creation commands; companion-generation behavior is covered by integration tests (`generate_creates_companion_files`, `companion_files_not_overwritten_on_regenerate`).
 
 ## Notes
 
 - Part of the command layer: orchestrates `config`, `generator`, and `registry` rather than holding domain logic.
 - Source-file paths in generated frontmatter are normalized to forward slashes for cross-platform manifests.
+
+## Exact-file creation correction
+
+Both creation entry points use shared exact-file/directory admission and the exactly-one-distinct-file fallback. An explicit mapping remains authoritative when it selects nothing. Source enumeration never replaces a file with its parent directory; existing spec/companion no-overwrite behavior is unchanged.

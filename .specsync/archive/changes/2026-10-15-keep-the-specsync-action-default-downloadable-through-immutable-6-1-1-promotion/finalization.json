@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion",
+  "implementation_commit": "62cea5ae6a656a6ceb87a668275b265886257958",
+  "implementation_tree": "f01ae7a41f418b20dbe79f3928e50e156212631d",
+  "contract_digest": "4ceb573927c9e450a54b7554de5d05473719ff50cb4f1fde1331a08710ad3d05",
+  "workspace_digest": "fcb90c62cbe85626f4db3ab44ad7eb3df186c5930435721d8ad8ebf366644e77",
+  "closing_digest": "729d404ce31eae93a771a9dca4bf5629a2614977357bd2129e59660dc1419dc9",
+  "review_digest": "6a3d3a3eabd5a828fc4ad615ac765cc722b0d36b6d736e913098264365e11d02",
+  "finalization_digest": "b813255c78ae74ec030600f1727af733ca6d98d1d9362da5c1604fc60b9b4a5f",
+  "timestamp": 1792073526
+}

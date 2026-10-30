@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "split-mcp-implementation-into-cohesive-private-modules",
+  "implementation_commit": "5e23800ea78c12dc9750c6817002585324c2dbcf",
+  "implementation_tree": "f69d8ca96ff31ee969835425a8da153fabe82099",
+  "contract_digest": "f864bb4a3d01b12142eb586541b34b7ccd0440ddd32b61bb0b29e90e7766963b",
+  "workspace_digest": "4e341a5d11e7141c751ec5817aae38a9dfa5903d9b422fb3da2290a06c3e2539",
+  "closing_digest": "5061bfb954f63eb4cd7be54cc4dc9134affc18daab24b4dbfa7af7fe84ef8709",
+  "review_digest": "0b4e68043921511cd3ba22d0e2bf6411d75b550d2003795e90305f7e95bcea12",
+  "finalization_digest": "95ed43e5cdde1aa9ea3a85a2c699eab3b19e169ee63c149c97072fc8c5e68f1f",
+  "timestamp": 1792158833
+}

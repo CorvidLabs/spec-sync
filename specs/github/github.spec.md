@@ -1,6 +1,6 @@
 ---
 module: github
-version: 38
+version: 43
 status: stable
 files:
   - src/github.rs
@@ -17,9 +17,13 @@ depends_on:
 Links spec files to GitHub issues for traceability. Validates `implements` and `tracks` frontmatter
 fields against actual GitHub issues, fetches issue metadata, and creates drift detection issues
 when specs fall out of sync. Also defines the maintained composite GitHub Action distribution
-contract: immutable exact-version refs and a verified floating major compatibility ref. After
-stable `v6.1.0` is published, the omitted-input default on `main` and on floating `@v6` is
-`6.1.0`. The published `@v6.0.0` Action tag still embeds default `6.0.0-rc.14` and is not
+contract: immutable exact-version refs and a verified floating major compatibility ref. This
+later main wrapper defaults to the qualified published `6.1.1` binary after stable
+asset and supported-platform Action checks. Immutable `@v6.1.1` remains on the
+qualified candidate SHA with default `6.1.0`; pass explicit `version: '6.1.1'` for
+the new stable binary. Floating `@v6` advances only after actual consumer checks
+of this separate wrapper commit. The published `@v6.0.0` Action tag still embeds
+default `6.0.0-rc.14` and is not
 rewritten; `v6` must not be retargeted at that tag. Hosted JavaScript
 verification uses one exact supported Bun runtime across site deployment, site CI, and VS Code
 extension CI.
@@ -236,3 +240,9 @@ first use — so the workflow names no environment rather than publish a gate th
 | 2026-10-09 | release-specsync-6-0-1-with-the-git-lfs-object-id-evidence-fix: Release SpecSync 6.0.1 with the Git LFS object-id evidence fix |
 | 2026-10-11 | split-source-files-so-none-is-longer-than-5-000-lines: Split source files so none is longer than 5,000 lines |
 | 2026-10-11 | release-specsync-6-1-0: Release SpecSync 6.1.0 |
+| 2026-10-12 | fix-custom-cargo-library-discovery-and-scoped-npm-generation-for-specsync-6-1-1: Fix custom Cargo library discovery and scoped npm generation for SpecSync 6.1.1 |
+| 2026-10-15 | complete-exact-cargo-source-handling-and-scoped-batch-recognition-for-specsync-6-1-1: Complete exact Cargo source handling and scoped batch recognition for SpecSync 6.1.1 |
+| 2026-10-15 | Keep the Action default on published assets while immutable 6.1.1 qualification and later wrapper advancement remain separate |
+| 2026-10-15 | keep-the-specsync-action-default-downloadable-through-immutable-6-1-1-promotion: Keep the SpecSync Action default downloadable through immutable 6.1.1 promotion |
+| 2026-10-15 | Conditional post-publication wrapper delivery advances the published binary default without changing the immutable CLI release identity |
+| 2026-10-15 | advance-the-published-specsync-6-1-1-action-default-after-platform-consumer-checks: Advance the published SpecSync 6.1.1 Action default after platform consumer checks |

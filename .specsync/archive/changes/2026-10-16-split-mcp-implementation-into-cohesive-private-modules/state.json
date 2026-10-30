@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "split-mcp-implementation-into-cohesive-private-modules",
+  "slug": "split-mcp-implementation-into-cohesive-private-modules",
+  "title": "Split MCP implementation into cohesive private modules",
+  "description": "Split MCP implementation into cohesive private modules",
+  "kind": "refactor",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "621a74785e3c09b2e9ebea35768e05f5772f886f",
+  "created_at": 1792126103,
+  "updated_at": 1792159229,
+  "affected_specs": [
+    "mcp"
+  ],
+  "affected_paths": [
+    "src/mcp.rs",
+    "src/mcp",
+    "specs/mcp"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "Replace textual MCP includes with ordinary private Rust modules while preserving existing production function bodies and cfg gates; keep run_mcp_server and mcp_tool_definitions as the two external MCP entry points; conserve all existing MCP tests and scan every moved source for provider-process construction; preserve protocol responses, confinement, budgets, publication, rollback and debug race barriers; pass debug unit/integration inventories, release-test compilation and strict canonical contract checks."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "research",
+    "design",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Refactor only src/mcp.rs, src/mcp and specs/mcp on base621a74785e3c09b2e9ebea35768e05f5772f886f. Preserve PR800 lifecycle/evidence and PR815 check/fix ownership. Retain historical comment-only include_str scan anchors and add a complete moved-source scan. Cross-module items remain pub(super), not pub(crate). Use cached tools and latest released SpecSync6.1.1. Debug fixture qualification uses an ordinary local environment without inherited CI/forced-color overrides; real hosted lifecycle/CI gates remain pending. This is a technical draft for review, not human approval, acceptance, release or platform qualification.",
+    "public_contract": "no"
+  }
+}

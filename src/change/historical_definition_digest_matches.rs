@@ -3708,6 +3708,86 @@ pub fn audit_project(root: &Path) -> SddCheckReport {
     check_project_with_command_output(root, false)
 }
 
+/// Policy coverage survives same-PR finalization only for an authenticated new
+/// delivery archive whose signed policy entry still matches the living file.
+fn delivery_policy_is_covered(
+    root: &Path,
+    records: &[ChangeRecord],
+    cache: &mut ArchivedIntegrityCache,
+) -> Result<bool, String> {
+    if records.iter().any(|record| record_covers_path(record, POLICY_PATH)) {
+        return Ok(true);
+    }
+    let base = pull_request_diff_base(root, records);
+    let base_commit = comparison_base_commit(root, &base)
+        .ok_or_else(|| "unable to resolve policy delivery base".to_string())?;
+    let mut changed: BTreeSet<String> = git_output_allow_empty(root, &["diff", "--name-only", "--relative", &base])
+        .ok_or_else(|| "unable to inspect policy delivery paths".to_string())?
+        .lines()
+        .map(str::to_string)
+        .collect();
+    if !is_ci_project(root) {
+        for command in [
+            vec!["diff", "--name-only", "--relative"],
+            vec!["diff", "--cached", "--name-only", "--relative"],
+            vec!["ls-files", "--others", "--exclude-standard"],
+        ] {
+            let paths = git_output_allow_empty(root, &command)
+                .ok_or_else(|| "unable to inspect local policy delivery paths".to_string())?;
+            changed.extend(paths.lines().map(str::to_string));
+        }
+    }
+    let candidates: Vec<_> = archived_records_in_delivery(root, &changed)?
+        .into_iter()
+        .filter(|record| record_covers_path(record, POLICY_PATH))
+        .collect();
+    if candidates.is_empty() {
+        return Ok(false);
+    }
+    // Compare identities from the immutable base roster, not directory names:
+    // moving a historical package must never create new policy authority.
+    // Only state identities are read here; unrelated closing evidence is not audited.
+    let archive_root = git_repo_relative_path(root, ARCHIVE_PATH)?;
+    let paths = git_output_allow_empty(root, &[
+        "ls-tree", "--full-tree", "-r", "--name-only", "-z", &base_commit,
+        "--", &format!(":(literal){archive_root}/"),
+    ]).ok_or_else(|| "unable to inspect base policy archive roster".to_string())?;
+    let mut historical_ids = BTreeSet::new();
+    for path in paths.split('\0').filter(|path| path.ends_with("/state.json")) {
+        let content = git_output_allow_empty(root, &["show", &format!("{base_commit}:{path}")])
+            .ok_or_else(|| format!("unable to read base policy archive state {path}"))?;
+        let record: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|error| format!("invalid base policy archive state {path}: {error}"))?;
+        let id = record.get("id").and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("missing base policy archive identity {path}"))?;
+        historical_ids.insert(id.to_string());
+    }
+    let mut mismatches = Vec::new();
+    for archived in candidates {
+        if historical_ids.contains(&archived.id) {
+            continue;
+        }
+        validate_archived_integrity_with_cache(root, &archived, cache)
+            .map_err(|error| format!("{}: {error}", archived.id))?;
+        let signed = resolved_acceptance_manifest(root, &archived)?;
+        let Some(accepted) = signed.entries.iter().find(|entry| entry.path == POLICY_PATH) else {
+            return Err(format!("{}: signed policy acceptance entry is missing", archived.id));
+        };
+        let mut projection = archived.clone();
+        projection.affected_specs.clear();
+        projection.affected_paths = vec![POLICY_PATH.to_string()];
+        let current = acceptance_manifest_with_signed_owners(root, &projection, &[], &signed)?;
+        if current.entries.iter().any(|entry| entry == accepted) {
+            return Ok(true);
+        }
+        mismatches.push(format!("{}: current policy differs from its authenticated acceptance entry", archived.id));
+    }
+    if !mismatches.is_empty() {
+        return Err(mismatches.join("; "));
+    }
+    Ok(false)
+}
+
 fn check_project_with_command_output(
     root: &Path,
     include_archive_integrity: bool,
@@ -3827,14 +3907,15 @@ fn check_project_with_command_output(
     let policy = if let Some(base) = base_policy.filter(|policy| policy.enabled)
         && current_policy.as_ref() != Some(&base)
     {
-        if !records
-            .iter()
-            .any(|record| record_covers_path(record, POLICY_PATH))
-        {
-            report.errors.push(
-                "committed SDD policy changed without an implementing, verifying, or accepted change covering `.specsync/sdd.json`"
+        match delivery_policy_is_covered(root, &records, &mut archived_integrity_cache) {
+            Ok(true) => {}
+            Ok(false) => report.errors.push(
+                "committed SDD policy changed without an implementing, verifying, accepted, or authenticated same-delivery archived change covering `.specsync/sdd.json`"
                     .into(),
-            );
+            ),
+            Err(error) => report.errors.push(format!(
+                "committed SDD policy archive coverage is invalid: {error}"
+            )),
         }
         base
     } else {

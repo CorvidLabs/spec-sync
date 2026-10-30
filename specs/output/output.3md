@@ -26,3 +26,6 @@ Fully implemented and stable, with inline unit tests covering `print_summary` (u
 
 @plane z=4 label="Notes"
 - This module contains no domain logic — it is the rendering layer for `check`, `coverage`, and `diff`.
+
+@plane z=5 label="Cargo generation binding (#813)"
+Manifest binding metadata belongs to source generation. Presentation fixture reports initialize it empty and continue to render the shared measured coverage accessors.

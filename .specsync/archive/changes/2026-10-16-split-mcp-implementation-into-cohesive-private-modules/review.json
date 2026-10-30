@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "split-mcp-implementation-into-cohesive-private-modules",
+  "reviewer": "agent:codex",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "5e23800ea78c12dc9750c6817002585324c2dbcf",
+  "contract_digest": "f864bb4a3d01b12142eb586541b34b7ccd0440ddd32b61bb0b29e90e7766963b",
+  "execution_digest": "94fe0b8f0b93f840725d371fc15531500f5d141d5e40cb6f3fcbac9a356e7299",
+  "workspace_digest": "4e341a5d11e7141c751ec5817aae38a9dfa5903d9b422fb3da2290a06c3e2539",
+  "timestamp": 1792158814
+}

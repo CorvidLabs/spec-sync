@@ -808,23 +808,61 @@ fn stub_section_warning(warning: &str) -> Option<&str> {
 ///
 /// Suppressions are carried alongside errors rather than instead of them, so a
 /// module that both fails and suppresses still reports what it let through.
+///
+/// `module_errors` attributes the validator verdicts among `errors` to the module whose effective
+/// contract produced them. It is private bookkeeping: every caller still reads `errors`, which is
+/// unchanged, and `errors` remains the complete list. Failures that are not a validator verdict
+/// about one module (ordering, the temporary workspace, an unresolvable canonical spec, a delta
+/// that cannot be read or applied) carry no attribution.
 #[derive(Debug, Default)]
 struct EffectiveContractOutcome {
     errors: Vec<String>,
     suppressions: Vec<String>,
+    module_errors: BTreeMap<String, Vec<String>>,
 }
 
 impl EffectiveContractOutcome {
     fn failed(error: String) -> Self {
         Self {
             errors: vec![error],
-            suppressions: Vec::new(),
+            ..Self::default()
         }
     }
 
     /// Join the errors for gates whose only output channel is a failure string.
     fn error_text(&self) -> Option<String> {
         (!self.errors.is_empty()).then(|| self.errors.join("; "))
+    }
+
+    /// Split the errors for verification of one change (REQ-change-112): the validator verdicts
+    /// about modules `declared` names, keyed by module, and every other error in gate order.
+    /// Together the two halves hold every error exactly once.
+    fn split_for_declared(
+        &self,
+        declared: &[String],
+    ) -> (BTreeMap<String, Vec<String>>, Vec<String>) {
+        let attributed: BTreeMap<String, Vec<String>> = self
+            .module_errors
+            .iter()
+            .filter(|(module, _)| declared.contains(module))
+            .map(|(module, errors)| (module.clone(), errors.clone()))
+            .collect();
+        let mut held: Vec<&String> = attributed.values().flatten().collect();
+        let rest = self
+            .errors
+            .iter()
+            .filter(|error| {
+                match held.iter().position(|candidate| *candidate == *error) {
+                    Some(index) => {
+                        held.swap_remove(index);
+                        false
+                    }
+                    None => true,
+                }
+            })
+            .cloned()
+            .collect();
+        (attributed, rest)
     }
 }
 
@@ -885,6 +923,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
     let ignore_rules = crate::ignore::IgnoreRules::load(root);
     let mut errors = Vec::new();
     let mut suppressions = Vec::new();
+    let mut module_errors: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for module in modules {
         let canonical = match canonical_module_paths(root, &config.specs_dir, &module) {
             Ok((spec_path, _)) => spec_path,
@@ -992,12 +1031,11 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
             &schema_columns,
             &config,
         );
-        errors.extend(
-            result
-                .errors
-                .into_iter()
-                .map(|error| format!("effective contract `{module}`: {error}")),
-        );
+        let mut verdicts: Vec<String> = result
+            .errors
+            .into_iter()
+            .map(|error| format!("effective contract `{module}`: {error}"))
+            .collect();
         for warning in result.warnings {
             if let Some((category, source)) =
                 ignore_rules.suppression_source(&warning, &spec_rel_path, &inline_ignores)
@@ -1019,13 +1057,18 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
                 ));
                 continue;
             }
-            errors.push(format!("effective contract `{module}`: {warning}"));
+            verdicts.push(format!("effective contract `{module}`: {warning}"));
+        }
+        if !verdicts.is_empty() {
+            errors.extend(verdicts.iter().cloned());
+            module_errors.insert(module.clone(), verdicts);
         }
     }
     let _ = fs::remove_dir_all(temp);
     EffectiveContractOutcome {
         errors,
         suppressions,
+        module_errors,
     }
 }
 

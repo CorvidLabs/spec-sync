@@ -3080,3 +3080,165 @@ fn status_json_and_text_report_an_edited_approved_delta() {
     assert!(restored["summary"].get("changed_approved_deltas").is_none());
     run(&["change", "audit"]).success();
 }
+
+// Verifies REQ-change-112 and REQ-change-023 through the built binary. Under configured
+// `enforcement = "strict"`, the first `change check` after approval refuses an undocumented
+// export in a declared module and records that refusal, `--commit` commits nothing, and status
+// points back at `change check`. Documenting the export lets the next check pass with the single
+// scoped command.
+#[test]
+fn change_check_records_the_effective_contract_refusal_on_the_first_run() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let root_arg = root.to_str().unwrap();
+    let git = |args: &[&str]| -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    git(&["init", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    for dir in [".specsync", "src", "specs/auth"] {
+        fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    fs::write(
+        root.join(".specsync/config.toml"),
+        "enforcement = \"strict\"\n",
+    )
+    .unwrap();
+    fs::write(root.join("src/auth.rs"), "// Authentication module.\n").unwrap();
+    let spec_path = root.join("specs/auth/auth.spec.md");
+    fs::write(
+        &spec_path,
+        "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".specsync/sdd.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "version": 2,
+            "enabled": true,
+            "require_change_for_meaningful_files": false,
+            "meaningful_paths": ["src/", ".specsync/sdd.json"],
+            "ignored_paths": [".specsync/"],
+            "verification_commands": ["true"],
+            "custom_artifacts": {},
+            "principles_file": null
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "base"]);
+    let run = |args: &[&str]| specsync().args(["--root", root_arg]).args(args).assert();
+    let id = "add-an-auth-probe";
+    run(&[
+        "change",
+        "new",
+        "Add an auth probe",
+        "--kind",
+        "bug-fix",
+        "--spec",
+        "auth",
+        "--path",
+        "src/auth.rs",
+    ])
+    .success();
+    for (question, answer) in [
+        ("acceptance_criteria", "The auth probe is documented"),
+        ("public_contract", "yes"),
+        ("architecture_risk", "no"),
+    ] {
+        run(&["change", "answer", id, question, answer]).success();
+    }
+    let workspace = root.join(".specsync/changes").join(id);
+    let state: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
+    assert_eq!(state["workflow_version"], 2);
+    for artifact in state["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let content = match name {
+            "tasks" => "# Tasks\n\n- [x] Add the probe.\n",
+            "plan" => super::helpers::SUBSTANTIVE_PLAN,
+            "testing" => "# Testing\n\nThe integration test proves the auth probe is documented.\n",
+            _ => "# Complete\n\nReviewed probe evidence.\n",
+        };
+        fs::write(workspace.join(format!("{name}.md")), content).unwrap();
+    }
+    fs::write(
+        workspace.join("deltas/auth.md"),
+        "## MODIFIED\n\n### SPEC SECTION Invariants\n\nStable and probed.\n",
+    )
+    .unwrap();
+    run(&["change", "approve", id, "--actor", "Reviewer"]).success();
+    fs::write(
+        root.join("src/auth.rs"),
+        "// Authentication module.\npub fn undocumented_probe() {}\n",
+    )
+    .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-m", "implement"]);
+    let head = git(&["rev-parse", "HEAD"]);
+    let verification = || -> Value {
+        serde_json::from_str(&fs::read_to_string(workspace.join("verification.json")).unwrap())
+            .unwrap()
+    };
+    let gate_entry = format!("specsync change check {id} (effective contract: auth)");
+
+    run(&["--json", "change", "check", id])
+        .failure()
+        .stdout(predicate::str::contains(
+            "Undocumented export 'undocumented_probe'",
+        ));
+    let first = verification();
+    assert_eq!(first["passed"], false, "{first}");
+    assert_eq!(
+        first["commands"][0]["command"],
+        "specsync check --spec auth"
+    );
+    assert_eq!(first["commands"][1]["command"], gate_entry.as_str());
+    assert_eq!(first["commands"][1]["success"], false);
+
+    run(&["change", "check", id, "--commit"]).failure();
+    assert_eq!(
+        git(&["rev-parse", "HEAD"]),
+        head,
+        "a refused check commits nothing"
+    );
+    let status: Value = serde_json::from_slice(
+        &run(&["--json", "change", "status", id])
+            .success()
+            .get_output()
+            .stdout,
+    )
+    .unwrap();
+    assert_eq!(
+        status["summary"]["next_action"],
+        format!("run `specsync change check {id}`").as_str(),
+        "{status}"
+    );
+
+    let spec = fs::read_to_string(&spec_path).unwrap().replacen(
+        "## Public API\n\nNone.\n",
+        "## Public API\n\n| Function | Description |\n|----------|-------------|\n| `undocumented_probe` | Probe the auth module |\n",
+        1,
+    );
+    fs::write(&spec_path, spec).unwrap();
+    run(&["change", "check", id]).success();
+    let passed = verification();
+    assert_eq!(passed["passed"], true, "{passed}");
+    assert_eq!(
+        passed["commands"],
+        serde_json::json!([{"command": "specsync check --spec auth", "success": true, "exit_code": 0}])
+    );
+}

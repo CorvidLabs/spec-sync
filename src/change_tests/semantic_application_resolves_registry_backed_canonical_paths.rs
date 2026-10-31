@@ -1253,6 +1253,336 @@ fn status_does_not_advertise_strict_unless_strict_was_requested() {
     );
 }
 
+/// An exported function no spec documents: a validator warning, which the effective-contract
+/// gate promotes to an error and the non-strict scoped pass does not.
+const UNDOCUMENTED_AUTH_SOURCE: &str = "// Authentication module.\npub fn undocumented_probe() {}\n";
+
+/// An approved workflow-v2 `auth` change under the given configured `enforcement`. With
+/// `undocumented` set, `src/auth.rs` gains an export the `auth` spec does not document, after
+/// approval and before the first check, as in Chough BUG-0003.
+fn approved_auth_change(root: &Path, enforcement: Option<&str>, undocumented: bool) -> ChangeRecord {
+    if let Some(mode) = enforcement {
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        fs::write(
+            root.join(".specsync/config.toml"),
+            format!("enforcement = \"{mode}\"\n"),
+        )
+        .unwrap();
+    }
+    let record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    if undocumented {
+        fs::write(root.join("src/auth.rs"), UNDOCUMENTED_AUTH_SOURCE).unwrap();
+    }
+    record
+}
+
+fn gate_entry(id: &str, modules: &str) -> String {
+    format!("specsync change check {id} (effective contract: {modules})")
+}
+
+fn verification_attempt_count(root: &Path, id: &str) -> usize {
+    let path = change_dir(root, id).join("verification-attempts.json");
+    if !path.exists() {
+        return 0;
+    }
+    serde_json::from_str::<VerificationAttemptLedger>(&fs::read_to_string(path).unwrap())
+        .unwrap()
+        .attempts
+        .len()
+}
+
+/// DISCRIMINATOR for REQ-change-112, under `warn` and under `strict`. On f240d37 the first
+/// `check_change` records `passed: true`, because the gate's roster filter dropped the change it
+/// was verifying. Configured enforcement plays no part, so both modes must fail alike.
+#[test]
+fn first_change_check_refuses_an_undocumented_export_in_a_declared_module() {
+    for mode in ["warn", "strict"] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let record = approved_auth_change(root, Some(mode), true);
+
+        let error = check_change(root, Some(&record.id)).unwrap_err();
+
+        assert!(
+            error.contains("Undocumented export 'undocumented_probe'"),
+            "{mode}: the first check must name the warning the gate refuses: {error}"
+        );
+        let checked = load_change(root, &record.id).unwrap();
+        let verification = load_verification(root, &checked).unwrap();
+        assert!(!verification.passed, "{mode}: {verification:?}");
+        let commands: Vec<(&str, bool)> = verification
+            .commands
+            .iter()
+            .map(|command| (command.command.as_str(), command.success))
+            .collect();
+        assert_eq!(
+            commands,
+            vec![
+                ("specsync check --spec auth", true),
+                (gate_entry(&record.id, "auth").as_str(), false),
+            ],
+            "{mode}: the scoped entry stays and the gate is named, not a `--strict` run"
+        );
+        assert_eq!(verification_attempt_count(root, &record.id), 1, "{mode}");
+    }
+}
+
+/// DISCRIMINATOR for REQ-change-112: a pass recorded by 6.1.1 over this tree. It is the pass the
+/// fixed first check no longer writes, so the fixture restores it under the current project
+/// digest. On f240d37 the next check refuses without recording anything, so the stale pass stays
+/// current and status keeps pointing at review.
+#[test]
+fn a_gate_refusal_appends_a_failed_attempt_after_a_recorded_pass() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, false);
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    fs::write(root.join("src/auth.rs"), UNDOCUMENTED_AUTH_SOURCE).unwrap();
+    let digest = project_input_digest(root).unwrap();
+    let dir = change_dir(root, &record.id);
+    let mut ledger: VerificationAttemptLedger =
+        serde_json::from_str(&fs::read_to_string(dir.join("verification-attempts.json")).unwrap())
+            .unwrap();
+    let pass = ledger.attempts.last_mut().unwrap();
+    pass.workspace_digest = digest;
+    let pass = pass.clone();
+    write_json(&dir.join("verification-attempts.json"), &ledger).unwrap();
+    write_json(&dir.join("verification.json"), &pass).unwrap();
+    let verifying = load_change(root, &record.id).unwrap();
+    assert!(
+        summarize_change(root, &verifying)
+            .next_action
+            .contains("change review"),
+        "the fixture must hold a pass status calls current"
+    );
+
+    let error = check_change(root, Some(&record.id)).unwrap_err();
+
+    assert!(error.contains("undocumented_probe"), "{error}");
+    assert_eq!(verification_attempt_count(root, &record.id), 2);
+    let verifying = load_change(root, &record.id).unwrap();
+    assert!(!load_verification(root, &verifying).unwrap().passed);
+    assert_eq!(
+        summarize_change(root, &verifying).next_action,
+        format!("run `specsync change check {}`", record.id),
+        "a recorded refusal supersedes the pass, so status names check, not review"
+    );
+}
+
+/// DISCRIMINATOR for REQ-change-112: the first check now reaches the verdict later checks and
+/// `change audit` already reached, and acceptance still refuses. On f240d37 the first check passes.
+#[test]
+fn first_check_and_later_gates_agree_on_a_declared_module_warning() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, true);
+    let warning = "Undocumented export 'undocumented_probe'";
+
+    let first = check_change(root, Some(&record.id)).unwrap_err();
+    let second = check_change(root, Some(&record.id)).unwrap_err();
+    let audit = audit_project(root);
+
+    assert!(first.contains(warning), "{first}");
+    assert!(second.contains(warning), "{second}");
+    assert!(
+        audit.errors.iter().any(|error| error.contains(warning)),
+        "{:?}",
+        audit.errors
+    );
+    assert_eq!(verification_attempt_count(root, &record.id), 2);
+    assert!(accept_change(root, &record.id, Some("Closing reviewer".into()), None).is_err());
+}
+
+/// CONTROL, passes on f240d37 too: clean declared modules record exactly the single scoped
+/// command, without `--strict`, on the first and the second check.
+#[test]
+fn a_clean_declared_module_still_records_one_scoped_command() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, Some("strict"), false);
+    for run in ["first", "second"] {
+        let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+        assert!(verification.passed, "{run}");
+        let commands: Vec<&str> = verification
+            .commands
+            .iter()
+            .map(|command| command.command.as_str())
+            .collect();
+        assert_eq!(commands, vec!["specsync check --spec auth"], "{run}");
+    }
+}
+
+/// CONTROL, passes on f240d37 too: explicit `--strict` records the strict scoped command.
+#[test]
+fn explicit_strict_verification_is_unchanged() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, false);
+
+    let verification = check_change_with_strict(root, Some(&record.id), true)
+        .unwrap()
+        .unwrap();
+
+    let commands: Vec<&str> = verification
+        .commands
+        .iter()
+        .map(|command| command.command.as_str())
+        .collect();
+    assert_eq!(commands, vec!["specsync check --spec auth --strict"]);
+}
+
+/// CONTROL, passes on f240d37 too: a spec reached only through `affected_paths` is judged by the
+/// scoped rule alone, so its warning does not fail a non-strict check.
+#[test]
+fn a_warning_only_in_a_path_scoped_spec_keeps_the_scoped_rule() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "pub fn undocumented_probe() {}\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        fs::read_to_string(root.join("specs/auth/auth.spec.md"))
+            .unwrap()
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+    record.affected_paths.push("src/".into());
+    save_change(root, &record).unwrap();
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+
+    assert!(verification.passed, "{verification:?}");
+    let commands: Vec<&str> = verification
+        .commands
+        .iter()
+        .map(|command| command.command.as_str())
+        .collect();
+    assert_eq!(
+        commands,
+        vec!["specsync check --spec auth --spec other"],
+        "`other` is in scope through the path alone and judged by the scoped rule"
+    );
+}
+
+/// CONTROL, passes on f240d37 too: a `--no-spec-change` delivery declares no module, so the
+/// effective-contract gate judges nothing for it.
+#[test]
+fn a_no_spec_change_delivery_is_not_gated_by_the_effective_contract() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_no_spec_current_record(root);
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn ready() -> bool { true }\npub fn undocumented_probe() {}\n",
+    )
+    .unwrap();
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+
+    assert!(verification.passed, "{verification:?}");
+    assert_eq!(verification.commands.len(), 1);
+}
+
+/// A second approved change declaring module `other`, whose source carries an undocumented
+/// export, beside the `auth` change the caller verifies.
+fn approve_an_other_module_change(root: &Path) {
+    fs::create_dir_all(root.join("specs/other")).unwrap();
+    fs::write(root.join("src/other.rs"), "pub fn other_probe() {}\n").unwrap();
+    fs::write(
+        root.join("specs/other/other.spec.md"),
+        fs::read_to_string(root.join("specs/auth/auth.spec.md"))
+            .unwrap()
+            .replace("module: auth", "module: other")
+            .replace("src/auth.rs", "src/other.rs")
+            .replace("# Auth", "# Other"),
+    )
+    .unwrap();
+    let mut other = create_change(
+        root,
+        CreateChangeRequest {
+            description: "govern the other module".into(),
+            kind: ChangeKind::Feature,
+            affected_specs: vec!["other".into()],
+            affected_paths: vec!["src/other.rs".into()],
+            requested_artifacts: Vec::new(),
+            no_spec_change: false,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    other.acceptance_criteria = vec!["The other module is governed".into()];
+    other.answers.insert("public_contract".into(), "yes".into());
+    other.answers.insert("architecture_risk".into(), "no".into());
+    save_change(root, &other).unwrap();
+    write_change_markdown(root, &other).unwrap();
+    for artifact in &other.selected_artifacts {
+        let content = if *artifact == ArtifactKind::Tasks {
+            "# Tasks\n\n- [x] Govern it.\n"
+        } else {
+            prose_or_plan(artifact, "# Complete\n\nReviewed content.\n")
+        };
+        fs::write(change_dir(root, &other.id).join(artifact.file_name()), content).unwrap();
+    }
+    fs::write(
+        delta_path(root, &other, "other"),
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nOther is governed.\n",
+    )
+    .unwrap();
+    approve_definition(root, &other.id, Some("Scope owner".into()), None).unwrap();
+}
+
+/// CONTROL, passes on f240d37 too: a gate failure that belongs to another change's module is not
+/// a verdict about this change, so it is still refused before any attempt is recorded.
+#[test]
+fn a_gate_failure_in_another_changes_module_is_still_refused_before_recording() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, false);
+    approve_an_other_module_change(root);
+
+    let error = check_change(root, Some(&record.id)).unwrap_err();
+
+    assert!(error.contains("effective contract `other`"), "{error}");
+    assert_eq!(verification_attempt_count(root, &record.id), 0);
+}
+
+/// CONTROL for the attribution REQ-change-112 adds: splitting the gate's errors for one change
+/// keeps every error exactly once, whichever modules the change declares.
+#[test]
+fn gate_error_attribution_drops_no_error() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_auth_change(root, None, true);
+    approve_an_other_module_change(root);
+    let mut records = list_changes_checked(root).unwrap();
+    for candidate in &mut records {
+        candidate.state = ChangeState::Verifying;
+    }
+    let outcome = validate_effective_contracts(root, &records);
+    assert!(outcome.module_errors.contains_key("auth") && outcome.module_errors.contains_key("other"));
+
+    for declared in [vec![], vec!["auth".to_string()], record.affected_specs.clone(), vec!["auth".into(), "other".into()]] {
+        let (attributed, rest) = outcome.split_for_declared(&declared);
+        let mut union: Vec<String> = attributed.into_values().flatten().chain(rest).collect();
+        let mut expected = outcome.errors.clone();
+        union.sort();
+        expected.sort();
+        assert_eq!(union, expected, "declared {declared:?}");
+    }
+}
+
 // Verifies REQ-change-030.
 #[test]
 fn native_cargo_check_argument_is_not_misclassified_as_specsync() {

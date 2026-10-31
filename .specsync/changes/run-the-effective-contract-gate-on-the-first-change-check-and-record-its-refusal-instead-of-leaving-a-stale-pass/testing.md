@@ -91,3 +91,18 @@ This goes in `tests/integration/change.rs`, through the built binary.
 | REQ-change-023 | The gate-entry assertions above. `status_does_not_advertise_strict_unless_strict_was_requested`, `an_empty_scope_is_named_rather_than_written_as_a_project_wide_pass`, `mixed_scope_evidence_names_the_missing_module_but_does_not_rerun_faithfully` and `the_spec_filter_name_is_the_stem_filter_specs_matches_not_the_declared_module` stay green unchanged. |
 
 No result is claimed here. Observed results are recorded after the tests are written and run.
+
+## Observed results (2026-10-31)
+
+Labels were confirmed against an export of f240d37 with only the new tests applied (no fix):
+
+- Failed on f240d37, as labelled DISCRIMINATOR: `first_change_check_refuses_an_undocumented_export_in_a_declared_module` and `first_check_and_later_gates_agree_on_a_declared_module_warning` (the first `check_change` returned a pass), `a_gate_refusal_appends_a_failed_attempt_after_a_recorded_pass` (no attempt was recorded), and the integration test `change_check_records_the_effective_contract_refusal_on_the_first_run` (the first check succeeded).
+- Passed on f240d37, as labelled CONTROL: `a_clean_declared_module_still_records_one_scoped_command`, `explicit_strict_verification_is_unchanged`, `a_warning_only_in_a_path_scoped_spec_keeps_the_scoped_rule`, `a_no_spec_change_delivery_is_not_gated_by_the_effective_contract`, `a_gate_failure_in_another_changes_module_is_still_refused_before_recording`, and the existing `status_does_not_advertise_strict_unless_strict_was_requested`, `change_check_fails_when_specs_and_code_drift` and `change_check_ignores_drift_in_an_unowned_spec`.
+- `gate_error_attribution_drops_no_error` exercises the new private attribution, so it cannot compile on f240d37 and was left out of that run.
+- With the fix, all of them pass. The full `cargo test` run passes: 2,609 unit tests and 463 integration tests.
+
+Deviations:
+
+- `first_check_and_later_gates_agree_on_a_declared_module_warning` asserts only that acceptance refuses. With the fix the latest attempt has failed, so `accept_change` refuses earlier, on stale verification, and does not reach the gate's message.
+- The unit fixtures are not Git repositories. The integration test is.
+- The path-scoped control declares `src/` as its affected path, because approval refuses an exact path owned by an undeclared module.

@@ -5,14 +5,14 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Add the discriminator and control tests in `testing.md` and record which fail on origin/main f240d37.
-- [ ] Attribute effective-contract errors to modules privately, preserving every existing caller's output.
-- [ ] Have `verify_change_locked` run the gate with the verifying change included on its first check.
-- [ ] Record a declared-module gate refusal as a failed attempt with the named gate entry, after the unchanged tasks and evidence checks.
-- [ ] Keep non-attributable gate failures as pre-attempt refusals.
-- [ ] Document the first-check behavior in `site/src/content/docs/workflow.md`.
-- [ ] Update the change testing, tasks and `change.3md` lesson after verification.
-- [ ] Run the regression lanes in `testing.md` and record the observed results.
+- [x] Add the discriminator and control tests in `testing.md` and record which fail on origin/main f240d37.
+- [x] Attribute effective-contract errors to modules privately, preserving every existing caller's output.
+- [x] Have `verify_change_locked` run the gate with the verifying change included on its first check.
+- [x] Record a declared-module gate refusal as a failed attempt with the named gate entry, after the unchanged tasks and evidence checks.
+- [x] Keep non-attributable gate failures as pre-attempt refusals.
+- [x] Document the first-check behavior in `site/src/content/docs/workflow.md`.
+- [x] Update the change testing, tasks and `change.3md` lesson after verification.
+- [x] Run the regression lanes in `testing.md` and record the observed results.
 
 ## Human gates
 

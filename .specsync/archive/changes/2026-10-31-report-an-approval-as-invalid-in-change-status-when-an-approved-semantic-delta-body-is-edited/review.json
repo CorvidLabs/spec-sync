@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "change_id": "report-an-approval-as-invalid-in-change-status-when-an-approved-semantic-delta-body-is-edited",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "284e5ee5c8dd0556fba476d3273f48a0133234e6",
+  "contract_digest": "345b8a4781285280bb83e18dbfcf2df67fe825d90a9e73298832cca57b7c92a6",
+  "execution_digest": "963633cfb00d8a0ad1391c2d963e20ecf7f13c011542a866c9531380fa0b65ca",
+  "workspace_digest": "3e47b3f66be0a5f2b35e5e735bab3f9c7460daa438eeaea5b93884cea23fff29",
+  "timestamp": 1793490194
+}

@@ -7,10 +7,10 @@
   "title": "Run the effective contract gate on the first change check and record its refusal instead of leaving a stale pass current",
   "description": "Run the effective contract gate on the first change check and record its refusal instead of leaving a stale pass current",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "f240d379b9f023f5766e5c9b39508eb84e03e2bb",
   "created_at": 1793481427,
-  "updated_at": 1793481477,
+  "updated_at": 1793484681,
   "affected_specs": [
     "change"
   ],

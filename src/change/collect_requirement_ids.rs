@@ -1291,33 +1291,7 @@ fn ensure_approved_delta_bodies_unchanged(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<(), String> {
-    let ledger = load_approvals(root, record)?;
-    let approval = effective_definition_approval(root, record, &ledger)?;
-    let Some(approved) = approval.approved_delta_digests.as_ref() else {
-        if ledger.approvals.iter().any(|candidate| {
-            candidate.gate == "definition" && candidate.approved_delta_digests.is_some()
-        }) {
-            return Err(format!(
-                "the definition approval for {} records no semantic delta wording although an earlier definition approval on this change recorded it; an approval cannot withdraw a claim an earlier one made, so re-run `specsync change approve {}` to record the delta bodies this approval covers, then `specsync change check {}` to bring the canonical spec to them (or restore the approval ledger)",
-                record.id, record.id, record.id
-            ));
-        }
-        return Ok(());
-    };
-    let current = delta_body_digests(root, record)?;
-    let mut changed: Vec<&str> = approved
-        .iter()
-        .filter(|(module, digest)| current.get(*module) != Some(*digest))
-        .map(|(module, _)| module.as_str())
-        .collect();
-    changed.extend(
-        current
-            .keys()
-            .filter(|module| !approved.contains_key(*module))
-            .map(String::as_str),
-    );
-    changed.sort_unstable();
-    changed.dedup();
+    let changed = changed_approved_delta_modules(root, record)?;
     if changed.is_empty() {
         return Ok(());
     }
@@ -1335,6 +1309,98 @@ fn ensure_approved_delta_bodies_unchanged(
         record.id,
         record.id
     ))
+}
+
+/// The modules, sorted, whose delta body no longer matches the digest the effective definition
+/// approval recorded for it, plus any delta the approval never recorded. Empty when the bodies
+/// still match, and also when no definition approval in the ledger ever recorded a digest: that
+/// absence is unknown, not violated. `Err` for every refusal that names no module, such as a
+/// withdrawn binding or an unreadable delta.
+///
+/// The list is the reason a bare `bool` would throw away. Status names these modules in
+/// `ChangeSummary.changed_approved_deltas`; materialization and acceptance refuse with them.
+fn changed_approved_delta_modules(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Vec<String>, String> {
+    let ledger = load_approvals(root, record)?;
+    let approval = effective_definition_approval(root, record, &ledger)?;
+    let Some(approved) = approval.approved_delta_digests.as_ref() else {
+        if ledger.approvals.iter().any(|candidate| {
+            candidate.gate == "definition" && candidate.approved_delta_digests.is_some()
+        }) {
+            return Err(format!(
+                "the definition approval for {} records no semantic delta wording although an earlier definition approval on this change recorded it; an approval cannot withdraw a claim an earlier one made, so re-run `specsync change approve {}` to record the delta bodies this approval covers, then `specsync change check {}` to bring the canonical spec to them (or restore the approval ledger)",
+                record.id, record.id, record.id
+            ));
+        }
+        return Ok(Vec::new());
+    };
+    let current = delta_body_digests(root, record)?;
+    let mut changed: Vec<String> = approved
+        .iter()
+        .filter(|(module, digest)| current.get(*module) != Some(*digest))
+        .map(|(module, _)| module.clone())
+        .collect();
+    changed.extend(
+        current
+            .keys()
+            .filter(|module| !approved.contains_key(*module))
+            .cloned(),
+    );
+    changed.sort_unstable();
+    changed.dedup();
+    Ok(changed)
+}
+
+/// Approval currency as the gates that consume the approval judge it (REQ-change-111).
+///
+/// For an approved, implementing or verifying change the approval is current only when the
+/// effective definition approval still matches the scope digest AND the delta bodies it recorded
+/// still match the delta files. Those are the two refusals materialization and acceptance give,
+/// and status reading only the first sent the operator to a `change check` certain to refuse
+/// (Chough BUG-0002). Every other state keeps the scope half alone, so draft, accepted and
+/// archived verdicts and every archived ledger are not re-judged by the active-state binding.
+///
+/// The delta half runs only when the scope half holds: it resolves the same effective approval
+/// first and would only repeat the scope refusal.
+struct ApprovalCurrency {
+    current: bool,
+    /// Sorted modules whose approved delta body changed; empty unless the scope half holds.
+    changed_approved_deltas: Vec<String>,
+}
+
+fn approval_currency(root: &Path, record: &ChangeRecord) -> ApprovalCurrency {
+    let scope_current = ensure_definition_approval_valid(root, record).is_ok();
+    if !scope_current
+        || !matches!(
+            record.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        )
+    {
+        return ApprovalCurrency {
+            current: scope_current,
+            changed_approved_deltas: Vec::new(),
+        };
+    }
+    match changed_approved_delta_modules(root, record) {
+        Ok(changed) => ApprovalCurrency {
+            current: changed.is_empty(),
+            changed_approved_deltas: changed,
+        },
+        Err(_) => ApprovalCurrency {
+            current: false,
+            changed_approved_deltas: Vec::new(),
+        },
+    }
+}
+
+/// Whether the change's definition approval still covers its approved scope and, for an
+/// approved, implementing or verifying change, the semantic delta bodies it recorded. This is
+/// the predicate behind `ChangeSummary.approval_valid`, exported for human next-action guidance.
+/// It returns only a boolean built from comparisons, so no digest can reach a text sink.
+pub fn approval_current_for_guidance(root: &Path, record: &ChangeRecord) -> bool {
+    approval_currency(root, record).current
 }
 
 /// True when living `requirements.md` already has a `### {key}` requirement heading.

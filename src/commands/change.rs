@@ -802,8 +802,10 @@ fn print_change_text_answers(record: &ChangeRecord) {
     println!("  Answers: {answer_summary}");
 }
 
-/// Human next-step string from interview/state and lightweight artifact completeness.
-/// Avoids digest-bearing loaders (CodeQL cleartext-logging); only reads selected artifact files.
+/// Human next-step string from interview/state, lightweight artifact completeness, and approval
+/// currency. Nothing digest-bearing reaches the string (CodeQL cleartext-logging): artifacts are
+/// read through `artifacts_complete_for_guidance`, and approval currency arrives as the boolean
+/// `approval_current_for_guidance` returns.
 fn text_mode_next_action(
     root: &Path,
     record: &ChangeRecord,
@@ -822,6 +824,14 @@ fn text_mode_next_action(
             format!("complete selected artifacts, then run `specsync change status {id}`")
         }
         ChangeState::Draft => {
+            format!("run `specsync change approve {id} --actor <name>`")
+        }
+        // The same approval currency `summary.approval_valid` reports: a changed scope or an
+        // edited approved delta. `check` would refuse both, so naming it here sent the operator
+        // to a certain failure.
+        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+            if !change::approval_current_for_guidance(root, record) =>
+        {
             format!("run `specsync change approve {id} --actor <name>`")
         }
         ChangeState::Approved | ChangeState::Implementing => {
@@ -2996,16 +3006,22 @@ if the floor call is removed from this function"
     fn approved_change_fixture(root: &Path) -> String {
         let record = draft_fixture(root);
         let id = record.id.clone();
+        approve_and_implement_fixture(root, &id);
+        id
+    }
+
+    /// Answers the interview, fills the selected artifacts, approves, and starts implementation.
+    fn approve_and_implement_fixture(root: &Path, id: &str) {
         for (question, answer) in [
             ("acceptance_criteria", "the fixture verifies"),
             ("public_contract", "no"),
             ("architecture_risk", "no"),
         ] {
-            change::answer_question(root, &id, question, answer).expect("answer");
+            change::answer_question(root, id, question, answer).expect("answer");
         }
         // Fill whatever artifacts the adaptive interview selected; approval refuses on any
         // scaffold left incomplete.
-        let workspace = root.join(".specsync/changes").join(&id);
+        let workspace = root.join(".specsync/changes").join(id);
         for entry in fs::read_dir(&workspace).expect("workspace") {
             let path = entry.expect("entry").path();
             if path.extension().and_then(|e| e.to_str()) == Some("md")
@@ -3019,9 +3035,129 @@ if the floor call is removed from this function"
                 .expect("fill artifact");
             }
         }
-        change::approve_definition(root, &id, Some("Reviewer".into()), None).expect("approve");
-        change::start_implementation(root, &id).expect("implement");
-        id
+        change::approve_definition(root, id, Some("Reviewer".into()), None).expect("approve");
+        change::start_implementation(root, id).expect("implement");
+    }
+
+    /// The delta-bearing sibling of `approved_change_fixture`: an implementing change whose
+    /// `auth` semantic delta was approved with the wording it holds now.
+    fn approved_delta_change_fixture(root: &Path) -> String {
+        change::write_default_policy(root, Vec::new()).expect("write default policy");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::create_dir_all(root.join("specs/auth")).unwrap();
+        fs::write(root.join("src/auth.rs"), "pub fn authenticate() {}\n").unwrap();
+        fs::write(
+            root.join("specs/auth/auth.spec.md"),
+            "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
+        )
+        .unwrap();
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Reword the auth purpose".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: vec!["auth".into()],
+                affected_paths: vec!["src/auth.rs".into()],
+                requested_artifacts: Vec::new(),
+                no_spec_change: false,
+                rationale: None,
+            },
+        )
+        .expect("create draft");
+        fs::write(
+            approved_delta_path(root, &record.id),
+            "## MODIFIED\n\n### SPEC SECTION Purpose\n\nAuth tracks credentials.\n",
+        )
+        .unwrap();
+        approve_and_implement_fixture(root, &record.id);
+        record.id
+    }
+
+    fn approved_delta_path(root: &Path, id: &str) -> PathBuf {
+        root.join(".specsync/changes")
+            .join(id)
+            .join("deltas/auth.md")
+    }
+
+    fn reapprove_action(id: &str) -> String {
+        format!("run `specsync change approve {id} --actor <name>`")
+    }
+
+    /// DISCRIMINATOR for REQ-cmd-change-005 and REQ-change-111. On f240d37 text `Next:` says
+    /// `change check` for a change whose approved delta was edited, and that check refuses.
+    #[test]
+    fn text_next_action_names_reapproval_when_an_approved_delta_was_edited() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = approved_delta_change_fixture(root);
+        let delta = approved_delta_path(root, &id);
+        let approved = fs::read_to_string(&delta).unwrap();
+        fs::write(
+            &delta,
+            format!("{approved}\n## ADDED\n\n### REQUIREMENT REQ-auth-002\n\nThe system SHALL carry wording nobody approved.\n\nAcceptance Criteria\n- Nobody reviewed this.\n"),
+        )
+        .unwrap();
+        let record = change::load_change(root, &id).expect("load");
+
+        let next = text_mode_next_action(root, &record, &[]);
+
+        assert_eq!(next, reapprove_action(&id));
+        assert_eq!(
+            next,
+            change::summarize_change(root, &record).next_action,
+            "text and JSON must name the same next action"
+        );
+        let refusal = change::check_change(root, Some(&id)).expect_err("check refuses the edit");
+        assert!(refusal.contains("changed after approval"), "{refusal}");
+    }
+
+    /// DISCRIMINATOR for REQ-cmd-change-005, the pre-existing stale-scope case: JSON already
+    /// asked for re-approval after a material scope change, while text `Next:` said `check`.
+    #[test]
+    fn text_next_action_names_reapproval_when_the_approved_scope_changed() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = approved_change_fixture(root);
+        let state_path = root.join(".specsync/changes").join(&id).join("state.json");
+        let mut state: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+        state["affected_paths"]
+            .as_array_mut()
+            .expect("affected paths")
+            .push("docs/".into());
+        fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+        let record = change::load_change(root, &id).expect("load");
+        assert!(!change::summarize_change(root, &record).approval_valid);
+
+        for lifecycle in [
+            ChangeState::Approved,
+            ChangeState::Implementing,
+            ChangeState::Verifying,
+        ] {
+            let mut record = record.clone();
+            record.state = lifecycle;
+            assert_eq!(
+                text_mode_next_action(root, &record, &[]),
+                reapprove_action(&id),
+                "{lifecycle:?}"
+            );
+        }
+    }
+
+    /// CONTROL, passes on f240d37 too: a current approval, with or without a delta, still
+    /// sends text `Next:` to `change check`.
+    #[test]
+    fn text_next_action_names_check_for_a_current_approval() {
+        for fixture in [approved_change_fixture, approved_delta_change_fixture] {
+            let temp = TempDir::new().expect("temp project");
+            let root = temp.path();
+            let id = fixture(root);
+            let record = change::load_change(root, &id).expect("load");
+            assert_eq!(
+                text_mode_next_action(root, &record, &[]),
+                format!("run `specsync change check {id}`")
+            );
+        }
     }
 
     /// Untracked files nobody asked the lifecycle to commit, shaped like the ones `git add -A`

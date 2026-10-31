@@ -94,3 +94,13 @@ This goes in `tests/integration/change.rs`, through the built binary, following
 | REQ-cmd-change-005 | `text_next_action_names_reapproval_when_an_approved_delta_was_edited`, `text_next_action_names_reapproval_when_the_approved_scope_changed`, `text_next_action_names_check_for_a_current_approval`, and the text half of `status_json_and_text_report_an_edited_approved_delta`. Existing REQ-cmd-change-005 coverage keeps passing. |
 
 No result is claimed here. Observed results are recorded after the tests are written and run.
+
+## Observed results (2026-10-31)
+
+Labels were confirmed against an export of f240d37 with only the new tests applied (no fix):
+
+- Failed on f240d37, as labelled DISCRIMINATOR: `status_reports_an_edited_approved_delta_as_an_invalid_approval`, `status_reports_an_edited_approved_delta_while_implementing_and_verifying`, `handoff_summary_is_not_yet_for_an_edited_approved_delta`, `audit_reports_an_edited_approved_delta`, `status_reports_a_withdrawn_delta_binding_as_an_invalid_approval`, `text_next_action_names_reapproval_when_an_approved_delta_was_edited`, `text_next_action_names_reapproval_when_the_approved_scope_changed`, and the integration test `status_json_and_text_report_an_edited_approved_delta` (status reported `approval_valid: true`).
+- Passed on f240d37, as labelled CONTROL: `restoring_or_reapproving_an_edited_delta_restores_approval_validity`, `a_crlf_checkout_of_an_approved_delta_keeps_status_approval_valid`, `status_keeps_approval_valid_for_a_ledger_without_delta_digests`, `editing_the_plan_after_approval_keeps_approval_valid`, `changed_approved_deltas_is_omitted_when_empty`, `finalized_change_summary_keeps_its_approval_and_terminal_verdicts` and `text_next_action_names_check_for_a_current_approval`. The refactored `a_later_definition_approval_may_not_withdraw_a_recorded_delta_binding` also still passes there.
+- With the fix, all of them pass. The full `cargo test` run passes: 2,614 unit tests and 463 integration tests.
+
+Deviation: the integration fixture uses a `"version": 2` policy. Under a version-1 policy `change new` writes a workflow-v1 record, and the test then passed on f240d37 for the wrong reason. The appended requirement carries Acceptance Criteria so that `change check` refuses at the delta binding and not in `validate_definition`.

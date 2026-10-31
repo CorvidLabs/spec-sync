@@ -3189,7 +3189,7 @@ pub fn handoff_summary(root: &Path, record: &ChangeRecord) -> HandoffSummary {
                 signals.open_questions || validate_artifacts(root, record).is_ok();
         }
         ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {
-            signals.approval_valid = ensure_definition_approval_valid(root, record).is_ok();
+            signals.approval_valid = approval_currency(root, record).current;
             if signals.approval_valid {
                 signals.scoped_edits_uncommitted = scoped_edits_uncommitted(root, record);
             }
@@ -3410,7 +3410,13 @@ fn summarize_change_with_effective(
                 .collect()
         })
         .unwrap_or_default();
-    let approval_valid = ensure_definition_approval_valid(root, record).is_ok();
+    // The approval as the gates that consume it judge it: scope digest, and for an active change
+    // the delta bodies it recorded too (REQ-change-111). `next_action` and the handoff branch on
+    // this one value, so JSON next action, text next action and handoff cannot disagree.
+    let ApprovalCurrency {
+        current: approval_valid,
+        changed_approved_deltas,
+    } = approval_currency(root, record);
     let current_definition_digest = definition_digest(root, record).ok();
     let scope_expansion = if record.workflow_version >= 2 {
         load_approvals(root, record)
@@ -3632,6 +3638,7 @@ fn summarize_change_with_effective(
         approval_valid,
         definition_digest: current_definition_digest,
         scope_expansion,
+        changed_approved_deltas,
         artifacts_complete,
         correction_valid,
         correction_count: record.correction_count as usize,
@@ -3944,16 +3951,23 @@ fn check_project_with_command_output(
         if matches!(
             record.state,
             ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
-        ) && let Err(error) = ensure_definition_approval_valid(root, record)
-        {
-            report.errors.push(format!("{}: {error}", record.id));
-        }
-        if matches!(
-            record.state,
-            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
-        ) && let Err(error) = validate_delta_files(root, record)
-        {
-            report.errors.push(format!("{}: {error}", record.id));
+        ) {
+            let approval = ensure_definition_approval_valid(root, record);
+            if let Err(error) = &approval {
+                report.errors.push(format!("{}: {error}", record.id));
+            }
+            let delta_files = validate_delta_files(root, record);
+            if let Err(error) = &delta_files {
+                report.errors.push(format!("{}: {error}", record.id));
+            }
+            // The refusal `change check` gives for a delta body edited after approval
+            // (REQ-change-111), asked in its order: only once the scope and the delta files hold.
+            if approval.is_ok()
+                && delta_files.is_ok()
+                && let Err(error) = ensure_approved_delta_bodies_unchanged(root, record)
+            {
+                report.errors.push(format!("{}: {error}", record.id));
+            }
         }
         if let Err(error) = ensure_no_delta_conflicts(root, record) {
             report.errors.push(format!("{}: {error}", record.id));

@@ -425,6 +425,13 @@ evidence. `reopen` also repairs eligible workflow-v2 terminal evidence. Recovery
 already-canonical semantic delta rather than applying it again. `change adopt` enables
 SDD for an existing project and can import active/canonical OpenSpec or Spec Kit artifacts.
 
+`summary.approval_valid` is false whenever a gate that needs the approval would refuse it: the
+approved scope changed, or a semantic delta body was edited after the approval that recorded it.
+`summary.changed_approved_deltas` lists the edited modules and is omitted when empty. In both
+cases JSON and text `Next:` name `change approve`, the handoff is `not yet`, and `change audit`
+reports the refusal `change check` gives. Editing `plan.md` or another execution artifact after
+approval stales verification, not approval.
+
 Reviewer labels and stored provider declarations do not authenticate identity. Local finalization
 checks recorded content and history; authenticated provenance requires separately configured
 hosted checks and policy verification. The scope approver may perform the implementation review.

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "report-an-approval-as-invalid-in-change-status-when-an-approved-semantic-delta-body-is-edited",
+  "slug": "report-an-approval-as-invalid-in-change-status-when-an-approved-semantic-delta-body-is-edited",
+  "title": "Report an approval as invalid in change status when an approved semantic delta body is edited",
+  "description": "Report an approval as invalid in change status when an approved semantic delta body is edited",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "f240d379b9f023f5766e5c9b39508eb84e03e2bb",
+  "created_at": 1793481020,
+  "updated_at": 1793481119,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/collect_requirement_ids.rs",
+    "src/change/sdd_version.rs",
+    "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs",
+    "src/commands/change.rs",
+    "tests/integration/change.rs",
+    "site/src/content/docs/cli.md",
+    "specs/change",
+    "specs/cmd_change"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "After a workflow-v2 change is approved by a definition approval that recorded semantic delta digests, editing an approved delta body (committed or not) makes `specsync change status <id> --json` report `summary.approval_valid: false`, `summary.next_action` naming `specsync change approve <id> --actor <name>`, and `summary.handoff.readiness` `not-yet` in the approved, implementing and verifying states, the same verdict `specsync change check <id>` reaches when it refuses that delta.",
+    "That summary lists the edited modules, sorted, in a new `changed_approved_deltas` array that is omitted when empty, so no other status payload gains a key.",
+    "Text `specsync change status <id>` prints the same re-approval `Next:` action and a `not yet` `Handoff:` line, and `specsync change audit` reports the edited delta as an error for that active change. Text `Next:` names re-approval for every approved, implementing or verifying change whose approval is not current, including the existing stale-scope case.",
+    "Restoring the approved delta bytes, or re-approving, returns status to `approval_valid: true` and `run specsync change check <id>`. Re-encoding an unedited delta to CRLF does not invalidate the approval. A later definition approval that withdraws a recorded delta binding also reports `approval_valid: false`.",
+    "Unchanged: a ledger that never recorded delta digests (every pre-binding approval and every archive) keeps today's status; draft, accepted and archived summaries keep today's `approval_valid` and terminal-evidence verdicts; historical and archived validation, digests and persisted ledgers are not altered; editing `plan.md` or another artifact outside the approved scope keeps `approval_valid: true` and only stales execution evidence.",
+    "Regression tests fail on origin/main f240d37 and pass with the fix: a discriminator for each state above, labelled controls for every unchanged case, and an integration test that drives `change status --json` and text status through the built binary."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "specs/change/change.3md: an approval that recorded no delta digest is unknown rather than violated, and that absence is judged per ledger (REQ-change-089, REQ-change-090), so status reuses ensure_approved_delta_bodies_unchanged instead of reinterpreting history; ensure_definition_approval_valid also authenticates accepted and archived evidence and stays unchanged; the binding folds CRLF only; a bool predicate discards its reasons, so the edited module names are carried; every reader of the same predicate (JSON summary, handoff, text Next, audit) moves together. specs/cmd_change/cmd_change.3md: the command layer holds no lifecycle policy, text output prints no digest, and the Handoff line renders the domain verdict verbatim. REQ-change-109: no change source file exceeds 5,000 lines.",
+    "public_contract": "yes"
+  }
+}

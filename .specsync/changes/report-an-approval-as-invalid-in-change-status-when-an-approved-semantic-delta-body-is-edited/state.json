@@ -7,10 +7,11 @@
   "title": "Report an approval as invalid in change status when an approved semantic delta body is edited",
   "description": "Report an approval as invalid in change status when an approved semantic delta body is edited",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "f240d379b9f023f5766e5c9b39508eb84e03e2bb",
   "created_at": 1793481020,
-  "updated_at": 1793484649,
+  "updated_at": 1793487161,
   "affected_specs": [
     "change",
     "cmd_change"

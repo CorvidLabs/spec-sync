@@ -1,6 +1,6 @@
 ---
 id: let-an-opt-in-bounded-verification-ignored-paths-policy-list-keep-another-tool-s-record-directory-out-of-the
-state: implementing
+state: archived
 type: feature
 base_commit: a80748ff44ff42cd7578ac0f7cb8ba7e080ab183
 ---

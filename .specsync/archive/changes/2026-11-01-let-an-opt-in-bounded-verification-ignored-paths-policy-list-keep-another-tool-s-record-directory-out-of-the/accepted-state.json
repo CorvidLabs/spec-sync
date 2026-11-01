@@ -7,11 +7,11 @@
   "title": "Let an opt-in bounded verification_ignored_paths policy list keep another tool's record directory out of the verification project-input digest",
   "description": "Let an opt-in bounded verification_ignored_paths policy list keep another tool's record directory out of the verification project-input digest",
   "kind": "feature",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "a80748ff44ff42cd7578ac0f7cb8ba7e080ab183",
   "created_at": 1793496906,
-  "updated_at": 1793552347,
+  "updated_at": 1793552421,
   "affected_specs": [
     "change",
     "cmd_change"

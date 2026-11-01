@@ -115,6 +115,13 @@
         "change": "7350de1a4772462e7ccf9866143e3709916f9b9aa8910d124e359bcf4495cb08",
         "cmd_change": "1957e318955cabfea2ea6e037210e32b3d8881dd838a506f1282204c7c916535"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1793552421,
+      "digest": "12a8bcf02de1cf0d93293dddae52a450c724d20dff417dae91d31214707722bd",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

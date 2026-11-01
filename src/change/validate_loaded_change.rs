@@ -1139,17 +1139,21 @@ fn path_matches_scope(path: &str, scope: &str) -> bool {
             .is_some_and(|remainder| remainder.starts_with('/'))
 }
 
+/// SDD policy and configuration files that are always meaningful. One list, read by coverage
+/// (`is_protected_sdd_path`) and by the `verification_ignored_paths` overlap refusal, so the two
+/// cannot drift apart.
+const PROTECTED_SDD_PATHS: [&str; 7] = [
+    ".specsync/sdd.json",
+    ".specsync/config.toml",
+    ".specsync/config.json",
+    ".specsync/registry.toml",
+    "specsync-registry.toml",
+    ".specsync/version",
+    ".specsync/change-sequence.json",
+];
+
 fn is_protected_sdd_path(path: &str) -> bool {
-    matches!(
-        path,
-        ".specsync/sdd.json"
-            | ".specsync/config.toml"
-            | ".specsync/config.json"
-            | ".specsync/registry.toml"
-            | "specsync-registry.toml"
-            | ".specsync/version"
-            | ".specsync/change-sequence.json"
-    )
+    PROTECTED_SDD_PATHS.contains(&path)
 }
 
 fn portable_project_path(root: &Path, path: &Path) -> String {

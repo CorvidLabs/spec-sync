@@ -506,6 +506,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
                         let label = verified_id.as_deref().unwrap_or(display_id.as_str());
                         if record.passed {
                             println!("{} {} verified", "✓".green(), label);
+                            print_verification_ignored_lines(root);
                             if let Some(change_id) = &verified_id
                                 && let Ok(change_record) = change::load_change(root, change_id)
                             {
@@ -658,6 +659,7 @@ fn print_record(
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
             print_handoff_line(&change::handoff_summary(root, record));
+            print_verification_ignored_lines(root);
             print_change_text_answers(record);
             print_change_text_correction_counts(record);
             if include_questions && !questions.is_empty() {
@@ -740,6 +742,27 @@ fn print_mutation_record(
     Ok(())
 }
 
+/// The standing limit printed beside a non-empty `verification_ignored_paths` list.
+const VERIFICATION_IGNORED_NOTE: &str = "SpecSync cannot tell whether project tests or CI read files under these prefixes; edits there do not stale verification.";
+
+/// Text lines disclosing a non-empty `verification_ignored_paths` list; none when it is absent,
+/// empty or invalid (an invalid list is the next action instead). REQ-cmd-change-024.
+fn verification_ignored_lines(entries: &[String]) -> Vec<String> {
+    if entries.is_empty() {
+        return Vec::new();
+    }
+    vec![
+        format!("  Verification ignores: {}", entries.join(", ")),
+        format!("    note: {VERIFICATION_IGNORED_NOTE}"),
+    ]
+}
+
+fn print_verification_ignored_lines(root: &Path) {
+    for line in verification_ignored_lines(&change::verification_ignored_paths_for_display(root)) {
+        println!("{line}");
+    }
+}
+
 /// Print only non-sensitive identity fields for human text sinks.
 ///
 /// Digests / correction ledgers must not flow into `println!` (CodeQL
@@ -817,6 +840,15 @@ fn text_mode_next_action(
     questions: &[InterviewQuestion],
 ) -> String {
     let id = record.id.as_str();
+    // The same refusal every later verb would give, named before any state-local step
+    // (REQ-change-115). It carries entry paths and rule text only, never a digest.
+    if record.state != ChangeState::Archived
+        && let Some(error) = change::verification_ignored_paths_refusal(root, Some(record))
+    {
+        return format!(
+            "fix `.specsync/sdd.json` verification_ignored_paths ({error}), then run `specsync change status {id}`"
+        );
+    }
     match record.state {
         ChangeState::Draft if !questions.is_empty() => {
             let question = questions
@@ -930,6 +962,16 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
 
     let mut blockers = Vec::new();
     let mut warnings = Vec::new();
+    // Currency below is read through boolean helpers that turn the digest's refusal of an invalid
+    // `verification_ignored_paths` list into "stale". Name the entry instead (REQ-cmd-change-024).
+    let verification_ignored_refusal = (record.state != ChangeState::Archived)
+        .then(|| change::verification_ignored_paths_refusal(root, Some(record)))
+        .flatten();
+    if let Some(refusal) = &verification_ignored_refusal {
+        blockers.push(format!(
+            "{refusal}; fix `.specsync/sdd.json` before check, review or finalize"
+        ));
+    }
     if matches!(
         record.state,
         ChangeState::Verifying | ChangeState::Implementing | ChangeState::Approved
@@ -941,7 +983,9 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
                 "verification commit is not in this repository (orphaned by squash merge, rebase, amend, or force-push); re-run change check --commit"
                     .to_string(),
             );
-        } else if !change::recorded_verification_is_current(root, record) {
+        } else if verification_ignored_refusal.is_none()
+            && !change::recorded_verification_is_current(root, record)
+        {
             // #689: the question is whether the CONTENT still matches, not whether the recorded
             // commit is still reachable. A squash-merge guarantees it is not — and squash is the
             // only strategy this repository, and most repositories, permit. Blocking on
@@ -3871,6 +3915,60 @@ if the floor call is removed from this function"
         assert_eq!(report["stages"][0]["status"], "current", "{report}");
     }
 
+    /// DISCRIMINATOR (issue #825). An invalid `verification_ignored_paths` entry is a blocker
+    /// that names the entry and the rule, not "stale verification": ship-status reads currency
+    /// through a boolean helper that would otherwise hide the refusal. The list is written as raw
+    /// JSON so this test also runs against a binary that does not know the key.
+    /// Verifies REQ-cmd-change-024.
+    #[test]
+    fn ship_status_blocks_on_an_invalid_verification_ignored_paths_entry() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        git_project_fixture(root);
+        let id = reviewed_change_fixture(root);
+        let policy_path = root.join(".specsync/sdd.json");
+        let mut policy: serde_json::Value =
+            serde_json::from_slice(&fs::read(&policy_path).unwrap()).unwrap();
+        policy["verification_ignored_paths"] = serde_json::json!(["src/"]);
+        fs::write(&policy_path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+        let blockers: Vec<&str> = report["blockers"]
+            .as_array()
+            .map(|values| values.iter().filter_map(|value| value.as_str()).collect())
+            .unwrap_or_default();
+        assert!(
+            blockers.iter().any(|blocker| {
+                blocker.contains("verification_ignored_paths")
+                    && blocker.contains("`src/`")
+                    && blocker.contains("source_dirs")
+            }),
+            "{blockers:?}"
+        );
+        assert!(
+            !blockers.iter().any(|blocker| blocker.contains("stale")),
+            "the entry is the blocker, not stale verification: {blockers:?}"
+        );
+        assert_eq!(report["ready_to_finalize"], false);
+    }
+
+    /// DISCRIMINATOR for the non-empty case, CONTROL for the empty one (NEW API: the helper does
+    /// not exist on a80748ff; the integration test asserts the same lines through the binary).
+    /// Verifies REQ-cmd-change-024.
+    #[test]
+    fn status_and_check_text_render_the_list_only_when_non_empty() {
+        assert!(verification_ignored_lines(&[]).is_empty());
+        assert_eq!(
+            verification_ignored_lines(&[".chough/".to_string(), ".tool/".to_string()]),
+            vec![
+                "  Verification ignores: .chough/, .tool/".to_string(),
+                format!("    note: {VERIFICATION_IGNORED_NOTE}"),
+            ]
+        );
+        assert!(VERIFICATION_IGNORED_NOTE.contains("cannot tell whether project tests or CI"));
+    }
+
     /// The ship lane may narrow the next action; it may never contradict the
     /// lifecycle state (#534). At draft the lane wanted `change check --commit`
     /// while the change was still in its interview, so obeying the printed line
@@ -4261,6 +4359,9 @@ fn run_checked_commit(
         say("Pushed.");
     }
     say("Verified, committed, and consistent with the committed tree.");
+    if !quiet {
+        print_verification_ignored_lines(root);
+    }
     Ok(())
 }
 

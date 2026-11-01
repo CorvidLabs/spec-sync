@@ -89,7 +89,9 @@ approved scope needs a new change.
 terminal evidence — archives are history. Use `change audit` for project health over **active**
 workspaces and living specs. CI owns `cargo test` / `swift test` / `bun test`. Explicit `--strict`, project policy, and deterministic release/security classification add
 validators to the same scoped evidence path. Source, test, configuration, or contract edits stale
-verification; implementation edits after scoped review stale the review. `change status` prints the
+verification; implementation edits after scoped review stale the review. Files under a
+`verification_ignored_paths` directory are the exception: `change status` and `change check` name
+them under "Verification ignores" (see the SDD policy in the configuration guide). `change status` prints the
 exact `change review` command when this human implementation review is the next required action; `change
 review` records the completed review and does not replace the repository's ordinary PR review.
 

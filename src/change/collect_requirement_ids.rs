@@ -3533,11 +3533,20 @@ fn project_input_digest(root: &Path) -> Result<String, String> {
 }
 
 fn project_input_digest_uncached(root: &Path) -> Result<String, String> {
+    // An invalid `verification_ignored_paths` list is an invalid policy, and every caller that
+    // propagates this error refuses (REQ-change-115). With the list absent or empty, discovery,
+    // frames and domain are exactly as before, so the digest is byte-identical (REQ-change-114).
+    let ignored = validated_verification_ignored_paths(root)?;
     // Name clean Git files by object id. The digest still changes when the
     // blob changes, and the payload bound applies only to bytes actually read
     // (dirty files and repositories that are not Git).
-    let (paths, evidence) = stable_discovered_evidence(root, None, &BTreeSet::new(), false, true)?;
+    let (paths, evidence) = if ignored.is_empty() {
+        stable_discovered_evidence(root, None, &BTreeSet::new(), false, true)?
+    } else {
+        stable_discovered_evidence_excluding(root, &ignored)?
+    };
     let mut digest = FramedDigest::new(PROJECT_DIGEST_DOMAIN);
+    frame_verification_ignored_paths(&mut digest, &ignored);
     for relative in paths {
         if project_input_is_volatile(&relative) {
             continue;
@@ -3562,7 +3571,17 @@ fn project_input_digest_uncached(root: &Path) -> Result<String, String> {
     Ok(digest.finish())
 }
 
+#[cfg(test)]
 fn git_project_paths(root: &Path) -> Result<Option<Vec<String>>, String> {
+    git_project_paths_excluding(root, &[])
+}
+
+/// `git_project_paths` without the paths under `excluded` validated prefixes. They are dropped
+/// before the inventory bound is counted, so another tool's records never count toward it.
+fn git_project_paths_excluding(
+    root: &Path,
+    excluded: &[String],
+) -> Result<Option<Vec<String>>, String> {
     if !git_repository_present(root)? {
         return Ok(None);
     }
@@ -3584,7 +3603,8 @@ fn git_project_paths(root: &Path) -> Result<Option<Vec<String>>, String> {
         .split(|byte| *byte == 0)
         .filter(|path| !path.is_empty())
     {
-        if git_path_bytes_are_volatile(path) {
+        if git_path_bytes_are_volatile(path) || git_path_bytes_are_verification_ignored(path, excluded)
+        {
             continue;
         }
         if paths.len() >= MAX_GIT_EVIDENCE_PATHS || path.len() > 4096 {
@@ -3707,7 +3727,15 @@ fn acceptance_discovery_scopes(
     Ok(scopes)
 }
 
+#[cfg(test)]
 fn strict_walk_project_paths(root: &Path) -> Result<Vec<String>, String> {
+    strict_walk_project_paths_excluding(root, &[])
+}
+
+fn strict_walk_project_paths_excluding(
+    root: &Path,
+    excluded: &[String],
+) -> Result<Vec<String>, String> {
     let mut prior = None;
     for attempt in 0..2 {
         let mut paths = Vec::new();
@@ -3717,7 +3745,13 @@ fn strict_walk_project_paths(root: &Path) -> Result<Vec<String>, String> {
             .into_iter()
             .filter_entry(|entry| {
                 let relative = portable_project_path(root, entry.path());
-                relative.is_empty() || !project_input_is_volatile(&relative)
+                // A listed prefix is never descended into, so a tool writing there cannot trip
+                // the stability retry below. A file named like an entry without its slash still
+                // matches nothing, because only a directory's descendants carry the slash.
+                relative.is_empty()
+                    || !(project_input_is_volatile(&relative)
+                        || (entry.file_type().is_dir()
+                            && path_is_verification_ignored(&format!("{relative}/"), excluded)))
             });
         for entry in entries {
             let entry =
@@ -3829,11 +3863,40 @@ fn stable_discovered_evidence(
     regular_files_only: bool,
     identify_clean_blobs: bool,
 ) -> Result<(Vec<String>, GitEvidence), String> {
+    stable_discovered_evidence_cached(
+        root,
+        scopes,
+        extra_candidates,
+        regular_files_only,
+        identify_clean_blobs,
+        &[],
+    )
+}
+
+/// Whole-project discovery for the project-input digest with a validated, non-empty
+/// `verification_ignored_paths` list: paths under a listed prefix are left out before capture,
+/// so they are never read and never count toward the payload bound.
+fn stable_discovered_evidence_excluding(
+    root: &Path,
+    excluded: &[String],
+) -> Result<(Vec<String>, GitEvidence), String> {
+    stable_discovered_evidence_cached(root, None, &BTreeSet::new(), false, true, excluded)
+}
+
+fn stable_discovered_evidence_cached(
+    root: &Path,
+    scopes: Option<&BTreeSet<String>>,
+    extra_candidates: &BTreeSet<String>,
+    regular_files_only: bool,
+    identify_clean_blobs: bool,
+    excluded: &[String],
+) -> Result<(Vec<String>, GitEvidence), String> {
     let key = DiscoveredEvidenceCacheKey {
         scopes: scopes.map(|values| values.iter().cloned().collect()),
         extra_candidates: extra_candidates.iter().cloned().collect(),
         regular_files_only,
         identify_clean_blobs,
+        excluded_prefixes: excluded.to_vec(),
     };
     if let Some(evidence) =
         read_scope_value(root, |scope| scope.discovered_evidence.get(&key).cloned())
@@ -3846,6 +3909,7 @@ fn stable_discovered_evidence(
         extra_candidates,
         regular_files_only,
         identify_clean_blobs,
+        excluded,
         |_, _| {},
     );
     update_read_scope(root, |scope| {
@@ -3874,6 +3938,7 @@ where
         extra_candidates,
         regular_files_only,
         identify_clean_blobs,
+        &[],
         hook,
     )
 }
@@ -3884,6 +3949,7 @@ fn stable_discovered_evidence_with_hook_internal<Hook>(
     extra_candidates: &BTreeSet<String>,
     regular_files_only: bool,
     identify_clean_blobs: bool,
+    excluded: &[String],
     mut hook: Hook,
 ) -> Result<(Vec<String>, GitEvidence), String>
 where
@@ -3928,15 +3994,16 @@ where
                     Some(paths) => Ok(paths),
                     None => strict_walk_scoped_project_paths(root, scopes),
                 },
-                None => match git_project_paths(root)? {
+                None => match git_project_paths_excluding(root, excluded)? {
                     Some(paths) => Ok(paths),
-                    None => strict_walk_project_paths(root),
+                    None => strict_walk_project_paths_excluding(root, excluded),
                 },
             }
         };
         let mut before_paths = discover()?;
         before_paths.retain(|path| {
-            !project_input_is_volatile(path) || explicitly_scoped_path(scopes, path)
+            (!project_input_is_volatile(path) || explicitly_scoped_path(scopes, path))
+                && !path_is_verification_ignored(path, excluded)
         });
         before_paths.extend(extra_candidates.iter().cloned());
         before_paths.sort();
@@ -3947,7 +4014,8 @@ where
 
         let mut after_paths = discover()?;
         after_paths.retain(|path| {
-            !project_input_is_volatile(path) || explicitly_scoped_path(scopes, path)
+            (!project_input_is_volatile(path) || explicitly_scoped_path(scopes, path))
+                && !path_is_verification_ignored(path, excluded)
         });
         after_paths.extend(extra_candidates.iter().cloned());
         after_paths.sort();

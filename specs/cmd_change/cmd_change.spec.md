@@ -1,6 +1,6 @@
 ---
 module: cmd_change
-version: 52
+version: 53
 status: active
 files:
   - src/commands/change.rs
@@ -35,6 +35,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 11. Existing-change mutations delegate to domain transactions that validate correction-ledger
     integrity after acquiring the persistence lock and render from the returned validated snapshot,
     so neither rendering failure nor a lock-wait race can conceal a mutation that already took effect.
+12. Status and check render a non-empty `verification_ignored_paths` list in text and status JSON with the standing note that SpecSync cannot tell whether project tests or CI read those files, render nothing extra when the list is absent or empty, and ship-status names an invalid entry as a blocker.
 
 ## Public API
 
@@ -181,3 +182,4 @@ Implementation SHALL add `specs/cli_args/cli_args.spec.md` to `depends_on`. Rust
 | 2026-11-01 | v50: archive-first CI. `ship-status` queries check-runs for HEAD first, and its trust guidance and stage copy say to verify and review locally, ship, then push the archive tip, instead of waiting on a product-tip run that review/archive tips reuse (REQ-cmd-change-007, REQ-cmd-change-019) |
 | 2026-11-01 | run-the-archive-gate-before-every-ci-job-so-nothing-runs-or-merges-until-every-change-is-archived: Run the archive gate before every CI job so nothing runs or merges until every change is archived |
 | 2026-11-01 | report-the-requirement-ids-an-approved-semantic-delta-declares-per-module-in-change-status-and-show-json: Report the requirement IDs an approved semantic delta declares, per module, in change status and show JSON |
+| 2026-11-01 | let-an-opt-in-bounded-verification-ignored-paths-policy-list-keep-another-tool-s-record-directory-out-of-the: Let an opt-in bounded verification_ignored_paths policy list keep another tool's record directory out of the verification project-input digest |

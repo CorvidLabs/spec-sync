@@ -382,6 +382,16 @@ Acceptance Criteria
 - The next action says to push the archive before merging.
 - The command does not merge the pull request.
 
+### REQ-cmd-change-024
+
+`change status` and `change check` SHALL disclose a non-empty `verification_ignored_paths` list in text and status JSON, together with the limit that SpecSync cannot tell whether project tests or CI read files under those prefixes, and `change ship-status` SHALL name an invalid entry as a blocker.
+
+Acceptance Criteria
+- `change status --json` carries `summary.verification_ignored_paths` when the list is non-empty and omits it otherwise.
+- `change ship-status` lists an invalid `verification_ignored_paths` entry as a blocker that names the entry and the rule, not as stale verification.
+- Text status and check print `Verification ignores: <entries>` and the standing note only when the list is non-empty.
+- With the list absent or empty, text and JSON output are unchanged.
+
 ### REQ-cmd-change-023
 
 Every change JSON output that renders a single change record SHALL carry the domain's per-module approved delta declarations under a top-level `approved_deltas` array, rendered verbatim from `change::approved_delta_summaries`, and text output SHALL NOT change.

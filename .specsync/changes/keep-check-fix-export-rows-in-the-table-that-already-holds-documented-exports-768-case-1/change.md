@@ -1,6 +1,6 @@
 ---
 id: keep-check-fix-export-rows-in-the-table-that-already-holds-documented-exports-768-case-1
-state: draft
+state: approved
 type: bug_fix
 base_commit: 709ab2bd030540dcc03912449d176ec146ce1170
 ---

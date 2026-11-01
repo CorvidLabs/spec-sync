@@ -7,10 +7,10 @@
   "title": "Keep check --fix export rows in the table that already holds documented exports (#768 case 1)",
   "description": "Keep check --fix export rows in the table that already holds documented exports (#768 case 1)",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "709ab2bd030540dcc03912449d176ec146ce1170",
   "created_at": 1793553890,
-  "updated_at": 1793554056,
+  "updated_at": 1793554268,
   "affected_specs": [
     "cmd_check"
   ],
